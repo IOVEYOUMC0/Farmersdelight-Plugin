@@ -1,0 +1,34 @@
+{
+  "parent": "farmersdelight:main/get_fd_seed",
+  "criteria": {
+    "hit_raider_with_rotten_tomato": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": true,
+    "description": {
+      "translate": "farmersdelight.advancement.hit_raider_with_rotten_tomato.desc"
+    },
+    "frame": "task",
+    "hidden": false,
+    "icon": {
+      "id": "minecraft:red_dye",
+      "components": {
+        "minecraft:custom_data": {
+          "craftengine:id": "farmersdelight:rotten_tomato"
+        }
+      }
+    },
+    "show_toast": true,
+    "title": {
+      "translate": "farmersdelight.advancement.hit_raider_with_rotten_tomato"
+    }
+  },
+  "requirements": [
+    [
+      "hit_raider_with_rotten_tomato"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

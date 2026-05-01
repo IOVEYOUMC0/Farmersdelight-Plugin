@@ -1,0 +1,34 @@
+{
+  "parent": "farmersdelight:main/place_cooking_pot",
+  "criteria": {
+    "comfort": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": true,
+    "description": {
+      "translate": "farmersdelight.advancement.eat_comfort_food.desc"
+    },
+    "frame": "goal",
+    "hidden": false,
+    "icon": {
+      "id": "minecraft:mushroom_stew",
+      "components": {
+        "minecraft:custom_data": {
+          "craftengine:id": "farmersdelight:vegetable_soup"
+        }
+      }
+    },
+    "show_toast": true,
+    "title": {
+      "translate": "farmersdelight.advancement.eat_comfort_food"
+    }
+  },
+  "requirements": [
+    [
+      "comfort"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

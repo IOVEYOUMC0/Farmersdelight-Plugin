@@ -1,0 +1,50 @@
+name: FarmersDelight
+version: ${version}
+main: fr.ateastudio.farmersdelight.FarmersDelightPlugin
+api-version: '1.21'
+depend:
+  - CraftEngine
+softdepend:
+  - ProtocolLib
+authors:
+  - HuiDu_OwO
+description: Farmer's Delight addon for CraftEngine
+commands:
+  farmersdelight:
+    description: Main FarmersDelight command
+    usage: /<command> [recipe|reload|help]
+    aliases: [fd]
+    permission: farmersdelight.command
+permissions:
+  farmersdelight.command:
+    description: Allows using the main command
+    default: true
+  farmersdelight.command.recipe:
+    description: Allows viewing recipes
+    default: true
+  farmersdelight.use.cooking_pot:
+    description: Allows using the cooking pot
+    default: true
+  farmersdelight.use.stove:
+    description: Allows using the stove
+    default: true
+  farmersdelight.use.skillet:
+    description: Allows using the skillet
+    default: true
+  farmersdelight.use.cutting_board:
+    description: Allows using the cutting board
+    default: true
+  farmersdelight.admin:
+    description: Administrative permission
+    default: op
+  farmersdelight.*:
+    description: All FarmersDelight permissions
+    default: op
+    children:
+      farmersdelight.command: true
+      farmersdelight.command.recipe: true
+      farmersdelight.use.cooking_pot: true
+      farmersdelight.use.stove: true
+      farmersdelight.use.skillet: true
+      farmersdelight.use.cutting_board: true
+      farmersdelight.admin: true

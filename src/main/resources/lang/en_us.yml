@@ -1,0 +1,62 @@
+messages:
+  cutting_board:
+    no_recipe: "&cThat item has no valid cutting board recipe."
+    need_tool: "&cYou need the correct tool for this item."
+crop:
+  need_water: "&cRice must be planted in water."
+  invalid_soil: "&cThis crop needs suitable soil."
+general:
+  no_permission: "&cYou don't have permission to do that."
+  config_reloaded: "&aConfiguration reloaded."
+  hot_reload_warning: "&eOnly FarmersDelight configs were reloaded. Do not hot-reload CraftEngine or this plugin with Bukkit / PlugMan; restart the server after jar or resource changes."
+gui:
+  recipe:
+    title: "&8Recipe Viewer"
+    cooking_pot: "&6Cooking Pot Recipes"
+    cooking_pot_title: "&8Cooking Pot Recipes"
+    cooking_pot_lore: "&7Click to view cooking pot recipes"
+    cutting_board: "&eCutting Board Recipes"
+    cutting_board_title: "&8Cutting Board Recipes"
+    cutting_board_lore: "&7Click to view cutting board recipes"
+    close: "&cClose"
+    back: "&7Back"
+    prev_page: "&aPrevious Page"
+    next_page: "&aNext Page"
+    page: "Page: {page}/{total}"
+    result: "Result"
+    input: "Input"
+    ingredient: "Ingredient"
+    ingredients: "Ingredients"
+    container: "Container"
+    tool: "Tool"
+    results: "Results"
+    experience: "Experience"
+    cook_time: "Cook Time"
+    seconds_suffix: "s"
+    chance: "&7Chance: &e{value}%"
+    click_to_view: "Click to view details"
+    detail_title: "&8Recipe Details"
+    auto_cycle: "&7Showing {current}/{total}, auto cycling"
+    any_of: "Any of"
+    tag: "Tag"
+    matches: "Matching Items"
+    more_items: "&7and {count} more"
+    no_matching_items: "No matching items found"
+    unknown: "Unknown"
+  packed_pot:
+    contains: "Contains {amount} serving(s) of {item}"
+command:
+  player_only: "&cThis command can only be used by a player."
+  help_title: "<gradient:gold:yellow>=== FarmersDelight ===</gradient>"
+  help_recipe: "Open the recipe viewer"
+  help_reload: "Reload the configuration"
+  help_help: "Show help information"
+effects:
+  comfort:
+    start: "&6A comforting meal leaves you feeling warm for {time}."
+    fade: "&eThe comforting feeling is beginning to fade. {seconds}s remaining."
+    end: "&7The comforting feeling has worn off."
+  nourishment:
+    start: "&6A hearty meal keeps hunger away for {time}."
+    fade: "&eYour fullness is gradually fading. {seconds}s remaining."
+    end: "&7You feel hunger returning."

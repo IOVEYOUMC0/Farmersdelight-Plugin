@@ -1,0 +1,62 @@
+messages:
+  cutting_board:
+    no_recipe: "&c这个物品没有可用的砧板配方。"
+    need_tool: "&c你需要正确的工具来处理这个物品。"
+crop:
+  invalid_soil: "&c该作物貌似需要种在指定方块上..."
+  need_water: "&c该作物貌似需要种在水中..."
+general:
+  no_permission: "&c你没有权限这样做。"
+  config_reloaded: "&a配置已重新加载。"
+  hot_reload_warning: "&e注意：只重载了 FarmersDelight 配置。不要用 Bukkit / PlugMan 热重载 CraftEngine 或本插件；jar 或资源改动后请完整重启服务器。"
+gui:
+  recipe:
+    title: "&8配方查看"
+    cooking_pot: "&6烹饪锅配方"
+    cooking_pot_title: "&8烹饪锅配方"
+    cooking_pot_lore: "&7点击查看烹饪锅配方"
+    cutting_board: "&e砧板配方"
+    cutting_board_title: "&8砧板配方"
+    cutting_board_lore: "&7点击查看砧板配方"
+    close: "&c关闭"
+    back: "&7返回"
+    prev_page: "&a上一页"
+    next_page: "&a下一页"
+    page: "页数：{page}/{total}"
+    result: "成品"
+    input: "输入"
+    ingredient: "材料"
+    ingredients: "配料"
+    container: "容器"
+    tool: "工具"
+    results: "产物"
+    experience: "经验"
+    cook_time: "烹饪时间"
+    seconds_suffix: "秒"
+    chance: "&7概率：&e{value}%"
+    click_to_view: "点击查看详情"
+    detail_title: "&8配方详情"
+    auto_cycle: "&7当前 {current}/{total}，自动切换中"
+    any_of: "以下任意一种"
+    tag: "标签"
+    matches: "可用材料"
+    more_items: "&7以及另外 {count} 个"
+    no_matching_items: "没有找到匹配物品"
+    unknown: "未知"
+  packed_pot:
+    contains: "包含 {amount} 份 {item}"
+command:
+  player_only: "&c这个命令只能由玩家执行。"
+  help_title: "<gradient:gold:yellow>=== FarmersDelight ===</gradient>"
+  help_recipe: "打开配方查看界面"
+  help_reload: "重新加载配置"
+  help_help: "显示帮助信息"
+effects:
+  comfort:
+    start: "&6舒适的料理让你感到温暖，效果将持续 {time}"
+    fade: "&e舒适感正在慢慢消散，剩余 {seconds} 秒"
+    end: "&7舒适感消失了"
+  nourishment:
+    start: "&6丰富的料理让你暂时不会感到饥饿，效果将持续 {time}"
+    fade: "&e饱腹感正在逐渐消退，剩余 {seconds} 秒"
+    end: "&7你再次感到了饥饿"

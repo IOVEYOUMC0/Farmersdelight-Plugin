@@ -1,0 +1,60 @@
+{
+  "parent": "farmersdelight:main/craft_knife",
+  "criteria": {
+    "ham": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "components": {
+              "minecraft:custom_data": {
+                "craftengine:id": "farmersdelight:ham"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "smoked_ham": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "components": {
+              "minecraft:custom_data": {
+                "craftengine:id": "farmersdelight:smoked_ham"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "display": {
+    "announce_to_chat": true,
+    "description": {
+      "translate": "farmersdelight.advancement.get_ham.desc"
+    },
+    "frame": "task",
+    "hidden": false,
+    "icon": {
+      "id": "minecraft:cooked_beef",
+      "components": {
+        "minecraft:custom_data": {
+          "craftengine:id": "farmersdelight:ham"
+        }
+      }
+    },
+    "show_toast": true,
+    "title": {
+      "translate": "farmersdelight.advancement.get_ham"
+    }
+  },
+  "requirements": [
+    [
+      "ham",
+      "smoked_ham"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

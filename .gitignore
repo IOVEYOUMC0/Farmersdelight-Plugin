@@ -1,0 +1,12 @@
+
+.gradle/
+.gradle-user-home/
+build/
+out/
+*.class
+
+.idea/
+*.iml
+.vscode/
+
+local.properties

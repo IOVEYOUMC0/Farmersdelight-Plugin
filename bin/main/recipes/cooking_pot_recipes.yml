@@ -1,0 +1,349 @@
+# ========================================
+# Cooking pot recipe configuration
+# ========================================
+#
+# Format:
+#   <recipe_id>:
+#     ingredients:           # Ingredient list, up to 6 entries
+#       - <item_id_or_tag>   # Use a leading # for tags
+#                            # Tag exclusions: "#namespace:tag,!namespace:item,!#namespace:other_tag"
+#                            # Alternatives in one slot: "item_a|item_b|#namespace:tag"
+#     container: <item_id>   # Optional, such as bowl or glass bottle
+#     result: <item_id>
+#     result-count: <count>  # Optional, defaults to 1
+#     experience: <number>   # Optional, defaults to 0
+#     cook-time: <ticks>     # Optional, defaults to 200
+#     category: <type>       # Optional: meals, drinks, misc
+
+cooking_pot_recipes:
+  # ========================================
+  # Main dishes
+  # ========================================
+  
+  beef_stew:
+    ingredients:
+      - "minecraft:beef|farmersdelight:minced_beef"
+      - "minecraft:carrot"
+      - "minecraft:potato"
+    container: "minecraft:bowl"
+    result: "farmersdelight:beef_stew"
+    experience: 1.0
+    cook-time: 200
+    category: meals
+  
+  vegetable_soup:
+    ingredients:
+      - "minecraft:carrot"
+      - "minecraft:potato"
+      - "minecraft:beetroot"
+      - "farmersdelight:cabbage|farmersdelight:cabbage_leaf"
+    container: "minecraft:bowl"
+    result: "farmersdelight:vegetable_soup"
+    experience: 1.0
+    cook-time: 200
+    category: meals
+  
+  chicken_soup:
+    ingredients:
+      - "minecraft:chicken|farmersdelight:chicken_cuts"
+      - "minecraft:carrot"
+      - "farmersdelight:cabbage|farmersdelight:cabbage_leaf"
+      - "minecraft:beetroot|minecraft:carrot|farmersdelight:onion|minecraft:potato|farmersdelight:tomato"
+    container: "minecraft:bowl"
+    result: "farmersdelight:chicken_soup"
+    experience: 1.0
+    cook-time: 200
+    category: meals
+  
+  fish_stew:
+    ingredients:
+      - "minecraft:cod|minecraft:salmon|minecraft:tropical_fish"
+      - "farmersdelight:tomato_sauce"
+      - "farmersdelight:onion"
+    container: "minecraft:bowl"
+    result: "farmersdelight:fish_stew"
+    experience: 1.0
+    cook-time: 200
+    category: meals
+  
+  baked_cod_stew:
+    ingredients:
+      - "minecraft:cod"
+      - "minecraft:potato"
+      - "minecraft:egg"
+      - "farmersdelight:tomato"
+    container: "minecraft:bowl"
+    result: "farmersdelight:baked_cod_stew"
+    experience: 1.0
+    cook-time: 200
+    category: meals
+  
+  pumpkin_soup:
+    ingredients:
+      - "farmersdelight:pumpkin_slice"
+      - "farmersdelight:cabbage|farmersdelight:cabbage_leaf"
+      - "minecraft:porkchop|farmersdelight:bacon"
+      - "minecraft:milk_bucket|farmersdelight:milk_bottle"
+    container: "minecraft:bowl"
+    result: "farmersdelight:pumpkin_soup"
+    experience: 1.0
+    cook-time: 200
+    category: meals
+  
+  beetroot_soup:
+    ingredients:
+      - "minecraft:beetroot"
+      - "minecraft:beetroot"
+      - "minecraft:beetroot"
+      - "minecraft:beetroot"
+    container: "minecraft:bowl"
+    result: "minecraft:beetroot_soup"
+    experience: 0.7
+    cook-time: 200
+    category: meals
+  
+  mushroom_stew:
+    ingredients:
+      - "#minecraft:mushrooms"
+      - "#minecraft:mushrooms"
+    container: "minecraft:bowl"
+    result: "minecraft:mushroom_stew"
+    experience: 0.7
+    cook-time: 200
+    category: meals
+  
+  rabbit_stew:
+    ingredients:
+      - "minecraft:rabbit"
+      - "minecraft:carrot"
+      - "minecraft:potato"
+      - "minecraft:brown_mushroom"
+    container: "minecraft:bowl"
+    result: "minecraft:rabbit_stew"
+    experience: 1.0
+    cook-time: 200
+    category: meals
+  
+  bone_broth:
+    ingredients:
+      - "#minecraft:bones"
+      - "minecraft:glow_berries|minecraft:brown_mushroom|minecraft:red_mushroom|minecraft:hanging_roots|minecraft:glow_lichen"
+    container: "minecraft:bowl"
+    result: "farmersdelight:bone_broth"
+    experience: 0.35
+    cook-time: 200
+    category: meals
+  
+  # ========================================
+  # Rice dishes
+  # ========================================
+  
+  cooked_rice:
+    ingredients:
+      - "farmersdelight:rice"
+    container: "minecraft:bowl"
+    result: "farmersdelight:cooked_rice"
+    experience: 0.35
+    cook-time: 100
+    category: misc
+  
+  mushroom_rice:
+    ingredients:
+      - "minecraft:brown_mushroom"
+      - "minecraft:red_mushroom"
+      - "farmersdelight:rice"
+      - "minecraft:carrot|minecraft:potato"
+    container: "minecraft:bowl"
+    result: "farmersdelight:mushroom_rice"
+    experience: 1.0
+    cook-time: 200
+    category: meals
+  
+  fried_rice:
+    ingredients:
+      - "farmersdelight:rice"
+      - "minecraft:egg"
+      - "minecraft:carrot"
+      - "farmersdelight:onion"
+    container: "minecraft:bowl"
+    result: "farmersdelight:fried_rice"
+    experience: 1.0
+    cook-time: 200
+    category: meals
+  
+  # ========================================
+  # Noodles and pasta
+  # ========================================
+  
+  vegetable_noodles:
+    ingredients:
+      - "minecraft:carrot"
+      - "minecraft:brown_mushroom"
+      - "farmersdelight:raw_pasta"
+      - "farmersdelight:cabbage"
+      - "minecraft:beetroot|minecraft:carrot|farmersdelight:onion|minecraft:potato|farmersdelight:tomato"
+    container: "minecraft:bowl"
+    result: "farmersdelight:vegetable_noodles"
+    experience: 1.0
+    cook-time: 200
+    category: meals
+  
+  pasta_with_meatballs:
+    ingredients:
+      - "farmersdelight:raw_pasta"
+      - "farmersdelight:minced_beef"
+      - "farmersdelight:tomato_sauce"
+    container: "minecraft:bowl"
+    result: "farmersdelight:pasta_with_meatballs"
+    experience: 1.0
+    cook-time: 200
+    category: meals
+  
+  pasta_with_mutton_chop:
+    ingredients:
+      - "farmersdelight:raw_pasta"
+      - "minecraft:mutton|farmersdelight:mutton_chops"
+      - "farmersdelight:tomato_sauce"
+    container: "minecraft:bowl"
+    result: "farmersdelight:pasta_with_mutton_chop"
+    experience: 1.0
+    cook-time: 200
+    category: meals
+  
+  squid_ink_pasta:
+    ingredients:
+      - "minecraft:cod|minecraft:salmon|minecraft:tropical_fish"
+      - "farmersdelight:raw_pasta"
+      - "farmersdelight:tomato"
+      - "minecraft:ink_sac"
+    container: "minecraft:bowl"
+    result: "farmersdelight:squid_ink_pasta"
+    experience: 1.0
+    cook-time: 200
+    category: meals
+  
+  noodle_soup:
+    ingredients:
+      - "farmersdelight:raw_pasta"
+      - "farmersdelight:fried_egg"
+      - "minecraft:dried_kelp"
+      - "minecraft:porkchop|farmersdelight:bacon"
+    container: "minecraft:bowl"
+    result: "farmersdelight:noodle_soup"
+    experience: 0.7
+    cook-time: 200
+    category: meals
+  
+  # ========================================
+  # Sauces
+  # ========================================
+  
+  tomato_sauce:
+    ingredients:
+      - "farmersdelight:tomato"
+      - "farmersdelight:tomato"
+    result: "farmersdelight:tomato_sauce"
+    experience: 0.35
+    cook-time: 100
+    category: misc
+  
+  # ========================================
+  # Drinks
+  # ========================================
+  
+  hot_cocoa:
+    ingredients:
+      - "minecraft:milk_bucket|farmersdelight:milk_bottle"
+      - "minecraft:sugar"
+      - "minecraft:cocoa_beans"
+      - "minecraft:cocoa_beans"
+    container: "minecraft:glass_bottle"
+    result: "farmersdelight:hot_cocoa"
+    experience: 1.0
+    cook-time: 200
+    category: drinks
+  
+  apple_cider:
+    ingredients:
+      - "minecraft:apple"
+      - "minecraft:apple"
+      - "minecraft:sugar"
+    container: "minecraft:glass_bottle"
+    result: "farmersdelight:apple_cider"
+    experience: 0.7
+    cook-time: 200
+    category: drinks
+  
+  glow_berry_custard:
+    ingredients:
+      - "minecraft:milk_bucket|farmersdelight:milk_bottle"
+      - "minecraft:glow_berries"
+      - "minecraft:egg"
+      - "minecraft:sugar"
+    container: "minecraft:glass_bottle"
+    result: "farmersdelight:glow_berry_custard"
+    experience: 1.0
+    cook-time: 200
+    category: drinks
+  
+  # ========================================
+  # Other
+  # ========================================
+  
+  dumplings:
+    ingredients:
+      - "farmersdelight:wheat_dough"
+      - "farmersdelight:cabbage"
+      - "farmersdelight:onion"
+      - "minecraft:chicken|minecraft:porkchop|minecraft:beef|minecraft:brown_mushroom"
+    result: "farmersdelight:dumplings"
+    result-count: 2
+    experience: 1.0
+    cook-time: 200
+    category: misc
+  
+  cabbage_rolls:
+    ingredients:
+      - "farmersdelight:cabbage"
+      - "#minecraft:meat,!minecraft:rotten_flesh|#minecraft:fishes|minecraft:egg|#minecraft:mushrooms|minecraft:carrot|minecraft:potato|minecraft:beetroot"
+    result: "farmersdelight:cabbage_rolls"
+    experience: 0.35
+    cook-time: 100
+    category: misc
+  
+  ratatouille:
+    ingredients:
+      - "farmersdelight:tomato"
+      - "farmersdelight:onion"
+      - "minecraft:beetroot"
+      - "minecraft:beetroot|minecraft:carrot|farmersdelight:onion|minecraft:potato|farmersdelight:tomato"
+    container: "minecraft:bowl"
+    result: "farmersdelight:ratatouille"
+    experience: 1.0
+    cook-time: 200
+    category: meals
+  
+  dog_food:
+    ingredients:
+      - "minecraft:rotten_flesh"
+      - "minecraft:bone_meal"
+      - "minecraft:chicken|minecraft:mutton|minecraft:rabbit"
+      - "farmersdelight:rice"
+    result: "farmersdelight:dog_food"
+    experience: 1.0
+    cook-time: 200
+    category: misc
+
+  stuffed_pumpkin_block:
+    ingredients:
+      - "farmersdelight:rice"
+      - "farmersdelight:onion"
+      - "minecraft:brown_mushroom"
+      - "minecraft:potato"
+      - "minecraft:sweet_berries|minecraft:glow_berries"
+      - "minecraft:beetroot|minecraft:carrot|farmersdelight:onion|minecraft:potato|farmersdelight:tomato"
+    container: "minecraft:pumpkin"
+    result: "farmersdelight:stuffed_pumpkin_block"
+    experience: 2.0
+    cook-time: 400
+    category: meals

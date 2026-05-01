@@ -1,0 +1,34 @@
+{
+  "parent": "farmersdelight:main/eat_comfort_food",
+  "criteria": {
+    "nourishment": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": false,
+    "description": {
+      "translate": "farmersdelight.advancement.eat_nourishing_food.desc"
+    },
+    "frame": "task",
+    "hidden": false,
+    "icon": {
+      "id": "minecraft:rabbit_stew",
+      "components": {
+        "minecraft:custom_data": {
+          "craftengine:id": "farmersdelight:beef_stew"
+        }
+      }
+    },
+    "show_toast": true,
+    "title": {
+      "translate": "farmersdelight.advancement.eat_nourishing_food"
+    }
+  },
+  "requirements": [
+    [
+      "nourishment"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

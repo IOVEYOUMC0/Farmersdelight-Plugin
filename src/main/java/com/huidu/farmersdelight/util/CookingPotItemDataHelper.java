@@ -1,0 +1,468 @@
+package com.huidu.farmersdelight.util;
+
+import com.huidu.farmersdelight.manager.TickManager;
+import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
+import com.huidu.farmersdelight.i18n.I18n;
+import io.papermc.paper.datacomponent.DataComponentTypes;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
+import org.bukkit.World;
+import org.bukkit.configuration.InvalidConfigurationException;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import java.util.UUID;
+
+public final class CookingPotItemDataHelper {
+
+    private static final String POT_ITEM_ID = Constants.ITEM_COOKING_POT;
+    private static final int MAX_SERVINGS = 64;
+    private static final int BAR_RESOLUTION = 4096;
+    private static final String TOOLTIP_DISPLAY_CLASS = "io.papermc.paper.datacomponent.item.TooltipDisplay";
+    private static final String DATA_COMPONENT_TYPE_CLASS = "io.papermc.paper.datacomponent.DataComponentType";
+    private static final String DATA_COMPONENT_TYPES_CLASS = "io.papermc.paper.datacomponent.DataComponentTypes";
+    private static final String DATA_COMPONENT_VALUED_CLASS = "io.papermc.paper.datacomponent.DataComponentType$Valued";
+    private static final PlainTextComponentSerializer PLAIN_TEXT = PlainTextComponentSerializer.plainText();
+    private static volatile boolean tooltipDisplaySupportChecked = false;
+    private static volatile boolean tooltipDisplaySupported = false;
+    private static volatile boolean tooltipDisplayUnsupportedLogged = false;
+
+    private CookingPotItemDataHelper() {
+    }
+
+    public static boolean isEnabled() {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        return plugin != null && plugin.getConfig().getBoolean("cooking-pot-packed-drop.enabled", true);
+    }
+
+    public static boolean isDurabilityBarEnabled() {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        return plugin != null && plugin.getConfig().getBoolean("cooking-pot-packed-drop.durability-bar.enabled", true);
+    }
+
+    public static boolean isAdvancedDurabilityTooltipHiddenEnabled() {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        return plugin != null && plugin.getConfig().getBoolean("cooking-pot-packed-drop.hide-advanced-durability-tooltip.enabled", false);
+    }
+
+    public static ItemStack createPackedPotItem(CookingPotBlockEntity entity) {
+        ItemStack potItem = ItemUtils.createItem(POT_ITEM_ID);
+        if (potItem == null || potItem.getType().isAir()) {
+            return null;
+        }
+
+        return applyPackedData(potItem, entity);
+    }
+
+    public static ItemStack applyPackedData(ItemStack potItem, CookingPotBlockEntity entity) {
+        if (potItem == null || potItem.getType().isAir() || entity == null) {
+            return potItem;
+        }
+
+        ItemMeta meta = potItem.getItemMeta();
+        if (meta == null) {
+            return potItem;
+        }
+
+        try {
+            meta.getPersistentDataContainer().set(key("packed"), org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
+            meta.getPersistentDataContainer().set(
+                    key("instance_id"),
+                    org.bukkit.persistence.PersistentDataType.STRING,
+                    UUID.randomUUID().toString()
+            );
+            meta.getPersistentDataContainer().set(
+                    key("inventory"),
+                    org.bukkit.persistence.PersistentDataType.STRING,
+                    serializeInventory(entity.getInventory())
+            );
+
+            ItemStack mealContainer = entity.getMealContainer();
+            if (mealContainer != null && !mealContainer.getType().isAir()) {
+                meta.getPersistentDataContainer().set(
+                        key("meal_container"),
+                        org.bukkit.persistence.PersistentDataType.STRING,
+                        serializeItem(mealContainer)
+                );
+            } else {
+                meta.getPersistentDataContainer().remove(key("meal_container"));
+            }
+
+            ItemStack preview = getMealPreview(entity.getInventory(), mealContainer);
+            updatePackedLore(meta, preview);
+            potItem.setItemMeta(meta);
+            updatePackedBar(potItem, preview);
+            return potItem;
+        } catch (IOException e) {
+            FarmersDelightPlugin.getInstance().getLogger().warning("Failed to serialize packed cooking pot item: " + e.getMessage());
+            return potItem;
+        }
+    }
+
+    public static boolean restorePackedData(Location location, ItemStack potItem) {
+        if (location == null || potItem == null || potItem.getType().isAir() || !hasPackedData(potItem)) {
+            return false;
+        }
+
+        World world = location.getWorld();
+        if (world == null) {
+            return false;
+        }
+
+        CookingPotBlockEntity entity = CookingPotBlockBehavior.getOrCreateBlockEntity(location);
+        if (entity == null) {
+            return false;
+        }
+
+        ItemMeta meta = potItem.getItemMeta();
+        if (meta == null) {
+            return false;
+        }
+
+        try {
+            String inventoryData = meta.getPersistentDataContainer().get(key("inventory"), org.bukkit.persistence.PersistentDataType.STRING);
+            if (inventoryData != null && !inventoryData.isEmpty()) {
+                ItemStack[] restored = deserializeInventory(inventoryData);
+                for (int i = 0; i < restored.length && i < CookingPotBlockBehavior.INVENTORY_SIZE; i++) {
+                    entity.setInventorySlot(i, restored[i]);
+                }
+            }
+
+            String mealContainerData = meta.getPersistentDataContainer().get(key("meal_container"), org.bukkit.persistence.PersistentDataType.STRING);
+            if (mealContainerData != null && !mealContainerData.isEmpty()) {
+                entity.setMealContainer(deserializeItem(mealContainerData));
+            } else {
+                entity.setMealContainer(null);
+            }
+
+            entity.setCookingProgress(0);
+            entity.setCookingDuration(200);
+            entity.tryMovePendingToOutput();
+            CookingPotBlockBehavior.saveBlockEntityData(world, entity.getPosKey());
+
+            if (FarmersDelightPlugin.getInstance().getTickManager() != null
+                    && (entity.hasInput() || entity.hasPendingOutput() || entity.getMealDisplayItem() != null)) {
+                FarmersDelightPlugin.getInstance().getTickManager().markActive(
+                        world,
+                        entity.getPosKey(),
+                        TickManager.BlockType.COOKING_POT
+                );
+            }
+            return true;
+        } catch (IOException | InvalidConfigurationException e) {
+            FarmersDelightPlugin.getInstance().getLogger().warning("Failed to restore packed cooking pot item: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public static boolean hasPackedData(ItemStack item) {
+        if (item == null || item.getType().isAir() || item.getItemMeta() == null) {
+            return false;
+        }
+        Byte marker = item.getItemMeta().getPersistentDataContainer().get(key("packed"), org.bukkit.persistence.PersistentDataType.BYTE);
+        return marker != null && marker == (byte) 1;
+    }
+
+    public static ItemStack getStoredMealPreview(ItemStack potItem) {
+        if (!hasPackedData(potItem) || potItem.getItemMeta() == null) {
+            return null;
+        }
+
+        try {
+            String inventoryData = potItem.getItemMeta().getPersistentDataContainer().get(key("inventory"), org.bukkit.persistence.PersistentDataType.STRING);
+            if (inventoryData == null || inventoryData.isEmpty()) {
+                return null;
+            }
+            ItemStack[] inventory = deserializeInventory(inventoryData);
+            ItemStack mealContainer = null;
+            String mealContainerData = potItem.getItemMeta().getPersistentDataContainer().get(key("meal_container"), org.bukkit.persistence.PersistentDataType.STRING);
+            if (mealContainerData != null && !mealContainerData.isEmpty()) {
+                mealContainer = deserializeItem(mealContainerData);
+            }
+            return getMealPreview(inventory, mealContainer);
+        } catch (IOException | InvalidConfigurationException e) {
+            return null;
+        }
+    }
+
+    public static void refreshPackedVisuals(ItemStack potItem) {
+        if (!hasPackedData(potItem) || potItem.getItemMeta() == null) {
+            return;
+        }
+
+        ItemMeta meta = potItem.getItemMeta();
+        ItemStack preview = getStoredMealPreview(potItem);
+        updatePackedLore(meta, preview);
+        potItem.setItemMeta(meta);
+        updatePackedBar(potItem, preview);
+    }
+
+    private static ItemStack getMealPreview(ItemStack[] inventory, ItemStack mealContainer) {
+        if (inventory == null || inventory.length == 0) {
+            return null;
+        }
+
+        ItemStack output = inventory.length > CookingPotBlockBehavior.SLOT_OUTPUT
+                ? inventory[CookingPotBlockBehavior.SLOT_OUTPUT]
+                : null;
+        if (output != null && !output.getType().isAir()) {
+            return output.clone();
+        }
+
+        ItemStack pending = inventory.length > CookingPotBlockBehavior.SLOT_MEAL_DISPLAY
+                ? inventory[CookingPotBlockBehavior.SLOT_MEAL_DISPLAY]
+                : null;
+        if (pending != null && !pending.getType().isAir()) {
+            ItemStack preview = pending.clone();
+            if (mealContainer != null && !mealContainer.getType().isAir()) {
+                preview.setAmount(Math.min(preview.getAmount(), 64));
+            }
+            return preview;
+        }
+
+        return null;
+    }
+
+    private static void updatePackedLore(ItemMeta meta, ItemStack preview) {
+        List<net.kyori.adventure.text.Component> lore = meta.hasLore() && meta.lore() != null
+                ? new ArrayList<>(meta.lore())
+                : new ArrayList<>();
+
+        String previousDynamicLine = meta.getPersistentDataContainer().get(
+                key("dynamic_lore"),
+                org.bukkit.persistence.PersistentDataType.STRING
+        );
+        if (previousDynamicLine != null && !previousDynamicLine.isEmpty()) {
+            lore.removeIf(component -> component != null && previousDynamicLine.equals(PLAIN_TEXT.serialize(component)));
+        }
+
+        if (preview != null && !preview.getType().isAir()) {
+            String name = ItemUtils.getDisplayName(preview, (String) null);
+            String dynamicLore = I18n.formatNamed(
+                    "gui.packed_pot.contains",
+                    java.util.Map.of(
+                            "amount", String.valueOf(preview.getAmount()),
+                            "item", name
+                    )
+            );
+            lore.add(Component.text(dynamicLore));
+            meta.getPersistentDataContainer().set(
+                    key("dynamic_lore"),
+                    org.bukkit.persistence.PersistentDataType.STRING,
+                    dynamicLore
+            );
+        } else {
+            meta.getPersistentDataContainer().remove(key("dynamic_lore"));
+        }
+
+        meta.lore(lore.isEmpty() ? null : lore);
+    }
+
+    private static void updatePackedBar(ItemStack stack, ItemStack preview) {
+        boolean barEnabled = isDurabilityBarEnabled();
+        updateTooltipDisplayVisibility(stack, barEnabled);
+
+        if (!barEnabled || preview == null || preview.getType().isAir()) {
+            stack.unsetData(DataComponentTypes.MAX_DAMAGE);
+            stack.unsetData(DataComponentTypes.DAMAGE);
+            return;
+        }
+
+        int servings = Math.max(1, Math.min(MAX_SERVINGS, preview.getAmount()));
+        double filledFraction = servings / (double) MAX_SERVINGS;
+        int filledUnits = (int) Math.round(filledFraction * BAR_RESOLUTION);
+        int damage = Math.max(0, BAR_RESOLUTION - filledUnits);
+        stack.setData(DataComponentTypes.MAX_DAMAGE, BAR_RESOLUTION);
+        stack.setData(DataComponentTypes.DAMAGE, damage);
+    }
+
+    private static void updateTooltipDisplayVisibility(ItemStack stack, boolean barEnabled) {
+        if (stack == null || stack.getType().isAir()) {
+            return;
+        }
+
+        boolean shouldHide = barEnabled && isAdvancedDurabilityTooltipHiddenEnabled();
+        if (!shouldHide) {
+            clearManagedTooltipDisplayComponent(stack);
+            return;
+        }
+
+        if (!isTooltipDisplaySupported()) {
+            logTooltipDisplayUnsupported();
+            return;
+        }
+
+        try {
+            Class<?> tooltipDisplayClass = Class.forName(TOOLTIP_DISPLAY_CLASS);
+            Object builder = tooltipDisplayClass.getMethod("tooltipDisplay").invoke(null);
+
+            Class<?> dataComponentTypeClass = Class.forName(DATA_COMPONENT_TYPE_CLASS);
+            Class<?> dataComponentTypesClass = Class.forName(DATA_COMPONENT_TYPES_CLASS);
+            Object maxDamageType = dataComponentTypesClass.getField("MAX_DAMAGE").get(null);
+            Object damageType = dataComponentTypesClass.getField("DAMAGE").get(null);
+            Object hiddenComponentArray = java.lang.reflect.Array.newInstance(dataComponentTypeClass, 2);
+            java.lang.reflect.Array.set(hiddenComponentArray, 0, maxDamageType);
+            java.lang.reflect.Array.set(hiddenComponentArray, 1, damageType);
+
+            builder.getClass().getMethod("addHiddenComponents", hiddenComponentArray.getClass()).invoke(builder, hiddenComponentArray);
+            Object tooltipDisplay = builder.getClass().getMethod("build").invoke(builder);
+            Object tooltipDisplayType = dataComponentTypesClass.getField("TOOLTIP_DISPLAY").get(null);
+
+            Class<?> valuedClass = Class.forName(DATA_COMPONENT_VALUED_CLASS);
+            stack.getClass().getMethod("setData", valuedClass, Object.class).invoke(stack, tooltipDisplayType, tooltipDisplay);
+            setTooltipDisplayManagedMarker(stack, true);
+        } catch (ReflectiveOperationException ex) {
+            logTooltipDisplayUnsupported();
+        }
+    }
+
+    private static void clearManagedTooltipDisplayComponent(ItemStack stack) {
+        if (!hasTooltipDisplayManagedMarker(stack)) {
+            return;
+        }
+
+        if (!isTooltipDisplaySupported()) {
+            setTooltipDisplayManagedMarker(stack, false);
+            return;
+        }
+
+        try {
+            Class<?> dataComponentTypesClass = Class.forName(DATA_COMPONENT_TYPES_CLASS);
+            Object tooltipDisplayType = dataComponentTypesClass.getField("TOOLTIP_DISPLAY").get(null);
+            Class<?> valuedClass = Class.forName(DATA_COMPONENT_VALUED_CLASS);
+            stack.getClass().getMethod("unsetData", valuedClass).invoke(stack, tooltipDisplayType);
+        } catch (ReflectiveOperationException ignored) {
+            // Safely ignore: old baselines simply won't have this component.
+        } finally {
+            setTooltipDisplayManagedMarker(stack, false);
+        }
+    }
+
+    private static boolean hasTooltipDisplayManagedMarker(ItemStack stack) {
+        if (stack == null || stack.getType().isAir()) {
+            return false;
+        }
+        ItemMeta meta = stack.getItemMeta();
+        if (meta == null) {
+            return false;
+        }
+        Byte marker = meta.getPersistentDataContainer().get(key("tooltip_hidden"), org.bukkit.persistence.PersistentDataType.BYTE);
+        return marker != null && marker == (byte) 1;
+    }
+
+    private static void setTooltipDisplayManagedMarker(ItemStack stack, boolean hidden) {
+        if (stack == null || stack.getType().isAir()) {
+            return;
+        }
+        ItemMeta meta = stack.getItemMeta();
+        if (meta == null) {
+            return;
+        }
+        if (hidden) {
+            meta.getPersistentDataContainer().set(key("tooltip_hidden"), org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
+        } else {
+            meta.getPersistentDataContainer().remove(key("tooltip_hidden"));
+        }
+        stack.setItemMeta(meta);
+    }
+
+    private static boolean isTooltipDisplaySupported() {
+        if (tooltipDisplaySupportChecked) {
+            return tooltipDisplaySupported;
+        }
+
+        synchronized (CookingPotItemDataHelper.class) {
+            if (tooltipDisplaySupportChecked) {
+                return tooltipDisplaySupported;
+            }
+
+            try {
+                Class.forName(TOOLTIP_DISPLAY_CLASS);
+                Class<?> dataComponentTypesClass = Class.forName(DATA_COMPONENT_TYPES_CLASS);
+                dataComponentTypesClass.getField("TOOLTIP_DISPLAY");
+                tooltipDisplaySupported = true;
+            } catch (ReflectiveOperationException ex) {
+                tooltipDisplaySupported = false;
+            }
+
+            tooltipDisplaySupportChecked = true;
+            return tooltipDisplaySupported;
+        }
+    }
+
+    private static void logTooltipDisplayUnsupported() {
+        if (tooltipDisplayUnsupportedLogged) {
+            return;
+        }
+
+        synchronized (CookingPotItemDataHelper.class) {
+            if (tooltipDisplayUnsupportedLogged) {
+                return;
+            }
+
+            FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+            if (plugin != null) {
+                plugin.getLogger().info("Packed cooking pot advanced durability tooltip hiding requires Paper 1.21.10+ (1.21.9-rc1+ API support).");
+            }
+            tooltipDisplayUnsupportedLogged = true;
+        }
+    }
+
+    private static String serializeInventory(ItemStack[] inventory) throws IOException {
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("size", inventory.length);
+        for (int i = 0; i < inventory.length; i++) {
+            if (inventory[i] != null && !inventory[i].getType().isAir()) {
+                yaml.set("slots." + i, inventory[i]);
+            }
+        }
+        return Base64.getEncoder().encodeToString(yaml.saveToString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private static ItemStack[] deserializeInventory(String data) throws IOException, InvalidConfigurationException {
+        String raw = new String(Base64.getDecoder().decode(data), java.nio.charset.StandardCharsets.UTF_8);
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.loadFromString(raw);
+        int size = Math.max(CookingPotBlockBehavior.INVENTORY_SIZE, yaml.getInt("size", CookingPotBlockBehavior.INVENTORY_SIZE));
+        ItemStack[] inventory = new ItemStack[size];
+        for (int i = 0; i < size; i++) {
+            ItemStack item = yaml.getItemStack("slots." + i);
+            inventory[i] = cloneOrNull(item);
+        }
+        return inventory;
+    }
+
+    private static String serializeItem(ItemStack item) throws IOException {
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("item", item);
+        return Base64.getEncoder().encodeToString(yaml.saveToString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private static ItemStack deserializeItem(String data) throws IOException, InvalidConfigurationException {
+        String raw = new String(Base64.getDecoder().decode(data), java.nio.charset.StandardCharsets.UTF_8);
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.loadFromString(raw);
+        ItemStack item = yaml.getItemStack("item");
+        return cloneOrNull(item);
+    }
+
+    private static NamespacedKey key(String path) {
+        return new NamespacedKey(FarmersDelightPlugin.getInstance(), "packed_cooking_pot_" + path);
+    }
+
+    private static ItemStack cloneOrNull(ItemStack item) {
+        if (item == null) {
+            return null;
+        }
+        return item.clone();
+    }
+}

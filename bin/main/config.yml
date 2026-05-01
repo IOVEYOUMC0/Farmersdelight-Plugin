@@ -1,0 +1,436 @@
+# ========================================
+# FarmersDelight Plugin Configuration
+# ========================================
+
+# Language
+language: zh_cn
+
+# Storage settings
+storage:
+  # Auto-save interval in seconds
+  auto-save-interval: 300
+
+# Extra drops when using knives on certain mobs
+knife-drops:
+  pig:
+    normal: farmersdelight:ham
+    burning: farmersdelight:smoked_ham
+    chance: 0.5
+    looting-multiplier: 0.1
+  hoglin:
+    normal: farmersdelight:ham
+    burning: farmersdelight:smoked_ham
+    chance: 0.5
+    looting-multiplier: 0.1
+  cow:
+    normal: minecraft:leather
+    chance: 1.0
+  mooshroom:
+    normal: minecraft:leather
+    chance: 1.0
+  donkey:
+    normal: minecraft:leather
+    chance: 1.0
+  horse:
+    normal: minecraft:leather
+    chance: 1.0
+  mule:
+    normal: minecraft:leather
+    chance: 1.0
+  llama:
+    normal: minecraft:leather
+    chance: 1.0
+  trader_llama:
+    normal: minecraft:leather
+    chance: 1.0
+  chicken:
+    normal: minecraft:feather
+    chance: 1.0
+  spider:
+    normal: minecraft:string
+    chance: 1.0
+  cave_spider:
+    normal: minecraft:string
+    chance: 1.0
+  rabbit:
+    normal: minecraft:rabbit_hide
+    chance: 1.0
+  shulker:
+    normal: minecraft:shulker_shell
+    chance: 1.0
+
+# Knife identification
+knife-config:
+  tags:
+    - farmersdelight:knives
+  items:
+    - farmersdelight:flint_knife
+    - farmersdelight:iron_knife
+    - farmersdelight:golden_knife
+    - farmersdelight:diamond_knife
+    - farmersdelight:netherite_knife
+
+# Heat source settings used by cooking blocks
+heat-sources:
+  tags:
+    - farmersdelight:heat_sources
+  vanilla-blocks:
+    - minecraft:magma_block
+    - minecraft:lava_cauldron
+    - minecraft:lava
+  vanilla-tags:
+    - minecraft:campfires
+    - minecraft:fire
+  custom-blocks:
+    - farmersdelight:stove[fire:true]
+  conductors:
+    - minecraft:hopper
+
+# Tray auto-placement settings
+tray:
+  enabled: true
+  tray-block-id: "farmersdelight:tray"
+  y-offset: 0
+  marker-key: "auto_tray_marker"
+
+# Cooking pot packed-drop behavior
+cooking-pot-packed-drop:
+  enabled: false
+
+# Straw drops when using knives on blocks
+straw-drops:
+  tall_grass:
+    drop: farmersdelight:straw
+    min-amount: 1
+    max-amount: 2
+  mature_wheat:
+    drop: farmersdelight:straw
+    min-amount: 1
+    max-amount: 2
+
+# Cooking pot GUI
+cooking-pot-gui:
+  title: "<white><offset><icon>"
+  fillers-enabled: true
+  title-layout:
+    craftengine:
+      offset: "<shift:-8>"
+      icon: "<image:farmersdelight:cooking_pot_gui>"
+  rows: 3
+
+  layout:
+    - "XIIIXPXBX"
+    - "RIIIXXXXX"
+    - "XXHXXCXOX"
+
+  legend:
+    I: ingredient
+    H: heat
+    C: container
+    P: progress
+    B: buffer
+    O: output
+    R: recipe
+    X: decoration
+    " ": background
+
+  items:
+    background:
+      material: GRAY_STAINED_GLASS_PANE
+      name: " "
+    decoration:
+      material: BROWN_STAINED_GLASS_PANE
+      name: " "
+    heat-active:
+      item: farmersdelight:cooking_pot_heated
+    heat-inactive:
+      item: farmersdelight:cooking_pot_not_heated
+    progress:
+      item: farmersdelight:cooking_time
+      name: "Cooking Time"
+      lore:
+        - "Remaining: {time}s"
+    recipe:
+      material: KNOWLEDGE_BOOK
+      name: "View Recipes"
+      lore:
+        - "Click to view all cooking pot recipes"
+
+  progress-items:
+    - item: farmersdelight:0
+    - item: farmersdelight:1
+    - item: farmersdelight:2
+    - item: farmersdelight:3
+    - item: farmersdelight:4
+    - item: farmersdelight:5
+    - item: farmersdelight:6
+    - item: farmersdelight:7
+    - item: farmersdelight:8
+    - item: farmersdelight:9
+    - item: farmersdelight:10
+    - item: farmersdelight:11
+    - item: farmersdelight:12
+    - item: farmersdelight:13
+    - item: farmersdelight:14
+    - item: farmersdelight:15
+    - item: farmersdelight:16
+    - item: farmersdelight:17
+    - item: farmersdelight:18
+    - item: farmersdelight:19
+    - item: farmersdelight:20
+
+  sounds:
+    cooking-complete: BLOCK_BREWING_STAND_BREW
+
+  particles:
+    cooking:
+      enabled: true
+      type: DUST
+      color: "173,216,230"
+      size: 0.5
+      count: 3
+      offset-x: 0.15
+      offset-y: 0.15
+      offset-z: 0.15
+      speed: 0.02
+
+# Recipe viewer GUI
+recipe-view-gui:
+  main-menu:
+    title: "Recipe Viewer"
+    rows: 3
+
+    layout:
+      - "####B####"
+      - "##C###D##"
+      - "####X####"
+
+    legend:
+      C: cooking_pot
+      D: cutting_board
+      B: back
+      X: background
+      "#": background
+
+    items:
+      background:
+        material: GRAY_STAINED_GLASS_PANE
+        name: " "
+      cooking_pot:
+        material: CAULDRON
+        name: "Cooking Pot Recipes"
+        lore:
+          - "Click to view cooking pot recipes"
+      cutting_board:
+        material: BAMBOO_MOSAIC
+        name: "Cutting Board Recipes"
+        lore:
+          - "Click to view cutting board recipes"
+      back:
+        material: BARRIER
+        name: "Close"
+
+  recipe-list:
+    title: "Recipe List {page}/{total}"
+    rows: 6
+
+    layout:
+      - "RRRRRRRRR"
+      - "RRRRRRRRR"
+      - "RRRRRRRRR"
+      - "RRRRRRRRR"
+      - "RRRRRRRRR"
+      - "P##X#B##N"
+
+    legend:
+      R: recipe
+      P: prev_page
+      N: next_page
+      B: back
+      X: info
+      "#": background
+
+    items:
+      background:
+        material: GRAY_STAINED_GLASS_PANE
+        name: " "
+      prev_page:
+        material: ARROW
+        name: "Previous Page"
+      next_page:
+        material: ARROW
+        name: "Next Page"
+      back:
+        material: BARRIER
+        name: "Back"
+      info:
+        material: BOOK
+        name: "Recipe List"
+        lore:
+          - "Page: {page}/{total}"
+
+  recipe-detail-cooking-pot:
+    title: "Recipe Details"
+    rows: 6
+
+    layout:
+      - "####A####"
+      - "####R####"
+      - "####C####"
+      - "IIIIII###"
+      - "#########"
+      - "####B####"
+
+    legend:
+      R: result
+      I: ingredient
+      A: arrow
+      C: container
+      B: back
+      "#": background
+
+    items:
+      background:
+        material: GRAY_STAINED_GLASS_PANE
+        name: " "
+      arrow:
+        material: PLAYER_HEAD
+        name: "->"
+      back:
+        material: ARROW
+        name: "Back"
+
+  recipe-detail-cutting-board:
+    title: "Recipe Details"
+    rows: 6
+
+    layout:
+      - "####T####"
+      - "####I####"
+      - "#########"
+      - "RRRRRR###"
+      - "#########"
+      - "####B####"
+
+    legend:
+      I: input
+      R: result
+      T: tool
+      B: back
+      "#": background
+
+    items:
+      background:
+        material: GRAY_STAINED_GLASS_PANE
+        name: " "
+      back:
+        material: ARROW
+        name: "Back"
+
+# Pet food settings
+pet-foods:
+  farmersdelight:dog_food:
+    entities:
+      - WOLF
+    require-tamed: true
+    restore-health: true
+    effects:
+      - type: SPEED
+        duration: 6000
+        amplifier: 0
+        particles: true
+      - type: STRENGTH
+        duration: 6000
+        amplifier: 0
+        particles: true
+      - type: RESISTANCE
+        duration: 6000
+        amplifier: 0
+        particles: true
+    sound: ENTITY_GENERIC_EAT
+    sound-volume: 0.8
+    sound-pitch: 0.8
+    particles: true
+    particle-type: END_ROD
+    particle-count: 5
+
+  farmersdelight:horse_feed:
+    entities:
+      - HORSE
+      - DONKEY
+      - MULE
+      - LLAMA
+      - CAMEL
+    require-tamed: true
+    restore-health: true
+    effects:
+      - type: SPEED
+        duration: 6000
+        amplifier: 1
+        particles: true
+      - type: JUMP_BOOST
+        duration: 6000
+        amplifier: 0
+        particles: true
+    sound: ENTITY_HORSE_EAT
+    sound-volume: 0.8
+    sound-pitch: 0.8
+    particles: true
+    particle-type: END_ROD
+    particle-count: 5
+
+# Comfort food effect settings
+comfort-foods-enabled: false
+comfort-foods:
+  farmersdelight:apple_cider:
+    duration: 300
+  farmersdelight:glow_berry_custard:
+    duration: 300
+  farmersdelight:pumpkin_pie:
+    duration: 300
+  farmersdelight:hot_cocoa:
+    duration: 300
+  farmersdelight:baked_cod_stew:
+    duration: 300
+  minecraft:rabbit_stew:
+    duration: 300
+  farmersdelight:pasta_with_meatballs:
+    duration: 300
+  farmersdelight:pasta_with_mutton_chop:
+    duration: 300
+  farmersdelight:dumplings:
+    duration: 300
+  farmersdelight:cabbage_rolls:
+    duration: 300
+
+# Nourishment effect settings
+nourishment-foods:
+  farmersdelight:noodle_soup:
+    duration: 300
+  farmersdelight:vegetable_noodles:
+    duration: 300
+  farmersdelight:beef_stew:
+    duration: 300
+  farmersdelight:chicken_soup:
+    duration: 300
+  farmersdelight:vegetable_soup:
+    duration: 300
+  farmersdelight:fish_stew:
+    duration: 300
+  farmersdelight:fried_rice:
+    duration: 300
+
+# Returned containers after cooking
+container-returns:
+  farmersdelight:milk_bottle: minecraft:glass_bottle
+
+# Debug mode
+debug: false
+
+# Display settings for stove and skillet item visuals
+display-visuals:
+  use-packet-displays: false
+  skillet:
+    scale: 0.5
+  stove:
+    scale: 0.375

@@ -1,0 +1,34 @@
+{
+  "parent": "farmersdelight:main/get_fd_seed",
+  "criteria": {
+    "rice": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": true,
+    "description": {
+      "translate": "farmersdelight.advancement.plant_rice.desc"
+    },
+    "frame": "task",
+    "hidden": false,
+    "icon": {
+      "id": "minecraft:wheat_seeds",
+      "components": {
+        "minecraft:custom_data": {
+          "craftengine:id": "farmersdelight:rice"
+        }
+      }
+    },
+    "show_toast": true,
+    "title": {
+      "translate": "farmersdelight.advancement.plant_rice"
+    }
+  },
+  "requirements": [
+    [
+      "rice"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

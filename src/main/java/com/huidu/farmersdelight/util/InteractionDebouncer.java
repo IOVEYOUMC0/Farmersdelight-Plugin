@@ -1,0 +1,51 @@
+package com.huidu.farmersdelight.util;
+
+import org.bukkit.Location;
+
+import java.util.Objects;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+public final class InteractionDebouncer {
+
+    private static final long DEFAULT_COOLDOWN_MILLIS = 150L;
+    private static final ConcurrentHashMap<Key, Long> RECENT_INTERACTIONS = new ConcurrentHashMap<>();
+
+    private InteractionDebouncer() {
+    }
+
+    public static boolean tryAcquire(UUID playerId, Location location) {
+        return tryAcquire(playerId, location, DEFAULT_COOLDOWN_MILLIS);
+    }
+
+    public static boolean tryAcquire(UUID playerId, Location location, long cooldownMillis) {
+        if (playerId == null || location == null || location.getWorld() == null) {
+            return true;
+        }
+
+        long now = System.currentTimeMillis();
+        Key key = new Key(
+                playerId,
+                location.getWorld().getUID(),
+                location.getBlockX(),
+                location.getBlockY(),
+                location.getBlockZ()
+        );
+
+        Long previous = RECENT_INTERACTIONS.put(key, now);
+        if (previous != null && now - previous < cooldownMillis) {
+            RECENT_INTERACTIONS.put(key, previous);
+            return false;
+        }
+
+        RECENT_INTERACTIONS.entrySet().removeIf(entry -> now - entry.getValue() >= cooldownMillis);
+        return true;
+    }
+
+    private record Key(UUID playerId, UUID worldId, int x, int y, int z) {
+        private Key {
+            Objects.requireNonNull(playerId);
+            Objects.requireNonNull(worldId);
+        }
+    }
+}

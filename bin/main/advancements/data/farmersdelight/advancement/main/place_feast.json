@@ -1,0 +1,34 @@
+{
+  "parent": "farmersdelight:main/eat_nourishing_food",
+  "criteria": {
+    "feast": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": true,
+    "description": {
+      "translate": "farmersdelight.advancement.place_feast.desc"
+    },
+    "frame": "challenge",
+    "hidden": false,
+    "icon": {
+      "id": "minecraft:cooked_chicken",
+      "components": {
+        "minecraft:custom_data": {
+          "craftengine:id": "farmersdelight:roast_chicken_block"
+        }
+      }
+    },
+    "show_toast": true,
+    "title": {
+      "translate": "farmersdelight.advancement.place_feast"
+    }
+  },
+  "requirements": [
+    [
+      "feast"
+    ]
+  ],
+  "sends_telemetry_event": true
+}
