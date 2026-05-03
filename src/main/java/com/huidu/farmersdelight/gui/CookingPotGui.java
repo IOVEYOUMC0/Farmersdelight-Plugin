@@ -38,6 +38,8 @@ import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.annotation.Nonnull;
+
 public class CookingPotGui implements InventoryHolder, Listener {
 
     private static final Map<UUID, CookingPotGui> activeGuis = new ConcurrentHashMap<>();
@@ -245,7 +247,7 @@ public class CookingPotGui implements InventoryHolder, Listener {
         };
     }
 
-    @SuppressWarnings("deprecation")
+    @SuppressWarnings({ "null" })
     private void updateDisplayItems() {
         if (!syncQueued) {
             refreshInputSlotsFromBlockEntity();
@@ -300,13 +302,20 @@ public class CookingPotGui implements InventoryHolder, Listener {
 
         if (outputSlot >= 0) {
             ItemStack output = blockEntity.getMealDisplayItem();
-            if (!sameItemState(output, cachedOutputItem)) {
-        inventory.setItem(outputSlot, cloneOrNull(output));
+            final ItemStack cachedOutputItem2 = cachedOutputItem;
+            if (cachedOutputItem2 != null) {
+                if (!sameItemState(output, cachedOutputItem2)) {
+                    inventory.setItem(outputSlot, cloneOrNull(output));
+                    cachedOutputItem = cloneOrNull(output);
+                }
+            } else {
+                inventory.setItem(outputSlot, cloneOrNull(output));
                 cachedOutputItem = cloneOrNull(output);
             }
         }
     }
 
+    @SuppressWarnings("null")
     private void refreshInputSlotsFromBlockEntity() {
         for (Map.Entry<Integer, Integer> entry : slotMapping.entrySet()) {
             int guiSlot = entry.getKey();
@@ -337,7 +346,7 @@ public class CookingPotGui implements InventoryHolder, Listener {
         return item.clone();
     }
 
-    private boolean sameItemState(ItemStack first, ItemStack second) {
+    private boolean sameItemState(@Nonnull ItemStack first, @Nonnull ItemStack second) {
         boolean firstEmpty = first == null || first.getType().isAir();
         boolean secondEmpty = second == null || second.getType().isAir();
         if (firstEmpty || secondEmpty) {
@@ -369,7 +378,9 @@ public class CookingPotGui implements InventoryHolder, Listener {
         String containerLabel = viewer != null
                 ? I18n.get("gui.recipe.container", viewer)
                 : I18n.get("gui.recipe.container");
-        String containerName = ItemUtils.getDisplayName(container);
+        String containerName = viewer != null
+                ? ItemUtils.getDisplayName(container, viewer)
+                : ItemUtils.getDisplayName(container);
 
         lore.add(Component.empty());
         lore.add(Component.text(containerLabel + ": ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
@@ -766,6 +777,8 @@ public class CookingPotGui implements InventoryHolder, Listener {
             return 0;
         }
 
+        @SuppressWarnings("null")
+        @Nonnull
         ItemStack cursor = event.getCursor();
         boolean cursorEmpty = cursor == null || cursor.getType().isAir();
         boolean rightClick = event.isRightClick();

@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.*;
+import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CookingPotItemDataHelper;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
@@ -42,8 +43,8 @@ public class BlockBreakListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
-        // Stateful CE blocks are finalized through CraftEngine's custom break event.
-        // Skipping the plain Bukkit break path avoids double cleanup and duplicate drops.
+        FarmersDelightPlugin.getInstance().getStoveManager()
+                .invalidateBlockedAboveCache(event.getBlock().getLocation().clone().add(0, -1, 0));
         if (isStateManagedInteractiveBlock(event.getBlock())) {
             return;
         }
@@ -52,6 +53,8 @@ public class BlockBreakListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onCustomBlockBreak(CustomBlockBreakEvent event) {
+        FarmersDelightPlugin.getInstance().getStoveManager()
+                .invalidateBlockedAboveCache(event.bukkitBlock().getLocation().clone().add(0, -1, 0));
         if (!isManagedInteractiveBlock(event.blockState())) {
             return;
         }
@@ -98,7 +101,9 @@ public class BlockBreakListener implements Listener {
         Location dropLocation = blockLocation.clone().add(0.5, 0.5, 0.5);
         BlockPos pos = new BlockPos(block.getX(), block.getY(), block.getZ());
 
-        cleanupCookingPot(pos, world, dropLocation, preserveCookingPotContents, shouldDropItems);
+        if (isCookingPotBlock(block)) {
+            cleanupCookingPot(pos, world, dropLocation, preserveCookingPotContents, shouldDropItems);
+        }
         cleanupSkillet(blockLocation, dropLocation, shouldDropItems);
         cleanupCuttingBoard(pos, world, dropLocation, shouldDropItems);
         cleanupStove(blockLocation, dropLocation, shouldDropItems);
@@ -107,9 +112,22 @@ public class BlockBreakListener implements Listener {
         }
     }
 
+    private boolean isCookingPotBlock(org.bukkit.block.Block block) {
+        if (block == null) {
+            return false;
+        }
+        ImmutableBlockState state = CustomBlockUtils.getState(block);
+        return isCookingPotBlock(state);
+    }
+
     private void cleanupCookingPot(BlockPos pos, World world, Location dropLocation, boolean preserveContents, boolean shouldDropItems) {
         CookingPotBlockEntity entity = CookingPotBlockBehavior.getBlockEntity(world, pos);
-        if (entity == null) return;
+        if (entity == null) {
+            if (shouldDropItems) {
+                dropCookingPotBaseItem(world, dropLocation);
+            }
+            return;
+        }
 
         if (preserveContents && shouldDropItems) {
             ItemStack packedPot = CookingPotItemDataHelper.createPackedPotItem(entity);
@@ -195,16 +213,6 @@ public class BlockBreakListener implements Listener {
     private boolean isManagedInteractiveBlock(ImmutableBlockState state) {
         String blockId = CustomBlockUtils.getId(state);
         return blockId != null && MANAGED_INTERACTIVE_BLOCK_IDS.contains(blockId);
-    }
-
-    private boolean isManagedInteractiveBlock(org.bukkit.block.Block block) {
-        String blockId = CustomBlockUtils.getId(block);
-        return blockId != null && MANAGED_INTERACTIVE_BLOCK_IDS.contains(blockId);
-    }
-
-    private boolean isStateManagedInteractiveBlock(ImmutableBlockState state) {
-        String blockId = CustomBlockUtils.getId(state);
-        return blockId != null && STATE_MANAGED_INTERACTIVE_BLOCK_IDS.contains(blockId);
     }
 
     private boolean isStateManagedInteractiveBlock(org.bukkit.block.Block block) {

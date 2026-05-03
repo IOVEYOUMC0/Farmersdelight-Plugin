@@ -72,7 +72,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             "advancements/data/farmersdelight/advancement/main/plant_rice.json",
             "advancements/data/farmersdelight/advancement/main/plant_all_crops.json",
             "advancements/data/farmersdelight/advancement/main/get_ham.json",
-            "advancements/data/farmersdelight/advancement/main/eat_comfort_food.json",
             "advancements/data/farmersdelight/advancement/main/eat_nourishing_food.json",
             "advancements/data/farmersdelight/advancement/main/master_chef.json"
     );
@@ -82,7 +81,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private final List<String> behaviorRegistryConflicts = new ArrayList<>();
     private boolean shouldDisable = false;
     private volatile boolean startupSyncCompleted = false;
-    private volatile boolean datapackReloadQueued = false;
     private volatile boolean datapackSyncQueued = false;
     private volatile boolean datapackRemovalQueued = false;
     private BukkitTask pendingCraftEngineReloadTask;
@@ -119,6 +117,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private AdvancementManager advancementManager;
     private boolean advancementsEnabled;
     private boolean debugEnabled;
+    private boolean showRecipeNameInProgressDisplay;
     private Set<String> debugCategories = Set.of();
 
     public static FarmersDelightPlugin getInstance() {
@@ -248,6 +247,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(blockPlaceListener, this);
         getServer().getPluginManager().registerEvents(new SkilletPlaceListener(), this);
         getServer().getPluginManager().registerEvents(new SkilletAttackSoundListener(), this);
+        getServer().getPluginManager().registerEvents(new CuttingBoardInteractListener(), this);
 
         strawDropListener = new StrawDropListener(this);
         getServer().getPluginManager().registerEvents(strawDropListener, this);
@@ -465,7 +465,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             return;
         }
 
-        datapackReloadQueued = true;
         pendingDatapackReloadTask = getServer().getScheduler().runTaskLater(this, () -> {
             pendingDatapackReloadTask = null;
             try {
@@ -476,7 +475,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 getLogger().info("Reloading data packs to " + reloadReason + "...");
                 getServer().reloadData();
             } finally {
-                datapackReloadQueued = false;
             }
         }, 10L);
     }
@@ -576,7 +574,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private void refreshAfterCraftEngineReload() {
         RecipeViewGui.clearConfigCache();
         StoveCookingBlockBehavior.clearRecipeCache();
-        StoveCookingBlockEntity.clearRecipeCache();
         SkilletBlockEntity.clearRecipeCache();
 
         if (stoveManager != null) {
@@ -595,7 +592,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         I18n.reload();
         RecipeViewGui.clearConfigCache();
         StoveCookingBlockBehavior.clearRecipeCache();
-        StoveCookingBlockEntity.clearRecipeCache();
         SkilletBlockEntity.clearRecipeCache();
 
         if (knifeDropHandler != null) {
@@ -665,6 +661,12 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         if (containerReturnSection != null) {
             containerReturnConfig.loadFromConfig(containerReturnSection);
         }
+
+        showRecipeNameInProgressDisplay = getConfig().getBoolean("cooking-pot-progress-display.show-recipe-name", false);
+    }
+
+    public boolean isShowRecipeNameInProgressDisplay() {
+        return showRecipeNameInProgressDisplay;
     }
 
     private boolean isLateCraftEngineLoad() {

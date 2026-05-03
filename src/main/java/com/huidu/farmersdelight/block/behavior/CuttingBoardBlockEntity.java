@@ -98,7 +98,7 @@ public class CuttingBoardBlockEntity {
             display.addScoreboardTag("farmersdelight_visual");
 
             float yRotation = getYRotation(facing.getOppositeFace());
-            float xRotation = isCarvedTool ? 0.0f : 90.0f;
+            float xRotation = isCarvedTool ? 0.0f : (isBlockItem ? 0.0f : 90.0f);
             float zRotation = isCarvedTool ? getCarvedToolZRotation(storedItem) : 0.0f;
             if (isCarvedTool) {
                 yRotation += 180.0f;

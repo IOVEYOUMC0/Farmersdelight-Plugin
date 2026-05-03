@@ -237,15 +237,16 @@ public final class ItemUtils {
         }
         String normalized = rawText.trim();
         Matcher matcher = L10N_PATTERN.matcher(normalized);
-        if (!matcher.matches()) {
-            return resolveTranslationKeyText(normalized, locale);
+        if (matcher.matches()) {
+            String key = matcher.group(1);
+            String translated = translate(key, locale);
+            if (!translated.equals(key)) {
+                return translated;
+            }
+            // 如果翻译失败，尝试作为翻译键处理
+            return humanizeTranslationKey(key);
         }
-        String key = matcher.group(1);
-        String translated = translate(key, locale);
-        if (translated.equals(key)) {
-            return null;
-        }
-        return translated;
+        return resolveTranslationKeyText(normalized, locale);
     }
 
     private static boolean isKnownBlockLikeCustomItem(String customItemId) {
@@ -281,19 +282,20 @@ public final class ItemUtils {
         }
         String normalized = rawText.trim();
         Matcher matcher = L10N_PATTERN.matcher(normalized);
-        if (!matcher.matches()) {
-            String translated = resolveTranslationKeyText(normalized, locale);
-            if (translated != null) {
+        if (matcher.matches()) {
+            String key = matcher.group(1);
+            String translated = translate(key, locale);
+            if (!translated.equals(key)) {
                 return Component.text(translated);
             }
-            return null;
+            // 如果翻译失败，尝试返回可翻译组件
+            return Component.translatable(key);
         }
-        String key = matcher.group(1);
-        String translated = translate(key, locale);
-        if (translated.equals(key)) {
-            return null;
+        String translated = resolveTranslationKeyText(normalized, locale);
+        if (translated != null) {
+            return Component.text(translated);
         }
-        return Component.text(translated);
+        return null;
     }
 
     private static String resolveTranslationKeyText(String rawText, String locale) {
@@ -375,7 +377,6 @@ public final class ItemUtils {
         return items;
     }
 
-    @SuppressWarnings("unchecked")
     private static boolean isVanillaMaterialInTag(Material material, Key tagKey) {
         NamespacedKey namespacedKey = NamespacedKey.fromString(tagKey.toString());
         if (namespacedKey == null) {

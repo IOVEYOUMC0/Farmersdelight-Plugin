@@ -27,14 +27,7 @@ public final class CookingPotItemDataHelper {
     private static final String POT_ITEM_ID = Constants.ITEM_COOKING_POT;
     private static final int MAX_SERVINGS = 64;
     private static final int BAR_RESOLUTION = 4096;
-    private static final String TOOLTIP_DISPLAY_CLASS = "io.papermc.paper.datacomponent.item.TooltipDisplay";
-    private static final String DATA_COMPONENT_TYPE_CLASS = "io.papermc.paper.datacomponent.DataComponentType";
-    private static final String DATA_COMPONENT_TYPES_CLASS = "io.papermc.paper.datacomponent.DataComponentTypes";
-    private static final String DATA_COMPONENT_VALUED_CLASS = "io.papermc.paper.datacomponent.DataComponentType$Valued";
     private static final PlainTextComponentSerializer PLAIN_TEXT = PlainTextComponentSerializer.plainText();
-    private static volatile boolean tooltipDisplaySupportChecked = false;
-    private static volatile boolean tooltipDisplaySupported = false;
-    private static volatile boolean tooltipDisplayUnsupportedLogged = false;
 
     private CookingPotItemDataHelper() {
     }
@@ -47,11 +40,6 @@ public final class CookingPotItemDataHelper {
     public static boolean isDurabilityBarEnabled() {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         return plugin != null && plugin.getConfig().getBoolean("cooking-pot-packed-drop.durability-bar.enabled", true);
-    }
-
-    public static boolean isAdvancedDurabilityTooltipHiddenEnabled() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        return plugin != null && plugin.getConfig().getBoolean("cooking-pot-packed-drop.hide-advanced-durability-tooltip.enabled", false);
     }
 
     public static ItemStack createPackedPotItem(CookingPotBlockEntity entity) {
@@ -215,7 +203,14 @@ public final class CookingPotItemDataHelper {
                 ? inventory[CookingPotBlockBehavior.SLOT_OUTPUT]
                 : null;
         if (output != null && !output.getType().isAir()) {
-            return output.clone();
+            ItemStack preview = output.clone();
+            ItemStack pending = inventory.length > CookingPotBlockBehavior.SLOT_MEAL_DISPLAY
+                    ? inventory[CookingPotBlockBehavior.SLOT_MEAL_DISPLAY]
+                    : null;
+            if (isSameMealPreviewType(preview, pending)) {
+                preview.setAmount(Math.min(64, preview.getAmount() + pending.getAmount()));
+            }
+            return preview;
         }
 
         ItemStack pending = inventory.length > CookingPotBlockBehavior.SLOT_MEAL_DISPLAY
@@ -230,6 +225,24 @@ public final class CookingPotItemDataHelper {
         }
 
         return null;
+    }
+
+    private static boolean isSameMealPreviewType(ItemStack first, ItemStack second) {
+        if (first == null || second == null || first.getType().isAir() || second.getType().isAir()) {
+            return false;
+        }
+
+        String firstCustomId = ItemUtils.getCustomItemId(first);
+        String secondCustomId = ItemUtils.getCustomItemId(second);
+        if (firstCustomId != null || secondCustomId != null) {
+            return firstCustomId != null && firstCustomId.equals(secondCustomId);
+        }
+
+        ItemStack firstSingle = first.clone();
+        firstSingle.setAmount(1);
+        ItemStack secondSingle = second.clone();
+        secondSingle.setAmount(1);
+        return firstSingle.isSimilar(secondSingle);
     }
 
     private static void updatePackedLore(ItemMeta meta, ItemStack preview) {
@@ -269,7 +282,6 @@ public final class CookingPotItemDataHelper {
 
     private static void updatePackedBar(ItemStack stack, ItemStack preview) {
         boolean barEnabled = isDurabilityBarEnabled();
-        updateTooltipDisplayVisibility(stack, barEnabled);
 
         if (!barEnabled || preview == null || preview.getType().isAir()) {
             stack.unsetData(DataComponentTypes.MAX_DAMAGE);
@@ -283,138 +295,6 @@ public final class CookingPotItemDataHelper {
         int damage = Math.max(0, BAR_RESOLUTION - filledUnits);
         stack.setData(DataComponentTypes.MAX_DAMAGE, BAR_RESOLUTION);
         stack.setData(DataComponentTypes.DAMAGE, damage);
-    }
-
-    private static void updateTooltipDisplayVisibility(ItemStack stack, boolean barEnabled) {
-        if (stack == null || stack.getType().isAir()) {
-            return;
-        }
-
-        boolean shouldHide = barEnabled && isAdvancedDurabilityTooltipHiddenEnabled();
-        if (!shouldHide) {
-            clearManagedTooltipDisplayComponent(stack);
-            return;
-        }
-
-        if (!isTooltipDisplaySupported()) {
-            logTooltipDisplayUnsupported();
-            return;
-        }
-
-        try {
-            Class<?> tooltipDisplayClass = Class.forName(TOOLTIP_DISPLAY_CLASS);
-            Object builder = tooltipDisplayClass.getMethod("tooltipDisplay").invoke(null);
-
-            Class<?> dataComponentTypeClass = Class.forName(DATA_COMPONENT_TYPE_CLASS);
-            Class<?> dataComponentTypesClass = Class.forName(DATA_COMPONENT_TYPES_CLASS);
-            Object maxDamageType = dataComponentTypesClass.getField("MAX_DAMAGE").get(null);
-            Object damageType = dataComponentTypesClass.getField("DAMAGE").get(null);
-            Object hiddenComponentArray = java.lang.reflect.Array.newInstance(dataComponentTypeClass, 2);
-            java.lang.reflect.Array.set(hiddenComponentArray, 0, maxDamageType);
-            java.lang.reflect.Array.set(hiddenComponentArray, 1, damageType);
-
-            builder.getClass().getMethod("addHiddenComponents", hiddenComponentArray.getClass()).invoke(builder, hiddenComponentArray);
-            Object tooltipDisplay = builder.getClass().getMethod("build").invoke(builder);
-            Object tooltipDisplayType = dataComponentTypesClass.getField("TOOLTIP_DISPLAY").get(null);
-
-            Class<?> valuedClass = Class.forName(DATA_COMPONENT_VALUED_CLASS);
-            stack.getClass().getMethod("setData", valuedClass, Object.class).invoke(stack, tooltipDisplayType, tooltipDisplay);
-            setTooltipDisplayManagedMarker(stack, true);
-        } catch (ReflectiveOperationException ex) {
-            logTooltipDisplayUnsupported();
-        }
-    }
-
-    private static void clearManagedTooltipDisplayComponent(ItemStack stack) {
-        if (!hasTooltipDisplayManagedMarker(stack)) {
-            return;
-        }
-
-        if (!isTooltipDisplaySupported()) {
-            setTooltipDisplayManagedMarker(stack, false);
-            return;
-        }
-
-        try {
-            Class<?> dataComponentTypesClass = Class.forName(DATA_COMPONENT_TYPES_CLASS);
-            Object tooltipDisplayType = dataComponentTypesClass.getField("TOOLTIP_DISPLAY").get(null);
-            Class<?> valuedClass = Class.forName(DATA_COMPONENT_VALUED_CLASS);
-            stack.getClass().getMethod("unsetData", valuedClass).invoke(stack, tooltipDisplayType);
-        } catch (ReflectiveOperationException ignored) {
-            // Safely ignore: old baselines simply won't have this component.
-        } finally {
-            setTooltipDisplayManagedMarker(stack, false);
-        }
-    }
-
-    private static boolean hasTooltipDisplayManagedMarker(ItemStack stack) {
-        if (stack == null || stack.getType().isAir()) {
-            return false;
-        }
-        ItemMeta meta = stack.getItemMeta();
-        if (meta == null) {
-            return false;
-        }
-        Byte marker = meta.getPersistentDataContainer().get(key("tooltip_hidden"), org.bukkit.persistence.PersistentDataType.BYTE);
-        return marker != null && marker == (byte) 1;
-    }
-
-    private static void setTooltipDisplayManagedMarker(ItemStack stack, boolean hidden) {
-        if (stack == null || stack.getType().isAir()) {
-            return;
-        }
-        ItemMeta meta = stack.getItemMeta();
-        if (meta == null) {
-            return;
-        }
-        if (hidden) {
-            meta.getPersistentDataContainer().set(key("tooltip_hidden"), org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
-        } else {
-            meta.getPersistentDataContainer().remove(key("tooltip_hidden"));
-        }
-        stack.setItemMeta(meta);
-    }
-
-    private static boolean isTooltipDisplaySupported() {
-        if (tooltipDisplaySupportChecked) {
-            return tooltipDisplaySupported;
-        }
-
-        synchronized (CookingPotItemDataHelper.class) {
-            if (tooltipDisplaySupportChecked) {
-                return tooltipDisplaySupported;
-            }
-
-            try {
-                Class.forName(TOOLTIP_DISPLAY_CLASS);
-                Class<?> dataComponentTypesClass = Class.forName(DATA_COMPONENT_TYPES_CLASS);
-                dataComponentTypesClass.getField("TOOLTIP_DISPLAY");
-                tooltipDisplaySupported = true;
-            } catch (ReflectiveOperationException ex) {
-                tooltipDisplaySupported = false;
-            }
-
-            tooltipDisplaySupportChecked = true;
-            return tooltipDisplaySupported;
-        }
-    }
-
-    private static void logTooltipDisplayUnsupported() {
-        if (tooltipDisplayUnsupportedLogged) {
-            return;
-        }
-
-        synchronized (CookingPotItemDataHelper.class) {
-            if (tooltipDisplayUnsupportedLogged) {
-                return;
-            }
-
-            FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-            if (plugin != null) {
-                plugin.getLogger().info("Packed cooking pot advanced durability tooltip hiding requires Paper 1.21.10+ (1.21.9-rc1+ API support).");
-            }
-            tooltipDisplayUnsupportedLogged = true;
-        }
     }
 
     private static String serializeInventory(ItemStack[] inventory) throws IOException {

@@ -28,8 +28,11 @@ import org.bukkit.util.Transformation;
 import org.joml.AxisAngle4f;
 import org.joml.Vector3f;
 
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
@@ -43,6 +46,8 @@ public class CookingPotBlockBehavior extends BlockBehavior {
 
     private static final Map<UUID, Map<BlockPosKey, CookingPotBlockEntity>> worldBlockEntities = new ConcurrentHashMap<>();
     private static final Map<UUID, Map<BlockPosKey, TextDisplay>> worldProgressDisplays = new ConcurrentHashMap<>();
+    private static final Map<BlockPosKey, Set<UUID>> displayVisibleToPlayers = new ConcurrentHashMap<>();
+    private static final Map<BlockPosKey, ItemStack> cookingRecipeItems = new ConcurrentHashMap<>();
     private static final Map<BlockPosKey, Long> recentPlacements = new ConcurrentHashMap<>();
     private static final String BLOCK_TYPE = "cooking_pot";
     private static final long PLACE_INTERACTION_COOLDOWN_MS = 1000L;
@@ -258,7 +263,28 @@ public class CookingPotBlockBehavior extends BlockBehavior {
             return;
         }
 
-        display.text(net.kyori.adventure.text.Component.text(progressPercent + "%"));
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin != null && plugin.isShowRecipeNameInProgressDisplay()) {
+            ItemStack recipeItem = cookingRecipeItems.get(posKey);
+            if (recipeItem != null) {
+                String recipeName = com.huidu.farmersdelight.util.ItemUtils.getDisplayName(recipeItem);
+                display.text(net.kyori.adventure.text.Component.text(recipeName + " " + progressPercent + "%"));
+            } else {
+                display.text(net.kyori.adventure.text.Component.text(progressPercent + "%"));
+            }
+        } else {
+            display.text(net.kyori.adventure.text.Component.text(progressPercent + "%"));
+        }
+
+        updateDisplayVisibility(world, posKey, display);
+    }
+
+    public static void setCookingRecipeItem(BlockPosKey posKey, ItemStack recipeItem) {
+        if (recipeItem != null && !recipeItem.getType().isAir()) {
+            cookingRecipeItems.put(posKey, recipeItem);
+        } else {
+            cookingRecipeItems.remove(posKey);
+        }
     }
 
     public static void removeProgressDisplay(World world, BlockPosKey posKey) {
@@ -267,14 +293,15 @@ public class CookingPotBlockBehavior extends BlockBehavior {
         }
 
         Map<BlockPosKey, TextDisplay> displays = worldProgressDisplays.get(world.getUID());
-        if (displays == null) {
-            return;
+        if (displays != null) {
+            TextDisplay display = displays.remove(posKey);
+            if (display != null && display.isValid()) {
+                display.remove();
+            }
         }
 
-        TextDisplay display = displays.remove(posKey);
-        if (display != null && display.isValid()) {
-            display.remove();
-        }
+        displayVisibleToPlayers.remove(posKey);
+        cookingRecipeItems.remove(posKey);
     }
 
     private static TextDisplay getOrCreateProgressDisplay(World world, BlockPosKey posKey) {
@@ -293,6 +320,7 @@ public class CookingPotBlockBehavior extends BlockBehavior {
             entity.setShadowed(true);
             entity.setSeeThrough(false);
             entity.setBackgroundColor(org.bukkit.Color.fromARGB(0, 0, 0, 0));
+            entity.setVisibleByDefault(false);
             entity.setTransformation(new Transformation(
                     new Vector3f(0f, 0f, 0f),
                     new AxisAngle4f(0f, 0f, 0f, 1f),
@@ -302,6 +330,50 @@ public class CookingPotBlockBehavior extends BlockBehavior {
         });
         displays.put(posKey, created);
         return created;
+    }
+
+    private static void updateDisplayVisibility(World world, BlockPosKey posKey, TextDisplay display) {
+        if (display == null || !display.isValid()) return;
+
+        Location location = posKey.toLocation(world);
+        Collection<org.bukkit.entity.Entity> nearby = location.getWorld().getNearbyEntities(location, 10, 10, 10);
+        Set<UUID> nearbyUUIDs = new HashSet<>();
+
+        Vector3f potPos = location.toVector().toVector3f();
+
+        for (org.bukkit.entity.Entity e : nearby) {
+            if (e instanceof Player) {
+                Player p = (Player) e;
+                nearbyUUIDs.add(p.getUniqueId());
+
+                Location eyeLoc = p.getEyeLocation();
+                Vector3f eyePos = eyeLoc.toVector().toVector3f();
+                Vector3f toPot = new Vector3f(potPos).sub(eyePos).normalize();
+                Vector3f lookDir = eyeLoc.getDirection().toVector3f();
+
+                float dot = lookDir.dot(toPot);
+                boolean isLooking = dot > 0.95;
+
+                Set<UUID> visibleTo = displayVisibleToPlayers.computeIfAbsent(posKey, k -> new HashSet<>());
+
+                if (isLooking) {
+                    if (!visibleTo.contains(p.getUniqueId())) {
+                        p.showEntity(FarmersDelightPlugin.getInstance(), display);
+                        visibleTo.add(p.getUniqueId());
+                    }
+                } else {
+                    if (visibleTo.contains(p.getUniqueId())) {
+                        p.hideEntity(FarmersDelightPlugin.getInstance(), display);
+                        visibleTo.remove(p.getUniqueId());
+                    }
+                }
+            }
+        }
+
+        Set<UUID> visibleTo = displayVisibleToPlayers.get(posKey);
+        if (visibleTo != null) {
+            visibleTo.removeIf(uuid -> !nearbyUUIDs.contains(uuid));
+        }
     }
 
     public static void saveAllData() {

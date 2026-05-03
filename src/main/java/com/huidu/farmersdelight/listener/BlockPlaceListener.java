@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
+import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.util.CookingPotItemDataHelper;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockAttemptPlaceEvent;
@@ -56,6 +57,9 @@ public class BlockPlaceListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
         Player player = event.getPlayer();
+
+        StoveManager stoveManager = FarmersDelightPlugin.getInstance().getStoveManager();
+        stoveManager.invalidateBlockedAboveCache(event.getBlock().getLocation().clone().add(0, -1, 0));
 
         String customBlockId = getCustomBlockId(event);
         if (customBlockId == null) {

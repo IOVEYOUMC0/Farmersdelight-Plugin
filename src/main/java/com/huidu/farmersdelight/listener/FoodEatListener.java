@@ -19,27 +19,12 @@ import java.util.Map;
 public class FoodEatListener implements Listener {
 
     private final FarmersDelightPlugin plugin;
-    private final Map<String, Integer> comfortFoodDurations = new HashMap<>();
     private final Map<String, Integer> nourishmentFoodDurations = new HashMap<>();
-    private boolean comfortFoodsEnabled;
     private boolean nourishmentFoodsEnabled;
 
     public FoodEatListener(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
-        loadComfortFoods();
         loadNourishmentFoods();
-    }
-
-    private void loadComfortFoods() {
-        comfortFoodDurations.clear();
-        ConfigurationSection comfortSection = plugin.getConfig().getConfigurationSection("comfort-foods");
-        comfortFoodsEnabled = comfortSection != null && comfortSection.getBoolean("enabled", false);
-        ConfigurationSection foodsSection = comfortSection != null
-                ? comfortSection.getConfigurationSection("foods")
-                : null;
-        if (foodsSection != null) {
-            loadDurations(foodsSection, comfortFoodDurations);
-        }
     }
 
     private void loadNourishmentFoods() {
@@ -50,19 +35,14 @@ public class FoodEatListener implements Listener {
                 ? nourishmentSection.getConfigurationSection("foods")
                 : null;
         if (foodsSection != null) {
-            loadDurations(foodsSection, nourishmentFoodDurations);
-        }
-    }
-
-    private void loadDurations(ConfigurationSection foodsSection, Map<String, Integer> target) {
-        for (String foodId : foodsSection.getKeys(false)) {
-            int duration = foodsSection.getInt(foodId + ".duration", 300);
-            target.put(foodId, duration);
+            for (String foodId : foodsSection.getKeys(false)) {
+                int duration = foodsSection.getInt(foodId + ".duration", 300);
+                nourishmentFoodDurations.put(foodId, duration);
+            }
         }
     }
 
     public void reload() {
-        loadComfortFoods();
         loadNourishmentFoods();
     }
 
@@ -77,17 +57,6 @@ public class FoodEatListener implements Listener {
         if (itemId == null) return;
 
         AdvancementManager advancementManager = FarmersDelightPlugin.getInstance().getAdvancementManager();
-
-        if (comfortFoodDurations.containsKey(itemId)) {
-            if (comfortFoodsEnabled) {
-                int duration = comfortFoodDurations.get(itemId);
-                EffectManager.applyComfort(player, duration);
-            }
-
-            if (advancementManager != null) {
-                advancementManager.award(player, "eat_comfort_food");
-            }
-        }
 
         if (nourishmentFoodDurations.containsKey(itemId)) {
             if (nourishmentFoodsEnabled) {

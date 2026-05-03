@@ -221,10 +221,14 @@ public final class HopperInteractionListener {
 
     private Hopper getHopperAt(World world, int x, int y, int z) {
         Block block = world.getBlockAt(x, y, z);
-        if (block.getState() instanceof Hopper hopper) {
-            return hopper;
+        if (block.getType() != org.bukkit.Material.HOPPER) {
+            return null;
         }
-        return null;
+        try {
+            return (Hopper) block.getState();
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private boolean isFacing(Block block, BlockFace expectedFacing) {

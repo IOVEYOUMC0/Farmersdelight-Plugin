@@ -4,6 +4,7 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.bukkit.entity.projectile.BukkitProjectileManager;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.entity.Raider;
@@ -22,20 +23,25 @@ import java.util.Set;
 
 public class AchievementListener implements Listener {
 
-    private static final Set<String> KNIFE_IDS = new HashSet<>();
-    private static final Set<String> FD_SEED_IDS = new HashSet<>();
+    private final Set<String> KNIFE_IDS = new HashSet<>();
+    private final Set<String> FD_SEED_IDS = new HashSet<>();
 
-    static {
-        KNIFE_IDS.add("farmersdelight:flint_knife");
-        KNIFE_IDS.add("farmersdelight:iron_knife");
-        KNIFE_IDS.add("farmersdelight:diamond_knife");
-        KNIFE_IDS.add("farmersdelight:golden_knife");
-        KNIFE_IDS.add("farmersdelight:netherite_knife");
+    public AchievementListener() {
+        loadConfig();
+    }
 
-        FD_SEED_IDS.add("farmersdelight:cabbage_seeds");
-        FD_SEED_IDS.add("farmersdelight:tomato_seeds");
-        FD_SEED_IDS.add("farmersdelight:onion");
-        FD_SEED_IDS.add("farmersdelight:rice");
+    public void loadConfig() {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin == null) return;
+
+        KNIFE_IDS.clear();
+        KNIFE_IDS.addAll(plugin.getConfig().getStringList("knife-config.items"));
+
+        FD_SEED_IDS.clear();
+        ConfigurationSection nourishmentSection = plugin.getConfig().getConfigurationSection("nourishment-foods.foods");
+        if (nourishmentSection != null) {
+            FD_SEED_IDS.addAll(nourishmentSection.getKeys(false));
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)

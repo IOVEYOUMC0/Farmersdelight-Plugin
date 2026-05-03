@@ -106,8 +106,11 @@ cooking-pot-packed-drop:
   enabled: true
   durability-bar:
     enabled: true
-  hide-advanced-durability-tooltip:
-    enabled: false
+
+# Cooking pot progress display settings
+cooking-pot-progress-display:
+  # Whether to show the recipe name in the progress display above the pot
+  show-recipe-name: false
 
 # Cooking pot world animation effects
 cooking-pot-effects:
@@ -152,6 +155,10 @@ straw-drops:
     min-amount: 1
     max-amount: 2
   mature_wheat:
+    drop: farmersdelight:straw
+    min-amount: 1
+    max-amount: 2
+  mature_rice:
     drop: farmersdelight:straw
     min-amount: 1
     max-amount: 2
@@ -444,31 +451,6 @@ pet-foods:
     particles: true
     particle-type: END_ROD
     particle-count: 5
-
-# Comfort food effect settings
-comfort-foods:
-  enabled: false
-  foods:
-    farmersdelight:apple_cider:
-      duration: 300
-    farmersdelight:glow_berry_custard:
-      duration: 300
-    farmersdelight:pumpkin_pie:
-      duration: 300
-    farmersdelight:hot_cocoa:
-      duration: 300
-    farmersdelight:baked_cod_stew:
-      duration: 300
-    minecraft:rabbit_stew:
-      duration: 300
-    farmersdelight:pasta_with_meatballs:
-      duration: 300
-    farmersdelight:pasta_with_mutton_chop:
-      duration: 300
-    farmersdelight:dumplings:
-      duration: 300
-    farmersdelight:cabbage_rolls:
-      duration: 300
 
 # Nourishment effect settings
 nourishment-foods:

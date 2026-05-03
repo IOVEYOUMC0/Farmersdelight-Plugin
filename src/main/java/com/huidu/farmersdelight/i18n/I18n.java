@@ -55,7 +55,9 @@ public class I18n {
             for (File file : langFiles) {
                 String localeName = file.getName().replace(".yml", "").toLowerCase();
                 YamlConfiguration config = loadYamlUtf8(file);
-                locales.put(localeName, config);
+                if (config != null) {
+                    locales.put(localeName, config);
+                }
             }
         }
 
@@ -145,10 +147,11 @@ public class I18n {
         YamlConfiguration yaml = new YamlConfiguration();
         try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(file.toPath()), StandardCharsets.UTF_8)) {
             yaml.load(reader);
+            return yaml;
         } catch (Exception e) {
             plugin.getLogger().warning("Failed to load language file " + file.getName() + " as UTF-8: " + e.getMessage());
+            return null;
         }
-        return yaml;
     }
 
     public static void reload() {

@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.block.behavior.UpperHalfLootRelayBehavior;
 import net.momirealms.craftengine.bukkit.api.BukkitAdaptors;
+import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockBreakEvent;
 import net.momirealms.craftengine.bukkit.world.BukkitExistingBlock;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -41,6 +42,13 @@ public class UpperHalfLootRelayListener implements Listener {
             return;
         }
 
+        Block lootSourceBlock = brokenBlock.getRelative(behavior.getLowerHalfDirection());
+        ImmutableBlockState lootSourceState = event.blockState();
+        ImmutableBlockState lowerState = CraftEngineBlocks.getCustomBlockState(lootSourceBlock);
+        if (lowerState != null && !lowerState.isEmpty()) {
+            lootSourceState = lowerState;
+        }
+
         WorldPosition position = new WorldPosition(
                 BukkitAdaptors.adapt(brokenBlock.getWorld()),
                 brokenBlock.getX() + 0.5,
@@ -48,7 +56,7 @@ public class UpperHalfLootRelayListener implements Listener {
                 brokenBlock.getZ() + 0.5
         );
         ContextHolder.Builder builder = event.contextBuilder()
-                .withParameter(DirectContextParameters.BLOCK, new BukkitExistingBlock(brokenBlock))
+                .withParameter(DirectContextParameters.BLOCK, new BukkitExistingBlock(lootSourceBlock))
                 .withParameter(DirectContextParameters.POSITION, position)
                 .withParameter(DirectContextParameters.PLAYER, event.player());
 
@@ -58,7 +66,7 @@ public class UpperHalfLootRelayListener implements Listener {
         }
 
         List<net.momirealms.craftengine.core.item.Item<Object>> drops =
-                brokenState.getDrops(builder, position.world(), event.player());
+                lootSourceState.getDrops(builder, position.world(), event.player());
         if (drops.isEmpty()) {
             return;
         }

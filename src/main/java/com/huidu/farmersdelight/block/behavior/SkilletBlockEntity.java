@@ -273,7 +273,7 @@ public class SkilletBlockEntity {
                     return;
                 }
             } catch (Exception e) {
-                // 实体可能已被移除
+                // Entity may already be removed
             }
         }
     }

@@ -52,10 +52,6 @@ command:
   help_reload: "Reload the configuration"
   help_help: "Show help information"
 effects:
-  comfort:
-    start: "&6A comforting meal leaves you feeling warm for {time}."
-    fade: "&eThe comforting feeling is beginning to fade. {seconds}s remaining."
-    end: "&7The comforting feeling has worn off."
   nourishment:
     start: "&6A hearty meal keeps hunger away for {time}."
     fade: "&eYour fullness is gradually fading. {seconds}s remaining."

@@ -7,12 +7,14 @@ import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.ManagerSupport;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.HashSet;
@@ -177,6 +179,7 @@ public class TickManager {
             try {
                 switch (activeBlock.type) {
                     case COOKING_POT -> tickCookingPot(world, activeBlock.posKey);
+                    default -> throw new IllegalArgumentException("Unexpected value: " + activeBlock.type);
                 }
             } catch (Exception e) {
                 plugin.getLogger().warning("Error ticking " + activeBlock.type + " at " + activeBlock.posKey + ": " + e.getMessage());
@@ -260,6 +263,9 @@ public class TickManager {
         }
 
         if (entity.getCookingProgress() > 0 && entity.getCurrentRecipe() != null) {
+            CookingPotRecipe recipe = entity.getCurrentRecipe();
+            ItemStack result = recipe.getResult();
+            CookingPotBlockBehavior.setCookingRecipeItem(posKey, result);
             CookingPotBlockBehavior.updateProgressDisplay(world, posKey, entity.getProgressPercent());
         } else {
             CookingPotBlockBehavior.removeProgressDisplay(world, posKey);
@@ -429,20 +435,6 @@ public class TickManager {
             return defaultValue;
         }
         return section.getDouble(key, defaultValue);
-    }
-
-    private double getBehaviorOrConfigDouble(Double behaviorValue, ConfigurationSection section, String key, double defaultValue) {
-        if (behaviorValue != null) {
-            return behaviorValue;
-        }
-        return getDouble(section, key, defaultValue);
-    }
-
-    private String getString(ConfigurationSection section, String key) {
-        if (section == null) {
-            return null;
-        }
-        return section.getString(key);
     }
 
     private String firstNonBlank(String primary, String fallback) {

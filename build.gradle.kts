@@ -15,8 +15,6 @@ repositories {
 
 dependencies {
     // Baseline compile target. General plugin code is kept compatible with Paper 1.21.4+.
-    // TooltipDisplay / DataComponentTypes.TOOLTIP_DISPLAY is not available on this baseline;
-    // that specific tooltip-hiding feature requires paper-api 1.21.9-rc1+ (recommended 1.21.10+).
     compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
     compileOnly("net.momirealms:craft-engine-bukkit:0.0.67")
     compileOnly("net.momirealms:craft-engine-core:0.0.67")

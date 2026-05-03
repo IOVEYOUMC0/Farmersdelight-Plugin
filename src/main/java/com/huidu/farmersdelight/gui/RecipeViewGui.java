@@ -993,13 +993,6 @@ public class RecipeViewGui implements InventoryHolder, Listener {
         return unknownRecipeText(player);
     }
 
-    private Component formatIngredientComponent(RecipeIngredient ingredient, Player player) {
-        if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
-            return itemNameComponent(createItemFromKey(itemIngredient.key()), player);
-        }
-        return Component.text(formatIngredient(ingredient, player));
-    }
-
     private List<Component> formatIngredientLoreLines(RecipeIngredient ingredient, Player player) {
         List<Component> lines = new ArrayList<>();
         if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
@@ -1050,25 +1043,6 @@ public class RecipeViewGui implements InventoryHolder, Listener {
             builder.append(", +").append(remainingCount);
         }
         return builder.toString();
-    }
-
-    private String formatTagIngredientLabel(RecipeIngredient.Tag tagIngredient) {
-        StringBuilder builder = new StringBuilder("#").append(tagIngredient.key());
-        for (Key excludedItem : tagIngredient.excludedItems()) {
-            builder.append(",!").append(excludedItem);
-        }
-        for (Key excludedTag : tagIngredient.excludedTags()) {
-            builder.append(",!#").append(excludedTag);
-        }
-        return builder.toString();
-    }
-
-    private String formatToolList(List<CuttingBoardRecipe.ToolRequirement> tools, Player player) {
-        List<String> labels = new ArrayList<>();
-        for (CuttingBoardRecipe.ToolRequirement tool : tools) {
-            labels.add(getItemDisplayName(createToolPreviewItem(tool.key()), player));
-        }
-        return summarizeLabels(labels, 0);
     }
 
     private Component formatToolListComponent(List<CuttingBoardRecipe.ToolRequirement> tools, Player player) {
@@ -1194,10 +1168,6 @@ public class RecipeViewGui implements InventoryHolder, Listener {
             return fallback;
         }
         return value;
-    }
-
-    private String humanizeMaterialName(String materialName) {
-        return ItemUtils.humanizeKey(materialName);
     }
 
     private Component colored(String text) {

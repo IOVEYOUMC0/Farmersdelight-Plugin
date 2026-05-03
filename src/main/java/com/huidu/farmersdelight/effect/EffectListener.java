@@ -16,10 +16,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Tracks online players with active custom food effects.
- *
- * <p>Only players that currently have comfort or nourishment are ticked,
- * which keeps the recurring task lightweight.
+ * Tracks online players that currently have custom food effects.
+ * Only tracked players are processed each tick so the scheduled task stays light.
  */
 public class EffectListener implements Listener {
 
@@ -49,7 +47,9 @@ public class EffectListener implements Listener {
             return;
         }
         effectTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-            if (playersWithEffects.isEmpty()) return;
+            if (playersWithEffects.isEmpty()) {
+                return;
+            }
 
             Iterator<UUID> iterator = playersWithEffects.iterator();
             while (iterator.hasNext()) {
@@ -75,7 +75,7 @@ public class EffectListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        if (EffectManager.hasComfort(player) || EffectManager.hasNourishment(player)) {
+        if (EffectManager.hasNourishment(player)) {
             trackPlayer(player.getUniqueId());
         }
     }

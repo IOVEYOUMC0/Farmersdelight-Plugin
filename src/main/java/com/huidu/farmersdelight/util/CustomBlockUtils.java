@@ -123,6 +123,37 @@ public final class CustomBlockUtils {
         };
     }
 
+    public static String getPropertyString(ImmutableBlockState state, String propertyName) {
+        if (state == null || state.isEmpty()) return null;
+        for (Property<?> property : state.getProperties()) {
+            if (property.name().equalsIgnoreCase(propertyName)) {
+                Object value = state.get(property);
+                return value != null ? value.toString() : null;
+            }
+        }
+        return null;
+    }
+
+    public static Integer getPropertyInt(ImmutableBlockState state, String propertyName) {
+        if (state == null || state.isEmpty()) return null;
+        for (Property<?> property : state.getProperties()) {
+            if (property.name().equalsIgnoreCase(propertyName)) {
+                Object value = state.get(property);
+                if (value instanceof Number num) {
+                    return num.intValue();
+                }
+                if (value instanceof String str) {
+                    try {
+                        return Integer.parseInt(str);
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+                return null;
+            }
+        }
+        return null;
+    }
+
     public static float getYRotation(BlockFace facing) {
         return switch (facing) {
             case SOUTH -> 0.0f;

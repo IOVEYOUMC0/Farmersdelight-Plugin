@@ -33,13 +33,15 @@ public class StoveManager {
 
     private final FarmersDelightPlugin plugin;
     private final Map<Location, StoveData> stoves = new ConcurrentHashMap<>();
+    private final Map<Location, Boolean> blockedAboveCache = new ConcurrentHashMap<>();
     private final CampfireRecipeCache campfireRecipes = new CampfireRecipeCache("stove", this::debug);
     private BukkitTask tickTask;
     private int heartbeatTicks;
+    private Property<?> fireProperty;
 
     private final double[][] slotOffsets = {
-            {-0.3, 1.02, -0.2}, {0.0, 1.02, -0.2}, {0.3, 1.02, -0.2},
-            {-0.3, 1.02, 0.2}, {0.0, 1.02, 0.2}, {0.3, 1.02, 0.2}
+            {0.3, 1.02, 0.2}, {0.0, 1.02, 0.2}, {-0.3, 1.02, 0.2},
+            {0.3, 1.02, -0.2}, {0.0, 1.02, -0.2}, {-0.3, 1.02, -0.2}
     };
 
     public static class StoveData {
@@ -71,7 +73,7 @@ public class StoveManager {
             public void run() {
                 tick();
             }
-        }.runTaskTimer(plugin, 1L, 1L);
+        }.runTaskTimer(plugin, 1L, 4L);
     }
 
     private void stopTaskIfIdle() {
@@ -91,7 +93,7 @@ public class StoveManager {
 
     public boolean handleInteract(Player player, Block block, ItemStack itemInHand) {
         Location location = ManagerSupport.normalize(block.getLocation());
-        if (isStoveBlockedAbove(location)) {
+        if (isStoveBlockedAboveCached(location)) {
             debug("Stove interact blocked above for " + formatItem(itemInHand) + " at " + formatLocation(location));
             return false;
         }
@@ -345,7 +347,7 @@ public class StoveManager {
                 continue;
             }
 
-            if (isStoveBlockedAbove(location)) {
+            if (isStoveBlockedAboveCached(location)) {
                 debug(() -> "tick remove: stove blocked above, ejecting all items at " + formatLocation(location));
                 ejectAllItems(location, stove);
                 cleanupAllVisuals(stove);
@@ -396,18 +398,42 @@ public class StoveManager {
         stopTaskIfIdle();
     }
 
-    private boolean isStoveLit(ImmutableBlockState state) {
+    private void resolveFireProperty(ImmutableBlockState state) {
+        if (fireProperty != null) return;
         for (Property<?> prop : state.getProperties()) {
             if ("fire".equals(prop.name())) {
-                try {
-                    Object fireValue = state.get(prop);
-                    return fireValue instanceof Boolean lit && lit;
-                } catch (Exception ignored) {
-                    return true;
-                }
+                fireProperty = prop;
+                return;
             }
         }
-        return true;
+    }
+
+    private boolean isStoveLit(ImmutableBlockState state) {
+        if (fireProperty == null) {
+            resolveFireProperty(state);
+        }
+        if (fireProperty == null) {
+            return true;
+        }
+        try {
+            Object fireValue = state.get(fireProperty);
+            return fireValue instanceof Boolean lit && lit;
+        } catch (Exception ignored) {
+            return true;
+        }
+    }
+
+    private boolean isStoveBlockedAboveCached(Location location) {
+        return blockedAboveCache.computeIfAbsent(location, this::isStoveBlockedAbove);
+    }
+
+    public void invalidateBlockedAboveCache(Location location) {
+        blockedAboveCache.remove(location);
+    }
+
+    public void invalidateBlockedAboveCacheNear(Location location) {
+        blockedAboveCache.remove(ManagerSupport.normalize(location));
+        blockedAboveCache.remove(ManagerSupport.normalize(location.clone().add(0, -1, 0)));
     }
 
     private boolean isStoveBlockedAbove(Location location) {
@@ -532,9 +558,9 @@ public class StoveManager {
         BlockFace facing = CustomBlockUtils.getFacing(block).getOppositeFace();
 
         return switch (facing) {
-            case EAST -> new double[]{-offset[2], offset[1], offset[0]};
+            case EAST -> new double[]{offset[2], offset[1], -offset[0]};
             case SOUTH -> new double[]{-offset[0], offset[1], -offset[2]};
-            case WEST -> new double[]{offset[2], offset[1], -offset[0]};
+            case WEST -> new double[]{-offset[2], offset[1], offset[0]};
             default -> new double[]{offset[0], offset[1], offset[2]};
         };
     }

@@ -52,10 +52,6 @@ command:
   help_reload: "重新加载配置"
   help_help: "显示帮助信息"
 effects:
-  comfort:
-    start: "&6舒适的料理让你感到温暖，效果将持续 {time}"
-    fade: "&e舒适感正在慢慢消散，剩余 {seconds} 秒"
-    end: "&7舒适感消失了"
   nourishment:
     start: "&6丰富的料理让你暂时不会感到饥饿，效果将持续 {time}"
     fade: "&e饱腹感正在逐渐消退，剩余 {seconds} 秒"

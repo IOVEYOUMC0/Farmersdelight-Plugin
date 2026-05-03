@@ -33,6 +33,8 @@ public class CuttingBoardBlockBehavior extends BlockBehavior {
 
     private static final Map<UUID, Map<BlockPosKey, CuttingBoardBlockEntity>> worldBlockEntities = new ConcurrentHashMap<>();
     private static final String BLOCK_TYPE = "cutting_board";
+    private static final Map<UUID, Map<BlockPosKey, Long>> recentManualInsertions = new ConcurrentHashMap<>();
+    private static final long MANUAL_INSERT_GUARD_MILLIS = 250L;
 
     private final Property<?> facingProperty;
     private final List<Key> toolTags;
@@ -118,6 +120,35 @@ public class CuttingBoardBlockBehavior extends BlockBehavior {
             worldEntities.clear();
         }
         worldBlockEntities.clear();
+        recentManualInsertions.clear();
+    }
+
+    public static void markManualInsertion(World world, BlockPosKey posKey, UUID playerId) {
+        if (world == null || posKey == null || playerId == null) {
+            return;
+        }
+        recentManualInsertions
+                .computeIfAbsent(playerId, ignored -> new ConcurrentHashMap<>())
+                .put(posKey, System.currentTimeMillis());
+    }
+
+    private static boolean consumeManualInsertionGuard(UUID playerId, BlockPosKey posKey) {
+        if (playerId == null || posKey == null) {
+            return false;
+        }
+        Map<BlockPosKey, Long> guardedPositions = recentManualInsertions.get(playerId);
+        if (guardedPositions == null) {
+            return false;
+        }
+
+        Long timestamp = guardedPositions.remove(posKey);
+        if (guardedPositions.isEmpty()) {
+            recentManualInsertions.remove(playerId);
+        }
+        if (timestamp == null) {
+            return false;
+        }
+        return System.currentTimeMillis() - timestamp <= MANUAL_INSERT_GUARD_MILLIS;
     }
 
     public static void saveAllData() {
@@ -206,7 +237,6 @@ public class CuttingBoardBlockBehavior extends BlockBehavior {
         return CustomBlockUtils.idContains(world.getBlockAt(posKey.x(), posKey.y(), posKey.z()), "cutting_board");
     }
 
-    @SuppressWarnings("unchecked")
     public static final BlockBehaviorFactory<CuttingBoardBlockBehavior> FACTORY = new BlockBehaviorFactory<CuttingBoardBlockBehavior>() {
         @Override
         public CuttingBoardBlockBehavior create(CustomBlock block, Map<String, Object> arguments) {
@@ -286,6 +316,10 @@ public class CuttingBoardBlockBehavior extends BlockBehavior {
         Player bukkitPlayer = Bukkit.getPlayer(context.getPlayer().uuid());
         if (bukkitPlayer == null) return InteractionResult.PASS;
 
+        if (consumeManualInsertionGuard(bukkitPlayer.getUniqueId(), posKey)) {
+            return InteractionResult.SUCCESS_AND_CANCEL;
+        }
+
         if (!bukkitPlayer.hasPermission("farmersdelight.use.cutting_board")) {
             bukkitPlayer.sendActionBar(I18n.getComponent("general.no_permission", bukkitPlayer));
             return InteractionResult.FAIL;
@@ -328,6 +362,12 @@ public class CuttingBoardBlockBehavior extends BlockBehavior {
         }
 
         if (!blockEntity.hasItem() && !mainHand.getType().isAir()) {
+            if (bukkitPlayer.isSneaking() && isTool(mainHand)) {
+                // Dedicated Bukkit interaction listener handles sneaking tool insertion
+                // to avoid CraftEngine interaction edge cases and double-processing.
+                return InteractionResult.PASS;
+            }
+
             ItemStack itemToPlace = mainHand.clone();
             itemToPlace.setAmount(1);
             boolean carveTool = bukkitPlayer.isSneaking() && isTool(mainHand);

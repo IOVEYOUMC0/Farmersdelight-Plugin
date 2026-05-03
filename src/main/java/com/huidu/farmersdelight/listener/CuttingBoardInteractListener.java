@@ -77,6 +77,7 @@ public class CuttingBoardInteractListener implements Listener {
         ItemStack itemToPlace = mainHand.clone();
         itemToPlace.setAmount(1);
         blockEntity.setItem(itemToPlace, block.getWorld(), posKey, CustomBlockUtils.getFacing(block), true);
+        CuttingBoardBlockBehavior.markManualInsertion(block.getWorld(), posKey, player.getUniqueId());
 
         if (player.getGameMode() != GameMode.CREATIVE) {
             int newAmount = mainHand.getAmount() - 1;

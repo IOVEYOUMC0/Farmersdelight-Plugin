@@ -72,7 +72,7 @@ public class SkilletManager {
             public void run() {
                 tick();
             }
-        }.runTaskTimer(plugin, 1L, 1L);
+        }.runTaskTimer(plugin, 1L, 4L);
     }
 
     private void stopTaskIfIdle() {
@@ -476,7 +476,8 @@ public class SkilletManager {
             debug(() -> "tick state: hasHeat=" + hasHeat + ", progress=" + skillet.cookingProgress
                     + "/" + skillet.cookingDuration + ", recipe="
                     + (skillet.currentRecipe != null ? skillet.currentRecipe.getKey() : "null")
-                    + ", stored=" + formatItem(skillet.storedItem) + ", location=" + formatLocation(location));
+                    + ", stored=" + formatItem(skillet.storedItem) + ", location=" + formatLocation(location)
+                    + ", fireAspectLevel=" + skillet.fireAspectLevel);
             if (hasHeat && skillet.currentRecipe != null) {
                 skillet.cookingProgress++;
 

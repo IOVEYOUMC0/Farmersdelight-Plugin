@@ -58,6 +58,10 @@ public class UpperHalfLootRelayBehavior extends BlockBehavior {
         return "upper".equalsIgnoreCase(halfValue);
     }
 
+    public BlockFace getLowerHalfDirection() {
+        return lowerHalfDirection;
+    }
+
     private boolean matchesLowerHalf(ImmutableBlockState lowerState) {
         if (lowerState == null || lowerState.isEmpty()) {
             return false;

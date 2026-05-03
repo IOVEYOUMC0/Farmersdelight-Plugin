@@ -350,20 +350,6 @@ public class CookingPotRecipeManager {
         return customId != null ? customId : ItemUtils.getVanillaMaterialItemId(item);
     }
 
-    private boolean sameItem(ItemStack first, ItemStack second) {
-        if (first == null || second == null || first.getType().isAir() || second.getType().isAir()) {
-            return false;
-        }
-
-        String firstCustomId = ItemUtils.getCustomItemId(first);
-        String secondCustomId = ItemUtils.getCustomItemId(second);
-        if (firstCustomId != null || secondCustomId != null) {
-            return firstCustomId != null && firstCustomId.equals(secondCustomId);
-        }
-
-        return first.getType() == second.getType();
-    }
-
     public Map<String, CookingPotRecipe> getRecipes() {
         return Collections.unmodifiableMap(recipes);
     }

@@ -77,6 +77,7 @@ public final class RiceCropRules {
         return false;
     }
 
+    @SuppressWarnings("unlikely-arg-type")
     public static boolean isSameCropBlock(Block block, Key cropId) {
         if (block == null || cropId == null) {
             return false;

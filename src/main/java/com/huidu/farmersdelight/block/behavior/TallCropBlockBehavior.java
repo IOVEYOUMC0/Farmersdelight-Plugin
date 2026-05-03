@@ -36,6 +36,8 @@ public class TallCropBlockBehavior extends BlockBehavior {
     private final int minGrowLight;
     private final boolean isBoneMealTarget;
     private final boolean randomBoneMealGrowth;
+    private final int boneMealMin;
+    private final int boneMealMax;
     private final int maxAgeLower;
     private final int maxAgeUpper;
     private final Object halfLowerValue;
@@ -43,13 +45,13 @@ public class TallCropBlockBehavior extends BlockBehavior {
     private final boolean requiresWater;
     private final boolean resetOnHarvest;
     private final Key upperBlockId;
-    private final SoilRules soilRules;
-
+    private static final Map<Key, TallCropBlockBehavior> BEHAVIORS = new ConcurrentHashMap<>();
     private static final Map<Key, SoilRules> SOIL_RULES = new ConcurrentHashMap<>();
 
     private TallCropBlockBehavior(CustomBlock block, Property<Integer> ageProperty,
                                    Property<?> halfProperty, Property<Boolean> supportingProperty,
                                    float growSpeed, int minGrowLight, boolean isBoneMealTarget, boolean randomBoneMealGrowth,
+                                   int boneMealMin, int boneMealMax,
                                    int maxAgeLower, int maxAgeUpper, Object halfLowerValue, Object halfUpperValue,
                                    boolean requiresWater, boolean resetOnHarvest, Key upperBlockId,
                                    SoilRules soilRules) {
@@ -61,6 +63,8 @@ public class TallCropBlockBehavior extends BlockBehavior {
         this.minGrowLight = minGrowLight;
         this.isBoneMealTarget = isBoneMealTarget;
         this.randomBoneMealGrowth = randomBoneMealGrowth;
+        this.boneMealMin = boneMealMin;
+        this.boneMealMax = boneMealMax;
         this.maxAgeLower = maxAgeLower;
         this.maxAgeUpper = maxAgeUpper;
         this.halfLowerValue = halfLowerValue;
@@ -68,7 +72,6 @@ public class TallCropBlockBehavior extends BlockBehavior {
         this.requiresWater = requiresWater;
         this.resetOnHarvest = resetOnHarvest;
         this.upperBlockId = upperBlockId;
-        this.soilRules = soilRules;
     }
 
     @SuppressWarnings("unchecked")
@@ -91,6 +94,10 @@ public class TallCropBlockBehavior extends BlockBehavior {
             int minGrowLight = getInt(arguments, "light-requirement", 9);
             boolean isBoneMealTarget = getBoolean(arguments, "is-bone-meal-target", false);
             boolean randomBoneMealGrowth = getBoolean(arguments, "random-bone-meal-growth", false);
+            int boneMealMin = getInt(arguments, "bone-meal-min", 1);
+            int boneMealMax = getInt(arguments, "bone-meal-max", randomBoneMealGrowth ? 4 : 2);
+            if (boneMealMin < 1) boneMealMin = 1;
+            if (boneMealMax < boneMealMin) boneMealMax = boneMealMin;
             
             int maxAgeLower = hasArgument(arguments, "max-age-lower")
                     ? getInt(arguments, "max-age-lower", 4)
@@ -122,6 +129,8 @@ public class TallCropBlockBehavior extends BlockBehavior {
                     minGrowLight,
                     isBoneMealTarget,
                     randomBoneMealGrowth,
+                    boneMealMin,
+                    boneMealMax,
                     maxAgeLower,
                     maxAgeUpper,
                     halfLowerValue,
@@ -131,16 +140,39 @@ public class TallCropBlockBehavior extends BlockBehavior {
                     upperBlockId,
                     soilRules
             );
+            BEHAVIORS.put(block.id(), behavior);
             SOIL_RULES.put(block.id(), soilRules);
             return behavior;
         }
     };
+
+    public static TallCropBlockBehavior getBehavior(Key cropId) {
+        if (cropId == null) {
+            return null;
+        }
+        return BEHAVIORS.get(cropId);
+    }
+
+    public static TallCropBlockBehavior getBehavior(ImmutableBlockState state) {
+        if (state == null || state.isEmpty()) {
+            return null;
+        }
+        return getBehavior(state.owner().value().id());
+    }
 
     public static SoilRules getSoilRules(Key cropId) {
         if (cropId == null) {
             return null;
         }
         return SOIL_RULES.get(cropId);
+    }
+
+    public int getMaxAgeLower() {
+        return maxAgeLower;
+    }
+
+    public int getMaxAgeUpper() {
+        return maxAgeUpper;
     }
 
     public int getAge(ImmutableBlockState state) {
@@ -261,8 +293,8 @@ public class TallCropBlockBehavior extends BlockBehavior {
         }
 
         int ageBonus = randomBoneMealGrowth
-                ? 1 + ThreadLocalRandom.current().nextInt(4)
-                : 1;
+                ? boneMealMin + ThreadLocalRandom.current().nextInt(boneMealMax - boneMealMin + 1)
+                : boneMealMin;
         int newAge = currentAge + ageBonus;
         playBonemealEffect(world, pos.x(), pos.y(), pos.z());
         return applyBoneMealToLowerHalf(pos, world, state, newAge);
@@ -297,7 +329,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
             return false;
         }
 
-        int ageBonus = 1 + ThreadLocalRandom.current().nextInt(2);
+        int ageBonus = boneMealMin + ThreadLocalRandom.current().nextInt(Math.max(1, boneMealMax - boneMealMin + 1));
         int newAge = Math.min(currentAge + ageBonus, maxAgeUpper);
         playBonemealEffect(world, pos.x(), pos.y(), pos.z());
 
@@ -321,7 +353,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
             return false;
         }
 
-        int ageBonus = 1 + ThreadLocalRandom.current().nextInt(2);
+        int ageBonus = boneMealMin + ThreadLocalRandom.current().nextInt(Math.max(1, boneMealMax - boneMealMin + 1));
         int newUpperAge = Math.min(upperAge + ageBonus, maxAgeUpper);
         playBonemealEffect(world, pos.x(), pos.y() + 1, pos.z());
 
@@ -564,7 +596,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
         return String.valueOf(value).trim().toLowerCase();
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({})
     private static Object getRawPropertyValue(Object configuredValue, Property<?> property, Object fallback) {
         if (configuredValue == null || property == null) {
             return fallback;

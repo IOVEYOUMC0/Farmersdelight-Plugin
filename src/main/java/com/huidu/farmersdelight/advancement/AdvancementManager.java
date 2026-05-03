@@ -25,7 +25,6 @@ public class AdvancementManager {
         registerAdvancement("place_campfire", "main/place_campfire");
         registerAdvancement("use_skillet", "main/use_skillet");
         registerAdvancement("get_fd_seed", "main/get_fd_seed");
-        registerAdvancement("obtain_netherite_knife", "main/obtain_netherite_knife");
         registerAdvancement("hit_raider_with_rotten_tomato", "main/hit_raider_with_rotten_tomato");
         registerAdvancement("harvest_straw", "main/harvest_straw");
         registerAdvancement("place_cooking_pot", "main/place_cooking_pot");
@@ -35,10 +34,8 @@ public class AdvancementManager {
         registerAdvancement("plant_rice", "main/plant_rice");
         registerAdvancement("plant_all_crops", "main/plant_all_crops");
         registerAdvancement("get_ham", "main/get_ham");
-        registerAdvancement("wild_crops", "main/get_fd_seed");
         registerAdvancement("netherite_knife", "main/obtain_netherite_knife");
         registerAdvancement("rotten_tomato_throw", "main/hit_raider_with_rotten_tomato");
-        registerAdvancement("eat_comfort_food", "main/eat_comfort_food");
         registerAdvancement("eat_nourishing_food", "main/eat_nourishing_food");
         registerAdvancement("master_chef", "main/master_chef");
 

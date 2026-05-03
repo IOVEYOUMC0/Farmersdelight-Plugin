@@ -161,7 +161,7 @@ public class StoveCookingBlockBehavior extends BlockBehavior {
     }
 
     public static void clearRecipeCache() {
-        // Recipe cache lives in StoveCookingBlockEntity.
+        StoveCookingBlockEntity.clearRecipeCache();
     }
 
     private static StoveManager getManager() {

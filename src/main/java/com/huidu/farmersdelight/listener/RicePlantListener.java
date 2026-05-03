@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.block.behavior.TallCropBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.WildRiceBlockBehavior;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.Constants;
@@ -54,8 +55,6 @@ public class RicePlantListener implements Listener {
         Block block = event.getBlock();
         ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
         if (isWildRiceBlock(state)) {
-            event.setCancelled(true);
-
             if (canWildRiceStay(block, state)) {
                 return;
             }
@@ -68,8 +67,6 @@ public class RicePlantListener implements Listener {
             return;
         }
 
-        event.setCancelled(true);
-
         if (canRiceStay(block, state)) {
             syncSupportingState(block, state);
             return;
@@ -78,7 +75,7 @@ public class RicePlantListener implements Listener {
         scheduleRiceValidation(block);
     }
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onRiceBreak(CustomBlockBreakEvent event) {
         Block brokenBlock = event.bukkitBlock();
         ImmutableBlockState brokenState = event.blockState();
@@ -286,7 +283,6 @@ public class RicePlantListener implements Listener {
         return behavior.canStay(block, state);
     }
 
-    @SuppressWarnings("unchecked")
     private void syncSupportingState(Block block, ImmutableBlockState state) {
         if (isUpperRiceHalf(state)) {
             return;
@@ -309,27 +305,6 @@ public class RicePlantListener implements Listener {
         }
     }
 
-    private Integer getIntProperty(ImmutableBlockState state, String propertyName) {
-        if (state == null || state.isEmpty()) {
-            return null;
-        }
-
-        try {
-            Property<?> property = state.owner().value().getProperty(propertyName);
-            if (property == null) {
-                return null;
-            }
-
-            Object value = state.get(property);
-            if (value instanceof Integer integer) {
-                return integer;
-            }
-            return null;
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
     private Object getPropertyValue(ImmutableBlockState state, String propertyName) {
         if (state == null || state.isEmpty()) {
             return null;
@@ -348,7 +323,21 @@ public class RicePlantListener implements Listener {
     }
 
     private boolean isUpperRiceHalf(ImmutableBlockState state) {
-        return matchesRiceHalfValue(getPropertyValue(state, "half"), "upper");
+        Object halfValue = getPropertyValue(state, "half");
+        if (halfValue == null) {
+            return false;
+        }
+
+        if (halfValue instanceof Integer intValue) {
+            return intValue == 1;
+        }
+
+        if (halfValue instanceof Number numberValue) {
+            return numberValue.intValue() == 1;
+        }
+
+        String textValue = String.valueOf(halfValue).trim().toLowerCase();
+        return "upper".equals(textValue) || "1".equals(textValue);
     }
 
     private Object inferRiceHalfValue(CustomBlock block, String target) {
@@ -395,16 +384,19 @@ public class RicePlantListener implements Listener {
         return String.valueOf(value).trim().toLowerCase();
     }
 
-    @SuppressWarnings("unchecked")
     private Property<Integer> getAgeProperty(CustomBlock block) {
         if (block == null) {
             return null;
         }
 
+        Property<Integer> cropStageProperty = (Property<Integer>) block.getProperty("crop_stage");
+        if (cropStageProperty != null) {
+            return cropStageProperty;
+        }
+
         return (Property<Integer>) block.getProperty("age");
     }
 
-    @SuppressWarnings("unchecked")
     private Property<Integer> getAgeProperty(ImmutableBlockState state) {
         if (state == null || state.isEmpty()) {
             return null;
@@ -512,7 +504,7 @@ public class RicePlantListener implements Listener {
             return;
         }
 
-        if (matchesRiceHalfValue(half, "upper")) {
+        if (isUpperHalfValue(half)) {
             resetLowerAfterUpperBreak(brokenBlock.getRelative(BlockFace.DOWN));
             return;
         }
@@ -523,6 +515,23 @@ public class RicePlantListener implements Listener {
         if (RiceCropRules.isValidSoil(brokenBlock.getRelative(BlockFace.DOWN))) {
             brokenBlock.setType(Material.WATER, false);
         }
+    }
+
+    private boolean isUpperHalfValue(Object halfValue) {
+        if (halfValue == null) {
+            return false;
+        }
+
+        if (halfValue instanceof Integer intValue) {
+            return intValue == 1;
+        }
+
+        if (halfValue instanceof Number numberValue) {
+            return numberValue.intValue() == 1;
+        }
+
+        String textValue = String.valueOf(halfValue).trim().toLowerCase();
+        return "upper".equals(textValue) || "1".equals(textValue);
     }
 
     private void restoreWildRiceCarrierBlock(Block brokenBlock, String half) {
@@ -561,10 +570,6 @@ public class RicePlantListener implements Listener {
         return getWildRiceBehavior().canPlantAt(waterBlock);
     }
 
-    private boolean isValidWildRiceSoil(Block block) {
-        return getWildRiceBehavior().isValidSoil(block);
-    }
-
     private void resetLowerAfterUpperBreak(Block lowerBlock) {
         if (lowerBlock == null) {
             return;
@@ -575,11 +580,14 @@ public class RicePlantListener implements Listener {
             return;
         }
 
+        TallCropBlockBehavior behavior = TallCropBlockBehavior.getBehavior(lowerState);
+        int lowerResetAge = behavior != null ? Math.max(0, behavior.getMaxAgeLower() - 1) : 3;
+
         ImmutableBlockState resetState = lowerState;
         try {
             Property<Integer> ageProperty = getAgeProperty(lowerState);
             if (ageProperty != null) {
-                resetState = resetState.with(ageProperty, 3);
+                resetState = resetState.with(ageProperty, lowerResetAge);
             }
 
             Property<?> half = lowerState.owner().value().getProperty("half");
@@ -708,10 +716,6 @@ public class RicePlantListener implements Listener {
         return placementSucceeded || placedNow;
     }
 
-    private void scheduleRiceStabilization(Location location) {
-        scheduleRiceStabilization(location, 2);
-    }
-
     private void scheduleRiceStabilization(Location location, int attemptsRemaining) {
         if (location == null || location.getWorld() == null || attemptsRemaining <= 0) {
             return;
@@ -731,7 +735,7 @@ public class RicePlantListener implements Listener {
         }, 1L);
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({"rawtypes"})
     private ImmutableBlockState withRawProperty(ImmutableBlockState state, Property<?> property, Object value) {
         if (state == null || property == null || value == null) {
             return state;

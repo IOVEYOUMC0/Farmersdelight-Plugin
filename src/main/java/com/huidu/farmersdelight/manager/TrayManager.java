@@ -76,9 +76,11 @@ public class TrayManager {
             removeAllTrays();
             return;
         }
-        if (syncTask == null) {
-            start();
-        }
+
+        stop();
+        removeAllTrays();
+        start();
+        syncAllTrays();
     }
 
     private void start() {
@@ -215,6 +217,7 @@ public class TrayManager {
 
         Map<BlockPos, BlockPos> worldTrays = cookingPotTrays.get(world.getUID());
         if (worldTrays == null || worldTrays.isEmpty()) {
+            purgeMarkedTrayEntities(world, Set.of());
             return;
         }
 
@@ -223,6 +226,8 @@ public class TrayManager {
                 removeTrayIfAutoPlaced(world, potPos);
             }
         }
+
+        purgeMarkedTrayEntities(world, Set.copyOf(worldTrays.values()));
     }
 
     private void syncCookingPotTrays(World world, Set<BlockPos> validPositions) {
@@ -357,6 +362,38 @@ public class TrayManager {
             }
         } catch (Exception e) {
             plugin.getLogger().warning("Failed to remove tray furniture: " + e.getMessage());
+        }
+    }
+
+    private void purgeMarkedTrayEntities(World world, Set<BlockPos> trackedTrayPositions) {
+        if (world == null) {
+            return;
+        }
+
+        for (Entity entity : world.getEntities()) {
+            if (!entity.isValid() || !entity.getPersistentDataContainer().has(trayMarkerKey, PersistentDataType.BYTE)) {
+                continue;
+            }
+
+            BukkitFurniture furniture = CraftEngineFurniture.getLoadedFurnitureByMetaEntity(entity);
+            if (furniture == null || !trayFurnitureId.equals(furniture.id().toString())) {
+                continue;
+            }
+
+            BlockPos trayPos = new BlockPos(
+                    entity.getLocation().getBlockX(),
+                    entity.getLocation().getBlockY(),
+                    entity.getLocation().getBlockZ()
+            );
+            if (trackedTrayPositions.contains(trayPos)) {
+                continue;
+            }
+
+            CraftEngineFurniture.remove(entity, false, false);
+
+            if (plugin.getConfig().getBoolean("debug", false)) {
+                plugin.getLogger().info("Purged orphan auto tray at " + entity.getLocation());
+            }
         }
     }
 

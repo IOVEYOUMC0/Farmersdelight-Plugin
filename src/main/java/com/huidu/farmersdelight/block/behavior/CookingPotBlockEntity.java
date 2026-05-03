@@ -455,8 +455,16 @@ public class CookingPotBlockEntity {
         StringBuilder builder = new StringBuilder(recipe.getId()).append('|');
 
         synchronized (inventoryLock) {
+            List<String> ingredientFingerprints = new ArrayList<>();
             for (int i = FIRST_INGREDIENT_SLOT; i < CookingPotBlockBehavior.SLOT_MEAL_DISPLAY; i++) {
-                builder.append(buildItemFingerprint(inventory[i])).append(';');
+                String fingerprint = buildItemFingerprint(inventory[i]);
+                if (!"none".equals(fingerprint)) {
+                    ingredientFingerprints.add(fingerprint);
+                }
+            }
+            ingredientFingerprints.sort(String::compareTo);
+            for (String fingerprint : ingredientFingerprints) {
+                builder.append(fingerprint).append(';');
             }
             builder.append("container=").append(buildItemFingerprint(inventory[CookingPotBlockBehavior.SLOT_CONTAINER]));
         }

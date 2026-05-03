@@ -3,7 +3,10 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.config.StrawDropConfig;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
+import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
+import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -78,7 +81,7 @@ public class StrawDropListener implements Listener {
         if (config == null) return null;
 
         Material type = block.getType();
-        
+
         if (type == Material.TALL_GRASS) {
             return config.getRule("tall_grass");
         }
@@ -99,7 +102,30 @@ public class StrawDropListener implements Listener {
             }
         }
 
+        if (isMatureRicePanicles(block)) {
+            return config.getRule("mature_rice");
+        }
+
         return config.getRule(type.name().toLowerCase());
+    }
+
+    private boolean isMatureRicePanicles(Block block) {
+        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
+        if (state == null || state.isEmpty()) {
+            return false;
+        }
+
+        if (!"farmersdelight:rice".equals(CustomBlockUtils.getId(state))) {
+            return false;
+        }
+
+        String half = CustomBlockUtils.getPropertyString(state, "half");
+        if (!"upper".equalsIgnoreCase(half)) {
+            return false;
+        }
+
+        Integer age = CustomBlockUtils.getPropertyInt(state, "age");
+        return age != null && age >= 3;
     }
 
     private void dropStraw(Block block, StrawDropConfig.StrawDropRule rule) {
