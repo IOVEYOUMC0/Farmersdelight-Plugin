@@ -6,10 +6,19 @@ import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.entity.*;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerItemHeldEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitTask;
 
-public class HorseFeedTemptListener {
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class HorseFeedTemptListener implements Listener {
 
     private static final String HORSE_FEED_ID = "farmersdelight:horse_feed";
     private static final double TEMPT_RANGE = 10.0D;
@@ -18,6 +27,7 @@ public class HorseFeedTemptListener {
     private static final long TICK_INTERVAL = 10L;
 
     private final FarmersDelightPlugin plugin;
+    private final Set<UUID> activeTempters = ConcurrentHashMap.newKeySet();
     private BukkitTask task;
 
     public HorseFeedTemptListener(FarmersDelightPlugin plugin) {
@@ -37,11 +47,44 @@ public class HorseFeedTemptListener {
             task.cancel();
             task = null;
         }
+        activeTempters.clear();
+    }
+
+    private void refreshTemptStatus(Player player) {
+        if (isHoldingHorseFeed(player)) {
+            activeTempters.add(player.getUniqueId());
+        } else {
+            activeTempters.remove(player.getUniqueId());
+        }
+    }
+
+    @EventHandler
+    public void onItemHeld(PlayerItemHeldEvent event) {
+        refreshTemptStatus(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onSwapHand(PlayerSwapHandItemsEvent event) {
+        refreshTemptStatus(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        activeTempters.remove(event.getPlayer().getUniqueId());
     }
 
     private void tickTemptGoals() {
-        for (Player player : Bukkit.getOnlinePlayers()) {
+        if (activeTempters.isEmpty()) return;
+
+        for (UUID playerId : activeTempters) {
+            Player player = Bukkit.getPlayer(playerId);
+            if (player == null || !player.isOnline()) {
+                activeTempters.remove(playerId);
+                continue;
+            }
+
             if (!isHoldingHorseFeed(player)) {
+                activeTempters.remove(playerId);
                 continue;
             }
 

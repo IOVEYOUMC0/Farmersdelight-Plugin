@@ -82,7 +82,13 @@ public class RicePlantListener implements Listener {
 
         if (isRiceBlock(brokenState)) {
             Object half = getPropertyValue(brokenState, "half");
-            Bukkit.getScheduler().runTask(plugin, () -> restoreRiceCarrierBlock(brokenBlock, half));
+            if (isUpperHalfValue(half)) {
+                Block lowerBlock = brokenBlock.getWorld().getBlockAt(
+                        brokenBlock.getX(), brokenBlock.getY() - 1, brokenBlock.getZ());
+                Bukkit.getScheduler().runTask(plugin, () -> resetLowerAfterUpperBreak(lowerBlock));
+            } else {
+                Bukkit.getScheduler().runTask(plugin, () -> restoreRiceCarrierBlock(brokenBlock, half));
+            }
             return;
         }
 

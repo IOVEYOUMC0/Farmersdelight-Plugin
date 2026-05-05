@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.effect.EffectManager;
+import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
@@ -36,7 +37,7 @@ public class FoodEatListener implements Listener {
                 : null;
         if (foodsSection != null) {
             for (String foodId : foodsSection.getKeys(false)) {
-                int duration = foodsSection.getInt(foodId + ".duration", 300);
+                int duration = foodsSection.getInt(foodId + ".duration", Constants.DEFAULT_NOURISHMENT_DURATION);
                 nourishmentFoodDurations.put(foodId, duration);
             }
         }

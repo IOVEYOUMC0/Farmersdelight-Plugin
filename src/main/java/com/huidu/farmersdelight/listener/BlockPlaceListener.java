@@ -4,12 +4,15 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.manager.StoveManager;
+import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CookingPotItemDataHelper;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockAttemptPlaceEvent;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockPlaceEvent;
 import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import org.bukkit.Material;
+import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -26,11 +29,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public class BlockPlaceListener implements Listener {
 
     private static final Set<String> FEAST_BLOCKS = Set.of(
-            "farmersdelight:roast_chicken_block",
-            "farmersdelight:stuffed_pumpkin_block",
-            "farmersdelight:honey_glazed_ham_block",
-            "farmersdelight:shepherds_pie_block",
-            "farmersdelight:rice_roll_medley_block"
+            Constants.BLOCK_ROAST_CHICKEN,
+            Constants.BLOCK_STUFFED_PUMPKIN,
+            Constants.BLOCK_HONEY_GLAZED_HAM,
+            Constants.BLOCK_SHEPHERDS_PIE,
+            Constants.BLOCK_RICE_ROLL_MEDLEY
     );
     private static final Map<Material, String> VANILLA_CROP_CRITERIA = Map.ofEntries(
             Map.entry(Material.WHEAT, "wheat"),
@@ -85,7 +88,44 @@ public class BlockPlaceListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onCustomBlockAttemptPlace(CustomBlockAttemptPlaceEvent event) {
         String customBlockId = event.customBlock().id().toString();
+        
+        if (isMushroomColony(customBlockId) && !canMushroomColonySurvive(event)) {
+            event.setCancelled(true);
+            return;
+        }
+        
         cacheAttemptedPlaceItem(event.player(), event.hand(), customBlockId);
+    }
+
+    private static final Set<String> MUSHROOM_COLONY_IDS = Set.of(
+            Constants.BLOCK_BROWN_MUSHROOM_COLONY,
+            Constants.BLOCK_RED_MUSHROOM_COLONY
+    );
+
+    private static final Set<Material> MUSHROOM_GROW_BLOCKS = Set.of(
+            Material.MYCELIUM,
+            Material.PODZOL,
+            Material.CRIMSON_NYLIUM,
+            Material.WARPED_NYLIUM,
+            Material.MUSHROOM_STEM
+    );
+
+    private boolean isMushroomColony(String customBlockId) {
+        return MUSHROOM_COLONY_IDS.contains(customBlockId);
+    }
+
+    private boolean canMushroomColonySurvive(CustomBlockAttemptPlaceEvent event) {
+        World world = event.player().getWorld();
+        Block blockBelow = world.getBlockAt(
+                event.location().getBlockX(), event.location().getBlockY() - 1, event.location().getBlockZ()
+        );
+        if (MUSHROOM_GROW_BLOCKS.contains(blockBelow.getType())) {
+            return true;
+        }
+        Block targetBlock = world.getBlockAt(
+                event.location().getBlockX(), event.location().getBlockY(), event.location().getBlockZ()
+        );
+        return targetBlock.getLightLevel() < Constants.MUSHROOM_COLONY_MAX_LIGHT && blockBelow.getType().isSolid();
     }
 
     private void awardForCustomBlock(Player player, String customBlockId, org.bukkit.Location blockLocation, ItemStack placedItem) {
@@ -96,7 +136,7 @@ public class BlockPlaceListener implements Listener {
         AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
         if (am == null) return;
 
-        if (customBlockId.equals("farmersdelight:cooking_pot")) {
+        if (customBlockId.equals(Constants.BLOCK_COOKING_POT)) {
             CookingPotBlockBehavior.markRecentlyPlaced(blockLocation);
             if (CookingPotItemDataHelper.isEnabled() && placedItem != null && !placedItem.getType().isAir()) {
                 CookingPotItemDataHelper.restorePackedData(blockLocation, placedItem);
@@ -104,7 +144,7 @@ public class BlockPlaceListener implements Listener {
             am.award(player, "place_cooking_pot");
         }
 
-        if (customBlockId.equals("farmersdelight:skillet")) {
+        if (customBlockId.equals(Constants.BLOCK_SKILLET)) {
             FarmersDelightPlugin.getInstance().getSkilletManager().recordPlacedSkillet(blockLocation, placedItem);
             am.award(player, "place_skillet");
         }
@@ -118,9 +158,9 @@ public class BlockPlaceListener implements Listener {
 
     private String getCustomCropCriterion(String customBlockId) {
         return switch (customBlockId.toLowerCase()) {
-            case "farmersdelight:cabbages" -> "cabbage";
-            case "farmersdelight:budding_tomatoes", "farmersdelight:tomatoes" -> "tomato";
-            case "farmersdelight:onions" -> "onion";
+            case Constants.BLOCK_CABBAGES -> "cabbage";
+            case Constants.BLOCK_BUDDING_TOMATOES, Constants.BLOCK_TOMATOES -> "tomato";
+            case Constants.BLOCK_ONIONS -> "onion";
             case "farmersdelight:rice" -> "rice";
             default -> null;
         };

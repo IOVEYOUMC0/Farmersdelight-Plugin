@@ -1,20 +1,10 @@
 name: FarmersDelight
 version: ${version}
-main: fr.ateastudio.farmersdelight.FarmersDelightPlugin
+main: com.huidu.farmersdelight.FarmersDelightPlugin
 api-version: '1.21'
-depend:
-  - CraftEngine
-softdepend:
-  - ProtocolLib
 authors:
   - HuiDu_OwO
 description: Farmer's Delight addon for CraftEngine
-commands:
-  farmersdelight:
-    description: Main FarmersDelight command
-    usage: /<command> [recipe|reload|help]
-    aliases: [fd]
-    permission: farmersdelight.command
 permissions:
   farmersdelight.command:
     description: Allows using the main command

@@ -128,7 +128,7 @@ public class FakeItemDisplayManager implements Listener, ItemDisplayManager {
     }
 
     private void startSyncTask() {
-        syncTask = Bukkit.getScheduler().runTaskTimer(plugin, this::syncAll, 10L, 10L);
+        syncTask = Bukkit.getScheduler().runTaskTimer(plugin, this::syncAll, 20L, 20L);
     }
 
     private void syncAll() {

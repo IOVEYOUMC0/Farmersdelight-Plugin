@@ -5,6 +5,10 @@
 # Language
 language: zh_cn
 
+# Advancement system
+advancements:
+  enabled: true
+
 # Storage settings
 storage:
   # Auto-save interval in seconds
@@ -78,9 +82,10 @@ heat-sources:
     - minecraft:magma_block
     - minecraft:lava_cauldron
     - minecraft:lava
+    - minecraft:fire
+    - minecraft:soul_fire
   vanilla-tags:
     - minecraft:campfires
-    - minecraft:fire
   custom-blocks:
     - farmersdelight:stove[fire:true]
   conductors:
@@ -90,15 +95,61 @@ heat-sources:
 tray:
   enabled: true
   tray-block-id: "farmersdelight:tray"
-  y-offset: 0
+  x-offset: 0.5
+  y-offset: -0.4
+  z-offset: 0.5
+  require-non-full-support: true
   marker-key: "auto_tray_marker"
 
 # Cooking pot packed-drop behavior
 cooking-pot-packed-drop:
-  enabled: false
+  enabled: true
+  durability-bar:
+    enabled: true
+
+# Cooking pot progress display settings
+cooking-pot-progress-display:
+  # Whether to show the recipe name in the progress display above the pot
+  show-recipe-name: false
+
+# Cooking pot world animation effects
+cooking-pot-effects:
+  bubble:
+    enabled: true
+    type: BUBBLE_POP
+    chance: 0.20
+    count: 1
+    y-offset: 0.02
+    offset-x: 0.0
+    offset-y: 0.0
+    offset-z: 0.0
+    speed: 0.01
+  steam:
+    enabled: true
+    type: CLOUD
+    chance: 0.05
+    count: 1
+    y-offset: 0.08
+    offset-x: 0.0
+    offset-y: 0.03
+    offset-z: 0.0
+    speed: 0.02
+    secondary:
+      enabled: false
+      type: SMOKE
+      count: 1
+      y-offset: 0.05
+      offset-x: 0.0
+      offset-y: 0.025
+      offset-z: 0.0
+      speed: 0.02
 
 # Straw drops when using knives on blocks
 straw-drops:
+  short_grass:
+    drop: farmersdelight:straw
+    min-amount: 1
+    max-amount: 2
   tall_grass:
     drop: farmersdelight:straw
     min-amount: 1
@@ -107,10 +158,14 @@ straw-drops:
     drop: farmersdelight:straw
     min-amount: 1
     max-amount: 2
+  mature_rice:
+    drop: farmersdelight:straw
+    min-amount: 1
+    max-amount: 2
 
 # Cooking pot GUI
 cooking-pot-gui:
-  title: "<white><offset><icon>"
+  title: "<white><offset><icon><shift:-1600>烹饪锅"
   fillers-enabled: true
   title-layout:
     craftengine:
@@ -147,14 +202,14 @@ cooking-pot-gui:
       item: farmersdelight:cooking_pot_not_heated
     progress:
       item: farmersdelight:cooking_time
-      name: "Cooking Time"
+      name: "烹饪时长"
       lore:
-        - "Remaining: {time}s"
+        - "剩余: {time} 秒"
     recipe:
       material: KNOWLEDGE_BOOK
-      name: "View Recipes"
+      name: "查看烹饪配方"
       lore:
-        - "Click to view all cooking pot recipes"
+        - "点击此处查看配方"
 
   progress-items:
     - item: farmersdelight:0
@@ -196,14 +251,19 @@ cooking-pot-gui:
 
 # Recipe viewer GUI
 recipe-view-gui:
+  # Toggle all decorative background/filler items in the recipe viewer.
+  background-items-enabled: true
+  # Show raw namespace ids for single-item ingredients. Useful for debugging recipes.
+  show-ingredient-ids: false
+
   main-menu:
-    title: "Recipe Viewer"
+    title: "<white>农夫乐事"
     rows: 3
 
     layout:
-      - "####B####"
+      - "#########"
       - "##C###D##"
-      - "####X####"
+      - "####B####"
 
     legend:
       C: cooking_pot
@@ -218,29 +278,33 @@ recipe-view-gui:
         name: " "
       cooking_pot:
         material: CAULDRON
-        name: "Cooking Pot Recipes"
+        name: "烹饪锅配方"
         lore:
-          - "Click to view cooking pot recipes"
+          - "点击此处查看配方"
       cutting_board:
         material: BAMBOO_MOSAIC
-        name: "Cutting Board Recipes"
+        name: "砧板配方"
         lore:
-          - "Click to view cutting board recipes"
+          - "点击此处查看配方"
       back:
         material: BARRIER
-        name: "Close"
+        name: "关闭页面"
 
   recipe-list:
-    title: "Recipe List {page}/{total}"
+    title: "<white><offset><icon><shift:-1600>配方列表 <gray>{page}/{total}</gray>"
     rows: 6
+    title-layout:
+      craftengine:
+        offset: "<shift:-7>"
+        icon: "<image:farmersdelight:recipelist>"
 
     layout:
+      - "P###B###N"
       - "RRRRRRRRR"
       - "RRRRRRRRR"
       - "RRRRRRRRR"
       - "RRRRRRRRR"
       - "RRRRRRRRR"
-      - "P##X#B##N"
 
     legend:
       R: recipe
@@ -256,30 +320,34 @@ recipe-view-gui:
         name: " "
       prev_page:
         material: ARROW
-        name: "Previous Page"
+        name: "上一页"
       next_page:
         material: ARROW
-        name: "Next Page"
+        name: "下一页"
       back:
         material: BARRIER
-        name: "Back"
+        name: "返回"
       info:
         material: BOOK
-        name: "Recipe List"
+        name: "配方查看"
         lore:
-          - "Page: {page}/{total}"
+          - "页数: {page}/{total}"
 
   recipe-detail-cooking-pot:
-    title: "Recipe Details"
+    title: "<white><offset><icon><shift:-1600>配方详细"
     rows: 6
+    title-layout:
+      craftengine:
+        offset: "<shift:-8>"
+        icon: "<image:farmersdelight:cooking_pot_menu>"
 
     layout:
-      - "####A####"
-      - "####R####"
-      - "####C####"
-      - "IIIIII###"
+      - "B########"
+      - "#####A###"
+      - "#III#####"
+      - "#III#####"
+      - "#####C#R#"
       - "#########"
-      - "####B####"
 
     legend:
       R: result
@@ -298,19 +366,23 @@ recipe-view-gui:
         name: "->"
       back:
         material: ARROW
-        name: "Back"
+        name: "返回"
 
   recipe-detail-cutting-board:
-    title: "Recipe Details"
+    title: "<white><offset><icon><shift:-1600>配方详细"
     rows: 6
+    title-layout:
+      craftengine:
+        offset: "<shift:-8>"
+        icon: "<image:farmersdelight:cutting_board_menu>"
 
     layout:
-      - "####T####"
-      - "####I####"
+      - "B########"
       - "#########"
-      - "RRRRRR###"
       - "#########"
-      - "####B####"
+      - "#I#T#RR##"
+      - "#####RR##"
+      - "#########"
 
     legend:
       I: input
@@ -325,7 +397,7 @@ recipe-view-gui:
         name: " "
       back:
         material: ARROW
-        name: "Back"
+        name: "返回"
 
 # Pet food settings
 pet-foods:
@@ -357,10 +429,11 @@ pet-foods:
   farmersdelight:horse_feed:
     entities:
       - HORSE
+      - SKELETON_HORSE
+      - ZOMBIE_HORSE
       - DONKEY
       - MULE
       - LLAMA
-      - CAMEL
     require-tamed: true
     restore-health: true
     effects:
@@ -379,57 +452,47 @@ pet-foods:
     particle-type: END_ROD
     particle-count: 5
 
-# Comfort food effect settings
-comfort-foods-enabled: false
-comfort-foods:
-  farmersdelight:apple_cider:
-    duration: 300
-  farmersdelight:glow_berry_custard:
-    duration: 300
-  farmersdelight:pumpkin_pie:
-    duration: 300
-  farmersdelight:hot_cocoa:
-    duration: 300
-  farmersdelight:baked_cod_stew:
-    duration: 300
-  minecraft:rabbit_stew:
-    duration: 300
-  farmersdelight:pasta_with_meatballs:
-    duration: 300
-  farmersdelight:pasta_with_mutton_chop:
-    duration: 300
-  farmersdelight:dumplings:
-    duration: 300
-  farmersdelight:cabbage_rolls:
-    duration: 300
-
 # Nourishment effect settings
 nourishment-foods:
-  farmersdelight:noodle_soup:
-    duration: 300
-  farmersdelight:vegetable_noodles:
-    duration: 300
-  farmersdelight:beef_stew:
-    duration: 300
-  farmersdelight:chicken_soup:
-    duration: 300
-  farmersdelight:vegetable_soup:
-    duration: 300
-  farmersdelight:fish_stew:
-    duration: 300
-  farmersdelight:fried_rice:
-    duration: 300
+  enabled: false
+  foods:
+    farmersdelight:noodle_soup:
+      duration: 300
+    farmersdelight:vegetable_noodles:
+      duration: 300
+    farmersdelight:beef_stew:
+      duration: 300
+    farmersdelight:chicken_soup:
+      duration: 300
+    farmersdelight:vegetable_soup:
+      duration: 300
+    farmersdelight:fish_stew:
+      duration: 300
+    farmersdelight:fried_rice:
+      duration: 300
 
 # Returned containers after cooking
 container-returns:
   farmersdelight:milk_bottle: minecraft:glass_bottle
 
+# Rope climbing
+rope:
+  # Whether players can climb ropes by pressing jump.
+  climb-enabled: true
+  # This radius (0.0 ~ 0.5) determines how close the player must be to the rope center to count as "climbing".
+  # Larger values are more forgiving.
+  climb-reach: 0.5
+
 # Debug mode
-debug: false
+debug:
+  enabled: false
+  categories:
+    - interact-probe
+    - stove
+    - skillet
 
 # Display settings for stove and skillet item visuals
 display-visuals:
-  use-packet-displays: false
   skillet:
     scale: 0.5
   stove:

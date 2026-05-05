@@ -4,6 +4,7 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.gui.RecipeViewGui;
 import com.huidu.farmersdelight.i18n.I18n;
 import net.kyori.adventure.text.minimessage.MiniMessage;
+import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -75,6 +76,38 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
             case "help" -> {
                 sendHelp(sender);
             }
+            case "cleanup" -> {
+                if (!sender.hasPermission("farmersdelight.admin")) {
+                    if (sender instanceof Player player) {
+                        sender.sendMessage(I18n.get("general.no_permission", player));
+                    } else {
+                        sender.sendMessage(I18n.get("general.no_permission"));
+                    }
+                    return true;
+                }
+
+                int removed = 0;
+
+                for (org.bukkit.World world : Bukkit.getWorlds()) {
+                    for (org.bukkit.entity.Entity entity : world.getEntities()) {
+                        if (entity instanceof org.bukkit.entity.ItemDisplay display) {
+                            @SuppressWarnings("deprecation")
+                            String customName = display.getCustomName();
+                            if (customName != null && (customName.contains("farmersdelight") || customName.contains("fd_"))) {
+                                display.remove();
+                                removed++;
+                            }
+                        }
+                    }
+                }
+
+                var displayManager = plugin.getFakeItemDisplayManager();
+                if (displayManager != null) {
+                    displayManager.cleanup();
+                }
+
+                sender.sendMessage(I18n.get("command.cleanup_done").replace("{count}", String.valueOf(removed)));
+            }
             default -> {
                 sendHelp(sender);
             }
@@ -91,6 +124,7 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(mm.deserialize("<yellow>/fd recipe cutting_board</yellow> <gray>-</gray> " + I18n.get("command.help_recipe")));
         sender.sendMessage(mm.deserialize("<yellow>/fd reload</yellow> <gray>-</gray> " + I18n.get("command.help_reload")));
         sender.sendMessage(mm.deserialize("<yellow>/fd help</yellow> <gray>-</gray> " + I18n.get("command.help_help")));
+        sender.sendMessage(mm.deserialize("<yellow>/fd cleanup</yellow> <gray>-</gray> " + I18n.get("command.help_cleanup")));
     }
 
     @Override
@@ -108,6 +142,9 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
             }
             if ("help".startsWith(partial)) {
                 completions.add("help");
+            }
+            if ("cleanup".startsWith(partial) && sender.hasPermission("farmersdelight.admin")) {
+                completions.add("cleanup");
             }
         } else if (args.length == 2 && ("recipe".equalsIgnoreCase(args[0]) || "recipes".equalsIgnoreCase(args[0]))
                 && sender.hasPermission("farmersdelight.command.recipe")) {

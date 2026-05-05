@@ -79,11 +79,7 @@ public class CookingPotBlockEntity {
 
     public List<ItemStack> getIngredientSlots() {
         synchronized (inventoryLock) {
-            List<ItemStack> slots = new ArrayList<>(CookingPotBlockBehavior.SLOT_MEAL_DISPLAY);
-            for (int i = FIRST_INGREDIENT_SLOT; i < CookingPotBlockBehavior.SLOT_MEAL_DISPLAY; i++) {
-                slots.add(copyOrNull(inventory[i]));
-            }
-            return slots;
+            return getIngredientSlotsInternal();
         }
     }
 
@@ -96,7 +92,7 @@ public class CookingPotBlockEntity {
 
     public ItemStack getContainerItem() {
         synchronized (inventoryLock) {
-            return copyOrNull(inventory[CookingPotBlockBehavior.SLOT_CONTAINER]);
+            return getContainerItemInternal();
         }
     }
 
@@ -166,40 +162,8 @@ public class CookingPotBlockEntity {
     public void consumeIngredients(CookingPotRecipe recipe, World world, Location blockLoc) {
         if (recipe == null) return;
 
-        List<ItemStack> drops = new ArrayList<>();
         synchronized (inventoryLock) {
-            for (RecipeIngredient ingredient : recipe.getIngredients()) {
-            for (int i = 0; i < CookingPotBlockBehavior.SLOT_MEAL_DISPLAY; i++) {
-                    ItemStack slotItem = inventory[i];
-                    if (slotItem == null || slotItem.getType().isAir() || !matchesIngredient(slotItem, ingredient)) {
-                        continue;
-                    }
-
-                    ItemStack remainder = getCraftingRemainder(slotItem, 1);
-
-                    int newAmount = slotItem.getAmount() - 1;
-                    if (newAmount <= 0) {
-                        inventory[i] = null;
-                    } else {
-                        slotItem.setAmount(newAmount);
-                    }
-
-                    if (remainder != null) {
-                        ItemStack leftover = storeRemainderInIngredientSlots(remainder);
-                        if (leftover != null && !leftover.getType().isAir()) {
-                            drops.add(leftover);
-                        }
-                    }
-                    break;
-                }
-            }
-        }
-
-        if (world != null && blockLoc != null) {
-            Location dropLoc = blockLoc.clone().add(0.5, 0.7, 0.5);
-            for (ItemStack remainder : drops) {
-                world.dropItemNaturally(dropLoc, remainder);
-            }
+            consumeIngredientsInternal(recipe, world, blockLoc);
         }
     }
 
@@ -385,15 +349,54 @@ public class CookingPotBlockEntity {
     }
 
     public boolean canCook() {
+        synchronized (inventoryLock) {
+            return canCookInternal();
+        }
+    }
+
+    public boolean finishCooking(World world, Location blockLoc) {
+        synchronized (inventoryLock) {
+            synchronized (cookingLock) {
+                CookingPotRecipe recipe = currentRecipe.get();
+                if (recipe == null) {
+                    if (!canCookInternal()) return false;
+                    recipe = currentRecipe.get();
+                    if (recipe == null) return false;
+                }
+
+                ItemStack resultItem = recipe.getResult();
+                if (resultItem == null) return false;
+
+                ItemStack outputItem = resultItem.clone();
+                setItemStoredExperience(outputItem, recipe.getExperience());
+
+                boolean stored = storeCookedResult(outputItem, recipe);
+                if (!stored) {
+                    cookingProgress.set(getCookingDuration());
+                    return false;
+                }
+
+                consumeIngredientsInternal(recipe, world, blockLoc);
+                cookingProgress.set(0);
+                currentRecipe.set(null);
+                lastRecipeId.set(null);
+                lastRecipeFingerprint.set(null);
+
+                return true;
+            }
+        }
+    }
+
+    private boolean canCookInternal() {
         try {
             FarmersDelightPlugin instance = FarmersDelightPlugin.getInstance();
             if (instance == null || !FarmersDelightPlugin.isEnabled0()) {
                 return false;
             }
-            
+
             CookingPotRecipe recipe = instance.getCookingPotRecipes()
-                    .matchRecipe(getIngredientSlots(), getContainerItem());
-            
+                    .matchRecipe(getIngredientSlotsInternal(), getContainerItemInternal());
+
             if (recipe == null) {
                 currentRecipe.set(null);
                 lastRecipeId.set(null);
@@ -412,7 +415,7 @@ public class CookingPotBlockEntity {
 
             lastRecipeId.set(newRecipeId);
             lastRecipeFingerprint.set(newFingerprint);
-            
+
             currentRecipe.set(recipe);
             return true;
         } catch (IllegalStateException e) {
@@ -420,34 +423,53 @@ public class CookingPotBlockEntity {
         }
     }
 
-    public boolean finishCooking(World world, Location blockLoc) {
-        synchronized (cookingLock) {
-            CookingPotRecipe recipe = currentRecipe.get();
-            if (recipe == null) {
-                if (!canCook()) return false;
-                recipe = currentRecipe.get();
-                if (recipe == null) return false;
+    private List<ItemStack> getIngredientSlotsInternal() {
+        List<ItemStack> slots = new ArrayList<>(CookingPotBlockBehavior.SLOT_MEAL_DISPLAY);
+        for (int i = FIRST_INGREDIENT_SLOT; i < CookingPotBlockBehavior.SLOT_MEAL_DISPLAY; i++) {
+            slots.add(copyOrNull(inventory[i]));
+        }
+        return slots;
+    }
+
+    private ItemStack getContainerItemInternal() {
+        return copyOrNull(inventory[CookingPotBlockBehavior.SLOT_CONTAINER]);
+    }
+
+    private void consumeIngredientsInternal(CookingPotRecipe recipe, World world, Location blockLoc) {
+        if (recipe == null) return;
+
+        List<ItemStack> drops = new ArrayList<>();
+        for (RecipeIngredient ingredient : recipe.getIngredients()) {
+            for (int i = 0; i < CookingPotBlockBehavior.SLOT_MEAL_DISPLAY; i++) {
+                ItemStack slotItem = inventory[i];
+                if (slotItem == null || slotItem.getType().isAir() || !matchesIngredient(slotItem, ingredient)) {
+                    continue;
+                }
+
+                ItemStack remainder = getCraftingRemainder(slotItem, 1);
+
+                int newAmount = slotItem.getAmount() - 1;
+                if (newAmount <= 0) {
+                    inventory[i] = null;
+                } else {
+                    slotItem.setAmount(newAmount);
+                }
+
+                if (remainder != null) {
+                    ItemStack leftover = storeRemainderInIngredientSlots(remainder);
+                    if (leftover != null && !leftover.getType().isAir()) {
+                        drops.add(leftover);
+                    }
+                }
+                break;
             }
+        }
 
-            ItemStack resultItem = recipe.getResult();
-            if (resultItem == null) return false;
-
-            ItemStack outputItem = resultItem.clone();
-            setItemStoredExperience(outputItem, recipe.getExperience());
-
-            boolean stored = storeCookedResult(outputItem, recipe);
-            if (!stored) {
-                cookingProgress.set(getCookingDuration());
-                return false;
+        if (world != null && blockLoc != null) {
+            Location dropLoc = blockLoc.clone().add(0.5, 0.7, 0.5);
+            for (ItemStack remainder : drops) {
+                world.dropItemNaturally(dropLoc, remainder);
             }
-
-            consumeIngredients(recipe, world, blockLoc);
-            cookingProgress.set(0);
-            currentRecipe.set(null);
-            lastRecipeId.set(null);
-            lastRecipeFingerprint.set(null);
-
-            return true;
         }
     }
 
@@ -466,7 +488,6 @@ public class CookingPotBlockEntity {
             for (String fingerprint : ingredientFingerprints) {
                 builder.append(fingerprint).append(';');
             }
-            builder.append("container=").append(buildItemFingerprint(inventory[CookingPotBlockBehavior.SLOT_CONTAINER]));
         }
 
         return builder.toString();
@@ -724,7 +745,7 @@ public class CookingPotBlockEntity {
 
         ItemStack existing = inventory[slot];
         if (existing != null && isSimilarIgnoringStoredExperience(existing, item)) {
-            float mergedExperience = getItemStoredExperienceInternal(existing) + getItemStoredExperienceInternal(item);
+            double mergedExperience = getItemStoredExperienceInternal(existing) + getItemStoredExperienceInternal(item);
             existing.setAmount(existing.getAmount() + item.getAmount());
             setItemStoredExperience(existing, mergedExperience);
             return;
@@ -738,8 +759,8 @@ public class CookingPotBlockEntity {
         split.setAmount(amount);
 
         int originalAmount = source.getAmount();
-        float totalExperience = getItemStoredExperienceInternal(source);
-        float extractedExperience = 0f;
+        double totalExperience = getItemStoredExperienceInternal(source);
+        double extractedExperience = 0;
         if (originalAmount > 0) {
             extractedExperience = (totalExperience * amount) / originalAmount;
         }
@@ -748,7 +769,7 @@ public class CookingPotBlockEntity {
         int remainingAmount = originalAmount - amount;
         source.setAmount(remainingAmount);
         if (remainingAmount > 0) {
-            setItemStoredExperience(source, Math.max(0f, totalExperience - extractedExperience));
+            setItemStoredExperience(source, Math.max(0, totalExperience - extractedExperience));
         } else {
             clearItemStoredExperience(source);
         }
@@ -757,28 +778,28 @@ public class CookingPotBlockEntity {
     }
 
     public float getItemStoredExperience(ItemStack item) {
-        return getItemStoredExperienceInternal(item);
+        return (float) getItemStoredExperienceInternal(item);
     }
 
     public void clearItemStoredExperience(ItemStack item) {
-        setItemStoredExperience(item, 0f);
+        setItemStoredExperience(item, 0);
     }
 
-    private float getItemStoredExperienceInternal(ItemStack item) {
+    private double getItemStoredExperienceInternal(ItemStack item) {
         if (item == null || item.getType().isAir() || !item.hasItemMeta()) {
-            return 0f;
+            return 0;
         }
 
         ItemMeta meta = item.getItemMeta();
         if (meta == null) {
-            return 0f;
+            return 0;
         }
 
         NamespacedKey xpKey = getStoredExperienceKey();
-        return meta.getPersistentDataContainer().getOrDefault(xpKey, org.bukkit.persistence.PersistentDataType.FLOAT, 0f);
+        return meta.getPersistentDataContainer().getOrDefault(xpKey, org.bukkit.persistence.PersistentDataType.DOUBLE, 0.0);
     }
 
-    private void setItemStoredExperience(ItemStack item, float experience) {
+    private void setItemStoredExperience(ItemStack item, double experience) {
         if (item == null || item.getType().isAir()) {
             return;
         }
@@ -789,8 +810,8 @@ public class CookingPotBlockEntity {
         }
 
         NamespacedKey xpKey = getStoredExperienceKey();
-        if (experience > 0.001f) {
-            meta.getPersistentDataContainer().set(xpKey, org.bukkit.persistence.PersistentDataType.FLOAT, experience);
+        if (experience > 0.001) {
+            meta.getPersistentDataContainer().set(xpKey, org.bukkit.persistence.PersistentDataType.DOUBLE, experience);
         } else {
             meta.getPersistentDataContainer().remove(xpKey);
         }
@@ -822,20 +843,22 @@ public class CookingPotBlockEntity {
             return false;
         }
 
-        ItemStack firstCopy = first.clone();
-        ItemStack secondCopy = second.clone();
-        ItemMeta firstMeta = firstCopy.getItemMeta();
-        ItemMeta secondMeta = secondCopy.getItemMeta();
-        if (firstMeta == null || secondMeta == null) {
-            return firstMeta == secondMeta;
+        if (first.getAmount() != second.getAmount()) {
+            return false;
         }
 
-        NamespacedKey xpKey = getStoredExperienceKey();
-        firstMeta.getPersistentDataContainer().remove(xpKey);
-        secondMeta.getPersistentDataContainer().remove(xpKey);
-        firstCopy.setItemMeta(firstMeta);
-        secondCopy.setItemMeta(secondMeta);
-        return firstCopy.isSimilar(secondCopy);
+        if (first.isSimilar(second)) {
+            return true;
+        }
+
+        ItemStack firstCopy = first.clone();
+        ItemMeta firstMeta = firstCopy.getItemMeta();
+        if (firstMeta != null) {
+            firstMeta.getPersistentDataContainer().remove(getStoredExperienceKey());
+            firstCopy.setItemMeta(firstMeta);
+            return firstCopy.isSimilar(second);
+        }
+        return false;
     }
 
     public int getProgressPercent() {
@@ -857,7 +880,7 @@ public class CookingPotBlockEntity {
     }
 
     public void decrementCookingProgress() {
-        cookingProgress.updateAndGet(v -> Math.max(0, v - 1));
+        cookingProgress.updateAndGet(v -> Math.max(0, v - 2));
     }
 
     public int getCookingDuration() {

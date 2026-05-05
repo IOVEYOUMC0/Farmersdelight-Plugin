@@ -6,6 +6,8 @@ import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.core.item.CustomItem;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 
@@ -153,14 +155,16 @@ public class CuttingBoardRecipeManager {
                 if (buildableItem != null) {
                     return buildableItem.buildItemStack();
                 } else {
-                    Material material = Material.matchMaterial(itemId);
-                    if (material != null) {
-                        return new ItemStack(material);
-                    } else {
-                        return null;
+                    NamespacedKey materialKey = NamespacedKey.fromString(itemId);
+                    if (materialKey != null) {
+                        Material material = Registry.MATERIAL.get(materialKey);
+                        if (material != null) {
+                            return new ItemStack(material);
+                        }
                     }
                 }
             }
+            return null;
         } catch (Exception e) {
             plugin.getLogger().warning("Failed to create item: " + itemId + " - " + e.getMessage());
             return null;

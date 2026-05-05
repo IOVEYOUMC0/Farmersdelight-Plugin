@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.bukkit.entity.projectile.BukkitProjectileManager;
 import org.bukkit.configuration.ConfigurationSection;
@@ -68,7 +69,7 @@ public class AchievementListener implements Listener {
         String customItemId = projectileManager.projectileByEntityId(projectile.getEntityId())
                 .map(customProjectile -> customProjectile.item().id().toString())
                 .orElse(null);
-        if ("farmersdelight:rotten_tomato".equals(customItemId)) {
+        if (Constants.ITEM_ROTTEN_TOMATO.equals(customItemId)) {
             AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
             if (am != null) {
                 am.award(player, "rotten_tomato_throw");
@@ -104,7 +105,7 @@ public class AchievementListener implements Listener {
             am.award(player, "craft_knife");
         }
 
-        if (customItemId.equals("farmersdelight:netherite_knife")) {
+        if (customItemId.equals(Constants.ITEM_NETHERITE_KNIFE)) {
             am.award(player, "netherite_knife");
         }
 
@@ -112,8 +113,8 @@ public class AchievementListener implements Listener {
             am.award(player, "get_fd_seed");
         }
 
-        if (customItemId.equals("farmersdelight:smoked_ham") ||
-                customItemId.equals("farmersdelight:ham")) {
+        if (customItemId.equals(Constants.ITEM_SMOKED_HAM) ||
+                customItemId.equals(Constants.ITEM_HAM)) {
             am.award(player, "get_ham");
         }
     }

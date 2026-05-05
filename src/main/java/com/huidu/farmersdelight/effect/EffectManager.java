@@ -19,8 +19,6 @@ public final class EffectManager {
 
     private static final NamespacedKey NOURISHMENT_KEY = new NamespacedKey("farmersdelight", "nourishment_duration");
 
-    private static final float NOURISHMENT_EXHAUSTION_REDUCTION = 4.0f;
-    private static final int NOURISHMENT_MIN_FOOD_FOR_HEALING = 18;
     private static final int EFFECT_FADE_WARNING_TICKS = 200;
 
     private EffectManager() {
@@ -87,10 +85,9 @@ public final class EffectManager {
 
         try {
             PersistentDataContainer pdc = player.getPersistentDataContainer();
-            Integer nourishmentDuration = pdc.get(NOURISHMENT_KEY, PersistentDataType.INTEGER);
-            boolean hasNourishment = nourishmentDuration != null && nourishmentDuration > 0;
+            int nourishmentDuration = pdc.getOrDefault(NOURISHMENT_KEY, PersistentDataType.INTEGER, 0);
 
-            if (!hasNourishment) {
+            if (nourishmentDuration <= 0) {
                 EffectListener.untrackPlayer(player.getUniqueId());
                 return;
             }
@@ -136,15 +133,10 @@ public final class EffectManager {
 
         boolean naturalRegen = Boolean.TRUE.equals(player.getWorld().getGameRuleValue(GameRule.NATURAL_REGENERATION));
         boolean isHurt = player.getHealth() < maxHealthAttr.getValue();
-        int foodLevel = player.getFoodLevel();
+        boolean isPlayerHealingWithSaturation = naturalRegen && isHurt && player.getSaturation() > 0;
 
-        boolean isPlayerHealingWithHunger = naturalRegen && isHurt && foodLevel >= NOURISHMENT_MIN_FOOD_FOR_HEALING;
-
-        if (!isPlayerHealingWithHunger) {
-            float exhaustion = player.getExhaustion();
-            if (exhaustion > 0) {
-                player.setExhaustion(Math.max(0, exhaustion - NOURISHMENT_EXHAUSTION_REDUCTION));
-            }
+        if (!isPlayerHealingWithSaturation) {
+            player.setExhaustion(0);
         }
     }
 

@@ -172,7 +172,7 @@ public class StoveCookingBlockBehavior extends BlockBehavior {
         return plugin.getStoveManager();
     }
 
-    private boolean isStateChangeItem(ItemStack itemStack) {
+    public static boolean isStateChangeItem(ItemStack itemStack) {
         if (itemStack == null || itemStack.getType().isAir()) {
             return false;
         }

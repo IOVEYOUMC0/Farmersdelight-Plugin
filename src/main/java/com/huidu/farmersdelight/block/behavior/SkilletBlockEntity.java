@@ -1,6 +1,9 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.util.BlockPosKey;
+import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import net.momirealms.craftengine.core.world.BlockPos;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -15,12 +18,19 @@ import org.bukkit.inventory.Recipe;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class SkilletBlockEntity {
 
-    private static final LinkedHashMap<Material, CookingRecipe<?>> recipeCache = new LinkedHashMap<>(16, 0.75f, true);
+    private static final int MAX_CACHE_SIZE = 100;
+    private static final LinkedHashMap<Material, CookingRecipe<?>> recipeCache = new LinkedHashMap<>(16, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<Material, CookingRecipe<?>> eldest) {
+            return size() > MAX_CACHE_SIZE;
+        }
+    };
+
+    private static final int NO_DISPLAY = -1;
     
     private final BlockPosKey posKey;
     private ItemStack skilletStack;
@@ -31,7 +41,7 @@ public class SkilletBlockEntity {
     private volatile CookingRecipe<?> currentRecipe;
     private volatile int fireAspectLevel = 0;
     private final Object cookingLock = new Object();
-    private UUID displayEntityId;
+    private int displayEntityId = NO_DISPLAY;
 
     public SkilletBlockEntity(BlockPosKey posKey) {
         this.posKey = posKey;
@@ -99,12 +109,11 @@ public class SkilletBlockEntity {
     }
 
     public static int getSkilletCookingTime(int originalCookingTime, int fireAspectLevel) {
-        int cookingTime = originalCookingTime > 0 ? originalCookingTime : 600;
+        int cookingTime = originalCookingTime > 0 ? originalCookingTime : Constants.DEFAULT_COOKING_TIME_SKILLET;
         int cookingSeconds = cookingTime / 20;
-        float cookingTimeReduction = 0.2F;
-        
+        float cookingTimeReduction = Constants.SKILLET_COOKING_TIME_REDUCTION;
         if (fireAspectLevel > 0) {
-            cookingTimeReduction -= fireAspectLevel * 0.05F;
+            cookingTimeReduction -= fireAspectLevel * Constants.SKILLET_FIRE_ASPECT_BONUS;
         }
         
         int result = (int) (cookingSeconds * cookingTimeReduction) * 20;
@@ -238,43 +247,50 @@ public class SkilletBlockEntity {
     
     public void updateDisplayEntity(org.bukkit.World world, BlockPosKey posKey, BlockFace facing) {
         removeDisplayEntity();
-        
         if (storedItem == null || storedItem.getType().isAir()) return;
-        
+
+        ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getFakeItemDisplayManager();
+        if (visualManager == null || !visualManager.isAvailable()) return;
+
         Location displayLoc = new Location(world, posKey.x() + 0.5, posKey.y() + 0.1, posKey.z() + 0.5);
-        
-        ItemDisplay display = world.spawn(displayLoc, ItemDisplay.class);
-        if (display != null) {
-            display.setItemStack(storedItem.clone());
-            display.setCustomNameVisible(false);
-            
-            float yaw = switch (facing) {
-                case SOUTH -> 180f;
-                case WEST -> 270f;
-                case EAST -> 90f;
-                default -> 0f;
-            };
-            display.setRotation(yaw, 0f);
-            
-            displayEntityId = display.getUniqueId();
-        }
+        ItemStack visualItem = storedItem.clone();
+        visualItem.setAmount(1);
+
+        float yaw = switch (facing) {
+            case SOUTH -> 180f;
+            case WEST -> 270f;
+            case EAST -> 90f;
+            default -> 0f;
+        };
+
+        org.joml.Quaternionf leftRotation = new org.joml.Quaternionf();
+        leftRotation.rotationYXZ(
+                (float) Math.toRadians(yaw),
+                (float) Math.toRadians(90.0f),
+                0.0f
+        );
+
+        displayEntityId = visualManager.createDisplay(new ItemDisplayManager.DisplaySpec(
+                displayLoc,
+                visualItem,
+                ItemDisplay.ItemDisplayTransform.FIXED,
+                new org.bukkit.util.Transformation(
+                        new org.joml.Vector3f(),
+                        leftRotation,
+                        new org.joml.Vector3f(0.6f, 0.6f, 0.6f),
+                        new org.joml.Quaternionf()
+                )
+        ));
     }
     
     public void removeDisplayEntity() {
-        if (displayEntityId == null) return;
-        UUID entityId = displayEntityId;
-        displayEntityId = null;
-        
-        for (org.bukkit.World world : Bukkit.getWorlds()) {
-            try {
-                var entity = world.getEntity(entityId);
-                if (entity instanceof ItemDisplay display && display.isValid()) {
-                    display.remove();
-                    return;
-                }
-            } catch (Exception e) {
-                // Entity may already be removed
-            }
+        if (displayEntityId == NO_DISPLAY) return;
+        int entityId = displayEntityId;
+        displayEntityId = NO_DISPLAY;
+
+        ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getFakeItemDisplayManager();
+        if (visualManager != null) {
+            visualManager.destroyDisplay(entityId);
         }
     }
 

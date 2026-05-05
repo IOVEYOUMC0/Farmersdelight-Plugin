@@ -19,8 +19,6 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.Map;
-
 public final class HopperInteractionListener {
 
     private static final long HOPPER_INTERVAL_TICKS = 8L;
@@ -54,7 +52,7 @@ public final class HopperInteractionListener {
     }
 
     private void processCookingPots(World world) {
-        for (Map.Entry<BlockPosKey, CookingPotBlockEntity> entry : CookingPotBlockBehavior.getAllBlockEntities(world).entrySet()) {
+        for (var entry : CookingPotBlockBehavior.getBlockEntityEntries(world)) {
             BlockPosKey posKey = entry.getKey();
             CookingPotBlockEntity entity = entry.getValue();
             if (!CookingPotBlockBehavior.isCookingPotBlock(world, posKey)) {
@@ -73,7 +71,7 @@ public final class HopperInteractionListener {
     }
 
     private void processCuttingBoards(World world) {
-        for (Map.Entry<BlockPosKey, CuttingBoardBlockEntity> entry : CuttingBoardBlockBehavior.getAllBlockEntities(world).entrySet()) {
+        for (var entry : CuttingBoardBlockBehavior.getBlockEntityEntries(world)) {
             BlockPosKey posKey = entry.getKey();
             CuttingBoardBlockEntity entity = entry.getValue();
             if (!CuttingBoardBlockBehavior.isCuttingBoardBlock(world, posKey)) {

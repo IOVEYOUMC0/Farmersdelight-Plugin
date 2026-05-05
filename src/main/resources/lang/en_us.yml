@@ -51,6 +51,8 @@ command:
   help_recipe: "Open the recipe viewer"
   help_reload: "Reload the configuration"
   help_help: "Show help information"
+  help_cleanup: "Remove plugin-spawned item display entities"
+  cleanup_done: "&aCleanup complete, {count} entities removed."
 effects:
   nourishment:
     start: "&6A hearty meal keeps hunger away for {time}."

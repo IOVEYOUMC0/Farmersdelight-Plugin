@@ -6,6 +6,7 @@ import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
@@ -49,7 +50,8 @@ public final class SoilRuleSupport {
                 String materialName = text.contains(":")
                         ? text.substring(text.indexOf(':') + 1)
                         : text;
-                Material material = Material.matchMaterial(materialName, true);
+                NamespacedKey nk = NamespacedKey.minecraft(materialName.toLowerCase());
+                Material material = Registry.MATERIAL.get(nk);
                 if (material != null) {
                     materials.add(material);
                     continue;

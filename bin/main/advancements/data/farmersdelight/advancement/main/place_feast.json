@@ -10,7 +10,7 @@
     "description": {
       "translate": "farmersdelight.advancement.place_feast.desc"
     },
-    "frame": "challenge",
+    "frame": "task",
     "hidden": false,
     "icon": {
       "id": "minecraft:cooked_chicken",

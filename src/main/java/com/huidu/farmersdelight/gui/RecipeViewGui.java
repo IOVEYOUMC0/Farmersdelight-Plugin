@@ -16,6 +16,8 @@ import net.momirealms.craftengine.core.util.UniqueKey;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -41,7 +43,7 @@ import java.util.regex.Pattern;
 public class RecipeViewGui implements InventoryHolder, Listener {
 
     private static final Map<UUID, RecipeViewGui> activeGuis = new ConcurrentHashMap<>();
-    private static RecipeViewGuiConfig cachedConfig = null;
+    private static volatile RecipeViewGuiConfig cachedConfig = null;
     private static final ItemStack EMPTY_SLOT_BACKGROUND = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
     private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
@@ -968,9 +970,12 @@ public class RecipeViewGui implements InventoryHolder, Listener {
                 return customItem.buildItemStack();
             }
 
-            Material material = Material.matchMaterial(key.toString());
-            if (material != null) {
-                return new ItemStack(material);
+            NamespacedKey materialKey = NamespacedKey.fromString(key.toString());
+            if (materialKey != null) {
+                Material material = Registry.MATERIAL.get(materialKey);
+                if (material != null) {
+                    return new ItemStack(material);
+                }
             }
         } catch (Exception e) {
             if (plugin.getConfig().getBoolean("debug", false)) {
@@ -996,7 +1001,7 @@ public class RecipeViewGui implements InventoryHolder, Listener {
     private List<Component> formatIngredientLoreLines(RecipeIngredient ingredient, Player player) {
         List<Component> lines = new ArrayList<>();
         if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
-            lines.add(Component.text(getItemDisplayName(createItemFromKey(itemIngredient.key()), player), NamedTextColor.WHITE));
+            lines.add(itemNameComponent(createItemFromKey(itemIngredient.key()), player).colorIfAbsent(NamedTextColor.WHITE));
             return lines;
         }
         if (ingredient instanceof RecipeIngredient.Tag tagIngredient) {
@@ -1059,7 +1064,7 @@ public class RecipeViewGui implements InventoryHolder, Listener {
     private void appendItemPreviewLore(List<Component> lore, List<ItemStack> options, int previewLimit, Player player) {
         int displayed = Math.min(options.size(), previewLimit);
         for (int i = 0; i < displayed; i++) {
-            lore.add(Component.text(getItemDisplayName(options.get(i), player), NamedTextColor.WHITE));
+            lore.add(itemNameComponent(options.get(i), player).colorIfAbsent(NamedTextColor.WHITE));
         }
         appendMoreItemsLine(lore, options.size() - displayed, player);
     }

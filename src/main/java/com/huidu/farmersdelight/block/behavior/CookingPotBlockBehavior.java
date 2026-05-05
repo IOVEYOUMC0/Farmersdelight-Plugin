@@ -8,6 +8,7 @@ import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.manager.TrayManager;
 import com.huidu.farmersdelight.storage.BlockStorageManager;
 import com.huidu.farmersdelight.util.BlockPosKey;
+import com.huidu.farmersdelight.util.Constants;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.CustomBlock;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -28,9 +29,8 @@ import org.bukkit.util.Transformation;
 import org.joml.AxisAngle4f;
 import org.joml.Vector3f;
 
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -47,6 +47,8 @@ public class CookingPotBlockBehavior extends BlockBehavior {
     private static final Map<UUID, Map<BlockPosKey, CookingPotBlockEntity>> worldBlockEntities = new ConcurrentHashMap<>();
     private static final Map<UUID, Map<BlockPosKey, TextDisplay>> worldProgressDisplays = new ConcurrentHashMap<>();
     private static final Map<BlockPosKey, Set<UUID>> displayVisibleToPlayers = new ConcurrentHashMap<>();
+    private static final Map<BlockPosKey, Integer> displayVisibilityCheckCooldown = new ConcurrentHashMap<>();
+    private static final int VISIBILITY_CHECK_INTERVAL_TICKS = 20;
     private static final Map<BlockPosKey, ItemStack> cookingRecipeItems = new ConcurrentHashMap<>();
     private static final Map<BlockPosKey, Long> recentPlacements = new ConcurrentHashMap<>();
     private static final String BLOCK_TYPE = "cooking_pot";
@@ -127,10 +129,19 @@ public class CookingPotBlockBehavior extends BlockBehavior {
     public static Map<BlockPosKey, CookingPotBlockEntity> getAllBlockEntities(World world) {
         if (world == null) return Map.of();
         Map<BlockPosKey, CookingPotBlockEntity> worldEntities = worldBlockEntities.get(world.getUID());
-        if (worldEntities != null) {
-            return Map.copyOf(worldEntities);
+        if (worldEntities != null && !worldEntities.isEmpty()) {
+            return worldEntities;
         }
         return Map.of();
+    }
+
+    public static Set<Map.Entry<BlockPosKey, CookingPotBlockEntity>> getBlockEntityEntries(World world) {
+        if (world == null) return Set.of();
+        Map<BlockPosKey, CookingPotBlockEntity> worldEntities = worldBlockEntities.get(world.getUID());
+        if (worldEntities != null && !worldEntities.isEmpty()) {
+            return worldEntities.entrySet();
+        }
+        return Set.of();
     }
 
     public String getBoilSound() {
@@ -224,6 +235,8 @@ public class CookingPotBlockBehavior extends BlockBehavior {
             displays.clear();
         }
         worldProgressDisplays.clear();
+        displayVisibleToPlayers.clear();
+        displayVisibilityCheckCooldown.clear();
         recentPlacements.clear();
     }
 
@@ -231,11 +244,8 @@ public class CookingPotBlockBehavior extends BlockBehavior {
         if (location == null) {
             return;
         }
-
-        BlockPosKey posKey = new BlockPosKey(location);
         long now = System.currentTimeMillis();
-        recentPlacements.put(posKey, now);
-        recentPlacements.entrySet().removeIf(entry -> now - entry.getValue() > PLACE_INTERACTION_COOLDOWN_MS);
+        recentPlacements.put(new BlockPosKey(location), now);
     }
 
     private static boolean isRecentlyPlaced(BlockPosKey posKey) {
@@ -301,6 +311,7 @@ public class CookingPotBlockBehavior extends BlockBehavior {
         }
 
         displayVisibleToPlayers.remove(posKey);
+        displayVisibilityCheckCooldown.remove(posKey);
         cookingRecipeItems.remove(posKey);
     }
 
@@ -335,37 +346,43 @@ public class CookingPotBlockBehavior extends BlockBehavior {
     private static void updateDisplayVisibility(World world, BlockPosKey posKey, TextDisplay display) {
         if (display == null || !display.isValid()) return;
 
+        Integer cooldown = displayVisibilityCheckCooldown.get(posKey);
+        if (cooldown != null && cooldown > 0) {
+            displayVisibilityCheckCooldown.put(posKey, cooldown - 1);
+            return;
+        }
+        displayVisibilityCheckCooldown.put(posKey, VISIBILITY_CHECK_INTERVAL_TICKS);
+
         Location location = posKey.toLocation(world);
-        Collection<org.bukkit.entity.Entity> nearby = location.getWorld().getNearbyEntities(location, 10, 10, 10);
+        org.bukkit.Location potLoc = location.clone().add(0.5, 0, 0.5);
         Set<UUID> nearbyUUIDs = new HashSet<>();
 
-        Vector3f potPos = location.toVector().toVector3f();
+        for (Player p : world.getPlayers()) {
+            if (!p.getWorld().equals(world)) continue;
+            if (p.getLocation().distanceSquared(potLoc) > 100) continue;
 
-        for (org.bukkit.entity.Entity e : nearby) {
-            if (e instanceof Player) {
-                Player p = (Player) e;
-                nearbyUUIDs.add(p.getUniqueId());
+            nearbyUUIDs.add(p.getUniqueId());
 
-                Location eyeLoc = p.getEyeLocation();
-                Vector3f eyePos = eyeLoc.toVector().toVector3f();
-                Vector3f toPot = new Vector3f(potPos).sub(eyePos).normalize();
-                Vector3f lookDir = eyeLoc.getDirection().toVector3f();
+            Location eyeLoc = p.getEyeLocation();
+            Vector3f eyePos = eyeLoc.toVector().toVector3f();
+            Vector3f potPos = potLoc.toVector().toVector3f();
+            Vector3f toPot = new Vector3f(potPos).sub(eyePos).normalize();
+            Vector3f lookDir = eyeLoc.getDirection().toVector3f();
 
-                float dot = lookDir.dot(toPot);
-                boolean isLooking = dot > 0.95;
+            float dot = lookDir.dot(toPot);
+            boolean isLooking = dot > 0.95;
 
-                Set<UUID> visibleTo = displayVisibleToPlayers.computeIfAbsent(posKey, k -> new HashSet<>());
+            Set<UUID> visibleTo = displayVisibleToPlayers.computeIfAbsent(posKey, k -> new HashSet<>());
 
-                if (isLooking) {
-                    if (!visibleTo.contains(p.getUniqueId())) {
-                        p.showEntity(FarmersDelightPlugin.getInstance(), display);
-                        visibleTo.add(p.getUniqueId());
-                    }
-                } else {
-                    if (visibleTo.contains(p.getUniqueId())) {
-                        p.hideEntity(FarmersDelightPlugin.getInstance(), display);
-                        visibleTo.remove(p.getUniqueId());
-                    }
+            if (isLooking) {
+                if (!visibleTo.contains(p.getUniqueId())) {
+                    p.showEntity(FarmersDelightPlugin.getInstance(), display);
+                    visibleTo.add(p.getUniqueId());
+                }
+            } else {
+                if (visibleTo.contains(p.getUniqueId())) {
+                    p.hideEntity(FarmersDelightPlugin.getInstance(), display);
+                    visibleTo.remove(p.getUniqueId());
                 }
             }
         }
@@ -475,6 +492,13 @@ public class CookingPotBlockBehavior extends BlockBehavior {
         Map<BlockPosKey, CookingPotBlockEntity> worldEntities = worldBlockEntities.computeIfAbsent(
                 world.getUID(), k -> new ConcurrentHashMap<>());
         worldEntities.put(posKey, entity);
+
+        if (entity.hasInput() || entity.hasPendingOutput()) {
+            TickManager tickManager = plugin.getTickManager();
+            if (tickManager != null) {
+                tickManager.markActive(world, posKey, TickManager.BlockType.COOKING_POT);
+            }
+        }
     }
 
     public static boolean isCookingPotBlock(World world, BlockPosKey posKey) {
@@ -491,7 +515,7 @@ public class CookingPotBlockBehavior extends BlockBehavior {
         try {
             return state.owner().keyOptional()
                     .map(Object::toString)
-                    .filter(id -> id.contains("cooking_pot"))
+                    .filter(Constants.BLOCK_COOKING_POT::equals)
                     .isPresent();
         } catch (Exception ignored) {
             return false;

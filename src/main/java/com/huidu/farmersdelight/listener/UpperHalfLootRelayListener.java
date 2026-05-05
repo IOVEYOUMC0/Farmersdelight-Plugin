@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.block.behavior.UpperHalfLootRelayBehavior;
+import com.huidu.farmersdelight.block.behavior.TallCropBlockBehavior;
 import net.momirealms.craftengine.bukkit.api.BukkitAdaptors;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockBreakEvent;
@@ -39,6 +40,13 @@ public class UpperHalfLootRelayListener implements Listener {
 
         Block brokenBlock = event.bukkitBlock();
         if (!behavior.shouldRelayUpperHalfLoot(brokenState, brokenBlock)) {
+            return;
+        }
+
+        TallCropBlockBehavior tallCrop = brokenState.behavior()
+                .getAs(TallCropBlockBehavior.class)
+                .orElse(null);
+        if (tallCrop != null && tallCrop.isUpperHalf(brokenState) && !tallCrop.isUpperMature(brokenState)) {
             return;
         }
 

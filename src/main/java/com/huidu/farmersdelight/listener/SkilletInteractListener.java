@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.InteractionDebouncer;
 import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.Bukkit;
@@ -106,7 +107,7 @@ public class SkilletInteractListener implements Listener {
     }
 
     private boolean isSkilletItem(ItemStack itemStack) {
-        return itemStack != null && "farmersdelight:skillet".equals(ItemUtils.getCustomItemId(itemStack));
+        return itemStack != null && Constants.ITEM_SKILLET.equals(ItemUtils.getCustomItemId(itemStack));
     }
 
     private void logDebug(Player player, Block clickedBlock, String ceBlockId, String behaviorId, ItemStack item, String recipeId) {
@@ -138,7 +139,7 @@ public class SkilletInteractListener implements Listener {
     }
 
     private boolean isSkilletBlock(String ceBlockId) {
-        return ceBlockId != null && ceBlockId.contains("skillet");
+        return Constants.CE_SHORT_SKILLET.equals(ceBlockId);
     }
 
     private boolean shouldLogAttempt(Block block, String ceBlockId) {

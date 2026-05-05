@@ -4,6 +4,7 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntity;
 import com.huidu.farmersdelight.util.BlockPosKey;
+import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.core.item.CustomItem;
@@ -53,7 +54,7 @@ public class CuttingBoardInteractListener implements Listener {
         }
 
         Block block = event.getClickedBlock();
-        if (!CustomBlockUtils.idContains(block, "cutting_board")) {
+        if (!CustomBlockUtils.hasId(block, Constants.BLOCK_CUTTING_BOARD)) {
             return;
         }
 

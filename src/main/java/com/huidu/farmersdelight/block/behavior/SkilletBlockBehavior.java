@@ -163,7 +163,7 @@ public class SkilletBlockBehavior extends BlockBehavior {
     }
 
     private boolean isSkilletItem(ItemStack itemStack) {
-        return itemStack != null && "farmersdelight:skillet".equals(ItemUtils.getCustomItemId(itemStack));
+        return itemStack != null && Constants.ITEM_SKILLET.equals(ItemUtils.getCustomItemId(itemStack));
     }
 
     private void logDebug(Player player, Block clickedBlock, ItemStack item, String recipeId) {

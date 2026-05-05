@@ -5,11 +5,14 @@ import org.bukkit.Location;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class InteractionDebouncer {
 
     private static final long DEFAULT_COOLDOWN_MILLIS = 150L;
     private static final ConcurrentHashMap<Key, Long> RECENT_INTERACTIONS = new ConcurrentHashMap<>();
+    private static final AtomicInteger interactionCount = new AtomicInteger(0);
+    private static final int CLEANUP_INTERVAL = 200;
 
     private InteractionDebouncer() {
     }
@@ -32,14 +35,20 @@ public final class InteractionDebouncer {
                 location.getBlockZ()
         );
 
-        Long previous = RECENT_INTERACTIONS.put(key, now);
-        if (previous != null && now - previous < cooldownMillis) {
-            RECENT_INTERACTIONS.put(key, previous);
-            return false;
-        }
+        boolean[] acquired = {false};
+        RECENT_INTERACTIONS.compute(key, (k, oldValue) -> {
+            if (oldValue == null || now - oldValue >= cooldownMillis) {
+                acquired[0] = true;
+                return now;
+            }
+            acquired[0] = false;
+            return oldValue;
+        });
 
-        RECENT_INTERACTIONS.entrySet().removeIf(entry -> now - entry.getValue() >= cooldownMillis);
-        return true;
+        if (acquired[0] && interactionCount.incrementAndGet() % CLEANUP_INTERVAL == 0) {
+            RECENT_INTERACTIONS.entrySet().removeIf(entry -> now - entry.getValue() >= cooldownMillis);
+        }
+        return acquired[0];
     }
 
     private record Key(UUID playerId, UUID worldId, int x, int y, int z) {

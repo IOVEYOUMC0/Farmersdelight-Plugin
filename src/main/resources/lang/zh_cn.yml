@@ -51,6 +51,8 @@ command:
   help_recipe: "打开配方查看界面"
   help_reload: "重新加载配置"
   help_help: "显示帮助信息"
+  help_cleanup: "清理插件生成的物品展示实体"
+  cleanup_done: "&a清理完成，移除了 {count} 个实体。"
 effects:
   nourishment:
     start: "&6丰富的料理让你暂时不会感到饥饿，效果将持续 {time}"

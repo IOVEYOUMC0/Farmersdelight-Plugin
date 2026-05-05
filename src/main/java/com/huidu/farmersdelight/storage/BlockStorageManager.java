@@ -39,13 +39,13 @@ public class BlockStorageManager {
     private void startAutoSave() {
         int saveInterval = plugin.getConfig().getInt("storage.auto-save-interval", 300);
         if (saveInterval > 0) {
-            autoSaveTask = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::saveAll,
+            autoSaveTask = Bukkit.getScheduler().runTaskTimer(plugin, this::saveAll,
                     saveInterval * 20L, saveInterval * 20L);
         }
     }
 
     public void saveAllAsync() {
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, this::saveAll);
+        Bukkit.getScheduler().runTask(plugin, this::saveAll);
     }
 
     public void saveAllSync() {

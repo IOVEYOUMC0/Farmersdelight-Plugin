@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.loot;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
@@ -54,7 +55,7 @@ public class KnifeDropHandler implements Listener {
         if (knifeSection != null) {
             knifeTags = knifeSection.getStringList("tags");
             if (knifeTags.isEmpty()) {
-                knifeTags = List.of("farmersdelight:knives");
+                knifeTags = List.of(Constants.TAG_KNIVES);
             }
             knifeItems = knifeSection.getStringList("items");
         }
@@ -119,9 +120,9 @@ public class KnifeDropHandler implements Listener {
     private boolean isHamItem(String itemId) {
         if (itemId == null) return false;
         String id = itemId.toLowerCase();
-        return id.equals("farmersdelight:ham")
-                || id.equals("farmersdelight:smoked_ham")
-                || id.equals("farmersdelight:honey_glazed_ham");
+        return id.equals(Constants.ITEM_HAM)
+                || id.equals(Constants.ITEM_SMOKED_HAM)
+                || id.equals(Constants.ITEM_HONEY_GLAZED_HAM);
     }
 
     private boolean isKnife(ItemStack item) {

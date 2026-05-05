@@ -31,7 +31,7 @@
     }
   },
   "display": {
-    "announce_to_chat": true,
+    "announce_to_chat": false,
     "description": {
       "translate": "farmersdelight.advancement.get_ham.desc"
     },

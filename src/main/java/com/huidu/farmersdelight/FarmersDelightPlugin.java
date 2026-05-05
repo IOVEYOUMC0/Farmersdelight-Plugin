@@ -32,10 +32,10 @@ import net.momirealms.craftengine.core.block.behavior.BlockBehaviors;
 import net.momirealms.craftengine.core.registry.BuiltInRegistries;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.command.CommandSender;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
-import org.bukkit.event.server.ServerLoadEvent;
 import org.bukkit.event.world.WorldLoadEvent;
 import org.bukkit.event.world.WorldUnloadEvent;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -76,10 +76,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             "advancements/data/farmersdelight/advancement/main/master_chef.json"
     );
 
-    private static FarmersDelightPlugin instance;
+    private static volatile FarmersDelightPlugin instance;
     private static volatile boolean enabled = false;
-    private final List<String> behaviorRegistryConflicts = new ArrayList<>();
-    private boolean shouldDisable = false;
+    
     private volatile boolean startupSyncCompleted = false;
     private volatile boolean datapackSyncQueued = false;
     private volatile boolean datapackRemovalQueued = false;
@@ -190,37 +189,12 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     @Override
     public void onLoad() {
-        if (getServer().getPluginManager().getPlugin("CraftEngine") == null) {
-            getLogger().severe("CraftEngine not found! This plugin requires CraftEngine to function.");
-            getLogger().severe("Please install CraftEngine before using FarmersDelight.");
-            shouldDisable = true;
-            return;
-        }
         instance = this;
         registerBlockBehaviors();
     }
 
     @Override
     public void onEnable() {
-        if (shouldDisable) {
-            getLogger().severe("Plugin disabled due to missing CraftEngine dependency.");
-            if (!behaviorRegistryConflicts.isEmpty()) {
-                for (String conflict : behaviorRegistryConflicts) {
-                    getLogger().severe(conflict);
-                }
-            }
-            getServer().getPluginManager().disablePlugin(this);
-            return;
-        }
-
-        if (isLateCraftEngineLoad()) {
-            getLogger().severe("FarmersDelight was loaded after CraftEngine had already finished initializing.");
-            getLogger().severe("This late load path is unsupported because custom block behaviors will not be wired into already-loaded CraftEngine content.");
-            getLogger().severe("Restart the server to load FarmersDelight together with CraftEngine. Do not use PlugMan to dynamically load this plugin after startup.");
-            getServer().getPluginManager().disablePlugin(this);
-            return;
-        }
-
         enabled = true;
 
         ensureConfigDefaults();
@@ -261,6 +235,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         petFoodListener = new PetFoodListener(this);
         getServer().getPluginManager().registerEvents(petFoodListener, this);
         horseFeedTemptListener = new HorseFeedTemptListener(this);
+        getServer().getPluginManager().registerEvents(horseFeedTemptListener, this);
         horseFeedTemptListener.start();
         hopperInteractionListener = new HopperInteractionListener(this);
         hopperInteractionListener.start();
@@ -285,6 +260,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         trayManager = new TrayManager(this);
         getServer().getPluginManager().registerEvents(new AutoTrayFurnitureListener(this), this);
 
+        getServer().getPluginManager().registerEvents(new RopeBlockListener(this), this);
+        getServer().getPluginManager().registerEvents(new RopeClimbListener(this), this);
+
         chunkLoadListener = new ChunkLoadListener(this);
         getServer().getPluginManager().registerEvents(chunkLoadListener, this);
         chunkLoadListener.loadAlreadyLoadedChunks();
@@ -294,8 +272,18 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         getServer().getScheduler().runTask(this, () -> startupSyncCompleted = true);
 
         FarmersDelightCommand commandHandler = new FarmersDelightCommand(this);
-        getCommand("farmersdelight").setExecutor(commandHandler);
-        getCommand("farmersdelight").setTabCompleter(commandHandler);
+        org.bukkit.command.Command base = new org.bukkit.command.Command("farmersdelight",
+                "Main FarmersDelight command", "/farmersdelight [recipe|reload|help]", List.of("fd")) {
+            @Override
+            public boolean execute(CommandSender sender, String label, String[] args) {
+                return commandHandler.onCommand(sender, this, label, args);
+            }
+            @Override
+            public java.util.List<String> tabComplete(CommandSender sender, String alias, String[] args) {
+                return commandHandler.onTabComplete(sender, this, alias, args);
+            }
+        };
+        getServer().getCommandMap().register("farmersdelight", "FarmersDelight", base);
 
         getLogger().info("FarmersDelight plugin has been enabled!");
     }
@@ -451,31 +439,19 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         queueDatapackSync("syncing FarmersDelight advancements for world " + event.getWorld().getName());
     }
 
-    @org.bukkit.event.EventHandler
-    public void onServerLoad(ServerLoadEvent event) {
-        if (event.getType() == ServerLoadEvent.LoadType.RELOAD) {
-            getLogger().warning("Bukkit/PlugMan style hot reload was detected. CraftEngine-based plugins may break with errors like 'zip file closed'.");
-            getLogger().warning("Use /fd reload only for FarmersDelight config changes. Restart the server after updating plugin jars or CraftEngine resources.");
-        }
-    }
-
     private void queueDatapackReload(String reason) {
         pendingDatapackReloadReason = reason;
         if (pendingDatapackReloadTask != null && !pendingDatapackReloadTask.isCancelled()) {
             return;
         }
-
         pendingDatapackReloadTask = getServer().getScheduler().runTaskLater(this, () -> {
             pendingDatapackReloadTask = null;
-            try {
-                String reloadReason = pendingDatapackReloadReason != null
-                        ? pendingDatapackReloadReason
-                        : "apply FarmersDelight advancement changes";
-                pendingDatapackReloadReason = null;
-                getLogger().info("Reloading data packs to " + reloadReason + "...");
-                getServer().reloadData();
-            } finally {
-            }
+            String reloadReason = pendingDatapackReloadReason != null
+                    ? pendingDatapackReloadReason
+                    : "apply FarmersDelight advancement changes";
+            pendingDatapackReloadReason = null;
+            getLogger().info("Reloading data packs to " + reloadReason + "...");
+            getServer().reloadData();
         }, 10L);
     }
 
@@ -551,7 +527,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onCraftEngineReload(CraftEngineReloadEvent event) {
-        if (!isEnabled() || shouldDisable) {
+        if (!isEnabled()) {
             return;
         }
 
@@ -669,31 +645,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return showRecipeNameInProgressDisplay;
     }
 
-    private boolean isLateCraftEngineLoad() {
-        if (!isServerTicking()) {
-            return false;
-        }
-
-        try {
-            return getServer().getPluginManager().isPluginEnabled("CraftEngine") && areCraftEngineItemsReady();
-        } catch (Exception ignored) {
-            return false;
-        }
-    }
-
-    private boolean isServerTicking() {
-        try {
-            return org.bukkit.Bukkit.getCurrentTick() > 0;
-        } catch (Throwable ignored) {
-            return false;
-        }
-    }
-
     private void ensureConfigDefaults() {
-        ensureConfigFilePresentAndReadable();
-    }
-
-    private void ensureConfigFilePresentAndReadable() {
         Path dataFolder = getDataFolder().toPath();
         Path configPath = dataFolder.resolve("config.yml");
         try {
@@ -756,43 +708,17 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         registerBehavior(Constants.BEHAVIOR_TATAMI, TatamiPairingBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_UPPER_HALF_LOOT_RELAY, UpperHalfLootRelayBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_WILD_RICE, WildRiceBlockBehavior.FACTORY);
+        registerBehavior(Constants.BEHAVIOR_ROPE, RopeBlockBehavior.FACTORY);
+        registerBehavior(Constants.BEHAVIOR_MUSHROOM_COLONY, MushroomColonyBehavior.FACTORY);
 
         getLogger().info("Registered custom block behaviors");
     }
 
     private void registerBehavior(String key, BlockBehaviorFactory<?> factory) {
         Key keyObj = Key.of(key);
-        Object existing = BuiltInRegistries.BLOCK_BEHAVIOR_TYPE.getValue(keyObj);
-
-        if (existing == null) {
+        if (BuiltInRegistries.BLOCK_BEHAVIOR_TYPE.getValue(keyObj) == null) {
             BlockBehaviors.register(keyObj, factory);
-            getLogger().info("Registered block behavior: " + key);
-        } else {
-            if (isSameBehaviorRegistration(existing, factory)) {
-                getLogger().info("Block behavior already registered: " + key);
-                return;
-            }
-
-            shouldDisable = true;
-            String existingLoader = describeClassLoader(existing.getClass().getClassLoader());
-            String currentLoader = describeClassLoader(factory.getClass().getClassLoader());
-            behaviorRegistryConflicts.add("Conflicting CraftEngine block behavior registration detected for "
-                    + key + ". Existing loader=" + existingLoader + ", current loader=" + currentLoader
-                    + ". This usually means FarmersDelight was unloaded and loaded again without restarting the server.");
         }
-    }
-
-    private boolean isSameBehaviorRegistration(Object existing, BlockBehaviorFactory<?> factory) {
-        ClassLoader existingLoader = existing.getClass().getClassLoader();
-        ClassLoader currentLoader = factory.getClass().getClassLoader();
-        return existingLoader == currentLoader;
-    }
-
-    private String describeClassLoader(ClassLoader loader) {
-        if (loader == null) {
-            return "bootstrap";
-        }
-        return loader.getClass().getName() + "@" + Integer.toHexString(System.identityHashCode(loader));
     }
 
     public BukkitCraftEngine getCraftEngine() {
@@ -1089,7 +1015,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 }
             }
 
-            Files.createDirectories(Objects.requireNonNull(target.getParent()));
             Files.createDirectories(Objects.requireNonNull(target.getParent()));
             Path tempFile = Files.createTempFile(target.getParent(), "fd-adv", ".tmp");
             try {

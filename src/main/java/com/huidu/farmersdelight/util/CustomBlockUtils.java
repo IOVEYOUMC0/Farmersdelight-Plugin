@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.util;
 
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
+import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.properties.Property;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
@@ -53,6 +54,20 @@ public final class CustomBlockUtils {
         return location != null && location.getWorld() != null && hasId(location.getBlock(), blockId);
     }
 
+    public static boolean hasBehavior(ImmutableBlockState state, Class<? extends BlockBehavior> behaviorClass) {
+        if (state == null || state.isEmpty()) return false;
+        return behaviorClass.isInstance(state.behavior());
+    }
+
+    public static boolean hasBehavior(Block block, Class<? extends BlockBehavior> behaviorClass) {
+        return hasBehavior(getState(block), behaviorClass);
+    }
+
+    public static boolean hasBehavior(Location location, Class<? extends BlockBehavior> behaviorClass) {
+        return location != null && location.getWorld() != null
+                && hasBehavior(location.getBlock(), behaviorClass);
+    }
+
     public static boolean idContains(Block block, String fragment) {
         String blockId = getId(block);
         return blockId != null && blockId.contains(normalizeId(fragment));
@@ -72,9 +87,10 @@ public final class CustomBlockUtils {
         if (trimmed.endsWith("]")) {
             int bracketIndex = trimmed.lastIndexOf('[');
             if (bracketIndex >= 0) {
-                trimmed = trimmed.substring(bracketIndex + 1).trim();
+                trimmed = trimmed.substring(0, bracketIndex).trim();
+            } else {
+                trimmed = trimmed.substring(0, trimmed.length() - 1).trim();
             }
-            trimmed = trimmed.substring(0, trimmed.length() - 1).trim();
         }
 
         return trimmed;

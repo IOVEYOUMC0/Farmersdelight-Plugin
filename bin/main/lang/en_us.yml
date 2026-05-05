@@ -1,28 +1,14 @@
 messages:
-  skillet:
-    cannot_cook: "&cThat item can't be cooked on a skillet."
-    cooking_complete: "&aCooking complete!"
-    underwater: "&cA skillet can't be used underwater."
   cutting_board:
-    no_recipe: "&cThat item has no valid cutting recipe."
-    need_tool: "&cYou need the right tool for this."
-  cooking_pot:
-    no_heat: "&cThe cooking pot needs a heat source below."
-    no_recipe: "&cNo matching recipe found."
-    need_container: "&cA matching container is required (bowl or bottle)."
-    cooking_complete: "&aCooking complete!"
-  stove:
-    not_lit: "&cThe stove must be lit before cooking."
-    cooking_complete: "&aCooking complete!"
-  crop:
-    need_water: "&cRice must be planted in water."
-    need_farmland: "&cThis crop needs farmland."
-    not_mature: "&cThis crop isn't mature yet."
-  general:
-    no_permission: "&cYou don't have permission to do that."
-    sneak_to_place: "&eSneak before placing this block."
-    config_reloaded: "&aConfiguration reloaded!"
-    hot_reload_warning: "&eOnly FarmersDelight configs were reloaded. Do not use Bukkit/PlugMan hot reload with CraftEngine plugins; restart the server after jar or resource changes."
+    no_recipe: "&cThat item has no valid cutting board recipe."
+    need_tool: "&cYou need the correct tool for this item."
+crop:
+  need_water: "&cRice must be planted in water."
+  invalid_soil: "&cThis crop needs suitable soil."
+general:
+  no_permission: "&cYou don't have permission to do that."
+  config_reloaded: "&aConfiguration reloaded."
+  hot_reload_warning: "&eOnly FarmersDelight configs were reloaded. Do not hot-reload CraftEngine or this plugin with Bukkit / PlugMan; restart the server after jar or resource changes."
 gui:
   recipe:
     title: "&8Recipe Viewer"
@@ -36,27 +22,39 @@ gui:
     back: "&7Back"
     prev_page: "&aPrevious Page"
     next_page: "&aNext Page"
+    page: "Page: {page}/{total}"
     result: "Result"
     input: "Input"
     ingredient: "Ingredient"
+    ingredients: "Ingredients"
     container: "Container"
     tool: "Tool"
-    ingredients: "Ingredients"
     results: "Results"
     experience: "Experience"
     cook_time: "Cook Time"
+    seconds_suffix: "s"
     chance: "&7Chance: &e{value}%"
     click_to_view: "Click to view details"
     detail_title: "&8Recipe Details"
-    auto_cycle: "({current}/{total}) Auto cycling"
+    auto_cycle: "&7Showing {current}/{total}, auto cycling"
     any_of: "Any of"
     tag: "Tag"
-    matches: "Matches"
-    more_items: "&7... and {count} more"
+    matches: "Matching Items"
+    more_items: "&7and {count} more"
     no_matching_items: "No matching items found"
     unknown: "Unknown"
+  packed_pot:
+    contains: "Contains {amount} serving(s) of {item}"
 command:
-  player_only: "&cThis command can only be executed by a player!"
-  help_recipe: "Open recipe viewer"
-  help_reload: "Reload configuration"
-  help_help: "Show help"
+  player_only: "&cThis command can only be used by a player."
+  help_title: "<gradient:gold:yellow>=== FarmersDelight ===</gradient>"
+  help_recipe: "Open the recipe viewer"
+  help_reload: "Reload the configuration"
+  help_help: "Show help information"
+  help_cleanup: "Remove plugin-spawned item display entities"
+  cleanup_done: "&aCleanup complete, {count} entities removed."
+effects:
+  nourishment:
+    start: "&6A hearty meal keeps hunger away for {time}."
+    fade: "&eYour fullness is gradually fading. {seconds}s remaining."
+    end: "&7You feel hunger returning."

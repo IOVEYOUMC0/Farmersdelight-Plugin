@@ -840,18 +840,12 @@ public class CookingPotGui implements InventoryHolder, Listener {
             return true;
         }
 
-        return plugin.getCookingPotRecipes().getRecipes().values().stream()
-                .map(recipe -> recipe.getContainer())
-                .filter(container -> container != null && !container.getType().isAir())
-                .anyMatch(container -> sameContainerItem(container, item));
+        String customId = ItemUtils.getCustomItemId(item);
+        if (customId != null && plugin.getCookingPotRecipes().getValidContainerKeys().contains(customId)) {
+            return true;
+        }
+        String materialKey = "minecraft:" + item.getType().name().toLowerCase();
+        return plugin.getCookingPotRecipes().getValidContainerKeys().contains(materialKey);
     }
 
-    private boolean sameContainerItem(ItemStack expected, ItemStack actual) {
-        String expectedId = ItemUtils.getCustomItemId(expected);
-        String actualId = ItemUtils.getCustomItemId(actual);
-        if (expectedId != null || actualId != null) {
-            return expectedId != null && expectedId.equals(actualId);
-        }
-        return expected.isSimilar(actual);
-    }
 }

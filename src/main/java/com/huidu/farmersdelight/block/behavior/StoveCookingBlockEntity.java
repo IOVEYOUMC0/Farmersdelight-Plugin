@@ -1,6 +1,8 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.util.BlockPosKey;
+import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import net.momirealms.craftengine.core.world.BlockPos;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -17,23 +19,18 @@ import java.util.*;
 public class StoveCookingBlockEntity {
 
     private static final int MAX_CACHE_SIZE = 100;
-    private static final LinkedHashMap<Material, CookingRecipe<?>> recipeCache = new LinkedHashMap<>(16, 0.75f, true);
-    
-    private static void cleanCacheIfNeeded() {
-        while (recipeCache.size() > MAX_CACHE_SIZE) {
-            Iterator<Map.Entry<Material, CookingRecipe<?>>> iterator = recipeCache.entrySet().iterator();
-            if (iterator.hasNext()) {
-                iterator.next();
-                iterator.remove();
-            } else {
-                break;
-            }
+    private static final LinkedHashMap<Material, CookingRecipe<?>> recipeCache = new LinkedHashMap<>(16, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<Material, CookingRecipe<?>> eldest) {
+            return size() > MAX_CACHE_SIZE;
         }
-    }
+    };
+
+    private static final int NO_DISPLAY = -1;
 
     private final BlockPosKey posKey;
     private final CookingSlot[] slots = new CookingSlot[StoveCookingBlockBehavior.SLOT_COUNT];
-    private final UUID[] displayEntityIds = new UUID[StoveCookingBlockBehavior.SLOT_COUNT];
+    private final int[] displayEntityIds = new int[StoveCookingBlockBehavior.SLOT_COUNT];
 
     private static final float[][] SLOT_OFFSETS = {
             {0.3f, 0.2f},
@@ -50,6 +47,7 @@ public class StoveCookingBlockEntity {
 
     public StoveCookingBlockEntity(BlockPosKey posKey) {
         this.posKey = posKey;
+        Arrays.fill(displayEntityIds, NO_DISPLAY);
         for (int i = 0; i < slots.length; i++) {
             slots[i] = new CookingSlot();
         }
@@ -221,7 +219,6 @@ public class StoveCookingBlockEntity {
                 if (ingredient != null && ingredient.test(item)) {
                     synchronized (recipeCache) {
                         recipeCache.put(material, cookingRecipe);
-                        cleanCacheIfNeeded();
                     }
                     return cookingRecipe;
                 }
@@ -239,21 +236,31 @@ public class StoveCookingBlockEntity {
 
     public void createDisplayEntity(int slotIndex, World world, Location blockLoc) {
         if (slotIndex < 0 || slotIndex >= displayEntityIds.length) return;
-        
+
         CookingSlot slot = slots[slotIndex];
         if (slot == null || slot.getItem() == null) return;
-        
+
         removeDisplayEntity(slotIndex);
-        
+
+        ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getFakeItemDisplayManager();
+        if (visualManager == null || !visualManager.isAvailable()) return;
+
         float[] offset = SLOT_OFFSETS[slotIndex];
         Location displayLoc = blockLoc.clone().add(0.5 + offset[0], 0.375, 0.5 + offset[1]);
-        
-        ItemDisplay display = world.spawn(displayLoc, ItemDisplay.class);
-        if (display != null) {
-            display.setItemStack(slot.getItem().clone());
-            display.setCustomNameVisible(false);
-            displayEntityIds[slotIndex] = display.getUniqueId();
-        }
+        ItemStack visualItem = slot.getItem().clone();
+        visualItem.setAmount(1);
+
+        displayEntityIds[slotIndex] = visualManager.createDisplay(new ItemDisplayManager.DisplaySpec(
+                displayLoc,
+                visualItem,
+                ItemDisplay.ItemDisplayTransform.FIXED,
+                new org.bukkit.util.Transformation(
+                        new org.joml.Vector3f(),
+                        new org.joml.Quaternionf(),
+                        new org.joml.Vector3f(0.6f, 0.6f, 0.6f),
+                        new org.joml.Quaternionf()
+                )
+        ));
     }
     
     public void updateDisplayEntity(World world, BlockPosKey posKey, int slotIndex, BlockFace facing) {
@@ -270,20 +277,13 @@ public class StoveCookingBlockEntity {
     }
 
     public void removeDisplayEntity(int slotIndex) {
-        UUID entityId = displayEntityIds[slotIndex];
-        if (entityId == null) return;
-        displayEntityIds[slotIndex] = null;
-        
-        for (World world : Bukkit.getWorlds()) {
-            try {
-                var entity = world.getEntity(entityId);
-                if (entity instanceof ItemDisplay display && display.isValid()) {
-                    display.remove();
-                    return;
-                }
-            } catch (Exception e) {
-                // Entity may already be removed
-            }
+        int entityId = displayEntityIds[slotIndex];
+        if (entityId == NO_DISPLAY) return;
+        displayEntityIds[slotIndex] = NO_DISPLAY;
+
+        ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getFakeItemDisplayManager();
+        if (visualManager != null) {
+            visualManager.destroyDisplay(entityId);
         }
     }
 

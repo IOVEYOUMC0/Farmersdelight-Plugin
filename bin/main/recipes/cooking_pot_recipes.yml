@@ -104,8 +104,8 @@ cooking_pot_recipes:
   
   mushroom_stew:
     ingredients:
-      - "#minecraft:mushrooms"
-      - "#minecraft:mushrooms"
+      - "minecraft:brown_mushroom"
+      - "minecraft:red_mushroom"
     container: "minecraft:bowl"
     result: "minecraft:mushroom_stew"
     experience: 0.7
@@ -126,7 +126,7 @@ cooking_pot_recipes:
   
   bone_broth:
     ingredients:
-      - "#minecraft:bones"
+      - "minecraft:bone"
       - "minecraft:glow_berries|minecraft:brown_mushroom|minecraft:red_mushroom|minecraft:hanging_roots|minecraft:glow_lichen"
     container: "minecraft:bowl"
     result: "farmersdelight:bone_broth"
@@ -305,7 +305,7 @@ cooking_pot_recipes:
   cabbage_rolls:
     ingredients:
       - "farmersdelight:cabbage"
-      - "#minecraft:meat,!minecraft:rotten_flesh|#minecraft:fishes|minecraft:egg|#minecraft:mushrooms|minecraft:carrot|minecraft:potato|minecraft:beetroot"
+      - "minecraft:beef|minecraft:porkchop|minecraft:mutton|minecraft:chicken|minecraft:rabbit|#minecraft:fishes|minecraft:egg|minecraft:brown_mushroom|minecraft:red_mushroom|minecraft:carrot|minecraft:potato|minecraft:beetroot"
     result: "farmersdelight:cabbage_rolls"
     experience: 0.35
     cook-time: 100

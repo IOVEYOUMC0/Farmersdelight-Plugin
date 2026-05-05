@@ -34,10 +34,12 @@ public class StoveManager {
     private final FarmersDelightPlugin plugin;
     private final Map<Location, StoveData> stoves = new ConcurrentHashMap<>();
     private final Map<Location, Boolean> blockedAboveCache = new ConcurrentHashMap<>();
+    private static final long BLOCKED_CACHE_TTL_MS = 30_000;
+    private long lastBlockedCacheCleanup;
     private final CampfireRecipeCache campfireRecipes = new CampfireRecipeCache("stove", this::debug);
     private BukkitTask tickTask;
     private int heartbeatTicks;
-    private Property<?> fireProperty;
+    private volatile Property<?> fireProperty;
 
     private final double[][] slotOffsets = {
             {0.3, 1.02, 0.2}, {0.0, 1.02, 0.2}, {-0.3, 1.02, 0.2},
@@ -126,7 +128,7 @@ public class StoveManager {
         debug("create state: slot=" + emptySlot + ", stored=" + formatItem(toPlace)
                 + ", duration=" + stove.maxTime[emptySlot] + ", location=" + formatLocation(location));
 
-        createVisual(location, stove, emptySlot);
+        createVisual(location, stove, emptySlot, CustomBlockUtils.getFacing(block).getOppositeFace());
         saveStove(location, stove);
         if (player.getGameMode() != GameMode.CREATIVE) {
             debug("consume: slot=" + emptySlot + ", before=" + itemInHand.getAmount() + ", after=" + (itemInHand.getAmount() - 1)
@@ -184,7 +186,7 @@ public class StoveManager {
     }
 
     public boolean isStoveStateBlock(Location location) {
-        return CustomBlockUtils.hasId(location, "farmersdelight:stove");
+        return CustomBlockUtils.hasId(location, Constants.BLOCK_STOVE);
     }
 
     public void saveAllData() {
@@ -221,6 +223,7 @@ public class StoveManager {
 
         StoveData stove = new StoveData(location);
         boolean hasAnyItem = false;
+        BlockFace facing = CustomBlockUtils.getFacing(location.getBlock()).getOppositeFace();
 
         for (int i = 0; i < SLOT_COUNT; i++) {
             Object itemObject = data.get("slot_" + i + "_item");
@@ -228,7 +231,7 @@ public class StoveManager {
                 stove.items[i] = item.clone();
                 stove.cookingTime[i] = data.get("slot_" + i + "_progress") instanceof Number progress ? progress.intValue() : 0;
                 stove.maxTime[i] = data.get("slot_" + i + "_duration") instanceof Number duration ? duration.intValue() : DEFAULT_COOK_TIME;
-                createVisual(location, stove, i);
+                createVisual(location, stove, i, facing);
                 hasAnyItem = true;
             }
         }
@@ -314,6 +317,12 @@ public class StoveManager {
             stopTaskIfIdle();
             return;
         }
+
+        long now = System.currentTimeMillis();
+        if (now - lastBlockedCacheCleanup > BLOCKED_CACHE_TTL_MS) {
+            blockedAboveCache.clear();
+            lastBlockedCacheCleanup = now;
+        }
         if (++heartbeatTicks >= HEARTBEAT_LOG_INTERVAL) {
             heartbeatTicks = 0;
             debug(() -> "tick heartbeat: activeStoves=" + stoves.size());
@@ -342,7 +351,7 @@ public class StoveManager {
                 continue;
             }
 
-            if (!CustomBlockUtils.hasId(state, "farmersdelight:stove")) {
+            if (!CustomBlockUtils.hasId(state, Constants.BLOCK_STOVE)) {
                 debug(() -> "tick state: stove state id mismatch, skipping this tick at " + formatLocation(location));
                 continue;
             }
@@ -357,6 +366,7 @@ public class StoveManager {
             }
 
             boolean isLit = isStoveLit(state);
+            BlockFace facing = CustomBlockUtils.getFacing(block).getOppositeFace();
             debug(() -> "tick state: lit=" + isLit + ", hasAnyItem=" + hasAnyItem(stove)
                     + ", location=" + formatLocation(location));
             for (int i = 0; i < SLOT_COUNT; i++) {
@@ -364,7 +374,7 @@ public class StoveManager {
                     continue;
                 }
 
-                ensureVisualExists(location, stove, i);
+                ensureVisualExists(location, stove, i, facing);
                 int slot = i;
                 debug(() -> "tick slot: slot=" + slot + ", progress=" + stove.cookingTime[slot] + "/" + stove.maxTime[slot]
                         + ", item=" + formatItem(stove.items[slot]) + ", lit=" + isLit
@@ -373,10 +383,10 @@ public class StoveManager {
                 if (isLit) {
                     stove.cookingTime[i]++;
 
-                    if (Math.random() < 0.2) {
-                        spawnCookingParticles(location, i);
+                    if (Math.random() < Constants.STOVE_PARTICLE_CHANCE) {
+                        spawnCookingParticles(location, i, facing);
                     }
-                    if (Math.random() < 0.05) {
+                    if (Math.random() < Constants.STOVE_CRACKLE_CHANCE) {
                         SoundUtils.play(world, location, getCrackleSound(location), Sound.BLOCK_CAMPFIRE_CRACKLE, 1.0f, 1.0f);
                     }
                     if (stove.cookingTime[i] >= stove.maxTime[i]) {
@@ -491,13 +501,13 @@ public class StoveManager {
         }
     }
 
-    private void spawnCookingParticles(Location location, int slot) {
-        double[] offset = getRotatedSlotOffset(location.getBlock(), slot);
+    private void spawnCookingParticles(Location location, int slot, BlockFace facing) {
+        double[] offset = getRotatedSlotOffset(slot, facing);
         Location particleLocation = location.clone().add(0.5 + offset[0], offset[1], 0.5 + offset[2]);
         location.getWorld().spawnParticle(Particle.SMOKE, particleLocation, 1, 0, 0, 0, 0.02);
     }
 
-    private void createVisual(Location location, StoveData stove, int slot) {
+    private void createVisual(Location location, StoveData stove, int slot, BlockFace facing) {
         removeVisual(location, stove, slot);
 
         ItemStack item = stove.items[slot];
@@ -506,7 +516,7 @@ public class StoveManager {
             return;
         }
 
-        double[] offset = getRotatedSlotOffset(location.getBlock(), slot);
+        double[] offset = getRotatedSlotOffset(slot, facing);
         ItemDisplayManager visualManager = plugin.getFakeItemDisplayManager();
         if (visualManager == null || !visualManager.isAvailable()) {
             debug("spawn display: visual manager unavailable for slot=" + slot + ", item=" + formatItem(item)
@@ -518,8 +528,6 @@ public class StoveManager {
         ItemStack visualItem = item.clone();
         visualItem.setAmount(1);
 
-        Block block = location.getBlock();
-        BlockFace facing = CustomBlockUtils.getFacing(block).getOppositeFace();
         float yRotation = CustomBlockUtils.getYRotation(facing);
 
         Quaternionf leftRotation = new Quaternionf();
@@ -546,16 +554,15 @@ public class StoveManager {
                 + ", location=" + formatLocation(location));
     }
 
-    private void ensureVisualExists(Location location, StoveData stove, int slot) {
+    private void ensureVisualExists(Location location, StoveData stove, int slot, BlockFace facing) {
         int entityId = stove.displayEntities[slot];
         if (entityId < 0) {
-            createVisual(location, stove, slot);
+            createVisual(location, stove, slot, facing);
         }
     }
 
-    private double[] getRotatedSlotOffset(Block block, int slot) {
+    private double[] getRotatedSlotOffset(int slot, BlockFace facing) {
         double[] offset = slotOffsets[slot];
-        BlockFace facing = CustomBlockUtils.getFacing(block).getOppositeFace();
 
         return switch (facing) {
             case EAST -> new double[]{offset[2], offset[1], -offset[0]};

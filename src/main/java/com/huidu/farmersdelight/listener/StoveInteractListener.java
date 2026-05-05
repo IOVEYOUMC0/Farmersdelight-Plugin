@@ -1,9 +1,11 @@
 package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.InteractionDebouncer;
 import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.Bukkit;
@@ -129,16 +131,7 @@ public class StoveInteractListener implements Listener {
     }
 
     private boolean isStateChangeItem(ItemStack itemStack) {
-        if (itemStack == null || itemStack.getType().isAir()) {
-            return false;
-        }
-
-        Material type = itemStack.getType();
-        return type == Material.FLINT_AND_STEEL
-                || type == Material.WATER_BUCKET
-                || type == Material.BUCKET
-                || type == Material.POTION
-                || type.name().endsWith("_SHOVEL");
+        return StoveCookingBlockBehavior.isStateChangeItem(itemStack);
     }
 
     private void logDebug(Player player, Block clickedBlock, String ceBlockId, String behaviorId, ItemStack item, String recipeId) {
@@ -170,7 +163,7 @@ public class StoveInteractListener implements Listener {
     }
 
     private boolean isStoveBlock(String ceBlockId) {
-        return ceBlockId != null && ceBlockId.contains("stove");
+        return Constants.CE_SHORT_STOVE.equals(ceBlockId);
     }
 
     private boolean shouldLogAttempt(Block block, String ceBlockId) {

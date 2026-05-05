@@ -1,9 +1,10 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.BlockPosKey;
+import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import net.momirealms.craftengine.core.world.BlockPos;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -14,19 +15,17 @@ import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-import java.util.UUID;
-
 public class CuttingBoardBlockEntity {
 
+    private static final int NO_DISPLAY = -1;
+
     private final BlockPosKey posKey;
-    private final UUID worldId;
     private ItemStack storedItem;
     private boolean itemCarved;
-    private UUID displayEntityId;
+    private int displayEntityId = NO_DISPLAY;
 
     public CuttingBoardBlockEntity(BlockPosKey posKey, World world) {
         this.posKey = posKey;
-        this.worldId = world == null ? null : world.getUID();
     }
 
     public BlockPosKey getPosKey() {
@@ -60,8 +59,14 @@ public class CuttingBoardBlockEntity {
         this.storedItem = cloneOrNull(item);
         this.itemCarved = itemCarved;
         if (this.storedItem != null) {
-            this.storedItem.setAmount(1);
+            this.storedItem.setAmount(Math.max(1, this.storedItem.getAmount()));
         }
+        updateDisplayEntity(world, posKey, facing);
+    }
+
+    public void setStoredItem(ItemStack item, World world, BlockPosKey posKey, BlockFace facing) {
+        this.storedItem = cloneOrNull(item);
+        this.itemCarved = false;
         updateDisplayEntity(world, posKey, facing);
     }
 
@@ -73,55 +78,61 @@ public class CuttingBoardBlockEntity {
 
     private void updateDisplayEntity(World world, BlockPosKey posKey, BlockFace facing) {
         removeDisplayEntity();
-
         if (storedItem == null || world == null) return;
 
-        boolean isBlockItem = ItemUtils.shouldUseBlockStyleDisplay(storedItem);
-        boolean isCarvedTool = itemCarved && isCarvedTool(storedItem);
+        ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getFakeItemDisplayManager();
+        if (visualManager == null || !visualManager.isAvailable()) return;
 
-        float yOffset = isCarvedTool ? 0.23f : (isBlockItem ? 0.27f : 0.08f);
+        boolean isBlockItem = ItemUtils.shouldUseBlockStyleDisplay(storedItem);
+        float yOffset = itemCarved ? 0.23f : (isBlockItem ? 0.27f : 0.08f);
         float scale = isBlockItem ? 0.8f : 0.6f;
+
+        float yRotation = getYRotation(facing.getOppositeFace());
+        float xRotation = itemCarved ? 0.0f : (isBlockItem ? 0.0f : 90.0f);
+        float zRotation = itemCarved ? getCarvedToolZRotation(storedItem) : 0.0f;
+        if (itemCarved) {
+            yRotation += 180.0f;
+        }
+
+        Quaternionf leftRotation = new Quaternionf();
+        leftRotation.rotationYXZ(
+                (float) Math.toRadians(yRotation),
+                (float) Math.toRadians(xRotation),
+                (float) Math.toRadians(zRotation)
+        );
+
+        Transformation transformation = new Transformation(
+                new Vector3f(0.0f, 0.0f, 0.0f),
+                leftRotation,
+                new Vector3f(scale, scale, scale),
+                new Quaternionf(0.0f, 0.0f, 0.0f, 1.0f)
+        );
 
         Location location = new Location(world,
                 posKey.x() + 0.5,
                 posKey.y() + yOffset,
                 posKey.z() + 0.5);
 
-        ItemDisplay entity = world.spawn(location, ItemDisplay.class, display -> {
-            display.setItemStack(storedItem);
-            display.setPersistent(true);
-            display.setGravity(false);
-            display.setInvulnerable(true);
-            display.setSilent(true);
-            display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
-            display.addScoreboardTag("farmersdelight_cutting_board_visual");
-            display.addScoreboardTag("farmersdelight_visual");
+        ItemStack visualItem = storedItem.clone();
+        visualItem.setAmount(1);
 
-            float yRotation = getYRotation(facing.getOppositeFace());
-            float xRotation = isCarvedTool ? 0.0f : (isBlockItem ? 0.0f : 90.0f);
-            float zRotation = isCarvedTool ? getCarvedToolZRotation(storedItem) : 0.0f;
-            if (isCarvedTool) {
-                yRotation += 180.0f;
-            }
+        displayEntityId = visualManager.createDisplay(new ItemDisplayManager.DisplaySpec(
+                location,
+                visualItem,
+                ItemDisplay.ItemDisplayTransform.FIXED,
+                transformation
+        ));
+    }
 
-            Quaternionf leftRotation = new Quaternionf();
-            leftRotation.rotationYXZ(
-                    (float) Math.toRadians(yRotation),
-                    (float) Math.toRadians(xRotation),
-                    (float) Math.toRadians(zRotation)
-            );
+    public void removeDisplayEntity() {
+        if (displayEntityId == NO_DISPLAY) return;
+        int entityId = displayEntityId;
+        displayEntityId = NO_DISPLAY;
 
-            Transformation transformation = new Transformation(
-                    new Vector3f(0.0f, 0.0f, 0.0f),
-                    leftRotation,
-                    new Vector3f(scale, scale, scale),
-                    new Quaternionf(0.0f, 0.0f, 0.0f, 1.0f)
-            );
-
-            display.setTransformation(transformation);
-        });
-
-        displayEntityId = entity.getUniqueId();
+        ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getFakeItemDisplayManager();
+        if (visualManager != null) {
+            visualManager.destroyDisplay(entityId);
+        }
     }
 
     private float getYRotation(BlockFace facing) {
@@ -133,6 +144,7 @@ public class CuttingBoardBlockEntity {
         };
     }
 
+    @SuppressWarnings("unused")
     private boolean isCarvedTool(ItemStack item) {
         if (item == null || item.getType().isAir()) {
             return false;
@@ -165,40 +177,6 @@ public class CuttingBoardBlockEntity {
             return 225.0f;
         }
         return 180.0f;
-    }
-
-    public void removeDisplayEntity() {
-        if (displayEntityId == null) return;
-        UUID entityId = displayEntityId;
-        displayEntityId = null;
-
-        World world = null;
-        if (worldId != null) {
-            world = Bukkit.getWorld(worldId);
-        }
-        if (world != null) {
-            try {
-                var entity = world.getEntity(entityId);
-                if (entity instanceof ItemDisplay display && display.isValid()) {
-                    display.remove();
-                    return;
-                }
-            } catch (Exception e) {
-                // The display entity may already be gone.
-            }
-        }
-
-        for (World w : Bukkit.getWorlds()) {
-            try {
-                var entity = w.getEntity(entityId);
-                if (entity instanceof ItemDisplay display && display.isValid()) {
-                    display.remove();
-                    return;
-                }
-            } catch (Exception e) {
-                // The display entity may already be gone.
-            }
-        }
     }
 
     private ItemStack cloneOrNull(ItemStack item) {

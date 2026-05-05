@@ -2,7 +2,6 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.*;
-import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CookingPotItemDataHelper;
 import com.huidu.farmersdelight.util.CustomBlockUtils;

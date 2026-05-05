@@ -1,12 +1,13 @@
-# ========================================
+﻿# ========================================
 # Cutting board recipe configuration
 # ========================================
 #
 # Format:
 #   <recipe_id>:
 #     input: <item_id_or_tag>    # Use a leading # for tags
-#     tool: <tool_tag>           # Example: farmersdelight:knives, minecraft:axes
-#                              # Tool exclusions: "farmersdelight:knives,!namespace:item,!#namespace:tag"
+#     tool: <item_or_tag>        # Tag example: #farmersdelight:knives, #minecraft:axes
+#                                # Item example: minecraft:shears
+#                                # Tool exclusions: "#farmersdelight:knives,!namespace:item,!#namespace:tag"
 #     results:                   # Output item list
 #       - item: <item_id>
 #         count: <amount>        # Optional, defaults to 1
@@ -20,14 +21,14 @@ cutting_board_recipes:
 
   rice_panicle:
     input: "farmersdelight:rice_panicle"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:rice"
       - item: "farmersdelight:straw"
 
   wild_rice:
     input: "farmersdelight:wild_rice"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:rice"
       - item: "farmersdelight:straw"
@@ -35,7 +36,7 @@ cutting_board_recipes:
 
   raw_pasta:
     input: "farmersdelight:wheat_dough"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:raw_pasta"
 
@@ -45,7 +46,7 @@ cutting_board_recipes:
 
   wild_tomatoes:
     input: "farmersdelight:wild_tomatoes"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:tomato_seeds"
       - item: "farmersdelight:tomato"
@@ -55,7 +56,7 @@ cutting_board_recipes:
 
   wild_cabbages:
     input: "farmersdelight:wild_cabbages"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:cabbage_seeds"
       - item: "minecraft:yellow_dye"
@@ -64,7 +65,7 @@ cutting_board_recipes:
 
   wild_onions:
     input: "farmersdelight:wild_onions"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:onion"
       - item: "minecraft:magenta_dye"
@@ -78,35 +79,36 @@ cutting_board_recipes:
   
   porkchop:
     input: "minecraft:porkchop"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:bacon"
         count: 2
   
   beef:
     input: "minecraft:beef"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:minced_beef"
         count: 2
   
   chicken:
     input: "minecraft:chicken"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:chicken_cuts"
         count: 2
+      - item: "minecraft:bone_meal"
   
   mutton:
     input: "minecraft:mutton"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:mutton_chops"
         count: 2
   
   cod:
     input: "minecraft:cod"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:cod_slice"
         count: 2
@@ -114,7 +116,7 @@ cutting_board_recipes:
   
   salmon:
     input: "minecraft:salmon"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:salmon_slice"
         count: 2
@@ -122,49 +124,52 @@ cutting_board_recipes:
   
   cooked_porkchop:
     input: "minecraft:cooked_porkchop"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:cooked_bacon"
         count: 2
   
   cooked_beef:
     input: "minecraft:cooked_beef"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:cooked_minced_beef"
         count: 2
   
   cooked_chicken:
     input: "minecraft:cooked_chicken"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:cooked_chicken_cuts"
         count: 2
+      - item: "minecraft:bone_meal"
   
   cooked_mutton:
     input: "minecraft:cooked_mutton"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:cooked_mutton_chops"
         count: 2
   
   cooked_cod:
     input: "minecraft:cooked_cod"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:cooked_cod_slice"
         count: 2
+      - item: "minecraft:bone_meal"
   
   cooked_salmon:
     input: "minecraft:cooked_salmon"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:cooked_salmon_slice"
         count: 2
+      - item: "minecraft:bone_meal"
   
   ham:
     input: "farmersdelight:ham"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "minecraft:porkchop"
         count: 2
@@ -172,7 +177,7 @@ cutting_board_recipes:
   
   smoked_ham:
     input: "farmersdelight:smoked_ham"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "minecraft:cooked_porkchop"
         count: 2
@@ -184,7 +189,7 @@ cutting_board_recipes:
   
   cabbage:
     input: "farmersdelight:cabbage"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:cabbage_leaf"
         count: 2
@@ -195,28 +200,28 @@ cutting_board_recipes:
   
   cake:
     input: "minecraft:cake"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:cake_slice"
         count: 7
   
   apple_pie:
     input: "farmersdelight:apple_pie"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:apple_pie_slice"
         count: 4
   
   sweet_berry_cheesecake:
     input: "farmersdelight:sweet_berry_cheesecake"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:sweet_berry_cheesecake_slice"
         count: 4
   
   chocolate_pie:
     input: "farmersdelight:chocolate_pie"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:chocolate_pie_slice"
         count: 4
@@ -227,7 +232,7 @@ cutting_board_recipes:
   
   kelp_roll:
     input: "farmersdelight:kelp_roll"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:kelp_roll_slice"
         count: 3
@@ -674,61 +679,62 @@ cutting_board_recipes:
   
   pumpkin:
     input: "minecraft:pumpkin"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "farmersdelight:pumpkin_slice"
         count: 4
   
   melon:
     input: "minecraft:melon"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "minecraft:melon_slice"
         count: 9
   
   saddle:
     input: "minecraft:saddle"
-    tool: "farmersdelight:knives"
+    tool: "minecraft:shears"
     results:
       - item: "minecraft:leather"
         count: 2
+      - item: "minecraft:iron_nugget"
+        count: 2
+        chance: 0.5
   
   leather_boots:
     input: "minecraft:leather_boots"
-    tool: "farmersdelight:knives"
+    tool: "minecraft:shears"
     results:
       - item: "minecraft:leather"
   
   leather_helmet:
     input: "minecraft:leather_helmet"
-    tool: "farmersdelight:knives"
+    tool: "minecraft:shears"
     results:
       - item: "minecraft:leather"
   
   leather_chestplate:
     input: "minecraft:leather_chestplate"
-    tool: "farmersdelight:knives"
+    tool: "minecraft:shears"
     results:
       - item: "minecraft:leather"
-        count: 2
   
   leather_leggings:
     input: "minecraft:leather_leggings"
-    tool: "farmersdelight:knives"
+    tool: "minecraft:shears"
     results:
       - item: "minecraft:leather"
-        count: 2
   
   leather_horse_armor:
     input: "minecraft:leather_horse_armor"
-    tool: "farmersdelight:knives"
+    tool: "minecraft:shears"
     results:
       - item: "minecraft:leather"
         count: 2
 
   ink_sac:
     input: "minecraft:ink_sac"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "minecraft:black_dye"
         count: 2
@@ -794,98 +800,98 @@ cutting_board_recipes:
   
   dandelion:
     input: "minecraft:dandelion"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "minecraft:yellow_dye"
         count: 2
   
   poppy:
     input: "minecraft:poppy"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "minecraft:red_dye"
         count: 2
   
   blue_orchid:
     input: "minecraft:blue_orchid"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "minecraft:light_blue_dye"
         count: 2
   
   allium:
     input: "minecraft:allium"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "minecraft:magenta_dye"
         count: 2
   
   azure_bluet:
     input: "minecraft:azure_bluet"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "minecraft:light_gray_dye"
         count: 2
   
   red_tulip:
     input: "minecraft:red_tulip"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "minecraft:red_dye"
         count: 2
   
   orange_tulip:
     input: "minecraft:orange_tulip"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "minecraft:orange_dye"
         count: 2
   
   white_tulip:
     input: "minecraft:white_tulip"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
-      - item: "minecraft:white_dye"
+      - item: "minecraft:light_gray_dye"
         count: 2
   
   pink_tulip:
     input: "minecraft:pink_tulip"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "minecraft:pink_dye"
         count: 2
   
   oxeye_daisy:
     input: "minecraft:oxeye_daisy"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "minecraft:light_gray_dye"
         count: 2
   
   cornflower:
     input: "minecraft:cornflower"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "minecraft:blue_dye"
         count: 2
   
   lily_of_the_valley:
     input: "minecraft:lily_of_the_valley"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "minecraft:white_dye"
         count: 2
   
   wither_rose:
     input: "minecraft:wither_rose"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "minecraft:black_dye"
         count: 2
   
   torchflower:
     input: "minecraft:torchflower"
-    tool: "farmersdelight:knives"
+    tool: "#farmersdelight:knives"
     results:
       - item: "minecraft:orange_dye"
         count: 2

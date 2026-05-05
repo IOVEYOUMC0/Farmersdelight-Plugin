@@ -96,7 +96,7 @@ tray:
   enabled: true
   tray-block-id: "farmersdelight:tray"
   x-offset: 0.5
-  y-offset: -0.525
+  y-offset: -0.4
   z-offset: 0.5
   require-non-full-support: true
   marker-key: "auto_tray_marker"
@@ -474,6 +474,14 @@ nourishment-foods:
 # Returned containers after cooking
 container-returns:
   farmersdelight:milk_bottle: minecraft:glass_bottle
+
+# Rope climbing
+rope:
+  # Whether players can climb ropes by pressing jump.
+  climb-enabled: true
+  # This radius (0.0 ~ 0.5) determines how close the player must be to the rope center to count as "climbing".
+  # Larger values are more forgiving.
+  climb-reach: 0.5
 
 # Debug mode
 debug:

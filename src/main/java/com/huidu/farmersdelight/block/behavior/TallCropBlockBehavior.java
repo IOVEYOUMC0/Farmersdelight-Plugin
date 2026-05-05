@@ -5,16 +5,22 @@ import com.huidu.farmersdelight.util.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.RiceCropRules;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
 import com.huidu.farmersdelight.util.SoilRuleSupport.SoilRules;
+import net.momirealms.craftengine.bukkit.api.BukkitAdaptors;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
+import net.momirealms.craftengine.bukkit.world.BukkitExistingBlock;
 import net.momirealms.craftengine.core.block.CustomBlock;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.properties.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
+import net.momirealms.craftengine.core.item.Item;
+import net.momirealms.craftengine.core.plugin.context.ContextHolder;
+import net.momirealms.craftengine.core.plugin.context.parameter.DirectContextParameters;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.BlockPos;
+import net.momirealms.craftengine.core.world.WorldPosition;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
 import org.bukkit.*;
 import org.bukkit.block.Block;
@@ -92,7 +98,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
 
             float growSpeed = getFloat(arguments, "grow-speed", 0.25f);
             int minGrowLight = getInt(arguments, "light-requirement", 9);
-            boolean isBoneMealTarget = getBoolean(arguments, "is-bone-meal-target", false);
+            boolean isBoneMealTarget = getBoolean(arguments, "is-bone-meal-target", true);
             boolean randomBoneMealGrowth = getBoolean(arguments, "random-bone-meal-growth", false);
             int boneMealMin = getInt(arguments, "bone-meal-min", 1);
             int boneMealMax = getInt(arguments, "bone-meal-max", randomBoneMealGrowth ? 4 : 2);
@@ -115,7 +121,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
             
             boolean requiresWater = getBoolean(arguments, "requires-water", false);
             boolean resetOnHarvest = getBoolean(arguments, "reset-on-harvest", true);
-            SoilRules soilRules = parseSoilRules(arguments);
+            SoilRules soilRules = SoilRuleSupport.parseSoilRules(arguments);
             
             String upperBlockStr = getString(arguments, "upper-block", "");
             Key upperBlockId = upperBlockStr.isEmpty() ? null : Key.of(upperBlockStr);
@@ -219,11 +225,37 @@ public class TallCropBlockBehavior extends BlockBehavior {
 
         World world = bukkitPlayer.getWorld();
 
+        ItemStack mainHand = bukkitPlayer.getInventory().getItemInMainHand();
+
         if (isUpperHalf(state) && isUpperMature(state)) {
+            if (resetOnHarvest && mainHand.getType() != Material.BONE_MEAL && !mainHand.getType().isAir()) {
+                Block bukkitBlock = world.getBlockAt(pos.x(), pos.y(), pos.z());
+                Location loc = bukkitBlock.getLocation().add(0.5, 0.5, 0.5);
+
+                net.momirealms.craftengine.core.world.World ceWorld = BukkitAdaptors.adapt(world);
+                WorldPosition wPos = new WorldPosition(ceWorld, loc.getX(), loc.getY(), loc.getZ());
+                ContextHolder.Builder builder = new ContextHolder.Builder()
+                        .withParameter(DirectContextParameters.POSITION, wPos)
+                        .withParameter(DirectContextParameters.BLOCK, new BukkitExistingBlock(bukkitBlock))
+                        .withOptionalParameter(DirectContextParameters.PLAYER, BukkitAdaptors.adapt(bukkitPlayer))
+                        .withOptionalParameter(DirectContextParameters.ITEM_IN_HAND, BukkitAdaptors.adapt(mainHand));
+                List<Item<Object>> drops = state.getDrops(builder, ceWorld, BukkitAdaptors.adapt(bukkitPlayer));
+                for (Item<Object> drop : drops) {
+                    ceWorld.dropItemNaturally(wPos, drop);
+                }
+
+                world.playSound(loc, Sound.BLOCK_CROP_BREAK, 1.0f, 1.0f);
+                world.playSound(loc, Sound.ITEM_CROP_PLANT, 1.0f, 0.8f);
+
+                bukkitPlayer.swingMainHand();
+
+                CraftEngineBlocks.remove(bukkitBlock);
+                resetLowerAfterUpperHarvest(pos, world);
+                return InteractionResult.SUCCESS_AND_CANCEL;
+            }
             return InteractionResult.PASS;
         }
 
-        ItemStack mainHand = bukkitPlayer.getInventory().getItemInMainHand();
         if (mainHand.getType() == Material.BONE_MEAL && isBoneMealTarget) {
             if (applyBoneMeal(pos, world, state, bukkitPlayer)) {
                 if (bukkitPlayer.getGameMode() != GameMode.CREATIVE) {
@@ -302,26 +334,48 @@ public class TallCropBlockBehavior extends BlockBehavior {
 
     @Override
     public void randomTick(Object thisBlock, Object[] args, Callable<Object> superMethod) {
-        if (args.length >= 3) {
-            ImmutableBlockState state = BlockStateUtils.getOptionalCustomBlockState(args[0]).orElse(null);
-            World world = CraftEngineAdapter.toWorld(args[1]);
-            BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
+        if (args.length < 3) return;
 
-            if (state == null || state.isEmpty() || world == null || pos == null) {
-                return;
-            }
+        ImmutableBlockState state = BlockStateUtils.getOptionalCustomBlockState(args[0]).orElse(null);
+        if (state == null || state.isEmpty()) return;
 
-            Block bukkitBlock = world.getBlockAt(pos.x(), pos.y(), pos.z());
-            Object half = getHalf(state);
-            int currentAge = getAge(state);
+        int currentAge = getAge(state);
+        Object half = getHalf(state);
+        boolean isUpper = matchesHalfValue(half, halfUpperValue);
 
-            if (matchesHalfValue(half, halfUpperValue)) {
-                tickUpperHalfGrowth(bukkitBlock, state, currentAge);
-                return;
-            }
-            
-            tickLowerHalfGrowth(pos, world, bukkitBlock, state, currentAge);
+        if (isUpper && currentAge >= maxAgeUpper) return;
+        if (!isUpper && currentAge >= maxAgeLower) return;
+
+        World world = CraftEngineAdapter.toWorld(args[1]);
+        BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
+        if (world == null || pos == null) return;
+
+        Block bukkitBlock = world.getBlockAt(pos.x(), pos.y(), pos.z());
+
+        if (isUpper) {
+            tickUpperHalfGrowth(bukkitBlock, state, currentAge);
+            return;
         }
+        tickLowerHalfGrowth(pos, world, bukkitBlock, state, currentAge);
+    }
+
+    private void resetLowerAfterUpperHarvest(BlockPos upperPos, World world) {
+        BlockPos lowerPos = new BlockPos(upperPos.x(), upperPos.y() - 1, upperPos.z());
+        Block lowerBlock = world.getBlockAt(lowerPos.x(), lowerPos.y(), lowerPos.z());
+        ImmutableBlockState lowerState = CraftEngineBlocks.getCustomBlockState(lowerBlock);
+        if (lowerState == null || lowerState.isEmpty() || isUpperHalf(lowerState)) return;
+
+        ImmutableBlockState resetState = lowerState;
+        if (ageProperty != null) {
+            resetState = resetState.with(ageProperty, Math.max(0, maxAgeLower - 1));
+        }
+        if (halfProperty != null) {
+            resetState = withRaw(resetState, halfProperty, halfLowerValue);
+        }
+        if (supportingProperty != null) {
+            resetState = resetState.with(supportingProperty, false);
+        }
+        CraftEngineBlocks.place(lowerBlock.getLocation(), resetState, false);
     }
 
     private boolean applyBoneMealToUpperHalf(BlockPos pos, World world, ImmutableBlockState state, int currentAge) {
@@ -596,7 +650,6 @@ public class TallCropBlockBehavior extends BlockBehavior {
         return String.valueOf(value).trim().toLowerCase();
     }
 
-    @SuppressWarnings({})
     private static Object getRawPropertyValue(Object configuredValue, Property<?> property, Object fallback) {
         if (configuredValue == null || property == null) {
             return fallback;
@@ -656,9 +709,5 @@ public class TallCropBlockBehavior extends BlockBehavior {
         if (placerObj instanceof Player player) {
             player.sendMessage(I18n.get(messageKey, player));
         }
-    }
-
-    private static SoilRules parseSoilRules(Map<String, Object> arguments) {
-        return SoilRuleSupport.parseSoilRules(arguments);
     }
 }

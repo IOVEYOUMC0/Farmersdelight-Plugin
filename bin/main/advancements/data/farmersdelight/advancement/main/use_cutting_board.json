@@ -6,7 +6,7 @@
     }
   },
   "display": {
-    "announce_to_chat": true,
+    "announce_to_chat": false,
     "description": {
       "translate": "farmersdelight.advancement.use_cutting_board.desc"
     },

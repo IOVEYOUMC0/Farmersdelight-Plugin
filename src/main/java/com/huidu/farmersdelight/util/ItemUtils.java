@@ -9,15 +9,19 @@ import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 import org.bukkit.Tag;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,9 +40,20 @@ import java.util.regex.Pattern;
  */
 public final class ItemUtils {
 
+    private static final Map<Key, List<ItemStack>> vanillaTagCache = new ConcurrentHashMap<>();
+    private static final List<Material> ITEM_MATERIALS = new ArrayList<>();
+
     private static final PlainTextComponentSerializer PLAIN_TEXT = PlainTextComponentSerializer.plainText();
-    private static final Pattern L10N_PATTERN = Pattern.compile("^<l10n[:;]([^>]+)>$");
+    private static final Pattern L10N_PATTERN = Pattern.compile("<l10n[:;]([^>]+)>");
     private static final Pattern TRANSLATION_KEY_PATTERN = Pattern.compile("^[a-z0-9_]+(?:\\.[a-z0-9_]+)+$");
+
+    static {
+        for (Material material : Material.values()) {
+            if (material.isItem()) {
+                ITEM_MATERIALS.add(material);
+            }
+        }
+    }
 
     private ItemUtils() {
     }
@@ -102,9 +117,12 @@ public final class ItemUtils {
                 return buildableItem.buildItemStack();
             }
 
-            Material material = Material.matchMaterial(itemId);
-            if (material != null) {
-                return new ItemStack(material);
+            NamespacedKey materialKey = NamespacedKey.fromString(itemId);
+            if (materialKey != null) {
+                Material material = Registry.MATERIAL.get(materialKey);
+                if (material != null) {
+                    return new ItemStack(material);
+                }
             }
         } catch (Exception e) {
             return null;
@@ -175,9 +193,10 @@ public final class ItemUtils {
 
         String materialName = item.getType().name().toLowerCase();
         String translated = translate("item.minecraft." + materialName, locale);
-        if (translated.equals("item.minecraft." + materialName)) {
-            translated = translate("block.minecraft." + materialName, locale);
+        if (!translated.equals("item.minecraft." + materialName)) {
+            return translated;
         }
+        translated = translate("block.minecraft." + materialName, locale);
         if (!translated.equals("block.minecraft." + materialName)) {
             return translated;
         }
@@ -225,10 +244,24 @@ public final class ItemUtils {
         }
 
         translated = I18n.get(key, "en_us");
-        if (translated.equals(key)) {
-            return key;
+        if (!translated.equals(key)) {
+            return translated;
         }
-        return translated;
+
+        try {
+            java.util.Locale loc = locale != null && !locale.isEmpty()
+                    ? java.util.Locale.forLanguageTag(locale.replace('_', '-'))
+                    : java.util.Locale.getDefault();
+            Component rendered = net.kyori.adventure.translation.GlobalTranslator.render(
+                    Component.translatable(key), loc);
+            String plain = PLAIN_TEXT.serialize(rendered);
+            if (!plain.equals(key)) {
+                return plain;
+            }
+        } catch (Exception ignored) {
+        }
+
+        return key;
     }
 
     private static String resolveSpecialDisplayText(String rawText, String locale) {
@@ -237,7 +270,7 @@ public final class ItemUtils {
         }
         String normalized = rawText.trim();
         Matcher matcher = L10N_PATTERN.matcher(normalized);
-        if (matcher.matches()) {
+        if (matcher.find()) {
             String key = matcher.group(1);
             String translated = translate(key, locale);
             if (!translated.equals(key)) {
@@ -268,7 +301,8 @@ public final class ItemUtils {
                 || path.endsWith("_soil")
                 || path.endsWith("_farmland")
                 || path.endsWith("_compost")
-                || path.endsWith("_block");
+                || path.endsWith("_block")
+                || path.equals("rope");
     }
 
     private static Component resolveSpecialDisplayComponent(Component component, Player player) {
@@ -282,7 +316,7 @@ public final class ItemUtils {
         }
         String normalized = rawText.trim();
         Matcher matcher = L10N_PATTERN.matcher(normalized);
-        if (matcher.matches()) {
+        if (matcher.find()) {
             String key = matcher.group(1);
             String translated = translate(key, locale);
             if (!translated.equals(key)) {
@@ -364,15 +398,23 @@ public final class ItemUtils {
     }
 
     public static List<ItemStack> createVanillaTagDisplayItems(Key tagKey, Set<Key> excludedItems, Set<Key> excludedTags) {
+        if (excludedItems.isEmpty() && excludedTags.isEmpty()) {
+            List<ItemStack> cached = vanillaTagCache.get(tagKey);
+            if (cached != null) return cached;
+        }
+
         List<ItemStack> items = new ArrayList<>();
-        for (Material material : Material.values()) {
-            if (!material.isItem()) {
-                continue;
-            }
+        for (Material material : ITEM_MATERIALS) {
             ItemStack candidate = new ItemStack(material);
             if (matchesVanillaItemTag(candidate, tagKey, excludedItems, excludedTags)) {
                 items.add(candidate);
             }
+        }
+
+        if (excludedItems.isEmpty() && excludedTags.isEmpty()) {
+            List<ItemStack> unmodifiable = Collections.unmodifiableList(items);
+            vanillaTagCache.put(tagKey, unmodifiable);
+            return unmodifiable;
         }
         return items;
     }
@@ -388,5 +430,23 @@ public final class ItemUtils {
         } catch (IllegalArgumentException ignored) {
             return false;
         }
+    }
+
+    public static String resolveItemId(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return null;
+        }
+        String customId = getCustomItemId(item);
+        if (customId != null) {
+            return customId;
+        }
+        return "minecraft:" + item.getType().name().toLowerCase();
+    }
+
+    public static ItemStack cloneOrNull(ItemStack item) {
+        if (item == null) {
+            return null;
+        }
+        return item.clone();
     }
 }

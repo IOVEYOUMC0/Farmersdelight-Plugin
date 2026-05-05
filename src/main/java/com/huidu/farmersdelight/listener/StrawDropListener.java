@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.config.StrawDropConfig;
+import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
@@ -57,7 +58,7 @@ public class StrawDropListener implements Listener {
         List<String> knifeItems = plugin.getConfig().getStringList("knife-config.items");
         List<String> configuredKnifeTags = plugin.getConfig().getStringList("knife-config.tags");
         List<String> knifeTags = configuredKnifeTags.isEmpty()
-                ? List.of("farmersdelight:knives")
+                ? List.of(Constants.TAG_KNIVES)
                 : configuredKnifeTags;
 
         String customItemId = ItemUtils.getCustomItemId(item);
@@ -115,7 +116,7 @@ public class StrawDropListener implements Listener {
             return false;
         }
 
-        if (!"farmersdelight:rice".equals(CustomBlockUtils.getId(state))) {
+        if (!Constants.BLOCK_RICE.equals(CustomBlockUtils.getId(state))) {
             return false;
         }
 

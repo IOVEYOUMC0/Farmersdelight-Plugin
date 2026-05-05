@@ -18,7 +18,6 @@ import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
 import org.bukkit.*;
 import org.bukkit.block.BlockFace;
-import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
@@ -40,13 +39,17 @@ public class CuttingBoardBlockBehavior extends BlockBehavior {
     private final List<Key> toolTags;
     private final List<Key> toolItems;
     private final String knifeSound;
+    private final boolean enableStacking;
+    private final int maxStackAmount;
 
-    private CuttingBoardBlockBehavior(CustomBlock block, Property<?> facingProperty, List<Key> toolTags, List<Key> toolItems, String knifeSound) {
+    private CuttingBoardBlockBehavior(CustomBlock block, Property<?> facingProperty, List<Key> toolTags, List<Key> toolItems, String knifeSound, boolean enableStacking, int maxStackAmount) {
         super(block);
         this.facingProperty = facingProperty;
         this.toolTags = toolTags;
         this.toolItems = toolItems;
         this.knifeSound = knifeSound;
+        this.enableStacking = enableStacking;
+        this.maxStackAmount = maxStackAmount;
     }
 
     public static CuttingBoardBlockEntity getBlockEntity(World world, BlockPos pos) {
@@ -63,10 +66,19 @@ public class CuttingBoardBlockBehavior extends BlockBehavior {
     public static Map<BlockPosKey, CuttingBoardBlockEntity> getAllBlockEntities(World world) {
         if (world == null) return Map.of();
         Map<BlockPosKey, CuttingBoardBlockEntity> worldEntities = worldBlockEntities.get(world.getUID());
-        if (worldEntities != null) {
-            return Map.copyOf(worldEntities);
+        if (worldEntities != null && !worldEntities.isEmpty()) {
+            return worldEntities;
         }
         return Map.of();
+    }
+
+    public static Set<Map.Entry<BlockPosKey, CuttingBoardBlockEntity>> getBlockEntityEntries(World world) {
+        if (world == null) return Set.of();
+        Map<BlockPosKey, CuttingBoardBlockEntity> worldEntities = worldBlockEntities.get(world.getUID());
+        if (worldEntities != null && !worldEntities.isEmpty()) {
+            return worldEntities.entrySet();
+        }
+        return Set.of();
     }
 
     public static CuttingBoardBlockEntity putBlockEntity(World world, BlockPosKey posKey, CuttingBoardBlockEntity entity) {
@@ -234,7 +246,7 @@ public class CuttingBoardBlockBehavior extends BlockBehavior {
         if (world == null || posKey == null) {
             return false;
         }
-        return CustomBlockUtils.idContains(world.getBlockAt(posKey.x(), posKey.y(), posKey.z()), "cutting_board");
+        return CustomBlockUtils.hasId(world.getBlockAt(posKey.x(), posKey.y(), posKey.z()), Constants.BLOCK_CUTTING_BOARD);
     }
 
     public static final BlockBehaviorFactory<CuttingBoardBlockBehavior> FACTORY = new BlockBehaviorFactory<CuttingBoardBlockBehavior>() {
@@ -261,7 +273,9 @@ public class CuttingBoardBlockBehavior extends BlockBehavior {
                     .toList();
 
             String knifeSound = getArgumentString(arguments, "knife-sound", Constants.SOUND_CUTTING_BOARD_KNIFE);
-            return new CuttingBoardBlockBehavior(block, facingProperty, toolTags, toolItems, knifeSound);
+            boolean enableStacking = getBooleanValue(arguments, "enable-stacking", false);
+            int maxStackAmount = getIntValue(arguments, "max-stack-amount", 64);
+            return new CuttingBoardBlockBehavior(block, facingProperty, toolTags, toolItems, knifeSound, enableStacking, maxStackAmount);
         }
     };
 
@@ -345,8 +359,9 @@ public class CuttingBoardBlockBehavior extends BlockBehavior {
 
         if (blockEntity.hasItem()) {
             ItemStack tool = findMatchingTool(blockEntity, mainHand, offHand);
+            boolean toolIsOffhand = tool != null && tool == offHand;
             if (tool != null) {
-                boolean result = processCutting(blockEntity, tool, bukkitPlayer, facing, world, posKey);
+                boolean result = processCutting(blockEntity, tool, bukkitPlayer, facing, world, posKey, toolIsOffhand);
                 if (result) {
                     return InteractionResult.SUCCESS_AND_CANCEL;
                 }
@@ -369,17 +384,40 @@ public class CuttingBoardBlockBehavior extends BlockBehavior {
             }
 
             ItemStack itemToPlace = mainHand.clone();
-            itemToPlace.setAmount(1);
+            int amountToMove = itemToPlace.getAmount();
+            if (enableStacking) {
+                amountToMove = Math.min(amountToMove, maxStackAmount);
+            } else {
+                amountToMove = 1;
+            }
+            itemToPlace.setAmount(amountToMove);
             boolean carveTool = bukkitPlayer.isSneaking() && isTool(mainHand);
-            blockEntity.setItem(itemToPlace, world, posKey, facing, carveTool);
+            storeItemInBoard(world, posKey, facing, blockEntity, itemToPlace, carveTool);
             if (bukkitPlayer.getGameMode() != GameMode.CREATIVE) {
-                mainHand.setAmount(mainHand.getAmount() - 1);
+                mainHand.setAmount(mainHand.getAmount() - amountToMove);
             }
             Sound placeSound = carveTool ? Sound.ITEM_TRIDENT_HIT : Sound.BLOCK_WOOD_PLACE;
             float pitch = carveTool ? 1.2f : 1.0f;
             String soundKey = carveTool ? knifeSound : null;
             SoundUtils.play(bukkitPlayer.getWorld(), bukkitPlayer.getLocation(), soundKey, placeSound, 1.0f, pitch);
             return InteractionResult.SUCCESS_AND_CANCEL;
+        }
+
+        if (blockEntity.hasItem() && !mainHand.getType().isAir() && enableStacking && !bukkitPlayer.isSneaking() && !isTool(mainHand)) {
+            ItemStack stored = blockEntity.getStoredItem();
+            if (stored != null && mainHand.isSimilar(stored) && stored.getAmount() < maxStackAmount) {
+                int space = maxStackAmount - stored.getAmount();
+                int toMove = Math.min(space, mainHand.getAmount());
+                if (toMove > 0) {
+                    stored.setAmount(stored.getAmount() + toMove);
+                    blockEntity.setStoredItem(stored, world, posKey, facing);
+                    if (bukkitPlayer.getGameMode() != GameMode.CREATIVE) {
+                        mainHand.setAmount(mainHand.getAmount() - toMove);
+                    }
+                    SoundUtils.play(bukkitPlayer.getWorld(), bukkitPlayer.getLocation(), null, Sound.BLOCK_WOOD_PLACE, 1.0f, 1.0f);
+                    return InteractionResult.SUCCESS_AND_CANCEL;
+                }
+            }
         }
 
         if (blockEntity.hasItem() && mainHand.getType().isAir()) {
@@ -395,7 +433,7 @@ public class CuttingBoardBlockBehavior extends BlockBehavior {
                 }
             }
 
-            bukkitPlayer.playSound(bukkitPlayer.getLocation(), Sound.BLOCK_WOOD_HIT, 0.25f, 0.5f);
+            bukkitPlayer.playSound(bukkitPlayer.getLocation(), Sound.BLOCK_WOOD_HIT, Constants.CUTTING_BOARD_FAIL_VOLUME, Constants.CUTTING_BOARD_FAIL_PITCH);
             return InteractionResult.SUCCESS_AND_CANCEL;
         }
 
@@ -514,7 +552,7 @@ public class CuttingBoardBlockBehavior extends BlockBehavior {
     }
 
     private boolean processCutting(CuttingBoardBlockEntity blockEntity, ItemStack tool, Player player, 
-                                    BlockFace facing, World world, BlockPosKey posKey) {
+                                    BlockFace facing, World world, BlockPosKey posKey, boolean toolIsOffhand) {
         ItemStack storedItem = blockEntity.getStoredItem();
         if (storedItem == null) return false;
 
@@ -534,10 +572,10 @@ public class CuttingBoardBlockBehavior extends BlockBehavior {
 
             ItemStack result = resultEntry.item().clone();
 
-            if (fortuneLevel > 0 && isFortuneAffected(result)) {
-                double bonusChance = 0.3 * fortuneLevel;
-                if (ThreadLocalRandom.current().nextDouble() < bonusChance) {
-                    result.setAmount(result.getAmount() + 1);
+            if (fortuneLevel > 0 && resultEntry.chance() < 1.0d) {
+                double adjustedChance = Math.min(1.0d, resultEntry.chance() + 0.1d * fortuneLevel);
+                if (ThreadLocalRandom.current().nextDouble() > adjustedChance) {
+                    result.setAmount(Math.max(0, result.getAmount() - 1));
                 }
             }
 
@@ -545,7 +583,11 @@ public class CuttingBoardBlockBehavior extends BlockBehavior {
         }
 
         playCuttingFeedback(world, posKey, storedItem, recipe);
-        swingToolHand(player, tool);
+        if (toolIsOffhand) {
+            player.swingOffHand();
+        } else {
+            player.swingMainHand();
+        }
 
         if (player.getGameMode() != GameMode.CREATIVE) {
             if (tool.getItemMeta() instanceof Damageable damageable) {
@@ -561,8 +603,14 @@ public class CuttingBoardBlockBehavior extends BlockBehavior {
             }
         }
 
-        blockEntity.clearItem();
-        removeStoredData(world, posKey);
+        if (storedItem.getAmount() > 1) {
+            storedItem.setAmount(storedItem.getAmount() - 1);
+            blockEntity.setStoredItem(storedItem, world, posKey, facing);
+            saveBlockEntityData(world, posKey);
+        } else {
+            blockEntity.clearItem();
+            removeStoredData(world, posKey);
+        }
 
         AdvancementManager advancementManager = FarmersDelightPlugin.getInstance().getAdvancementManager();
         if (advancementManager != null) {
@@ -572,63 +620,15 @@ public class CuttingBoardBlockBehavior extends BlockBehavior {
         return true;
     }
 
-    private void swingToolHand(Player player, ItemStack tool) {
-        if (player == null || tool == null) {
-            return;
-        }
-        ItemStack offHand = player.getInventory().getItemInOffHand();
-        if (offHand != null && offHand == tool) {
-            player.swingOffHand();
-        } else {
-            player.swingMainHand();
-        }
-    }
-
+    
     private void playCuttingFeedback(World world, BlockPosKey posKey, ItemStack storedItem, CuttingBoardRecipe recipe) {
         if (world == null || posKey == null) {
             return;
         }
 
         Location effectLocation = posKey.toLocation(world).add(0.5, 0.1, 0.5);
-        if (ItemUtils.shouldUseBlockStyleDisplay(storedItem)) {
-            BlockData blockData = storedItem.getType().createBlockData();
-            SoundGroup soundGroup = blockData.getSoundGroup();
-            world.playSound(effectLocation, soundGroup.getBreakSound(), 1.0f, 1.0f);
-            world.spawnParticle(Particle.BLOCK, effectLocation, 10, 0.08, 0.05, 0.08, blockData);
-            return;
-        }
-
         SoundUtils.play(world, effectLocation, recipe.getSound(), Sound.BLOCK_WOOD_BREAK, 1.0f, 1.0f);
-        world.spawnParticle(Particle.ITEM, effectLocation, 8, 0.08, 0.05, 0.08, 0.0, storedItem);
-    }
-
-    private static final Set<Material> FORTUNE_AFFECTED_MATERIALS = Set.of(
-            Material.DIAMOND,
-            Material.EMERALD,
-            Material.COAL,
-            Material.CHARCOAL,
-            Material.REDSTONE,
-            Material.LAPIS_LAZULI,
-            Material.QUARTZ,
-            Material.FLINT,
-            Material.APPLE,
-            Material.CARROT,
-            Material.POTATO,
-            Material.WHEAT,
-            Material.BEETROOT,
-            Material.MELON_SLICE,
-            Material.PUMPKIN,
-            Material.GLOWSTONE_DUST,
-            Material.GOLD_NUGGET,
-            Material.AMETHYST_SHARD,
-            Material.RAW_IRON,
-            Material.RAW_GOLD,
-            Material.RAW_COPPER
-    );
-
-    private boolean isFortuneAffected(ItemStack item) {
-        if (item == null) return false;
-        return FORTUNE_AFFECTED_MATERIALS.contains(item.getType());
+        world.spawnParticle(Particle.ITEM, effectLocation, 5, 0.1, 0.1, 0.1, 0.0, storedItem);
     }
 
     private void spawnItemEntity(World world, BlockPosKey posKey, ItemStack item, BlockFace facing) {
@@ -676,6 +676,11 @@ public class CuttingBoardBlockBehavior extends BlockBehavior {
         }
     }
 
+    private void storeItemInBoard(World world, BlockPosKey posKey, BlockFace facing, CuttingBoardBlockEntity blockEntity, ItemStack itemToPlace, boolean carveTool) {
+        blockEntity.setItem(itemToPlace, world, posKey, facing, carveTool);
+        saveBlockEntityData(world, posKey);
+    }
+
     private static List<String> getStringList(Map<String, Object> arguments, String key) {
         if (arguments == null) {
             return List.of();
@@ -685,5 +690,23 @@ public class CuttingBoardBlockBehavior extends BlockBehavior {
             return rawList.stream().map(String::valueOf).toList();
         }
         return List.of();
+    }
+
+    private static boolean getBooleanValue(Map<String, Object> arguments, String key, boolean defaultValue) {
+        if (arguments == null) return defaultValue;
+        Object value = arguments.get(key);
+        if (value instanceof Boolean b) return b;
+        if (value instanceof String s) return Boolean.parseBoolean(s);
+        return defaultValue;
+    }
+
+    private static int getIntValue(Map<String, Object> arguments, String key, int defaultValue) {
+        if (arguments == null) return defaultValue;
+        Object value = arguments.get(key);
+        if (value instanceof Number n) return n.intValue();
+        if (value instanceof String s) {
+            try { return Integer.parseInt(s); } catch (NumberFormatException ignored) {}
+        }
+        return defaultValue;
     }
 }
