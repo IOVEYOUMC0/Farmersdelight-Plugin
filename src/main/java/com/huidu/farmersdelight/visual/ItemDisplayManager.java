@@ -17,7 +17,7 @@ public interface ItemDisplayManager {
 
     void cleanupWorld(UUID worldId);
 
-    void cleanup();
+    int cleanup();
 
     record DisplaySpec(
             Location location,
@@ -27,3 +27,4 @@ public interface ItemDisplayManager {
     ) {
     }
 }
+

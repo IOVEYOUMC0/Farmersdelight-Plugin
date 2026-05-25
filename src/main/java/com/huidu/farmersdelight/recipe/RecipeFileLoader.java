@@ -38,7 +38,7 @@ final class RecipeFileLoader {
             try {
                 sectionConsumer.accept(recipeId, section);
                 loadedCount++;
-                if (plugin.getConfig().getBoolean("debug", false)) {
+                if (plugin.isDebugEnabled()) {
                     plugin.getLogger().info("Loaded " + recipeTypeName + " recipe: " + recipeId);
                 }
             } catch (Exception e) {
@@ -49,3 +49,4 @@ final class RecipeFileLoader {
         plugin.getLogger().info("Loaded " + loadedCount + " " + recipeTypeName + " recipes");
     }
 }
+

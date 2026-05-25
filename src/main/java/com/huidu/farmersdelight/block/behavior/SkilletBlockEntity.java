@@ -20,6 +20,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Legacy skillet state model kept for recipe cache helpers and old saved-state compatibility.
+ * Runtime skillet logic is owned by com.huidu.farmersdelight.manager.SkilletManager.
+ */
+@Deprecated(forRemoval = false)
 public class SkilletBlockEntity {
 
     private static final int MAX_CACHE_SIZE = 100;
@@ -249,7 +254,7 @@ public class SkilletBlockEntity {
         removeDisplayEntity();
         if (storedItem == null || storedItem.getType().isAir()) return;
 
-        ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getFakeItemDisplayManager();
+        ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getItemDisplayManager();
         if (visualManager == null || !visualManager.isAvailable()) return;
 
         Location displayLoc = new Location(world, posKey.x() + 0.5, posKey.y() + 0.1, posKey.z() + 0.5);
@@ -288,7 +293,7 @@ public class SkilletBlockEntity {
         int entityId = displayEntityId;
         displayEntityId = NO_DISPLAY;
 
-        ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getFakeItemDisplayManager();
+        ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getItemDisplayManager();
         if (visualManager != null) {
             visualManager.destroyDisplay(entityId);
         }

@@ -31,3 +31,4 @@ public final class SoundUtils {
         world.playSound(location, normalized, SoundCategory.BLOCKS, volume, pitch);
     }
 }
+

@@ -7,7 +7,6 @@ import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.momirealms.craftengine.bukkit.api.CraftEngineImages;
@@ -20,7 +19,6 @@ import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
-import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
@@ -40,9 +38,10 @@ import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 
-public class CookingPotGui implements InventoryHolder, Listener {
+public class CookingPotGui implements InventoryHolder {
 
-    private static final Map<UUID, CookingPotGui> activeGuis = new ConcurrentHashMap<>();
+    static final Map<UUID, CookingPotGui> activeGuis = new ConcurrentHashMap<>();
+    private static volatile boolean listenerRegistered = false;
     private static final Pattern SHIFT_TAG_PATTERN = Pattern.compile("<shift:([+-]?\\d+)>");
     private static final Pattern IMAGE_TAG_PATTERN = Pattern.compile("<image:([a-z0-9_./-]+:[a-z0-9_./-]+)>");
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
@@ -120,13 +119,13 @@ public class CookingPotGui implements InventoryHolder, Listener {
             existingGui.close();
         }
 
-        Bukkit.getPluginManager().registerEvents(this, plugin);
+        ensureListenerRegistered();
         activeGuis.put(player.getUniqueId(), this);
 
         refreshInventory();
         player.openInventory(inventory);
 
-        GuiTickManager.getInstance(plugin).registerCallback(tickCallback);
+        GuiTickManager.getInstance(plugin).registerCallback(player, tickCallback);
     }
 
     private void tick() {
@@ -375,16 +374,16 @@ public class CookingPotGui implements InventoryHolder, Listener {
         if (!inventory.getViewers().isEmpty() && inventory.getViewers().getFirst() instanceof Player player) {
             viewer = player;
         }
-        String containerLabel = viewer != null
-                ? I18n.get("gui.recipe.container", viewer)
-                : I18n.get("gui.recipe.container");
         String containerName = viewer != null
                 ? ItemUtils.getDisplayName(container, viewer)
                 : ItemUtils.getDisplayName(container);
+        Map<String, String> placeholders = Map.of("container", containerName);
+        Component hint = viewer != null
+                ? I18n.getComponent("gui.cooking_pot.pending_container_hint", viewer, placeholders)
+                : I18n.getComponent("gui.cooking_pot.pending_container_hint", placeholders);
 
         lore.add(Component.empty());
-        lore.add(Component.text(containerLabel + ": ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
-                .append(Component.text(containerName, NamedTextColor.WHITE).decoration(TextDecoration.ITALIC, false)));
+        lore.add(hint.decoration(TextDecoration.ITALIC, false));
         meta.lore(lore);
         item.setItemMeta(meta);
     }
@@ -400,7 +399,7 @@ public class CookingPotGui implements InventoryHolder, Listener {
         if (world != null && blockEntity.getPosKey() != null) {
             TickManager tickManager = plugin.getTickManager();
             if (tickManager != null) {
-                if (blockEntity.hasInput() || blockEntity.hasPendingOutput()) {
+                if (blockEntity.hasStoredContents()) {
                     tickManager.markActive(world, blockEntity.getPosKey(), TickManager.BlockType.COOKING_POT);
                 } else {
                     tickManager.unregisterActiveBlock(world, blockEntity.getPosKey(), TickManager.BlockType.COOKING_POT);
@@ -425,13 +424,10 @@ public class CookingPotGui implements InventoryHolder, Listener {
             syncToBlockEntity();
         } catch (Exception e) {
             plugin.getLogger().warning("Error syncing inventory to block entity: " + e.getMessage());
-        } finally {
-            HandlerList.unregisterAll(this);
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
-    public void onClick(InventoryClickEvent event) {
+    void onClick(InventoryClickEvent event) {
         if (event.getInventory().getHolder() != this) return;
         if (closed) {
             event.setCancelled(true);
@@ -500,8 +496,7 @@ public class CookingPotGui implements InventoryHolder, Listener {
         scheduleGuiSync();
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
-    public void onDrag(InventoryDragEvent event) {
+    void onDrag(InventoryDragEvent event) {
         if (event.getInventory().getHolder() != this) return;
 
         for (int slot : event.getRawSlots()) {
@@ -620,7 +615,7 @@ public class CookingPotGui implements InventoryHolder, Listener {
         }
 
         syncQueued = true;
-        Bukkit.getScheduler().runTask(plugin, () -> {
+        plugin.scheduler().runAt(cookingPotLocation, () -> {
             if (closed) {
                 syncQueued = false;
                 return;
@@ -635,8 +630,7 @@ public class CookingPotGui implements InventoryHolder, Listener {
         });
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
-    public void onClose(InventoryCloseEvent event) {
+    void onClose(InventoryCloseEvent event) {
         if (event.getInventory().getHolder() != this) return;
         if (closed) return;
 
@@ -644,15 +638,7 @@ public class CookingPotGui implements InventoryHolder, Listener {
         activeGuis.remove(event.getPlayer().getUniqueId());
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
-    public void onPlayerQuit(PlayerQuitEvent event) {
-        if (activeGuis.containsKey(event.getPlayer().getUniqueId())) {
-            CookingPotGui gui = activeGuis.remove(event.getPlayer().getUniqueId());
-            if (gui != null && !gui.closed) {
-                gui.close();
-            }
-        }
-    }
+
 
     public static void cleanupAll() {
         for (CookingPotGui gui : activeGuis.values()) {
@@ -662,6 +648,48 @@ public class CookingPotGui implements InventoryHolder, Listener {
         }
         activeGuis.clear();
         GuiTickManager.cleanup();
+    }
+
+    private void ensureListenerRegistered() {
+        if (listenerRegistered) return;
+        synchronized (CookingPotGui.class) {
+            if (listenerRegistered) return;
+            Bukkit.getPluginManager().registerEvents(new EventDispatcher(), plugin);
+            listenerRegistered = true;
+        }
+    }
+
+    public static class EventDispatcher implements Listener {
+        @EventHandler(priority = EventPriority.HIGHEST)
+        public void onClick(InventoryClickEvent event) {
+            if (event.getInventory().getHolder() instanceof CookingPotGui gui) {
+                gui.onClick(event);
+            }
+        }
+
+        @EventHandler(priority = EventPriority.HIGHEST)
+        public void onDrag(InventoryDragEvent event) {
+            if (event.getInventory().getHolder() instanceof CookingPotGui gui) {
+                gui.onDrag(event);
+            }
+        }
+
+        @EventHandler(priority = EventPriority.MONITOR)
+        public void onClose(InventoryCloseEvent event) {
+            if (event.getInventory().getHolder() instanceof CookingPotGui gui) {
+                gui.onClose(event);
+            }
+        }
+
+        @EventHandler(priority = EventPriority.MONITOR)
+        public void onPlayerQuit(PlayerQuitEvent event) {
+            // PlayerQuit needs to iterate activeGuis directly, not holder
+            UUID uuid = event.getPlayer().getUniqueId();
+            CookingPotGui gui = activeGuis.remove(uuid);
+            if (gui != null && !gui.closed) {
+                gui.close();
+            }
+        }
     }
 
     private void smartMoveFromPlayerInventory(ItemStack item) {
@@ -849,3 +877,4 @@ public class CookingPotGui implements InventoryHolder, Listener {
     }
 
 }
+

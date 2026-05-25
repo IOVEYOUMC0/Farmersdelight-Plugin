@@ -64,3 +64,4 @@ public record CuttingBoardRecipe(String id, RecipeIngredient input, ItemStack in
         }
     }
 }
+

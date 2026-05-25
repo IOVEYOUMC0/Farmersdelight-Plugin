@@ -6,7 +6,8 @@ import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
-import net.momirealms.craftengine.core.block.CustomBlock;
+import com.huidu.farmersdelight.util.WorldGuardCompat;
+import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
@@ -26,17 +27,31 @@ import java.util.concurrent.Callable;
 
 public class StoveCookingBlockBehavior extends BlockBehavior {
 
+    @Override
+    public boolean isPathFindable(Object thisBlock, Object[] args) {
+        return false;
+    }
+
+    @Override
+    public void fallOn(Object thisBlock, Object[] args) {
+    }
+
+    @Override
+    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
+    }
+
     public static final int SLOT_COUNT = 6;
     private final String crackleSound;
 
-    private StoveCookingBlockBehavior(CustomBlock block, String crackleSound) {
+    private StoveCookingBlockBehavior(BlockDefinition block, String crackleSound) {
         super(block);
         this.crackleSound = crackleSound;
     }
 
     public static final BlockBehaviorFactory<StoveCookingBlockBehavior> FACTORY = new BlockBehaviorFactory<>() {
         @Override
-        public StoveCookingBlockBehavior create(CustomBlock block, Map<String, Object> arguments) {
+        public StoveCookingBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
+            Map<String, Object> arguments = section != null ? section.values() : Map.of();
             String crackleSound = getArgumentString(arguments, "crackle-sound", Constants.SOUND_STOVE_CRACKLE);
             return new StoveCookingBlockBehavior(block, crackleSound);
         }
@@ -100,6 +115,9 @@ public class StoveCookingBlockBehavior extends BlockBehavior {
         if (plugin.isDebugEnabled("stove")) {
             logDebug(player, block, mainHand, manager.findRecipeId(mainHand));
         }
+        if (!WorldGuardCompat.canUse(player, block) || !WorldGuardCompat.canBuild(player, block)) {
+            return InteractionResult.PASS;
+        }
 
         if (player.isSneaking()) {
             return InteractionResult.PASS;
@@ -115,10 +133,6 @@ public class StoveCookingBlockBehavior extends BlockBehavior {
         }
 
         if (mainHand == null || mainHand.getType().isAir()) {
-            if (manager.handleRetrieve(player, block)) {
-                player.updateInventory();
-                return InteractionResult.SUCCESS_AND_CANCEL;
-            }
             return InteractionResult.PASS;
         }
 
@@ -135,8 +149,37 @@ public class StoveCookingBlockBehavior extends BlockBehavior {
     }
 
     @Override
-    public void tick(Object thisBlock, Object[] args, Callable<Object> superMethod) {
+    public void tick(Object thisBlock, Object[] args) {
         // Managed by StoveManager.
+    }
+
+    @Override
+    public void affectNeighborsAfterRemoval(Object thisBlock, Object[] args) {
+        handleStateRemoval(args);
+    }
+
+    @Override
+    public void spawnAfterBreak(Object thisBlock, Object[] args) {
+        handleStateRemoval(args);
+    }
+
+    private static void handleStateRemoval(Object[] args) {
+        if (args == null || args.length < 3) {
+            return;
+        }
+        Object worldObj = args[1];
+        Object posObj = args[2];
+        if (!(worldObj instanceof net.momirealms.craftengine.core.world.World ceWorld) || !(posObj instanceof BlockPos pos)) {
+            return;
+        }
+        World world = Bukkit.getWorld(ceWorld.uuid());
+        StoveManager manager = getManager();
+        if (world == null || manager == null) {
+            return;
+        }
+        Location location = new Location(world, pos.x(), pos.y(), pos.z());
+        manager.saveWorldData(world);
+        manager.breakStove(location, location.clone().add(0.5, 0.5, 0.5), false);
     }
 
     public static void cleanupAll() {
@@ -160,6 +203,7 @@ public class StoveCookingBlockBehavior extends BlockBehavior {
         }
     }
 
+    @SuppressWarnings("deprecation")
     public static void clearRecipeCache() {
         StoveCookingBlockEntity.clearRecipeCache();
     }
@@ -212,3 +256,4 @@ public class StoveCookingBlockBehavior extends BlockBehavior {
         return "minecraft:" + item.getType().name().toLowerCase();
     }
 }
+

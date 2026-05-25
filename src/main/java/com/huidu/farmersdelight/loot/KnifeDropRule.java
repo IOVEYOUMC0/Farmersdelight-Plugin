@@ -22,3 +22,4 @@ public record KnifeDropRule(String entityType, String normalItem, String burning
         return lootingMultiplier;
     }
 }
+

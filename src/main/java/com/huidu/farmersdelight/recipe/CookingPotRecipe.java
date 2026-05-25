@@ -39,3 +39,4 @@ public record CookingPotRecipe(String id, List<RecipeIngredient> ingredients, It
         return category;
     }
 }
+

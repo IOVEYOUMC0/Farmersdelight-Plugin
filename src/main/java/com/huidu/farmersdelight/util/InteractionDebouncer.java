@@ -17,6 +17,11 @@ public final class InteractionDebouncer {
     private InteractionDebouncer() {
     }
 
+    public static void cleanup() {
+        RECENT_INTERACTIONS.clear();
+        interactionCount.set(0);
+    }
+
     public static boolean tryAcquire(UUID playerId, Location location) {
         return tryAcquire(playerId, location, DEFAULT_COOLDOWN_MILLIS);
     }
@@ -58,3 +63,4 @@ public final class InteractionDebouncer {
         }
     }
 }
+

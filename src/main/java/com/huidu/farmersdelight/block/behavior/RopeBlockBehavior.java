@@ -1,14 +1,15 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
-import net.momirealms.craftengine.core.block.CustomBlock;
+import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
-import net.momirealms.craftengine.core.block.properties.Property;
+import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.util.Direction;
 import net.momirealms.craftengine.core.util.Key;
@@ -26,6 +27,19 @@ import java.util.concurrent.Callable;
 
 public class RopeBlockBehavior extends BlockBehavior {
 
+    @Override
+    public boolean isPathFindable(Object thisBlock, Object[] args) {
+        return false;
+    }
+
+    @Override
+    public void fallOn(Object thisBlock, Object[] args) {
+    }
+
+    @Override
+    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
+    }
+
     private static final String PROP_NORTH = "north";
     private static final String PROP_SOUTH = "south";
     private static final String PROP_EAST = "east";
@@ -36,7 +50,7 @@ public class RopeBlockBehavior extends BlockBehavior {
     private final Property<Boolean> eastProperty;
     private final Property<Boolean> westProperty;
 
-    private RopeBlockBehavior(CustomBlock block,
+    private RopeBlockBehavior(BlockDefinition block,
                               Property<Boolean> northProperty,
                               Property<Boolean> southProperty,
                               Property<Boolean> eastProperty,
@@ -51,7 +65,8 @@ public class RopeBlockBehavior extends BlockBehavior {
     @SuppressWarnings("unchecked")
     public static final BlockBehaviorFactory<RopeBlockBehavior> FACTORY = new BlockBehaviorFactory<>() {
         @Override
-        public RopeBlockBehavior create(CustomBlock block, Map<String, Object> arguments) {
+        public RopeBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
+            Map<String, Object> arguments = section != null ? section.values() : Map.of();
             return new RopeBlockBehavior(
                     block,
                     (Property<Boolean>) block.getProperty(PROP_NORTH),
@@ -77,8 +92,8 @@ public class RopeBlockBehavior extends BlockBehavior {
     }
 
     @Override
-    public void placeMultiState(Object thisBlock, Object[] args, Callable<Object> superMethod) throws Exception {
-        superMethod.call();
+    public void placeMultiState(Object thisBlock, Object[] args) {
+        
     }
 
     @Override
@@ -116,7 +131,7 @@ public class RopeBlockBehavior extends BlockBehavior {
             if (!CustomBlockUtils.hasBehavior(target, RopeBlockBehavior.class)) {
                 if (!target.getType().isAir() && !target.isLiquid()) return InteractionResult.PASS;
 
-                CustomBlock ropeBlock = CraftEngineBlocks.byId(state.owner().value().id());
+                BlockDefinition ropeBlock = CraftEngineBlocks.byId(state.owner().value().id());
                 if (ropeBlock == null) return InteractionResult.PASS;
 
                 BlockPos bp = new BlockPos(cx, cy, cz);
@@ -127,9 +142,10 @@ public class RopeBlockBehavior extends BlockBehavior {
 
                 world.playSound(placeLoc, Sound.BLOCK_WOOL_PLACE, 1.0f, 1.0f);
 
-                Bukkit.getScheduler().runTask(
-                        Bukkit.getPluginManager().getPlugin("FarmersDelight"),
-                        () -> refreshAdjacentRopes(world, bp));
+                FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+                if (plugin != null) {
+                    plugin.scheduler().runAt(placeLoc, () -> refreshAdjacentRopes(world, bp));
+                }
 
                 if (bukkitPlayer.getGameMode() != GameMode.CREATIVE) {
                     hand.setAmount(hand.getAmount() - 1);
@@ -151,59 +167,15 @@ public class RopeBlockBehavior extends BlockBehavior {
 
     @Override
     public InteractionResult useWithoutItem(UseOnContext context, ImmutableBlockState state) {
-        if (context.getPlayer() == null) return InteractionResult.PASS;
-
-        Player bukkitPlayer = Bukkit.getPlayer(context.getPlayer().uuid());
-        if (bukkitPlayer == null) return InteractionResult.PASS;
-        if (!bukkitPlayer.isSneaking()) return InteractionResult.PASS;
-
-        BlockPos pos = context.getClickedPos();
-        World world = (World) context.getLevel().platformWorld();
-
-        int bottomY = pos.y();
-        int checkY = pos.y() - 1;
-        while (checkY >= world.getMinHeight()) {
-            Block below = world.getBlockAt(pos.x(), checkY, pos.z());
-            if (CustomBlockUtils.hasBehavior(below, RopeBlockBehavior.class)) {
-                bottomY = checkY;
-                checkY--;
-            } else {
-                break;
-            }
-        }
-
-        Block bottomBlock = world.getBlockAt(pos.x(), bottomY, pos.z());
-        boolean isCreative = bukkitPlayer.getGameMode() == GameMode.CREATIVE;
-
-        if (!isCreative) {
-            ItemStack recovered = buildRopeItemStatic();
-            if (recovered == null) return InteractionResult.PASS;
-            if (!bukkitPlayer.getInventory().addItem(recovered).isEmpty()) {
-                world.dropItemNaturally(bottomBlock.getLocation(), recovered);
-            }
-        }
-
-        CraftEngineBlocks.remove(bottomBlock);
-        world.playSound(bottomBlock.getLocation(), Sound.BLOCK_WOOL_BREAK, 1.0f, 1.0f);
-
-        int removedY = bottomY;
-        BlockPos bp = new BlockPos(pos.x(), removedY, pos.z());
-        Bukkit.getScheduler().runTask(
-                Bukkit.getPluginManager().getPlugin("FarmersDelight"),
-                () -> refreshAdjacentRopes(world, bp));
-
-        return InteractionResult.SUCCESS_AND_CANCEL;
+        return InteractionResult.PASS;
     }
 
-    public static ItemStack buildRopeItemStatic() {
-        try {
-            var item = BukkitCraftEngine.instance().itemManager()
-                    .getCustomItem(Key.of("farmersdelight:rope"))
-                    .orElse(null);
-            if (item != null) return item.buildItemStack();
-        } catch (Exception ignored) {
+    public static ItemStack createItemForRopeBlock(Block block) {
+        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
+        if (state == null || state.isEmpty()) {
+            return null;
         }
-        return null;
+        return ItemUtils.createItem(state.owner().value().id());
     }
 
     private static boolean isRopeAt(World world, BlockPos pos, BlockFace direction) {
@@ -216,7 +188,7 @@ public class RopeBlockBehavior extends BlockBehavior {
     }
 
     public static ImmutableBlockState computeConnectionState(ImmutableBlockState state, World world, BlockPos pos) {
-        CustomBlock owner = state.owner().value();
+        BlockDefinition owner = state.owner().value();
         ImmutableBlockState result = state;
 
         Property<?> nProp = owner.getProperty(PROP_NORTH);
@@ -301,3 +273,4 @@ public class RopeBlockBehavior extends BlockBehavior {
         }
     }
 }
+

@@ -1,0 +1,206 @@
+# FarmersDelight GUI 配置
+# 想改界面布局、按钮、标题、贴图时改这个文件。
+
+cooking-pot-gui:
+  title: "<white><offset><icon><shift:-1600>烹饪锅"
+  fillers-enabled: true
+  title-layout:
+    craftengine:
+      offset: "<shift:-8>"
+      icon: "<image:farmersdelight:cooking_pot_gui>"
+  rows: 3
+
+  layout:
+    - "XIIIXPXBX"
+    - "RIIIXXXXX"
+    - "XXHXXCXOX"
+
+  legend:
+    I: ingredient
+    H: heat
+    C: container
+    P: progress
+    B: buffer
+    O: output
+    R: recipe
+    X: decoration
+    " ": background
+
+  items:
+    background:
+      material: GRAY_STAINED_GLASS_PANE
+      name: " "
+    decoration:
+      material: BROWN_STAINED_GLASS_PANE
+      name: " "
+    heat-active:
+      item: farmersdelight:cooking_pot_heated
+    heat-inactive:
+      item: farmersdelight:cooking_pot_not_heated
+    progress:
+      item: farmersdelight:cooking_time
+      name: "烹饪时长"
+      lore:
+        - "剩余: {time} 秒"
+    recipe:
+      material: KNOWLEDGE_BOOK
+      name: "查看烹饪配方"
+      lore:
+        - "点击此处查看配方"
+
+  progress-items:
+    - item: farmersdelight:0
+    - item: farmersdelight:1
+    - item: farmersdelight:2
+    - item: farmersdelight:3
+    - item: farmersdelight:4
+    - item: farmersdelight:5
+    - item: farmersdelight:6
+    - item: farmersdelight:7
+    - item: farmersdelight:8
+    - item: farmersdelight:9
+    - item: farmersdelight:10
+    - item: farmersdelight:11
+    - item: farmersdelight:12
+    - item: farmersdelight:13
+    - item: farmersdelight:14
+    - item: farmersdelight:15
+    - item: farmersdelight:16
+    - item: farmersdelight:17
+    - item: farmersdelight:18
+    - item: farmersdelight:19
+    - item: farmersdelight:20
+
+recipe-view-gui:
+  background-items-enabled: true
+  show-ingredient-ids: false
+
+  main-menu:
+    title: "<white>农夫乐事"
+    rows: 3
+    layout:
+      - "#########"
+      - "##C###D##"
+      - "####B####"
+    legend:
+      C: cooking_pot
+      D: cutting_board
+      B: back
+      "#": background
+    items:
+      background:
+        material: GRAY_STAINED_GLASS_PANE
+        name: " "
+      cooking_pot:
+        material: CAULDRON
+        name: "烹饪锅配方"
+        lore:
+          - "点击此处查看配方"
+      cutting_board:
+        material: BAMBOO_MOSAIC
+        name: "砧板配方"
+        lore:
+          - "点击此处查看配方"
+      back:
+        material: BARRIER
+        name: "关闭页面"
+
+  recipe-list:
+    title: "<white><offset><icon><shift:-1600>配方列表 <gray>{page}/{total}</gray>"
+    rows: 6
+    title-layout:
+      craftengine:
+        offset: "<shift:-7>"
+        icon: "<image:farmersdelight:recipelist>"
+    layout:
+      - "P###B###N"
+      - "RRRRRRRRR"
+      - "RRRRRRRRR"
+      - "RRRRRRRRR"
+      - "RRRRRRRRR"
+      - "RRRRRRRRR"
+    legend:
+      R: recipe
+      P: prev_page
+      N: next_page
+      B: back
+      X: info
+      "#": background
+    items:
+      background:
+        material: GRAY_STAINED_GLASS_PANE
+        name: " "
+      prev_page:
+        material: ARROW
+        name: "上一页"
+      next_page:
+        material: ARROW
+        name: "下一页"
+      back:
+        material: BARRIER
+        name: "返回"
+      info:
+        material: BOOK
+        name: "配方查看"
+        lore:
+          - "页数: {page}/{total}"
+
+  recipe-detail-cooking-pot:
+    title: "<white><offset><icon><shift:-1600>配方详细"
+    rows: 6
+    title-layout:
+      craftengine:
+        offset: "<shift:-8>"
+        icon: "<image:farmersdelight:cooking_pot_menu>"
+    layout:
+      - "B########"
+      - "#####A###"
+      - "#III#####"
+      - "#III#####"
+      - "#####C#R#"
+      - "#########"
+    legend:
+      R: result
+      I: ingredient
+      A: arrow
+      C: container
+      B: back
+      "#": background
+    items:
+      background:
+        material: GRAY_STAINED_GLASS_PANE
+        name: " "
+      arrow:
+        item: farmersdelight:cooking_time
+        name: "烹饪过程"
+      back:
+        material: ARROW
+        name: "返回"
+
+  recipe-detail-cutting-board:
+    title: "<white><offset><icon><shift:-1600>配方详细"
+    rows: 6
+    title-layout:
+      craftengine:
+        offset: "<shift:-8>"
+        icon: "<image:farmersdelight:cutting_board_menu>"
+    layout:
+      - "B########"
+      - "#########"
+      - "#########"
+      - "#I#T#RR##"
+      - "#####RR##"
+      - "#########"
+    legend:
+      I: input
+      R: result
+      T: tool
+      B: back
+      "#": background
+    items:
+      background:
+        material: GRAY_STAINED_GLASS_PANE
+        name: " "
+      back:
+        material: ARROW
+        name: "返回"

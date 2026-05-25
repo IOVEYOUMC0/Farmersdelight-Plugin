@@ -111,3 +111,4 @@ public final class ManagerSupport {
         return location.getWorld().getName() + "@" + location.getBlockX() + "," + location.getBlockY() + "," + location.getBlockZ();
     }
 }
+

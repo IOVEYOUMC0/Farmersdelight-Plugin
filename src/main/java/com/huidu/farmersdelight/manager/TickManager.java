@@ -8,47 +8,81 @@ import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ManagerSupport;
+import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitTask;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class TickManager {
 
     private final FarmersDelightPlugin plugin;
-    private BukkitTask tickTask;
-    private BukkitTask cleanupTask;
+    private PluginTask tickTask;
+    private PluginTask cleanupTask;
     private volatile boolean running = false;
+    private EffectSpec bubbleEffect = new EffectSpec(true, Particle.BUBBLE_POP, 0.20f, 1,
+            0.02D, 0.0D, 0.0D, 0.0D, 0.01D);
+    private EffectSpec steamEffect = new EffectSpec(true, Particle.CLOUD, 0.05f, 1,
+            0.08D, 0.0D, 0.03D, 0.0D, 0.02D);
+    private EffectSpec secondarySteamEffect = new EffectSpec(false, Particle.SMOKE, 1.0f, 1,
+            0.05D, 0.0D, 0.025D, 0.0D, 0.02D);
     
     private final Set<ActiveBlock> activeBlocks = ConcurrentHashMap.newKeySet();
     private final ReentrantLock pendingLock = new ReentrantLock();
     private final Set<ActiveBlock> pendingAdditions = new HashSet<>();
     private final Set<ActiveBlock> pendingRemovals = new HashSet<>();
+    private final Map<ActiveBlock, Long> lastProcessedTicks = new ConcurrentHashMap<>();
+    private final Set<ActiveBlock> scheduledActiveBlocks = ConcurrentHashMap.newKeySet();
+    private volatile List<ActiveBlock> activeBlockSnapshot = List.of();
+    private boolean activeBlockLimitWarningShown;
+    private int activeBlockCursor;
+    private int cookingPotTickBudget = 512;
+    private final AtomicLong foliaTickClock = new AtomicLong();
 
     private static final int TICK_INTERVAL = 4;
     private static final int MAX_CACHE_SIZE = 1000;
     private static final int CLEANUP_INTERVAL = 6000;
+    private static final int DEFAULT_COOKING_POT_TICK_BUDGET = 512;
+    private static final int MAX_ELAPSED_TICKS = 100;
     public TickManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
+        reloadConfig();
+    }
+
+    public void reloadConfig() {
+        ConfigurationSection effectSection = plugin.getConfig().getConfigurationSection("cooking-pot-effects");
+        ConfigurationSection bubbleSection = effectSection != null ? effectSection.getConfigurationSection("bubble") : null;
+        ConfigurationSection steamSection = effectSection != null ? effectSection.getConfigurationSection("steam") : null;
+        ConfigurationSection secondarySection = steamSection != null ? steamSection.getConfigurationSection("secondary") : null;
+
+        bubbleEffect = loadEffectSpec(bubbleSection, true, Particle.BUBBLE_POP, 0.20f, 1,
+                0.02D, 0.0D, 0.0D, 0.0D, 0.01D);
+        steamEffect = loadEffectSpec(steamSection, true, Particle.CLOUD, 0.05f, 1,
+                0.08D, 0.0D, 0.03D, 0.0D, 0.02D);
+        secondarySteamEffect = loadEffectSpec(secondarySection, false, Particle.SMOKE, 1.0f, 1,
+                0.05D, 0.0D, 0.025D, 0.0D, 0.02D);
+        cookingPotTickBudget = Math.max(1, plugin.getConfig().getInt(
+                "performance.cooking-pot-tick-budget", DEFAULT_COOKING_POT_TICK_BUDGET));
     }
 
     public void start() {
         if (running) return;
         running = true;
         
-        tickTask = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 1L, TICK_INTERVAL);
-        cleanupTask = Bukkit.getScheduler().runTaskTimer(plugin, this::performCleanup, CLEANUP_INTERVAL, CLEANUP_INTERVAL);
+        tickTask = plugin.scheduler().runRepeating(this::tick, 1L, TICK_INTERVAL);
+        cleanupTask = plugin.scheduler().runRepeating(this::performCleanup, CLEANUP_INTERVAL, CLEANUP_INTERVAL);
         plugin.getLogger().info("TickManager started with interval " + TICK_INTERVAL + " ticks");
     }
 
@@ -66,8 +100,11 @@ public class TickManager {
         pendingLock.lock();
         try {
             activeBlocks.clear();
+            activeBlockSnapshot = List.of();
             pendingAdditions.clear();
             pendingRemovals.clear();
+            lastProcessedTicks.clear();
+            scheduledActiveBlocks.clear();
         } finally {
             pendingLock.unlock();
         }
@@ -76,6 +113,11 @@ public class TickManager {
     }
     
     private void performCleanup() {
+        if (plugin.scheduler().isFolia()) {
+            scheduleCookingPotCleanup();
+            return;
+        }
+
         int cleanedCount = 0;
         
         cleanedCount += cleanupInvalidBlockEntities(
@@ -86,6 +128,21 @@ public class TickManager {
         
         if (cleanedCount > 0) {
             plugin.getLogger().info("Cleanup completed: removed " + cleanedCount + " invalid block entities");
+        }
+    }
+
+    private void scheduleCookingPotCleanup() {
+        for (Location location : CookingPotBlockBehavior.getBlockEntityLocations()) {
+            if (location == null || location.getWorld() == null) {
+                continue;
+            }
+            try {
+                plugin.scheduler().runAt(location, () -> cleanupCookingPotBlockEntity(
+                        location.getWorld(),
+                        new BlockPosKey(location)
+                ));
+            } catch (RuntimeException ignored) {
+            }
         }
     }
     
@@ -102,27 +159,47 @@ public class TickManager {
         for (World world : Bukkit.getWorlds()) {
             Map<BlockPosKey, T> entities = getter.getAll(world);
             for (BlockPosKey posKey : entities.keySet()) {
-                Block block = world.getBlockAt(posKey.x(), posKey.y(), posKey.z());
-                ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
-                
-                if (state == null || state.isEmpty()) {
-                    remover.remove(world, posKey);
-                    count++;
-                    continue;
-                }
-                
-                String blockId = CustomBlockUtils.getId(state);
-                if (blockId == null || !blockId.contains(blockIdContains)) {
-                    remover.remove(world, posKey);
+                if (cleanupInvalidBlockEntity(world, posKey, remover, blockIdContains)) {
                     count++;
                 }
             }
         }
         return count;
     }
+
+    private boolean cleanupCookingPotBlockEntity(World world, BlockPosKey posKey) {
+        return cleanupInvalidBlockEntity(
+                world,
+                posKey,
+                CookingPotBlockBehavior::removeBlockEntity,
+                "cooking_pot"
+        );
+    }
+
+    private boolean cleanupInvalidBlockEntity(World world, BlockPosKey posKey, BlockEntityRemover remover, String blockIdContains) {
+        if (world == null || posKey == null) {
+            return false;
+        }
+
+        Block block = world.getBlockAt(posKey.x(), posKey.y(), posKey.z());
+        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
+
+        if (state == null || state.isEmpty()) {
+            remover.remove(world, posKey);
+            return true;
+        }
+
+        String blockId = CustomBlockUtils.getId(state);
+        if (blockId == null || !blockId.contains(blockIdContains)) {
+            remover.remove(world, posKey);
+            return true;
+        }
+        return false;
+    }
     
     public void registerActiveBlock(World world, BlockPosKey posKey, BlockType type) {
-        ActiveBlock block = new ActiveBlock(world.getUID(), posKey, type);
+        if (world == null || posKey == null || type == null) return;
+        ActiveBlock block = new ActiveBlock(world.getUID(), world, posKey, type);
         pendingLock.lock();
         try {
             pendingAdditions.add(block);
@@ -133,7 +210,8 @@ public class TickManager {
     }
     
     public void unregisterActiveBlock(World world, BlockPosKey posKey, BlockType type) {
-        ActiveBlock block = new ActiveBlock(world.getUID(), posKey, type);
+        if (world == null || posKey == null || type == null) return;
+        ActiveBlock block = new ActiveBlock(world.getUID(), world, posKey, type);
         pendingLock.lock();
         try {
             pendingRemovals.add(block);
@@ -149,44 +227,152 @@ public class TickManager {
 
     private void tick() {
         if (!running) return;
+        long currentTick = advanceCurrentTick();
         
         pendingLock.lock();
+        boolean changed = false;
         try {
             if (!pendingAdditions.isEmpty()) {
                 activeBlocks.addAll(pendingAdditions);
+                changed = true;
+                for (ActiveBlock activeBlock : pendingAdditions) {
+                    lastProcessedTicks.putIfAbsent(activeBlock, currentTick);
+                }
                 pendingAdditions.clear();
             }
             
             if (!pendingRemovals.isEmpty()) {
                 activeBlocks.removeAll(pendingRemovals);
+                changed = true;
+                for (ActiveBlock activeBlock : pendingRemovals) {
+                    lastProcessedTicks.remove(activeBlock);
+                    scheduledActiveBlocks.remove(activeBlock);
+                }
                 pendingRemovals.clear();
+            }
+            if (changed) {
+                activeBlockSnapshot = List.copyOf(activeBlocks);
             }
         } finally {
             pendingLock.unlock();
         }
         
-        if (activeBlocks.isEmpty()) return;
+        List<ActiveBlock> snapshot = activeBlockSnapshot;
+        if (snapshot.isEmpty()) return;
         
-        if (activeBlocks.size() > MAX_CACHE_SIZE) {
-            plugin.getLogger().warning("Active blocks count exceeds " + MAX_CACHE_SIZE + ", consider optimizing");
+        int size = snapshot.size();
+        if (size > MAX_CACHE_SIZE) {
+            if (!activeBlockLimitWarningShown) {
+                activeBlockLimitWarningShown = true;
+                plugin.getLogger().warning("Active blocks count exceeds " + MAX_CACHE_SIZE
+                        + " (" + size + "), consider optimizing");
+            }
+        } else {
+            activeBlockLimitWarningShown = false;
         }
         
-        for (ActiveBlock activeBlock : activeBlocks) {
-            World world = Bukkit.getWorld(activeBlock.worldId);
-            if (world == null) continue;
-            
-            try {
-                switch (activeBlock.type) {
-                    case COOKING_POT -> tickCookingPot(world, activeBlock.posKey);
-                    default -> throw new IllegalArgumentException("Unexpected value: " + activeBlock.type);
-                }
-            } catch (Exception e) {
-                plugin.getLogger().warning("Error ticking " + activeBlock.type + " at " + activeBlock.posKey + ": " + e.getMessage());
+        int budget = Math.min(cookingPotTickBudget, size);
+        int processed = 0;
+        int start = activeBlockCursor >= size ? 0 : activeBlockCursor;
+
+        for (int index = start; index < size; index++) {
+            ActiveBlock activeBlock = snapshot.get(index);
+            processActiveBlock(activeBlock);
+            processed++;
+            if (processed >= budget) {
+                break;
             }
+        }
+
+        if (processed < budget) {
+            for (int index = 0; index < start; index++) {
+                ActiveBlock activeBlock = snapshot.get(index);
+                processActiveBlock(activeBlock);
+                processed++;
+                if (processed >= budget) {
+                    break;
+                }
+            }
+        }
+
+        activeBlockCursor = size == 0 ? 0 : (start + Math.max(1, processed)) % size;
+    }
+
+    private void processActiveBlock(ActiveBlock activeBlock) {
+        World world = activeBlock.world();
+        if (world == null) return;
+
+        if (plugin.scheduler().isFolia()) {
+            if (!scheduledActiveBlocks.add(activeBlock)) {
+                return;
+            }
+            int chunkX = activeBlock.posKey().x() >> 4;
+            int chunkZ = activeBlock.posKey().z() >> 4;
+            try {
+                plugin.scheduler().runAt(world, chunkX, chunkZ, () -> {
+                    try {
+                        processActiveBlockInRegion(activeBlock, world);
+                    } finally {
+                        scheduledActiveBlocks.remove(activeBlock);
+                    }
+            });
+        } catch (RuntimeException e) {
+            scheduledActiveBlocks.remove(activeBlock);
+        }
+        return;
+        }
+
+        processActiveBlockInRegion(activeBlock, world);
+    }
+
+    private void processActiveBlockInRegion(ActiveBlock activeBlock, World world) {
+        if (!running || !activeBlocks.contains(activeBlock)) {
+            return;
+        }
+
+        BlockPosKey posKey = activeBlock.posKey();
+        if (!world.isChunkLoaded(posKey.x() >> 4, posKey.z() >> 4)) {
+            return;
+        }
+
+        try {
+            switch (activeBlock.type()) {
+                case COOKING_POT -> tickCookingPot(world, posKey, consumeElapsedTicks(activeBlock));
+                default -> throw new IllegalArgumentException("Unexpected value: " + activeBlock.type());
+            }
+        } catch (Exception e) {
+            plugin.getLogger().warning("Error ticking " + activeBlock.type() + " at " + posKey + ": " + e.getMessage());
         }
     }
 
-    private void tickCookingPot(World world, BlockPosKey posKey) {
+    private int consumeElapsedTicks(ActiveBlock activeBlock) {
+        long currentTick = getCurrentTick();
+        Long previousTick = lastProcessedTicks.put(activeBlock, currentTick);
+        if (previousTick == null) {
+            return TICK_INTERVAL;
+        }
+        long elapsed = currentTick - previousTick;
+        if (elapsed <= 0L) {
+            return TICK_INTERVAL;
+        }
+        return (int) Math.min(MAX_ELAPSED_TICKS, elapsed);
+    }
+
+    private long getCurrentTick() {
+        if (plugin.scheduler().isFolia()) {
+            return foliaTickClock.get();
+        }
+        return Bukkit.getCurrentTick();
+    }
+
+    private long advanceCurrentTick() {
+        if (plugin.scheduler().isFolia()) {
+            return foliaTickClock.addAndGet(TICK_INTERVAL);
+        }
+        return Bukkit.getCurrentTick();
+    }
+
+    private void tickCookingPot(World world, BlockPosKey posKey, int elapsedTicks) {
         Block block = world.getBlockAt(posKey.x(), posKey.y(), posKey.z());
         ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
         
@@ -213,7 +399,7 @@ public class TickManager {
         // instead of relying only on GUI refreshes or manual output pickup.
         entity.tryMovePendingToOutput();
 
-        if (!entity.hasInput() && !entity.hasPendingOutput()) {
+        if (!entity.hasStoredContents()) {
             unregisterActiveBlock(world, posKey, BlockType.COOKING_POT);
             return;
         }
@@ -231,40 +417,32 @@ public class TickManager {
         entity.setHasHeatSource(hasHeat);
         emitCookingPotEffects(world, posKey, entity, hasHeat);
 
-        if (hasHeat && entity.canCook()) {
-            CookingPotRecipe recipe = entity.getCurrentRecipe();
-            if (recipe != null) {
-                entity.setCookingDuration(recipe.getCookTime());
-            }
-            
-            for (int i = 0; i < TICK_INTERVAL; i++) {
-                entity.incrementCookingProgress();
-                
-                if (entity.getCookingProgress() >= entity.getCookingDuration()) {
-                    Location blockLoc = ManagerSupport.toLocation(world, posKey);
-                    if (blockLoc == null) {
-                        unregisterActiveBlock(world, posKey, BlockType.COOKING_POT);
-                        return;
-                    }
-                    if (entity.finishCooking(world, blockLoc)) {
-                        // Keep the pot active after a successful cook so remaining
-                        // ingredients can immediately start the next batch, matching
-                        // the old plugin behavior.
-                        break;
-                    }
-                    break;
+        boolean canCook = hasHeat && entity.canCook();
+        CookingPotRecipe recipe = canCook ? entity.getCurrentRecipe() : null;
+
+        if (recipe != null) {
+            entity.setCookingDuration(recipe.getCookTime());
+
+            int newProgress = Math.min(entity.getCookingDuration(), entity.getCookingProgress() + elapsedTicks);
+            entity.setCookingProgress(newProgress);
+            if (newProgress >= entity.getCookingDuration()) {
+                Location blockLoc = ManagerSupport.toLocation(world, posKey);
+                if (blockLoc == null) {
+                    unregisterActiveBlock(world, posKey, BlockType.COOKING_POT);
+                    return;
+                }
+                if (entity.finishCooking(world, blockLoc)) {
+                    // Keep the pot active after a successful cook so remaining
+                    // ingredients can immediately start the next batch, matching
+                    // the old plugin behavior.
+                    recipe = entity.getCurrentRecipe();
                 }
             }
         } else if (entity.getCookingProgress() > 0) {
-            for (int i = 0; i < TICK_INTERVAL * 2; i++) {
-                entity.decrementCookingProgress();
-            }
+            entity.setCookingProgress(Math.max(0, entity.getCookingProgress() - (elapsedTicks * 2)));
         }
 
-        if (entity.getCookingProgress() > 0 && entity.getCurrentRecipe() != null) {
-            CookingPotRecipe recipe = entity.getCurrentRecipe();
-            ItemStack result = recipe.getResult();
-            CookingPotBlockBehavior.setCookingRecipeItem(posKey, result);
+        if (entity.getCookingProgress() > 0 && recipe != null) {
             CookingPotBlockBehavior.updateProgressDisplay(world, posKey, entity.getProgressPercent());
         } else {
             CookingPotBlockBehavior.removeProgressDisplay(world, posKey);
@@ -278,6 +456,7 @@ public class TickManager {
 
         boolean hasActivity = entity.hasInput()
                 || entity.hasPendingOutput()
+                || entity.getMealDisplayItem() != null
                 || entity.getCookingProgress() > 0
                 || entity.getCurrentRecipe() != null;
         if (!hasActivity) {
@@ -292,73 +471,52 @@ public class TickManager {
         }
         center.add(0.5, 0.9, 0.5);
 
-        ConfigurationSection effectSection = plugin.getConfig().getConfigurationSection("cooking-pot-effects");
-
-        ConfigurationSection bubbleSection = effectSection != null
-                ? effectSection.getConfigurationSection("bubble")
-                : null;
-        if (isEffectEnabled(bubbleSection, true) && random.nextFloat() < getChance(bubbleSection, 0.20f)) {
+        EffectSpec bubble = bubbleEffect;
+        if (bubble.enabled() && random.nextFloat() < bubble.chance()) {
             double x = center.getX() + (random.nextDouble() * 0.6D - 0.3D);
-            double y = center.getY() + getDouble(bubbleSection, "y-offset", 0.0D);
+            double y = center.getY() + bubble.yOffset();
             double z = center.getZ() + (random.nextDouble() * 0.6D - 0.3D);
-            Particle particle = resolveParticle(bubbleSection, Particle.BUBBLE_POP);
             world.spawnParticle(
-                    particle,
+                    bubble.particle(),
                     x, y, z,
-                    Math.max(1, getCount(bubbleSection, 1)),
-                    getDouble(bubbleSection, "offset-x", 0.0D),
-                    getDouble(bubbleSection, "offset-y", 0.0D),
-                    getDouble(bubbleSection, "offset-z", 0.0D),
-                    getDouble(bubbleSection, "speed", 0.01D)
+                    bubble.count(),
+                    bubble.offsetX(),
+                    bubble.offsetY(),
+                    bubble.offsetZ(),
+                    bubble.speed()
             );
         }
 
-        ConfigurationSection steamSection = effectSection != null
-                ? effectSection.getConfigurationSection("steam")
-                : null;
-        if (isEffectEnabled(steamSection, true) && random.nextFloat() < getChance(steamSection, 0.05f)) {
+        EffectSpec steam = steamEffect;
+        if (steam.enabled() && random.nextFloat() < steam.chance()) {
             double x = center.getX() + (random.nextDouble() * 0.4D - 0.2D);
-            double y = center.getY() + getDouble(steamSection, "y-offset", 0.08D);
+            double y = center.getY() + steam.yOffset();
             double z = center.getZ() + (random.nextDouble() * 0.4D - 0.2D);
-            Particle particle = resolveParticle(steamSection, Particle.CLOUD);
-            int steamCount = Math.max(1, getCount(steamSection, 1));
-            double motionX = getDouble(steamSection, "offset-x", 0.0D);
-            double motionY = getDouble(steamSection, "offset-y", 0.03D);
-            double motionZ = getDouble(steamSection, "offset-z", 0.0D);
-            double speed = Math.max(0.001D, getDouble(steamSection, "speed", 0.02D));
-            for (int i = 0; i < steamCount; i++) {
+            for (int i = 0; i < steam.count(); i++) {
                 world.spawnParticle(
-                        particle,
+                        steam.particle(),
                         x, y, z,
                         0,
-                        motionX,
-                        motionY + (random.nextDouble() * 0.01D),
-                        motionZ,
-                        speed
+                        steam.offsetX(),
+                        steam.offsetY() + (random.nextDouble() * 0.01D),
+                        steam.offsetZ(),
+                        steam.speed()
                 );
             }
 
-            ConfigurationSection secondarySection = steamSection != null
-                    ? steamSection.getConfigurationSection("secondary")
-                    : null;
-            if (secondarySection != null && isEffectEnabled(secondarySection, false)) {
-                Particle secondaryParticle = resolveParticle(secondarySection, Particle.SMOKE);
-                int secondaryCount = Math.max(1, getCount(secondarySection, 1));
-                double secondaryMotionX = getDouble(secondarySection, "offset-x", 0.0D);
-                double secondaryMotionY = getDouble(secondarySection, "offset-y", 0.025D);
-                double secondaryMotionZ = getDouble(secondarySection, "offset-z", 0.0D);
-                double secondarySpeed = Math.max(0.001D, getDouble(secondarySection, "speed", 0.02D));
-                for (int i = 0; i < secondaryCount; i++) {
+            EffectSpec secondary = secondarySteamEffect;
+            if (secondary.enabled()) {
+                for (int i = 0; i < secondary.count(); i++) {
                     world.spawnParticle(
-                            secondaryParticle,
+                            secondary.particle(),
                             x,
-                            y + getDouble(secondarySection, "y-offset", 0.05D),
+                            y + secondary.yOffset(),
                             z,
                             0,
-                            secondaryMotionX,
-                            secondaryMotionY + (random.nextDouble() * 0.01D),
-                            secondaryMotionZ,
-                            secondarySpeed
+                            secondary.offsetX(),
+                            secondary.offsetY() + (random.nextDouble() * 0.01D),
+                            secondary.offsetZ(),
+                            secondary.speed()
                     );
                 }
             }
@@ -408,34 +566,6 @@ public class TickManager {
         }
     }
 
-    private boolean isEffectEnabled(ConfigurationSection section, boolean defaultValue) {
-        if (section == null) {
-            return defaultValue;
-        }
-        return section.getBoolean("enabled", defaultValue);
-    }
-
-    private float getChance(ConfigurationSection section, float defaultValue) {
-        if (section == null) {
-            return defaultValue;
-        }
-        return (float) section.getDouble("chance", defaultValue);
-    }
-
-    private int getCount(ConfigurationSection section, int defaultValue) {
-        if (section == null) {
-            return defaultValue;
-        }
-        return section.getInt("count", defaultValue);
-    }
-
-    private double getDouble(ConfigurationSection section, String key, double defaultValue) {
-        if (section == null) {
-            return defaultValue;
-        }
-        return section.getDouble(key, defaultValue);
-    }
-
     private String firstNonBlank(String primary, String fallback) {
         if (primary != null && !primary.isBlank()) {
             return primary;
@@ -446,12 +576,32 @@ public class TickManager {
         return null;
     }
 
-    private Particle resolveParticle(ConfigurationSection section, Particle defaultParticle) {
-        if (section == null) {
-            return defaultParticle;
-        }
+    private EffectSpec loadEffectSpec(
+            ConfigurationSection section,
+            boolean defaultEnabled,
+            Particle defaultParticle,
+            float defaultChance,
+            int defaultCount,
+            double defaultYOffset,
+            double defaultOffsetX,
+            double defaultOffsetY,
+            double defaultOffsetZ,
+            double defaultSpeed
+    ) {
+        return new EffectSpec(
+                section == null ? defaultEnabled : section.getBoolean("enabled", defaultEnabled),
+                resolveParticle(section == null ? null : section.getString("type"), defaultParticle),
+                section == null ? defaultChance : (float) section.getDouble("chance", defaultChance),
+                Math.max(1, section == null ? defaultCount : section.getInt("count", defaultCount)),
+                section == null ? defaultYOffset : section.getDouble("y-offset", defaultYOffset),
+                section == null ? defaultOffsetX : section.getDouble("offset-x", defaultOffsetX),
+                section == null ? defaultOffsetY : section.getDouble("offset-y", defaultOffsetY),
+                section == null ? defaultOffsetZ : section.getDouble("offset-z", defaultOffsetZ),
+                Math.max(0.001D, section == null ? defaultSpeed : section.getDouble("speed", defaultSpeed))
+        );
+    }
 
-        String configured = section.getString("type");
+    private Particle resolveParticle(String configured, Particle defaultParticle) {
         if (configured == null || configured.isBlank()) {
             return defaultParticle;
         }
@@ -519,13 +669,26 @@ public class TickManager {
         }
     }
 
+    private record EffectSpec(
+            boolean enabled,
+            Particle particle,
+            float chance,
+            int count,
+            double yOffset,
+            double offsetX,
+            double offsetY,
+            double offsetZ,
+            double speed
+    ) {
+    }
+
     public enum BlockType {
         SKILLET,
         STOVE,
         COOKING_POT
     }
     
-    private record ActiveBlock(UUID worldId, BlockPosKey posKey, BlockType type) {
+    private record ActiveBlock(UUID worldId, World world, BlockPosKey posKey, BlockType type) {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -540,3 +703,4 @@ public class TickManager {
         }
     }
 }
+

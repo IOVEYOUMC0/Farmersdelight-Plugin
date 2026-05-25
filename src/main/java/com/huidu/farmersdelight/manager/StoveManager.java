@@ -4,18 +4,18 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior;
 import com.huidu.farmersdelight.storage.BlockStorageManager;
 import com.huidu.farmersdelight.util.*;
+import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
+import fr.ateastudio.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
-import net.momirealms.craftengine.core.block.properties.Property;
+import net.momirealms.craftengine.core.block.property.Property;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.CookingRecipe;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -30,15 +30,20 @@ public class StoveManager {
     private static final int SLOT_COUNT = 6;
     private static final int DEFAULT_COOK_TIME = 600;
     private static final int HEARTBEAT_LOG_INTERVAL = 20;
+    private static final int DEFAULT_TICK_BUDGET = 512;
 
     private final FarmersDelightPlugin plugin;
     private final Map<Location, StoveData> stoves = new ConcurrentHashMap<>();
+    private final Map<UUID, Set<Location>> stovesByWorld = new ConcurrentHashMap<>();
     private final Map<Location, Boolean> blockedAboveCache = new ConcurrentHashMap<>();
+    private final Set<Location> scheduledStoveTicks = ConcurrentHashMap.newKeySet();
     private static final long BLOCKED_CACHE_TTL_MS = 30_000;
     private long lastBlockedCacheCleanup;
     private final CampfireRecipeCache campfireRecipes = new CampfireRecipeCache("stove", this::debug);
-    private BukkitTask tickTask;
+    private PluginTask tickTask;
     private int heartbeatTicks;
+    private int tickCursor;
+    private int tickBudget;
     private volatile Property<?> fireProperty;
 
     private final double[][] slotOffsets = {
@@ -52,6 +57,8 @@ public class StoveManager {
         final int[] cookingTime = new int[SLOT_COUNT];
         final int[] maxTime = new int[SLOT_COUNT];
         final int[] displayEntities = new int[SLOT_COUNT];
+        final UUID[] ownerIds = new UUID[SLOT_COUNT];
+        final String[] ownerNames = new String[SLOT_COUNT];
 
         StoveData(Location location) {
             this.location = location;
@@ -62,7 +69,13 @@ public class StoveManager {
 
     public StoveManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
+        reloadConfig();
         campfireRecipes.rebuild();
+    }
+
+    public void reloadConfig() {
+        this.tickBudget = Math.max(1, plugin.getConfig().getInt(
+                "performance.stove-tick-budget", DEFAULT_TICK_BUDGET));
     }
 
     private void ensureTaskRunning() {
@@ -70,12 +83,7 @@ public class StoveManager {
             return;
         }
         debug("tick task: starting stove tick task");
-        tickTask = new BukkitRunnable() {
-            @Override
-            public void run() {
-                tick();
-            }
-        }.runTaskTimer(plugin, 1L, 4L);
+        tickTask = plugin.scheduler().runRepeating(this::tick, 1L, 4L);
     }
 
     private void stopTaskIfIdle() {
@@ -90,7 +98,18 @@ public class StoveManager {
     public StoveData getOrCreateStove(Location location) {
         ensureTaskRunning();
         Location normalized = ManagerSupport.normalize(location);
-        return stoves.computeIfAbsent(normalized, StoveData::new);
+        StoveData existing = stoves.get(normalized);
+        if (existing != null) {
+            return existing;
+        }
+
+        StoveData created = new StoveData(normalized);
+        StoveData previous = stoves.putIfAbsent(normalized, created);
+        if (previous != null) {
+            return previous;
+        }
+        indexStove(normalized);
+        return created;
     }
 
     public boolean handleInteract(Player player, Block block, ItemStack itemInHand) {
@@ -125,6 +144,8 @@ public class StoveManager {
         stove.items[emptySlot] = toPlace;
         stove.cookingTime[emptySlot] = 0;
         stove.maxTime[emptySlot] = recipe.getCookingTime() > 0 ? recipe.getCookingTime() : DEFAULT_COOK_TIME;
+        stove.ownerIds[emptySlot] = player.getUniqueId();
+        stove.ownerNames[emptySlot] = player.getName();
         debug("create state: slot=" + emptySlot + ", stored=" + formatItem(toPlace)
                 + ", duration=" + stove.maxTime[emptySlot] + ", location=" + formatLocation(location));
 
@@ -139,7 +160,7 @@ public class StoveManager {
                     + ", location=" + formatLocation(location));
         }
 
-        SoundUtils.play(location.getWorld(), location, getCrackleSound(location), Sound.BLOCK_CAMPFIRE_CRACKLE, 1.0f, 1.0f);
+        location.getWorld().playSound(location, Sound.BLOCK_LANTERN_PLACE, 0.5f, 1.0f);
         return true;
     }
 
@@ -171,7 +192,7 @@ public class StoveManager {
 
     public void breakStove(Location blockLocation, Location dropLocation, boolean shouldDropItems) {
         Location normalized = ManagerSupport.normalize(blockLocation);
-        StoveData stove = stoves.remove(normalized);
+        StoveData stove = removeTrackedStove(normalized);
         if (stove != null) {
             cleanupAllVisuals(stove);
             if (shouldDropItems) {
@@ -194,16 +215,54 @@ public class StoveManager {
     }
 
     public void saveWorldData(World world) {
-        ManagerSupport.saveWorldData(stoves, world, this::saveStove);
+        if (world == null) {
+            return;
+        }
+        Set<Location> locations = stovesByWorld.get(world.getUID());
+        if (locations == null || locations.isEmpty()) {
+            return;
+        }
+        for (Location location : List.copyOf(locations)) {
+            StoveData stove = stoves.get(location);
+            if (stove != null) {
+                saveStove(location, stove);
+            }
+        }
     }
 
     public void cleanupWorld(UUID worldId) {
-        ManagerSupport.cleanupWorld(stoves, worldId, this::cleanupAllVisuals);
+        Set<Location> locations = stovesByWorld.remove(worldId);
+        if (locations == null || locations.isEmpty()) {
+            return;
+        }
+        for (Location location : List.copyOf(locations)) {
+            StoveData stove = stoves.remove(location);
+            if (stove != null) {
+                scheduledStoveTicks.remove(location);
+                cleanupAllVisuals(stove);
+            }
+        }
+        stopTaskIfIdle();
     }
 
     public void saveAndUnloadChunk(World world, int minX, int maxX, int minZ, int maxZ) {
-        ManagerSupport.saveAndUnloadChunk(stoves, world, minX, maxX, minZ, maxZ,
-                this::saveStove, location -> removeStove(location, false));
+        if (world == null) {
+            return;
+        }
+        Set<Location> locations = stovesByWorld.get(world.getUID());
+        if (locations == null || locations.isEmpty()) {
+            return;
+        }
+        for (Location location : List.copyOf(locations)) {
+            if (location.getBlockX() >= minX && location.getBlockX() <= maxX
+                    && location.getBlockZ() >= minZ && location.getBlockZ() <= maxZ) {
+                StoveData stove = stoves.get(location);
+                if (stove != null) {
+                    saveStove(location, stove);
+                }
+                removeStove(location, false);
+            }
+        }
     }
 
     public void loadStove(World world, net.momirealms.craftengine.core.world.BlockPos pos, Map<String, Object> data) {
@@ -231,13 +290,23 @@ public class StoveManager {
                 stove.items[i] = item.clone();
                 stove.cookingTime[i] = data.get("slot_" + i + "_progress") instanceof Number progress ? progress.intValue() : 0;
                 stove.maxTime[i] = data.get("slot_" + i + "_duration") instanceof Number duration ? duration.intValue() : DEFAULT_COOK_TIME;
+                if (data.get("slot_" + i + "_owner_id") instanceof String ownerId) {
+                    try {
+                        stove.ownerIds[i] = UUID.fromString(ownerId);
+                    } catch (IllegalArgumentException ignored) {
+                        stove.ownerIds[i] = null;
+                    }
+                }
+                if (data.get("slot_" + i + "_owner_name") instanceof String ownerName) {
+                    stove.ownerNames[i] = ownerName;
+                }
                 createVisual(location, stove, i, facing);
                 hasAnyItem = true;
             }
         }
 
         if (hasAnyItem) {
-            stoves.put(location, stove);
+            putStove(location, stove);
             ensureTaskRunning();
         } else {
             removeStoredData(location);
@@ -276,6 +345,8 @@ public class StoveManager {
             cleanupAllVisuals(stove);
         }
         stoves.clear();
+        stovesByWorld.clear();
+        scheduledStoveTicks.clear();
     }
 
     public void reloadRecipeCache() {
@@ -284,13 +355,54 @@ public class StoveManager {
 
     private void removeStove(Location location, boolean removeStoredData) {
         Location normalized = ManagerSupport.normalize(location);
-        StoveData stove = stoves.remove(normalized);
+        StoveData stove = removeTrackedStove(normalized);
         if (stove != null) {
             cleanupAllVisuals(stove);
         }
         stopTaskIfIdle();
         if (removeStoredData) {
             removeStoredData(normalized);
+        }
+    }
+
+    private StoveData putStove(Location location, StoveData stove) {
+        Location normalized = ManagerSupport.normalize(location);
+        StoveData previous = stoves.put(normalized, stove);
+        indexStove(normalized);
+        return previous;
+    }
+
+    private StoveData removeTrackedStove(Location location) {
+        Location normalized = ManagerSupport.normalize(location);
+        StoveData removed = stoves.remove(normalized);
+        if (removed != null) {
+            scheduledStoveTicks.remove(normalized);
+            deindexStove(normalized);
+        }
+        return removed;
+    }
+
+    private void indexStove(Location location) {
+        if (location == null || location.getWorld() == null) {
+            return;
+        }
+        stovesByWorld
+                .computeIfAbsent(location.getWorld().getUID(), ignored -> ConcurrentHashMap.newKeySet())
+                .add(location);
+    }
+
+    private void deindexStove(Location location) {
+        if (location == null || location.getWorld() == null) {
+            return;
+        }
+        UUID worldId = location.getWorld().getUID();
+        Set<Location> locations = stovesByWorld.get(worldId);
+        if (locations == null) {
+            return;
+        }
+        locations.remove(location);
+        if (locations.isEmpty()) {
+            stovesByWorld.remove(worldId);
         }
     }
 
@@ -327,85 +439,122 @@ public class StoveManager {
             heartbeatTicks = 0;
             debug(() -> "tick heartbeat: activeStoves=" + stoves.size());
         }
-        Iterator<Map.Entry<Location, StoveData>> it = stoves.entrySet().iterator();
+        List<Map.Entry<Location, StoveData>> snapshot = List.copyOf(stoves.entrySet());
+        int size = snapshot.size();
+        int budget = Math.min(tickBudget, size);
+        int start = tickCursor >= size ? 0 : tickCursor;
 
-        while (it.hasNext()) {
-            Map.Entry<Location, StoveData> entry = it.next();
+        for (int processed = 0; processed < budget; processed++) {
+            Map.Entry<Location, StoveData> entry = snapshot.get((start + processed) % size);
             Location location = entry.getKey();
             StoveData stove = entry.getValue();
-
-            World world = location.getWorld();
-            if (world == null) continue;
-            if (!world.isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4)) continue;
-            Block block = location.getBlock();
-            if (block.getType().isAir()) {
-                debug(() -> "tick remove: stove carrier block is air at " + formatLocation(location));
-                cleanupAllVisuals(stove);
-                removeStoredData(location);
-                it.remove();
-                continue;
-            }
-            ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
-            if (state == null || state.isEmpty()) {
-                debug(() -> "tick state: stove custom state not available yet, skipping this tick at " + formatLocation(location));
+            if (stoves.get(location) != stove) {
                 continue;
             }
 
-            if (!CustomBlockUtils.hasId(state, Constants.BLOCK_STOVE)) {
-                debug(() -> "tick state: stove state id mismatch, skipping this tick at " + formatLocation(location));
+            scheduleStoveTick(location, stove);
+        }
+        tickCursor = size == 0 ? 0 : (start + Math.max(1, budget)) % size;
+        stopTaskIfIdle();
+    }
+
+    private void scheduleStoveTick(Location location, StoveData stove) {
+        if (!plugin.scheduler().isFolia()) {
+            tickStove(location, stove);
+            return;
+        }
+
+        if (!scheduledStoveTicks.add(location)) {
+            return;
+        }
+        try {
+            plugin.scheduler().runAt(location, () -> {
+                try {
+                    tickStove(location, stove);
+                } finally {
+                    scheduledStoveTicks.remove(location);
+                }
+            });
+        } catch (RuntimeException e) {
+            scheduledStoveTicks.remove(location);
+        }
+    }
+
+    private void tickStove(Location location, StoveData stove) {
+        if (stoves.get(location) != stove) {
+            return;
+        }
+
+        World world = location.getWorld();
+        if (world == null) return;
+        if (!world.isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4)) return;
+        Block block = location.getBlock();
+        if (block.getType().isAir()) {
+            debug(() -> "tick remove: stove carrier block is air at " + formatLocation(location));
+            cleanupAllVisuals(stove);
+            removeStoredData(location);
+            removeTrackedStove(location);
+            return;
+        }
+        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
+        if (state == null || state.isEmpty()) {
+            debug(() -> "tick state: stove custom state not available yet, skipping this tick at " + formatLocation(location));
+            return;
+        }
+
+        if (!CustomBlockUtils.hasId(state, Constants.BLOCK_STOVE)) {
+            debug(() -> "tick state: stove state id mismatch, skipping this tick at " + formatLocation(location));
+            return;
+        }
+
+        if (isStoveBlockedAboveCached(location)) {
+            debug(() -> "tick remove: stove blocked above, ejecting all items at " + formatLocation(location));
+            ejectAllItems(location, stove);
+            cleanupAllVisuals(stove);
+            removeStoredData(location);
+            removeTrackedStove(location);
+            return;
+        }
+
+        boolean isLit = isStoveLit(state);
+        BlockFace facing = CustomBlockUtils.getFacing(block).getOppositeFace();
+        debug(() -> "tick state: lit=" + isLit + ", hasAnyItem=" + hasAnyItem(stove)
+                + ", location=" + formatLocation(location));
+        for (int i = 0; i < SLOT_COUNT; i++) {
+            if (stove.items[i] == null || stove.items[i].getType().isAir()) {
                 continue;
             }
 
-            if (isStoveBlockedAboveCached(location)) {
-                debug(() -> "tick remove: stove blocked above, ejecting all items at " + formatLocation(location));
-                ejectAllItems(location, stove);
-                cleanupAllVisuals(stove);
-                removeStoredData(location);
-                it.remove();
-                continue;
-            }
-
-            boolean isLit = isStoveLit(state);
-            BlockFace facing = CustomBlockUtils.getFacing(block).getOppositeFace();
-            debug(() -> "tick state: lit=" + isLit + ", hasAnyItem=" + hasAnyItem(stove)
+            ensureVisualExists(location, stove, i, facing);
+            int slot = i;
+            debug(() -> "tick slot: slot=" + slot + ", progress=" + stove.cookingTime[slot] + "/" + stove.maxTime[slot]
+                    + ", item=" + formatItem(stove.items[slot]) + ", lit=" + isLit
                     + ", location=" + formatLocation(location));
-            for (int i = 0; i < SLOT_COUNT; i++) {
-                if (stove.items[i] == null || stove.items[i].getType().isAir()) {
-                    continue;
+
+            if (isLit) {
+                stove.cookingTime[i]++;
+
+                if (Math.random() < Constants.STOVE_PARTICLE_CHANCE) {
+                    spawnCookingParticles(location, i, facing);
                 }
-
-                ensureVisualExists(location, stove, i, facing);
-                int slot = i;
-                debug(() -> "tick slot: slot=" + slot + ", progress=" + stove.cookingTime[slot] + "/" + stove.maxTime[slot]
-                        + ", item=" + formatItem(stove.items[slot]) + ", lit=" + isLit
-                        + ", location=" + formatLocation(location));
-
-                if (isLit) {
-                    stove.cookingTime[i]++;
-
-                    if (Math.random() < Constants.STOVE_PARTICLE_CHANCE) {
-                        spawnCookingParticles(location, i, facing);
-                    }
-                    if (Math.random() < Constants.STOVE_CRACKLE_CHANCE) {
-                        SoundUtils.play(world, location, getCrackleSound(location), Sound.BLOCK_CAMPFIRE_CRACKLE, 1.0f, 1.0f);
-                    }
-                    if (stove.cookingTime[i] >= stove.maxTime[i]) {
-                        int finishedSlot = i;
-                        debug(() -> "tick finish: slot=" + finishedSlot + ", item=" + formatItem(stove.items[finishedSlot])
-                                + ", location=" + formatLocation(location));
-                        finishCooking(location, stove, i);
-                    }
-                } else {
-                    stove.cookingTime[i] = Math.max(0, stove.cookingTime[i] - 2);
+                if (Math.random() < Constants.STOVE_CRACKLE_CHANCE) {
+                    SoundUtils.play(world, location, getCrackleSound(location), Sound.BLOCK_CAMPFIRE_CRACKLE, 1.0f, 1.0f);
                 }
-            }
-
-            if (!hasAnyItem(stove)) {
-                removeStoredData(location);
-                it.remove();
+                if (stove.cookingTime[i] >= stove.maxTime[i]) {
+                    int finishedSlot = i;
+                    debug(() -> "tick finish: slot=" + finishedSlot + ", item=" + formatItem(stove.items[finishedSlot])
+                            + ", location=" + formatLocation(location));
+                    finishCooking(location, stove, i);
+                }
+            } else {
+                stove.cookingTime[i] = Math.max(0, stove.cookingTime[i] - 2);
             }
         }
-        stopTaskIfIdle();
+
+        if (!hasAnyItem(stove)) {
+            removeStoredData(location);
+            removeTrackedStove(location);
+        }
     }
 
     private void resolveFireProperty(ImmutableBlockState state) {
@@ -472,22 +621,30 @@ public class StoveManager {
         debug("finish cooking: slot=" + slot + ", input=" + formatItem(input)
                 + ", recipe=" + (recipe != null ? recipe.getKey() : "null")
                 + ", location=" + formatLocation(location));
-        if (recipe != null) {
-            ItemStack result = recipe.getResult();
-            if (result != null) {
-                location.getWorld().dropItemNaturally(location.clone().add(0.5, 1.0, 0.5), result.clone());
+        ItemStack result = recipe != null ? recipe.getResult() : input;
+        if (result != null && !result.getType().isAir()) {
+            if (recipe != null && stove.ownerIds[slot] != null) {
+                Bukkit.getPluginManager().callEvent(new ProfessionCookingExperienceEvent(
+                        stove.ownerIds[slot],
+                        stove.ownerNames[slot],
+                        "stove",
+                        result,
+                        recipe.getExperience()
+                ));
             }
+            location.getWorld().dropItemNaturally(location.clone().add(0.5, 1.0, 0.5), result.clone());
         }
 
         stove.items[slot] = null;
         stove.cookingTime[slot] = 0;
         stove.maxTime[slot] = DEFAULT_COOK_TIME;
+        stove.ownerIds[slot] = null;
+        stove.ownerNames[slot] = null;
         removeVisual(location, stove, slot);
 
         if (!hasAnyItem(stove)) {
             ManagerSupport.removeStoredData(plugin, location);
         }
-        location.getWorld().playSound(location, Sound.BLOCK_FIRE_EXTINGUISH, 0.5f, 1.0f);
     }
 
     private void ejectAllItems(Location location, StoveData stove) {
@@ -497,6 +654,8 @@ public class StoveManager {
                 stove.items[i] = null;
                 stove.cookingTime[i] = 0;
                 stove.maxTime[i] = DEFAULT_COOK_TIME;
+                stove.ownerIds[i] = null;
+                stove.ownerNames[i] = null;
             }
         }
     }
@@ -517,7 +676,7 @@ public class StoveManager {
         }
 
         double[] offset = getRotatedSlotOffset(slot, facing);
-        ItemDisplayManager visualManager = plugin.getFakeItemDisplayManager();
+        ItemDisplayManager visualManager = plugin.getItemDisplayManager();
         if (visualManager == null || !visualManager.isAvailable()) {
             debug("spawn display: visual manager unavailable for slot=" + slot + ", item=" + formatItem(item)
                     + ", location=" + formatLocation(location));
@@ -577,7 +736,7 @@ public class StoveManager {
         if (entityId < 0) return;
         stove.displayEntities[slot] = -1;
 
-        ItemDisplayManager visualManager = plugin.getFakeItemDisplayManager();
+        ItemDisplayManager visualManager = plugin.getItemDisplayManager();
         if (visualManager != null) {
             visualManager.destroyDisplay(entityId);
         }
@@ -604,6 +763,8 @@ public class StoveManager {
         stove.items[slot] = null;
         stove.cookingTime[slot] = 0;
         stove.maxTime[slot] = DEFAULT_COOK_TIME;
+        stove.ownerIds[slot] = null;
+        stove.ownerNames[slot] = null;
         removeVisual(location, stove, slot);
 
         if (player.getInventory().getItemInMainHand().getType().isAir()) {
@@ -690,6 +851,12 @@ public class StoveManager {
                 data.put("slot_" + i + "_item", item.clone());
                 data.put("slot_" + i + "_progress", stove.cookingTime[i]);
                 data.put("slot_" + i + "_duration", stove.maxTime[i]);
+                if (stove.ownerIds[i] != null) {
+                    data.put("slot_" + i + "_owner_id", stove.ownerIds[i].toString());
+                }
+                if (stove.ownerNames[i] != null) {
+                    data.put("slot_" + i + "_owner_name", stove.ownerNames[i]);
+                }
                 savedSlots++;
             }
         }

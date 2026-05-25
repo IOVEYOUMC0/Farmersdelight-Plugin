@@ -16,6 +16,11 @@ import org.bukkit.inventory.Recipe;
 
 import java.util.*;
 
+/**
+ * Legacy stove state model kept for recipe cache helpers and old saved-state compatibility.
+ * Runtime stove logic is owned by com.huidu.farmersdelight.manager.StoveManager.
+ */
+@Deprecated(forRemoval = false)
 public class StoveCookingBlockEntity {
 
     private static final int MAX_CACHE_SIZE = 100;
@@ -242,7 +247,7 @@ public class StoveCookingBlockEntity {
 
         removeDisplayEntity(slotIndex);
 
-        ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getFakeItemDisplayManager();
+        ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getItemDisplayManager();
         if (visualManager == null || !visualManager.isAvailable()) return;
 
         float[] offset = SLOT_OFFSETS[slotIndex];
@@ -281,7 +286,7 @@ public class StoveCookingBlockEntity {
         if (entityId == NO_DISPLAY) return;
         displayEntityIds[slotIndex] = NO_DISPLAY;
 
-        ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getFakeItemDisplayManager();
+        ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getItemDisplayManager();
         if (visualManager != null) {
             visualManager.destroyDisplay(entityId);
         }

@@ -22,7 +22,6 @@ import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
-import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
@@ -40,10 +39,12 @@ import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class RecipeViewGui implements InventoryHolder, Listener {
+public class RecipeViewGui implements InventoryHolder {
 
     private static final Map<UUID, RecipeViewGui> activeGuis = new ConcurrentHashMap<>();
+    private static volatile boolean listenerRegistered = false;
     private static volatile RecipeViewGuiConfig cachedConfig = null;
+    private static final Map<Key, ItemStack> itemCache = new ConcurrentHashMap<>();
     private static final ItemStack EMPTY_SLOT_BACKGROUND = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
     private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
@@ -65,6 +66,7 @@ public class RecipeViewGui implements InventoryHolder, Listener {
 
     private final FarmersDelightPlugin plugin;
     private final UUID playerId;
+    private final Player player;
     private final RecipeViewGuiConfig config;
     private Inventory inventory;
     private GuiState state = GuiState.MAIN_MENU;
@@ -98,6 +100,7 @@ public class RecipeViewGui implements InventoryHolder, Listener {
     public RecipeViewGui(FarmersDelightPlugin plugin, Player player, boolean fromCookingPot, Location cookingPotLocation) {
         this.plugin = plugin;
         this.playerId = player.getUniqueId();
+        this.player = player;
         this.fromCookingPot = fromCookingPot;
         this.cookingPotLocation = cookingPotLocation;
         this.config = getOrCreateConfig();
@@ -134,7 +137,7 @@ public class RecipeViewGui implements InventoryHolder, Listener {
             return cachedConfig;
         }
         
-        var section = plugin.getConfig().getConfigurationSection("recipe-view-gui");
+        var section = plugin.getRecipeViewGuiSection();
         if (section != null) {
             cachedConfig = RecipeViewGuiConfig.fromConfig(section);
         } else {
@@ -163,13 +166,13 @@ public class RecipeViewGui implements InventoryHolder, Listener {
             existingGui.close();
         }
 
-        Bukkit.getPluginManager().registerEvents(this, plugin);
+        ensureListenerRegistered();
         activeGuis.put(player.getUniqueId(), this);
 
         refresh(player);
         player.openInventory(inventory);
 
-        GuiTickManager.getInstance(plugin).registerCallback(tickCallback);
+        GuiTickManager.getInstance(plugin).registerCallback(player, tickCallback);
     }
 
     public void openCookingPotRecipes(Player player) {
@@ -229,8 +232,7 @@ public class RecipeViewGui implements InventoryHolder, Listener {
         int safeIndex = currentToolIndex % recipe.getTools().size();
         Key currentTool = recipe.getTools().get(safeIndex).key();
         
-        Player player = Bukkit.getPlayer(playerId);
-        if (player == null) return;
+        if (player == null || !player.isOnline()) return;
         
         ItemStack toolItem = createToolDisplayItem(currentTool, recipe.getTools().size(), safeIndex, player);
         inventory.setItem(detailConfig.getToolSlot(), toolItem);
@@ -247,8 +249,7 @@ public class RecipeViewGui implements InventoryHolder, Listener {
         }
 
         ingredientSwitchTicks = 0;
-        Player player = Bukkit.getPlayer(playerId);
-        if (player == null) {
+        if (player == null || !player.isOnline()) {
             return;
         }
 
@@ -408,9 +409,9 @@ public class RecipeViewGui implements InventoryHolder, Listener {
         if (detailConfig.getResultSlot() >= 0) {
             ItemStack resultItem = recipe.getResult().clone();
             ItemMeta resultMeta = resultItem.getItemMeta();
-            resultMeta.displayName(colored("&a" + I18n.get("gui.recipe.result", player)));
+            resultMeta.displayName(itemNameComponent(recipe.getResult(), player).colorIfAbsent(NamedTextColor.GREEN));
             List<Component> resultLore = new ArrayList<>();
-            resultLore.add(itemNameComponent(recipe.getResult(), player).colorIfAbsent(NamedTextColor.WHITE));
+            resultLore.add(colored("&7" + I18n.get("gui.recipe.result", player)));
             resultLore.add(colored("&7" + I18n.get("gui.recipe.experience", player) + ": &e" + recipe.getExperience()));
             resultLore.add(colored("&7" + I18n.get("gui.recipe.cook_time", player) + ": &b"
                     + (recipe.getCookTime() / 20) + i18nOrDefault("gui.recipe.seconds_suffix", player, "s")));
@@ -424,8 +425,8 @@ public class RecipeViewGui implements InventoryHolder, Listener {
         if (recipe.needsContainer() && recipe.getContainer() != null && detailConfig.getContainerSlot() >= 0) {
             ItemStack containerItem = recipe.getContainer().clone();
             ItemMeta containerMeta = containerItem.getItemMeta();
-            containerMeta.displayName(colored("&b" + I18n.get("gui.recipe.container", player)));
-            containerMeta.lore(List.of(itemNameComponent(recipe.getContainer(), player).colorIfAbsent(NamedTextColor.WHITE)));
+            containerMeta.displayName(itemNameComponent(recipe.getContainer(), player).colorIfAbsent(NamedTextColor.AQUA));
+            containerMeta.lore(List.of(colored("&7" + I18n.get("gui.recipe.container", player))));
             containerItem.setItemMeta(containerMeta);
             inventory.setItem(detailConfig.getContainerSlot(), containerItem);
         }
@@ -437,8 +438,8 @@ public class RecipeViewGui implements InventoryHolder, Listener {
         if (detailConfig.getInputSlot() >= 0) {
             ItemStack inputItem = recipe.getInputDisplay().clone();
             ItemMeta inputMeta = inputItem.getItemMeta();
-            inputMeta.displayName(colored("&c" + I18n.get("gui.recipe.input", player)));
-            inputMeta.lore(formatIngredientLoreLines(recipe.getInput(), player));
+            inputMeta.displayName(itemNameComponent(inputItem, player).colorIfAbsent(NamedTextColor.RED));
+            inputMeta.lore(formatIngredientDetailLoreLines(recipe.getInput(), player, I18n.get("gui.recipe.input", player)));
             inputItem.setItemMeta(inputMeta);
             inventory.setItem(detailConfig.getInputSlot(), inputItem);
         }
@@ -623,20 +624,13 @@ public class RecipeViewGui implements InventoryHolder, Listener {
         String offset = "";
         String icon = "";
 
-        var currentLayout = plugin.getConfig().getConfigurationSection("recipe-view-gui." + guiPath + ".title-layout.craftengine");
+        var guiSection = plugin.getRecipeViewGuiSection();
+        var currentLayout = guiSection != null
+                ? guiSection.getConfigurationSection(guiPath + ".title-layout.craftengine")
+                : null;
         if (currentLayout != null) {
             offset = parseOffset(currentLayout.getString("offset", ""));
             icon = currentLayout.getString("icon", "");
-        } else if (legacyPath != null) {
-            String legacyTitle = plugin.getConfig().getString("recipe_menu." + legacyPath + ".title");
-            if (legacyTitle != null && !legacyTitle.isBlank()) {
-                title = applyTitlePlaceholders(legacyTitle, placeholders);
-            }
-            var legacyLayout = plugin.getConfig().getConfigurationSection("recipe_menu." + legacyPath + ".layout.craftengine");
-            if (legacyLayout != null) {
-                offset = parseOffset(legacyLayout.getString("offset", ""));
-                icon = legacyLayout.getString("icon", "");
-            }
         }
 
         String composed = title.replace("<offset>", offset).replace("<icon>", icon);
@@ -774,11 +768,11 @@ public class RecipeViewGui implements InventoryHolder, Listener {
         if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
             List<Component> lore = new ArrayList<>();
             ItemStack display = createItemFromKey(itemIngredient.key());
-            lore.add(itemNameComponent(display, player).colorIfAbsent(NamedTextColor.WHITE));
+            lore.add(colored("&7" + I18n.get("gui.recipe.ingredient", player)));
             if (config.isShowIngredientIds()) {
                 lore.add(colored("&7" + itemIngredient.key()));
             }
-            return createLabeledIngredientDisplay(display, lore, player);
+            return createLabeledIngredientDisplay(display, lore, player, itemNameComponent(display, player));
         }
 
         if (ingredient instanceof RecipeIngredient.Tag tagIngredient) {
@@ -803,8 +797,9 @@ public class RecipeViewGui implements InventoryHolder, Listener {
         ItemStack display = currentDisplay.clone();
         return createLabeledIngredientDisplay(
                 display,
-                List.of(itemNameComponent(currentDisplay, player).colorIfAbsent(NamedTextColor.WHITE)),
-                player
+                List.of(colored("&7" + I18n.get("gui.recipe.ingredient", player))),
+                player,
+                itemNameComponent(currentDisplay, player)
         );
     }
 
@@ -813,16 +808,17 @@ public class RecipeViewGui implements InventoryHolder, Listener {
         ItemMeta meta = display.getItemMeta();
 
         List<Component> lore = new ArrayList<>();
-        lore.add(itemNameComponent(currentDisplay, player).colorIfAbsent(NamedTextColor.WHITE));
+        lore.add(colored("&7" + I18n.get("gui.recipe.ingredient", player)));
         lore.add(colored("&7" + I18n.get("gui.recipe.matches", player) + ": &e" + options.size()));
+        appendCyclePosition(lore, currentDisplay, options, player);
         if (config.isShowIngredientIds()) {
             lore.add(colored("&7" + I18n.get("gui.recipe.tag", player) + ": &f#" + tagIngredient.key()));
             appendTagExclusions(lore, tagIngredient, player);
         }
 
-        appendItemPreviewLore(lore, options, 5, player);
+        appendItemPreviewLore(lore, options, 5, player, currentDisplay);
 
-        meta.displayName(colored("&b" + I18n.get("gui.recipe.ingredient", player)));
+        meta.displayName(itemNameComponent(currentDisplay, player).colorIfAbsent(NamedTextColor.AQUA));
         meta.lore(lore);
         display.setItemMeta(meta);
         return display;
@@ -833,12 +829,13 @@ public class RecipeViewGui implements InventoryHolder, Listener {
         ItemMeta meta = display.getItemMeta();
 
         List<Component> lore = new ArrayList<>();
-        lore.add(itemNameComponent(currentDisplay, player).colorIfAbsent(NamedTextColor.WHITE));
+        lore.add(colored("&7" + I18n.get("gui.recipe.ingredient", player)));
         lore.add(colored("&7" + I18n.get("gui.recipe.any_of", player) + ": &e" + choiceIngredient.options().size()));
         lore.add(colored("&7" + I18n.get("gui.recipe.matches", player) + ": &e" + options.size()));
-        appendIngredientPreviewLore(lore, choiceIngredient.options(), choiceIngredient.options().size(), player);
+        appendCyclePosition(lore, currentDisplay, options, player);
+        appendIngredientPreviewLore(lore, choiceIngredient.options(), choiceIngredient.options().size(), player, currentDisplay);
 
-        meta.displayName(colored("&b" + I18n.get("gui.recipe.ingredient", player)));
+        meta.displayName(itemNameComponent(currentDisplay, player).colorIfAbsent(NamedTextColor.AQUA));
         meta.lore(lore);
         display.setItemMeta(meta);
         return display;
@@ -934,7 +931,8 @@ public class RecipeViewGui implements InventoryHolder, Listener {
         return createLabeledIngredientDisplay(
                 new ItemStack(Material.NAME_TAG),
                 formatIngredientLoreLines(ingredient, player),
-                player
+                player,
+                colored("&b" + I18n.get("gui.recipe.ingredient", player))
         );
     }
 
@@ -942,17 +940,47 @@ public class RecipeViewGui implements InventoryHolder, Listener {
         return createLabeledIngredientDisplay(
                 new ItemStack(Material.BARRIER),
                 List.of(colored("&f" + I18n.get("gui.recipe.unknown", player))),
-                player
+                player,
+                colored("&b" + I18n.get("gui.recipe.ingredient", player))
         );
     }
 
-    private ItemStack createLabeledIngredientDisplay(ItemStack baseDisplay, List<Component> lore, Player player) {
+    private ItemStack createLabeledIngredientDisplay(ItemStack baseDisplay, List<Component> lore, Player player, Component displayName) {
         ItemStack display = baseDisplay.clone();
         ItemMeta meta = display.getItemMeta();
-        meta.displayName(colored("&b" + I18n.get("gui.recipe.ingredient", player)));
+        meta.displayName(displayName.colorIfAbsent(NamedTextColor.AQUA));
         meta.lore(lore);
         display.setItemMeta(meta);
         return display;
+    }
+
+    private List<Component> formatIngredientDetailLoreLines(RecipeIngredient ingredient, Player player, String category) {
+        List<Component> lines = new ArrayList<>();
+        lines.add(colored("&7" + category));
+        if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
+            if (config.isShowIngredientIds()) {
+                lines.add(colored("&7" + itemIngredient.key()));
+            }
+            return lines;
+        }
+        lines.addAll(formatIngredientLoreLines(ingredient, player));
+        return removeAdjacentDuplicateComponents(lines);
+    }
+
+    private List<Component> removeAdjacentDuplicateComponents(List<Component> lines) {
+        if (lines.size() < 2) {
+            return lines;
+        }
+        List<Component> result = new ArrayList<>(lines.size());
+        String previous = null;
+        for (Component line : lines) {
+            String serialized = LEGACY.serialize(line);
+            if (!serialized.equals(previous)) {
+                result.add(line);
+            }
+            previous = serialized;
+        }
+        return result;
     }
 
     private String buildIngredientDisplayKey(ItemStack item) {
@@ -964,17 +992,22 @@ public class RecipeViewGui implements InventoryHolder, Listener {
     }
 
     private ItemStack createItemFromKey(Key key) {
+        ItemStack cached = itemCache.get(key);
+        if (cached != null) return cached.clone();
         try {
-            var customItem = plugin.getCraftEngine().itemManager().getCustomItem(key).orElse(null);
+            ItemStack customItem = ItemUtils.createItem(key);
             if (customItem != null) {
-                return customItem.buildItemStack();
+                itemCache.put(key, customItem.clone());
+                return customItem;
             }
 
             NamespacedKey materialKey = NamespacedKey.fromString(key.toString());
             if (materialKey != null) {
                 Material material = Registry.MATERIAL.get(materialKey);
                 if (material != null) {
-                    return new ItemStack(material);
+                    ItemStack item = new ItemStack(material);
+                    itemCache.put(key, item.clone());
+                    return item;
                 }
             }
         } catch (Exception e) {
@@ -1062,18 +1095,48 @@ public class RecipeViewGui implements InventoryHolder, Listener {
     }
 
     private void appendItemPreviewLore(List<Component> lore, List<ItemStack> options, int previewLimit, Player player) {
-        int displayed = Math.min(options.size(), previewLimit);
-        for (int i = 0; i < displayed; i++) {
-            lore.add(itemNameComponent(options.get(i), player).colorIfAbsent(NamedTextColor.WHITE));
+        appendItemPreviewLore(lore, options, previewLimit, player, null);
+    }
+
+    private void appendItemPreviewLore(
+            List<Component> lore,
+            List<ItemStack> options,
+            int previewLimit,
+            Player player,
+            ItemStack currentDisplay
+    ) {
+        List<ItemStack> previewOptions = filterCurrentPreviewOption(options, currentDisplay);
+        if (previewOptions.isEmpty()) {
+            return;
         }
-        appendMoreItemsLine(lore, options.size() - displayed, player);
+
+        int displayed = Math.min(previewOptions.size(), previewLimit);
+        for (int i = 0; i < displayed; i++) {
+            lore.add(colored("&8- ").append(itemNameComponent(previewOptions.get(i), player).colorIfAbsent(NamedTextColor.WHITE)));
+        }
+        appendMoreItemsLine(lore, previewOptions.size() - displayed, player);
+    }
+
+    private List<ItemStack> filterCurrentPreviewOption(List<ItemStack> options, ItemStack currentDisplay) {
+        if (currentDisplay == null) {
+            return options;
+        }
+        String currentKey = buildIngredientDisplayKey(currentDisplay);
+        List<ItemStack> filtered = new ArrayList<>();
+        for (ItemStack option : options) {
+            if (!buildIngredientDisplayKey(option).equals(currentKey)) {
+                filtered.add(option);
+            }
+        }
+        return filtered;
     }
 
     private void appendIngredientPreviewLore(
             List<Component> lore,
             List<RecipeIngredient> options,
             int previewLimit,
-            Player player
+            Player player,
+            ItemStack currentDisplay
     ) {
         LinkedHashMap<String, ItemStack> displayOptions = new LinkedHashMap<>();
         for (RecipeIngredient option : options) {
@@ -1090,7 +1153,29 @@ public class RecipeViewGui implements InventoryHolder, Listener {
             return;
         }
 
-        appendItemPreviewLore(lore, new ArrayList<>(displayOptions.values()), previewLimit, player);
+        appendItemPreviewLore(lore, new ArrayList<>(displayOptions.values()), previewLimit, player, currentDisplay);
+    }
+
+    private void appendCyclePosition(List<Component> lore, ItemStack currentDisplay, List<ItemStack> options, Player player) {
+        if (options.size() <= 1) {
+            return;
+        }
+        String currentKey = buildIngredientDisplayKey(currentDisplay);
+        int currentIndex = 0;
+        for (int i = 0; i < options.size(); i++) {
+            if (buildIngredientDisplayKey(options.get(i)).equals(currentKey)) {
+                currentIndex = i + 1;
+                break;
+            }
+        }
+        lore.add(colored(I18n.formatNamed(
+                "gui.recipe.auto_cycle",
+                player,
+                Map.of(
+                        "current", String.valueOf(Math.max(1, currentIndex)),
+                        "total", String.valueOf(options.size())
+                )
+        )));
     }
 
     private void appendMoreItemsLine(List<Component> lore, int remainingCount, Player player) {
@@ -1200,8 +1285,7 @@ public class RecipeViewGui implements InventoryHolder, Listener {
         return inventory;
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
-    public void onClick(InventoryClickEvent event) {
+    void onClick(InventoryClickEvent event) {
         if (event.getView().getTopInventory().getHolder() != this) return;
         event.setCancelled(true);
 
@@ -1220,8 +1304,7 @@ public class RecipeViewGui implements InventoryHolder, Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
-    public void onDrag(InventoryDragEvent event) {
+    void onDrag(InventoryDragEvent event) {
         if (event.getView().getTopInventory().getHolder() != this) {
             return;
         }
@@ -1422,8 +1505,7 @@ public class RecipeViewGui implements InventoryHolder, Listener {
         player.closeInventory();
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
-    public void onClose(InventoryCloseEvent event) {
+    void onClose(InventoryCloseEvent event) {
         if (event.getView().getTopInventory().getHolder() != this) return;
         if (closed) return;
         if (ignoreNextClose) {
@@ -1435,21 +1517,10 @@ public class RecipeViewGui implements InventoryHolder, Listener {
         activeGuis.remove(event.getPlayer().getUniqueId());
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
-    public void onPlayerQuit(PlayerQuitEvent event) {
-        if (activeGuis.containsKey(event.getPlayer().getUniqueId())) {
-            RecipeViewGui gui = activeGuis.remove(event.getPlayer().getUniqueId());
-            if (gui != null && !gui.closed) {
-                gui.close();
-            }
-        }
-    }
-
     private void close() {
         if (closed) return;
         closed = true;
         GuiTickManager.getInstance(plugin).unregisterCallback(tickCallback);
-        HandlerList.unregisterAll(this);
     }
 
     private void returnToCookingPot(Player player) {
@@ -1457,7 +1528,7 @@ public class RecipeViewGui implements InventoryHolder, Listener {
             return;
         }
         
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+        plugin.scheduler().runLaterAt(cookingPotLocation, () -> {
             World world = cookingPotLocation.getWorld();
             if (world == null) return;
             
@@ -1480,9 +1551,51 @@ public class RecipeViewGui implements InventoryHolder, Listener {
         }
         activeGuis.clear();
         cachedConfig = null;
+        itemCache.clear();
+    }
+
+    private void ensureListenerRegistered() {
+        if (listenerRegistered) return;
+        synchronized (RecipeViewGui.class) {
+            if (listenerRegistered) return;
+            Bukkit.getPluginManager().registerEvents(new EventDispatcher(), plugin);
+            listenerRegistered = true;
+        }
+    }
+
+    public static class EventDispatcher implements Listener {
+        @EventHandler(priority = EventPriority.HIGHEST)
+        public void onClick(InventoryClickEvent event) {
+            if (event.getView().getTopInventory().getHolder() instanceof RecipeViewGui gui) {
+                gui.onClick(event);
+            }
+        }
+
+        @EventHandler(priority = EventPriority.HIGHEST)
+        public void onDrag(InventoryDragEvent event) {
+            if (event.getView().getTopInventory().getHolder() instanceof RecipeViewGui gui) {
+                gui.onDrag(event);
+            }
+        }
+
+        @EventHandler(priority = EventPriority.MONITOR)
+        public void onClose(InventoryCloseEvent event) {
+            if (event.getView().getTopInventory().getHolder() instanceof RecipeViewGui gui) {
+                gui.onClose(event);
+            }
+        }
+
+        @EventHandler(priority = EventPriority.MONITOR)
+        public void onPlayerQuit(PlayerQuitEvent event) {
+            RecipeViewGui gui = activeGuis.remove(event.getPlayer().getUniqueId());
+            if (gui != null && !gui.closed) {
+                gui.close();
+            }
+        }
     }
 
     public static RecipeViewGui getActiveGui(UUID playerId) {
         return activeGuis.get(playerId);
     }
 }
+

@@ -2,8 +2,10 @@
 .gradle/
 .gradle-user-home/
 build/
+bin/
 out/
 *.class
+*.jar
 
 .idea/
 *.iml

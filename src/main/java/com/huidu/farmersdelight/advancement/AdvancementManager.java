@@ -33,9 +33,11 @@ public class AdvancementManager {
         registerAdvancement("use_cutting_board", "main/use_cutting_board");
         registerAdvancement("plant_rice", "main/plant_rice");
         registerAdvancement("plant_all_crops", "main/plant_all_crops");
+        registerAdvancement("get_mushroom_colony", "main/get_mushroom_colony");
         registerAdvancement("get_ham", "main/get_ham");
         registerAdvancement("netherite_knife", "main/obtain_netherite_knife");
         registerAdvancement("rotten_tomato_throw", "main/hit_raider_with_rotten_tomato");
+        registerAdvancement("eat_comfort_food", "main/eat_comfort_food");
         registerAdvancement("eat_nourishing_food", "main/eat_nourishing_food");
         registerAdvancement("master_chef", "main/master_chef");
 
@@ -57,7 +59,7 @@ public class AdvancementManager {
 
         NamespacedKey key = advancementKeys.get(advancementId);
         if (key == null) {
-            if (plugin.getConfig().getBoolean("debug", false)) {
+            if (plugin.isDebugEnabled()) {
                 plugin.getLogger().info("Unknown advancement: " + advancementId);
             }
             return;
@@ -66,7 +68,7 @@ public class AdvancementManager {
         try {
             Advancement advancement = Bukkit.getAdvancement(key);
             if (advancement == null) {
-                if (plugin.getConfig().getBoolean("debug", false)) {
+                if (plugin.isDebugEnabled()) {
                     plugin.getLogger().info("Advancement not found: " + key);
                 }
                 return;
@@ -79,7 +81,7 @@ public class AdvancementManager {
                 }
             }
         } catch (Exception e) {
-            if (plugin.getConfig().getBoolean("debug", false)) {
+            if (plugin.isDebugEnabled()) {
                 plugin.getLogger().warning("Failed to award advancement " + advancementId + ": " + e.getMessage());
             }
         }
@@ -95,7 +97,7 @@ public class AdvancementManager {
 
         NamespacedKey key = advancementKeys.get(advancementId);
         if (key == null) {
-            if (plugin.getConfig().getBoolean("debug", false)) {
+            if (plugin.isDebugEnabled()) {
                 plugin.getLogger().info("Unknown advancement: " + advancementId);
             }
             return;
@@ -104,7 +106,7 @@ public class AdvancementManager {
         try {
             Advancement advancement = Bukkit.getAdvancement(key);
             if (advancement == null) {
-                if (plugin.getConfig().getBoolean("debug", false)) {
+                if (plugin.isDebugEnabled()) {
                     plugin.getLogger().info("Advancement not found: " + key);
                 }
                 return;
@@ -115,7 +117,7 @@ public class AdvancementManager {
                 progress.awardCriteria(criterion);
             }
         } catch (Exception e) {
-            if (plugin.getConfig().getBoolean("debug", false)) {
+            if (plugin.isDebugEnabled()) {
                 plugin.getLogger().warning("Failed to award advancement criterion "
                         + advancementId + "/" + criterion + ": " + e.getMessage());
             }
@@ -138,7 +140,7 @@ public class AdvancementManager {
                 progress.revokeCriteria(criteria);
             }
         } catch (Exception e) {
-            if (plugin.getConfig().getBoolean("debug", false)) {
+            if (plugin.isDebugEnabled()) {
                 plugin.getLogger().warning("Failed to revoke advancement " + advancementId + ": " + e.getMessage());
             }
         }
@@ -166,3 +168,4 @@ public class AdvancementManager {
         load();
     }
 }
+

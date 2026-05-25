@@ -2,6 +2,7 @@ messages:
   cutting_board:
     no_recipe: "&c这个物品没有可用的砧板配方。"
     need_tool: "&c你需要正确的工具来处理这个物品。"
+    wrong_tool: "&c工具不匹配，请使用正确的工具。"
 crop:
   invalid_soil: "&c该作物貌似需要种在指定方块上..."
   need_water: "&c该作物貌似需要种在水中..."
@@ -43,8 +44,8 @@ gui:
     more_items: "&7以及另外 {count} 个"
     no_matching_items: "没有找到匹配物品"
     unknown: "未知"
-  packed_pot:
-    contains: "包含 {amount} 份 {item}"
+  cooking_pot:
+    pending_container_hint: "&7容器: &f{container}"
 command:
   player_only: "&c这个命令只能由玩家执行。"
   help_title: "<gradient:gold:yellow>=== FarmersDelight ===</gradient>"
@@ -54,7 +55,30 @@ command:
   help_cleanup: "清理插件生成的物品展示实体"
   cleanup_done: "&a清理完成，移除了 {count} 个实体。"
 effects:
+  comfort:
+    start: "&6温热的料理让你恢复精神，效果将持续 {time}"
+    fade: "&e舒适感正在逐渐消退，剩余 {seconds} 秒"
+    end: "&7温暖舒适的感觉消退了"
   nourishment:
     start: "&6丰富的料理让你暂时不会感到饥饿，效果将持续 {time}"
     fade: "&e饱腹感正在逐渐消退，剩余 {seconds} 秒"
     end: "&7你再次感到了饥饿"
+item:
+  farmersdelight:
+    raw_pasta: "生意面"
+    cabbage: "卷心菜"
+    cabbage_leaf: "卷心菜叶"
+    onion: "洋葱"
+    tomato: "番茄"
+    tomato_sauce: "番茄酱"
+    cooked_rice: "米饭"
+    mixed_salad: "混合沙拉"
+    vegetable_soup: "蔬菜汤"
+    fish_stew: "鱼肉炖菜"
+    fried_rice: "炒饭"
+    noodle_soup: "面条汤"
+    vegetable_noodles: "蔬菜面"
+    pasta_with_meatballs: "肉丸意面"
+    pasta_with_mutton_chop: "羊排意面"
+    dumplings: "饺子"
+    cabbage_rolls: "卷心菜卷"

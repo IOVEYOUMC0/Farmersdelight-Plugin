@@ -5,7 +5,9 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior;
 import com.huidu.farmersdelight.storage.BlockStorageManager;
+import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
+import fr.ateastudio.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -14,8 +16,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.CookingRecipe;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -30,21 +30,29 @@ public class SkilletManager {
     
     private static final int MIN_COOK_TIME = 60;
     private static final int HEARTBEAT_LOG_INTERVAL = 20;
+    private static final int DEFAULT_TICK_BUDGET = 512;
 
     private final FarmersDelightPlugin plugin;
     private final Map<Location, SkilletData> skillets = new ConcurrentHashMap<>();
+    private final Map<UUID, Set<Location>> skilletsByWorld = new ConcurrentHashMap<>();
+    private final Set<Location> scheduledSkilletTicks = ConcurrentHashMap.newKeySet();
     private final CampfireRecipeCache campfireRecipes = new CampfireRecipeCache("skillet", this::debug);
-    private BukkitTask tickTask;
+    private PluginTask tickTask;
     private int heartbeatTicks;
+    private int tickCursor;
+    private int tickBudget;
 
     public static class SkilletData {
         final Location location;
         ItemStack storedItem;
         ItemStack skilletStack;
+        ItemStack displayedItem;
         int cookingProgress = 0;
         int cookingDuration = Constants.DEFAULT_COOKING_TIME_SKILLET;
         CookingRecipe<?> currentRecipe;
         int fireAspectLevel = 0;
+        UUID ownerId;
+        String ownerName;
         final List<Integer> displayEntityIds = new ArrayList<>();
 
         SkilletData(Location location) {
@@ -58,7 +66,13 @@ public class SkilletManager {
 
     public SkilletManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
+        reloadConfig();
         campfireRecipes.rebuild();
+    }
+
+    public void reloadConfig() {
+        this.tickBudget = Math.max(1, plugin.getConfig().getInt(
+                "performance.skillet-tick-budget", DEFAULT_TICK_BUDGET));
     }
 
     private void ensureTaskRunning() {
@@ -66,12 +80,7 @@ public class SkilletManager {
             return;
         }
         debug("tick task: starting skillet tick task");
-        tickTask = new BukkitRunnable() {
-            @Override
-            public void run() {
-                tick();
-            }
-        }.runTaskTimer(plugin, 1L, 4L);
+        tickTask = plugin.scheduler().runRepeating(this::tick, 1L, 4L);
     }
 
     private void stopTaskIfIdle() {
@@ -86,7 +95,18 @@ public class SkilletManager {
     public SkilletData getOrCreateSkillet(Location location) {
         ensureTaskRunning();
         Location normalized = ManagerSupport.normalize(location);
-        return skillets.computeIfAbsent(normalized, SkilletData::new);
+        SkilletData existing = skillets.get(normalized);
+        if (existing != null) {
+            return existing;
+        }
+
+        SkilletData created = new SkilletData(normalized);
+        SkilletData previous = skillets.putIfAbsent(normalized, created);
+        if (previous != null) {
+            return previous;
+        }
+        indexSkillet(normalized);
+        return created;
     }
 
     public void recordPlacedSkillet(Location location, ItemStack skilletItem) {
@@ -169,6 +189,8 @@ public class SkilletManager {
                     + ", storedBefore=" + formatItem(skillet.storedItem) + ", input=" + formatItem(heldItem)
                     + ", location=" + formatLocation(location));
             skillet.storedItem.setAmount(skillet.storedItem.getAmount() + toMove);
+            skillet.ownerId = player.getUniqueId();
+            skillet.ownerName = player.getName();
             debug("create state: stacked item now=" + formatItem(skillet.storedItem)
                     + ", recipe=" + skillet.currentRecipe.getKey() + ", location=" + formatLocation(location));
             createVisual(location, skillet);
@@ -209,6 +231,8 @@ public class SkilletManager {
         skillet.currentRecipe = recipe;
         skillet.cookingDuration = getAdjustedCookingTime(recipe.getCookingTime(), skillet.fireAspectLevel);
         skillet.cookingProgress = 0;
+        skillet.ownerId = player.getUniqueId();
+        skillet.ownerName = player.getName();
         debug("create state: stored=" + formatItem(toPlace) + ", recipe=" + recipe.getKey()
                 + ", duration=" + skillet.cookingDuration + ", fireAspect=" + skillet.fireAspectLevel
                 + ", location=" + formatLocation(location));
@@ -267,7 +291,7 @@ public class SkilletManager {
             return true;
         }
 
-        return plugin.getConfig().getStringList("knife-config.items").contains(customItemId);
+        return plugin.isKnifeItemId(customItemId);
     }
 
     private boolean isSkilletItem(ItemStack item) {
@@ -285,7 +309,7 @@ public class SkilletManager {
 
     public void breakSkillet(Location blockLocation, Location dropLocation, boolean shouldDropItems) {
         Location normalized = ManagerSupport.normalize(blockLocation);
-        SkilletData skillet = skillets.remove(normalized);
+        SkilletData skillet = removeTrackedSkillet(normalized);
         if (skillet != null) {
             cleanupVisual(skillet);
             if (shouldDropItems && skillet.storedItem != null && !skillet.storedItem.getType().isAir()) {
@@ -313,16 +337,55 @@ public class SkilletManager {
     }
 
     public void saveWorldData(World world) {
-        ManagerSupport.saveWorldData(skillets, world, this::saveSkillet);
+        if (world == null) {
+            return;
+        }
+        Set<Location> locations = skilletsByWorld.get(world.getUID());
+        if (locations == null || locations.isEmpty()) {
+            return;
+        }
+        for (Location location : locations) {
+            SkilletData skillet = skillets.get(location);
+            if (skillet != null) {
+                saveSkillet(location, skillet);
+            }
+        }
     }
 
     public void cleanupWorld(UUID worldId) {
-        ManagerSupport.cleanupWorld(skillets, worldId, this::cleanupVisual);
+        Set<Location> locations = skilletsByWorld.remove(worldId);
+        if (locations == null || locations.isEmpty()) {
+            return;
+        }
+
+        for (Location location : locations) {
+            SkilletData skillet = skillets.remove(location);
+            if (skillet != null) {
+                scheduledSkilletTicks.remove(location);
+                cleanupVisual(skillet);
+            }
+        }
+        stopTaskIfIdle();
     }
 
     public void saveAndUnloadChunk(World world, int minX, int maxX, int minZ, int maxZ) {
-        ManagerSupport.saveAndUnloadChunk(skillets, world, minX, maxX, minZ, maxZ,
-                this::saveSkillet, location -> removeSkillet(location, false));
+        if (world == null) {
+            return;
+        }
+        Set<Location> locations = skilletsByWorld.get(world.getUID());
+        if (locations == null || locations.isEmpty()) {
+            return;
+        }
+        for (Location location : locations) {
+            if (location.getBlockX() >= minX && location.getBlockX() <= maxX
+                    && location.getBlockZ() >= minZ && location.getBlockZ() <= maxZ) {
+                SkilletData skillet = skillets.get(location);
+                if (skillet != null) {
+                    saveSkillet(location, skillet);
+                }
+                removeSkillet(location, false);
+            }
+        }
     }
 
     public void loadSkillet(World world, net.momirealms.craftengine.core.world.BlockPos pos, Map<String, Object> data) {
@@ -355,12 +418,22 @@ public class SkilletManager {
         if (data.get("cookingDuration") instanceof Number duration) {
             skillet.cookingDuration = duration.intValue();
         }
+        if (data.get("ownerId") instanceof String ownerId) {
+            try {
+                skillet.ownerId = UUID.fromString(ownerId);
+            } catch (IllegalArgumentException ignored) {
+                skillet.ownerId = null;
+            }
+        }
+        if (data.get("ownerName") instanceof String ownerName) {
+            skillet.ownerName = ownerName;
+        }
         if (skillet.storedItem != null && !skillet.storedItem.getType().isAir()) {
             skillet.currentRecipe = findCampfireRecipe(skillet.storedItem);
             createVisual(location, skillet);
         }
         if (shouldPersistSkillet(skillet)) {
-            skillets.put(location, skillet);
+            putSkillet(location, skillet);
             ensureTaskRunning();
         } else {
             removeStoredData(location);
@@ -399,6 +472,8 @@ public class SkilletManager {
             cleanupVisual(skillet);
         }
         skillets.clear();
+        skilletsByWorld.clear();
+        scheduledSkilletTicks.clear();
     }
 
     public Collection<Location> getTrackedLocations(World world) {
@@ -406,10 +481,23 @@ public class SkilletManager {
             return List.of();
         }
 
-        List<Location> result = new ArrayList<>();
-        for (Location loc : skillets.keySet()) {
-            if (world.equals(loc.getWorld())) {
-                result.add(loc.clone());
+        Set<Location> indexed = skilletsByWorld.get(world.getUID());
+        if (indexed == null || indexed.isEmpty()) {
+            return List.of();
+        }
+
+        List<Location> result = new ArrayList<>(indexed.size());
+        for (Location loc : indexed) {
+            result.add(loc.clone());
+        }
+        return result;
+    }
+
+    public Collection<Location> getTrackedLocations() {
+        List<Location> result = new ArrayList<>(skillets.size());
+        for (Location location : skillets.keySet()) {
+            if (location != null && location.getWorld() != null) {
+                result.add(location.clone());
             }
         }
         return result;
@@ -419,9 +507,50 @@ public class SkilletManager {
         campfireRecipes.rebuild();
     }
 
+    private SkilletData putSkillet(Location location, SkilletData skillet) {
+        Location normalized = ManagerSupport.normalize(location);
+        SkilletData previous = skillets.put(normalized, skillet);
+        indexSkillet(normalized);
+        return previous;
+    }
+
+    private SkilletData removeTrackedSkillet(Location location) {
+        Location normalized = ManagerSupport.normalize(location);
+        SkilletData removed = skillets.remove(normalized);
+        if (removed != null) {
+            scheduledSkilletTicks.remove(normalized);
+            deindexSkillet(normalized);
+        }
+        return removed;
+    }
+
+    private void indexSkillet(Location location) {
+        if (location == null || location.getWorld() == null) {
+            return;
+        }
+        skilletsByWorld
+                .computeIfAbsent(location.getWorld().getUID(), ignored -> ConcurrentHashMap.newKeySet())
+                .add(location);
+    }
+
+    private void deindexSkillet(Location location) {
+        if (location == null || location.getWorld() == null) {
+            return;
+        }
+        UUID worldId = location.getWorld().getUID();
+        Set<Location> locations = skilletsByWorld.get(worldId);
+        if (locations == null) {
+            return;
+        }
+        locations.remove(location);
+        if (locations.isEmpty()) {
+            skilletsByWorld.remove(worldId);
+        }
+    }
+
     private void removeSkillet(Location location, boolean removeStoredData) {
         Location normalized = ManagerSupport.normalize(location);
-        SkilletData skillet = skillets.remove(normalized);
+        SkilletData skillet = removeTrackedSkillet(normalized);
         if (skillet != null) {
             cleanupVisual(skillet);
         }
@@ -453,52 +582,89 @@ public class SkilletManager {
             heartbeatTicks = 0;
             debug(() -> "tick heartbeat: activeSkillets=" + skillets.size());
         }
-        Iterator<Map.Entry<Location, SkilletData>> it = skillets.entrySet().iterator();
+        List<Map.Entry<Location, SkilletData>> snapshot = List.copyOf(skillets.entrySet());
+        int size = snapshot.size();
+        int budget = Math.min(tickBudget, size);
+        int start = tickCursor >= size ? 0 : tickCursor;
 
-        while (it.hasNext()) {
-            Map.Entry<Location, SkilletData> entry = it.next();
+        for (int processed = 0; processed < budget; processed++) {
+            Map.Entry<Location, SkilletData> entry = snapshot.get((start + processed) % size);
             Location location = entry.getKey();
             SkilletData skillet = entry.getValue();
-
-            World world = location.getWorld();
-            if (world == null) continue;
-            if (!world.isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4)) continue;
-            if (!skillet.hasItem()) {
-                if (!hasPlacedSkillet(skillet)) {
-                    debug(() -> "tick remove: skillet has no base item snapshot and no stored food at " + formatLocation(location));
-                    removeStoredData(location);
-                    it.remove();
-                }
+            if (skillets.get(location) != skillet) {
                 continue;
             }
 
-            ensureVisualsExist(location, skillet);
-
-            boolean hasHeat = hasHeatSource(location);
-            debug(() -> "tick state: hasHeat=" + hasHeat + ", progress=" + skillet.cookingProgress
-                    + "/" + skillet.cookingDuration + ", recipe="
-                    + (skillet.currentRecipe != null ? skillet.currentRecipe.getKey() : "null")
-                    + ", stored=" + formatItem(skillet.storedItem) + ", location=" + formatLocation(location)
-                    + ", fireAspectLevel=" + skillet.fireAspectLevel);
-            if (hasHeat && skillet.currentRecipe != null) {
-                skillet.cookingProgress++;
-
-                if (Math.random() < Constants.SKILLET_PARTICLE_CHANCE) {
-                    spawnCookingParticles(location);
-                }
-                if (Math.random() < Constants.SKILLET_SIZZLE_CHANCE) {
-                    SoundUtils.play(world, location, getSizzleSound(location), Sound.BLOCK_CAMPFIRE_CRACKLE, 0.5f, 1.0f);
-                }
-                if (skillet.cookingProgress >= skillet.cookingDuration) {
-                    debug(() -> "tick finish: progress reached duration for " + formatItem(skillet.storedItem)
-                            + " at " + formatLocation(location));
-                    finishCooking(location, skillet);
-                }
-            } else {
-                skillet.cookingProgress = Math.max(0, skillet.cookingProgress - 2);
-            }
+            scheduleSkilletTick(location, skillet);
         }
+        tickCursor = size == 0 ? 0 : (start + Math.max(1, budget)) % size;
         stopTaskIfIdle();
+    }
+
+    private void scheduleSkilletTick(Location location, SkilletData skillet) {
+        if (!plugin.scheduler().isFolia()) {
+            tickSkillet(location, skillet);
+            return;
+        }
+
+        if (!scheduledSkilletTicks.add(location)) {
+            return;
+        }
+        try {
+            plugin.scheduler().runAt(location, () -> {
+                try {
+                    tickSkillet(location, skillet);
+                } finally {
+                    scheduledSkilletTicks.remove(location);
+                }
+            });
+        } catch (RuntimeException e) {
+            scheduledSkilletTicks.remove(location);
+        }
+    }
+
+    private void tickSkillet(Location location, SkilletData skillet) {
+        if (skillets.get(location) != skillet) {
+            return;
+        }
+
+        World world = location.getWorld();
+        if (world == null) return;
+        if (!world.isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4)) return;
+        if (!skillet.hasItem()) {
+            if (!hasPlacedSkillet(skillet)) {
+                debug(() -> "tick remove: skillet has no base item snapshot and no stored food at " + formatLocation(location));
+                removeStoredData(location);
+                removeTrackedSkillet(location);
+            }
+            return;
+        }
+
+        ensureVisualsExist(location, skillet);
+
+        boolean hasHeat = hasHeatSource(location);
+        debug(() -> "tick state: hasHeat=" + hasHeat + ", progress=" + skillet.cookingProgress
+                + "/" + skillet.cookingDuration + ", recipe="
+                + (skillet.currentRecipe != null ? skillet.currentRecipe.getKey() : "null")
+                + ", stored=" + formatItem(skillet.storedItem) + ", location=" + formatLocation(location)
+                + ", fireAspectLevel=" + skillet.fireAspectLevel);
+        if (hasHeat && skillet.currentRecipe != null) {
+            skillet.cookingProgress++;
+
+            if (Math.random() < Constants.SKILLET_PARTICLE_CHANCE) {
+                spawnCookingParticles(location);
+            }
+            if (Math.random() < Constants.SKILLET_SIZZLE_CHANCE) {
+                SoundUtils.play(world, location, getSizzleSound(location), Sound.BLOCK_CAMPFIRE_CRACKLE, 0.5f, 1.0f);
+            }
+            if (skillet.cookingProgress >= skillet.cookingDuration) {
+                debug(() -> "tick finish: progress reached duration for " + formatItem(skillet.storedItem)
+                        + " at " + formatLocation(location));
+                finishCooking(location, skillet);
+            }
+        } else {
+            skillet.cookingProgress = Math.max(0, skillet.cookingProgress - 2);
+        }
     }
 
     private boolean hasHeatSource(Location location) {
@@ -506,6 +672,10 @@ public class SkilletManager {
 
         if (plugin.getHeatSourceConfig().isHeatSource(blockBelow)) {
             return true;
+        }
+
+        if (!plugin.isSkilletConductorsAllowed()) {
+            return false;
         }
 
         if (plugin.getHeatSourceConfig().isConductor(blockBelow)) {
@@ -522,7 +692,7 @@ public class SkilletManager {
             debug("finish cooking: skipped because block is no longer a skillet at " + formatLocation(location));
             cleanupVisual(skillet);
             ManagerSupport.removeStoredData(plugin, location);
-            skillets.remove(location);
+            removeTrackedSkillet(location);
             stopTaskIfIdle();
             return;
         }
@@ -531,6 +701,15 @@ public class SkilletManager {
         debug("finish cooking: result=" + formatItem(result) + ", storedBefore=" + formatItem(skillet.storedItem)
                 + ", location=" + formatLocation(location));
         if (result != null) {
+            if (skillet.ownerId != null) {
+                Bukkit.getPluginManager().callEvent(new ProfessionCookingExperienceEvent(
+                        skillet.ownerId,
+                        skillet.ownerName,
+                        "skillet",
+                        result,
+                        skillet.currentRecipe.getExperience()
+                ));
+            }
             Block block = location.getBlock();
             BlockFace facing = CustomBlockUtils.getFacing(block);
             BlockFace clockwise = getClockWise(facing);
@@ -548,6 +727,8 @@ public class SkilletManager {
         if (skillet.storedItem.getAmount() <= 0) {
             skillet.storedItem = null;
             skillet.currentRecipe = null;
+            skillet.ownerId = null;
+            skillet.ownerName = null;
             cleanupVisual(skillet);
         } else {
             createVisual(location, skillet);
@@ -606,26 +787,41 @@ public class SkilletManager {
     }
 
     private void createVisual(Location location, SkilletData skillet) {
-        cleanupVisual(skillet);
         if (skillet.storedItem == null || skillet.storedItem.getType().isAir()) {
             debug("spawn display: skipped empty stored item at " + formatLocation(location));
+            cleanupVisual(skillet);
             return;
+        }
+
+        ItemStack visualItem = skillet.storedItem.clone();
+        visualItem.setAmount(1);
+        boolean itemChanged = skillet.displayedItem == null || !skillet.displayedItem.isSimilar(visualItem);
+        if (itemChanged) {
+            cleanupVisual(skillet);
+            skillet.displayedItem = visualItem;
         }
 
         int displayCount = getModelCount(skillet.storedItem);
         Random random = new Random(getVisualSeed(skillet.storedItem));
         BlockFace facing = CustomBlockUtils.getFacing(location.getBlock());
         float yRotation = CustomBlockUtils.getYRotation(facing);
-        debug("spawn display: preparing " + displayCount + " displays for " + formatItem(skillet.storedItem)
+        debug("spawn display: target " + displayCount + " displays for " + formatItem(skillet.storedItem)
                 + " at " + formatLocation(location));
 
-        for (int i = 0; i < displayCount; i++) {
+        while (skillet.displayEntityIds.size() > displayCount) {
+            int entityId = skillet.displayEntityIds.remove(skillet.displayEntityIds.size() - 1);
+            ItemDisplayManager visualManager = plugin.getItemDisplayManager();
+            if (visualManager != null) {
+                visualManager.destroyDisplay(entityId);
+            }
+        }
+
+        for (int i = skillet.displayEntityIds.size(); i < displayCount; i++) {
             double offsetX = displayCount == 1 ? 0 : (random.nextDouble() - 0.5D) * 0.3D;
             double offsetZ = displayCount == 1 ? 0 : (random.nextDouble() - 0.5D) * 0.3D;
             double offsetY = 0.1D + ((i + 1) * 0.03D);
 
-            ItemStack visualItem = skillet.storedItem.clone();
-            visualItem.setAmount(1);
+            ItemStack stackForDisplay = visualItem.clone();
 
             Quaternionf leftRotation = new Quaternionf();
             leftRotation.rotationYXZ(
@@ -641,7 +837,7 @@ public class SkilletManager {
                     new Quaternionf()
             );
 
-            ItemDisplayManager visualManager = plugin.getFakeItemDisplayManager();
+            ItemDisplayManager visualManager = plugin.getItemDisplayManager();
             if (visualManager == null || !visualManager.isAvailable()) {
                 debug("spawn display: visual manager unavailable at " + formatLocation(location));
                 continue;
@@ -650,13 +846,13 @@ public class SkilletManager {
             Location displayLoc = location.clone().add(0.5 + offsetX, offsetY, 0.5 + offsetZ);
             int displayId = visualManager.createDisplay(new ItemDisplayManager.DisplaySpec(
                     displayLoc,
-                    visualItem,
+                    stackForDisplay,
                     org.bukkit.entity.ItemDisplay.ItemDisplayTransform.FIXED,
                     transformation
             ));
             if (displayId >= 0) {
                 skillet.displayEntityIds.add(displayId);
-                debug("spawn display: entityId=" + displayId + ", index=" + i + ", item=" + formatItem(visualItem)
+                debug("spawn display: entityId=" + displayId + ", index=" + i + ", item=" + formatItem(stackForDisplay)
                         + ", location=" + formatLocation(location));
             }
         }
@@ -709,12 +905,14 @@ public class SkilletManager {
 
     private void cleanupVisual(SkilletData skillet) {
         if (skillet.displayEntityIds.isEmpty()) {
+            skillet.displayedItem = null;
             return;
         }
 
-        ItemDisplayManager visualManager = plugin.getFakeItemDisplayManager();
+        ItemDisplayManager visualManager = plugin.getItemDisplayManager();
         if (visualManager == null) {
             skillet.displayEntityIds.clear();
+            skillet.displayedItem = null;
             return;
         }
 
@@ -722,6 +920,7 @@ public class SkilletManager {
             visualManager.destroyDisplay(entityId);
         }
         skillet.displayEntityIds.clear();
+        skillet.displayedItem = null;
     }
 
     private void ensureVisualsExist(Location location, SkilletData skillet) {
@@ -767,6 +966,12 @@ public class SkilletManager {
             data.put("storedItem", skillet.storedItem.clone());
             data.put("cookingProgress", skillet.cookingProgress);
             data.put("cookingDuration", skillet.cookingDuration);
+            if (skillet.ownerId != null) {
+                data.put("ownerId", skillet.ownerId.toString());
+            }
+            if (skillet.ownerName != null) {
+                data.put("ownerName", skillet.ownerName);
+            }
         }
         if (skillet.skilletStack != null && !skillet.skilletStack.getType().isAir()) {
             data.put("skilletStack", skillet.skilletStack.clone());

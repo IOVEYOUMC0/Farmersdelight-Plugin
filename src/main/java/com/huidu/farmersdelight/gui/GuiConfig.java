@@ -1,10 +1,12 @@
 package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.util.ItemUtils;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
-import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -327,6 +329,9 @@ public class GuiConfig {
         private final List<String> lore;
         private final String nameKey;
         private final List<String> loreKeys;
+        private volatile ItemStack cachedNoPlaceholders;
+        private volatile ItemStack cachedCustomBase;
+        private volatile Boolean cachedCustomBaseIsReal;
 
         public GuiItem(Material material, Key customItemId, String name, List<String> lore) {
             this(material, customItemId, null, name, lore);
@@ -356,8 +361,11 @@ public class GuiConfig {
             Material material = null;
             if (materialName != null && !materialName.isEmpty()) {
                 try {
-                    material = Material.valueOf(materialName.toUpperCase());
-                } catch (IllegalArgumentException e) {
+                    material = Registry.MATERIAL.get(NamespacedKey.minecraft(materialName.toLowerCase()));
+                } catch (Exception e) {
+                    material = Material.GRAY_STAINED_GLASS_PANE;
+                }
+                if (material == null) {
                     material = Material.GRAY_STAINED_GLASS_PANE;
                 }
             }
@@ -395,8 +403,11 @@ public class GuiConfig {
             Object materialValue = map.get("material");
             if (materialValue != null) {
                 try {
-                    material = Material.valueOf(materialValue.toString().toUpperCase());
-                } catch (IllegalArgumentException ignored) {
+                    material = Registry.MATERIAL.get(NamespacedKey.minecraft(materialValue.toString().toLowerCase()));
+                } catch (Exception ignored) {
+                    material = Material.GRAY_STAINED_GLASS_PANE;
+                }
+                if (material == null) {
                     material = Material.GRAY_STAINED_GLASS_PANE;
                 }
             }
@@ -481,28 +492,13 @@ public class GuiConfig {
         }
 
         public ItemStack createItem(Map<String, String> placeholders) {
-            ItemStack item;
-            boolean builtFromCustomItem = false;
-
-            if (customItemId != null) {
-                BukkitItemManager itemManager = BukkitItemManager.instance();
-                item = itemManager.buildCustomItemStack(customItemId, null);
-                if (item == null) {
-                    Material resolvedMaterial = material;
-                    if (resolvedMaterial == null) {
-                        resolvedMaterial = Material.GRAY_STAINED_GLASS_PANE;
-                    }
-                    item = new ItemStack(resolvedMaterial);
-                } else {
-                    builtFromCustomItem = true;
-                }
-            } else {
-                    Material resolvedMaterial = material;
-                    if (resolvedMaterial == null) {
-                        resolvedMaterial = Material.GRAY_STAINED_GLASS_PANE;
-                    }
-                    item = new ItemStack(resolvedMaterial);
+            if (placeholders.isEmpty()) {
+                ItemStack cached = cachedNoPlaceholders;
+                if (cached != null) return cached.clone();
             }
+
+            ItemStack item = resolveBaseItem();
+            boolean builtFromCustomItem = (customItemId != null && cachedCustomBaseIsReal != null && cachedCustomBaseIsReal);
 
             org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
             if (meta == null) {
@@ -533,7 +529,42 @@ public class GuiConfig {
             }
 
             item.setItemMeta(meta);
+            if (placeholders.isEmpty()) {
+                cachedNoPlaceholders = item.clone();
+            }
             return item;
+        }
+
+        private ItemStack resolveBaseItem() {
+            if (customItemId == null) {
+                Material resolvedMaterial = material;
+                if (resolvedMaterial == null) {
+                    resolvedMaterial = Material.GRAY_STAINED_GLASS_PANE;
+                }
+                return new ItemStack(resolvedMaterial);
+            }
+
+            ItemStack base = cachedCustomBase;
+            if (base == null) {
+                synchronized (this) {
+                    base = cachedCustomBase;
+                    if (base == null) {
+                        base = ItemUtils.createItem(customItemId);
+                        if (base != null) {
+                            cachedCustomBaseIsReal = Boolean.TRUE;
+                        } else {
+                            Material resolvedMaterial = material;
+                            if (resolvedMaterial == null) {
+                                resolvedMaterial = Material.GRAY_STAINED_GLASS_PANE;
+                            }
+                            base = new ItemStack(resolvedMaterial);
+                            cachedCustomBaseIsReal = Boolean.FALSE;
+                        }
+                        cachedCustomBase = base;
+                    }
+                }
+            }
+            return base.clone();
         }
 
         private void applyCustomModelData(ItemMeta meta, Integer customModelData) {
@@ -576,3 +607,4 @@ public class GuiConfig {
         }
     }
 }
+

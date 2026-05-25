@@ -3,12 +3,13 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.WorldGuardCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
-import net.momirealms.craftengine.core.block.CustomBlock;
+import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
-import net.momirealms.craftengine.core.block.properties.Property;
-import net.momirealms.craftengine.core.util.HorizontalDirection;
+import net.momirealms.craftengine.core.block.property.Property;
+import net.momirealms.craftengine.core.util.Direction;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.GameMode;
 import org.bukkit.block.Block;
@@ -48,8 +49,11 @@ public class SkilletPlaceListener implements Listener {
         if (!canReplace(targetBlock)) {
             return;
         }
+        if (!WorldGuardCompat.canBuild(player, targetBlock)) {
+            return;
+        }
 
-        CustomBlock skilletBlock = CraftEngineBlocks.byId(SKILLET_BLOCK_ID);
+        BlockDefinition skilletBlock = CraftEngineBlocks.byId(SKILLET_BLOCK_ID);
         if (skilletBlock == null) {
             return;
         }
@@ -105,22 +109,23 @@ public class SkilletPlaceListener implements Listener {
             return null;
         }
         Property<?> facingProperty = state.owner().value().getProperty("facing");
-        if (facingProperty == null || facingProperty.valueClass() != HorizontalDirection.class) {
+        if (facingProperty == null || facingProperty.valueClass() != Direction.class) {
             return state;
         }
-        HorizontalDirection direction = toHorizontalDirection(playerFacing);
+        Direction direction = toDirection(playerFacing);
         if (direction == null) {
             return state;
         }
-        return state.with((Property<HorizontalDirection>) facingProperty, direction);
+        return state.with((Property<Direction>) facingProperty, direction);
     }
 
-    private HorizontalDirection toHorizontalDirection(BlockFace face) {
+    private Direction toDirection(BlockFace face) {
         return switch (face) {
-            case SOUTH -> HorizontalDirection.SOUTH;
-            case EAST -> HorizontalDirection.EAST;
-            case WEST -> HorizontalDirection.WEST;
-            default -> HorizontalDirection.NORTH;
+            case SOUTH -> Direction.SOUTH;
+            case EAST -> Direction.EAST;
+            case WEST -> Direction.WEST;
+            default -> Direction.NORTH;
         };
     }
 }
+

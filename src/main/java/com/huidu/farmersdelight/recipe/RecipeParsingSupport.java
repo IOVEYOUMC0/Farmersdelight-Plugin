@@ -61,3 +61,4 @@ final class RecipeParsingSupport {
     record ParsedKey(Key key, Set<Key> excludedItems, Set<Key> excludedTags) {
     }
 }
+

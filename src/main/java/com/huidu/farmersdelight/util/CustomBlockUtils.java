@@ -3,7 +3,7 @@ package com.huidu.farmersdelight.util;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
-import net.momirealms.craftengine.core.block.properties.Property;
+import net.momirealms.craftengine.core.block.property.Property;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -179,3 +179,4 @@ public final class CustomBlockUtils {
         };
     }
 }
+

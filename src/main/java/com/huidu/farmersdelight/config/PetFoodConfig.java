@@ -82,8 +82,23 @@ public class PetFoodConfig {
         }
 
         definition.particleCount = section.getInt("particle-count", 5);
+        loadTemptDefinition(section, definition);
 
         return definition;
+    }
+
+    private void loadTemptDefinition(ConfigurationSection section, PetFoodDefinition definition) {
+        ConfigurationSection temptSection = section.getConfigurationSection("tempt");
+        if (temptSection == null) {
+            return;
+        }
+
+        definition.temptEnabled = temptSection.getBoolean("enabled", false);
+        definition.temptRange = Math.max(1.0D, temptSection.getDouble("range", 10.0D));
+        definition.temptRangeSquared = definition.temptRange * definition.temptRange;
+        definition.temptMoveSpeed = Math.max(0.1D, temptSection.getDouble("move-speed", 1.25D));
+        definition.temptTickInterval = Math.max(1L, temptSection.getLong("tick-interval", 10L));
+        definition.temptIgnoreOwnedTamed = temptSection.getBoolean("ignore-owned-tamed", true);
     }
 
     private void loadEffectDefinitions(ConfigurationSection section, PetFoodDefinition definition) {
@@ -194,6 +209,10 @@ public class PetFoodConfig {
         return petFoods.get(foodId);
     }
 
+    public Map<String, PetFoodDefinition> getFoodDefinitions() {
+        return Collections.unmodifiableMap(petFoods);
+    }
+
     public static class PetFoodDefinition {
         public final Set<EntityType> entities = new HashSet<>();
         public final List<EffectDefinition> effects = new ArrayList<>();
@@ -205,9 +224,16 @@ public class PetFoodConfig {
         public boolean particles = true;
         public Particle particleType = Particle.END_ROD;
         public int particleCount = 5;
+        public boolean temptEnabled = false;
+        public double temptRange = 10.0D;
+        public double temptRangeSquared = 100.0D;
+        public double temptMoveSpeed = 1.25D;
+        public long temptTickInterval = 10L;
+        public boolean temptIgnoreOwnedTamed = true;
     }
 
     public record EffectDefinition(PotionEffectType type, int duration, int amplifier, boolean ambient,
                                    boolean particles) {
     }
 }
+

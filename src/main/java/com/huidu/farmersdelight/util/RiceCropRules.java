@@ -147,3 +147,4 @@ public final class RiceCropRules {
         return isValidSoil(block.getRelative(BlockFace.DOWN), cropId);
     }
 }
+

@@ -1,69 +1,62 @@
-# ========================================
-# FarmersDelight Plugin Configuration
-# ========================================
+# FarmersDelight 配置
+# 常用选项排在前面。GUI 布局、按钮和贴图请编辑 gui.yml。
+# 物品 ID 支持 CraftEngine 物品和原版物品，例如 farmersdelight:flint_knife、minecraft:bowl。
+# 可选物品输出可写成 ""、none、null、empty、air、minecraft:air 来清空。
 
-# Language
-language: zh_cn
+# 服务端日志和控制台文本语言。
+# 留空会跟随 JVM/系统语言；可填 zh_cn、en_us 强制指定。
+# 这里只影响插件日志、控制台文本和无玩家上下文的文本；玩家 GUI/消息仍优先使用玩家客户端语言。
+language: ''
 
-# Advancement system
+# 进度系统。关闭后不会同步内置进度数据包。
 advancements:
   enabled: true
 
-# Storage settings
+# 方块数据自动保存间隔，单位秒。
 storage:
-  # Auto-save interval in seconds
   auto-save-interval: 300
 
-# Extra drops when using knives on certain mobs
-knife-drops:
-  pig:
-    normal: farmersdelight:ham
-    burning: farmersdelight:smoked_ham
-    chance: 0.5
-    looting-multiplier: 0.1
-  hoglin:
-    normal: farmersdelight:ham
-    burning: farmersdelight:smoked_ham
-    chance: 0.5
-    looting-multiplier: 0.1
-  cow:
-    normal: minecraft:leather
-    chance: 1.0
-  mooshroom:
-    normal: minecraft:leather
-    chance: 1.0
-  donkey:
-    normal: minecraft:leather
-    chance: 1.0
-  horse:
-    normal: minecraft:leather
-    chance: 1.0
-  mule:
-    normal: minecraft:leather
-    chance: 1.0
-  llama:
-    normal: minecraft:leather
-    chance: 1.0
-  trader_llama:
-    normal: minecraft:leather
-    chance: 1.0
-  chicken:
-    normal: minecraft:feather
-    chance: 1.0
-  spider:
-    normal: minecraft:string
-    chance: 1.0
-  cave_spider:
-    normal: minecraft:string
-    chance: 1.0
-  rabbit:
-    normal: minecraft:rabbit_hide
-    chance: 1.0
-  shulker:
-    normal: minecraft:shulker_shell
-    chance: 1.0
+# 性能预算。世界、实体、粒子和发包相关 API 仍在主线程执行；这些选项用于把高频维护分批摊开。
+performance:
+  # 每 4 tick 最多处理多少个活跃厨锅。调大响应更快，调小压测时更稳。
+  cooking-pot-tick-budget: 512
+  # 每 4 tick 最多处理多少个活跃炉灶。
+  stove-tick-budget: 512
+  # 每 4 tick 最多处理多少个活跃煎锅。
+  skillet-tick-budget: 512
+  # 代理 ItemDisplay 可见性同步间隔和每批处理数量。影响煎锅/炉灶食物显示的远近可见性维护。
+  proxy-item-display-view-distance: 64.0
+  proxy-item-display-sync-interval-ticks: 20
+  proxy-item-display-sync-batch-size: 256
 
-# Knife identification
+# 漏斗与插件方块的原版容器交互。
+# enabled=false 时完全关闭插件方块的漏斗容器桥接，避免漏斗吞物品、重复创建容器或写入异常。
+# 当前默认关闭；需要测试厨锅/砧板漏斗时再开启，并建议先在测试服验证。
+hopper-interactions:
+  enabled: false
+  cooking-pot: true
+  cutting-board: true
+
+# 砧板交互。
+cutting-board:
+  # 砧板交互模式：
+  # stacking = 启用 64 堆叠，关闭副手交互
+  # offhand  = 启用副手交互，关闭 64 堆叠
+  interaction-mode: stacking
+  # Per-item visual overrides for the item shown on cutting boards.
+  # Keys are stored item ids. Values follow CraftEngine-style vector syntax.
+  # Example:
+  # display-overrides:
+  #   farmersdelight:tomato:
+  #     display-item: farmersdelight:tomato_display
+  #     style: item
+  #     position: 0,0.02,0
+  #     translation: 0,0,0
+  #     rotation: 90,180,0
+  #     scale: 0.55
+  display-overrides: {}
+
+# 小刀识别。建议同时保留标签和具体物品，标签用于 CE 资源侧扩展，具体物品用于兜底。
 knife-config:
   tags:
     - farmersdelight:knives
@@ -74,45 +67,58 @@ knife-config:
     - farmersdelight:diamond_knife
     - farmersdelight:netherite_knife
 
-# Heat source settings used by cooking blocks
+# 厨锅烹饪中的悬浮显示。
+cooking-pot-progress-display:
+  # false 只显示进度/状态；true 会额外显示正在烹饪的配方名。
+  show-recipe-name: false
+
+# 热源判定。厨锅和煎锅都会用到，煎锅的漏斗导热可单独关闭。
 heat-sources:
+  # CraftEngine 自定义方块标签。CE 方块配置里给方块加上该 tag 后会被视为热源。
   tags:
     - farmersdelight:heat_sources
+  # 原版方块 ID。
   vanilla-blocks:
     - minecraft:magma_block
     - minecraft:lava_cauldron
     - minecraft:lava
     - minecraft:fire
     - minecraft:soul_fire
+  # 原版方块标签。minecraft:campfires 会只接受已点燃的营火。
   vanilla-tags:
     - minecraft:campfires
+  # CraftEngine 自定义方块 ID，可带状态条件。
+  # 写法示例: namespace:block 或 namespace:block[key:value,key2:value2]
   custom-blocks:
     - farmersdelight:stove[fire:true]
+  # 原版导热方块。厨锅可隔着这些方块找热源。
   conductors:
     - minecraft:hopper
+  # CraftEngine 导热方块标签。
+  conductor-tags: []
+  skillet:
+    # 原模组煎锅不通过漏斗传导热量，默认关闭。
+    allow-conductors: false
 
-# Tray auto-placement settings
+# 厨锅打开时自动放置的托盘家具，用于承载 CE 显示效果。
 tray:
+  # true = 打开/同步厨锅时自动确保下方托盘存在；false = 不自动生成托盘，厨锅内容显示可能不完整。
   enabled: true
-  tray-block-id: "farmersdelight:tray"
+  # CraftEngine 托盘方块/家具 ID。资源侧改名后这里也要同步修改。
+  tray-block-id: farmersdelight:tray
+  # 托盘相对厨锅方块坐标的偏移，通常不用改。
   x-offset: 0.5
-  y-offset: -0.4
+  y-offset: -1.0
   z-offset: 0.5
+  # true = 只有支撑方块不是完整方块时才自动放托盘，用于避免覆盖普通实体方块。
   require-non-full-support: true
-  marker-key: "auto_tray_marker"
+  # 托盘批量同步间隔和每批处理数量。TPS 紧张时可调大间隔或调小 batch。
+  sync-interval-ticks: 100
+  sync-batch-size: 32
+  # 托盘标记键，已放置世界不建议随意修改；改了会导致旧托盘无法被识别为自动托盘。
+  marker-key: auto_tray_marker
 
-# Cooking pot packed-drop behavior
-cooking-pot-packed-drop:
-  enabled: true
-  durability-bar:
-    enabled: true
-
-# Cooking pot progress display settings
-cooking-pot-progress-display:
-  # Whether to show the recipe name in the progress display above the pot
-  show-recipe-name: false
-
-# Cooking pot world animation effects
+# 厨锅世界粒子效果。
 cooking-pot-effects:
   bubble:
     enabled: true
@@ -144,7 +150,81 @@ cooking-pot-effects:
       offset-z: 0.0
       speed: 0.02
 
-# Straw drops when using knives on blocks
+# 使用小刀击杀成年生物时的额外掉落。
+# normal 是普通掉落，burning 是目标燃烧时的掉落，chance 是基础概率，looting-multiplier 是每级抢夺增加概率。
+knife-drops:
+  pig:
+    normal: farmersdelight:ham
+    burning: farmersdelight:smoked_ham
+    chance: 0.5
+    looting-multiplier: 0.1
+  hoglin:
+    normal: farmersdelight:ham
+    burning: farmersdelight:smoked_ham
+    chance: 0.5
+    looting-multiplier: 0.1
+  cow:
+    normal: minecraft:leather
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  mooshroom:
+    normal: minecraft:leather
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  donkey:
+    normal: minecraft:leather
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  horse:
+    normal: minecraft:leather
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  mule:
+    normal: minecraft:leather
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  llama:
+    normal: minecraft:leather
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  trader_llama:
+    normal: minecraft:leather
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  chicken:
+    normal: minecraft:feather
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  spider:
+    normal: minecraft:string
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  cave_spider:
+    normal: minecraft:string
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  rabbit:
+    normal: minecraft:rabbit_hide
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  shulker:
+    normal: minecraft:shulker_shell
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+
+# 使用小刀破坏草、成熟小麦、成熟水稻时额外掉落草秆。
 straw-drops:
   short_grass:
     drop: farmersdelight:straw
@@ -163,243 +243,9 @@ straw-drops:
     min-amount: 1
     max-amount: 2
 
-# Cooking pot GUI
-cooking-pot-gui:
-  title: "<white><offset><icon><shift:-1600>烹饪锅"
-  fillers-enabled: true
-  title-layout:
-    craftengine:
-      offset: "<shift:-8>"
-      icon: "<image:farmersdelight:cooking_pot_gui>"
-  rows: 3
-
-  layout:
-    - "XIIIXPXBX"
-    - "RIIIXXXXX"
-    - "XXHXXCXOX"
-
-  legend:
-    I: ingredient
-    H: heat
-    C: container
-    P: progress
-    B: buffer
-    O: output
-    R: recipe
-    X: decoration
-    " ": background
-
-  items:
-    background:
-      material: GRAY_STAINED_GLASS_PANE
-      name: " "
-    decoration:
-      material: BROWN_STAINED_GLASS_PANE
-      name: " "
-    heat-active:
-      item: farmersdelight:cooking_pot_heated
-    heat-inactive:
-      item: farmersdelight:cooking_pot_not_heated
-    progress:
-      item: farmersdelight:cooking_time
-      name: "烹饪时长"
-      lore:
-        - "剩余: {time} 秒"
-    recipe:
-      material: KNOWLEDGE_BOOK
-      name: "查看烹饪配方"
-      lore:
-        - "点击此处查看配方"
-
-  progress-items:
-    - item: farmersdelight:0
-    - item: farmersdelight:1
-    - item: farmersdelight:2
-    - item: farmersdelight:3
-    - item: farmersdelight:4
-    - item: farmersdelight:5
-    - item: farmersdelight:6
-    - item: farmersdelight:7
-    - item: farmersdelight:8
-    - item: farmersdelight:9
-    - item: farmersdelight:10
-    - item: farmersdelight:11
-    - item: farmersdelight:12
-    - item: farmersdelight:13
-    - item: farmersdelight:14
-    - item: farmersdelight:15
-    - item: farmersdelight:16
-    - item: farmersdelight:17
-    - item: farmersdelight:18
-    - item: farmersdelight:19
-    - item: farmersdelight:20
-
-  sounds:
-    cooking-complete: BLOCK_BREWING_STAND_BREW
-
-  particles:
-    cooking:
-      enabled: true
-      type: DUST
-      color: "173,216,230"
-      size: 0.5
-      count: 3
-      offset-x: 0.15
-      offset-y: 0.15
-      offset-z: 0.15
-      speed: 0.02
-
-# Recipe viewer GUI
-recipe-view-gui:
-  # Toggle all decorative background/filler items in the recipe viewer.
-  background-items-enabled: true
-  # Show raw namespace ids for single-item ingredients. Useful for debugging recipes.
-  show-ingredient-ids: false
-
-  main-menu:
-    title: "<white>农夫乐事"
-    rows: 3
-
-    layout:
-      - "#########"
-      - "##C###D##"
-      - "####B####"
-
-    legend:
-      C: cooking_pot
-      D: cutting_board
-      B: back
-      X: background
-      "#": background
-
-    items:
-      background:
-        material: GRAY_STAINED_GLASS_PANE
-        name: " "
-      cooking_pot:
-        material: CAULDRON
-        name: "烹饪锅配方"
-        lore:
-          - "点击此处查看配方"
-      cutting_board:
-        material: BAMBOO_MOSAIC
-        name: "砧板配方"
-        lore:
-          - "点击此处查看配方"
-      back:
-        material: BARRIER
-        name: "关闭页面"
-
-  recipe-list:
-    title: "<white><offset><icon><shift:-1600>配方列表 <gray>{page}/{total}</gray>"
-    rows: 6
-    title-layout:
-      craftengine:
-        offset: "<shift:-7>"
-        icon: "<image:farmersdelight:recipelist>"
-
-    layout:
-      - "P###B###N"
-      - "RRRRRRRRR"
-      - "RRRRRRRRR"
-      - "RRRRRRRRR"
-      - "RRRRRRRRR"
-      - "RRRRRRRRR"
-
-    legend:
-      R: recipe
-      P: prev_page
-      N: next_page
-      B: back
-      X: info
-      "#": background
-
-    items:
-      background:
-        material: GRAY_STAINED_GLASS_PANE
-        name: " "
-      prev_page:
-        material: ARROW
-        name: "上一页"
-      next_page:
-        material: ARROW
-        name: "下一页"
-      back:
-        material: BARRIER
-        name: "返回"
-      info:
-        material: BOOK
-        name: "配方查看"
-        lore:
-          - "页数: {page}/{total}"
-
-  recipe-detail-cooking-pot:
-    title: "<white><offset><icon><shift:-1600>配方详细"
-    rows: 6
-    title-layout:
-      craftengine:
-        offset: "<shift:-8>"
-        icon: "<image:farmersdelight:cooking_pot_menu>"
-
-    layout:
-      - "B########"
-      - "#####A###"
-      - "#III#####"
-      - "#III#####"
-      - "#####C#R#"
-      - "#########"
-
-    legend:
-      R: result
-      I: ingredient
-      A: arrow
-      C: container
-      B: back
-      "#": background
-
-    items:
-      background:
-        material: GRAY_STAINED_GLASS_PANE
-        name: " "
-      arrow:
-        material: PLAYER_HEAD
-        name: "->"
-      back:
-        material: ARROW
-        name: "返回"
-
-  recipe-detail-cutting-board:
-    title: "<white><offset><icon><shift:-1600>配方详细"
-    rows: 6
-    title-layout:
-      craftengine:
-        offset: "<shift:-8>"
-        icon: "<image:farmersdelight:cutting_board_menu>"
-
-    layout:
-      - "B########"
-      - "#########"
-      - "#########"
-      - "#I#T#RR##"
-      - "#####RR##"
-      - "#########"
-
-    legend:
-      I: input
-      R: result
-      T: tool
-      B: back
-      "#": background
-
-    items:
-      background:
-        material: GRAY_STAINED_GLASS_PANE
-        name: " "
-      back:
-        material: ARROW
-        name: "返回"
-
-# Pet food settings
+# 宠物食物。玩家右键对应实体时给予效果，可继续按同格式添加更多食物。
+# 每个键都是物品 ID，支持 CraftEngine 物品和原版物品。
+# 如果某个食物只想用于“手持吸引”而不想右键消耗，可以把 restore-health 设为 false、effects 写 []，仍然保留 sound/particles 或按需关闭。
 pet-foods:
   farmersdelight:dog_food:
     entities:
@@ -410,14 +256,12 @@ pet-foods:
       - type: SPEED
         duration: 6000
         amplifier: 0
+        ambient: false
         particles: true
       - type: STRENGTH
         duration: 6000
         amplifier: 0
-        particles: true
-      - type: RESISTANCE
-        duration: 6000
-        amplifier: 0
+        ambient: false
         particles: true
     sound: ENTITY_GENERIC_EAT
     sound-volume: 0.8
@@ -425,34 +269,61 @@ pet-foods:
     particles: true
     particle-type: END_ROD
     particle-count: 5
-
   farmersdelight:horse_feed:
+    # Bukkit EntityType 名称。可按同格式加入 LLAMA、CAMEL 等实体；写错会在日志中跳过。
     entities:
       - HORSE
-      - SKELETON_HORSE
-      - ZOMBIE_HORSE
       - DONKEY
       - MULE
-      - LLAMA
-    require-tamed: true
+    # true = 右键喂食时要求目标已经被驯服；false = 未驯服实体也能触发右键食物效果。
+    require-tamed: false
     restore-health: true
-    effects:
-      - type: SPEED
-        duration: 6000
-        amplifier: 1
-        particles: true
-      - type: JUMP_BOOST
-        duration: 6000
-        amplifier: 0
-        particles: true
-    sound: ENTITY_HORSE_EAT
+    effects: []
+    sound: ENTITY_GENERIC_EAT
     sound-volume: 0.8
     sound-pitch: 0.8
     particles: true
-    particle-type: END_ROD
-    particle-count: 5
+    particle-type: HEART
+    particle-count: 4
+    # 手持该食物时吸引上方 entities 中的实体靠近。
+    tempt:
+      # false = 该食物不参与手持吸引，只保留右键喂食效果。
+      enabled: true
+      # 吸引搜索半径，单位方块。
+      range: 10.0
+      # Pathfinder 移动速度倍率，太高会显得实体移动不自然。
+      move-speed: 1.25
+      # 吸引任务间隔，单位 tick。10 tick = 0.5 秒；调大可降低开销但响应会慢一些。
+      tick-interval: 10
+      # true = 已驯服且主人就是当前玩家的马不会被自己的马食继续拉扯。
+      ignore-owned-tamed: true
 
-# Nourishment effect settings
+# 舒适效果。默认关闭；开启后吃下列表食物会给玩家 Comfort。
+comfort-foods:
+  enabled: false
+  foods:
+    farmersdelight:apple_cider:
+      duration: 300
+    farmersdelight:glow_berry_custard:
+      duration: 300
+    farmersdelight:pumpkin_pie:
+      duration: 300
+    farmersdelight:hot_cocoa:
+      duration: 300
+    farmersdelight:baked_cod_stew:
+      duration: 300
+    minecraft:rabbit_stew:
+      duration: 300
+    farmersdelight:pasta_with_meatballs:
+      duration: 300
+    farmersdelight:pasta_with_mutton_chop:
+      duration: 300
+    farmersdelight:dumplings:
+      duration: 300
+    farmersdelight:cabbage_rolls:
+      duration: 300
+
+# 营养效果。默认关闭；开启后吃下列表食物会给玩家 Nourishment。
 nourishment-foods:
   enabled: false
   foods:
@@ -471,27 +342,12 @@ nourishment-foods:
     farmersdelight:fried_rice:
       duration: 300
 
-# Returned containers after cooking
+# 食物吃完或厨锅消耗容器后返还的物品。
+# 例如牛奶瓶被消耗后返还玻璃瓶。写 "" 可禁用某一项返还。
 container-returns:
   farmersdelight:milk_bottle: minecraft:glass_bottle
 
-# Rope climbing
-rope:
-  # Whether players can climb ropes by pressing jump.
-  climb-enabled: true
-  # This radius (0.0 ~ 0.5) determines how close the player must be to the rope center to count as "climbing".
-  # Larger values are more forgiving.
-  climb-reach: 0.5
-
-# Debug mode
-debug:
-  enabled: false
-  categories:
-    - interact-probe
-    - stove
-    - skillet
-
-# Display settings for stove and skillet item visuals
+# 世界中显示物品的缩放。
 display-visuals:
   skillet:
     scale: 0.5

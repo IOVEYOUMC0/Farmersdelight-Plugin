@@ -3,10 +3,13 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntity;
 import com.huidu.farmersdelight.manager.StoveManager;
+import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
-import com.huidu.farmersdelight.util.CookingPotItemDataHelper;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockAttemptPlaceEvent;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockPlaceEvent;
 import net.momirealms.craftengine.core.entity.player.InteractionHand;
@@ -19,7 +22,6 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitTask;
 
 import java.util.Map;
 import java.util.Set;
@@ -33,6 +35,7 @@ public class BlockPlaceListener implements Listener {
             Constants.BLOCK_STUFFED_PUMPKIN,
             Constants.BLOCK_HONEY_GLAZED_HAM,
             Constants.BLOCK_SHEPHERDS_PIE,
+            Constants.BLOCK_GLEAMING_SALAD,
             Constants.BLOCK_RICE_ROLL_MEDLEY
     );
     private static final Map<Material, String> VANILLA_CROP_CRITERIA = Map.ofEntries(
@@ -55,7 +58,15 @@ public class BlockPlaceListener implements Listener {
             Map.entry(Material.CAVE_VINES_PLANT, "glow_berries")
     );
     private static final Map<PlacedItemKey, ItemStack> pendingPlacedItems = new ConcurrentHashMap<>();
-    private static BukkitTask cleanupTask;
+    private static PluginTask cleanupTask;
+
+    public static void cleanup() {
+        if (cleanupTask != null) {
+            cleanupTask.cancel();
+            cleanupTask = null;
+        }
+        pendingPlacedItems.clear();
+    }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
@@ -138,10 +149,16 @@ public class BlockPlaceListener implements Listener {
 
         if (customBlockId.equals(Constants.BLOCK_COOKING_POT)) {
             CookingPotBlockBehavior.markRecentlyPlaced(blockLocation);
-            if (CookingPotItemDataHelper.isEnabled() && placedItem != null && !placedItem.getType().isAir()) {
-                CookingPotItemDataHelper.restorePackedData(blockLocation, placedItem);
-            }
+            CookingPotBlockBehavior.getOrCreateBlockEntity(blockLocation);
             am.award(player, "place_cooking_pot");
+        }
+
+        if (customBlockId.equals(Constants.BLOCK_CUTTING_BOARD)) {
+            CuttingBoardBlockBehavior.putBlockEntity(
+                    blockLocation.getWorld(),
+                    new BlockPosKey(blockLocation),
+                    new CuttingBoardBlockEntity(new BlockPosKey(blockLocation), blockLocation.getWorld())
+            );
         }
 
         if (customBlockId.equals(Constants.BLOCK_SKILLET)) {
@@ -213,8 +230,7 @@ public class BlockPlaceListener implements Listener {
             return;
         }
 
-        cleanupTask = FarmersDelightPlugin.getInstance().getServer().getScheduler().runTaskLater(
-                FarmersDelightPlugin.getInstance(),
+        cleanupTask = FarmersDelightPlugin.getInstance().scheduler().runLater(
                 () -> {
                     pendingPlacedItems.clear();
                     cleanupTask = null;
@@ -226,3 +242,4 @@ public class BlockPlaceListener implements Listener {
     private record PlacedItemKey(UUID playerId, InteractionHand hand, String blockId) {
     }
 }
+

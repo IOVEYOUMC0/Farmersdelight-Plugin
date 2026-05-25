@@ -2,11 +2,11 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.util.CraftEngineAdapter;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
-import net.momirealms.craftengine.core.block.CustomBlock;
+import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
-import net.momirealms.craftengine.core.block.properties.Property;
+import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.BlockPos;
@@ -23,6 +23,19 @@ import java.util.Optional;
 import java.util.concurrent.Callable;
 
 public class TatamiPairingBehavior extends BlockBehavior {
+
+    @Override
+    public boolean isPathFindable(Object thisBlock, Object[] args) {
+        return false;
+    }
+
+    @Override
+    public void fallOn(Object thisBlock, Object[] args) {
+    }
+
+    @Override
+    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
+    }
     private static volatile String tatamiBlockId = "farmersdelight:tatami";
     private static volatile String facingPropertyName = "facing";
     private static volatile String pairedPropertyName = "paired";
@@ -31,7 +44,7 @@ public class TatamiPairingBehavior extends BlockBehavior {
     private final Property<Boolean> pairedProperty;
     private final boolean pairWhileSneaking;
 
-    private TatamiPairingBehavior(CustomBlock block, Property<?> facingProperty, Property<Boolean> pairedProperty, boolean pairWhileSneaking) {
+    private TatamiPairingBehavior(BlockDefinition block, Property<?> facingProperty, Property<Boolean> pairedProperty, boolean pairWhileSneaking) {
         super(block);
         this.facingProperty = facingProperty;
         this.pairedProperty = pairedProperty;
@@ -41,7 +54,8 @@ public class TatamiPairingBehavior extends BlockBehavior {
     @SuppressWarnings("unchecked")
     public static final BlockBehaviorFactory<TatamiPairingBehavior> FACTORY = new BlockBehaviorFactory<TatamiPairingBehavior>() {
         @Override
-        public TatamiPairingBehavior create(CustomBlock block, Map<String, Object> arguments) {
+        public TatamiPairingBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
+            Map<String, Object> arguments = section != null ? section.values() : Map.of();
             tatamiBlockId = getString(arguments, "block-id", tatamiBlockId);
             facingPropertyName = getString(arguments, "facing-property", facingPropertyName);
             pairedPropertyName = getString(arguments, "paired-property", pairedPropertyName);
@@ -55,11 +69,11 @@ public class TatamiPairingBehavior extends BlockBehavior {
     };
 
     @Override
-    public void placeMultiState(Object thisBlock, Object[] args, Callable<Object> superMethod) throws Exception {
+    public void placeMultiState(Object thisBlock, Object[] args) {
         if (args.length >= 5) {
             World world = CraftEngineAdapter.toWorld(args[0]);
             if (!(args[1] instanceof BlockPos pos) || world == null) {
-                superMethod.call();
+                
                 return;
             }
 
@@ -69,7 +83,7 @@ public class TatamiPairingBehavior extends BlockBehavior {
             Block block = world.getBlockAt(pos.x(), pos.y(), pos.z());
             ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
             if (state == null || state.isEmpty() || player == null || (player.isSneaking() && !pairWhileSneaking)) {
-                superMethod.call();
+                
                 return;
             }
 
@@ -78,7 +92,7 @@ public class TatamiPairingBehavior extends BlockBehavior {
                 CraftEngineBlocks.place(block.getLocation(), state.with(pairedProperty, true), false);
             }
         }
-        superMethod.call();
+        
     }
 
     private boolean pairWithNeighbor(World world, BlockPos pos, ImmutableBlockState state) {
@@ -255,3 +269,4 @@ public class TatamiPairingBehavior extends BlockBehavior {
         return defaultValue;
     }
 }
+

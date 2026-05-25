@@ -133,6 +133,18 @@
         }
       }
     },
+    "onion_soup": {
+      "trigger": "minecraft:consume_item",
+      "conditions": {
+        "item": {
+          "components": {
+            "minecraft:custom_data": {
+              "craftengine:id": "farmersdelight:onion_soup"
+            }
+          }
+        }
+      }
+    },
     "bacon_and_eggs": {
       "trigger": "minecraft:consume_item",
       "conditions": {
@@ -300,6 +312,18 @@
           }
         }
       }
+    },
+    "gleaming_salad": {
+      "trigger": "minecraft:consume_item",
+      "conditions": {
+        "item": {
+          "components": {
+            "minecraft:custom_data": {
+              "craftengine:id": "farmersdelight:gleaming_salad"
+            }
+          }
+        }
+      }
     }
   },
   "requirements": [
@@ -335,6 +359,9 @@
     ],
     [
       "noodle_soup"
+    ],
+    [
+      "onion_soup"
     ],
     [
       "bacon_and_eggs"
@@ -377,6 +404,9 @@
     ],
     [
       "shepherds_pie"
+    ],
+    [
+      "gleaming_salad"
     ]
   ],
   "display": {

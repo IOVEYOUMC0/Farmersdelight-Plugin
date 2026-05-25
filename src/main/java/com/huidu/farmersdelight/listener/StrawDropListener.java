@@ -19,7 +19,6 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -55,24 +54,15 @@ public class StrawDropListener implements Listener {
     private boolean isKnife(ItemStack item) {
         if (item == null || item.getType() == Material.AIR) return false;
 
-        List<String> knifeItems = plugin.getConfig().getStringList("knife-config.items");
-        List<String> configuredKnifeTags = plugin.getConfig().getStringList("knife-config.tags");
-        List<String> knifeTags = configuredKnifeTags.isEmpty()
-                ? List.of(Constants.TAG_KNIVES)
-                : configuredKnifeTags;
-
         String customItemId = ItemUtils.getCustomItemId(item);
-        if (customItemId != null && knifeItems.contains(customItemId)) {
+        if (plugin.isKnifeItemId(customItemId)) {
             return true;
         }
 
         if (customItemId != null) {
-            var customItem = plugin.getCraftEngine().itemManager().getCustomItem(Key.of(customItemId)).orElse(null);
-            if (customItem != null) {
-                Set<Key> itemTags = customItem.settings().tags();
-                return itemTags.stream().anyMatch(tag ->
-                        knifeTags.stream().anyMatch(knifeTag -> tag.toString().equalsIgnoreCase(knifeTag)));
-            }
+            Set<Key> itemTags = ItemUtils.getCustomItemTags(Key.of(customItemId));
+            return itemTags.stream().anyMatch(tag ->
+                    plugin.getKnifeTagIds().stream().anyMatch(knifeTag -> tag.toString().equalsIgnoreCase(knifeTag)));
         }
 
         return false;
@@ -134,10 +124,8 @@ public class StrawDropListener implements Listener {
         
         Key dropKey = Key.of(rule.getDropItem());
         
-        var customItem = plugin.getCraftEngine().itemManager().getCustomItem(dropKey).orElse(null);
-        
-        if (customItem != null) {
-            ItemStack drop = customItem.buildItemStack();
+        ItemStack drop = ItemUtils.createItem(dropKey);
+        if (drop != null) {
             int minAmount = rule.getMinAmount();
             int maxAmount = rule.getMaxAmount();
             int amount = minAmount + ThreadLocalRandom.current().nextInt(maxAmount - minAmount + 1);
@@ -147,3 +135,4 @@ public class StrawDropListener implements Listener {
         }
     }
 }
+

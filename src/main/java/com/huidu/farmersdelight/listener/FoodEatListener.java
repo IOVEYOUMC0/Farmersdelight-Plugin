@@ -20,7 +20,9 @@ import java.util.Map;
 public class FoodEatListener implements Listener {
 
     private final FarmersDelightPlugin plugin;
+    private final Map<String, Integer> comfortFoodDurations = new HashMap<>();
     private final Map<String, Integer> nourishmentFoodDurations = new HashMap<>();
+    private boolean comfortFoodsEnabled;
     private boolean nourishmentFoodsEnabled;
 
     public FoodEatListener(FarmersDelightPlugin plugin) {
@@ -29,6 +31,36 @@ public class FoodEatListener implements Listener {
     }
 
     private void loadNourishmentFoods() {
+        comfortFoodDurations.clear();
+        ConfigurationSection comfortSection = plugin.getConfig().getConfigurationSection("comfort-foods");
+        comfortFoodsEnabled = comfortSection != null && comfortSection.getBoolean("enabled", false);
+        ConfigurationSection comfortFoodsSection = comfortSection != null
+                ? comfortSection.getConfigurationSection("foods")
+                : null;
+        if (comfortFoodsSection != null) {
+            for (String foodId : comfortFoodsSection.getKeys(false)) {
+                int duration = comfortFoodsSection.getInt(foodId + ".duration", Constants.DEFAULT_COMFORT_DURATION);
+                comfortFoodDurations.put(foodId, duration);
+            }
+        } else {
+            // Backward compatibility with the old plugin config shape:
+            // comfort-foods-enabled: false
+            // comfort-foods:
+            //   item_id:
+            //     duration: 300
+            comfortFoodsEnabled = plugin.getConfig().getBoolean("comfort-foods-enabled", comfortFoodsEnabled);
+            ConfigurationSection legacyComfortSection = plugin.getConfig().getConfigurationSection("comfort-foods");
+            if (legacyComfortSection != null) {
+                for (String foodId : legacyComfortSection.getKeys(false)) {
+                    if ("enabled".equalsIgnoreCase(foodId) || "foods".equalsIgnoreCase(foodId)) {
+                        continue;
+                    }
+                    int duration = legacyComfortSection.getInt(foodId + ".duration", Constants.DEFAULT_COMFORT_DURATION);
+                    comfortFoodDurations.put(foodId, duration);
+                }
+            }
+        }
+
         nourishmentFoodDurations.clear();
         ConfigurationSection nourishmentSection = plugin.getConfig().getConfigurationSection("nourishment-foods");
         nourishmentFoodsEnabled = nourishmentSection != null && nourishmentSection.getBoolean("enabled", false);
@@ -38,6 +70,14 @@ public class FoodEatListener implements Listener {
         if (foodsSection != null) {
             for (String foodId : foodsSection.getKeys(false)) {
                 int duration = foodsSection.getInt(foodId + ".duration", Constants.DEFAULT_NOURISHMENT_DURATION);
+                nourishmentFoodDurations.put(foodId, duration);
+            }
+        } else if (nourishmentSection != null) {
+            for (String foodId : nourishmentSection.getKeys(false)) {
+                if ("enabled".equalsIgnoreCase(foodId) || "foods".equalsIgnoreCase(foodId)) {
+                    continue;
+                }
+                int duration = nourishmentSection.getInt(foodId + ".duration", Constants.DEFAULT_NOURISHMENT_DURATION);
                 nourishmentFoodDurations.put(foodId, duration);
             }
         }
@@ -58,6 +98,17 @@ public class FoodEatListener implements Listener {
         if (itemId == null) return;
 
         AdvancementManager advancementManager = FarmersDelightPlugin.getInstance().getAdvancementManager();
+
+        if (comfortFoodDurations.containsKey(itemId)) {
+            if (comfortFoodsEnabled) {
+                int duration = comfortFoodDurations.get(itemId);
+                EffectManager.applyComfort(player, duration);
+            }
+
+            if (advancementManager != null) {
+                advancementManager.award(player, "eat_comfort_food");
+            }
+        }
 
         if (nourishmentFoodDurations.containsKey(itemId)) {
             if (nourishmentFoodsEnabled) {
@@ -84,3 +135,4 @@ public class FoodEatListener implements Listener {
         return "minecraft:" + type.name().toLowerCase();
     }
 }
+

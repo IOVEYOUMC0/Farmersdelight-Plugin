@@ -3,13 +3,16 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.*;
 import com.huidu.farmersdelight.util.Constants;
-import com.huidu.farmersdelight.util.CookingPotItemDataHelper;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
+import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockBreakEvent;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
+import net.momirealms.craftengine.core.item.Item;
+import net.momirealms.craftengine.core.item.component.DataComponentKeys;
 import net.momirealms.craftengine.core.world.BlockPos;
+import net.momirealms.craftengine.libraries.nbt.CompoundTag;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
@@ -60,7 +63,7 @@ public class BlockBreakListener implements Listener {
         if (isCookingPotBlock(event.blockState())) {
             boolean shouldDropItems = event.dropItems() && event.getPlayer().getGameMode() != GameMode.CREATIVE;
             event.setDropItems(false);
-            cleanupBlockAt(event.bukkitBlock(), CookingPotItemDataHelper.isEnabled(), shouldDropItems);
+            cleanupBlockAt(event.bukkitBlock(), false, shouldDropItems);
             return;
         }
         if (!isSkilletBlock(event.blockState())) {
@@ -128,60 +131,38 @@ public class BlockBreakListener implements Listener {
             return;
         }
 
-        if (preserveContents && shouldDropItems) {
-            ItemStack packedPot = CookingPotItemDataHelper.createPackedPotItem(entity);
-            if (packedPot == null || packedPot.getType().isAir()) {
-                dropCookingPotBaseItem(world, dropLocation);
-                ItemStack[] inventory = entity.getInventory();
-                for (int i = 0; i < inventory.length; i++) {
-                    ItemStack item = inventory[i];
-                    if (item != null && !item.getType().isAir()) {
-                        ItemStack drop = item.clone();
-                        float itemExperience = entity.getItemStoredExperience(item);
-                        if (itemExperience > 0f) {
-                            entity.dropExperience(world, itemExperience);
-                            entity.clearItemStoredExperience(drop);
-                        }
-                        world.dropItemNaturally(dropLocation, drop);
-                    }
-                }
-                CookingPotBlockBehavior.removeBlockEntity(world, pos);
-                return;
-            }
-            CookingPotBlockBehavior.removeBlockEntity(world, pos);
-
-            Bukkit.getScheduler().runTask(FarmersDelightPlugin.getInstance(), () -> {
-                world.dropItemNaturally(dropLocation, packedPot);
-            });
-            return;
-        }
-
         if (shouldDropItems) {
-            dropCookingPotBaseItem(world, dropLocation);
-            ItemStack[] inventory = entity.getInventory();
-            for (int i = 0; i < inventory.length; i++) {
-                ItemStack item = inventory[i];
-                if (item != null && !item.getType().isAir()) {
-                    ItemStack drop = item.clone();
-                    float itemExperience = entity.getItemStoredExperience(item);
-                    if (itemExperience > 0f) {
-                        entity.dropExperience(world, itemExperience);
-                        entity.clearItemStoredExperience(drop);
-                    }
-                    world.dropItemNaturally(dropLocation, drop);
-                }
-            }
+            dropCookingPotBaseItem(world, dropLocation, entity);
         }
         CookingPotBlockBehavior.removeBlockEntity(world, pos);
     }
 
     private void dropCookingPotBaseItem(World world, Location dropLocation) {
+        dropCookingPotBaseItem(world, dropLocation, null);
+    }
+
+    private void dropCookingPotBaseItem(World world, Location dropLocation, CookingPotBlockEntity entity) {
         ItemStack potItem = ItemUtils.createItem(Constants.BLOCK_COOKING_POT);
         if (potItem == null || potItem.getType().isAir()) {
             return;
         }
         potItem.setAmount(1);
-        world.dropItemNaturally(dropLocation, potItem);
+        if (entity == null || !entity.hasStoredContents()) {
+            world.dropItemNaturally(dropLocation, potItem);
+            return;
+        }
+
+        CookingPotBlockBehavior behavior = CookingPotBlockBehavior.getBlockBehavior(dropLocation);
+        if (behavior == null) {
+            world.dropItemNaturally(dropLocation, potItem);
+            return;
+        }
+
+        Item wrapped = BukkitItemManager.instance().wrap(potItem);
+        CompoundTag blockEntityData = new CompoundTag();
+        blockEntityData.put(behavior.getCustomDataKey(), CookingPotBlockEntityController.saveData(entity));
+        wrapped.setSparrowTagComponent(DataComponentKeys.BLOCK_ENTITY_DATA, blockEntityData);
+        world.dropItemNaturally(dropLocation, net.momirealms.craftengine.bukkit.util.ItemStackUtils.getBukkitStack(wrapped));
     }
 
     private void cleanupSkillet(Location blockLocation, Location dropLocation, boolean shouldDropItems) {
@@ -206,7 +187,7 @@ public class BlockBreakListener implements Listener {
 
     private void cleanupTatami(Location blockLocation) {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        Bukkit.getScheduler().runTaskLater(plugin, () -> TatamiPairingBehavior.refreshAdjacentTatami(blockLocation), 1L);
+        plugin.scheduler().runLaterAt(blockLocation, () -> TatamiPairingBehavior.refreshAdjacentTatami(blockLocation), 1L);
     }
 
     private boolean isManagedInteractiveBlock(ImmutableBlockState state) {
@@ -247,3 +228,4 @@ public class BlockBreakListener implements Listener {
         }
     }
 }
+

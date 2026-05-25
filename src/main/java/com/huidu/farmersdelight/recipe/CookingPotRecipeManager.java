@@ -158,12 +158,12 @@ public class CookingPotRecipeManager {
             return null;
         }
 
-        String cacheKey = buildCacheKey(nonEmptyInputs);
+        String cacheKey = buildCacheKey(nonEmptyInputs, container);
         CookingPotRecipe cached;
         synchronized (recipeCache) {
             cached = recipeCache.get(cacheKey);
         }
-        if (cached != null) {
+        if (cached != null && matchesContainer(cached, container)) {
             return cached;
         }
 
@@ -174,14 +174,15 @@ public class CookingPotRecipeManager {
         if (candidateRecipes != null && !candidateRecipes.isEmpty()) {
             for (String recipeId : candidateRecipes) {
                 CookingPotRecipe recipe = recipes.get(recipeId);
-                if (recipe != null && matchRecipe(recipe, nonEmptyInputs)) {
+                if (recipe != null && matchesContainer(recipe, container) && matchRecipe(recipe, nonEmptyInputs)) {
                     result = recipe;
                     break;
                 }
             }
-        } else {
+        }
+        if (result == null) {
             for (CookingPotRecipe recipe : recipes.values()) {
-                if (matchRecipe(recipe, nonEmptyInputs)) {
+                if (matchesContainer(recipe, container) && matchRecipe(recipe, nonEmptyInputs)) {
                     result = recipe;
                     break;
                 }
@@ -197,7 +198,7 @@ public class CookingPotRecipeManager {
         return result;
     }
 
-    private String buildCacheKey(List<ItemStack> inputs) {
+    private String buildCacheKey(List<ItemStack> inputs, ItemStack container) {
         List<String> keys = new ArrayList<>();
         for (ItemStack item : inputs) {
             keys.add(getItemKey(item) + ":" + item.getAmount());
@@ -208,28 +209,55 @@ public class CookingPotRecipeManager {
         for (String key : keys) {
             sb.append(key).append(";");
         }
+        sb.append("|container=").append(getItemKey(container));
         return sb.toString();
+    }
+
+    private boolean matchesContainer(CookingPotRecipe recipe, ItemStack container) {
+        if (!recipe.needsContainer()) {
+            return true;
+        }
+        if (container == null || container.getType().isAir()) {
+            return true;
+        }
+        ItemStack required = recipe.getContainer();
+        if (required == null || required.getType().isAir()) {
+            return true;
+        }
+        String requiredCustomId = ItemUtils.getCustomItemId(required);
+        String providedCustomId = ItemUtils.getCustomItemId(container);
+        if (requiredCustomId != null || providedCustomId != null) {
+            return requiredCustomId != null && requiredCustomId.equals(providedCustomId);
+        }
+        return required.isSimilar(container);
     }
 
     private Set<String> findCandidateRecipes(List<ItemStack> inputs) {
         Set<String> candidates = null;
         
         for (ItemStack item : inputs) {
-            String customId = ItemUtils.getCustomItemId(item);
-            String vanillaId = ItemUtils.getVanillaMaterialItemId(item);
             Set<String> recipesForItem = null;
-            
-            if (customId != null) {
-                recipesForItem = ingredientToRecipes.get(customId);
+
+            for (String itemId : ItemUtils.getItemIds(item)) {
+                Set<String> indexed = ingredientToRecipes.get(itemId);
+                if (indexed == null || indexed.isEmpty()) {
+                    continue;
+                }
+                if (recipesForItem == null) {
+                    recipesForItem = new HashSet<>(indexed);
+                } else {
+                    recipesForItem.addAll(indexed);
+                }
             }
-            
-            if (recipesForItem == null && vanillaId != null) {
-                recipesForItem = ingredientToRecipes.get(vanillaId);
-            } else if (recipesForItem != null && vanillaId != null) {
-                Set<String> vanillaRecipes = ingredientToRecipes.get(vanillaId);
-                if (vanillaRecipes != null && !vanillaRecipes.isEmpty()) {
-                    recipesForItem = new HashSet<>(recipesForItem);
-                    recipesForItem.addAll(vanillaRecipes);
+            for (String tagId : ItemUtils.getItemTagIds(item)) {
+                Set<String> indexed = ingredientToRecipes.get("#" + tagId);
+                if (indexed == null || indexed.isEmpty()) {
+                    continue;
+                }
+                if (recipesForItem == null) {
+                    recipesForItem = new HashSet<>(indexed);
+                } else {
+                    recipesForItem.addAll(indexed);
                 }
             }
             
@@ -278,16 +306,7 @@ public class CookingPotRecipeManager {
 
     private boolean matchIngredient(ItemStack item, RecipeIngredient ingredient) {
         if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
-            String customId = ItemUtils.getCustomItemId(item);
-            if (customId != null) {
-                if (customId.equals(itemIngredient.key().toString())) {
-                    return true;
-                }
-                String vanillaId = ItemUtils.getVanillaMaterialItemId(item);
-                return vanillaId != null && vanillaId.equals(itemIngredient.key().toString());
-            }
-            String vanillaId = ItemUtils.getVanillaMaterialItemId(item);
-            return vanillaId != null && vanillaId.equals(itemIngredient.key().toString());
+            return ItemUtils.matchesItemId(item, itemIngredient.key());
         } else if (ingredient instanceof RecipeIngredient.Choice choiceIngredient) {
             for (RecipeIngredient option : choiceIngredient.options()) {
                 if (matchIngredient(item, option)) {
@@ -298,25 +317,19 @@ public class CookingPotRecipeManager {
         } else if (ingredient instanceof RecipeIngredient.Tag tagIngredient) {
             String customId = ItemUtils.getCustomItemId(item);
             String vanillaId = ItemUtils.getVanillaMaterialItemId(item);
-            Key itemKey = customId != null
-                    ? Key.of(customId)
-                    : Key.of(vanillaId);
 
-            if (tagIngredient.excludedItems().contains(itemKey)) {
+            if (tagIngredient.excludedItems().stream().anyMatch(excluded -> ItemUtils.matchesItemId(item, excluded))) {
                 return false;
             }
 
-            if (customId != null) {
-                var customItem = plugin.getCraftEngine().itemManager()
-                        .getCustomItem(Key.of(customId)).orElse(null);
-                if (customItem != null && customItem.settings().tags().contains(tagIngredient.key())) {
-                    for (Key excludedTag : tagIngredient.excludedTags()) {
-                        if (customItem.settings().tags().contains(excludedTag)) {
-                            return false;
-                        }
+            Set<String> itemTags = ItemUtils.getItemTagIds(item);
+            if (itemTags.contains(tagIngredient.key().toString())) {
+                for (Key excludedTag : tagIngredient.excludedTags()) {
+                    if (itemTags.contains(excludedTag.toString())) {
+                        return false;
                     }
-                    return true;
                 }
+                return true;
             }
 
             var vanillaTags = plugin.getCraftEngine().itemManager()
@@ -376,3 +389,4 @@ public class CookingPotRecipeManager {
         }
     }
 }
+

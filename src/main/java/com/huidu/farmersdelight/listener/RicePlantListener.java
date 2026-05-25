@@ -10,11 +10,12 @@ import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.RiceCropRules;
+import com.huidu.farmersdelight.util.WorldGuardCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockBreakEvent;
-import net.momirealms.craftengine.core.block.CustomBlock;
+import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
-import net.momirealms.craftengine.core.block.properties.Property;
+import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.*;
 import org.bukkit.block.Block;
@@ -85,16 +86,16 @@ public class RicePlantListener implements Listener {
             if (isUpperHalfValue(half)) {
                 Block lowerBlock = brokenBlock.getWorld().getBlockAt(
                         brokenBlock.getX(), brokenBlock.getY() - 1, brokenBlock.getZ());
-                Bukkit.getScheduler().runTask(plugin, () -> resetLowerAfterUpperBreak(lowerBlock));
+                plugin.scheduler().runAt(lowerBlock.getLocation(), () -> resetLowerAfterUpperBreak(lowerBlock));
             } else {
-                Bukkit.getScheduler().runTask(plugin, () -> restoreRiceCarrierBlock(brokenBlock, half));
+                plugin.scheduler().runAt(brokenBlock.getLocation(), () -> restoreRiceCarrierBlock(brokenBlock, half));
             }
             return;
         }
 
         if (isWildRiceBlock(brokenState)) {
             String half = getPropertyString(brokenState, "half");
-            Bukkit.getScheduler().runTask(plugin, () -> restoreWildRiceCarrierBlock(brokenBlock, half));
+            plugin.scheduler().runAt(brokenBlock.getLocation(), () -> restoreWildRiceCarrierBlock(brokenBlock, half));
         }
     }
 
@@ -128,6 +129,10 @@ public class RicePlantListener implements Listener {
         Location plantLocation = findPlantLocation(clickedBlock);
         if (plantLocation == null) {
             sendInvalidPlacementMessage(player, event, clickedBlock);
+            event.setCancelled(true);
+            return;
+        }
+        if (!WorldGuardCompat.canBuild(player, plantLocation)) {
             event.setCancelled(true);
             return;
         }
@@ -184,6 +189,10 @@ public class RicePlantListener implements Listener {
 
         Location plantLocation = findPlantLocation(clickedBlock);
         if (plantLocation != null && canPlantWildRiceAt(plantLocation.getBlock())) {
+            if (!WorldGuardCompat.canBuild(player, plantLocation)) {
+                event.setCancelled(true);
+                return;
+            }
             if (!placeWildRice(plantLocation)) {
                 event.setCancelled(true);
                 return;
@@ -253,18 +262,41 @@ public class RicePlantListener implements Listener {
     }
 
     private Location findPlantLocation(Block clickedBlock) {
+        if (isRiceBlock(clickedBlock) || isWildRiceBlock(clickedBlock)) {
+            return null;
+        }
+
         if (RiceCropRules.isSourceWater(clickedBlock)) {
+            if (hasExistingRicePlant(clickedBlock)) {
+                return null;
+            }
             return clickedBlock.getLocation();
         }
 
         if (RiceCropRules.isValidSoil(clickedBlock)) {
             Block above = clickedBlock.getRelative(BlockFace.UP);
+            if (isRiceBlock(above) || isWildRiceBlock(above) || hasExistingRicePlant(above)) {
+                return null;
+            }
             if (RiceCropRules.isSourceWater(above)) {
                 return above.getLocation();
             }
         }
 
         return null;
+    }
+
+    private boolean hasExistingRicePlant(Block block) {
+        if (block == null) {
+            return false;
+        }
+
+        if (isRiceBlock(block) || isWildRiceBlock(block)) {
+            return true;
+        }
+
+        Block upper = block.getRelative(BlockFace.UP);
+        return isRiceBlock(upper) || isWildRiceBlock(upper);
     }
 
     private boolean canRiceStay(Block block, ImmutableBlockState state) {
@@ -346,7 +378,7 @@ public class RicePlantListener implements Listener {
         return "upper".equals(textValue) || "1".equals(textValue);
     }
 
-    private Object inferRiceHalfValue(CustomBlock block, String target) {
+    private Object inferRiceHalfValue(BlockDefinition block, String target) {
         if (block == null) {
             return target.toLowerCase();
         }
@@ -390,7 +422,7 @@ public class RicePlantListener implements Listener {
         return String.valueOf(value).trim().toLowerCase();
     }
 
-    private Property<Integer> getAgeProperty(CustomBlock block) {
+    private Property<Integer> getAgeProperty(BlockDefinition block) {
         if (block == null) {
             return null;
         }
@@ -408,7 +440,7 @@ public class RicePlantListener implements Listener {
             return null;
         }
 
-        CustomBlock block = state.owner().value();
+        BlockDefinition block = state.owner().value();
         return getAgeProperty(block);
     }
 
@@ -451,12 +483,12 @@ public class RicePlantListener implements Listener {
 
     private void scheduleRiceValidation(Block block) {
         Location location = block.getLocation();
-        Bukkit.getScheduler().runTask(plugin, () -> validateRiceAfterPhysics(location));
+        plugin.scheduler().runAt(location, () -> validateRiceAfterPhysics(location));
     }
 
     private void scheduleWildRiceValidation(Block block) {
         Location location = block.getLocation();
-        Bukkit.getScheduler().runTask(plugin, () -> validateWildRiceAfterPhysics(location));
+        plugin.scheduler().runAt(location, () -> validateWildRiceAfterPhysics(location));
     }
 
     private void validateRiceAfterPhysics(Location location) {
@@ -645,7 +677,7 @@ public class RicePlantListener implements Listener {
     }
 
     private boolean placeWildRice(Location location) {
-        CustomBlock wildRiceBlock = CraftEngineBlocks.byId(Key.of(WILD_RICE_BLOCK_ID));
+        BlockDefinition wildRiceBlock = CraftEngineBlocks.byId(Key.of(WILD_RICE_BLOCK_ID));
         if (wildRiceBlock == null) {
             return false;
         }
@@ -684,7 +716,7 @@ public class RicePlantListener implements Listener {
     }
 
     private boolean placeRice(Location location, boolean scheduleStabilization) {
-        CustomBlock riceBlock = CraftEngineBlocks.byId(Key.of(RICE_BLOCK_ID));
+        BlockDefinition riceBlock = CraftEngineBlocks.byId(Key.of(RICE_BLOCK_ID));
         if (riceBlock == null) {
             return false;
         }
@@ -735,7 +767,7 @@ public class RicePlantListener implements Listener {
         // CE may briefly rewrite the carrier block right after placement.
         // Keep only one stabilization chain per position and retry once if the
         // custom state is still settling on the next tick.
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+        plugin.scheduler().runLaterAt(location, () -> {
             pendingRiceStabilizations.remove(key);
             ensureRiceStable(location, attemptsRemaining);
         }, 1L);
@@ -815,3 +847,4 @@ public class RicePlantListener implements Listener {
         }
     }
 }
+

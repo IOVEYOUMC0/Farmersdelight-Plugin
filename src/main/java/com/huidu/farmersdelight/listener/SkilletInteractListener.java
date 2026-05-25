@@ -6,6 +6,7 @@ import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.InteractionDebouncer;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.WorldGuardCompat;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -72,6 +73,9 @@ public class SkilletInteractListener implements Listener {
         }
 
         if (!isSkilletBlock(ceBlockId)) {
+            return;
+        }
+        if (!WorldGuardCompat.canUse(player, block) || !WorldGuardCompat.canBuild(player, block)) {
             return;
         }
 
@@ -152,3 +156,4 @@ public class SkilletInteractListener implements Listener {
         return block.getType() == Material.TRIPWIRE;
     }
 }
+

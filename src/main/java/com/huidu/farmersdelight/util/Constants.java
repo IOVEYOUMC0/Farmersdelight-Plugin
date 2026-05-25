@@ -13,6 +13,9 @@ public final class Constants {
     public static final String ACTION_PICKAXE_DIG = "farmersdelight:pickaxe_dig";
     public static final String ACTION_SHOVEL_DIG = "farmersdelight:shovel_dig";
     public static final String ITEM_RICE = "farmersdelight:rice";
+    public static final String ITEM_CABBAGE_SEEDS = "farmersdelight:cabbage_seeds";
+    public static final String ITEM_TOMATO_SEEDS = "farmersdelight:tomato_seeds";
+    public static final String ITEM_ONION = "farmersdelight:onion";
     public static final String ITEM_RICE_PANICLE = "farmersdelight:rice_panicle";
     public static final String ITEM_WILD_RICE = "farmersdelight:wild_rice";
     public static final String ITEM_STRAW = "farmersdelight:straw";
@@ -43,6 +46,7 @@ public final class Constants {
     public static final String BLOCK_STUFFED_PUMPKIN = "farmersdelight:stuffed_pumpkin_block";
     public static final String BLOCK_HONEY_GLAZED_HAM = "farmersdelight:honey_glazed_ham_block";
     public static final String BLOCK_SHEPHERDS_PIE = "farmersdelight:shepherds_pie_block";
+    public static final String BLOCK_GLEAMING_SALAD = "farmersdelight:gleaming_salad_block";
     public static final String BLOCK_RICE_ROLL_MEDLEY = "farmersdelight:rice_roll_medley_block";
     public static final String BEHAVIOR_COOKING_POT = "farmersdelight:cooking_pot";
     public static final String BEHAVIOR_CUTTING_BOARD = "farmersdelight:cutting_board";
@@ -78,6 +82,7 @@ public final class Constants {
     public static final int SLOT_CUTTING_BOARD_OUTPUT = 1;
     public static final int DEFAULT_COOKING_TIME_SKILLET = 600;
     public static final int DEFAULT_COOKING_TIME_COOKING_POT = 200;
+    public static final int DEFAULT_COMFORT_DURATION = 300;
     public static final int DEFAULT_NOURISHMENT_DURATION = 300;
     public static final int MUSHROOM_COLONY_MAX_LIGHT = 13;
     public static final int STOVE_COOLDOWN_DECREMENT = 2;
@@ -93,3 +98,4 @@ public final class Constants {
     private Constants() {
     }
 }
+

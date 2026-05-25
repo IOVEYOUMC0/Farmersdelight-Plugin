@@ -11,19 +11,28 @@ public class ContainerReturnConfig {
 
     private final Map<String, ItemStack> containerReturnMap = new HashMap<>();
 
+    public void loadDefaults() {
+        addReturnItem("farmersdelight:milk_bottle", "minecraft:glass_bottle");
+    }
+
     public void loadFromConfig(ConfigurationSection section) {
         if (section == null) return;
 
-        containerReturnMap.clear();
-
         for (String itemId : section.getKeys(false)) {
             String returnItemStr = section.getString(itemId);
-            if (returnItemStr == null || returnItemStr.isEmpty()) continue;
-
-            ItemStack returnItem = ItemUtils.createItem(returnItemStr);
-            if (returnItem != null) {
-                containerReturnMap.put(itemId.toLowerCase(), returnItem);
+            if (ItemUtils.isEmptyItemId(returnItemStr)) {
+                containerReturnMap.remove(itemId.toLowerCase());
+                continue;
             }
+
+            addReturnItem(itemId, returnItemStr);
+        }
+    }
+
+    private void addReturnItem(String itemId, String returnItemId) {
+        ItemStack returnItem = ItemUtils.createItem(returnItemId);
+        if (returnItem != null) {
+            containerReturnMap.put(itemId.toLowerCase(), returnItem);
         }
     }
 
@@ -46,3 +55,4 @@ public class ContainerReturnConfig {
         return containerReturnMap;
     }
 }
+

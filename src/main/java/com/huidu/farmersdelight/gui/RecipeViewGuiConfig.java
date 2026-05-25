@@ -447,7 +447,7 @@ public class RecipeViewGuiConfig {
 
             Map<String, GuiConfig.GuiItem> items = new HashMap<>();
             items.put("background", new GuiConfig.GuiItem(Material.GRAY_STAINED_GLASS_PANE, null, " ", List.of()));
-            items.put("arrow", new GuiConfig.GuiItem(Material.PLAYER_HEAD, null, "->", List.of()));
+            items.put("arrow", new GuiConfig.GuiItem(Material.CLOCK, null, "Cooking Process", List.of()));
             items.put("back", new GuiConfig.GuiItem(Material.ARROW, null, "Back", List.of()));
 
             List<String> layout = List.of(
@@ -491,3 +491,4 @@ public class RecipeViewGuiConfig {
         }
     }
 }
+

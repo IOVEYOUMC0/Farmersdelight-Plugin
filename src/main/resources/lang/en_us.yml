@@ -2,6 +2,7 @@ messages:
   cutting_board:
     no_recipe: "&cThat item has no valid cutting board recipe."
     need_tool: "&cYou need the correct tool for this item."
+    wrong_tool: "&cWrong tool. Use the correct tool for this item."
 crop:
   need_water: "&cRice must be planted in water."
   invalid_soil: "&cThis crop needs suitable soil."
@@ -43,8 +44,8 @@ gui:
     more_items: "&7and {count} more"
     no_matching_items: "No matching items found"
     unknown: "Unknown"
-  packed_pot:
-    contains: "Contains {amount} serving(s) of {item}"
+  cooking_pot:
+    pending_container_hint: "&7Container: &f{container}"
 command:
   player_only: "&cThis command can only be used by a player."
   help_title: "<gradient:gold:yellow>=== FarmersDelight ===</gradient>"
@@ -54,7 +55,30 @@ command:
   help_cleanup: "Remove plugin-spawned item display entities"
   cleanup_done: "&aCleanup complete, {count} entities removed."
 effects:
+  comfort:
+    start: "&6Warm food helps you recover. {time} remaining."
+    fade: "&eYour comfort is fading. {seconds}s remaining."
+    end: "&7The comforting warmth fades."
   nourishment:
     start: "&6A hearty meal keeps hunger away for {time}."
     fade: "&eYour fullness is gradually fading. {seconds}s remaining."
     end: "&7You feel hunger returning."
+item:
+  farmersdelight:
+    raw_pasta: "Raw Pasta"
+    cabbage: "Cabbage"
+    cabbage_leaf: "Cabbage Leaf"
+    onion: "Onion"
+    tomato: "Tomato"
+    tomato_sauce: "Tomato Sauce"
+    cooked_rice: "Cooked Rice"
+    mixed_salad: "Mixed Salad"
+    vegetable_soup: "Vegetable Soup"
+    fish_stew: "Fish Stew"
+    fried_rice: "Fried Rice"
+    noodle_soup: "Noodle Soup"
+    vegetable_noodles: "Vegetable Noodles"
+    pasta_with_meatballs: "Pasta with Meatballs"
+    pasta_with_mutton_chop: "Pasta with Mutton Chop"
+    dumplings: "Dumplings"
+    cabbage_rolls: "Cabbage Rolls"

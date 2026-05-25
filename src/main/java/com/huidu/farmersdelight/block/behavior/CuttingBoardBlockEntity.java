@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.config.CuttingBoardDisplayConfig;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
@@ -15,17 +16,31 @@ import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
 public class CuttingBoardBlockEntity {
 
     private static final int NO_DISPLAY = -1;
 
     private final BlockPosKey posKey;
+    private volatile World world;
     private ItemStack storedItem;
     private boolean itemCarved;
-    private int displayEntityId = NO_DISPLAY;
+    private final List<Integer> displayEntityIds = new ArrayList<>();
+    private ItemStack displayedBaseItem;
+    private boolean displayedCarved;
+    private BlockFace displayedFacing;
+    private CuttingBoardDisplayConfig.DisplayOverride displayedOverride;
 
     public CuttingBoardBlockEntity(BlockPosKey posKey, World world) {
         this.posKey = posKey;
+        this.world = world;
+    }
+
+    public void setWorld(World world) {
+        this.world = world;
     }
 
     public BlockPosKey getPosKey() {
@@ -56,42 +71,130 @@ public class CuttingBoardBlockEntity {
     }
 
     public void setItem(ItemStack item, World world, BlockPosKey posKey, BlockFace facing, boolean itemCarved) {
+        this.world = world;
         this.storedItem = cloneOrNull(item);
         this.itemCarved = itemCarved;
         if (this.storedItem != null) {
             this.storedItem.setAmount(Math.max(1, this.storedItem.getAmount()));
         }
+        syncWorldlyContainer();
         updateDisplayEntity(world, posKey, facing);
     }
 
     public void setStoredItem(ItemStack item, World world, BlockPosKey posKey, BlockFace facing) {
+        this.world = world;
         this.storedItem = cloneOrNull(item);
         this.itemCarved = false;
+        syncWorldlyContainer();
         updateDisplayEntity(world, posKey, facing);
     }
 
     public void clearItem() {
         storedItem = null;
         itemCarved = false;
+        syncWorldlyContainer();
         removeDisplayEntity();
     }
 
     private void updateDisplayEntity(World world, BlockPosKey posKey, BlockFace facing) {
-        removeDisplayEntity();
-        if (storedItem == null || world == null) return;
+        if (storedItem == null || world == null) {
+            removeDisplayEntity();
+            return;
+        }
 
-        ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getFakeItemDisplayManager();
+        ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getItemDisplayManager();
         if (visualManager == null || !visualManager.isAvailable()) return;
 
-        boolean isBlockItem = ItemUtils.shouldUseBlockStyleDisplay(storedItem);
-        float yOffset = itemCarved ? 0.23f : (isBlockItem ? 0.27f : 0.08f);
+        CuttingBoardDisplayConfig.DisplayOverride displayOverride = FarmersDelightPlugin.getInstance()
+                .getCuttingBoardDisplayConfig()
+                .getOverride(storedItem);
+        ItemStack visualItem = FarmersDelightPlugin.getInstance()
+                .getCuttingBoardDisplayConfig()
+                .resolveDisplayItem(storedItem);
+        if (visualItem == null || visualItem.getType().isAir()) {
+            removeDisplayEntity();
+            return;
+        }
+        int desiredCount = getDisplayCount(storedItem);
+        boolean baseChanged = displayedBaseItem == null
+                || !displayedBaseItem.isSimilar(visualItem)
+                || displayedCarved != itemCarved
+                || displayedFacing == null
+                || !displayedFacing.equals(facing)
+                || !displayOverride.equals(displayedOverride);
+
+        if (baseChanged) {
+            removeDisplayEntity();
+            displayedBaseItem = visualItem;
+            displayedCarved = itemCarved;
+            displayedFacing = facing;
+            displayedOverride = displayOverride;
+        }
+
+        adjustDisplayCount(world, posKey, facing, visualManager, desiredCount, visualItem, displayOverride);
+    }
+
+    public void removeDisplayEntity() {
+        if (displayEntityIds.isEmpty()) return;
+
+        ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getItemDisplayManager();
+        if (visualManager != null) {
+            for (Integer entityId : displayEntityIds) {
+                if (entityId != null && entityId != NO_DISPLAY) {
+                    visualManager.destroyDisplay(entityId);
+                }
+            }
+        }
+        displayEntityIds.clear();
+        displayedBaseItem = null;
+        displayedCarved = false;
+        displayedFacing = null;
+        displayedOverride = null;
+    }
+
+    private void adjustDisplayCount(World world, BlockPosKey posKey, BlockFace facing, ItemDisplayManager visualManager,
+                                    int desiredCount, ItemStack visualItem,
+                                    CuttingBoardDisplayConfig.DisplayOverride displayOverride) {
+        while (displayEntityIds.size() > desiredCount) {
+            int entityId = displayEntityIds.remove(displayEntityIds.size() - 1);
+            if (entityId != NO_DISPLAY) {
+                visualManager.destroyDisplay(entityId);
+            }
+        }
+
+        while (displayEntityIds.size() < desiredCount) {
+            int index = displayEntityIds.size();
+            int entityId = createDisplayEntity(world, posKey, facing, visualManager, visualItem, index, desiredCount, displayOverride);
+            if (entityId != NO_DISPLAY) {
+                displayEntityIds.add(entityId);
+            } else {
+                break;
+            }
+        }
+    }
+
+    private int createDisplayEntity(World world, BlockPosKey posKey, BlockFace facing, ItemDisplayManager visualManager,
+                                    ItemStack visualItem, int index, int totalCount,
+                                    CuttingBoardDisplayConfig.DisplayOverride displayOverride) {
+        boolean isBlockItem = switch (displayOverride.style()) {
+            case BLOCK -> true;
+            case ITEM -> false;
+            default -> ItemUtils.shouldUseBlockStyleDisplay(visualItem);
+        };
+        float baseYOffset = itemCarved ? 0.23f : (isBlockItem ? 0.27f : 0.08f);
+        float yOffset = baseYOffset + 0.03f * (index + 1);
         float scale = isBlockItem ? 0.8f : 0.6f;
 
         float yRotation = getYRotation(facing.getOppositeFace());
         float xRotation = itemCarved ? 0.0f : (isBlockItem ? 0.0f : 90.0f);
-        float zRotation = itemCarved ? getCarvedToolZRotation(storedItem) : 0.0f;
+        float zRotation = itemCarved ? getCarvedToolZRotation(visualItem) : 0.0f;
         if (itemCarved) {
             yRotation += 180.0f;
+        }
+        if (displayOverride.rotationDegrees() != null) {
+            xRotation = displayOverride.rotationDegrees().x();
+            yRotation = displayOverride.rotationDegrees().y();
+            zRotation = displayOverride.rotationDegrees().z();
         }
 
         Quaternionf leftRotation = new Quaternionf();
@@ -101,22 +204,34 @@ public class CuttingBoardBlockEntity {
                 (float) Math.toRadians(zRotation)
         );
 
+        Vector3f scaleVector = displayOverride.scale() != null
+                ? new Vector3f(displayOverride.scale())
+                : new Vector3f(scale, scale, scale);
+        Vector3f translation = displayOverride.translation() != null
+                ? new Vector3f(displayOverride.translation())
+                : new Vector3f(0.0f, 0.0f, 0.0f);
         Transformation transformation = new Transformation(
-                new Vector3f(0.0f, 0.0f, 0.0f),
+                translation,
                 leftRotation,
-                new Vector3f(scale, scale, scale),
+                scaleVector,
                 new Quaternionf(0.0f, 0.0f, 0.0f, 1.0f)
         );
 
+        Random random = new Random(getDisplaySeed(visualItem) + (index * 341873128712L));
+        float xOffset = totalCount == 1 ? 0.0f : (random.nextFloat() * 2.0f - 1.0f) * 0.15f * 0.5f;
+        float zOffset = totalCount == 1 ? 0.0f : (random.nextFloat() * 2.0f - 1.0f) * 0.15f * 0.5f;
+        if (displayOverride.offset() != null) {
+            xOffset += displayOverride.offset().x();
+            yOffset += displayOverride.offset().y();
+            zOffset += displayOverride.offset().z();
+        }
+
         Location location = new Location(world,
-                posKey.x() + 0.5,
+                posKey.x() + 0.5 + xOffset,
                 posKey.y() + yOffset,
-                posKey.z() + 0.5);
+                posKey.z() + 0.5 + zOffset);
 
-        ItemStack visualItem = storedItem.clone();
-        visualItem.setAmount(1);
-
-        displayEntityId = visualManager.createDisplay(new ItemDisplayManager.DisplaySpec(
+        return visualManager.createDisplay(new ItemDisplayManager.DisplaySpec(
                 location,
                 visualItem,
                 ItemDisplay.ItemDisplayTransform.FIXED,
@@ -124,15 +239,24 @@ public class CuttingBoardBlockEntity {
         ));
     }
 
-    public void removeDisplayEntity() {
-        if (displayEntityId == NO_DISPLAY) return;
-        int entityId = displayEntityId;
-        displayEntityId = NO_DISPLAY;
-
-        ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getFakeItemDisplayManager();
-        if (visualManager != null) {
-            visualManager.destroyDisplay(entityId);
+    private int getDisplayCount(ItemStack stack) {
+        if (stack == null || stack.getType().isAir()) {
+            return 0;
         }
+        int count = Math.max(1, stack.getAmount());
+        if (count <= 1) {
+            return 1;
+        }
+        int maxStackSize = Math.max(1, stack.getMaxStackSize());
+        return 1 + (int) Math.ceil(((float) count / maxStackSize) * 4.0f);
+    }
+
+    private long getDisplaySeed(ItemStack item) {
+        long seed = 31L * posKey.x() + posKey.y();
+        seed = 31L * seed + posKey.z();
+        seed = 31L * seed + (item == null ? 0 : item.getType().ordinal());
+        seed = 31L * seed + (item != null && item.hasItemMeta() ? item.getItemMeta().hashCode() : 0);
+        return seed;
     }
 
     private float getYRotation(BlockFace facing) {
@@ -184,5 +308,12 @@ public class CuttingBoardBlockEntity {
             return null;
         }
         return item.clone();
+    }
+
+    private void syncWorldlyContainer() {
+        World currentWorld = world;
+        if (currentWorld != null) {
+            CuttingBoardBlockBehavior.markBlockEntityDirty(currentWorld, posKey);
+        }
     }
 }

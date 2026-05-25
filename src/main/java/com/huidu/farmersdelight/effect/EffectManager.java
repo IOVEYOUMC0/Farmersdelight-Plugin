@@ -2,26 +2,40 @@ package com.huidu.farmersdelight.effect;
 
 import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.GameRule;
-import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Player;
-import org.bukkit.persistence.PersistentDataContainer;
-import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.potion.PotionEffectType;
 
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Stores and updates custom nourishment state for players.
- * Bukkit cannot register a runtime potion effect type here, so the remaining
- * duration is stored in player PDC and applied manually during ticking.
+ * Stores and updates custom food effect state for online players.
  */
 public final class EffectManager {
 
-    private static final NamespacedKey NOURISHMENT_KEY = new NamespacedKey("farmersdelight", "nourishment_duration");
-
     private static final int EFFECT_FADE_WARNING_TICKS = 200;
+    private static final int COMFORT_HEAL_INTERVAL_TICKS = 80;
+    private static final Map<UUID, Integer> comfortDurations = new ConcurrentHashMap<>();
+    private static final Map<UUID, Integer> nourishmentDurations = new ConcurrentHashMap<>();
 
     private EffectManager() {
+    }
+
+    public static void applyComfort(Player player, int durationSeconds) {
+        UUID playerId = player.getUniqueId();
+        int currentDuration = comfortDurations.getOrDefault(playerId, 0);
+        int newDuration = Math.max(currentDuration, durationSeconds * 20);
+        comfortDurations.put(playerId, newDuration);
+        if (currentDuration <= 0) {
+            player.sendMessage(I18n.formatNamed(
+                    "effects.comfort.start",
+                    player,
+                    durationPlaceholders(newDuration)
+            ));
+        }
+        EffectListener.trackPlayer(player);
     }
 
     /**
@@ -31,10 +45,10 @@ public final class EffectManager {
      * @param durationSeconds duration in seconds
      */
     public static void applyNourishment(Player player, int durationSeconds) {
-        PersistentDataContainer pdc = player.getPersistentDataContainer();
-        int currentDuration = pdc.getOrDefault(NOURISHMENT_KEY, PersistentDataType.INTEGER, 0);
+        UUID playerId = player.getUniqueId();
+        int currentDuration = nourishmentDurations.getOrDefault(playerId, 0);
         int newDuration = Math.max(currentDuration, durationSeconds * 20);
-        pdc.set(NOURISHMENT_KEY, PersistentDataType.INTEGER, newDuration);
+        nourishmentDurations.put(playerId, newDuration);
         if (currentDuration <= 0) {
             player.sendMessage(I18n.formatNamed(
                     "effects.nourishment.start",
@@ -42,24 +56,33 @@ public final class EffectManager {
                     durationPlaceholders(newDuration)
             ));
         }
-        EffectListener.trackPlayer(player.getUniqueId());
+        EffectListener.trackPlayer(player);
     }
 
     /**
      * Returns whether the player currently has nourishment.
      */
     public static boolean hasNourishment(Player player) {
-        PersistentDataContainer pdc = player.getPersistentDataContainer();
-        int duration = pdc.getOrDefault(NOURISHMENT_KEY, PersistentDataType.INTEGER, 0);
-        return duration > 0;
+        return getNourishmentDuration(player) > 0;
+    }
+
+    public static boolean hasComfort(Player player) {
+        return getComfortDuration(player) > 0;
+    }
+
+    public static void removeComfort(Player player) {
+        comfortDurations.remove(player.getUniqueId());
+        if (player.isOnline()) {
+            player.sendMessage(I18n.get("effects.comfort.end", player));
+        }
+        checkAndUntrack(player);
     }
 
     /**
      * Removes nourishment from the player.
      */
     public static void removeNourishment(Player player) {
-        PersistentDataContainer pdc = player.getPersistentDataContainer();
-        pdc.remove(NOURISHMENT_KEY);
+        nourishmentDurations.remove(player.getUniqueId());
         if (player.isOnline()) {
             player.sendMessage(I18n.get("effects.nourishment.end", player));
         }
@@ -70,7 +93,7 @@ public final class EffectManager {
      * Stops tracking players that no longer have active custom effects.
      */
     private static void checkAndUntrack(Player player) {
-        if (!hasNourishment(player)) {
+        if (!hasComfort(player) && !hasNourishment(player)) {
             EffectListener.untrackPlayer(player.getUniqueId());
         }
     }
@@ -84,16 +107,39 @@ public final class EffectManager {
         }
 
         try {
-            PersistentDataContainer pdc = player.getPersistentDataContainer();
-            int nourishmentDuration = pdc.getOrDefault(NOURISHMENT_KEY, PersistentDataType.INTEGER, 0);
+            UUID playerId = player.getUniqueId();
+            int comfortDuration = comfortDurations.getOrDefault(playerId, 0);
+            int nourishmentDuration = nourishmentDurations.getOrDefault(playerId, 0);
 
-            if (nourishmentDuration <= 0) {
-                EffectListener.untrackPlayer(player.getUniqueId());
+            if (comfortDuration <= 0 && nourishmentDuration <= 0) {
+                EffectListener.untrackPlayer(playerId);
                 return;
             }
 
-            tickNourishment(player);
-            if (player.isValid()) {
+            if (comfortDuration > 0) {
+                tickComfort(player, comfortDuration);
+                if (player.isValid()) {
+                    if (comfortDuration == EFFECT_FADE_WARNING_TICKS) {
+                        player.sendMessage(I18n.formatNamed(
+                                "effects.comfort.fade",
+                                player,
+                                durationPlaceholders(comfortDuration)
+                        ));
+                    }
+                    int newDuration = comfortDuration - 1;
+                    if (newDuration > 0) {
+                        comfortDurations.put(playerId, newDuration);
+                    } else {
+                        player.sendMessage(I18n.get("effects.comfort.end", player));
+                        comfortDurations.remove(playerId);
+                    }
+                }
+            }
+
+            if (nourishmentDuration > 0) {
+                tickNourishment(player);
+            }
+            if (player.isValid() && nourishmentDuration > 0) {
                 if (nourishmentDuration == EFFECT_FADE_WARNING_TICKS) {
                     player.sendMessage(I18n.formatNamed(
                             "effects.nourishment.fade",
@@ -103,19 +149,45 @@ public final class EffectManager {
                 }
                 int newDuration = nourishmentDuration - 1;
                 if (newDuration > 0) {
-                    pdc.set(NOURISHMENT_KEY, PersistentDataType.INTEGER, newDuration);
+                    nourishmentDurations.put(playerId, newDuration);
                 } else {
                     player.sendMessage(I18n.get("effects.nourishment.end", player));
-                    pdc.remove(NOURISHMENT_KEY);
+                    nourishmentDurations.remove(playerId);
                 }
             }
 
-            if (nourishmentDuration <= 1) {
-                EffectListener.untrackPlayer(player.getUniqueId());
+            if (comfortDuration <= 1 && nourishmentDuration <= 1) {
+                EffectListener.untrackPlayer(playerId);
             }
         } catch (Exception e) {
             EffectListener.untrackPlayer(player.getUniqueId());
         }
+    }
+
+    public static void clearPlayer(Player player) {
+        if (player != null) {
+            comfortDurations.remove(player.getUniqueId());
+            nourishmentDurations.remove(player.getUniqueId());
+        }
+    }
+
+    public static void clearAll() {
+        comfortDurations.clear();
+        nourishmentDurations.clear();
+    }
+
+    private static int getComfortDuration(Player player) {
+        if (player == null) {
+            return 0;
+        }
+        return comfortDurations.getOrDefault(player.getUniqueId(), 0);
+    }
+
+    private static int getNourishmentDuration(Player player) {
+        if (player == null) {
+            return 0;
+        }
+        return nourishmentDurations.getOrDefault(player.getUniqueId(), 0);
     }
 
     /**
@@ -137,6 +209,27 @@ public final class EffectManager {
 
         if (!isPlayerHealingWithSaturation) {
             player.setExhaustion(0);
+        }
+    }
+
+    private static void tickComfort(Player player, int durationTicks) {
+        if (player.isDead() || player.hasPotionEffect(PotionEffectType.REGENERATION)) {
+            return;
+        }
+        if (player.getSaturation() > 0.0F) {
+            return;
+        }
+        if (durationTicks % COMFORT_HEAL_INTERVAL_TICKS != 0) {
+            return;
+        }
+
+        var maxHealthAttr = player.getAttribute(Attribute.MAX_HEALTH);
+        if (maxHealthAttr == null) {
+            return;
+        }
+        double maxHealth = maxHealthAttr.getValue();
+        if (player.getHealth() < maxHealth) {
+            player.setHealth(Math.min(player.getHealth() + 1.0D, maxHealth));
         }
     }
 

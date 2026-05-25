@@ -1,6 +1,6 @@
 package com.huidu.farmersdelight.util;
 
-import net.momirealms.craftengine.core.block.properties.Property;
+import net.momirealms.craftengine.core.block.property.Property;
 
 import java.util.Collections;
 import java.util.List;
@@ -96,3 +96,4 @@ public final class BehaviorArgParser {
         return text;
     }
 }
+

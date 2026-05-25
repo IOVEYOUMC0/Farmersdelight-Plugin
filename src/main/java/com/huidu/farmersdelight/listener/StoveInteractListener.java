@@ -8,6 +8,7 @@ import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.InteractionDebouncer;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.WorldGuardCompat;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -59,6 +60,9 @@ public class StoveInteractListener implements Listener {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
             return;
         }
+        if (event.useInteractedBlock() == Event.Result.DENY) {
+            return;
+        }
         if (event.getHand() != EquipmentSlot.HAND) {
             return;
         }
@@ -68,13 +72,22 @@ public class StoveInteractListener implements Listener {
         Player player = event.getPlayer();
         ItemStack mainHand = player.getInventory().getItemInMainHand();
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin == null) {
+            return;
+        }
         StoveManager stoveManager = plugin.getStoveManager();
+        if (stoveManager == null) {
+            return;
+        }
 
         if (shouldLogAttempt(block, ceBlockId) && plugin.isDebugEnabled("stove")) {
             logDebug(player, block, ceBlockId, "farmersdelight:stove", mainHand, stoveManager.findRecipeId(mainHand));
         }
 
         if (!isStoveBlock(ceBlockId)) {
+            return;
+        }
+        if (!WorldGuardCompat.canUse(player, block) || !WorldGuardCompat.canBuild(player, block)) {
             return;
         }
 
@@ -95,19 +108,6 @@ public class StoveInteractListener implements Listener {
         }
 
         if (mainHand == null || mainHand.getType().isAir()) {
-            if (!InteractionDebouncer.tryAcquire(player.getUniqueId(), block.getLocation())) {
-                event.setUseItemInHand(Event.Result.DENY);
-                event.setUseInteractedBlock(Event.Result.DENY);
-                event.setCancelled(true);
-                return;
-            }
-
-            if (stoveManager.handleRetrieve(player, block)) {
-                event.setUseItemInHand(Event.Result.DENY);
-                event.setUseInteractedBlock(Event.Result.DENY);
-                event.setCancelled(true);
-                player.updateInventory();
-            }
             return;
         }
 
@@ -163,7 +163,7 @@ public class StoveInteractListener implements Listener {
     }
 
     private boolean isStoveBlock(String ceBlockId) {
-        return Constants.CE_SHORT_STOVE.equals(ceBlockId);
+        return Constants.BLOCK_STOVE.equals(ceBlockId);
     }
 
     private boolean shouldLogAttempt(Block block, String ceBlockId) {
@@ -176,3 +176,4 @@ public class StoveInteractListener implements Listener {
         return block.getType() == Material.NOTE_BLOCK;
     }
 }
+

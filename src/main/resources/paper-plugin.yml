@@ -2,6 +2,7 @@ name: FarmersDelight
 version: '${version}'
 main: com.huidu.farmersdelight.FarmersDelightPlugin
 api-version: '1.21'
+folia-supported: ${foliaSupported}
 description: Farmer's Delight addon for CraftEngine
 authors:
   - HuiDu_OwO

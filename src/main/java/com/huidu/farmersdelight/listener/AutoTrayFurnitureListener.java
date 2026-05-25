@@ -29,3 +29,4 @@ public final class AutoTrayFurnitureListener implements Listener {
         event.setCancelled(true);
     }
 }
+

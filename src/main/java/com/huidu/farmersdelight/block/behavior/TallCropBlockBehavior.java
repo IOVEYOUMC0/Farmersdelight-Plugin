@@ -1,23 +1,29 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.CraftEngineAdapter;
+import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.RiceCropRules;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
 import com.huidu.farmersdelight.util.SoilRuleSupport.SoilRules;
-import net.momirealms.craftengine.bukkit.api.BukkitAdaptors;
+import net.momirealms.craftengine.bukkit.api.BukkitAdaptor;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.bukkit.world.BukkitExistingBlock;
-import net.momirealms.craftengine.core.block.CustomBlock;
+import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
-import net.momirealms.craftengine.core.block.properties.Property;
+import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.plugin.context.ContextHolder;
+import net.momirealms.craftengine.core.plugin.context.EventTrigger;
+import net.momirealms.craftengine.core.plugin.context.PlayerOptionalContext;
 import net.momirealms.craftengine.core.plugin.context.parameter.DirectContextParameters;
+import net.momirealms.craftengine.core.util.Cancellable;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.WorldPosition;
@@ -28,13 +34,28 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class TallCropBlockBehavior extends BlockBehavior {
+
+    @Override
+    public boolean isPathFindable(Object thisBlock, Object[] args) {
+        return false;
+    }
+
+    @Override
+    public void fallOn(Object thisBlock, Object[] args) {
+    }
+
+    @Override
+    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
+    }
     private final Property<Integer> ageProperty;
     private final Property<?> halfProperty;
     private final Property<Boolean> supportingProperty;
@@ -51,15 +72,18 @@ public class TallCropBlockBehavior extends BlockBehavior {
     private final boolean requiresWater;
     private final boolean resetOnHarvest;
     private final Key upperBlockId;
+    private final Set<Key> harvestToolTags;
+    private final Set<String> harvestToolItems;
     private static final Map<Key, TallCropBlockBehavior> BEHAVIORS = new ConcurrentHashMap<>();
     private static final Map<Key, SoilRules> SOIL_RULES = new ConcurrentHashMap<>();
 
-    private TallCropBlockBehavior(CustomBlock block, Property<Integer> ageProperty,
+    private TallCropBlockBehavior(BlockDefinition block, Property<Integer> ageProperty,
                                    Property<?> halfProperty, Property<Boolean> supportingProperty,
                                    float growSpeed, int minGrowLight, boolean isBoneMealTarget, boolean randomBoneMealGrowth,
                                    int boneMealMin, int boneMealMax,
                                    int maxAgeLower, int maxAgeUpper, Object halfLowerValue, Object halfUpperValue,
                                    boolean requiresWater, boolean resetOnHarvest, Key upperBlockId,
+                                   Set<Key> harvestToolTags, Set<String> harvestToolItems,
                                    SoilRules soilRules) {
         super(block);
         this.ageProperty = ageProperty;
@@ -78,12 +102,15 @@ public class TallCropBlockBehavior extends BlockBehavior {
         this.requiresWater = requiresWater;
         this.resetOnHarvest = resetOnHarvest;
         this.upperBlockId = upperBlockId;
+        this.harvestToolTags = harvestToolTags;
+        this.harvestToolItems = harvestToolItems;
     }
 
     @SuppressWarnings("unchecked")
     public static final BlockBehaviorFactory<TallCropBlockBehavior> FACTORY = new BlockBehaviorFactory<TallCropBlockBehavior>() {
         @Override
-        public TallCropBlockBehavior create(CustomBlock block, Map<String, Object> arguments) {
+        public TallCropBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
+            Map<String, Object> arguments = section != null ? section.values() : Map.of();
             String agePropertyName = getString(arguments, "age-property", "age");
             Property<Integer> ageProperty = (Property<Integer>) block.getProperty(agePropertyName);
             if (ageProperty == null) {
@@ -121,6 +148,8 @@ public class TallCropBlockBehavior extends BlockBehavior {
             
             boolean requiresWater = getBoolean(arguments, "requires-water", false);
             boolean resetOnHarvest = getBoolean(arguments, "reset-on-harvest", true);
+            Set<Key> harvestToolTags = SoilRuleSupport.parseKeys(arguments, "harvest-tool-tags");
+            Set<String> harvestToolItems = parseConfiguredItemIds(arguments, "harvest-tool-items");
             SoilRules soilRules = SoilRuleSupport.parseSoilRules(arguments);
             
             String upperBlockStr = getString(arguments, "upper-block", "");
@@ -144,6 +173,8 @@ public class TallCropBlockBehavior extends BlockBehavior {
                     requiresWater,
                     resetOnHarvest,
                     upperBlockId,
+                    harvestToolTags,
+                    harvestToolItems,
                     soilRules
             );
             BEHAVIORS.put(block.id(), behavior);
@@ -157,6 +188,11 @@ public class TallCropBlockBehavior extends BlockBehavior {
             return null;
         }
         return BEHAVIORS.get(cropId);
+    }
+
+    public static void cleanupAll() {
+        BEHAVIORS.clear();
+        SOIL_RULES.clear();
     }
 
     public static TallCropBlockBehavior getBehavior(ImmutableBlockState state) {
@@ -228,21 +264,19 @@ public class TallCropBlockBehavior extends BlockBehavior {
         ItemStack mainHand = bukkitPlayer.getInventory().getItemInMainHand();
 
         if (isUpperHalf(state) && isUpperMature(state)) {
-            if (resetOnHarvest && mainHand.getType() != Material.BONE_MEAL && !mainHand.getType().isAir()) {
+            if (resetOnHarvest && isValidHarvestTool(mainHand)) {
                 Block bukkitBlock = world.getBlockAt(pos.x(), pos.y(), pos.z());
                 Location loc = bukkitBlock.getLocation().add(0.5, 0.5, 0.5);
 
-                net.momirealms.craftengine.core.world.World ceWorld = BukkitAdaptors.adapt(world);
+                net.momirealms.craftengine.core.world.World ceWorld = BukkitAdaptor.adapt(world);
                 WorldPosition wPos = new WorldPosition(ceWorld, loc.getX(), loc.getY(), loc.getZ());
-                ContextHolder.Builder builder = new ContextHolder.Builder()
-                        .withParameter(DirectContextParameters.POSITION, wPos)
-                        .withParameter(DirectContextParameters.BLOCK, new BukkitExistingBlock(bukkitBlock))
-                        .withOptionalParameter(DirectContextParameters.PLAYER, BukkitAdaptors.adapt(bukkitPlayer))
-                        .withOptionalParameter(DirectContextParameters.ITEM_IN_HAND, BukkitAdaptors.adapt(mainHand));
-                List<Item<Object>> drops = state.getDrops(builder, ceWorld, BukkitAdaptors.adapt(bukkitPlayer));
-                for (Item<Object> drop : drops) {
-                    ceWorld.dropItemNaturally(wPos, drop);
+
+                if (state.owner().value().loot() == null) {
+                    runConfiguredBreakLoot(state, bukkitBlock, bukkitPlayer, mainHand, wPos);
+                } else {
+                    dropLootTableDrops(state, bukkitBlock, bukkitPlayer, mainHand, wPos);
                 }
+                dropHarvestStraw(bukkitBlock, bukkitPlayer);
 
                 world.playSound(loc, Sound.BLOCK_CROP_BREAK, 1.0f, 1.0f);
                 world.playSound(loc, Sound.ITEM_CROP_PLANT, 1.0f, 0.8f);
@@ -261,14 +295,14 @@ public class TallCropBlockBehavior extends BlockBehavior {
                 if (bukkitPlayer.getGameMode() != GameMode.CREATIVE) {
                     mainHand.setAmount(mainHand.getAmount() - 1);
                 }
-                return InteractionResult.SUCCESS;
+                return InteractionResult.SUCCESS_AND_CANCEL;
             }
         }
 
         return InteractionResult.PASS;
     }
 
-    public void onRemove(Object thisBlock, Object[] args, Callable<Object> superMethod) throws Exception {
+    public void affectNeighborsAfterRemoval(Object thisBlock, Object[] args) {
         if (args.length >= 3) {
             ImmutableBlockState state = BlockStateUtils.getOptionalCustomBlockState(args[0]).orElse(null);
             World world = CraftEngineAdapter.toWorld(args[1]);
@@ -309,7 +343,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
             }
         }
 
-        superMethod.call();
+        
     }
 
     private boolean applyBoneMeal(BlockPos pos, World world, ImmutableBlockState state, Player player) {
@@ -333,7 +367,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
     }
 
     @Override
-    public void randomTick(Object thisBlock, Object[] args, Callable<Object> superMethod) {
+    public void randomTick(Object thisBlock, Object[] args) {
         if (args.length < 3) return;
 
         ImmutableBlockState state = BlockStateUtils.getOptionalCustomBlockState(args[0]).orElse(null);
@@ -474,14 +508,14 @@ public class TallCropBlockBehavior extends BlockBehavior {
     }
 
     private void placeUpperHalfWithAge(Block upperBlock, int age) {
-        CustomBlock upperCustomBlock = upperBlockId != null
+        BlockDefinition upperBlockDefinition = upperBlockId != null
                 ? CraftEngineBlocks.byId(upperBlockId)
                 : CraftEngineBlocks.byId(block().id());
-        if (upperCustomBlock == null) {
+        if (upperBlockDefinition == null) {
             return;
         }
 
-        ImmutableBlockState upperState = upperCustomBlock.defaultState()
+        ImmutableBlockState upperState = upperBlockDefinition.defaultState()
                 .with(ageProperty, age)
                 ;
         upperState = withRaw(upperState, halfProperty, halfUpperValue);
@@ -494,8 +528,144 @@ public class TallCropBlockBehavior extends BlockBehavior {
         world.playSound(location, Sound.ITEM_BONE_MEAL_USE, 1.0f, 1.0f);
     }
 
+    private void runConfiguredBreakLoot(ImmutableBlockState state, Block bukkitBlock, Player player,
+                                        ItemStack tool, WorldPosition position) {
+        var cePlayer = BukkitAdaptor.adapt(player);
+        Cancellable cancellable = Cancellable.dummy();
+        ContextHolder.Builder builder = createLootContext(bukkitBlock, player, tool, position)
+                .withParameter(DirectContextParameters.CUSTOM_BLOCK_STATE, state)
+                .withParameter(DirectContextParameters.EVENT, cancellable);
+        state.owner().value().execute(PlayerOptionalContext.of(cePlayer, builder), EventTrigger.BREAK);
+    }
+
+    private void dropLootTableDrops(ImmutableBlockState state, Block bukkitBlock, Player player,
+                                    ItemStack tool, WorldPosition position) {
+        net.momirealms.craftengine.core.world.World ceWorld = position.world();
+        var cePlayer = BukkitAdaptor.adapt(player);
+        ContextHolder.Builder builder = createLootContext(bukkitBlock, player, tool, position);
+        List<Item> drops = state.getDrops(builder, ceWorld, cePlayer);
+        if (drops.isEmpty()) {
+            Block lowerBlock = bukkitBlock.getWorld().getBlockAt(
+                    bukkitBlock.getX(), bukkitBlock.getY() - 1, bukkitBlock.getZ());
+            ImmutableBlockState lowerState = CraftEngineBlocks.getCustomBlockState(lowerBlock);
+            if (lowerState != null && !lowerState.isEmpty() && isLowerHalf(lowerState)) {
+                drops = lowerState.getDrops(createLootContext(lowerBlock, player, tool, position), ceWorld, cePlayer);
+            }
+        }
+        for (Item drop : drops) {
+            ceWorld.dropItemNaturally(position, drop);
+        }
+    }
+
+    private ContextHolder.Builder createLootContext(Block block, Player player, ItemStack tool, WorldPosition position) {
+        ContextHolder.Builder builder = new ContextHolder.Builder()
+                .withParameter(DirectContextParameters.POSITION, position)
+                .withParameter(DirectContextParameters.BLOCK, new BukkitExistingBlock(block));
+        var cePlayer = BukkitAdaptor.adapt(player);
+        if (cePlayer != null) {
+            builder.withOptionalParameter(DirectContextParameters.PLAYER, cePlayer);
+        }
+        if (tool != null && !tool.getType().isAir()) {
+            builder.withOptionalParameter(DirectContextParameters.ITEM_IN_HAND, BukkitAdaptor.adapt(tool));
+        }
+        return builder;
+    }
+
+    private void dropHarvestStraw(Block block, Player player) {
+        if (block == null || player == null) {
+            return;
+        }
+
+        var rule = FarmersDelightPlugin.getInstance().getStrawDropConfig().getRule("mature_rice");
+        if (rule == null || rule.getDropItem() == null) {
+            return;
+        }
+
+        ItemStack straw = ItemUtils.createItem(rule.getDropItem());
+        if (straw == null || straw.getType().isAir()) {
+            return;
+        }
+
+        int minAmount = Math.max(1, rule.getMinAmount());
+        int maxAmount = Math.max(minAmount, rule.getMaxAmount());
+        straw.setAmount(minAmount + ThreadLocalRandom.current().nextInt(maxAmount - minAmount + 1));
+        block.getWorld().dropItemNaturally(block.getLocation().add(0.5, 0.5, 0.5), straw);
+
+        var advancementManager = FarmersDelightPlugin.getInstance().getAdvancementManager();
+        if (advancementManager != null) {
+            advancementManager.award(player, "harvest_straw");
+        }
+    }
+
+    private boolean isValidHarvestTool(ItemStack item) {
+        if (item == null || item.getType().isAir() || item.getType() == Material.BONE_MEAL) {
+            return false;
+        }
+
+        if (matchesConfiguredHarvestItem(item)) {
+            return true;
+        }
+
+        if (matchesConfiguredHarvestTag(item)) {
+            return true;
+        }
+
+        return matchesLegacyKnife(item);
+    }
+
+    private boolean matchesConfiguredHarvestItem(ItemStack item) {
+        String customId = ItemUtils.getCustomItemId(item);
+        if (customId != null && harvestToolItems.contains(customId)) {
+            return true;
+        }
+
+        String vanillaItemId = ItemUtils.getVanillaMaterialItemId(item);
+        return vanillaItemId != null && harvestToolItems.contains(vanillaItemId);
+    }
+
+    private boolean matchesConfiguredHarvestTag(ItemStack item) {
+        for (Key tag : harvestToolTags) {
+            if (ItemUtils.matchesVanillaItemTag(item, tag, Collections.emptySet(), Collections.emptySet())) {
+                return true;
+            }
+
+            String customId = ItemUtils.getCustomItemId(item);
+            if (customId == null) {
+                continue;
+            }
+
+            boolean matchesCustomTag = FarmersDelightPlugin.getInstance()
+                    .getCraftEngine()
+                    .itemManager()
+                    .itemIdsByTag(tag)
+                    .stream()
+                    .anyMatch(uniqueKey -> uniqueKey.key().toString().equalsIgnoreCase(customId));
+            if (matchesCustomTag) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean matchesLegacyKnife(ItemStack item) {
+        String customId = ItemUtils.getCustomItemId(item);
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin.isKnifeItemId(customId)) {
+            return true;
+        }
+
+        for (String configuredTag : plugin.getKnifeTagIds()) {
+            Key key = Key.of(configuredTag.startsWith("#") ? configuredTag.substring(1) : configuredTag);
+            if (ItemUtils.matchesVanillaItemTag(item, key, Collections.emptySet(), Collections.emptySet())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     @Override
-    public void placeMultiState(Object thisBlock, Object[] args, Callable<Object> superMethod) throws Exception {
+    public void placeMultiState(Object thisBlock, Object[] args) {
         if (args.length >= 5) {
             Object placerObj = args[3];
             World world = CraftEngineAdapter.toWorld(args[0]);
@@ -506,7 +676,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
                 return;
             }
         }
-        superMethod.call();
+        
     }
 
     private static String getString(Map<String, Object> arguments, String key, String defaultValue) {
@@ -562,6 +732,25 @@ public class TallCropBlockBehavior extends BlockBehavior {
             return Boolean.parseBoolean(stringValue);
         }
         return defaultValue;
+    }
+
+    private static Set<String> parseConfiguredItemIds(Map<String, Object> arguments, String key) {
+        Object raw = arguments != null ? arguments.get(key) : null;
+        if (!(raw instanceof Iterable<?> iterable)) {
+            return Collections.emptySet();
+        }
+
+        Set<String> result = new HashSet<>();
+        for (Object value : iterable) {
+            if (value == null) {
+                continue;
+            }
+            String text = String.valueOf(value).trim();
+            if (!text.isEmpty()) {
+                result.add(text);
+            }
+        }
+        return result;
     }
 
     private static int inferMaxIntegerValue(Property<Integer> property, int fallback) {
@@ -711,3 +900,4 @@ public class TallCropBlockBehavior extends BlockBehavior {
         }
     }
 }
+

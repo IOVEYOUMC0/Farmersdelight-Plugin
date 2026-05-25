@@ -5,7 +5,6 @@ import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.bukkit.entity.projectile.BukkitProjectileManager;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.entity.Raider;
@@ -19,31 +18,16 @@ import org.bukkit.event.inventory.SmithItemEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.HashSet;
 import java.util.Set;
 
 public class AchievementListener implements Listener {
 
-    private final Set<String> KNIFE_IDS = new HashSet<>();
-    private final Set<String> FD_SEED_IDS = new HashSet<>();
-
-    public AchievementListener() {
-        loadConfig();
-    }
-
-    public void loadConfig() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (plugin == null) return;
-
-        KNIFE_IDS.clear();
-        KNIFE_IDS.addAll(plugin.getConfig().getStringList("knife-config.items"));
-
-        FD_SEED_IDS.clear();
-        ConfigurationSection nourishmentSection = plugin.getConfig().getConfigurationSection("nourishment-foods.foods");
-        if (nourishmentSection != null) {
-            FD_SEED_IDS.addAll(nourishmentSection.getKeys(false));
-        }
-    }
+    private static final Set<String> FD_SEED_IDS = Set.of(
+            Constants.ITEM_CABBAGE_SEEDS,
+            Constants.ITEM_TOMATO_SEEDS,
+            Constants.ITEM_ONION,
+            Constants.ITEM_RICE
+    );
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onCraftItem(CraftItemEvent event) {
@@ -81,6 +65,7 @@ public class AchievementListener implements Listener {
     public void onEntityPickupItem(EntityPickupItemEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
         checkSeedAdvancement(player);
+        checkMushroomColonyAdvancement(player);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -90,6 +75,7 @@ public class AchievementListener implements Listener {
             am.award(event.getPlayer(), "root");
         }
         checkSeedAdvancement(event.getPlayer());
+        checkMushroomColonyAdvancement(event.getPlayer());
     }
 
     private void handleCraftedItem(Player player, ItemStack result) {
@@ -101,7 +87,7 @@ public class AchievementListener implements Listener {
         AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
         if (am == null) return;
 
-        if (KNIFE_IDS.contains(customItemId)) {
+        if (FarmersDelightPlugin.getInstance().isKnifeItemId(customItemId)) {
             am.award(player, "craft_knife");
         }
 
@@ -133,4 +119,27 @@ public class AchievementListener implements Listener {
             }
         }
     }
+
+    private void checkMushroomColonyAdvancement(Player player) {
+        AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
+        if (am == null || am.hasAdvancement(player, "get_mushroom_colony")) {
+            return;
+        }
+
+        boolean hasBrown = false;
+        boolean hasRed = false;
+        for (ItemStack item : player.getInventory().getContents()) {
+            String customItemId = ItemUtils.getCustomItemId(item);
+            if (Constants.BLOCK_BROWN_MUSHROOM_COLONY.equals(customItemId)) {
+                hasBrown = true;
+            } else if (Constants.BLOCK_RED_MUSHROOM_COLONY.equals(customItemId)) {
+                hasRed = true;
+            }
+            if (hasBrown && hasRed) {
+                am.award(player, "get_mushroom_colony");
+                return;
+            }
+        }
+    }
 }
+

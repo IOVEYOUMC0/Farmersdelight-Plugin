@@ -33,35 +33,64 @@ public class KnifeDropHandler implements Listener {
 
     public void loadConfig() {
         dropRules.clear();
+        loadDefaultDropRules();
 
         ConfigurationSection dropsSection = plugin.getConfig().getConfigurationSection("knife-drops");
-        if (dropsSection == null) return;
+        if (dropsSection != null) {
+            for (String entityType : dropsSection.getKeys(false)) {
+                ConfigurationSection entitySection = dropsSection.getConfigurationSection(entityType);
+                if (entitySection == null) continue;
 
-        for (String entityType : dropsSection.getKeys(false)) {
-            ConfigurationSection entitySection = dropsSection.getConfigurationSection(entityType);
-            if (entitySection == null) continue;
+                String normalItem = entitySection.getString("normal", "minecraft:air");
+                String burningItem = entitySection.getString("burning", null);
+                double baseChance = entitySection.getDouble("chance", 1.0);
+                double lootingMultiplier = entitySection.getDouble("looting-multiplier", 0.0);
 
-            String normalItem = entitySection.getString("normal", "minecraft:air");
-            String burningItem = entitySection.getString("burning", null);
-            double baseChance = entitySection.getDouble("chance", 1.0);
-            double lootingMultiplier = entitySection.getDouble("looting-multiplier", 0.0);
-
-            dropRules.put(entityType.toLowerCase(), new KnifeDropRule(
-                    entityType, normalItem, burningItem, baseChance, lootingMultiplier
-            ));
+                dropRules.put(entityType.toLowerCase(), new KnifeDropRule(
+                        entityType, normalItem, burningItem, baseChance, lootingMultiplier
+                ));
+            }
         }
 
+        knifeTags = new ArrayList<>(List.of(Constants.TAG_KNIVES));
+        knifeItems = new ArrayList<>(List.of(
+                "farmersdelight:flint_knife",
+                "farmersdelight:iron_knife",
+                "farmersdelight:golden_knife",
+                "farmersdelight:diamond_knife",
+                "farmersdelight:netherite_knife"
+        ));
         ConfigurationSection knifeSection = plugin.getConfig().getConfigurationSection("knife-config");
         if (knifeSection != null) {
-            knifeTags = knifeSection.getStringList("tags");
-            if (knifeTags.isEmpty()) {
-                knifeTags = List.of(Constants.TAG_KNIVES);
+            List<String> configuredTags = knifeSection.getStringList("tags");
+            if (!configuredTags.isEmpty()) {
+                knifeTags = configuredTags;
             }
-            knifeItems = knifeSection.getStringList("items");
+            List<String> configuredItems = knifeSection.getStringList("items");
+            if (!configuredItems.isEmpty()) {
+                knifeItems = configuredItems;
+            }
         }
 
         plugin.getLogger().info("Loaded " + dropRules.size() + " knife drop rules");
         plugin.getLogger().info("Loaded " + knifeTags.size() + " knife tags and " + knifeItems.size() + " knife items");
+    }
+
+    private void loadDefaultDropRules() {
+        putDefaultDrop("pig", "farmersdelight:ham", "farmersdelight:smoked_ham", 0.5D, 0.1D);
+        putDefaultDrop("hoglin", "farmersdelight:ham", "farmersdelight:smoked_ham", 0.5D, 0.1D);
+        for (String entityType : List.of("cow", "mooshroom", "donkey", "horse", "mule", "llama", "trader_llama")) {
+            putDefaultDrop(entityType, "minecraft:leather", null, 1.0D, 0.0D);
+        }
+        putDefaultDrop("chicken", "minecraft:feather", null, 1.0D, 0.0D);
+        putDefaultDrop("spider", "minecraft:string", null, 1.0D, 0.0D);
+        putDefaultDrop("cave_spider", "minecraft:string", null, 1.0D, 0.0D);
+        putDefaultDrop("rabbit", "minecraft:rabbit_hide", null, 1.0D, 0.0D);
+        putDefaultDrop("shulker", "minecraft:shulker_shell", null, 1.0D, 0.0D);
+    }
+
+    private void putDefaultDrop(String entityType, String normalItem, String burningItem, double chance, double lootingMultiplier) {
+        dropRules.put(entityType, new KnifeDropRule(entityType, normalItem, burningItem, chance, lootingMultiplier));
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -97,6 +126,9 @@ public class KnifeDropHandler implements Listener {
         } else {
             itemId = rule.getNormalItem();
         }
+        if (ItemUtils.isEmptyItemId(itemId)) {
+            return;
+        }
 
         ItemStack dropItem = createItem(itemId);
         if (dropItem != null) {
@@ -110,7 +142,7 @@ public class KnifeDropHandler implements Listener {
                 }
             }
 
-            if (plugin.getConfig().getBoolean("debug", false)) {
+            if (plugin.isDebugEnabled()) {
                 plugin.getLogger().info("Dropped " + itemId + " from " + entity.getType().name() + " at " + entity.getLocation());
             }
         }
@@ -134,14 +166,11 @@ public class KnifeDropHandler implements Listener {
         }
 
         if (customItemId != null) {
-            var customItem = plugin.getCraftEngine().itemManager().getCustomItem(Key.of(customItemId)).orElse(null);
-            if (customItem != null) {
-                Set<Key> itemTags = customItem.settings().tags();
-                for (Key tag : itemTags) {
-                    for (String knifeTag : knifeTags) {
-                        if (tag.toString().equalsIgnoreCase(knifeTag)) {
-                            return true;
-                        }
+            Set<Key> itemTags = ItemUtils.getCustomItemTags(Key.of(customItemId));
+            for (Key tag : itemTags) {
+                for (String knifeTag : knifeTags) {
+                    if (tag.toString().equalsIgnoreCase(knifeTag)) {
+                        return true;
                     }
                 }
             }
@@ -160,6 +189,9 @@ public class KnifeDropHandler implements Listener {
     }
 
     private ItemStack createItem(String itemId) {
+        if (ItemUtils.isEmptyItemId(itemId)) {
+            return null;
+        }
         if (!ItemUtils.isValidItemId(itemId)) {
             plugin.getLogger().warning("Invalid item ID format: " + itemId);
             return null;
@@ -184,3 +216,4 @@ public class KnifeDropHandler implements Listener {
         loadConfig();
     }
 }
+

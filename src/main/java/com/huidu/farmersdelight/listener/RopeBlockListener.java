@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.RopeBlockBehavior;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.WorldGuardCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.world.BlockPos;
 import org.bukkit.Bukkit;
@@ -10,6 +11,7 @@ import org.bukkit.GameMode;
 import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
@@ -42,6 +44,7 @@ public class RopeBlockListener implements Listener {
         Block block = event.getClickedBlock();
         if (block == null) return;
         if (!CustomBlockUtils.hasBehavior(block, RopeBlockBehavior.class)) return;
+        if (!WorldGuardCompat.canUse(player, block)) return;
 
         ItemStack mainHand = player.getInventory().getItemInMainHand();
         if (!mainHand.getType().isAir()) return;
@@ -63,10 +66,11 @@ public class RopeBlockListener implements Listener {
         }
 
         Block bottomBlock = world.getBlockAt(block.getX(), bottomY, block.getZ());
+        if (!WorldGuardCompat.canBuild(player, bottomBlock)) return;
         boolean isCreative = player.getGameMode() == GameMode.CREATIVE;
 
         if (!isCreative) {
-            ItemStack recovered = RopeBlockBehavior.buildRopeItemStatic();
+            ItemStack recovered = RopeBlockBehavior.createItemForRopeBlock(bottomBlock);
             if (recovered != null) {
                 if (!player.getInventory().addItem(recovered).isEmpty()) {
                     world.dropItemNaturally(bottomBlock.getLocation(), recovered);
@@ -78,36 +82,49 @@ public class RopeBlockListener implements Listener {
         world.playSound(bottomBlock.getLocation(), Sound.BLOCK_WOOL_BREAK, 1.0f, 1.0f);
 
         BlockPos bp = new BlockPos(block.getX(), bottomY, block.getZ());
-        Bukkit.getScheduler().runTask(plugin,
+        plugin.scheduler().runAt(bottomBlock.getLocation(),
                 () -> RopeBlockBehavior.refreshAdjacentRopes(world, bp));
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
         Block block = event.getBlock();
-        World world = block.getWorld();
-        BlockPos pos = new BlockPos(block.getX(), block.getY(), block.getZ());
-        Bukkit.getScheduler().runTask(plugin, () ->
-                RopeBlockBehavior.refreshAdjacentRopes(world, pos));
+        scheduleRopeRefreshIfNearby(block);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
-        Block block = event.getBlock();
-        World world = block.getWorld();
-        BlockPos pos = new BlockPos(block.getX(), block.getY(), block.getZ());
-        Bukkit.getScheduler().runTask(plugin, () ->
-                RopeBlockBehavior.refreshAdjacentRopes(world, pos));
+        scheduleRopeRefreshIfNearby(event.getBlock());
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockPhysics(BlockPhysicsEvent event) {
         if (event.getChangedType() != event.getBlock().getType()) {
-            Block block = event.getBlock();
-            World world = block.getWorld();
-            BlockPos pos = new BlockPos(block.getX(), block.getY(), block.getZ());
-            Bukkit.getScheduler().runTask(plugin, () ->
-                    RopeBlockBehavior.refreshAdjacentRopes(world, pos));
+            scheduleRopeRefreshIfNearby(event.getBlock());
         }
     }
+
+    private void scheduleRopeRefreshIfNearby(Block block) {
+        if (block == null || !hasNearbyRope(block)) {
+            return;
+        }
+
+        World world = block.getWorld();
+        BlockPos pos = new BlockPos(block.getX(), block.getY(), block.getZ());
+        plugin.scheduler().runAt(block.getLocation(), () ->
+                RopeBlockBehavior.refreshAdjacentRopes(world, pos));
+    }
+
+    private boolean hasNearbyRope(Block block) {
+        if (CustomBlockUtils.hasBehavior(block, RopeBlockBehavior.class)) {
+            return true;
+        }
+        for (BlockFace face : new BlockFace[]{BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST}) {
+            if (CustomBlockUtils.hasBehavior(block.getRelative(face), RopeBlockBehavior.class)) {
+                return true;
+            }
+        }
+        return false;
+    }
 }
+

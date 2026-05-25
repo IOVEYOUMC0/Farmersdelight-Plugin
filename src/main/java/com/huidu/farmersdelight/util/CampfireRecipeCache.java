@@ -95,3 +95,4 @@ public final class CampfireRecipeCache {
         return item.getType() + "x" + item.getAmount();
     }
 }
+

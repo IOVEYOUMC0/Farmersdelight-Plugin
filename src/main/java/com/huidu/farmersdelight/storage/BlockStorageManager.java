@@ -1,16 +1,18 @@
 package com.huidu.farmersdelight.storage;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
-import org.bukkit.Bukkit;
+import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitTask;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -27,7 +29,9 @@ public class BlockStorageManager {
     private final ReentrantReadWriteLock dataLock = new ReentrantReadWriteLock();
     private final AtomicLong dataVersion = new AtomicLong();
     private final AtomicLong lastSavedVersion = new AtomicLong();
-    private BukkitTask autoSaveTask;
+    private PluginTask autoSaveTask;
+    private volatile boolean asyncSaveRunning;
+    private boolean legacyItemFormatLoaded;
 
     public BlockStorageManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -39,13 +43,29 @@ public class BlockStorageManager {
     private void startAutoSave() {
         int saveInterval = plugin.getConfig().getInt("storage.auto-save-interval", 300);
         if (saveInterval > 0) {
-            autoSaveTask = Bukkit.getScheduler().runTaskTimer(plugin, this::saveAll,
+            autoSaveTask = plugin.scheduler().runRepeating(this::saveAllAsync,
                     saveInterval * 20L, saveInterval * 20L);
         }
     }
 
     public void saveAllAsync() {
-        Bukkit.getScheduler().runTask(plugin, this::saveAll);
+        if (asyncSaveRunning) {
+            return;
+        }
+
+        SaveSnapshot snapshot = createSaveSnapshot();
+        if (snapshot == null) {
+            return;
+        }
+
+        asyncSaveRunning = true;
+        plugin.scheduler().runAsync(() -> {
+            try {
+                writeSnapshot(snapshot);
+            } finally {
+                asyncSaveRunning = false;
+            }
+        });
     }
 
     public void saveAllSync() {
@@ -191,9 +211,17 @@ public class BlockStorageManager {
     }
 
     public void saveAll() {
+        SaveSnapshot snapshot = createSaveSnapshot();
+        if (snapshot == null) {
+            return;
+        }
+        writeSnapshot(snapshot);
+    }
+
+    private SaveSnapshot createSaveSnapshot() {
         long currentVersion = dataVersion.get();
         if (currentVersion == lastSavedVersion.get()) {
-            return;
+            return null;
         }
 
         Map<String, Map<String, BlockData>> snapshot;
@@ -201,15 +229,37 @@ public class BlockStorageManager {
         try {
             snapshot = new HashMap<>();
             for (Map.Entry<String, Map<String, BlockData>> entry : worldData.entrySet()) {
-                snapshot.put(entry.getKey(), new HashMap<>(entry.getValue()));
+                Map<String, BlockData> worldSnapshot = new HashMap<>();
+                for (Map.Entry<String, BlockData> blockEntry : entry.getValue().entrySet()) {
+                    BlockData blockData = blockEntry.getValue();
+                    worldSnapshot.put(
+                            blockEntry.getKey(),
+                            new BlockData(blockData.blockType(), copyDataMap(blockData.data()))
+                    );
+                }
+                snapshot.put(entry.getKey(), worldSnapshot);
             }
         } finally {
             dataLock.readLock().unlock();
         }
+        return new SaveSnapshot(currentVersion, snapshot);
+    }
+
+    private Map<String, Object> copyDataMap(Map<String, Object> data) {
+        Map<String, Object> copy = new HashMap<>();
+        for (Map.Entry<String, Object> entry : data.entrySet()) {
+            Object value = entry.getValue();
+            copy.put(entry.getKey(), value instanceof ItemStack itemStack ? itemStack.clone() : value);
+        }
+        return copy;
+    }
+
+    private void writeSnapshot(SaveSnapshot snapshot) {
+        long currentVersion = snapshot.version();
 
         YamlConfiguration config = new YamlConfiguration();
 
-        for (Map.Entry<String, Map<String, BlockData>> worldEntry : snapshot.entrySet()) {
+        for (Map.Entry<String, Map<String, BlockData>> worldEntry : snapshot.worldData().entrySet()) {
             String worldId = worldEntry.getKey();
             ConfigurationSection worldSection = config.createSection("worlds." + worldId);
 
@@ -227,9 +277,7 @@ public class BlockStorageManager {
                             ConfigurationSection itemSection = blockSection.createSection("items." + dataEntry.getKey());
                             itemSection.set("material", itemStack.getType().name());
                             itemSection.set("amount", itemStack.getAmount());
-                            if (itemStack.hasItemMeta()) {
-                                itemSection.set("meta", serializeItemMeta(itemStack));
-                            }
+                            itemSection.set("bytes", serializeItemStack(itemStack));
                         } else if (value instanceof Integer || value instanceof Double || value instanceof Float
                                 || value instanceof Long || value instanceof Boolean || value instanceof String) {
                             blockSection.set("data." + dataEntry.getKey(), value);
@@ -367,25 +415,31 @@ public class BlockStorageManager {
             }
         }
         long loadedVersion = dataVersion.incrementAndGet();
-        lastSavedVersion.set(loadedVersion);
+        lastSavedVersion.set(legacyItemFormatLoaded ? -1L : loadedVersion);
     }
 
-    private String serializeItemMeta(ItemStack item) {
-        YamlConfiguration temp = new YamlConfiguration();
-        temp.set("item", item);
-        return temp.saveToString();
+    private String serializeItemStack(ItemStack item) {
+        return Base64.getEncoder().encodeToString(item.serializeAsBytes());
     }
 
     private ItemStack deserializeItemStack(ConfigurationSection section) {
         try {
+            String bytes = section.getString("bytes");
+            if (bytes != null && !bytes.isEmpty()) {
+                return deserializeModernItemStack(bytes);
+            }
+
             String materialName = section.getString("material");
             if (materialName == null) return null;
 
-            org.bukkit.Material material = org.bukkit.Material.valueOf(materialName);
+            org.bukkit.Material material = org.bukkit.Registry.MATERIAL.get(
+                    org.bukkit.NamespacedKey.minecraft(materialName.toLowerCase()));
+            if (material == null) return null;
             int amount = section.getInt("amount", 1);
 
             String metaStr = section.getString("meta");
             if (metaStr != null && !metaStr.isEmpty()) {
+                legacyItemFormatLoaded = true;
                 YamlConfiguration temp = new YamlConfiguration();
                 temp.loadFromString(metaStr);
                 ItemStack loadedItem = temp.getItemStack("item");
@@ -399,6 +453,37 @@ public class BlockStorageManager {
         } catch (Exception e) {
             plugin.getLogger().fine("Failed to deserialize ItemStack: " + e.getMessage());
             return null;
+        }
+    }
+
+    private ItemStack deserializeModernItemStack(String encodedBytes) throws IOException {
+        byte[] raw = Base64.getDecoder().decode(encodedBytes);
+
+        // Support a future length-prefixed wrapper format if we ever need it,
+        // while keeping today's plain ItemStack.serializeAsBytes() payloads simple.
+        if (looksLikeLengthPrefixedPayload(raw)) {
+            try (DataInputStream dis = new DataInputStream(new ByteArrayInputStream(raw))) {
+                int len = dis.readInt();
+                if (len > 0 && len <= raw.length - Integer.BYTES) {
+                    byte[] itemBytes = new byte[len];
+                    dis.readFully(itemBytes);
+                    return ItemStack.deserializeBytes(itemBytes);
+                }
+            }
+        }
+
+        return ItemStack.deserializeBytes(raw);
+    }
+
+    private boolean looksLikeLengthPrefixedPayload(byte[] raw) {
+        if (raw.length <= Integer.BYTES) {
+            return false;
+        }
+        try (DataInputStream dis = new DataInputStream(new ByteArrayInputStream(raw))) {
+            int len = dis.readInt();
+            return len > 0 && len <= raw.length - Integer.BYTES;
+        } catch (IOException ignored) {
+            return false;
         }
     }
 
@@ -454,9 +539,7 @@ public class BlockStorageManager {
                         ConfigurationSection itemSection = blockSection.createSection("items." + dataEntry.getKey());
                         itemSection.set("material", itemStack.getType().name());
                         itemSection.set("amount", itemStack.getAmount());
-                        if (itemStack.hasItemMeta()) {
-                            itemSection.set("meta", serializeItemMeta(itemStack));
-                        }
+                        itemSection.set("bytes", serializeItemStack(itemStack));
                     } else if (value instanceof Integer || value instanceof Double || value instanceof Float
                             || value instanceof Long || value instanceof Boolean || value instanceof String) {
                         blockSection.set("data." + dataEntry.getKey(), value);
@@ -507,7 +590,7 @@ public class BlockStorageManager {
             String posKey = entry.getKey();
             ParsedPos pos = parsePosKey(posKey);
             if (pos == null) {
-                if (plugin.getConfig().getBoolean("debug", false)) {
+                if (plugin.isDebugEnabled()) {
                     plugin.getLogger().fine("Invalid position format in block data: " + posKey);
                 }
                 continue;
@@ -531,7 +614,7 @@ public class BlockStorageManager {
             String posKey = entry.getKey();
             ParsedPos pos = parsePosKey(posKey);
             if (pos == null) {
-                if (plugin.getConfig().getBoolean("debug", false)) {
+                if (plugin.isDebugEnabled()) {
                     plugin.getLogger().fine("Invalid position format in block data: " + posKey);
                 }
                 continue;
@@ -547,4 +630,8 @@ public class BlockStorageManager {
 
     private record BlockData(String blockType, Map<String, Object> data) {
     }
+
+    private record SaveSnapshot(long version, Map<String, Map<String, BlockData>> worldData) {
+    }
 }
+

@@ -29,3 +29,4 @@ public sealed interface RecipeIngredient permits RecipeIngredient.Item, RecipeIn
         }
     }
 }
+

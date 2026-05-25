@@ -14,17 +14,21 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
 public class I18n {
 
-    private static final Pattern LOCALE_PATTERN = Pattern.compile("^[a-z]{2}_[a-z]{2}$");
+    private static final Pattern LOCALE_PATTERN = Pattern.compile("^[a-z]{2}(_[a-z]{2})?$");
     private static final LegacyComponentSerializer LEGACY_SERIALIZER = LegacyComponentSerializer.legacyAmpersand();
+    private static final String FALLBACK_LOCALE = "zh_cn";
     
     private static FarmersDelightPlugin plugin;
-    private static String defaultLocale = "zh_cn";
+    private static String defaultLocale = FALLBACK_LOCALE;
     private static final Map<String, YamlConfiguration> locales = new HashMap<>();
     private static YamlConfiguration currentLocale;
 
@@ -43,13 +47,6 @@ public class I18n {
 
         saveDefaultLanguages();
 
-        String configLocale = plugin.getConfig().getString("language", "zh_cn").toLowerCase();
-        if (!LOCALE_PATTERN.matcher(configLocale).matches()) {
-            plugin.getLogger().warning("Invalid language code format: " + configLocale + ", using default zh_cn");
-            configLocale = "zh_cn";
-        }
-        defaultLocale = configLocale;
-
         File[] langFiles = langFolder.listFiles((dir, name) -> name.endsWith(".yml"));
         if (langFiles != null) {
             for (File file : langFiles) {
@@ -61,9 +58,11 @@ public class I18n {
             }
         }
 
+        defaultLocale = selectServerLocale();
+
         currentLocale = locales.get(defaultLocale);
         if (currentLocale == null) {
-            currentLocale = locales.get("zh_cn");
+            currentLocale = locales.get(FALLBACK_LOCALE);
             if (currentLocale == null && !locales.isEmpty()) {
                 currentLocale = locales.values().iterator().next();
             }
@@ -93,10 +92,48 @@ public class I18n {
                     backupBrokenLanguage(langFile.toPath());
                     writeBundledLanguage(langFile.toPath(), lang);
                     plugin.getLogger().warning("Detected a corrupted language file and restored the bundled UTF-8 default: " + lang);
+                } else {
+                    mergeMissingBundledLanguageKeys(langFile.toPath(), lang);
                 }
             } catch (IOException e) {
                 plugin.getLogger().warning("Failed to save language file: " + lang + " - " + e.getMessage());
             }
+        }
+    }
+
+    private static void mergeMissingBundledLanguageKeys(Path langFile, String lang) throws IOException {
+        try (InputStream stream = plugin.getResource("lang/" + lang + ".yml")) {
+            if (stream == null) {
+                return;
+            }
+
+            YamlConfiguration bundled = new YamlConfiguration();
+            try (InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+                bundled.load(reader);
+            }
+
+            YamlConfiguration existing = loadYamlUtf8(langFile.toFile());
+            if (existing == null) {
+                return;
+            }
+
+            boolean changed = false;
+            for (String key : bundled.getKeys(true)) {
+                if (bundled.isConfigurationSection(key)) {
+                    continue;
+                }
+                if (!existing.contains(key)) {
+                    existing.set(key, bundled.get(key));
+                    changed = true;
+                }
+            }
+
+            if (changed) {
+                Files.writeString(langFile, existing.saveToString(), StandardCharsets.UTF_8);
+                plugin.getLogger().info("Merged missing language keys into: " + lang);
+            }
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to merge language defaults for " + lang + ": " + e.getMessage());
         }
     }
 
@@ -124,7 +161,8 @@ public class I18n {
     }
 
     private static void backupBrokenLanguage(Path langFile) throws IOException {
-        String backupName = langFile.getFileName() + ".invalid." + System.currentTimeMillis() + ".bak";
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        String backupName = langFile.getFileName() + "." + timestamp + ".bak";
         Files.copy(langFile, langFile.resolveSibling(backupName), StandardCopyOption.REPLACE_EXISTING);
     }
 
@@ -158,9 +196,59 @@ public class I18n {
         loadLocales();
     }
 
+    private static String selectServerLocale() {
+        String configured = normalizeLocale(plugin.getConfig().getString("language", ""));
+        if (configured != null) {
+            if (locales.containsKey(configured)) {
+                return configured;
+            }
+            plugin.getLogger().warning("Configured language '" + configured + "' is not installed, falling back to JVM locale.");
+        }
+
+        Locale systemLocale = Locale.getDefault();
+        String fullLocale = normalizeLocale(systemLocale.toString());
+        if (fullLocale != null && locales.containsKey(fullLocale)) {
+            return fullLocale;
+        }
+
+        String languageOnly = normalizeLocale(systemLocale.getLanguage());
+        if (languageOnly != null) {
+            String matched = locales.keySet().stream()
+                    .filter(locale -> locale.equals(languageOnly) || locale.startsWith(languageOnly + "_"))
+                    .findFirst()
+                    .orElse(null);
+            if (matched != null) {
+                return matched;
+            }
+        }
+
+        if (!locales.containsKey(FALLBACK_LOCALE)) {
+            plugin.getLogger().warning("Fallback language " + FALLBACK_LOCALE + " is not installed; using first loaded language.");
+            return locales.isEmpty() ? FALLBACK_LOCALE : locales.keySet().iterator().next();
+        }
+        plugin.getLogger().warning("No installed language matches JVM locale " + systemLocale + ", using " + FALLBACK_LOCALE + ".");
+        return FALLBACK_LOCALE;
+    }
+
+    private static String normalizeLocale(String locale) {
+        if (locale == null || locale.isBlank()) {
+            return null;
+        }
+        String normalized = locale.trim().replace('-', '_').toLowerCase(Locale.ROOT);
+        if (!LOCALE_PATTERN.matcher(normalized).matches()) {
+            plugin.getLogger().warning("Invalid language code format: " + locale);
+            return null;
+        }
+        return normalized;
+    }
+
     public static String get(String key) {
         if (key == null) return "";
         return get(key, defaultLocale);
+    }
+
+    public static String getDefaultLocale() {
+        return defaultLocale;
     }
 
     public static String get(String key, String locale) {
@@ -263,8 +351,9 @@ public class I18n {
 
     public static void cleanup() {
         plugin = null;
-        defaultLocale = "zh_cn";
+        defaultLocale = FALLBACK_LOCALE;
         locales.clear();
         currentLocale = null;
     }
 }
+
