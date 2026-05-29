@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.advancement;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.advancement.Advancement;
@@ -41,7 +42,7 @@ public class AdvancementManager {
         registerAdvancement("eat_nourishing_food", "main/eat_nourishing_food");
         registerAdvancement("master_chef", "main/master_chef");
 
-        plugin.getLogger().info("Loaded " + advancementKeys.size() + " advancement keys");
+        I18n.logInfo("advancement.loaded_keys", "count", advancementKeys.size());
     }
 
     private void registerAdvancement(String id, String path) {
@@ -60,7 +61,7 @@ public class AdvancementManager {
         NamespacedKey key = advancementKeys.get(advancementId);
         if (key == null) {
             if (plugin.isDebugEnabled()) {
-                plugin.getLogger().info("Unknown advancement: " + advancementId);
+                I18n.logInfo("advancement.unknown", "id", advancementId);
             }
             return;
         }
@@ -69,7 +70,7 @@ public class AdvancementManager {
             Advancement advancement = Bukkit.getAdvancement(key);
             if (advancement == null) {
                 if (plugin.isDebugEnabled()) {
-                    plugin.getLogger().info("Advancement not found: " + key);
+                    I18n.logInfo("advancement.not_found", "key", key);
                 }
                 return;
             }
@@ -82,7 +83,7 @@ public class AdvancementManager {
             }
         } catch (Exception e) {
             if (plugin.isDebugEnabled()) {
-                plugin.getLogger().warning("Failed to award advancement " + advancementId + ": " + e.getMessage());
+                I18n.logWarning("advancement.award_failed", "id", advancementId, "error", e.getMessage());
             }
         }
     }
@@ -98,7 +99,7 @@ public class AdvancementManager {
         NamespacedKey key = advancementKeys.get(advancementId);
         if (key == null) {
             if (plugin.isDebugEnabled()) {
-                plugin.getLogger().info("Unknown advancement: " + advancementId);
+                I18n.logInfo("advancement.unknown", "id", advancementId);
             }
             return;
         }
@@ -107,7 +108,7 @@ public class AdvancementManager {
             Advancement advancement = Bukkit.getAdvancement(key);
             if (advancement == null) {
                 if (plugin.isDebugEnabled()) {
-                    plugin.getLogger().info("Advancement not found: " + key);
+                    I18n.logInfo("advancement.not_found", "key", key);
                 }
                 return;
             }
@@ -118,8 +119,10 @@ public class AdvancementManager {
             }
         } catch (Exception e) {
             if (plugin.isDebugEnabled()) {
-                plugin.getLogger().warning("Failed to award advancement criterion "
-                        + advancementId + "/" + criterion + ": " + e.getMessage());
+                I18n.logWarning("advancement.award_criterion_failed",
+                        "id", advancementId,
+                        "criterion", criterion,
+                        "error", e.getMessage());
             }
         }
     }
@@ -141,7 +144,7 @@ public class AdvancementManager {
             }
         } catch (Exception e) {
             if (plugin.isDebugEnabled()) {
-                plugin.getLogger().warning("Failed to revoke advancement " + advancementId + ": " + e.getMessage());
+                I18n.logWarning("advancement.revoke_failed", "id", advancementId, "error", e.getMessage());
             }
         }
     }

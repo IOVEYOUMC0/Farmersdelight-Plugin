@@ -189,6 +189,7 @@ fun registerObfuscationTask(
         group = "build"
         description = taskDescription
         dependsOn(dependency)
+        inputs.file(layout.projectDirectory.file("build.gradle.kts"))
 
         val outputJar = layout.buildDirectory.file("libs/$outputFileName")
         val mappingFile = layout.buildDirectory.file("reports/proguard/$reportBaseName-mapping.txt")
@@ -210,7 +211,7 @@ fun registerObfuscationTask(
             public void onDisable();
         }
     """.trimIndent())
-        keepclassmembers("""
+        keepclassmembers(mapOf("allowobfuscation" to true), """
         class * {
             @org.bukkit.event.EventHandler <methods>;
         }

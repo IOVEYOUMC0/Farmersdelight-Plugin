@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.block.behavior;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.util.BlockPosKey;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
 import net.momirealms.craftengine.bukkit.util.ItemStackUtils;
 import net.momirealms.craftengine.bukkit.world.BukkitContainer;
@@ -42,23 +43,28 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     private static final String COOKING_PROGRESS = "cooking_progress";
     private static final String COOKING_DURATION = "cooking_duration";
     private static final String MEAL_CONTAINER = "meal_container";
-    private static final int[] INGREDIENT_SLOTS = {0, 1, 2, 3, 4, 5};
-    private static final int[] CONTAINER_SLOT = {CookingPotBlockBehavior.SLOT_CONTAINER};
-    private static final int[] OUTPUT_SLOT = {CookingPotBlockBehavior.SLOT_OUTPUT};
 
     private final CookingPotBlockBehavior behavior;
-    private final Item[] items = new Item[CookingPotBlockBehavior.INVENTORY_SIZE];
-    private final double[] slotExperience = new double[CookingPotBlockBehavior.INVENTORY_SIZE];
+    private final CookingPotLayout layout;
+    private final Item[] items;
+    private final double[] slotExperience;
+    private final boolean[] dirtySlots;
     private final Object container;
     private final Inventory inventory;
     private ItemStack mealContainer;
     private int cookingProgress;
     private int cookingDuration = 200;
     private int maxStackSize = 99;
+    private boolean allSlotsDirty;
+    private CompoundTag pendingLoadData;
 
     public CookingPotBlockEntityController(BlockEntity blockEntity, CookingPotBlockBehavior behavior) {
         super(blockEntity);
         this.behavior = behavior;
+        this.layout = behavior != null ? behavior.getLayout() : CookingPotLayout.DEFAULT;
+        this.items = new Item[this.layout.size()];
+        this.slotExperience = new double[this.layout.size()];
+        this.dirtySlots = new boolean[this.layout.size()];
         Arrays.fill(this.items, Item.empty());
         this.container = CraftEngine.instance().platform().createContainer(this);
         this.inventory = CraftInventoryProxy.INSTANCE.newInstance(this.container);
@@ -70,6 +76,11 @@ public final class CookingPotBlockEntityController extends BlockEntityController
 
     @Override
     public void saveCustomData(CompoundTag tag) {
+        loadPendingDataIfReady();
+        if (this.pendingLoadData != null) {
+            tag.put(this.behavior.customDataKey, this.pendingLoadData);
+            return;
+        }
         CookingPotBlockEntity entity = getEntityIfLoaded();
         if (entity != null) {
             refreshFromEntity(entity);
@@ -86,7 +97,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         synchronized (entity.getLock()) {
             data.put(ITEMS, ItemStackUtils.saveBukkitItemsAsListTag(entity.getInventoryInternal()));
             ListTag experienceTag = new ListTag();
-            for (int i = 0; i < CookingPotBlockBehavior.INVENTORY_SIZE; i++) {
+            for (int i = 0; i < entity.getInventorySize(); i++) {
                 double experience = entity.getSlotExperience(i);
                 if (experience <= 0.0D) continue;
                 CompoundTag slotTag = new CompoundTag();
@@ -112,31 +123,40 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     public void loadCustomData(CompoundTag tag) {
         CompoundTag data = tag.getCompound(this.behavior.customDataKey);
         if (data == null) return;
-        loadData(data);
+        queueLoadData(data);
     }
 
     @Override
     public void loadCustomDataFromItem(Item item) {
-        Tag component = item.getComponentAsSparrowTag(DataComponentKeys.BLOCK_ENTITY_DATA);
-        if (!(component instanceof CompoundTag tag)) return;
-        CompoundTag data = tag.getCompound(this.behavior.customDataKey);
+        CompoundTag data = getPackedDataFromItem(item);
         if (data == null) return;
-        loadData(data);
+        queueLoadData(data);
     }
 
-    private void loadData(CompoundTag data) {
-        World world = getBukkitWorld();
-        if (world == null) return;
+    public void loadPendingDataIfReady() {
+        CompoundTag data = this.pendingLoadData;
+        if (data == null) {
+            return;
+        }
+        if (loadData(data)) {
+            this.pendingLoadData = null;
+        }
+    }
 
-        BlockPosKey posKey = new BlockPosKey(this.blockEntity.pos);
-        CookingPotBlockEntity entity = CookingPotBlockBehavior.getOrCreateBlockEntity(posKey.toLocation(world));
-        if (entity == null) return;
+    private CompoundTag getPackedDataFromItem(Item item) {
+        return CustomBlockUtils.getNestedComponentCompound(item, DataComponentKeys.CUSTOM_DATA, this.behavior.customDataKey);
+    }
+
+    public static void loadDataIntoEntity(CookingPotBlockEntity entity, CompoundTag data) {
+        if (entity == null || data == null) {
+            return;
+        }
 
         int dataVersion = data.getInt(DATA_VERSION, Config.itemDataFixerUpperFallbackVersion());
         ItemStack[] items = ItemStackUtils.parseBukkitItems(Optional.ofNullable(data.getList(ITEMS)).orElseGet(ListTag::new),
-                CookingPotBlockBehavior.INVENTORY_SIZE,
+                entity.getInventorySize(),
                 dataVersion);
-        for (int i = 0; i < CookingPotBlockBehavior.INVENTORY_SIZE; i++) {
+        for (int i = 0; i < entity.getInventorySize(); i++) {
             entity.setInventorySlot(i, items[i]);
             entity.setSlotExperience(i, 0.0D);
         }
@@ -145,7 +165,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         for (int i = 0; i < experienceTag.size(); i++) {
             CompoundTag slotTag = experienceTag.getCompound(i);
             int slot = slotTag.getInt(SLOT, -1);
-            if (slot < 0 || slot >= CookingPotBlockBehavior.INVENTORY_SIZE) continue;
+            if (slot < 0 || slot >= entity.getInventorySize()) continue;
             entity.setSlotExperience(slot, slotTag.getDouble(EXPERIENCE, 0.0D));
         }
 
@@ -157,7 +177,22 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         } else {
             entity.setMealContainer(null);
         }
+    }
 
+    private void queueLoadData(CompoundTag data) {
+        this.pendingLoadData = data;
+        loadPendingDataIfReady();
+    }
+
+    private boolean loadData(CompoundTag data) {
+        World world = getBukkitWorld();
+        if (world == null) return false;
+
+        BlockPosKey posKey = new BlockPosKey(this.blockEntity.pos);
+        CookingPotBlockEntity entity = CookingPotBlockBehavior.getOrCreateBlockEntity(posKey.toLocation(world));
+        if (entity == null) return false;
+
+        loadDataIntoEntity(entity, data);
         if (entity.hasStoredContents()) {
             FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
             if (plugin != null && plugin.getTickManager() != null) {
@@ -165,6 +200,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
             }
         }
         refreshFromEntity(entity);
+        return true;
     }
 
     private CookingPotBlockEntity getOrCreateEntity() {
@@ -174,20 +210,33 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     }
 
     void refreshFromEntity(CookingPotBlockEntity entity) {
+        boolean hasDirtySlots = hasDirtySlots();
         for (int i = 0; i < this.items.length; i++) {
+            if (hasDirtySlots && (this.allSlotsDirty || this.dirtySlots[i])) {
+                continue;
+            }
             this.items[i] = normalize(BukkitItemManager.instance().wrap(entity.getInventorySlot(i)));
             this.slotExperience[i] = entity.getSlotExperience(i);
         }
-        this.cookingProgress = entity.getCookingProgress();
-        this.cookingDuration = entity.getCookingDuration();
-        this.mealContainer = entity.getMealContainer();
+        if (!hasDirtySlots) {
+            this.cookingProgress = entity.getCookingProgress();
+            this.cookingDuration = entity.getCookingDuration();
+            this.mealContainer = entity.getMealContainer();
+        }
+    }
+
+    public void setChangedFromEntity(CookingPotBlockEntity entity) {
+        if (entity != null) {
+            refreshFromEntity(entity);
+        }
+        CustomBlockUtils.markBlockEntityDirty(this.blockEntity);
     }
 
     private CompoundTag saveSnapshotData() {
         CompoundTag data = new CompoundTag();
         data.putInt(DATA_VERSION, VersionHelper.WORLD_VERSION);
 
-        ItemStack[] bukkitItems = new ItemStack[CookingPotBlockBehavior.INVENTORY_SIZE];
+        ItemStack[] bukkitItems = new ItemStack[this.items.length];
         for (int i = 0; i < this.items.length; i++) {
             bukkitItems[i] = asBukkitStack(this.items[i]);
         }
@@ -226,12 +275,19 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         World world = getBukkitWorld();
         if (entity == null || world == null) return;
 
-        for (int i = 0; i < this.items.length; i++) {
-            entity.setInventorySlot(i, asBukkitStack(this.items[i]));
-            if (this.items[i].isEmpty()) {
-                this.slotExperience[i] = 0.0D;
+        boolean writeAll = this.allSlotsDirty || !hasDirtySlots();
+        synchronized (entity.getLock()) {
+            for (int i = 0; i < this.items.length; i++) {
+                if (!writeAll && !this.dirtySlots[i]) {
+                    continue;
+                }
+                entity.setInventorySlot(i, asBukkitStack(this.items[i]));
+                if (this.items[i].isEmpty()) {
+                    this.slotExperience[i] = 0.0D;
+                }
+                entity.setSlotExperience(i, this.slotExperience[i]);
             }
-            entity.setSlotExperience(i, this.slotExperience[i]);
+            clearDirtySlots();
         }
         entity.tryMovePendingToOutput();
         refreshFromEntity(entity);
@@ -241,9 +297,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
             plugin.getTickManager().markActive(world, new BlockPosKey(this.blockEntity.pos), TickManager.BlockType.COOKING_POT);
         }
 
-        if (this.blockEntity.world != null) {
-            this.blockEntity.world.blockEntityChanged(this.blockEntity.pos);
-        }
+        CustomBlockUtils.markBlockEntityDirty(this.blockEntity);
     }
 
     private Item normalize(Item item) {
@@ -255,6 +309,63 @@ public final class CookingPotBlockEntityController extends BlockEntityController
 
     private ItemStack asBukkitStack(Item item) {
         return item == null || item.isEmpty() ? null : ItemStackUtils.getBukkitStack(item.minecraftItem());
+    }
+
+    public ItemStack insertStackThroughFace(ItemStack stack, Direction direction) {
+        if (stack == null || stack.getType().isAir()) {
+            return null;
+        }
+        ItemStack pending = stack.clone();
+        for (int slot : getSlotsForFace(direction)) {
+            if (pending.getAmount() <= 0) {
+                break;
+            }
+            if (!isValidSlot(slot)) {
+                continue;
+            }
+            Item pendingItem = normalize(BukkitItemManager.instance().wrap(pending));
+            if (pendingItem.isEmpty() || !canPlaceItemThroughFace(slot, pendingItem, direction)) {
+                continue;
+            }
+            pending = insertBukkitStackIntoControllerSlot(slot, pending);
+            if (pending == null || pending.getType().isAir()) {
+                setChanged();
+                return null;
+            }
+        }
+        if (pending.getAmount() != stack.getAmount()) {
+            setChanged();
+        }
+        return pending;
+    }
+
+    private ItemStack insertBukkitStackIntoControllerSlot(int slot, ItemStack stack) {
+        ItemStack existing = asBukkitStack(this.items[slot]);
+        ItemStack pending = stack.clone();
+        if (existing == null || existing.getType().isAir()) {
+            int moved = Math.min(pending.getAmount(), Math.min(pending.getMaxStackSize(), this.maxStackSize));
+            ItemStack placed = pending.clone();
+            placed.setAmount(moved);
+            setItem(slot, BukkitItemManager.instance().wrap(placed));
+            pending.setAmount(pending.getAmount() - moved);
+            return pending.getAmount() <= 0 ? null : pending;
+        }
+
+        if (!existing.isSimilar(pending)) {
+            return pending;
+        }
+
+        int maxStack = Math.min(existing.getMaxStackSize(), this.maxStackSize);
+        int space = maxStack - existing.getAmount();
+        if (space <= 0) {
+            return pending;
+        }
+
+        int moved = Math.min(space, pending.getAmount());
+        existing.setAmount(existing.getAmount() + moved);
+        setItem(slot, BukkitItemManager.instance().wrap(existing));
+        pending.setAmount(pending.getAmount() - moved);
+        return pending.getAmount() <= 0 ? null : pending;
     }
 
     @Override
@@ -328,6 +439,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
             this.slotExperience[slot] = Math.max(0.0D, this.slotExperience[slot] - extractedExperience);
             item.shrink(count);
         }
+        markDirty(slot);
         this.setChanged();
         return result;
     }
@@ -362,6 +474,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
                 this.items[slot].count(cappedStackSize);
             }
         }
+        markDirty(slot);
     }
 
     @Override
@@ -409,25 +522,50 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         this.mealContainer = null;
         this.cookingProgress = 0;
         this.cookingDuration = 200;
+        this.allSlotsDirty = true;
+        Arrays.fill(this.dirtySlots, true);
         setChanged();
+    }
+
+    private void markDirty(int slot) {
+        if (isValidSlot(slot)) {
+            this.dirtySlots[slot] = true;
+        }
+    }
+
+    private boolean hasDirtySlots() {
+        if (this.allSlotsDirty) {
+            return true;
+        }
+        for (boolean dirty : this.dirtySlots) {
+            if (dirty) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void clearDirtySlots() {
+        this.allSlotsDirty = false;
+        Arrays.fill(this.dirtySlots, false);
     }
 
     @Override
     public boolean canPlaceItem(int slot, Item item) {
-        return slot >= 0 && slot < CookingPotBlockBehavior.INVENTORY_SIZE && slot != CookingPotBlockBehavior.SLOT_OUTPUT;
+        return isValidSlot(slot) && (layout.isInputSlot(slot) || layout.isContainerSlot(slot));
     }
 
     @Override
     public boolean canTakeItem(Object into, int slot, Item item) {
-        return slot == CookingPotBlockBehavior.SLOT_OUTPUT;
+        return layout.isOutputSlot(slot);
     }
 
     @Override
     public int[] getSlotsForFace(Direction direction) {
         return switch (direction) {
-            case UP -> INGREDIENT_SLOTS;
-            case DOWN -> OUTPUT_SLOT;
-            case NORTH, SOUTH, EAST, WEST -> CONTAINER_SLOT;
+            case UP -> layout.inputSlots();
+            case DOWN -> layout.outputSlots();
+            case NORTH, SOUTH, EAST, WEST -> layout.containerSlots();
             default -> new int[0];
         };
     }
@@ -435,15 +573,15 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     @Override
     public boolean canPlaceItemThroughFace(int slot, Item stack, Direction direction) {
         return switch (direction) {
-            case UP -> slot >= 0 && slot < CookingPotBlockBehavior.SLOT_MEAL_DISPLAY;
-            case NORTH, SOUTH, EAST, WEST -> slot == CookingPotBlockBehavior.SLOT_CONTAINER;
+            case UP -> layout.isInputSlot(slot);
+            case NORTH, SOUTH, EAST, WEST -> layout.isContainerSlot(slot);
             default -> false;
         };
     }
 
     @Override
     public boolean canTakeItemThroughFace(int slot, Item stack, Direction direction) {
-        return direction == Direction.DOWN && slot == CookingPotBlockBehavior.SLOT_OUTPUT;
+        return direction == Direction.DOWN && layout.isOutputSlot(slot);
     }
 
     private boolean isValidSlot(int slot) {
@@ -451,10 +589,6 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     }
 
     private World getBukkitWorld() {
-        if (this.blockEntity.world == null || this.blockEntity.world.world() == null) {
-            return null;
-        }
-        Object platformWorld = this.blockEntity.world.world().platformWorld();
-        return platformWorld instanceof World world ? world : null;
+        return CustomBlockUtils.getBukkitWorld(this.blockEntity);
     }
 }

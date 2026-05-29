@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.recipe;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -39,14 +40,14 @@ final class RecipeFileLoader {
                 sectionConsumer.accept(recipeId, section);
                 loadedCount++;
                 if (plugin.isDebugEnabled()) {
-                    plugin.getLogger().info("Loaded " + recipeTypeName + " recipe: " + recipeId);
+                    I18n.logInfo("recipe.loaded_single", "type", recipeTypeName, "id", recipeId);
                 }
             } catch (Exception e) {
-                plugin.getLogger().warning("Failed to load recipe '" + recipeId + "': " + e.getMessage());
+                I18n.logWarning("recipe.load_failed", "id", recipeId, "error", e.getMessage());
             }
         }
 
-        plugin.getLogger().info("Loaded " + loadedCount + " " + recipeTypeName + " recipes");
+        I18n.logInfo("recipe.loaded_total", "count", loadedCount, "type", recipeTypeName);
     }
 }
 

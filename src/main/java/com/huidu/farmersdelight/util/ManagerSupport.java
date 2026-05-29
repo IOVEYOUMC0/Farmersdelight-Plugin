@@ -1,7 +1,7 @@
 package com.huidu.farmersdelight.util;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
-import com.huidu.farmersdelight.storage.BlockStorageManager;
+import com.huidu.farmersdelight.storage.LegacyBlockStorageManager;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.inventory.ItemStack;
@@ -42,7 +42,7 @@ public final class ManagerSupport {
             return;
         }
 
-        BlockStorageManager storage = plugin.getBlockStorageManager();
+        LegacyBlockStorageManager storage = plugin.getLegacyBlockStorageManager();
         if (storage != null) {
             storage.removeBlockData(normalize(location));
         }

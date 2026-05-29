@@ -15,13 +15,35 @@ import java.util.Map;
 
 public final class CuttingBoardDisplayConfig {
 
+    private static final float DEFAULT_ITEM_SPREAD = 0.15F;
+    private static final Vector3f ZERO_OFFSET = new Vector3f(0.0F, 0.0F, 0.0F);
+
     private final Map<String, DisplayOverride> overrides = new HashMap<>();
+    private Vector3f defaultOffset = new Vector3f(ZERO_OFFSET);
+    private float itemSpread = DEFAULT_ITEM_SPREAD;
 
     public void loadFromConfig(ConfigurationSection section) {
         overrides.clear();
+        defaultOffset = new Vector3f(ZERO_OFFSET);
+        itemSpread = DEFAULT_ITEM_SPREAD;
         if (section == null) {
             return;
         }
+
+        Vector3f configuredDefaultOffset = DisplayOverride.readVector(
+                section,
+                "default-display-position",
+                "default-display-offset",
+                "default-position",
+                "default-offset"
+        );
+        if (configuredDefaultOffset != null) {
+            defaultOffset = configuredDefaultOffset;
+        }
+        itemSpread = Math.max(0.0F, (float) section.getDouble(
+                "display-item-spread",
+                section.getDouble("item-spread", DEFAULT_ITEM_SPREAD)
+        ));
 
         ConfigurationSection displaySection = section.getConfigurationSection("display-overrides");
         if (displaySection == null) {
@@ -65,6 +87,14 @@ public final class CuttingBoardDisplayConfig {
         ItemStack fallback = storedItem.clone();
         fallback.setAmount(1);
         return fallback;
+    }
+
+    public Vector3f getDefaultOffset() {
+        return new Vector3f(defaultOffset);
+    }
+
+    public float getItemSpread() {
+        return itemSpread;
     }
 
     private String normalize(String itemId) {
@@ -113,7 +143,7 @@ public final class CuttingBoardDisplayConfig {
         }
 
         @Nullable
-        private static Vector3f readVector(ConfigurationSection section, String... keys) {
+        static Vector3f readVector(ConfigurationSection section, String... keys) {
             for (String key : keys) {
                 if (!section.contains(key)) {
                     continue;

@@ -33,7 +33,7 @@ public final class ItemUtils {
     private static final List<Material> ITEM_MATERIALS = new ArrayList<>();
 
     private static final PlainTextComponentSerializer PLAIN_TEXT = PlainTextComponentSerializer.plainText();
-    private static final Pattern L10N_PATTERN = Pattern.compile("<(?:l10n|i18n)[:;]([^>:]+)(?::[^>]*)?>");
+    private static final Pattern L10N_PATTERN = Pattern.compile("<(?:l10n|i18n)[:;]([^>]+)>");
     private static final Pattern TRANSLATION_KEY_PATTERN = Pattern.compile("^[a-z0-9_]+(?:\\.[a-z0-9_]+)+$");
 
     static {
@@ -173,9 +173,16 @@ public final class ItemUtils {
 
         ItemMeta meta = item.getItemMeta();
         if (meta != null && meta.hasItemName() && meta.itemName() != null) {
+            Component special = resolveSpecialDisplayComponent(meta.itemName(), item, locale);
+            if (special instanceof TranslatableComponent translatable) {
+                return resolveComponentText(translatable, locale);
+            }
+            if (special != null) {
+                return PLAIN_TEXT.serialize(special);
+            }
             String plain = resolveComponentText(meta.itemName(), locale);
             if (plain != null && !plain.isBlank()) {
-                String resolved = resolveSpecialDisplayText(plain, locale);
+                String resolved = resolveSpecialDisplayText(plain, item, locale);
                 if (resolved != null) {
                     return resolved;
                 }
@@ -183,9 +190,16 @@ public final class ItemUtils {
             }
         }
         if (meta != null && meta.displayName() != null) {
+            Component special = resolveSpecialDisplayComponent(meta.displayName(), item, locale);
+            if (special instanceof TranslatableComponent translatable) {
+                return resolveComponentText(translatable, locale);
+            }
+            if (special != null) {
+                return PLAIN_TEXT.serialize(special);
+            }
             String plain = resolveComponentText(meta.displayName(), locale);
             if (plain != null && !plain.isBlank()) {
-                String resolved = resolveSpecialDisplayText(plain, locale);
+                String resolved = resolveSpecialDisplayText(plain, item, locale);
                 if (resolved != null) {
                     return resolved;
                 }
@@ -230,14 +244,14 @@ public final class ItemUtils {
 
         ItemMeta meta = item.getItemMeta();
         if (meta != null && meta.hasItemName() && meta.itemName() != null) {
-            Component resolved = resolveSpecialDisplayComponent(meta.itemName(), player);
+            Component resolved = resolveSpecialDisplayComponent(meta.itemName(), item, playerLocale(player));
             if (resolved != null) {
                 return resolved;
             }
             return meta.itemName();
         }
         if (meta != null && meta.displayName() != null) {
-            Component resolved = resolveSpecialDisplayComponent(meta.displayName(), player);
+            Component resolved = resolveSpecialDisplayComponent(meta.displayName(), item, playerLocale(player));
             if (resolved != null) {
                 return resolved;
             }
@@ -258,6 +272,9 @@ public final class ItemUtils {
             String translated = translate(key, locale);
             if (!translated.equals(key)) {
                 return translated;
+            }
+            if (TRANSLATION_KEY_PATTERN.matcher(key).matches()) {
+                return humanizeTranslationKey(key);
             }
         }
         try {
@@ -353,14 +370,14 @@ public final class ItemUtils {
         return text.replaceAll("<[^>]+>", "");
     }
 
-    private static String resolveSpecialDisplayText(String rawText, String locale) {
+    private static String resolveSpecialDisplayText(String rawText, ItemStack item, String locale) {
         if (rawText == null || rawText.isBlank()) {
             return null;
         }
         String normalized = rawText.trim();
         Matcher matcher = L10N_PATTERN.matcher(normalized);
         if (matcher.find()) {
-            String key = matcher.group(1);
+            String key = resolveDisplayTranslationKey(matcher.group(1), item);
             String translated = translate(key, locale);
             if (!translated.equals(key)) {
                 return translated;
@@ -370,10 +387,13 @@ public final class ItemUtils {
         return resolveTranslationKeyText(normalized, locale);
     }
 
-    private static Component resolveSpecialDisplayComponent(Component component, Player player) {
+    private static Component resolveSpecialDisplayComponent(Component component, ItemStack item, String locale) {
         if (component instanceof TranslatableComponent translatable) {
             String key = translatable.key();
-            String translated = translate(key, playerLocale(player));
+            if (isVanillaClientTranslationKey(key)) {
+                return Component.translatable(key);
+            }
+            String translated = translate(key, locale);
             if (!translated.equals(key)) {
                 return Component.text(translated);
             }
@@ -389,8 +409,11 @@ public final class ItemUtils {
         String normalized = rawText.trim();
         Matcher matcher = L10N_PATTERN.matcher(normalized);
         if (matcher.find()) {
-            String key = matcher.group(1);
-            String translated = translate(key, playerLocale(player));
+            String key = resolveDisplayTranslationKey(matcher.group(1), item);
+            if (isVanillaClientTranslationKey(key)) {
+                return Component.translatable(key);
+            }
+            String translated = translate(key, locale);
             if (!translated.equals(key)) {
                 return Component.text(translated);
             }
@@ -398,13 +421,51 @@ public final class ItemUtils {
         }
 
         if (TRANSLATION_KEY_PATTERN.matcher(normalized).matches()) {
-            String translated = translate(normalized, playerLocale(player));
+            String translated = translate(normalized, locale);
             if (!translated.equals(normalized)) {
                 return Component.text(translated);
+            }
+            if (isVanillaClientTranslationKey(normalized)) {
+                return Component.translatable(normalized);
             }
             return Component.text(humanizeTranslationKey(normalized));
         }
         return null;
+    }
+
+    private static boolean isVanillaClientTranslationKey(String key) {
+        return key != null
+                && (key.startsWith("item.minecraft.") || key.startsWith("block.minecraft."))
+                && TRANSLATION_KEY_PATTERN.matcher(key).matches();
+    }
+
+    private static String resolveDisplayTranslationKey(String configuredKey, ItemStack item) {
+        if (configuredKey == null) {
+            return "";
+        }
+        String key = configuredKey.trim();
+        String itemId = getDisplayItemId(item);
+        String idPath = itemId;
+        int separator = itemId.indexOf(':');
+        if (separator >= 0 && separator + 1 < itemId.length()) {
+            idPath = itemId.substring(separator + 1);
+        }
+        return key.replace("${__ID__}", idPath)
+                .replace("{__ID__}", idPath)
+                .replace("${__ITEM_ID__}", itemId)
+                .replace("{__ITEM_ID__}", itemId);
+    }
+
+    private static String getDisplayItemId(ItemStack item) {
+        String customItemId = getCustomItemId(item);
+        if (customItemId != null && !customItemId.isBlank()) {
+            return customItemId;
+        }
+        String vanillaItemId = getVanillaMaterialItemId(item);
+        if (vanillaItemId != null && !vanillaItemId.isBlank()) {
+            return vanillaItemId;
+        }
+        return "";
     }
 
     private static String playerLocale(Player player) {
@@ -487,8 +548,13 @@ public final class ItemUtils {
         if (item == null || item.getType().isAir() || isEmptyItemId(itemId)) {
             return false;
         }
-        String normalized = itemId.trim().toLowerCase(Locale.ROOT);
-        return getItemIds(item).stream().anyMatch(id -> id.equalsIgnoreCase(normalized));
+        String normalized = itemId.trim();
+        String customId = getCustomItemId(item);
+        if (customId != null && customId.equalsIgnoreCase(normalized)) {
+            return true;
+        }
+        String vanillaId = getVanillaMaterialItemId(item);
+        return vanillaId != null && vanillaId.equalsIgnoreCase(normalized);
     }
 
     public static boolean matchesItemId(ItemStack item, Key itemId) {
@@ -499,16 +565,15 @@ public final class ItemUtils {
         if (item == null || item.getType().isAir()) {
             return Set.of();
         }
-        java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>();
         String customId = getCustomItemId(item);
-        if (customId != null) {
-            ids.add(customId);
-        }
         String vanillaId = getVanillaMaterialItemId(item);
-        if (vanillaId != null) {
-            ids.add(vanillaId);
+        if (customId == null) {
+            return vanillaId == null ? Set.of() : Set.of(vanillaId);
         }
-        return Set.copyOf(ids);
+        if (vanillaId == null || customId.equals(vanillaId)) {
+            return Set.of(customId);
+        }
+        return Set.of(customId, vanillaId);
     }
 
     public static Set<String> getItemTagIds(ItemStack item) {

@@ -45,14 +45,14 @@ public class StoveInteractListener implements Listener {
             return;
         }
 
-        Bukkit.getLogger().info("=== FD DEBUG PROBE ===");
-        Bukkit.getLogger().info("Stage: LOWEST");
-        Bukkit.getLogger().info("Use item: " + event.useItemInHand());
-        Bukkit.getLogger().info("Use block: " + event.useInteractedBlock());
-        Bukkit.getLogger().info("Hand: " + event.getHand());
-        Bukkit.getLogger().info("Action: " + event.getAction());
-        Bukkit.getLogger().info("Clicked block: " + block.getType());
-        Bukkit.getLogger().info("CE block id: " + ceBlockId);
+        Bukkit.getLogger().info(I18n.formatConsole("debug.probe_header"));
+        logDebugField("debug.label_stage", "LOWEST");
+        logDebugField("debug.label_use_item", event.useItemInHand());
+        logDebugField("debug.label_use_block", event.useInteractedBlock());
+        logDebugField("debug.label_hand", event.getHand());
+        logDebugField("debug.label_action", event.getAction());
+        logDebugField("debug.label_clicked_block", block.getType());
+        logDebugField("debug.label_ce_block_id", ceBlockId);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
@@ -84,7 +84,7 @@ public class StoveInteractListener implements Listener {
             logDebug(player, block, ceBlockId, "farmersdelight:stove", mainHand, stoveManager.findRecipeId(mainHand));
         }
 
-        if (!isStoveBlock(ceBlockId)) {
+        if (!isStoveBlock(block)) {
             return;
         }
         if (!WorldGuardCompat.canUse(player, block) || !WorldGuardCompat.canBuild(player, block)) {
@@ -136,18 +136,24 @@ public class StoveInteractListener implements Listener {
 
     private void logDebug(Player player, Block clickedBlock, String ceBlockId, String behaviorId, ItemStack item, String recipeId) {
         String resolvedItemId = resolveItemId(item);
-        Bukkit.getLogger().info("=== FD DEBUG ===");
-        Bukkit.getLogger().info("Player: " + player.getName());
-        Bukkit.getLogger().info("Clicked block: " + clickedBlock.getType());
-        Bukkit.getLogger().info("CE block id: " + ceBlockId);
-        Bukkit.getLogger().info("Behavior: " + behaviorId);
+        Bukkit.getLogger().info(I18n.formatConsole("debug.header"));
+        logDebugField("debug.label_player", player.getName());
+        logDebugField("debug.label_clicked_block", clickedBlock.getType());
+        logDebugField("debug.label_ce_block_id", ceBlockId);
+        logDebugField("debug.label_behavior", behaviorId);
         Material itemType = Material.AIR;
         if (item != null) {
             itemType = item.getType();
         }
-        Bukkit.getLogger().info("Item: " + itemType);
-        Bukkit.getLogger().info("Item id: " + resolvedItemId);
-        Bukkit.getLogger().info("Recipe found: " + recipeId);
+        logDebugField("debug.label_item", itemType);
+        logDebugField("debug.label_item_id", resolvedItemId);
+        logDebugField("debug.label_recipe_found", recipeId);
+    }
+
+    private void logDebugField(String labelKey, Object value) {
+        Bukkit.getLogger().info(I18n.formatConsole("debug.field",
+                "label", I18n.formatConsole(labelKey),
+                "value", value));
     }
 
     private String resolveItemId(ItemStack item) {
@@ -166,8 +172,13 @@ public class StoveInteractListener implements Listener {
         return Constants.BLOCK_STOVE.equals(ceBlockId);
     }
 
+    private boolean isStoveBlock(Block block) {
+        return CustomBlockUtils.hasBehavior(block, StoveCookingBlockBehavior.class)
+                || CustomBlockUtils.hasId(block, Constants.BLOCK_STOVE);
+    }
+
     private boolean shouldLogAttempt(Block block, String ceBlockId) {
-        if (isStoveBlock(ceBlockId)) {
+        if (isStoveBlock(ceBlockId) || isStoveBlock(block)) {
             return true;
         }
         if (block == null) {

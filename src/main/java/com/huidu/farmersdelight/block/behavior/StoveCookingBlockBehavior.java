@@ -11,6 +11,9 @@ import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.block.behavior.EntityBlock;
+import net.momirealms.craftengine.core.block.entity.BlockEntity;
+import net.momirealms.craftengine.core.block.entity.BlockEntityController;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
@@ -25,7 +28,7 @@ import org.bukkit.inventory.ItemStack;
 import java.util.Map;
 import java.util.concurrent.Callable;
 
-public class StoveCookingBlockBehavior extends BlockBehavior {
+public class StoveCookingBlockBehavior extends BlockBehavior implements EntityBlock {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
@@ -61,6 +64,15 @@ public class StoveCookingBlockBehavior extends BlockBehavior {
         return crackleSound;
     }
 
+    @Override
+    public BlockEntityController createBlockEntityController(BlockEntity blockEntity) {
+        return new StoveBlockEntityController(blockEntity);
+    }
+
+    @Override
+    public void initControllerId(int id) {
+    }
+
     public static StoveCookingBlockBehavior getBlockBehavior(Location location) {
         if (location == null || location.getWorld() == null) {
             return null;
@@ -69,11 +81,7 @@ public class StoveCookingBlockBehavior extends BlockBehavior {
         if (state == null) {
             return null;
         }
-        var behavior = state.behavior();
-        if (behavior instanceof StoveCookingBlockBehavior stoveBehavior) {
-            return stoveBehavior;
-        }
-        return null;
+        return CustomBlockUtils.getBehavior(state, StoveCookingBlockBehavior.class);
     }
 
     private static String getArgumentString(Map<String, Object> arguments, String key, String defaultValue) {
@@ -235,13 +243,19 @@ public class StoveCookingBlockBehavior extends BlockBehavior {
         if (item != null) {
             material = item.getType();
         }
-        Bukkit.getLogger().info("=== FD DEBUG CE ===");
-        Bukkit.getLogger().info("Behavior: farmersdelight:stove");
-        Bukkit.getLogger().info("Player: " + player.getName());
-        Bukkit.getLogger().info("Clicked block: " + clickedBlock.getType());
-        Bukkit.getLogger().info("Item: " + material);
-        Bukkit.getLogger().info("Item id: " + resolvedItemId);
-        Bukkit.getLogger().info("Recipe found: " + recipeId);
+        Bukkit.getLogger().info(I18n.formatConsole("debug.ce_header"));
+        logDebugField("debug.label_behavior", "farmersdelight:stove");
+        logDebugField("debug.label_player", player.getName());
+        logDebugField("debug.label_clicked_block", clickedBlock.getType());
+        logDebugField("debug.label_item", material);
+        logDebugField("debug.label_item_id", resolvedItemId);
+        logDebugField("debug.label_recipe_found", recipeId);
+    }
+
+    private void logDebugField(String labelKey, Object value) {
+        Bukkit.getLogger().info(I18n.formatConsole("debug.field",
+                "label", I18n.formatConsole(labelKey),
+                "value", value));
     }
 
     private String resolveItemId(ItemStack item) {

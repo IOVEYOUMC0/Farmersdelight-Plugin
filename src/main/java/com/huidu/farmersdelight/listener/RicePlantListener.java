@@ -532,6 +532,7 @@ public class RicePlantListener implements Listener {
         }
         if (RiceCropRules.isValidSoil(block.getRelative(BlockFace.DOWN))) {
             block.setType(Material.WATER, false);
+            scheduleWaterRestoreCheck(block);
         } else {
             block.setType(Material.AIR, false);
         }
@@ -552,6 +553,7 @@ public class RicePlantListener implements Listener {
 
         if (RiceCropRules.isValidSoil(brokenBlock.getRelative(BlockFace.DOWN))) {
             brokenBlock.setType(Material.WATER, false);
+            scheduleWaterRestoreCheck(brokenBlock);
         }
     }
 
@@ -589,6 +591,7 @@ public class RicePlantListener implements Listener {
 
         if (getWildRiceBehavior().isValidSoil(brokenBlock.getRelative(BlockFace.DOWN))) {
             brokenBlock.setType(Material.WATER, false);
+            scheduleWaterRestoreCheck(brokenBlock);
         }
     }
 
@@ -599,6 +602,7 @@ public class RicePlantListener implements Listener {
 
         if (getWildRiceBehavior().isValidSoil(lowerBlock.getRelative(BlockFace.DOWN))) {
             lowerBlock.setType(Material.WATER, false);
+            scheduleWaterRestoreCheck(lowerBlock);
         } else {
             lowerBlock.setType(Material.AIR, false);
         }
@@ -667,9 +671,27 @@ public class RicePlantListener implements Listener {
 
         if (getWildRiceBehavior().isValidSoil(block.getRelative(BlockFace.DOWN))) {
             block.setType(Material.WATER, false);
+            scheduleWaterRestoreCheck(block);
         } else {
             block.setType(Material.AIR, false);
         }
+    }
+
+    private void scheduleWaterRestoreCheck(Block carrierBlock) {
+        if (carrierBlock == null) {
+            return;
+        }
+
+        Location location = carrierBlock.getLocation();
+        plugin.scheduler().runLaterAt(location, () -> {
+            Block block = location.getBlock();
+            if (isRiceBlock(block) || isWildRiceBlock(block) || RiceCropRules.isSourceWater(block)) {
+                return;
+            }
+            if (RiceCropRules.isValidSoil(block.getRelative(BlockFace.DOWN))) {
+                block.setType(Material.WATER, false);
+            }
+        }, 1L);
     }
 
     private boolean placeRice(Location location) {

@@ -9,8 +9,8 @@ import com.huidu.farmersdelight.manager.TrayManager;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CraftEngineAdapter;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
-import net.momirealms.craftengine.bukkit.world.BukkitWorldManager;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
@@ -20,6 +20,7 @@ import net.momirealms.craftengine.core.block.behavior.WorldlyContainerHolder;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.block.entity.BlockEntityController;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
+import net.momirealms.craftengine.core.util.Direction;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.CEWorld;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
@@ -45,6 +46,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class CookingPotBlockBehavior extends BlockBehavior implements EntityBlock, WorldlyContainerHolder {
 
@@ -70,10 +72,9 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
     private static final Map<UUID, Map<BlockPosKey, TextDisplay>> worldProgressDisplays = new ConcurrentHashMap<>();
     private static final Map<BlockPosKey, Set<UUID>> displayVisibleToPlayers = new ConcurrentHashMap<>();
     private static final Map<BlockPosKey, Long> displayVisibilityLastCheckTick = new ConcurrentHashMap<>();
+    private static final Map<BlockPosKey, Long> progressDisplayCreateLastCheckTick = new ConcurrentHashMap<>();
     private static final Map<BlockPosKey, String> progressDisplayTextCache = new ConcurrentHashMap<>();
     private static final int VISIBILITY_CHECK_INTERVAL_TICKS = 100;
-    private static final double PROGRESS_DISPLAY_VISIBILITY_DISTANCE_SQUARED = 100.0D;
-    private static final double PROGRESS_DISPLAY_LOOK_DOT_THRESHOLD = 0.95D;
     private static final Map<BlockPosKey, ItemStack> cookingRecipeItems = new ConcurrentHashMap<>();
     private static final Map<BlockPosKey, Long> recentPlacements = new ConcurrentHashMap<>();
     private static final long PLACE_INTERACTION_COOLDOWN_MS = 1000L;
@@ -88,6 +89,9 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
     private final Double soundPitchMin;
     private final Double soundPitchMax;
     final String customDataKey;
+    private final CookingPotLayout layout;
+    private final String customRecipeGroupId;
+    private final String titleOverride;
     private int controllerId;
 
     private CookingPotBlockBehavior(
@@ -101,7 +105,10 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
             Double soundVolume,
             Double soundPitchMin,
             Double soundPitchMax,
-            String customDataKey
+            String customDataKey,
+            CookingPotLayout layout,
+            String customRecipeGroupId,
+            String titleOverride
     ) {
         super(block);
         this.permission = permission;
@@ -114,6 +121,9 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         this.soundPitchMin = soundPitchMin;
         this.soundPitchMax = soundPitchMax;
         this.customDataKey = customDataKey;
+        this.layout = layout != null ? layout : CookingPotLayout.DEFAULT;
+        this.customRecipeGroupId = normalizeBlank(customRecipeGroupId);
+        this.titleOverride = normalizeBlank(titleOverride);
     }
 
     @Override
@@ -154,9 +164,19 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         BlockPosKey posKey = new BlockPosKey(location);
         Map<BlockPosKey, CookingPotBlockEntity> worldEntities = worldBlockEntities.computeIfAbsent(
                 world.getUID(), k -> new ConcurrentHashMap<>());
-        CookingPotBlockEntity entity = worldEntities.computeIfAbsent(posKey, key -> new CookingPotBlockEntity(key, world));
+        CookingPotBlockBehavior behavior = getBlockBehavior(location);
+        CookingPotBlockEntity entity = worldEntities.computeIfAbsent(posKey, key -> createBlockEntity(key, world, behavior));
+        if (behavior != null) {
+            entity.applyBehavior(behavior);
+        }
         entity.setWorld(world);
         return entity;
+    }
+
+    private static CookingPotBlockEntity createBlockEntity(BlockPosKey key, World world, CookingPotBlockBehavior behavior) {
+        CookingPotLayout layout = behavior != null ? behavior.getLayout() : CookingPotLayout.DEFAULT;
+        String recipeGroup = behavior != null ? behavior.getCustomRecipeGroupId() : null;
+        return new CookingPotBlockEntity(key, world, layout, recipeGroup);
     }
 
     public static CookingPotBlockBehavior getBlockBehavior(Location location) {
@@ -164,11 +184,7 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         Block block = location.getBlock();
         ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
         if (state == null) return null;
-        var behavior = state.behavior();
-        if (behavior instanceof CookingPotBlockBehavior potBehavior) {
-            return potBehavior;
-        }
-        return null;
+        return CustomBlockUtils.getBehavior(state, CookingPotBlockBehavior.class);
     }
 
     public static Map<BlockPosKey, CookingPotBlockEntity> getAllBlockEntities(World world) {
@@ -230,6 +246,18 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         return customDataKey;
     }
 
+    public CookingPotLayout getLayout() {
+        return layout;
+    }
+
+    public String getCustomRecipeGroupId() {
+        return customRecipeGroupId;
+    }
+
+    public String getTitleOverride() {
+        return titleOverride;
+    }
+
     public static void removeBlockEntity(World world, BlockPos pos) {
         removeBlockEntity(world, new BlockPosKey(pos));
     }
@@ -258,6 +286,9 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
             trayManager.removeTrayIfAutoPlaced(world, posKey.toBlockPos());
         }
 
+        if (removeStoredData) {
+            CustomBlockUtils.removeCraftEngineBlockEntity(world, posKey);
+        }
     }
 
     public static void cleanupWorld(UUID worldId) {
@@ -279,6 +310,7 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
                 }
                 displayVisibleToPlayers.remove(posKey);
                 displayVisibilityLastCheckTick.remove(posKey);
+                progressDisplayCreateLastCheckTick.remove(posKey);
                 progressDisplayTextCache.remove(posKey);
                 cookingRecipeItems.remove(posKey);
             }
@@ -306,6 +338,7 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         worldProgressDisplays.clear();
         displayVisibleToPlayers.clear();
         displayVisibilityLastCheckTick.clear();
+        progressDisplayCreateLastCheckTick.clear();
         progressDisplayTextCache.clear();
         cookingRecipeItems.clear();
         recentPlacements.clear();
@@ -334,13 +367,14 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
     }
 
     public static void updateProgressDisplay(World world, BlockPosKey posKey, int progressPercent) {
-        if (world == null || posKey == null || progressPercent <= 0) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (world == null || posKey == null || progressPercent <= 0
+                || (plugin != null && !plugin.isCookingPotProgressDisplayEnabled())) {
             removeProgressDisplay(world, posKey);
             return;
         }
 
         String text;
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin != null && plugin.isShowRecipeNameInProgressDisplay()) {
             ItemStack recipeItem = cookingRecipeItems.get(posKey);
             if (recipeItem != null) {
@@ -353,12 +387,19 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
             text = progressPercent + "%";
         }
 
+        TextDisplay display = getProgressDisplay(world, posKey);
         String previousText = progressDisplayTextCache.get(posKey);
-        if (text.equals(previousText)) {
+        if (display != null && text.equals(previousText)) {
+            updateDisplayVisibility(world, posKey, display);
             return;
         }
 
-        TextDisplay display = getOrCreateProgressDisplay(world, posKey);
+        if (display == null && !shouldCreateProgressDisplay(world, posKey)) {
+            return;
+        }
+        if (display == null) {
+            display = getOrCreateProgressDisplay(world, posKey);
+        }
         if (display == null) {
             return;
         }
@@ -391,8 +432,25 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
 
         displayVisibleToPlayers.remove(posKey);
         displayVisibilityLastCheckTick.remove(posKey);
+        progressDisplayCreateLastCheckTick.remove(posKey);
         progressDisplayTextCache.remove(posKey);
         cookingRecipeItems.remove(posKey);
+    }
+
+    private static TextDisplay getProgressDisplay(World world, BlockPosKey posKey) {
+        Map<BlockPosKey, TextDisplay> displays = worldProgressDisplays.get(world.getUID());
+        if (displays == null) {
+            return null;
+        }
+        TextDisplay display = displays.get(posKey);
+        if (display != null && display.isValid()) {
+            return display;
+        }
+        displays.remove(posKey);
+        displayVisibleToPlayers.remove(posKey);
+        displayVisibilityLastCheckTick.remove(posKey);
+        progressDisplayTextCache.remove(posKey);
+        return null;
     }
 
     private static TextDisplay getOrCreateProgressDisplay(World world, BlockPosKey posKey) {
@@ -404,7 +462,10 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
             return existing;
         }
 
-        Location location = posKey.toLocation(world).clone().add(0.5, 1.2, 0.5);
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        double yOffset = plugin != null ? plugin.getCookingPotProgressDisplayYOffset() : 1.2D;
+        float scale = plugin != null ? plugin.getCookingPotProgressDisplayScale() : 0.5F;
+        Location location = posKey.toLocation(world).clone().add(0.5, yOffset, 0.5);
         TextDisplay created = world.spawn(location, TextDisplay.class, entity -> {
             entity.setBillboard(Display.Billboard.CENTER);
             entity.setPersistent(false);
@@ -415,12 +476,40 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
             entity.setTransformation(new Transformation(
                     new Vector3f(0f, 0f, 0f),
                     new AxisAngle4f(0f, 0f, 0f, 1f),
-                    new Vector3f(0.5f, 0.5f, 0.5f),
+                    new Vector3f(scale, scale, scale),
                     new AxisAngle4f(0f, 0f, 0f, 1f)
             ));
         });
         displays.put(posKey, created);
         return created;
+    }
+
+    private static boolean shouldCreateProgressDisplay(World world, BlockPosKey posKey) {
+        long currentTick = System.nanoTime() / 50_000_000L;
+        Long lastCheckTick = progressDisplayCreateLastCheckTick.get(posKey);
+        if (lastCheckTick != null && currentTick - lastCheckTick < VISIBILITY_CHECK_INTERVAL_TICKS) {
+            return false;
+        }
+        progressDisplayCreateLastCheckTick.put(posKey, currentTick);
+
+        Location potLoc = posKey.toLocation(world).add(0.5, 0, 0.5);
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin != null && plugin.scheduler().isFolia()) {
+            return true;
+        }
+        double visibleDistanceSquared = plugin != null
+                ? plugin.getCookingPotProgressDisplayVisibilityDistanceSquared()
+                : 100.0D;
+        double lookDotThreshold = plugin != null
+                ? plugin.getCookingPotProgressDisplayLookDotThreshold()
+                : 0.95D;
+
+        for (Player player : world.getPlayers()) {
+            if (canSeeProgressDisplay(player, potLoc, visibleDistanceSquared, lookDotThreshold)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void updateDisplayVisibility(World world, BlockPosKey posKey, TextDisplay display) {
@@ -443,27 +532,21 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         Location potLoc = posKey.toLocation(world).add(0.5, 0, 0.5);
         Set<UUID> nearbyUUIDs = new HashSet<>();
         Set<UUID> visibleTo = displayVisibleToPlayers.computeIfAbsent(posKey, k -> ConcurrentHashMap.newKeySet());
+        double visibleDistanceSquared = plugin != null
+                ? plugin.getCookingPotProgressDisplayVisibilityDistanceSquared()
+                : 100.0D;
+        double lookDotThreshold = plugin != null
+                ? plugin.getCookingPotProgressDisplayLookDotThreshold()
+                : 0.95D;
 
         for (Player p : world.getPlayers()) {
-            if (!p.isOnline() || p.getLocation().distanceSquared(potLoc) > PROGRESS_DISPLAY_VISIBILITY_DISTANCE_SQUARED) {
+            if (!p.isOnline() || p.getLocation().distanceSquared(potLoc) > visibleDistanceSquared) {
                 continue;
             }
 
             nearbyUUIDs.add(p.getUniqueId());
 
-            Location eyeLoc = p.getEyeLocation();
-            double dx = potLoc.getX() - eyeLoc.getX();
-            double dy = potLoc.getY() - eyeLoc.getY();
-            double dz = potLoc.getZ() - eyeLoc.getZ();
-            double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
-            boolean isLooking = false;
-            if (length > 0.0001D) {
-                org.bukkit.util.Vector lookDir = eyeLoc.getDirection();
-                double dot = lookDir.getX() * (dx / length)
-                        + lookDir.getY() * (dy / length)
-                        + lookDir.getZ() * (dz / length);
-                isLooking = dot > PROGRESS_DISPLAY_LOOK_DOT_THRESHOLD;
-            }
+            boolean isLooking = isLookingAt(p, potLoc, lookDotThreshold);
 
             if (isLooking) {
                 if (!visibleTo.contains(p.getUniqueId())) {
@@ -488,6 +571,31 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
             }
             return true;
         });
+    }
+
+    private static boolean canSeeProgressDisplay(Player player, Location potLoc,
+                                                 double visibleDistanceSquared,
+                                                 double lookDotThreshold) {
+        return player != null
+                && player.isOnline()
+                && player.getLocation().distanceSquared(potLoc) <= visibleDistanceSquared
+                && isLookingAt(player, potLoc, lookDotThreshold);
+    }
+
+    private static boolean isLookingAt(Player player, Location potLoc, double lookDotThreshold) {
+        Location eyeLoc = player.getEyeLocation();
+        double dx = potLoc.getX() - eyeLoc.getX();
+        double dy = potLoc.getY() - eyeLoc.getY();
+        double dz = potLoc.getZ() - eyeLoc.getZ();
+        double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (length <= 0.0001D) {
+            return false;
+        }
+        org.bukkit.util.Vector lookDir = eyeLoc.getDirection();
+        double dot = lookDir.getX() * (dx / length)
+                + lookDir.getY() * (dy / length)
+                + lookDir.getZ() * (dz / length);
+        return dot > lookDotThreshold;
     }
 
     public static void saveAllData() {
@@ -524,16 +632,23 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
             return;
         }
 
+        CookingPotBlockEntity entity = getBlockEntity(world, posKey);
+        if (notifyControllerChanged(world, posKey, entity)) {
+            return;
+        }
+
         markBlockEntityDirty(world, posKey);
     }
 
-    public static void markBlockEntityDirty(World world, BlockPosKey posKey) {
-        if (world == null || posKey == null) return;
+    private static boolean notifyControllerChanged(World world, BlockPosKey posKey, CookingPotBlockEntity entity) {
+        CookingPotBlockBehavior behavior = world != null && posKey != null ? getBlockBehavior(posKey.toLocation(world)) : null;
+        Integer controllerId = behavior == null ? null : behavior.controllerId;
+        return CustomBlockUtils.notifyControllerChanged(world, posKey, CookingPotBlockEntityController.class, controllerId,
+                controller -> controller.setChangedFromEntity(entity));
+    }
 
-        CEWorld ceWorld = BukkitWorldManager.instance().getWorld(world.getUID());
-        if (ceWorld != null) {
-            ceWorld.blockEntityChanged(posKey.toBlockPos());
-        }
+    public static void markBlockEntityDirty(World world, BlockPosKey posKey) {
+        CustomBlockUtils.markBlockEntityDirty(world, posKey);
     }
 
     public static void loadBlockEntity(World world, BlockPos pos) {
@@ -551,7 +666,7 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         CookingPotBlockEntity entity = getOrCreateBlockEntity(posKey.toLocation(world));
         if (entity == null) return;
 
-        for (int i = 0; i < INVENTORY_SIZE; i++) {
+        for (int i = 0; i < entity.getInventorySize(); i++) {
             Object item = data.get("slot_" + i);
             if (item instanceof ItemStack itemStack) {
                 entity.setInventorySlot(i, itemStack);
@@ -581,24 +696,7 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
     }
 
     public static boolean isCookingPotBlock(World world, BlockPosKey posKey) {
-        if (world == null || posKey == null) {
-            return false;
-        }
-
-        Block block = world.getBlockAt(posKey.x(), posKey.y(), posKey.z());
-        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
-        if (state == null || state.isEmpty()) {
-            return false;
-        }
-
-        try {
-            return state.owner().keyOptional()
-                    .map(Object::toString)
-                    .filter(Constants.BLOCK_COOKING_POT::equals)
-                    .isPresent();
-        } catch (Exception ignored) {
-            return false;
-        }
+        return hasCookingPotBehavior(world, posKey);
     }
 
     public static boolean hasCookingPotBehavior(World world, BlockPosKey posKey) {
@@ -607,6 +705,70 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         }
         Block block = world.getBlockAt(posKey.x(), posKey.y(), posKey.z());
         return com.huidu.farmersdelight.util.CustomBlockUtils.hasBehavior(block, CookingPotBlockBehavior.class);
+    }
+
+    public static ItemStack insertIngredientLikeHopper(Location location, ItemStack item) {
+        return insertThroughFace(location, item, Direction.UP);
+    }
+
+    public static ItemStack insertContainerLikeHopper(Location location, ItemStack item) {
+        return insertThroughFace(location, item, Direction.NORTH);
+    }
+
+    private static ItemStack insertThroughFace(Location location, ItemStack item, Direction direction) {
+        if (location == null || location.getWorld() == null || item == null || item.getType().isAir()) {
+            return item == null ? null : item.clone();
+        }
+
+        World world = location.getWorld();
+        BlockPosKey posKey = new BlockPosKey(location);
+        CEWorld ceWorld = CustomBlockUtils.getCEWorld(world);
+        if (ceWorld == null) {
+            return item.clone();
+        }
+
+        BlockEntity blockEntity = ceWorld.getBlockEntityAtIfLoaded(posKey.toBlockPos());
+        if (blockEntity == null) {
+            return item.clone();
+        }
+
+        CookingPotBlockBehavior behavior = getBlockBehavior(location);
+        if (behavior == null) {
+            return item.clone();
+        }
+
+        CookingPotBlockEntity entity = getOrCreateBlockEntity(location);
+        if (entity == null) {
+            return item.clone();
+        }
+
+        AtomicBoolean handled = new AtomicBoolean(false);
+        ItemStack[] fallbackResult = new ItemStack[1];
+        ItemStack result = blockEntity.controller.let(CookingPotBlockEntityController.class, behavior.controllerId, controller -> {
+            handled.set(true);
+            return insertThroughController(controller, entity, item, direction);
+        });
+        if (!handled.get()) {
+            blockEntity.controller.let(CookingPotBlockEntityController.class, controller -> {
+                handled.set(true);
+                fallbackResult[0] = insertThroughController(controller, entity, item, direction);
+            });
+            result = fallbackResult[0];
+        }
+        if (!handled.get()) {
+            return item.clone();
+        }
+        return result == null ? null : result.clone();
+    }
+
+    private static ItemStack insertThroughController(CookingPotBlockEntityController controller,
+                                                     CookingPotBlockEntity entity,
+                                                     ItemStack item,
+                                                     Direction direction) {
+        synchronized (entity.getLock()) {
+            controller.refreshFromEntity(entity);
+            return controller.insertStackThroughFace(item, direction);
+        }
     }
 
     public static final BlockBehaviorFactory<CookingPotBlockBehavior> FACTORY = new BlockBehaviorFactory<CookingPotBlockBehavior>() {
@@ -623,6 +785,22 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
             Double soundPitchMin = getNullableDouble(arguments, "sound-pitch-min");
             Double soundPitchMax = getNullableDouble(arguments, "sound-pitch-max");
             String customDataKey = getString(arguments, "data-key", "farmersdelight:cooking_pot");
+            Map<String, Object> custom = getMap(arguments, "custom");
+            CookingPotLayout layout = CookingPotLayout.DEFAULT;
+            String customRecipeGroupId = null;
+            String titleOverride = null;
+            if (custom != null && !custom.isEmpty()) {
+                int inputSlots = getInt(custom, "input-slots", CookingPotLayout.DEFAULT.inputSlots().length);
+                int pendingOutputSlots = getInt(custom, "pending-output-slots", CookingPotLayout.DEFAULT.pendingOutputSlots().length);
+                int outputSlots = getInt(custom, "output-slots", CookingPotLayout.DEFAULT.outputSlots().length);
+                int containerSlots = getInt(custom, "container-slots", CookingPotLayout.DEFAULT.containerSlots().length);
+                layout = CookingPotLayout.custom(inputSlots, pendingOutputSlots, outputSlots, containerSlots);
+                customRecipeGroupId = getNullableString(custom, "id");
+                titleOverride = getNullableString(custom, "title");
+                if (titleOverride == null) {
+                    titleOverride = getNullableString(custom, "gui-title");
+                }
+            }
             return new CookingPotBlockBehavior(
                     block,
                     permission,
@@ -634,7 +812,10 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
                     soundVolume,
                     soundPitchMin,
                     soundPitchMax,
-                    customDataKey
+                    customDataKey,
+                    layout,
+                    customRecipeGroupId,
+                    titleOverride
             );
         }
     };
@@ -665,7 +846,8 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         Map<BlockPosKey, CookingPotBlockEntity> worldEntities = worldBlockEntities.computeIfAbsent(
                 world.getUID(), k -> new ConcurrentHashMap<>());
 
-        CookingPotBlockEntity blockEntity = worldEntities.computeIfAbsent(posKey, key -> new CookingPotBlockEntity(key, world));
+        CookingPotBlockEntity blockEntity = worldEntities.computeIfAbsent(posKey, key -> createBlockEntity(key, world, this));
+        blockEntity.applyBehavior(this);
         blockEntity.setWorld(world);
         
         TickManager tickManager = FarmersDelightPlugin.getInstance().getTickManager();
@@ -762,8 +944,10 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
             if (entity == null) return 0;
 
             int filledSlots = 0;
-            for (int i = 0; i < SLOT_MEAL_DISPLAY; i++) {
-                ItemStack item = entity.getInventory()[i];
+            ItemStack[] inventory = entity.getInventory();
+            CookingPotLayout layout = entity.getLayout();
+            for (int i : layout.inputSlots()) {
+                ItemStack item = inventory[i];
                 if (item != null && !item.getType().isAir()) {
                     filledSlots++;
                 }
@@ -773,7 +957,7 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
                 filledSlots++;
             }
 
-            return (filledSlots * 15) / (SLOT_MEAL_DISPLAY + 1);
+            return (filledSlots * 15) / (layout.inputSlots().length + 1);
         }
         return 0;
     }
@@ -827,7 +1011,7 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
             return null;
         }
 
-        CEWorld ceWorld = BukkitWorldManager.instance().getWorld(world.getUID());
+        CEWorld ceWorld = CustomBlockUtils.getCEWorld(world);
         if (ceWorld == null) {
             return null;
         }
@@ -896,6 +1080,46 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
             return null;
         }
         return arguments.get(key);
+    }
+
+    private static int getInt(Map<String, Object> arguments, String key, int defaultValue) {
+        Object value = getArgument(arguments, key);
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String string) {
+            try {
+                return Integer.parseInt(string.trim());
+            } catch (NumberFormatException ignored) {
+                return defaultValue;
+            }
+        }
+        return defaultValue;
+    }
+
+    private static Map<String, Object> getMap(Map<String, Object> arguments, String key) {
+        Object value = getArgument(arguments, key);
+        if (value instanceof net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
+            return section.values();
+        }
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> result = new java.util.HashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry.getKey() != null) {
+                    result.put(String.valueOf(entry.getKey()), entry.getValue());
+                }
+            }
+            return result;
+        }
+        return null;
+    }
+
+    private static String normalizeBlank(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }
 

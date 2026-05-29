@@ -8,21 +8,27 @@ import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
+import net.momirealms.craftengine.core.entity.player.Player;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
-import org.bukkit.entity.Player;
 
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.Callable;
 
 public class TatamiPairingBehavior extends BlockBehavior {
+    private static final BlockFace[] ORTHOGONAL_FACES = {
+            BlockFace.NORTH,
+            BlockFace.EAST,
+            BlockFace.SOUTH,
+            BlockFace.WEST,
+            BlockFace.UP,
+            BlockFace.DOWN
+    };
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
@@ -77,12 +83,10 @@ public class TatamiPairingBehavior extends BlockBehavior {
                 return;
             }
 
-            Player player = args[3] == null
-                    ? null
-                    : Bukkit.getPlayer(((net.momirealms.craftengine.core.entity.player.Player) args[3]).uuid());
+            Player player = args[3] instanceof Player cePlayer ? cePlayer : null;
             Block block = world.getBlockAt(pos.x(), pos.y(), pos.z());
             ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
-            if (state == null || state.isEmpty() || player == null || (player.isSneaking() && !pairWhileSneaking)) {
+            if (state == null || state.isEmpty() || (player != null && player.isSecondaryUseActive() && !pairWhileSneaking)) {
                 
                 return;
             }
@@ -125,17 +129,21 @@ public class TatamiPairingBehavior extends BlockBehavior {
         return true;
     }
 
-    @SuppressWarnings("unchecked")
     private ImmutableBlockState withFacingAndPair(ImmutableBlockState state, BlockFace facing, boolean paired) {
         ImmutableBlockState result = state;
         if (facingProperty != null) {
-            Property<String> stringProperty = (Property<String>) facingProperty;
-            result = result.with(stringProperty, facing.name().toLowerCase());
+            result = withPropertyValue(result, facingProperty, facing.name().toLowerCase());
         }
         if (pairedProperty != null) {
             result = result.with(pairedProperty, paired);
         }
         return result;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private ImmutableBlockState withPropertyValue(ImmutableBlockState state, Property property, String valueName) {
+        Comparable<?> value = property.valueByName(valueName);
+        return value == null ? state : ImmutableBlockState.with(state, property, value);
     }
 
     @Override
@@ -150,10 +158,7 @@ public class TatamiPairingBehavior extends BlockBehavior {
 
         World world = brokenLocation.getWorld();
         Block centerBlock = world.getBlockAt(brokenLocation);
-        for (BlockFace face : BlockFace.values()) {
-            if (face == BlockFace.SELF) {
-                continue;
-            }
+        for (BlockFace face : ORTHOGONAL_FACES) {
             refreshTatamiState(centerBlock.getRelative(face));
         }
     }

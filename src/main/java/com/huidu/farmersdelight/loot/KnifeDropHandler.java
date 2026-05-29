@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.loot;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.core.util.Key;
@@ -72,8 +73,8 @@ public class KnifeDropHandler implements Listener {
             }
         }
 
-        plugin.getLogger().info("Loaded " + dropRules.size() + " knife drop rules");
-        plugin.getLogger().info("Loaded " + knifeTags.size() + " knife tags and " + knifeItems.size() + " knife items");
+        I18n.logInfo("knife.loaded_rules", "count", dropRules.size());
+        I18n.logInfo("knife.loaded_matchers", "tags", knifeTags.size(), "items", knifeItems.size());
     }
 
     private void loadDefaultDropRules() {
@@ -143,7 +144,10 @@ public class KnifeDropHandler implements Listener {
             }
 
             if (plugin.isDebugEnabled()) {
-                plugin.getLogger().info("Dropped " + itemId + " from " + entity.getType().name() + " at " + entity.getLocation());
+                I18n.logInfo("knife.dropped",
+                        "item", itemId,
+                        "entity", entity.getType().name(),
+                        "location", entity.getLocation());
             }
         }
     }
@@ -193,7 +197,7 @@ public class KnifeDropHandler implements Listener {
             return null;
         }
         if (!ItemUtils.isValidItemId(itemId)) {
-            plugin.getLogger().warning("Invalid item ID format: " + itemId);
+            I18n.logWarning("knife.invalid_item_id", "id", itemId);
             return null;
         }
         return ItemUtils.createItem(itemId);

@@ -2,7 +2,8 @@ package com.huidu.farmersdelight.manager;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior;
-import com.huidu.farmersdelight.storage.BlockStorageManager;
+import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.storage.LegacyBlockStorageManager;
 import com.huidu.farmersdelight.util.*;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
@@ -16,6 +17,7 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.CookingRecipe;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -46,10 +48,11 @@ public class StoveManager {
     private int tickBudget;
     private volatile Property<?> fireProperty;
 
-    private final double[][] slotOffsets = {
+    private static final double[][] DEFAULT_SLOT_OFFSETS = {
             {0.3, 1.02, 0.2}, {0.0, 1.02, 0.2}, {-0.3, 1.02, 0.2},
             {0.3, 1.02, -0.2}, {0.0, 1.02, -0.2}, {-0.3, 1.02, -0.2}
     };
+    private volatile double[][] slotOffsets = copySlotOffsets(DEFAULT_SLOT_OFFSETS);
 
     public static class StoveData {
         final Location location;
@@ -74,8 +77,10 @@ public class StoveManager {
     }
 
     public void reloadConfig() {
-        this.tickBudget = Math.max(1, plugin.getConfig().getInt(
-                "performance.stove-tick-budget", DEFAULT_TICK_BUDGET));
+        this.tickBudget = Math.max(1, plugin.getConfigInt(DEFAULT_TICK_BUDGET,
+                "stove.tick-budget",
+                "performance.stove-tick-budget"));
+        this.slotOffsets = loadSlotOffsets();
     }
 
     private void ensureTaskRunning() {
@@ -207,7 +212,8 @@ public class StoveManager {
     }
 
     public boolean isStoveStateBlock(Location location) {
-        return CustomBlockUtils.hasId(location, Constants.BLOCK_STOVE);
+        return CustomBlockUtils.hasBehavior(location, StoveCookingBlockBehavior.class)
+                || CustomBlockUtils.hasId(location, Constants.BLOCK_STOVE);
     }
 
     public void saveAllData() {
@@ -307,6 +313,7 @@ public class StoveManager {
 
         if (hasAnyItem) {
             putStove(location, stove);
+            markStoveDirty(location);
             ensureTaskRunning();
         } else {
             removeStoredData(location);
@@ -321,13 +328,15 @@ public class StoveManager {
             return stove;
         }
 
-        BlockStorageManager storage = plugin.getBlockStorageManager();
+        LegacyBlockStorageManager storage = plugin.getLegacyBlockStorageManager();
         if (storage != null) {
             Map<String, Object> data = storage.loadBlockData(normalized, BLOCK_TYPE);
             if (data != null) {
                 loadStove(normalized.getWorld(), new BlockPosKey(normalized), data);
+                storage.removeBlockData(normalized);
                 stove = stoves.get(normalized);
                 if (stove != null) {
+                    markStoveDirty(normalized);
                     return stove;
                 }
             }
@@ -502,7 +511,8 @@ public class StoveManager {
             return;
         }
 
-        if (!CustomBlockUtils.hasId(state, Constants.BLOCK_STOVE)) {
+        if (!CustomBlockUtils.hasBehavior(state, StoveCookingBlockBehavior.class)
+                && !CustomBlockUtils.hasId(state, Constants.BLOCK_STOVE)) {
             debug(() -> "tick state: stove state id mismatch, skipping this tick at " + formatLocation(location));
             return;
         }
@@ -643,7 +653,7 @@ public class StoveManager {
         removeVisual(location, stove, slot);
 
         if (!hasAnyItem(stove)) {
-            ManagerSupport.removeStoredData(plugin, location);
+            removeStoredData(location);
         }
     }
 
@@ -731,6 +741,75 @@ public class StoveManager {
         };
     }
 
+    private double[][] loadSlotOffsets() {
+        double[][] loaded = copySlotOffsets(DEFAULT_SLOT_OFFSETS);
+        ConfigurationSection section = plugin.getFirstConfigSection("stove.display", "display-visuals.stove");
+        if (section == null) {
+            return loaded;
+        }
+
+        List<?> list = section.getList("slot-offsets");
+        if (list != null && !list.isEmpty()) {
+            for (int i = 0; i < Math.min(SLOT_COUNT, list.size()); i++) {
+                double[] parsed = parseOffsetVector(list.get(i));
+                if (parsed != null) {
+                    loaded[i] = parsed;
+                }
+            }
+            return loaded;
+        }
+
+        ConfigurationSection slotsSection = section.getConfigurationSection("slots");
+        if (slotsSection != null) {
+            for (int i = 0; i < SLOT_COUNT; i++) {
+                double[] parsed = parseOffsetVector(slotsSection.get(String.valueOf(i)));
+                if (parsed != null) {
+                    loaded[i] = parsed;
+                }
+            }
+        }
+        return loaded;
+    }
+
+    private static double[][] copySlotOffsets(double[][] source) {
+        double[][] copy = new double[source.length][];
+        for (int i = 0; i < source.length; i++) {
+            copy[i] = Arrays.copyOf(source[i], source[i].length);
+        }
+        return copy;
+    }
+
+    private double[] parseOffsetVector(Object value) {
+        try {
+            if (value instanceof List<?> list && list.size() >= 3) {
+                return new double[]{
+                        Double.parseDouble(list.get(0).toString()),
+                        Double.parseDouble(list.get(1).toString()),
+                        Double.parseDouble(list.get(2).toString())
+                };
+            }
+            if (value instanceof String string) {
+                String[] parts = string.replace("_", "").split(",");
+                if (parts.length >= 3) {
+                    return new double[]{
+                            Double.parseDouble(parts[0].trim()),
+                            Double.parseDouble(parts[1].trim()),
+                            Double.parseDouble(parts[2].trim())
+                    };
+                }
+            }
+            if (value instanceof ConfigurationSection vectorSection) {
+                return new double[]{
+                        vectorSection.getDouble("x", 0.0D),
+                        vectorSection.getDouble("y", 0.0D),
+                        vectorSection.getDouble("z", 0.0D)
+                };
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
     private void removeVisual(Location location, StoveData stove, int slot) {
         int entityId = stove.displayEntities[slot];
         if (entityId < 0) return;
@@ -777,7 +856,7 @@ public class StoveManager {
         }
 
         if (!hasAnyItem(stove)) {
-            ManagerSupport.removeStoredData(plugin, location);
+            removeStoredData(location);
         }
         location.getWorld().playSound(location, Sound.ENTITY_ITEM_PICKUP, 0.8f, 1.0f);
         return true;
@@ -811,13 +890,13 @@ public class StoveManager {
 
     private void debug(String message) {
         if (plugin.isDebugEnabled("stove")) {
-            plugin.getLogger().info("[StoveDebug] " + message);
+            plugin.getLogger().info(I18n.formatConsole("debug.stove", "message", message));
         }
     }
 
     private void debug(Supplier<String> messageSupplier) {
         if (plugin.isDebugEnabled("stove")) {
-            plugin.getLogger().info("[StoveDebug] " + messageSupplier.get());
+            plugin.getLogger().info(I18n.formatConsole("debug.stove", "message", messageSupplier.get()));
         }
     }
 
@@ -833,18 +912,23 @@ public class StoveManager {
         Location normalized = ManagerSupport.normalize(location);
         if (stove == null || !hasAnyItem(stove)) {
             debug("save state: removing persisted stove state at " + formatLocation(normalized));
-            ManagerSupport.removeStoredData(plugin, normalized);
+            markStoveDirty(normalized);
             return;
         }
 
-        BlockStorageManager storage = plugin.getBlockStorageManager();
-        if (storage == null) {
-            debug("save state: skipped because storage manager is null at " + formatLocation(normalized));
-            return;
-        }
+        markStoveDirty(normalized);
+        debug("save state: slots=" + countSavedSlots(stove) + ", location=" + formatLocation(normalized));
+    }
 
+    public Map<String, Object> exportStoveData(org.bukkit.World world, BlockPosKey posKey) {
+        if (world == null || posKey == null) {
+            return Map.of();
+        }
+        StoveData stove = stoves.get(ManagerSupport.toLocation(world, posKey));
+        if (stove == null || !hasAnyItem(stove)) {
+            return Map.of();
+        }
         Map<String, Object> data = new HashMap<>();
-        int savedSlots = 0;
         for (int i = 0; i < SLOT_COUNT; i++) {
             ItemStack item = stove.items[i];
             if (item != null && !item.getType().isAir()) {
@@ -857,15 +941,38 @@ public class StoveManager {
                 if (stove.ownerNames[i] != null) {
                     data.put("slot_" + i + "_owner_name", stove.ownerNames[i]);
                 }
-                savedSlots++;
             }
         }
-        storage.saveBlockData(normalized, BLOCK_TYPE, data);
-        debug("save state: slots=" + savedSlots + ", location=" + formatLocation(normalized));
+        return data;
+    }
+
+    private int countSavedSlots(StoveData stove) {
+        int count = 0;
+        if (stove == null) {
+            return 0;
+        }
+        for (ItemStack item : stove.items) {
+            if (item != null && !item.getType().isAir()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private void markStoveDirty(Location location) {
+        Location normalized = ManagerSupport.normalize(location);
+        if (normalized == null || normalized.getWorld() == null) {
+            return;
+        }
+        CustomBlockUtils.markBlockEntityDirty(normalized.getWorld(), new BlockPosKey(normalized));
     }
 
     private void removeStoredData(Location location) {
-        ManagerSupport.removeStoredData(plugin, location);
+        markStoveDirty(location);
+        LegacyBlockStorageManager storage = plugin.getLegacyBlockStorageManager();
+        if (storage != null) {
+            storage.removeBlockData(ManagerSupport.normalize(location));
+        }
     }
 
 }

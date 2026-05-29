@@ -3,8 +3,11 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
+import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntityController;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntity;
+import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
@@ -12,7 +15,12 @@ import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockAttemptPlaceEvent;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockPlaceEvent;
+import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
 import net.momirealms.craftengine.core.entity.player.InteractionHand;
+import net.momirealms.craftengine.core.item.Item;
+import net.momirealms.craftengine.core.item.component.DataComponentKeys;
+import net.momirealms.craftengine.libraries.nbt.CompoundTag;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -74,6 +82,7 @@ public class BlockPlaceListener implements Listener {
 
         StoveManager stoveManager = FarmersDelightPlugin.getInstance().getStoveManager();
         stoveManager.invalidateBlockedAboveCache(event.getBlock().getLocation().clone().add(0, -1, 0));
+        syncTraysAroundSupportChange(event.getBlock().getLocation());
 
         String customBlockId = getCustomBlockId(event);
         if (customBlockId == null) {
@@ -87,6 +96,7 @@ public class BlockPlaceListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onCustomBlockPlace(CustomBlockPlaceEvent event) {
         String customBlockId = event.customBlock().id().toString();
+        syncTraysAroundSupportChange(event.location());
         ItemStack placedItem = consumePendingPlacedItem(event.player(), event.hand(), customBlockId);
         if (placedItem == null) {
             placedItem = event.hand() == InteractionHand.OFF_HAND
@@ -94,6 +104,17 @@ public class BlockPlaceListener implements Listener {
                     : event.player().getInventory().getItemInMainHand();
         }
         awardForCustomBlock(event.player(), customBlockId, event.location(), placedItem);
+    }
+
+    private void syncTraysAroundSupportChange(Location location) {
+        if (location == null) {
+            return;
+        }
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin == null || plugin.getTrayManager() == null) {
+            return;
+        }
+        plugin.getTrayManager().syncAroundSupportChange(location);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -144,13 +165,19 @@ public class BlockPlaceListener implements Listener {
             return;
         }
 
-        AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
-        if (am == null) return;
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        AdvancementManager am = plugin.getAdvancementManager();
 
-        if (customBlockId.equals(Constants.BLOCK_COOKING_POT)) {
+        if (isCookingPotPlacement(customBlockId, blockLocation)) {
             CookingPotBlockBehavior.markRecentlyPlaced(blockLocation);
-            CookingPotBlockBehavior.getOrCreateBlockEntity(blockLocation);
-            am.award(player, "place_cooking_pot");
+            CookingPotBlockEntity entity = CookingPotBlockBehavior.getOrCreateBlockEntity(blockLocation);
+            restoreCookingPotDataFromPlacedItem(entity, blockLocation.getWorld(), placedItem);
+            if (plugin.getTrayManager() != null) {
+                plugin.getTrayManager().checkAndPlaceTray(blockLocation);
+            }
+            if (am != null) {
+                am.award(player, "place_cooking_pot");
+            }
         }
 
         if (customBlockId.equals(Constants.BLOCK_CUTTING_BOARD)) {
@@ -162,15 +189,45 @@ public class BlockPlaceListener implements Listener {
         }
 
         if (customBlockId.equals(Constants.BLOCK_SKILLET)) {
-            FarmersDelightPlugin.getInstance().getSkilletManager().recordPlacedSkillet(blockLocation, placedItem);
-            am.award(player, "place_skillet");
+            plugin.getSkilletManager().recordPlacedSkillet(blockLocation, placedItem);
+            if (am != null) {
+                am.award(player, "place_skillet");
+            }
         }
 
-        if (FEAST_BLOCKS.contains(customBlockId.toLowerCase())) {
+        if (am != null && FEAST_BLOCKS.contains(customBlockId.toLowerCase())) {
             am.award(player, "place_feast");
         }
 
         awardPlantAllCropsCriterion(player, getCustomCropCriterion(customBlockId));
+    }
+
+    private boolean isCookingPotPlacement(String customBlockId, org.bukkit.Location blockLocation) {
+        if (Constants.BLOCK_COOKING_POT.equals(customBlockId)) {
+            return true;
+        }
+        return CookingPotBlockBehavior.getBlockBehavior(blockLocation) != null;
+    }
+
+    private void restoreCookingPotDataFromPlacedItem(CookingPotBlockEntity entity, World world, ItemStack placedItem) {
+        if (entity == null || world == null || placedItem == null || placedItem.getType().isAir()) {
+            return;
+        }
+        var behavior = CookingPotBlockBehavior.getBlockBehavior(entity.getPosKey().toLocation(world));
+        if (behavior == null) {
+            return;
+        }
+        Item wrapped = BukkitItemManager.instance().wrap(placedItem);
+        CompoundTag data = CustomBlockUtils.getNestedComponentCompound(wrapped, DataComponentKeys.CUSTOM_DATA, behavior.getCustomDataKey());
+        if (data == null) {
+            return;
+        }
+        CookingPotBlockEntityController.loadDataIntoEntity(entity, data);
+        TickManager tickManager = FarmersDelightPlugin.getInstance().getTickManager();
+        if (tickManager != null && entity.hasStoredContents()) {
+            tickManager.markActive(world, entity.getPosKey(), TickManager.BlockType.COOKING_POT);
+        }
+        CookingPotBlockBehavior.saveBlockEntityData(world, entity.getPosKey());
     }
 
     private String getCustomCropCriterion(String customBlockId) {

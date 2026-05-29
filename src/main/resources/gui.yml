@@ -1,5 +1,8 @@
 # FarmersDelight GUI 配置
-# 想改界面布局、按钮、标题、贴图时改这个文件。
+# 界面布局、按钮、标题和贴图在此文件中配置。
+# 每个 GUI 的 layout 用字符表示槽位，legend 把字符映射到槽位类型。
+# items 下的每个按钮都可以使用 material（原版材质）或 item（CraftEngine 物品）。
+# 可选字段：name、lore、name-key、lore-keys、custom-model-data、item-model/item_model、hide-tooltip/hide_tooltip。
 
 cooking-pot-gui:
   title: "<white><offset><icon><shift:-1600>烹饪锅"
@@ -24,11 +27,12 @@ cooking-pot-gui:
     O: output
     R: recipe
     X: decoration
-    " ": background
 
   items:
     background:
       material: GRAY_STAINED_GLASS_PANE
+      item_model: "air"
+      hide-tooltip: true
       name: " "
     decoration:
       material: BROWN_STAINED_GLASS_PANE
@@ -71,9 +75,67 @@ cooking-pot-gui:
     - item: farmersdelight:19
     - item: farmersdelight:20
 
+# 自定义厨锅 GUI。键名对应 CE 方块行为里的 behavior.custom.id。
+# 不写对应 id 时自动使用上面的 cooking-pot-gui。
+cooking-pot-guis: {}
+
+# 例：
+# cooking-pot-guis:
+#   custom:
+#     title: "<white><offset><icon><shift:-1600>自定义厨锅"
+#     fillers-enabled: true
+#     title-layout:
+#       craftengine:
+#         offset: "<shift:-8>"
+#         icon: "<image:farmersdelight:cooking_pot_gui>"
+#     rows: 5
+#     layout:
+#       - "XIIIIIPBX"
+#       - "XIIIIIPBX"
+#       - "RXXXXXXXO"
+#       - "XXHXXCCOO"
+#       - "XXXXXXXXX"
+#     legend:
+#       I: ingredient
+#       H: heat
+#       C: container
+#       P: progress
+#       B: buffer
+#       O: output
+#       R: recipe
+#       X: decoration
+#     items:
+#       background:
+#         material: GRAY_STAINED_GLASS_PANE
+#         item_model: "air"
+#         hide-tooltip: true
+#         name: " "
+#       decoration:
+#         material: BROWN_STAINED_GLASS_PANE
+#         name: " "
+#       heat-active:
+#         item: farmersdelight:cooking_pot_heated
+#       heat-inactive:
+#         item: farmersdelight:cooking_pot_not_heated
+#       progress:
+#         item: farmersdelight:cooking_time
+#         name: "烹饪时长"
+#         lore:
+#           - "剩余: {time} 秒"
+#       recipe:
+#         material: KNOWLEDGE_BOOK
+#         name: "查看烹饪配方"
+#         lore:
+#           - "点击此处查看配方"
+#     progress-items:
+#       - item: farmersdelight:0
+#       - item: farmersdelight:1
+#       - item: farmersdelight:2
+
 recipe-view-gui:
   background-items-enabled: true
   show-ingredient-ids: false
+  max-preview-ingredients: 4
 
   main-menu:
     title: "<white>农夫乐事"
@@ -90,6 +152,8 @@ recipe-view-gui:
     items:
       background:
         material: GRAY_STAINED_GLASS_PANE
+        item_model: "air"
+        hide-tooltip: true
         name: " "
       cooking_pot:
         material: CAULDRON
@@ -113,7 +177,7 @@ recipe-view-gui:
         offset: "<shift:-7>"
         icon: "<image:farmersdelight:recipelist>"
     layout:
-      - "P###B###N"
+      - "P#F#B###N"
       - "RRRRRRRRR"
       - "RRRRRRRRR"
       - "RRRRRRRRR"
@@ -125,10 +189,13 @@ recipe-view-gui:
       N: next_page
       B: back
       X: info
+      F: filter
       "#": background
     items:
       background:
         material: GRAY_STAINED_GLASS_PANE
+        item_model: "air"
+        hide-tooltip: true
         name: " "
       prev_page:
         material: ARROW
@@ -144,6 +211,15 @@ recipe-view-gui:
         name: "配方查看"
         lore:
           - "页数: {page}/{total}"
+      filter:
+        material: COMPASS
+        name: "筛选可烹饪配方"
+      filter-on:
+        material: LIME_DYE
+        name: "仅显示可烹饪"
+      filter-off:
+        material: GRAY_DYE
+        name: "显示全部配方"
 
   recipe-detail-cooking-pot:
     title: "<white><offset><icon><shift:-1600>配方详细"
@@ -153,7 +229,7 @@ recipe-view-gui:
         offset: "<shift:-8>"
         icon: "<image:farmersdelight:cooking_pot_menu>"
     layout:
-      - "B########"
+      - "B######P#"
       - "#####A###"
       - "#III#####"
       - "#III#####"
@@ -165,10 +241,13 @@ recipe-view-gui:
       A: arrow
       C: container
       B: back
+      P: fill
       "#": background
     items:
       background:
         material: GRAY_STAINED_GLASS_PANE
+        item_model: "air"
+        hide-tooltip: true
         name: " "
       arrow:
         item: farmersdelight:cooking_time
@@ -176,6 +255,74 @@ recipe-view-gui:
       back:
         material: ARROW
         name: "返回"
+      # 配方详情页的填入按钮。
+      # 普通点击：每个配方材料最多填入 1 个匹配物品。
+      # Shift 点击：循环匹配材料，尽量填满厨锅输入槽。
+      # 完全没有可匹配材料时不会移动锅内物品，按钮显示 fill-missing。
+      # 锅内原物品无法安全退回玩家背包时不会执行填入，按钮显示 fill-inventory-full。
+      fill:
+        material: HOPPER
+        name: "填入材料"
+        lore:
+          - "&e从背包移动匹配的材料。"
+          - "&7Shift 点击填满可匹配材料。"
+      fill-success:
+        material: HOPPER
+        name: "填入材料"
+        lore:
+          - "&a已把匹配材料填入厨锅。"
+      fill-missing:
+        material: HOPPER
+        name: "填入材料"
+        lore:
+          - "&c背包内没有可匹配该配方的材料。"
+          - "&7Shift 点击填满可匹配材料。"
+      fill-inventory-full:
+        material: BARRIER
+        name: "填入材料"
+        lore:
+          - "&c背包空间不足，无法安全移动锅内物品。"
+
+  # Custom cooking pot recipe detail GUIs. Key must match behavior.custom.id.
+  # If a custom pot has no matching entry here, the plugin falls back to
+  # recipe-detail-cooking-pot and logs a console warning once per custom id.
+  recipe-detail-cooking-pot-guis: {}
+
+  # Example:
+  # recipe-detail-cooking-pot-guis:
+  #   custom:
+  #     title: "<white><offset><icon><shift:-1600>Custom Pot Recipe"
+  #     rows: 6
+  #     title-layout:
+  #       craftengine:
+  #         offset: "<shift:-8>"
+  #         icon: "<image:farmersdelight:cooking_pot_menu>"
+  #     layout:
+  #       - "B######P#"
+  #       - "###III###"
+  #       - "###III###"
+  #       - "###III###"
+  #       - "#####C#R#"
+  #       - "#########"
+  #     legend:
+  #       R: result
+  #       I: ingredient
+  #       C: container
+  #       B: back
+  #       P: fill
+  #       "#": background
+  #     items:
+  #       background:
+  #         material: GRAY_STAINED_GLASS_PANE
+  #         item_model: "air"
+  #         hide-tooltip: true
+  #         name: " "
+  #       back:
+  #         material: ARROW
+  #         name: "Back"
+  #       fill:
+  #         material: HOPPER
+  #         name: "Fill Ingredients"
 
   recipe-detail-cutting-board:
     title: "<white><offset><icon><shift:-1600>配方详细"
@@ -200,6 +347,8 @@ recipe-view-gui:
     items:
       background:
         material: GRAY_STAINED_GLASS_PANE
+        item_model: "air"
+        hide-tooltip: true
         name: " "
       back:
         material: ARROW

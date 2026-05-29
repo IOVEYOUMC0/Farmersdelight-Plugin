@@ -1,12 +1,25 @@
 package com.huidu.farmersdelight.util;
 
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
+import net.momirealms.craftengine.bukkit.world.BukkitWorldManager;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
+import net.momirealms.craftengine.core.block.entity.BlockEntity;
+import net.momirealms.craftengine.core.block.entity.BlockEntityController;
 import net.momirealms.craftengine.core.block.property.Property;
+import net.momirealms.craftengine.core.item.Item;
+import net.momirealms.craftengine.core.util.Key;
+import net.momirealms.craftengine.core.world.CEWorld;
+import net.momirealms.craftengine.core.world.chunk.CEChunk;
+import net.momirealms.craftengine.libraries.nbt.CompoundTag;
+import net.momirealms.craftengine.libraries.nbt.Tag;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+
+import java.util.function.Consumer;
 
 public final class CustomBlockUtils {
 
@@ -55,8 +68,142 @@ public final class CustomBlockUtils {
     }
 
     public static boolean hasBehavior(ImmutableBlockState state, Class<? extends BlockBehavior> behaviorClass) {
-        if (state == null || state.isEmpty()) return false;
-        return behaviorClass.isInstance(state.behavior());
+        return getBehavior(state, behaviorClass) != null;
+    }
+
+    public static <T extends BlockBehavior> T getBehavior(ImmutableBlockState state, Class<T> behaviorClass) {
+        if (state == null || state.isEmpty()) return null;
+        BlockBehavior behavior = state.behavior();
+        if (behavior == null) return null;
+        T matched = behavior.getFirst(behaviorClass);
+        if (matched != null) return matched;
+        return behaviorClass.isInstance(behavior) ? behaviorClass.cast(behavior) : null;
+    }
+
+    public static <T extends BlockBehavior> T getBehavior(Block block, Class<T> behaviorClass) {
+        return getBehavior(getState(block), behaviorClass);
+    }
+
+    public static <T extends BlockBehavior> T getBehavior(Location location, Class<T> behaviorClass) {
+        return location != null && location.getWorld() != null
+                ? getBehavior(location.getBlock(), behaviorClass)
+                : null;
+    }
+
+    public static CEWorld getCEWorld(World world) {
+        return world == null ? null : BukkitWorldManager.instance().getWorld(world.getUID());
+    }
+
+    public static World getBukkitWorld(BlockEntity blockEntity) {
+        if (blockEntity == null || blockEntity.world == null) {
+            return null;
+        }
+        if (blockEntity.world.world() != null) {
+            Object platformWorld = blockEntity.world.world().platformWorld();
+            if (platformWorld instanceof World world) {
+                return world;
+            }
+        }
+        return Bukkit.getWorld(blockEntity.world.uuid());
+    }
+
+    public static void markBlockEntityDirty(World world, BlockPosKey posKey) {
+        if (posKey == null) return;
+        CEWorld ceWorld = getCEWorld(world);
+        if (ceWorld != null) {
+            ceWorld.blockEntityChanged(posKey.toBlockPos());
+        }
+    }
+
+    public static void markBlockEntityDirty(BlockEntity blockEntity) {
+        if (blockEntity != null && blockEntity.world != null) {
+            blockEntity.world.blockEntityChanged(blockEntity.pos);
+        }
+    }
+
+    public static void removeCraftEngineBlockEntity(World world, BlockPosKey posKey) {
+        if (posKey == null) return;
+        CEWorld ceWorld = getCEWorld(world);
+        if (ceWorld == null) {
+            return;
+        }
+        try {
+            CEChunk chunk = ceWorld.getChunkAtIfLoaded(posKey.toBlockPos());
+            if (chunk == null) {
+                return;
+            }
+            chunk.removeBlockEntity(posKey.toBlockPos());
+            chunk.setUnsaved(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    public static <T extends BlockEntityController> boolean notifyControllerChanged(World world,
+                                                                                   BlockPosKey posKey,
+                                                                                   Class<T> controllerClass,
+                                                                                   Integer controllerId,
+                                                                                   Consumer<T> action) {
+        if (posKey == null || controllerClass == null || action == null) {
+            return false;
+        }
+
+        CEWorld ceWorld = getCEWorld(world);
+        if (ceWorld == null) {
+            return false;
+        }
+
+        try {
+            BlockEntity blockEntity = ceWorld.getBlockEntityAtIfLoaded(posKey.toBlockPos());
+            if (blockEntity == null) {
+                return false;
+            }
+
+            boolean[] changed = {false};
+            if (controllerId != null) {
+                blockEntity.controller.let(controllerClass, controllerId, controller -> {
+                    action.accept(controller);
+                    changed[0] = true;
+                });
+            }
+
+            if (!changed[0]) {
+                blockEntity.controller.let(controllerClass, controller -> {
+                    action.accept(controller);
+                    changed[0] = true;
+                });
+            }
+
+            return changed[0];
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    public static CompoundTag getNestedComponentCompound(Item item, Key componentKey, String nestedKey) {
+        if (item == null || componentKey == null || nestedKey == null || nestedKey.isBlank()) {
+            return null;
+        }
+
+        CompoundTag tag = getComponentCompound(item, componentKey);
+        return tag == null ? null : tag.getCompound(nestedKey);
+    }
+
+    public static CompoundTag getComponentCompound(Item item, Key componentKey) {
+        if (item == null || componentKey == null) {
+            return null;
+        }
+
+        Tag component;
+        try {
+            component = item.getComponentAsSparrowTag(componentKey);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+
+        if (!(component instanceof CompoundTag tag)) {
+            return null;
+        }
+        return tag;
     }
 
     public static boolean hasBehavior(Block block, Class<? extends BlockBehavior> behaviorClass) {

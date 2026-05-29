@@ -248,7 +248,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
     }
 
     public boolean isUpperMature(ImmutableBlockState state) {
-        return getAge(state) >= maxAgeUpper;
+        return getAge(state) == maxAgeUpper;
     }
 
     @Override

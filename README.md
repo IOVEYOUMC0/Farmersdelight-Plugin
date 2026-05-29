@@ -22,7 +22,7 @@ FarmersDelight 是一个基于 CraftEngine 26.5 的 Farmer's Delight 风格玩�
 - Paper / Purpur 1.21+
 - CraftEngine 26.5
 
-当前版本已把插件内调度统一到 scheduler adapter；在 Folia 上会优先走全局、区域或实体调度器。Folia 仍建议先在测试服验证厨锅/砧板容器、方块存储、显示同步和异步保存流程。
+插件内调度通过 scheduler adapter 适配 Paper 与 Folia；在 Folia 上优先走全局、区域或实体调度器。Folia 环境建议在测试服验证厨锅/砧板容器、方块存储、显示同步和异步保存流程。
 
 安装步骤：
 
@@ -39,10 +39,20 @@ plugins/FarmersDelight/config.yml
 plugins/FarmersDelight/gui.yml
 plugins/FarmersDelight/recipes/cooking_pot_recipes.yml
 plugins/FarmersDelight/recipes/cutting_board_recipes.yml
-plugins/FarmersDelight/block_storage.yml
 ```
 
-`block_storage.yml` 目前仍用于炉灶和煎锅运行数据。厨锅和砧板以 CraftEngine BlockEntity 数据为主，旧版 `block_storage.yml` 中的厨锅/砧板数据会在区块加载时迁移到 CE 数据并从旧文件中移除。
+厨锅、砧板、炉灶和煎锅的方块运行数据都保存在 CraftEngine BlockEntity 数据中。旧版本生成过的 `block_storage.yml` 只作为迁移源读取；对应区块加载后，旧数据会写入 CE 方块实体并从旧文件中移除。新安装不会生成 `block_storage.yml`。
+
+默认 `config.yml` 按功能归属组织：厨锅相关选项在 `cooking-pot`，砧板在 `cutting-board`，煎锅在 `skillet`，炉灶在 `stove`。旧版本的分散路径仍会被读取作为兼容 fallback，但新配置建议使用默认文件里的新路径。
+
+调试日志在 `debug` 中配置。正常服务器保持关闭；排查问题时需要同时开启总开关并指定分类。`categories` 留空不会输出分类调试日志；需要临时全开时写 `all` 或 `*`。
+
+```yaml
+debug:
+  enabled: true
+  categories:
+    - cooking_pot
+```
 
 ## 3. CraftEngine 侧需要配置什么
 
@@ -73,9 +83,349 @@ farmersdelight:upper_half_loot_relay
 
 CE 方块或家具配置中需要把对应行为挂到对应资源上。例如厨锅挂 `farmersdelight:cooking_pot`，砧板挂 `farmersdelight:cutting_board`，炉灶挂 `farmersdelight:stove`。CE 配置语法以 CraftEngine 26.5 的资源配置为准。
 
+### 3.1 方块行为挂载
+
+行为参数写在 CraftEngine 方块/家具资源的 `behavior` 下。常见写法如下，具体缩进以 CE 资源文件结构为准：
+
+```yaml
+behavior:
+  - type: farmersdelight:cooking_pot
+    permission: farmersdelight.use.cooking_pot
+```
+
+如果同一个资源还挂了 CE 自身行为或其他插件行为，继续在 `behavior` 列表里追加即可。
+
+### 3.2 厨锅行为
+
+默认厨锅只需要挂载行为：
+
+```yaml
+behavior:
+  - type: farmersdelight:cooking_pot
+```
+
+可用参数：
+
+| 参数 | 默认值 | 作用 |
+| --- | --- | --- |
+| `permission` | `farmersdelight.use.cooking_pot` | 打开厨锅需要的权限。写空字符串可关闭本插件的权限检查。 |
+| `open-while-sneaking` | `false` | 潜行右键是否也打开厨锅。关闭时潜行交互会让给其他行为。 |
+| `place-tray-on-open` | `true` | 打开厨锅时是否自动同步/放置锅下托盘显示。 |
+| `boil-sound` | 内置沸腾音效 | 普通烹饪沸腾音效 ID。 |
+| `soup-boil-sound` | 内置汤类沸腾音效 | 汤类烹饪沸腾音效 ID。 |
+| `sound-chance` | 主配置默认值 | 每次烹饪 tick 播放声音的概率。 |
+| `sound-volume` | 主配置默认值 | 沸腾音效音量。 |
+| `sound-pitch-min` | 主配置默认值 | 随机音高下限。 |
+| `sound-pitch-max` | 主配置默认值 | 随机音高上限。 |
+| `data-key` | `farmersdelight:cooking_pot` | CE BlockEntity 中保存厨锅内容的数据键。已放置方块改这个值会让旧内容按新键读取不到，除非自行迁移。 |
+| `custom` | 未启用 | 自定义厨锅槽位、配方组和 GUI 标题。 |
+
+自定义厨锅示例：
+
+```yaml
+behavior:
+  - type: farmersdelight:cooking_pot
+    custom:
+      id: large_pot
+      title: "<image:farmersdelight:large_cooking_pot_gui>"
+      input-slots: 9
+      pending-output-slots: 2
+      output-slots: 3
+      container-slots: 2
+```
+
+`custom` 参数说明：
+
+| 参数 | 作用 |
+| --- | --- |
+| `id` | 自定义厨锅 ID。配方文件中使用 `custom_cooking_pot_recipes.<id>` 写这个锅专用配方；`gui.yml` 可用同名厨锅 GUI 配置覆盖界面。 |
+| `title` / `gui-title` | 打开 GUI 时使用的标题。通常写图片字体，用来覆盖自定义界面贴图。 |
+| `input-slots` | 原料槽数量。 |
+| `pending-output-slots` | 待输出槽数量。烹饪完成但尚未转入输出槽的产物会暂存在待输出槽。 |
+| `output-slots` | 成品输出槽数量。 |
+| `container-slots` | 容器槽数量，例如碗、瓶等。 |
+
+不写 `custom` 时使用默认厨锅布局，不影响原厨锅。
+
+自定义大锅完整配置入口通常有四处，`id` 必须保持一致。下面以 `large_pot` 为例：
+
+1. CE 方块行为，决定这个锅的实际槽位和配方组 ID：
+
+```yaml
+behavior:
+  - type: farmersdelight:cooking_pot
+    custom:
+      id: large_pot
+      input-slots: 9
+      pending-output-slots: 2
+      output-slots: 3
+      container-slots: 2
+```
+
+2. `gui.yml` 的锅本体 GUI，决定玩家打开锅时看到的槽位布局：
+
+```yaml
+cooking-pot-guis:
+  large_pot:
+    title: "<white><offset><icon><shift:-1600>Large Cooking Pot"
+    fillers-enabled: true
+    rows: 5
+    layout:
+      - "XIIIIIPBX"
+      - "XIIIIIPBX"
+      - "RXXXXXXXO"
+      - "XXHXXCCOO"
+      - "XXXXXXXXX"
+    legend:
+      I: ingredient
+      H: heat
+      C: container
+      P: progress
+      B: buffer
+      O: output
+      R: recipe
+      X: decoration
+    items:
+      background:
+        material: GRAY_STAINED_GLASS_PANE
+        item_model: "air"
+        hide-tooltip: true
+        name: " "
+      decoration:
+        material: BROWN_STAINED_GLASS_PANE
+        name: " "
+      recipe:
+        material: KNOWLEDGE_BOOK
+        name: "查看烹饪配方"
+```
+
+3. `gui.yml` 的配方详情 GUI，决定配方页能显示多少个材料。扩展输入槽后建议同步扩展这里的 `ingredient` 槽：
+
+```yaml
+recipe-view-gui:
+  recipe-detail-cooking-pot-guis:
+    large_pot:
+      title: "<white><offset><icon><shift:-1600>Large Pot Recipe"
+      rows: 6
+      layout:
+        - "B######P#"
+        - "###III###"
+        - "###III###"
+        - "###III###"
+        - "#####C#R#"
+        - "#########"
+      legend:
+        I: ingredient
+        C: container
+        R: result
+        B: back
+        P: fill
+        "#": background
+      items:
+        background:
+          material: GRAY_STAINED_GLASS_PANE
+          item_model: "air"
+          hide-tooltip: true
+          name: " "
+        back:
+          material: ARROW
+          name: "返回"
+        fill:
+          material: HOPPER
+          name: "填入材料"
+```
+
+4. `recipes/cooking_pot_recipes.yml` 的自定义配方组：
+
+```yaml
+custom_cooking_pot_recipes:
+  large_pot:
+    large_stew:
+      ingredients:
+        - "minecraft:beef"
+        - "minecraft:carrot"
+        - "minecraft:potato"
+        - "farmersdelight:onion"
+      container: "minecraft:bowl"
+      result: "farmersdelight:beef_stew"
+      cook-time: 200
+```
+
+如果自定义锅有专用配方但没有 `recipe-detail-cooking-pot-guis.<id>`，插件会在从该锅打开配方 GUI 时向控制台输出 warning，并回退使用默认 `recipe-detail-cooking-pot`。如果某个配方材料数超过详情页 `ingredient` 槽数量，也会在打开该 GUI 时向控制台提示。
+
+### 3.3 砧板行为
+
+```yaml
+behavior:
+  - type: farmersdelight:cutting_board
+    tool-tags:
+      - farmersdelight:knives
+    tool-items:
+      - minecraft:shears
+    max-stack-amount: 64
+```
+
+可用参数：
+
+| 参数 | 默认值 | 作用 |
+| --- | --- | --- |
+| `tool-tags` | `farmersdelight:knives`、`farmersdelight:axes`、`farmersdelight:pickaxes` | 可触发砧板配方的工具标签。支持带不带 `#` 的标签写法。 |
+| `tool-items` | `minecraft:shears` | 可直接作为砧板工具的具体物品 ID。 |
+| `knife-sound` | `farmersdelight:block.cutting_board.knife` | 处理食材时播放的音效。 |
+| `max-stack-amount` | `64` | 砧板允许放置的最大物品数量。实际还会受物品自身最大堆叠数限制。 |
+| `data-key` | `farmersdelight:cutting_board` | CE BlockEntity 中保存砧板内容的数据键。 |
+
+砧板是否启用堆叠由 `config.yml` 的 `cutting-board.interaction-mode` 控制：`stacking` 启用堆叠，`offhand` 启用副手交互。
+
+### 3.4 炉灶与煎锅行为
+
+炉灶：
+
+```yaml
+behavior:
+  - type: farmersdelight:stove
+    crackle-sound: farmersdelight:block.stove.crackle
+```
+
+| 参数 | 默认值 | 作用 |
+| --- | --- | --- |
+| `crackle-sound` | `farmersdelight:block.stove.crackle` | 炉灶烹饪时播放的燃烧音效。 |
+
+煎锅：
+
+```yaml
+behavior:
+  - type: farmersdelight:skillet
+    add-food-sound: farmersdelight:block.skillet.add_food
+    sizzle-sound: farmersdelight:block.skillet.sizzle
+```
+
+| 参数 | 默认值 | 作用 |
+| --- | --- | --- |
+| `add-food-sound` | `farmersdelight:block.skillet.add_food` | 放入食物时播放的音效。 |
+| `sizzle-sound` | `farmersdelight:block.skillet.sizzle` | 烹饪时播放的滋滋声。 |
+
+### 3.5 作物、绳子、榻榻米和蘑菇群落行为
+
+高作物：
+
+```yaml
+behavior:
+  - type: farmersdelight:tall_crop
+    age-property: age
+    half-property: half
+    upper-block: farmersdelight:tomatoes_top
+    max-age-lower: 4
+    max-age-upper: 3
+    grow-speed: 0.25
+    light-requirement: 9
+    bottom-block-tags:
+      - minecraft:dirt
+```
+
+| 参数 | 默认值 | 作用 |
+| --- | --- | --- |
+| `age-property` | `age` | CE 方块状态中表示生长阶段的属性名。 |
+| `half-property` | `half` | CE 方块状态中表示上下半部分的属性名。 |
+| `supporting-property` | `supporting` | 标记支撑状态的布尔属性名。没有该属性时会跳过。 |
+| `grow-speed` | `0.25` | 随机 tick 生长概率系数。 |
+| `light-requirement` | `9` | 生长所需最低亮度。 |
+| `is-bone-meal-target` | `true` | 是否允许骨粉催熟。 |
+| `random-bone-meal-growth` | `false` | 骨粉增长量是否使用随机范围。 |
+| `bone-meal-min` / `bone-meal-max` | `1` / `2` | 骨粉增长的最小/最大阶段。 |
+| `max-age-lower` / `max-age-upper` | 从属性推断 | 下半/上半最大成熟阶段。收割与掉落应以成熟状态为准。 |
+| `half-lower-value` / `half-upper-value` | 从属性推断 | 下半/上半状态值。 |
+| `requires-water` | `false` | 放置和存活是否需要水。 |
+| `reset-on-harvest` | `true` | 成熟收割后是否重置为未成熟，而不是直接破坏。 |
+| `upper-block` | 空 | 下半放置时自动生成的上半方块 ID。 |
+| `harvest-tool-tags` | 空 | 可收割的工具标签。 |
+| `harvest-tool-items` | 空 | 可收割的具体物品 ID。 |
+| `bottom-blocks` | 空 | 可种植/支撑的方块。支持原版方块、原版 BlockData、CE 方块 ID、CE 状态字符串。 |
+| `bottom-block-tags` | 空 | 可种植/支撑的方块标签。支持原版方块标签和 CE 方块标签。 |
+
+野生水稻：
+
+```yaml
+behavior:
+  - type: farmersdelight:wild_rice
+    requires-water: true
+    bottom-blocks:
+      - minecraft:dirt
+      - minecraft:grass_block
+      - minecraft:mud
+```
+
+`farmersdelight:wild_rice` 会处理上下半结构、水源恢复和土壤校验。`requires-water` 默认 `true`，`bottom-blocks` / `bottom-block-tags` 的写法与高作物一致。
+
+蘑菇群落：
+
+```yaml
+behavior:
+  - type: farmersdelight:mushroom_colony
+    age-property: age
+    max-age: 3
+    grow-speed: 0.25
+    light-requirement: 0
+    mushroom-type: minecraft:red_mushroom
+    grow-on-blocks:
+      - minecraft:mycelium
+```
+
+| 参数 | 默认值 | 作用 |
+| --- | --- | --- |
+| `age-property` | `age` | 生长阶段属性名。 |
+| `max-age` | 从属性推断 | 最大成熟阶段。 |
+| `grow-speed` | `0.25` | 随机 tick 生长概率系数。 |
+| `light-requirement` | `0` | 生长所需最低亮度。 |
+| `harvest-tool-tags` / `harvest-tool-items` | 空 | 可采集工具。 |
+| `mushroom-type` | 空 | 群落对应的蘑菇物品 ID。 |
+| `grow-on-blocks` / `grow-on-block-tags` | 空 | 可生长的方块或标签；也兼容 `bottom-blocks` / `bottom-block-tags`。 |
+
+榻榻米：
+
+```yaml
+behavior:
+  - type: farmersdelight:tatami
+    block-id: farmersdelight:tatami
+    facing-property: facing
+    paired-property: paired
+    pair-while-sneaking: false
+```
+
+| 参数 | 默认值 | 作用 |
+| --- | --- | --- |
+| `block-id` | 内置榻榻米 ID | 用于判断相邻方块是否是同类榻榻米。 |
+| `facing-property` | `facing` | 朝向属性名。 |
+| `paired-property` | `paired` | 是否已配对的布尔属性名。 |
+| `pair-while-sneaking` | `false` | 潜行放置时是否也自动配对。 |
+
+绳子：
+
+```yaml
+behavior:
+  - type: farmersdelight:rope
+```
+
+`farmersdelight:rope` 会读取方块状态里的 `north`、`south`、`east`、`west` 布尔属性并自动连接相邻绳子。该行为没有额外配置参数。
+
+上半掉落转发：
+
+```yaml
+behavior:
+  - type: farmersdelight:upper_half_loot_relay
+    lower-half-direction: DOWN
+    require-matching-lower-half: true
+    require-matching-block: true
+    half-property: half
+    half-lower-value: lower
+    half-upper-value: upper
+```
+
+该行为用于双高方块：玩家破坏上半时，把掉落判断转给对应下半，避免上半绕过成熟度或下半状态校验。
+
 ## 4. 配置文件分工
 
-`config.yml` 是玩法规则配置。现在所有可改玩法选项都会写出来，常用项排在前面，高级项排在后面。
+`config.yml` 是玩法规则配置。默认文件会写出可配置玩法选项，常用项排在前面，高级项排在后面。
 
 `gui.yml` 只负责 GUI：标题、布局、按钮、背景、图标、进度条、配方页面。主配置不再读取 GUI 小节。
 
@@ -105,32 +455,21 @@ cutting-board:
 煎锅漏斗导热：
 
 ```yaml
-heat-sources:
-  skillet:
+skillet:
+  heat:
     allow-conductors: false
 ```
 
 默认关闭。厨锅仍可使用导热方块判定热源，煎锅不会因为漏斗在下方就被当成加热。
 
-厨锅内容物品提示：
+厨锅破坏掉落：
 
 ```yaml
-cooking-pot-packed-drop:
-  enabled: true
-  durability-bar:
-    enabled: true
-  hide-advanced-durability-tooltip:
-    enabled: true
+cooking-pot:
+  pack-contents-on-break: true
 ```
 
-开启后厨锅被打包成物品时会保存内部内容，并用耐久条表示占用情况，同时隐藏原版高级耐久提示。
-
-说明：
-
-- `cooking-pot-packed-drop.enabled` 控制是否把厨锅内部原料、容器和待输出槽保存进掉落物。
-- `durability-bar.enabled` 只控制是否用耐久条显示内容量。该功能依赖 Paper/Purpur 1.20.5+ 的物品 DataComponent；不支持时会自动跳过，不影响内容保存。
-- `hide-advanced-durability-tooltip.enabled` 只隐藏 F3+H 高级提示里的“耐久度: x / y”。该功能需要 Paper/Purpur 1.21.5+ 的 `TOOLTIP_DISPLAY` 数据组件；旧版本或缺少 API 时会自动跳过。
-- 如果只想保留厨锅内容描述但不要耐久条，把 `durability-bar.enabled` 改成 `false`。
+`true` 表示厨锅被破坏时把内部原料、容器和待输出槽保存进掉落的厨锅物品；`false` 表示掉落空锅并把锅内物品散落到世界中。
 
 ## 6. 物品 ID 与清空写法
 
@@ -157,7 +496,7 @@ minecraft:air
 - `knife-drops.<entity>.normal`
 - `knife-drops.<entity>.burning`
 - `straw-drops.<type>.drop`
-- `container-returns.<item>`
+- `cooking-pot.container-returns.<item>`
 - `gui.yml` 中可选展示物品
 
 配方的 `result` 不建议清空；如果不要某个配方，直接删除那条配方。
@@ -166,13 +505,15 @@ minecraft:air
 
 厨锅有 6 个原料槽、1 个容器槽、1 个待输出槽。配方匹配成功并且有热源时开始烹饪，完成后产物进入待输出槽。
 
-漏斗逻辑默认关闭。当前只保留 CraftEngine `WorldlyContainerHolder` 容器路线，旧的 Bukkit 事件模拟漏斗路线已移除。需要测试时再开启：
+漏斗逻辑默认关闭。插件使用 CraftEngine `WorldlyContainerHolder` 容器路线处理漏斗交互，不再使用 Bukkit 事件模拟漏斗路线。需要漏斗输入输出时再开启：
 
 ```yaml
 hopper-interactions:
   enabled: false
-  cooking-pot: true
-  cutting-board: true
+cooking-pot:
+  hopper-interactions: true
+cutting-board:
+  hopper-interactions: true
 ```
 
 开启后的设计逻辑：
@@ -182,6 +523,8 @@ hopper-interactions:
 - 下方漏斗：从待输出槽抽取成品。
 
 拿容器右键厨锅取出待输出槽物品时，只处理输出和容器，不会刷新整锅数据导致其它内容丢失。
+
+厨锅正在烹饪时会优先保持当前配方。只要当前配方仍然可以由锅内物品完成，继续放入稻米、其它食材或额外批次材料都不会重置烹饪进度；只有当前配方不再满足并切换到另一条配方时，进度才会重新开始。
 
 厨锅配方示例：
 
@@ -265,9 +608,111 @@ heat-sources:
   conductor-tags: []
 ```
 
-如果 CE 资源侧已经给某个自定义方块加了 `farmersdelight:heat_sources` 标签，这里不用再单独写进 `custom-blocks`。
+CE 资源侧已给某个自定义方块加上 `farmersdelight:heat_sources` 标签时，不需要再单独写进 `custom-blocks`。
 
-## 10. GUI
+## 10. 世界展示与模型适配
+
+替换 CE 模型后，常见问题是物品显示偏移、太大、太小、悬浮文字遮挡。优先调整 `config.yml` 里的展示参数，不建议直接改代码。
+
+### 10.1 砧板物品展示
+
+砧板的全局展示参数在 `cutting-board` 下：
+
+```yaml
+cutting-board:
+  default-display-offset: 0,0,0
+  display-item-spread: 0.15
+```
+
+- `default-display-offset`：所有砧板物品的整体偏移，格式 `x,y,z`。更换砧板模型后所有物品都偏向同一侧时，调整该项。
+- `display-item-spread`：多个物品堆在砧板上时的散开范围。`0.15` 表示最大约 `+-0.075` 方块，接近原模组。显示过于分散时可调小，例如 `0.08`。
+
+单个物品显示不对时，用 `display-overrides` 单独覆盖：
+
+```yaml
+cutting-board:
+  display-overrides:
+    farmersdelight:tomato:
+      display-item: farmersdelight:tomato_display
+      style: item
+      position: 0,0.02,0
+      translation: 0,0,0
+      rotation: 90,180,0
+      scale: 0.55
+```
+
+- `display-item`：用另一个 CE/原版物品当展示模型。
+- `style`：`auto` 自动判断；`item` 强制平面物品；`block` 强制方块/立体物品。
+- `position`：在全局偏移基础上继续移动。
+- `translation`：ItemDisplay 内部平移。通常保持默认，模型轴心不对时再调整。
+- `rotation`：覆盖旋转角度，单位度。
+- `scale`：覆盖缩放，可以写 `0.55` 或 `0.55,0.55,0.55`。
+
+### 10.2 煎锅物品展示
+
+煎锅参数在 `skillet.display`：
+
+```yaml
+skillet:
+  display:
+    scale: 0.5
+    y-offset: 0.1
+    item-spread: 0.125
+```
+
+- `scale`：食物大小。
+- `y-offset`：食物基础高度。陷进锅里就调高，漂浮明显就调低。
+- `item-spread`：多个食物的随机散开范围。默认 `0.125` 接近原模组，即最大约 `+-0.0625` 方块。
+
+### 10.3 炉灶物品展示
+
+炉灶参数在 `stove.display`：
+
+```yaml
+stove:
+  display:
+    scale: 0.375
+    slot-offsets:
+      - "0.3,1.02,0.2"
+      - "0.0,1.02,0.2"
+      - "-0.3,1.02,0.2"
+      - "0.3,1.02,-0.2"
+      - "0.0,1.02,-0.2"
+      - "-0.3,1.02,-0.2"
+```
+
+- `scale`：炉灶上食物大小。
+- `slot-offsets`：6 个槽位的坐标，格式 `x,y,z`。坐标以 north 朝向为基准，插件会按炉灶朝向自动旋转。
+- 槽位顺序：前排右、前排中、前排左、后排右、后排中、后排左。
+- 更换炉灶模型后食物没落在烤面上时，优先调 `slot-offsets` 的 `x/z`；高度不对时调整每一项的 `y`。
+
+### 10.4 厨锅进度文字
+
+厨锅悬浮进度文字在 `cooking-pot.progress-display`：
+
+```yaml
+cooking-pot:
+  progress-display:
+    enabled: true
+    show-recipe-name: false
+    y-offset: 1.2
+    scale: 0.5
+    visibility-distance: 10.0
+    look-dot-threshold: 0.95
+    update-interval-ticks: 8
+    disable-above-active-pots: 512
+```
+
+- `enabled`：是否启用厨锅烹饪中的悬浮 TextDisplay。大量厨锅压测时可先关掉做基线对比。
+- `show-recipe-name`：是否显示正在烹饪的配方名。
+- `y-offset`：文字高度。更换高锅或矮锅模型后可调整该项。
+- `scale`：文字缩放。
+- `visibility-distance`：玩家离厨锅多少格内才可能看到。
+- `look-dot-threshold`：看向判定阈值，越接近 `1` 要求看得越准。提示太难触发可调到 `0.90`。
+- `update-interval-ticks`：悬浮进度文字刷新间隔。只影响 TextDisplay 更新频率，不会放慢真实烹饪时间。
+- `disable-above-active-pots`：活跃厨锅数量超过该值时自动关闭悬浮 TextDisplay，`0` 表示不按数量自动关闭。
+
+## 11. GUI
 
 GUI 配置在 `gui.yml`。每个界面都有：
 
@@ -294,7 +739,78 @@ items:
 
 `material` 使用 Bukkit 原版材质，`item` 使用 CraftEngine 物品。配方详情页会尽量读取展示物品自己的名称，所以 CE 侧物品名称写好后，配方页面也会更自然。
 
-## 11. 小刀掉落与草秆
+### 11.1 厨锅配方详情的填入按钮
+
+厨锅配方详情页的 `fill` 按钮用于把玩家背包里匹配当前配方的材料移动到厨锅内：
+
+- 普通点击：每个配方材料最多填入 1 个匹配物品。
+- Shift 点击：按配方材料循环匹配，尽量填满厨锅输入槽。
+- 完全没有可匹配材料时，不会移动锅内物品，也不会返回厨锅界面。
+- 如果锅内原物品无法安全退回玩家背包，不会执行填入，避免吞物品。
+- 原地刷新配方详情页时会保留详情页烹饪进度条动画，不会因为填入按钮状态变化而把进度条显示重置到起点。
+- 填入材料本身不会强制清零厨锅真实烹饪进度；正在烹饪的配方仍可完成时，进度继续保留。
+
+按钮显示完全在 `gui.yml` 中配置。四个状态分别是：
+
+| 配置项 | 什么时候显示 |
+| --- | --- |
+| `fill` | 默认状态，玩家还没有点击填入按钮。 |
+| `fill-success` | 成功填入至少一个材料或容器后的状态。默认流程会返回厨锅界面，通常只会短暂显示；保留该项用于统一配置成功状态的材质和文本。 |
+| `fill-missing` | 背包里没有任何可匹配当前配方的材料或容器。 |
+| `fill-inventory-full` | 厨锅内原物品无法安全退回玩家背包。 |
+
+示例：
+
+```yaml
+recipe-view-gui:
+  recipe-detail-cooking-pot:
+    items:
+      fill:
+        item: farmersdelight:recipe_fill
+        name: "填入材料"
+        lore:
+          - "&e从背包移动匹配的材料。"
+          - "&7Shift 点击填满可匹配材料。"
+      fill-missing:
+        item: farmersdelight:recipe_fill_missing
+        name: "没有可填材料"
+        lore:
+          - "&c背包里没有可匹配当前配方的材料。"
+      fill-inventory-full:
+        item: farmersdelight:recipe_fill_blocked
+        name: "背包空间不足"
+        lore:
+          - "&c请先清理背包，再尝试填入材料。"
+```
+
+这些按钮也可以使用原版材质：
+
+```yaml
+fill:
+  material: HOPPER
+  custom-model-data: 10001
+  name: "填入材料"
+```
+
+修改 `gui.yml` 后使用 `/fd reload gui` 生效；如果按钮使用了新的 CraftEngine 物品或资源包贴图，仍建议完整重启服务器并让玩家重新加载资源包。
+
+CraftEngine 侧用自定义配置覆盖原版物品时，建议同时给 CE 物品写一个指向原版语言键的显示名，避免 GUI、配方页或物品提示只显示 ID。例如覆盖原版物品 ID 时，可以在 CE 物品显示名里使用：
+
+```yaml
+name: "<l10n:item.minecraft.${__ID__}>"
+```
+
+`${__ID__}` 表示当前物品 ID 的路径部分。例如 `minecraft:cooked_beef` 会对应到原版语言键 `item.minecraft.cooked_beef`。玩家客户端会按自己的语言显示“熟牛肉 / Cooked Beef”等本地化名称，而不是显示 `minecraft:cooked_beef` 或 CE 内部 ID。
+
+如果覆盖的是自定义命名空间物品，也可以按同样思路写自己的语言键：
+
+```yaml
+name: "<l10n:item.farmersdelight.${__ID__}>"
+```
+
+前提是资源包语言文件里存在对应翻译。没有翻译时，客户端通常会回退显示语言键本身。
+
+## 12. 小刀掉落与草秆
 
 小刀识别：
 
@@ -331,7 +847,7 @@ straw-drops:
     max-amount: 2
 ```
 
-## 12. 食物效果
+## 13. 食物效果
 
 宠物食物：
 
@@ -396,13 +912,16 @@ nourishment-foods:
 容器返还：
 
 ```yaml
-container-returns:
-  farmersdelight:milk_bottle: minecraft:glass_bottle
+cooking-pot:
+  container-returns:
+    farmersdelight:milk_bottle: minecraft:glass_bottle
 ```
 
-## 13. 命令与权限
+## 14. 命令与权限
 
-命令：
+主命令通过代码动态注册，命令名是 `/farmersdelight`，别名是 `/fd`。所有子命令都会先检查基础权限 `farmersdelight.command`；没有这个权限时，即使拥有某个子命令权限，也不会进入子命令。
+
+命令总览：
 
 ```text
 /fd help
@@ -419,20 +938,73 @@ container-returns:
 /fd cleanup
 ```
 
-权限：
+命令说明：
 
-```text
-farmersdelight.command
-farmersdelight.command.recipe
-farmersdelight.use.cooking_pot
-farmersdelight.use.stove
-farmersdelight.use.skillet
-farmersdelight.use.cutting_board
-farmersdelight.admin
-farmersdelight.*
+| 命令 | 别名/参数 | 权限 | 默认授权 | 说明 |
+| --- | --- | --- | --- | --- |
+| `/fd` | `/farmersdelight` | `farmersdelight.command` | 所有玩家 | 显示玩家当前有权限查看的帮助项。 |
+| `/fd help` | `/fd ?` | `farmersdelight.command` | 所有玩家 | 显示帮助信息。 |
+| `/fd recipe` | `/fd recipes` | `farmersdelight.command` + `farmersdelight.command.recipe` | 所有玩家 | 打开配方查看主界面。只能由玩家执行。 |
+| `/fd recipe cooking_pot` | `pot`、`cookingpot` | `farmersdelight.command` + `farmersdelight.command.recipe` | 所有玩家 | 直接打开厨锅配方列表。只能由玩家执行。 |
+| `/fd recipe cutting_board` | `board`、`cuttingboard` | `farmersdelight.command` + `farmersdelight.command.recipe` | 所有玩家 | 直接打开砧板配方列表。只能由玩家执行。 |
+| `/fd reload` | 默认等同 `/fd reload config` | `farmersdelight.command` + `farmersdelight.admin` | OP | 重载 `config.yml`。 |
+| `/fd reload config` | - | `farmersdelight.command` + `farmersdelight.admin` | OP | 只重载常规玩法配置。 |
+| `/fd reload gui` | - | `farmersdelight.command` + `farmersdelight.admin` | OP | 重载 `gui.yml`，用于刷新 GUI 标题、布局、按钮、图标等。 |
+| `/fd reload lang` | `language`、`languages` | `farmersdelight.command` + `farmersdelight.admin` | OP | 重载语言文件。 |
+| `/fd reload recipes` | `recipe` | `farmersdelight.command` + `farmersdelight.admin` | OP | 重载厨锅、砧板配方，并刷新 CE 物品缓存。 |
+| `/fd reload advancements` | `advancement` | `farmersdelight.command` + `farmersdelight.admin` | OP | 重载内置进度数据包。 |
+| `/fd reload all` | - | `farmersdelight.command` + `farmersdelight.admin` | OP | 完整重载配置、GUI、语言、配方和进度。修改 CE 资源或 jar 后仍建议重启。 |
+| `/fd cleanup` | - | `farmersdelight.command` + `farmersdelight.admin` | OP | 清理插件生成的 CE 代理物品展示实体，并清理不符合条件的自动托盘。 |
+
+调试构建额外命令：
+
+| 命令 | 权限 | 默认授权 | 说明 |
+| --- | --- | --- | --- |
+| `/fd debugtools place <cooking_pot\|skillet\|stove\|stove_blocked\|all> [count] [spacing] [layers]` | `farmersdelight.command` + `farmersdelight.admin` | OP | 批量放置性能测试用方块。只会出现在使用 `-PdebugTools=true` 构建的 jar 中。 |
+| `/fd debugtools activate <cooking_pot\|skillet\|stove\|all>` | `farmersdelight.command` + `farmersdelight.admin` | OP | 激活测试方块的烹饪/显示逻辑。只会出现在调试构建中。 |
+| `/fd debugtools status` | `farmersdelight.command` + `farmersdelight.admin` | OP | 输出当前 TickManager 性能采样、活跃队列、厨锅实体数量。只会出现在调试构建中。 |
+| `/fd debugtools profile [ticks]` | `farmersdelight.command` + `farmersdelight.admin` | OP | 重置 TickManager 采样并在指定 tick 后输出 avg/max/last 耗时，默认 200 ticks。只会出现在调试构建中。 |
+
+正常构建不会包含 `debugtools`、`debug`、`perf` 子命令，也不会把调试工具类打进最终 jar。普通服端不需要给玩家配置任何调试权限。
+
+权限总览：
+
+| 权限 | 默认授权 | 作用范围 | 具体控制内容 |
+| --- | --- | --- | --- |
+| `farmersdelight.command` | 所有玩家 | 命令入口 | 允许使用 `/fd` 或 `/farmersdelight` 主命令。所有子命令都会先检查它。 |
+| `farmersdelight.command.recipe` | 所有玩家 | 配方查看 | 允许使用 `/fd recipe`、`/fd recipe cooking_pot`、`/fd recipe cutting_board` 打开配方 GUI。 |
+| `farmersdelight.use.cooking_pot` | 所有玩家 | 厨锅交互 | 默认允许打开厨锅 GUI、向厨锅放入原料/容器、从厨锅取出成品、触发厨锅交互逻辑。 |
+| `farmersdelight.use.stove` | 所有玩家 | 炉灶交互 | 允许向炉灶放入食物、取出食物、触发炉灶烹饪和显示逻辑。 |
+| `farmersdelight.use.skillet` | 所有玩家 | 煎锅交互 | 允许向煎锅放入食物、取出食物、触发煎锅烹饪和显示逻辑。 |
+| `farmersdelight.use.cutting_board` | 所有玩家 | 砧板交互 | 允许向砧板放置物品、取下物品、用小刀或配置工具处理砧板配方。 |
+| `farmersdelight.admin` | OP | 管理命令 | 允许使用 `/fd reload ...`、`/fd cleanup`。调试构建中也用于 `/fd debugtools`。 |
+| `farmersdelight.*` | OP | 全部权限 | 包含本插件所有公开权限点。适合管理员组，不建议直接给普通玩家。 |
+
+厨锅权限可以在 CraftEngine 方块行为参数里覆盖：
+
+```yaml
+behavior:
+  type: farmersdelight:cooking_pot
+  permission: farmersdelight.use.cooking_pot
 ```
 
-## 14. 重载建议
+`permission` 不写时默认使用 `farmersdelight.use.cooking_pot`。写成空字符串时，该厨锅不会做插件侧权限检查；这种写法只建议在领地、WorldGuard 或其它权限系统已经限制交互时使用。自定义厨锅也可以给不同 ID 配不同权限，例如：
+
+```yaml
+behavior:
+  type: farmersdelight:cooking_pot
+  permission: farmersdelight.use.large_cooking_pot
+  custom:
+    id: large
+    input-slots: 9
+    pending-output-slots: 2
+    output-slots: 3
+    container-slots: 2
+```
+
+这类自定义权限不会自动写入 `plugin.yml`，权限插件仍然可以直接识别和分配；如果需要 Bukkit 的权限列表显示它，需要在服务端权限插件或插件描述中登记。
+
+## 15. 重载建议
 
 `/fd reload` 默认只重载常规玩法配置，相当于 `/fd reload config`。可用的重载命令：
 
@@ -452,40 +1024,48 @@ farmersdelight.*
 
 不建议用 PlugMan 或 Bukkit reload 热重载本插件和 CraftEngine。
 
-## 15. 常见问题
+## 16. 常见问题
 
 CE 物品名称显示成 ID：检查 CE 物品的显示名、语言文件和资源包是否加载。本插件配方页会优先使用物品本身的名称。
 
-配方详情里原料展示不好看：先确认 CE 侧物品名是否正常，再看 `gui.yml` 的详情页布局和 `show-ingredient-ids`。
+配方详情里原料展示不好看：先确认 CE 侧物品名是否正常，再检查 `gui.yml` 的详情页布局和 `show-ingredient-ids`。
 
-漏斗没有按预期工作：先确认 `hopper-interactions.enabled` 是否开启。当前默认关闭；开启后再确认方向，厨锅上方塞原料，下方抽成品，侧面塞容器。煎锅默认不接受漏斗导热。
+漏斗没有按预期工作：先确认 `hopper-interactions.enabled` 是否开启。该功能默认关闭；开启后再确认方向，厨锅上方塞原料，下方抽成品，侧面塞容器。煎锅默认不接受漏斗导热。
 
 修改配置后没变化：先 `/fd reload`。如果动了 CE 资源或资源包，完整重启。
 
-## 16. 编译
+## 17. 编译
 
 开发环境通过 Maven 仓库解析 CraftEngine 26.5 依赖，`build.gradle.kts` 已使用 `net.momirealms:craft-engine-*` 坐标。若依赖仓库暂时不可用，可先把对应 CraftEngine 产物安装到 `mavenLocal()`。
 
+常用构建：
+
 ```powershell
 .\gradlew.bat clean build
+.\gradlew.bat buildPaper
+.\gradlew.bat buildFolia
 ```
 
 输出：
 
 ```text
 build/libs/farmersdelight-1.0.0.jar
+build/libs/farmersdelight-1.0.0-paper.jar
+build/libs/farmersdelight-1.0.0-folia.jar
 ```
 
 可选混淆构建：
 
 ```powershell
-.\gradlew.bat clean build -Pobfuscate=true
+.\gradlew.bat buildObfuscated
+.\gradlew.bat buildAllVariants
 ```
 
-输出：
+混淆输出：
 
 ```text
-build/libs/farmersdelight-1.0.0-obf.jar
+build/libs/farmersdelight-1.0.0-paper-obf.jar
+build/libs/farmersdelight-1.0.0-folia-obf.jar
 ```
 
-混淆构建会保留 Bukkit 主类和公开 API 包，避免外部插件调用入口被改名。
+混淆构建会保留 Bukkit 主类、事件监听注解、枚举入口和公开 API 包，避免 Bukkit、CraftEngine 或外部插件需要反射访问的入口被改名。Paper/Folia jar 的 `paper-plugin.yml` 会分别写入对应的 `folia-supported` 值；Folia 构建仍建议在测试服验证区域调度、显示同步和区块卸载保存。

@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.config.PetFoodConfig;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import org.bukkit.Bukkit;
@@ -97,9 +98,10 @@ public class HorseFeedTemptListener implements Listener {
         enabled = !temptFoods.isEmpty();
         tickInterval = shortestInterval == Long.MAX_VALUE ? DEFAULT_TICK_INTERVAL : shortestInterval;
         tickBudget = Math.max(1, plugin.getConfig().getInt("performance.pet-tempt-tick-budget", DEFAULT_TICK_BUDGET));
-        plugin.getLogger().info("Loaded pet-food tempt config: enabled=" + enabled
-                + ", foods=" + temptFoods.size()
-                + ", interval=" + tickInterval);
+        I18n.logInfo("pet_food.tempt_loaded",
+                "enabled", enabled,
+                "foods", temptFoods.size(),
+                "interval", tickInterval);
     }
 
     private void refreshTemptStatus(Player player) {

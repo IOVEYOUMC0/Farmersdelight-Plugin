@@ -21,7 +21,7 @@ import java.util.List;
 
 public class UpperHalfLootRelayListener implements Listener {
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onCustomBlockBreak(CustomBlockBreakEvent event) {
         if (event == null || !event.dropItems()) {
             return;
@@ -107,7 +107,20 @@ public class UpperHalfLootRelayListener implements Listener {
             return false;
         }
 
-        return !tallCrop.isUpperMature(upperState);
+        if (!tallCrop.isUpperMature(upperState)) {
+            return true;
+        }
+
+        BlockFace lowerDirection = relayBehavior != null
+                ? relayBehavior.getLowerHalfDirection()
+                : BlockFace.DOWN;
+        Block lowerBlock = tallCrop.isLowerHalf(brokenState)
+                ? brokenBlock
+                : brokenBlock.getRelative(lowerDirection);
+        ImmutableBlockState lowerState = CraftEngineBlocks.getCustomBlockState(lowerBlock);
+        return lowerState == null || lowerState.isEmpty()
+                || !tallCrop.isLowerHalf(lowerState)
+                || !tallCrop.isLowerMature(lowerState);
     }
 }
 

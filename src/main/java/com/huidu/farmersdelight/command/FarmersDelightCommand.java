@@ -5,7 +5,6 @@ import com.huidu.farmersdelight.BuildFlags;
 import com.huidu.farmersdelight.gui.RecipeViewGui;
 import com.huidu.farmersdelight.i18n.I18n;
 import net.kyori.adventure.text.minimessage.MiniMessage;
-import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -206,7 +205,7 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendDebugUsage(CommandSender sender) {
-        sender.sendMessage(MINI_MESSAGE.deserialize("<yellow>/fd debugtools <place|activate> <cooking_pot|skillet|both> [count] [spacing] [layers]</yellow>"));
+        sender.sendMessage(MINI_MESSAGE.deserialize("<yellow>/fd debugtools <place|activate|status|profile|undo> ...</yellow>"));
     }
 
     @Override
@@ -288,7 +287,7 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
             Class<?> type = Class.forName(DEBUG_TOOLS_CLASS);
             return type.getConstructor(FarmersDelightPlugin.class).newInstance(plugin);
         } catch (ReflectiveOperationException e) {
-            plugin.getLogger().warning("Debug tools were requested by the build flag, but the debug tools class is missing.");
+            I18n.logWarning("plugin.debug_tools_missing");
             return null;
         }
     }

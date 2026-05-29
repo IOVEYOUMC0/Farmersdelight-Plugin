@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import org.bukkit.entity.Player;
 
@@ -50,7 +51,8 @@ public class GuiTickManager {
                     callback.accept(null);
                 } catch (Exception e) {
                     if (plugin.isDebugEnabled()) {
-                        plugin.getLogger().warning("Error in GUI tick callback: " + e.getMessage());
+                        plugin.getLogger().warning(I18n.formatConsole("gui_runtime.tick_callback_failed",
+                                "error", e.getMessage()));
                     }
                 }
             });
@@ -66,7 +68,8 @@ public class GuiTickManager {
                             }
                         } catch (Exception e) {
                             if (plugin.isDebugEnabled()) {
-                                plugin.getLogger().warning("Error in GUI tick callback: " + e.getMessage());
+                                plugin.getLogger().warning(I18n.formatConsole("gui_runtime.tick_callback_failed",
+                                        "error", e.getMessage()));
                             }
                         } finally {
                             scheduledCallbacks.remove(callback);

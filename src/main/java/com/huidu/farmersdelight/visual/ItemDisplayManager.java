@@ -13,6 +13,8 @@ public interface ItemDisplayManager {
 
     int createDisplay(DisplaySpec spec);
 
+    boolean updateDisplay(int entityId, DisplaySpec spec);
+
     void destroyDisplay(int entityId);
 
     void cleanupWorld(UUID worldId);

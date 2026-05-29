@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.storage;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -20,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-public class BlockStorageManager {
+public class LegacyBlockStorageManager {
 
     private final FarmersDelightPlugin plugin;
     private final File storageFile;
@@ -33,7 +34,7 @@ public class BlockStorageManager {
     private volatile boolean asyncSaveRunning;
     private boolean legacyItemFormatLoaded;
 
-    public BlockStorageManager(FarmersDelightPlugin plugin) {
+    public LegacyBlockStorageManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
         this.storageFile = new File(plugin.getDataFolder(), "block_storage.yml");
         loadData();
@@ -257,6 +258,11 @@ public class BlockStorageManager {
     private void writeSnapshot(SaveSnapshot snapshot) {
         long currentVersion = snapshot.version();
 
+        if (snapshot.worldData().isEmpty()) {
+            deleteStorageFiles(currentVersion);
+            return;
+        }
+
         YamlConfiguration config = new YamlConfiguration();
 
         for (Map.Entry<String, Map<String, BlockData>> worldEntry : snapshot.worldData().entrySet()) {
@@ -285,7 +291,9 @@ public class BlockStorageManager {
                             blockSection.set("data." + dataEntry.getKey(), value.toString());
                         }
                     } catch (Exception e) {
-                        plugin.getLogger().warning("Failed to save data " + dataEntry.getKey() + ": " + e.getMessage());
+                        I18n.logWarning("legacy_storage.save_data_failed",
+                                "key", dataEntry.getKey(),
+                                "error", e.getMessage());
                     }
                 }
             }
@@ -302,11 +310,11 @@ public class BlockStorageManager {
             }
 
             if (storageFile.exists()) {
-                if (backupFile.exists()) {
-                    if (!backupFile.delete()) {
-                        plugin.getLogger().warning("Failed to delete old backup file");
+                    if (backupFile.exists()) {
+                        if (!backupFile.delete()) {
+                            I18n.logWarning("legacy_storage.delete_old_backup_failed");
+                        }
                     }
-                }
                 if (!storageFile.renameTo(backupFile)) {
                     throw new IOException("Failed to create backup file");
                 }
@@ -317,28 +325,43 @@ public class BlockStorageManager {
             }
             lastSavedVersion.set(currentVersion);
 
-            plugin.getLogger().fine("Block storage saved successfully");
+            plugin.getLogger().fine(I18n.formatConsole("legacy_storage.save_success"));
 
         } catch (IOException e) {
-            plugin.getLogger().severe("Failed to save block storage: " + e.getMessage());
+            I18n.logSevere("legacy_storage.save_failed", "error", e.getMessage());
 
             boolean restored = false;
             if (backupFile.exists() && !storageFile.exists()) {
                 if (backupFile.renameTo(storageFile)) {
                     restored = true;
-                    plugin.getLogger().info("Restored block storage from backup");
+                    I18n.logInfo("legacy_storage.restored_backup");
                 } else {
-                    plugin.getLogger().severe("Failed to restore block storage from backup!");
+                    I18n.logSevere("legacy_storage.restore_backup_failed");
                 }
             }
 
             if (!restored && tempFile.exists()) {
-                plugin.getLogger().warning("Attempting to preserve temp file for manual recovery: " + tempFile.getAbsolutePath());
+                I18n.logWarning("legacy_storage.preserve_temp", "path", tempFile.getAbsolutePath());
             }
         } finally {
             if (tempFile.exists() && storageFile.exists()) {
                 tempFile.delete();
             }
+        }
+    }
+
+    private void deleteStorageFiles(long currentVersion) {
+        File tempFile = new File(plugin.getDataFolder(), "block_storage.tmp");
+        File backupFile = new File(plugin.getDataFolder(), "block_storage.bak");
+        deleteFileIfExists(tempFile);
+        deleteFileIfExists(backupFile);
+        deleteFileIfExists(storageFile);
+        lastSavedVersion.set(currentVersion);
+    }
+
+    private void deleteFileIfExists(File file) {
+        if (file.exists() && !file.delete()) {
+            I18n.logWarning("legacy_storage.delete_file_failed", "file", file.getName());
         }
     }
 
@@ -451,7 +474,8 @@ public class BlockStorageManager {
 
             return new ItemStack(material, amount);
         } catch (Exception e) {
-            plugin.getLogger().fine("Failed to deserialize ItemStack: " + e.getMessage());
+            plugin.getLogger().fine(I18n.formatConsole("legacy_storage.deserialize_item_failed",
+                    "error", e.getMessage()));
             return null;
         }
     }
@@ -504,6 +528,11 @@ public class BlockStorageManager {
     }
 
     private void saveWorldDataToFile(String worldIdStr, Map<String, BlockData> worldBlocks) {
+        if (worldBlocks == null || worldBlocks.isEmpty()) {
+            saveAll();
+            return;
+        }
+
         YamlConfiguration config = new YamlConfiguration();
 
         try {
@@ -512,7 +541,8 @@ public class BlockStorageManager {
                 config.set(key, existingConfig.get(key));
             }
         } catch (Exception e) {
-            plugin.getLogger().fine("No existing config to merge: " + e.getMessage());
+            plugin.getLogger().fine(I18n.formatConsole("legacy_storage.merge_existing_missing",
+                    "error", e.getMessage()));
         }
 
         ConfigurationSection worldsSection = config.getConfigurationSection("worlds");
@@ -547,7 +577,9 @@ public class BlockStorageManager {
                         blockSection.set("data." + dataEntry.getKey(), value.toString());
                     }
                 } catch (Exception e) {
-                    plugin.getLogger().warning("Failed to save data " + dataEntry.getKey() + ": " + e.getMessage());
+                    I18n.logWarning("legacy_storage.save_data_failed",
+                            "key", dataEntry.getKey(),
+                            "error", e.getMessage());
                 }
             }
         }
@@ -556,7 +588,7 @@ public class BlockStorageManager {
             config.save(storageFile);
             lastSavedVersion.set(dataVersion.get());
         } catch (IOException e) {
-            plugin.getLogger().severe("Failed to save block storage during world cleanup: " + e.getMessage());
+            I18n.logSevere("legacy_storage.save_world_cleanup_failed", "error", e.getMessage());
         }
     }
 
@@ -591,7 +623,7 @@ public class BlockStorageManager {
             ParsedPos pos = parsePosKey(posKey);
             if (pos == null) {
                 if (plugin.isDebugEnabled()) {
-                    plugin.getLogger().fine("Invalid position format in block data: " + posKey);
+                    plugin.getLogger().fine(I18n.formatConsole("legacy_storage.invalid_position", "pos", posKey));
                 }
                 continue;
             }
@@ -615,7 +647,7 @@ public class BlockStorageManager {
             ParsedPos pos = parsePosKey(posKey);
             if (pos == null) {
                 if (plugin.isDebugEnabled()) {
-                    plugin.getLogger().fine("Invalid position format in block data: " + posKey);
+                    plugin.getLogger().fine(I18n.formatConsole("legacy_storage.invalid_position", "pos", posKey));
                 }
                 continue;
             }

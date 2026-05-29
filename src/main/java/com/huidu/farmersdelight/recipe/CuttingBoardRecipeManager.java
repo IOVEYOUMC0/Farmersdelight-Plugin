@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.recipe;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.core.util.Key;
@@ -65,7 +66,7 @@ public class CuttingBoardRecipeManager {
                     count = Integer.parseInt(resultMap.get("count").toString());
                 } catch (NumberFormatException e) {
                     if (plugin.isDebugEnabled()) {
-                        plugin.getLogger().fine("Invalid count for recipe: " + e.getMessage());
+                        plugin.getLogger().fine(I18n.formatConsole("recipe.invalid_count", "error", e.getMessage()));
                     }
                 }
             }
@@ -76,7 +77,7 @@ public class CuttingBoardRecipeManager {
                     chance = Math.max(0.0d, Math.min(1.0d, Double.parseDouble(resultMap.get("chance").toString())));
                 } catch (NumberFormatException e) {
                     if (plugin.isDebugEnabled()) {
-                        plugin.getLogger().fine("Invalid chance for recipe: " + e.getMessage());
+                        plugin.getLogger().fine(I18n.formatConsole("recipe.invalid_chance", "error", e.getMessage()));
                     }
                 }
             }

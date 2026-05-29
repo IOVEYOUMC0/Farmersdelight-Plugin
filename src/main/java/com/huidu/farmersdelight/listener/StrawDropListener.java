@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.block.behavior.TallCropBlockBehavior;
 import com.huidu.farmersdelight.config.StrawDropConfig;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
@@ -116,7 +117,24 @@ public class StrawDropListener implements Listener {
         }
 
         Integer age = CustomBlockUtils.getPropertyInt(state, "age");
-        return age != null && age >= 3;
+        TallCropBlockBehavior behavior = TallCropBlockBehavior.getBehavior(state);
+        int maxUpperAge = behavior != null ? behavior.getMaxAgeUpper() : 3;
+        if (age == null || age != maxUpperAge) {
+            return false;
+        }
+
+        Block lowerBlock = block.getRelative(org.bukkit.block.BlockFace.DOWN);
+        ImmutableBlockState lowerState = CraftEngineBlocks.getCustomBlockState(lowerBlock);
+        if (lowerState == null || lowerState.isEmpty()) {
+            return false;
+        }
+        if (behavior != null) {
+            return behavior.isLowerHalf(lowerState) && behavior.isLowerMature(lowerState);
+        }
+        Integer lowerAge = CustomBlockUtils.getPropertyInt(lowerState, "age");
+        return Constants.BLOCK_RICE.equals(CustomBlockUtils.getId(lowerState))
+                && lowerAge != null
+                && lowerAge >= 4;
     }
 
     private void dropStraw(Block block, StrawDropConfig.StrawDropRule rule) {

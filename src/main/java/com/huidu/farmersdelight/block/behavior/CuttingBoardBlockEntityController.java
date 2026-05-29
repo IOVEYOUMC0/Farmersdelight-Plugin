@@ -41,6 +41,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
     private Item item = Item.empty();
     private boolean itemCarved;
     private int maxStackSize = 99;
+    private CompoundTag pendingLoadData;
 
     public CuttingBoardBlockEntityController(BlockEntity blockEntity, CuttingBoardBlockBehavior behavior) {
         super(blockEntity);
@@ -55,6 +56,11 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
 
     @Override
     public void saveCustomData(CompoundTag tag) {
+        loadPendingDataIfReady();
+        if (this.pendingLoadData != null) {
+            tag.put(this.behavior.customDataKey(), this.pendingLoadData);
+            return;
+        }
         World world = getBukkitWorld();
         if (world != null) {
             CuttingBoardBlockEntity entity = CuttingBoardBlockBehavior.getBlockEntity(world, new BlockPosKey(this.blockEntity.pos));
@@ -77,34 +83,49 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
     public void loadCustomData(CompoundTag tag) {
         CompoundTag data = tag.getCompound(this.behavior.customDataKey());
         if (data == null) return;
-        loadData(data);
+        queueLoadData(data);
     }
 
     @Override
     public void loadCustomDataFromItem(Item item) {
-        Tag component = item.getComponentAsSparrowTag(DataComponentKeys.BLOCK_ENTITY_DATA);
-        if (!(component instanceof CompoundTag tag)) return;
-        CompoundTag data = tag.getCompound(this.behavior.customDataKey());
+        CompoundTag data = CustomBlockUtils.getNestedComponentCompound(item, DataComponentKeys.BLOCK_ENTITY_DATA,
+                this.behavior.customDataKey());
         if (data == null) return;
-        loadData(data);
+        queueLoadData(data);
     }
 
-    private void loadData(CompoundTag data) {
+    public void loadPendingDataIfReady() {
+        CompoundTag data = this.pendingLoadData;
+        if (data == null) {
+            return;
+        }
+        if (loadData(data)) {
+            this.pendingLoadData = null;
+        }
+    }
+
+    private void queueLoadData(CompoundTag data) {
+        this.pendingLoadData = data;
+        loadPendingDataIfReady();
+    }
+
+    private boolean loadData(CompoundTag data) {
         World world = getBukkitWorld();
-        if (world == null) return;
+        if (world == null) return false;
 
         BlockPosKey posKey = new BlockPosKey(this.blockEntity.pos);
         Tag itemTag = data.get(STORED_ITEM);
-        if (itemTag == null) return;
+        if (itemTag == null) return true;
 
         ItemStack storedItem = ItemStackUtils.parseBukkitItem(itemTag, Config.itemDataFixerUpperFallbackVersion());
-        if (storedItem == null || storedItem.getType().isAir()) return;
+        if (storedItem == null || storedItem.getType().isAir()) return true;
 
         CuttingBoardBlockEntity entity = new CuttingBoardBlockEntity(posKey, world);
         entity.setItem(storedItem, world, posKey, CustomBlockUtils.getFacing(posKey.toLocation(world).getBlock()),
                 data.getBoolean(ITEM_CARVED, false));
         CuttingBoardBlockBehavior.putBlockEntity(world, posKey, entity);
         refreshFromEntity(entity);
+        return true;
     }
 
     private CuttingBoardBlockEntity getOrCreateEntity() {
@@ -123,6 +144,13 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
     void refreshFromEntity(CuttingBoardBlockEntity entity) {
         this.item = normalize(BukkitItemManager.instance().wrap(entity.getStoredItem()));
         this.itemCarved = entity.isItemCarved();
+    }
+
+    public void setChangedFromEntity(CuttingBoardBlockEntity entity) {
+        if (entity != null) {
+            refreshFromEntity(entity);
+        }
+        setChanged();
     }
 
     private void writeToEntity() {
@@ -144,9 +172,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
             entity.setStoredItem(stack, world, posKey, CustomBlockUtils.getFacing(posKey.toLocation(world).getBlock()));
         }
 
-        if (this.blockEntity.world != null) {
-            this.blockEntity.world.blockEntityChanged(this.blockEntity.pos);
-        }
+        CustomBlockUtils.markBlockEntityDirty(this.blockEntity);
     }
 
     private Item normalize(Item item) {
@@ -334,10 +360,6 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
     }
 
     private World getBukkitWorld() {
-        if (this.blockEntity.world == null || this.blockEntity.world.world() == null) {
-            return null;
-        }
-        Object platformWorld = this.blockEntity.world.world().platformWorld();
-        return platformWorld instanceof World world ? world : null;
+        return CustomBlockUtils.getBukkitWorld(this.blockEntity);
     }
 }

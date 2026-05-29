@@ -3,10 +3,10 @@ package com.huidu.farmersdelight.manager;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
-import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ManagerSupport;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
@@ -17,6 +17,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,15 +45,32 @@ public class TickManager {
     private final Set<ActiveBlock> pendingAdditions = new HashSet<>();
     private final Set<ActiveBlock> pendingRemovals = new HashSet<>();
     private final Map<ActiveBlock, Long> lastProcessedTicks = new ConcurrentHashMap<>();
+    private final Map<ActiveBlock, Long> progressDisplayLastUpdateTicks = new ConcurrentHashMap<>();
     private final Set<ActiveBlock> scheduledActiveBlocks = ConcurrentHashMap.newKeySet();
     private volatile List<ActiveBlock> activeBlockSnapshot = List.of();
+    private volatile int activeCookingPotCount;
     private boolean activeBlockLimitWarningShown;
     private int activeBlockCursor;
     private int cookingPotTickBudget = 512;
+    private int cookingPotProgressDisplayUpdateIntervalTicks = 8;
+    private int cookingPotProgressDisplayDisableAboveActivePots = 512;
+    private int activeBlockWarningThreshold = 1000;
+    private boolean performanceWarningsEnabled = true;
+    private int cookingPotDensityWarningThreshold = 64;
+    private int cookingPotTotalWarningThreshold = 1000;
+    private long performanceWarningCooldownMillis = 600_000L;
+    private final Map<String, Long> performanceWarningTimes = new ConcurrentHashMap<>();
     private final AtomicLong foliaTickClock = new AtomicLong();
+    private final AtomicLong performanceSamples = new AtomicLong();
+    private final AtomicLong performanceTotalNanos = new AtomicLong();
+    private final AtomicLong performanceLastNanos = new AtomicLong();
+    private final AtomicLong performanceMaxNanos = new AtomicLong();
+    private final AtomicLong performanceLastActiveBlocks = new AtomicLong();
+    private final AtomicLong performanceLastProcessedBlocks = new AtomicLong();
+    private volatile boolean performanceStatsEnabled;
 
     private static final int TICK_INTERVAL = 4;
-    private static final int MAX_CACHE_SIZE = 1000;
+    private static final int DEFAULT_ACTIVE_BLOCK_WARNING_THRESHOLD = 1000;
     private static final int CLEANUP_INTERVAL = 6000;
     private static final int DEFAULT_COOKING_POT_TICK_BUDGET = 512;
     private static final int MAX_ELAPSED_TICKS = 100;
@@ -62,7 +80,7 @@ public class TickManager {
     }
 
     public void reloadConfig() {
-        ConfigurationSection effectSection = plugin.getConfig().getConfigurationSection("cooking-pot-effects");
+        ConfigurationSection effectSection = plugin.getFirstConfigSection("cooking-pot.effects", "cooking-pot-effects");
         ConfigurationSection bubbleSection = effectSection != null ? effectSection.getConfigurationSection("bubble") : null;
         ConfigurationSection steamSection = effectSection != null ? effectSection.getConfigurationSection("steam") : null;
         ConfigurationSection secondarySection = steamSection != null ? steamSection.getConfigurationSection("secondary") : null;
@@ -73,8 +91,25 @@ public class TickManager {
                 0.08D, 0.0D, 0.03D, 0.0D, 0.02D);
         secondarySteamEffect = loadEffectSpec(secondarySection, false, Particle.SMOKE, 1.0f, 1,
                 0.05D, 0.0D, 0.025D, 0.0D, 0.02D);
-        cookingPotTickBudget = Math.max(1, plugin.getConfig().getInt(
-                "performance.cooking-pot-tick-budget", DEFAULT_COOKING_POT_TICK_BUDGET));
+        cookingPotTickBudget = Math.max(1, plugin.getConfigInt(DEFAULT_COOKING_POT_TICK_BUDGET,
+                "cooking-pot.tick-budget",
+                "performance.cooking-pot-tick-budget"));
+        cookingPotProgressDisplayUpdateIntervalTicks = Math.max(1,
+                plugin.getCookingPotProgressDisplayUpdateIntervalTicks());
+        cookingPotProgressDisplayDisableAboveActivePots = Math.max(0,
+                plugin.getCookingPotProgressDisplayDisableAboveActivePots());
+        activeBlockWarningThreshold = Math.max(1, plugin.getConfigInt(DEFAULT_ACTIVE_BLOCK_WARNING_THRESHOLD,
+                "performance.active-block-warning-threshold",
+                "performance.max-active-blocks-warning"));
+        performanceWarningsEnabled = plugin.getConfigBoolean(true,
+                "performance.warnings-enabled");
+        cookingPotDensityWarningThreshold = Math.max(1, plugin.getConfigInt(64,
+                "performance.cooking-pot-density-warning-threshold"));
+        cookingPotTotalWarningThreshold = Math.max(1, plugin.getConfigInt(1000,
+                "performance.cooking-pot-total-warning-threshold"));
+        int cooldownSeconds = Math.max(1, plugin.getConfigInt(600,
+                "performance.warning-cooldown-seconds"));
+        performanceWarningCooldownMillis = cooldownSeconds * 1000L;
     }
 
     public void start() {
@@ -83,7 +118,7 @@ public class TickManager {
         
         tickTask = plugin.scheduler().runRepeating(this::tick, 1L, TICK_INTERVAL);
         cleanupTask = plugin.scheduler().runRepeating(this::performCleanup, CLEANUP_INTERVAL, CLEANUP_INTERVAL);
-        plugin.getLogger().info("TickManager started with interval " + TICK_INTERVAL + " ticks");
+        I18n.logInfo("tick.started", "interval", TICK_INTERVAL);
     }
 
     public void stop() {
@@ -101,18 +136,21 @@ public class TickManager {
         try {
             activeBlocks.clear();
             activeBlockSnapshot = List.of();
+            activeCookingPotCount = 0;
             pendingAdditions.clear();
             pendingRemovals.clear();
             lastProcessedTicks.clear();
+            progressDisplayLastUpdateTicks.clear();
             scheduledActiveBlocks.clear();
         } finally {
             pendingLock.unlock();
         }
         
-        plugin.getLogger().info("TickManager stopped");
+        I18n.logInfo("tick.stopped");
     }
     
     private void performCleanup() {
+        checkPerformanceWarnings();
         if (plugin.scheduler().isFolia()) {
             scheduleCookingPotCleanup();
             return;
@@ -122,13 +160,75 @@ public class TickManager {
         
         cleanedCount += cleanupInvalidBlockEntities(
             CookingPotBlockBehavior::getAllBlockEntities,
-            CookingPotBlockBehavior::removeBlockEntity,
-            "cooking_pot"
+            CookingPotBlockBehavior::removeBlockEntity
         );
         
         if (cleanedCount > 0) {
-            plugin.getLogger().info("Cleanup completed: removed " + cleanedCount + " invalid block entities");
+            I18n.logInfo("tick.cleanup_completed", "count", cleanedCount);
         }
+    }
+
+    private void checkPerformanceWarnings() {
+        if (!performanceWarningsEnabled) {
+            return;
+        }
+        for (World world : Bukkit.getWorlds()) {
+            Map<BlockPosKey, CookingPotBlockEntity> entities = CookingPotBlockBehavior.getAllBlockEntities(world);
+            int total = entities.size();
+            if (total >= cookingPotTotalWarningThreshold) {
+                warnWithCooldown("cooking-pot-total:" + world.getUID(),
+                        I18n.formatNamedArgs("console.performance.cooking_pot_total",
+                                "world", world.getName(),
+                                "count", total,
+                                "threshold", cookingPotTotalWarningThreshold));
+            }
+            if (total < cookingPotDensityWarningThreshold) {
+                continue;
+            }
+            Map<Long, Integer> chunkCounts = new HashMap<>();
+            for (BlockPosKey posKey : entities.keySet()) {
+                int chunkX = posKey.x() >> 4;
+                int chunkZ = posKey.z() >> 4;
+                chunkCounts.merge(packChunkKey(chunkX, chunkZ), 1, Integer::sum);
+            }
+            for (Map.Entry<Long, Integer> entry : chunkCounts.entrySet()) {
+                int count = entry.getValue();
+                if (count < cookingPotDensityWarningThreshold) {
+                    continue;
+                }
+                int chunkX = unpackChunkX(entry.getKey());
+                int chunkZ = unpackChunkZ(entry.getKey());
+                warnWithCooldown("cooking-pot-density:" + world.getUID() + ":" + chunkX + ":" + chunkZ,
+                        I18n.formatNamedArgs("console.performance.cooking_pot_density",
+                                "world", world.getName(),
+                                "chunk_x", chunkX,
+                                "chunk_z", chunkZ,
+                                "count", count,
+                                "threshold", cookingPotDensityWarningThreshold));
+            }
+        }
+    }
+
+    private void warnWithCooldown(String key, String message) {
+        long now = System.currentTimeMillis();
+        Long previous = performanceWarningTimes.get(key);
+        if (previous != null && now - previous < performanceWarningCooldownMillis) {
+            return;
+        }
+        performanceWarningTimes.put(key, now);
+        plugin.getLogger().warning(message);
+    }
+
+    private long packChunkKey(int chunkX, int chunkZ) {
+        return ((long) chunkX << 32) ^ (chunkZ & 0xffffffffL);
+    }
+
+    private int unpackChunkX(long key) {
+        return (int) (key >> 32);
+    }
+
+    private int unpackChunkZ(long key) {
+        return (int) key;
     }
 
     private void scheduleCookingPotCleanup() {
@@ -154,12 +254,12 @@ public class TickManager {
         void remove(World world, BlockPosKey posKey);
     }
     
-    private <T> int cleanupInvalidBlockEntities(BlockEntityGetter<T> getter, BlockEntityRemover remover, String blockIdContains) {
+    private <T> int cleanupInvalidBlockEntities(BlockEntityGetter<T> getter, BlockEntityRemover remover) {
         int count = 0;
         for (World world : Bukkit.getWorlds()) {
             Map<BlockPosKey, T> entities = getter.getAll(world);
             for (BlockPosKey posKey : entities.keySet()) {
-                if (cleanupInvalidBlockEntity(world, posKey, remover, blockIdContains)) {
+                if (cleanupInvalidBlockEntity(world, posKey, remover)) {
                     count++;
                 }
             }
@@ -171,26 +271,16 @@ public class TickManager {
         return cleanupInvalidBlockEntity(
                 world,
                 posKey,
-                CookingPotBlockBehavior::removeBlockEntity,
-                "cooking_pot"
+                CookingPotBlockBehavior::removeBlockEntity
         );
     }
 
-    private boolean cleanupInvalidBlockEntity(World world, BlockPosKey posKey, BlockEntityRemover remover, String blockIdContains) {
+    private boolean cleanupInvalidBlockEntity(World world, BlockPosKey posKey, BlockEntityRemover remover) {
         if (world == null || posKey == null) {
             return false;
         }
 
-        Block block = world.getBlockAt(posKey.x(), posKey.y(), posKey.z());
-        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
-
-        if (state == null || state.isEmpty()) {
-            remover.remove(world, posKey);
-            return true;
-        }
-
-        String blockId = CustomBlockUtils.getId(state);
-        if (blockId == null || !blockId.contains(blockIdContains)) {
+        if (!CookingPotBlockBehavior.hasCookingPotBehavior(world, posKey)) {
             remover.remove(world, posKey);
             return true;
         }
@@ -227,65 +317,61 @@ public class TickManager {
 
     private void tick() {
         if (!running) return;
-        long currentTick = advanceCurrentTick();
-        
-        pendingLock.lock();
-        boolean changed = false;
-        try {
-            if (!pendingAdditions.isEmpty()) {
-                activeBlocks.addAll(pendingAdditions);
-                changed = true;
-                for (ActiveBlock activeBlock : pendingAdditions) {
-                    lastProcessedTicks.putIfAbsent(activeBlock, currentTick);
-                }
-                pendingAdditions.clear();
-            }
-            
-            if (!pendingRemovals.isEmpty()) {
-                activeBlocks.removeAll(pendingRemovals);
-                changed = true;
-                for (ActiveBlock activeBlock : pendingRemovals) {
-                    lastProcessedTicks.remove(activeBlock);
-                    scheduledActiveBlocks.remove(activeBlock);
-                }
-                pendingRemovals.clear();
-            }
-            if (changed) {
-                activeBlockSnapshot = List.copyOf(activeBlocks);
-            }
-        } finally {
-            pendingLock.unlock();
-        }
-        
-        List<ActiveBlock> snapshot = activeBlockSnapshot;
-        if (snapshot.isEmpty()) return;
-        
-        int size = snapshot.size();
-        if (size > MAX_CACHE_SIZE) {
-            if (!activeBlockLimitWarningShown) {
-                activeBlockLimitWarningShown = true;
-                plugin.getLogger().warning("Active blocks count exceeds " + MAX_CACHE_SIZE
-                        + " (" + size + "), consider optimizing");
-            }
-        } else {
-            activeBlockLimitWarningShown = false;
-        }
-        
-        int budget = Math.min(cookingPotTickBudget, size);
+        long startedNanos = System.nanoTime();
+        int size = 0;
         int processed = 0;
-        int start = activeBlockCursor >= size ? 0 : activeBlockCursor;
+        try {
+            long currentTick = advanceCurrentTick();
 
-        for (int index = start; index < size; index++) {
-            ActiveBlock activeBlock = snapshot.get(index);
-            processActiveBlock(activeBlock);
-            processed++;
-            if (processed >= budget) {
-                break;
+            pendingLock.lock();
+            boolean changed = false;
+            try {
+                if (!pendingAdditions.isEmpty()) {
+                    activeBlocks.addAll(pendingAdditions);
+                    changed = true;
+                    for (ActiveBlock activeBlock : pendingAdditions) {
+                        lastProcessedTicks.putIfAbsent(activeBlock, currentTick);
+                    }
+                    pendingAdditions.clear();
+                }
+
+                if (!pendingRemovals.isEmpty()) {
+                    activeBlocks.removeAll(pendingRemovals);
+                    changed = true;
+                    for (ActiveBlock activeBlock : pendingRemovals) {
+                        lastProcessedTicks.remove(activeBlock);
+                        progressDisplayLastUpdateTicks.remove(activeBlock);
+                        scheduledActiveBlocks.remove(activeBlock);
+                    }
+                    pendingRemovals.clear();
+                }
+                if (changed) {
+                    activeBlockSnapshot = List.copyOf(activeBlocks);
+                    activeCookingPotCount = countActiveBlocks(activeBlockSnapshot, BlockType.COOKING_POT);
+                }
+            } finally {
+                pendingLock.unlock();
             }
-        }
 
-        if (processed < budget) {
-            for (int index = 0; index < start; index++) {
+            List<ActiveBlock> snapshot = activeBlockSnapshot;
+            size = snapshot.size();
+            if (snapshot.isEmpty()) return;
+
+            if (size > activeBlockWarningThreshold) {
+                if (!activeBlockLimitWarningShown) {
+                    activeBlockLimitWarningShown = true;
+                    plugin.getLogger().warning(I18n.formatNamedArgs("console.performance.active_blocks_exceeded",
+                            "threshold", activeBlockWarningThreshold,
+                            "count", size));
+                }
+            } else {
+                activeBlockLimitWarningShown = false;
+            }
+
+            int budget = Math.min(cookingPotTickBudget, size);
+            int start = activeBlockCursor >= size ? 0 : activeBlockCursor;
+
+            for (int index = start; index < size; index++) {
                 ActiveBlock activeBlock = snapshot.get(index);
                 processActiveBlock(activeBlock);
                 processed++;
@@ -293,9 +379,95 @@ public class TickManager {
                     break;
                 }
             }
-        }
 
-        activeBlockCursor = size == 0 ? 0 : (start + Math.max(1, processed)) % size;
+            if (processed < budget) {
+                for (int index = 0; index < start; index++) {
+                    ActiveBlock activeBlock = snapshot.get(index);
+                    processActiveBlock(activeBlock);
+                    processed++;
+                    if (processed >= budget) {
+                        break;
+                    }
+                }
+            }
+
+            activeBlockCursor = size == 0 ? 0 : (start + Math.max(1, processed)) % size;
+        } finally {
+            recordPerformanceSample(System.nanoTime() - startedNanos, size, processed);
+        }
+    }
+
+    private void recordPerformanceSample(long durationNanos, int activeCount, int processedCount) {
+        if (!performanceStatsEnabled) {
+            return;
+        }
+        performanceSamples.incrementAndGet();
+        performanceTotalNanos.addAndGet(Math.max(0L, durationNanos));
+        performanceLastNanos.set(Math.max(0L, durationNanos));
+        performanceLastActiveBlocks.set(Math.max(0, activeCount));
+        performanceLastProcessedBlocks.set(Math.max(0, processedCount));
+        updateMax(performanceMaxNanos, durationNanos);
+    }
+
+    private void updateMax(AtomicLong target, long value) {
+        long current;
+        do {
+            current = target.get();
+            if (value <= current) {
+                return;
+            }
+        } while (!target.compareAndSet(current, value));
+    }
+
+    private int countActiveBlocks(List<ActiveBlock> blocks, BlockType type) {
+        int count = 0;
+        for (ActiveBlock block : blocks) {
+            if (block.type() == type) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    public void resetPerformanceStats() {
+        performanceSamples.set(0L);
+        performanceTotalNanos.set(0L);
+        performanceLastNanos.set(0L);
+        performanceMaxNanos.set(0L);
+        performanceLastActiveBlocks.set(activeBlockSnapshot.size());
+        performanceLastProcessedBlocks.set(0L);
+        performanceStatsEnabled = true;
+    }
+
+    public void setPerformanceStatsEnabled(boolean enabled) {
+        performanceStatsEnabled = enabled;
+    }
+
+    public PerformanceSnapshot getPerformanceSnapshot() {
+        int pendingAdditionsSize;
+        int pendingRemovalsSize;
+        pendingLock.lock();
+        try {
+            pendingAdditionsSize = pendingAdditions.size();
+            pendingRemovalsSize = pendingRemovals.size();
+        } finally {
+            pendingLock.unlock();
+        }
+        return new PerformanceSnapshot(
+                performanceSamples.get(),
+                performanceTotalNanos.get(),
+                performanceLastNanos.get(),
+                performanceMaxNanos.get(),
+                performanceLastActiveBlocks.get(),
+                performanceLastProcessedBlocks.get(),
+                activeBlocks.size(),
+                activeBlockSnapshot.size(),
+                pendingAdditionsSize,
+                pendingRemovalsSize,
+                cookingPotTickBudget,
+                TICK_INTERVAL,
+                performanceStatsEnabled
+        );
     }
 
     private void processActiveBlock(ActiveBlock activeBlock) {
@@ -337,11 +509,14 @@ public class TickManager {
 
         try {
             switch (activeBlock.type()) {
-                case COOKING_POT -> tickCookingPot(world, posKey, consumeElapsedTicks(activeBlock));
+                case COOKING_POT -> tickCookingPot(activeBlock, world, posKey, consumeElapsedTicks(activeBlock));
                 default -> throw new IllegalArgumentException("Unexpected value: " + activeBlock.type());
             }
         } catch (Exception e) {
-            plugin.getLogger().warning("Error ticking " + activeBlock.type() + " at " + posKey + ": " + e.getMessage());
+            plugin.getLogger().warning(I18n.formatNamedArgs("console.tick.error_ticking",
+                    "type", activeBlock.type(),
+                    "pos", posKey,
+                    "error", e.getMessage()));
         }
     }
 
@@ -372,25 +547,24 @@ public class TickManager {
         return Bukkit.getCurrentTick();
     }
 
-    private void tickCookingPot(World world, BlockPosKey posKey, int elapsedTicks) {
+    private void tickCookingPot(ActiveBlock activeBlock, World world, BlockPosKey posKey, int elapsedTicks) {
         Block block = world.getBlockAt(posKey.x(), posKey.y(), posKey.z());
         ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
         
         if (state == null || state.isEmpty()) {
-            unregisterActiveBlock(world, posKey, BlockType.COOKING_POT);
+            unregisterCookingPotBlock(activeBlock, world, posKey);
             CookingPotBlockBehavior.removeBlockEntity(world, posKey);
             return;
         }
         
-        String blockId = CustomBlockUtils.getId(state);
-        if (blockId == null || !blockId.contains("cooking_pot")) {
-            unregisterActiveBlock(world, posKey, BlockType.COOKING_POT);
+        if (!CookingPotBlockBehavior.hasCookingPotBehavior(world, posKey)) {
+            unregisterCookingPotBlock(activeBlock, world, posKey);
             return;
         }
         
         CookingPotBlockEntity entity = CookingPotBlockBehavior.getBlockEntity(world, posKey);
         if (entity == null) {
-            unregisterActiveBlock(world, posKey, BlockType.COOKING_POT);
+            unregisterCookingPotBlock(activeBlock, world, posKey);
             CookingPotBlockBehavior.removeProgressDisplay(world, posKey);
             return;
         }
@@ -400,7 +574,8 @@ public class TickManager {
         entity.tryMovePendingToOutput();
 
         if (!entity.hasStoredContents()) {
-            unregisterActiveBlock(world, posKey, BlockType.COOKING_POT);
+            unregisterCookingPotBlock(activeBlock, world, posKey);
+            CookingPotBlockBehavior.removeProgressDisplay(world, posKey);
             return;
         }
 
@@ -419,6 +594,16 @@ public class TickManager {
 
         boolean canCook = hasHeat && entity.canCook();
         CookingPotRecipe recipe = canCook ? entity.getCurrentRecipe() : null;
+        if (plugin.isDebugEnabled("cooking_pot")) {
+            plugin.getLogger().info(I18n.formatNamedArgs("console.debug.cooking_pot_tick",
+                    "pos", posKey,
+                    "has_heat", hasHeat,
+                    "can_cook", canCook,
+                    "recipe", recipe != null ? recipe.getId() : "null",
+                    "progress", entity.getCookingProgress(),
+                    "duration", entity.getCookingDuration(),
+                    "inputs", entity.debugInputSummary()));
+        }
 
         if (recipe != null) {
             entity.setCookingDuration(recipe.getCookTime());
@@ -428,7 +613,7 @@ public class TickManager {
             if (newProgress >= entity.getCookingDuration()) {
                 Location blockLoc = ManagerSupport.toLocation(world, posKey);
                 if (blockLoc == null) {
-                    unregisterActiveBlock(world, posKey, BlockType.COOKING_POT);
+                    unregisterCookingPotBlock(activeBlock, world, posKey);
                     return;
                 }
                 if (entity.finishCooking(world, blockLoc)) {
@@ -443,10 +628,41 @@ public class TickManager {
         }
 
         if (entity.getCookingProgress() > 0 && recipe != null) {
-            CookingPotBlockBehavior.updateProgressDisplay(world, posKey, entity.getProgressPercent());
+            if (shouldSuppressCookingPotProgressDisplay()) {
+                progressDisplayLastUpdateTicks.remove(activeBlock);
+                CookingPotBlockBehavior.removeProgressDisplay(world, posKey);
+            } else if (shouldUpdateCookingPotProgressDisplay(activeBlock)) {
+                CookingPotBlockBehavior.updateProgressDisplay(world, posKey, entity.getProgressPercent());
+            }
         } else {
+            progressDisplayLastUpdateTicks.remove(activeBlock);
             CookingPotBlockBehavior.removeProgressDisplay(world, posKey);
         }
+    }
+
+    private void unregisterCookingPotBlock(ActiveBlock activeBlock, World world, BlockPosKey posKey) {
+        progressDisplayLastUpdateTicks.remove(activeBlock);
+        unregisterActiveBlock(world, posKey, BlockType.COOKING_POT);
+    }
+
+    private boolean shouldSuppressCookingPotProgressDisplay() {
+        return cookingPotProgressDisplayDisableAboveActivePots > 0
+                && activeCookingPotCount > cookingPotProgressDisplayDisableAboveActivePots;
+    }
+
+    private boolean shouldUpdateCookingPotProgressDisplay(ActiveBlock activeBlock) {
+        if (cookingPotProgressDisplayUpdateIntervalTicks <= TICK_INTERVAL) {
+            return true;
+        }
+
+        long currentTick = getCurrentTick();
+        Long lastUpdateTick = progressDisplayLastUpdateTicks.get(activeBlock);
+        if (lastUpdateTick != null
+                && currentTick - lastUpdateTick < cookingPotProgressDisplayUpdateIntervalTicks) {
+            return false;
+        }
+        progressDisplayLastUpdateTicks.put(activeBlock, currentTick);
+        return true;
     }
 
     private void emitCookingPotEffects(World world, BlockPosKey posKey, CookingPotBlockEntity entity, boolean hasHeat) {
@@ -680,6 +896,26 @@ public class TickManager {
             double offsetZ,
             double speed
     ) {
+    }
+
+    public record PerformanceSnapshot(
+            long samples,
+            long totalNanos,
+            long lastNanos,
+            long maxNanos,
+            long lastActiveBlocks,
+            long lastProcessedBlocks,
+            int currentActiveBlocks,
+            int snapshotActiveBlocks,
+            int pendingAdditions,
+            int pendingRemovals,
+            int tickBudget,
+            int tickInterval,
+            boolean statsEnabled
+    ) {
+        public double averageNanos() {
+            return samples <= 0L ? 0.0D : (double) totalNanos / samples;
+        }
     }
 
     public enum BlockType {

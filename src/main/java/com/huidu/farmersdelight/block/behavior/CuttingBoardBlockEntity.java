@@ -32,6 +32,7 @@ public class CuttingBoardBlockEntity {
     private ItemStack displayedBaseItem;
     private boolean displayedCarved;
     private BlockFace displayedFacing;
+    private int displayedCount;
     private CuttingBoardDisplayConfig.DisplayOverride displayedOverride;
 
     public CuttingBoardBlockEntity(BlockPosKey posKey, World world) {
@@ -116,22 +117,23 @@ public class CuttingBoardBlockEntity {
             return;
         }
         int desiredCount = getDisplayCount(storedItem);
-        boolean baseChanged = displayedBaseItem == null
+        boolean displayChanged = displayedBaseItem == null
                 || !displayedBaseItem.isSimilar(visualItem)
                 || displayedCarved != itemCarved
                 || displayedFacing == null
                 || !displayedFacing.equals(facing)
+                || displayedCount != desiredCount
                 || !displayOverride.equals(displayedOverride);
-
-        if (baseChanged) {
-            removeDisplayEntity();
-            displayedBaseItem = visualItem;
-            displayedCarved = itemCarved;
-            displayedFacing = facing;
-            displayedOverride = displayOverride;
+        if (!displayChanged && displayEntityIds.size() == desiredCount) {
+            return;
         }
 
         adjustDisplayCount(world, posKey, facing, visualManager, desiredCount, visualItem, displayOverride);
+        displayedBaseItem = visualItem;
+        displayedCarved = itemCarved;
+        displayedFacing = facing;
+        displayedCount = desiredCount;
+        displayedOverride = displayOverride;
     }
 
     public void removeDisplayEntity() {
@@ -149,6 +151,7 @@ public class CuttingBoardBlockEntity {
         displayedBaseItem = null;
         displayedCarved = false;
         displayedFacing = null;
+        displayedCount = 0;
         displayedOverride = null;
     }
 
@@ -159,6 +162,18 @@ public class CuttingBoardBlockEntity {
             int entityId = displayEntityIds.remove(displayEntityIds.size() - 1);
             if (entityId != NO_DISPLAY) {
                 visualManager.destroyDisplay(entityId);
+            }
+        }
+
+        for (int index = 0; index < displayEntityIds.size(); index++) {
+            int entityId = displayEntityIds.get(index);
+            if (entityId == NO_DISPLAY) {
+                continue;
+            }
+            ItemDisplayManager.DisplaySpec spec = createDisplaySpec(world, posKey, facing, visualItem, index, desiredCount, displayOverride);
+            if (!visualManager.updateDisplay(entityId, spec)) {
+                int replacementId = visualManager.createDisplay(spec);
+                displayEntityIds.set(index, replacementId);
             }
         }
 
@@ -176,6 +191,12 @@ public class CuttingBoardBlockEntity {
     private int createDisplayEntity(World world, BlockPosKey posKey, BlockFace facing, ItemDisplayManager visualManager,
                                     ItemStack visualItem, int index, int totalCount,
                                     CuttingBoardDisplayConfig.DisplayOverride displayOverride) {
+        return visualManager.createDisplay(createDisplaySpec(world, posKey, facing, visualItem, index, totalCount, displayOverride));
+    }
+
+    private ItemDisplayManager.DisplaySpec createDisplaySpec(World world, BlockPosKey posKey, BlockFace facing,
+                                                             ItemStack visualItem, int index, int totalCount,
+                                                             CuttingBoardDisplayConfig.DisplayOverride displayOverride) {
         boolean isBlockItem = switch (displayOverride.style()) {
             case BLOCK -> true;
             case ITEM -> false;
@@ -217,9 +238,13 @@ public class CuttingBoardBlockEntity {
                 new Quaternionf(0.0f, 0.0f, 0.0f, 1.0f)
         );
 
+        CuttingBoardDisplayConfig displayConfig = FarmersDelightPlugin.getInstance().getCuttingBoardDisplayConfig();
         Random random = new Random(getDisplaySeed(visualItem) + (index * 341873128712L));
-        float xOffset = totalCount == 1 ? 0.0f : (random.nextFloat() * 2.0f - 1.0f) * 0.15f * 0.5f;
-        float zOffset = totalCount == 1 ? 0.0f : (random.nextFloat() * 2.0f - 1.0f) * 0.15f * 0.5f;
+        Vector3f defaultOffset = displayConfig.getDefaultOffset();
+        float spread = displayConfig.getItemSpread();
+        float xOffset = defaultOffset.x() + (totalCount == 1 ? 0.0f : (random.nextFloat() * 2.0f - 1.0f) * spread * 0.5f);
+        yOffset += defaultOffset.y();
+        float zOffset = defaultOffset.z() + (totalCount == 1 ? 0.0f : (random.nextFloat() * 2.0f - 1.0f) * spread * 0.5f);
         if (displayOverride.offset() != null) {
             xOffset += displayOverride.offset().x();
             yOffset += displayOverride.offset().y();
@@ -231,12 +256,12 @@ public class CuttingBoardBlockEntity {
                 posKey.y() + yOffset,
                 posKey.z() + 0.5 + zOffset);
 
-        return visualManager.createDisplay(new ItemDisplayManager.DisplaySpec(
+        return new ItemDisplayManager.DisplaySpec(
                 location,
                 visualItem,
                 ItemDisplay.ItemDisplayTransform.FIXED,
                 transformation
-        ));
+        );
     }
 
     private int getDisplayCount(ItemStack stack) {
