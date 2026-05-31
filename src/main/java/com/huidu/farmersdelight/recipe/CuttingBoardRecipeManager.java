@@ -15,6 +15,7 @@ public class CuttingBoardRecipeManager {
 
     private final FarmersDelightPlugin plugin;
     private final Map<String, CuttingBoardRecipe> recipes = new java.util.HashMap<>();
+    private List<CuttingBoardRecipe> sortedRecipes = List.of();
 
     public CuttingBoardRecipeManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -22,8 +23,20 @@ public class CuttingBoardRecipeManager {
 
     public void loadRecipes() {
         recipes.clear();
+        sortedRecipes = List.of();
         RecipeFileLoader.loadRecipeSections(plugin, "recipes/cutting_board_recipes.yml", "cutting_board_recipes", "cutting board",
                 (recipeId, section) -> recipes.put(recipeId, parseRecipe(recipeId, section)));
+        rebuildSortedRecipeList();
+    }
+
+    private void rebuildSortedRecipeList() {
+        if (recipes.isEmpty()) {
+            sortedRecipes = List.of();
+            return;
+        }
+        List<CuttingBoardRecipe> sorted = new ArrayList<>(recipes.values());
+        sorted.sort(Comparator.comparing(CuttingBoardRecipe::getId));
+        sortedRecipes = Collections.unmodifiableList(sorted);
     }
 
     private CuttingBoardRecipe parseRecipe(String id, ConfigurationSection section) {
@@ -70,6 +83,7 @@ public class CuttingBoardRecipeManager {
                     }
                 }
             }
+            count = Math.max(1, count);
             
             double chance = 1.0d;
             if (resultMap.get("chance") != null) {
@@ -94,9 +108,15 @@ public class CuttingBoardRecipeManager {
             if (resultStr != null) {
                 ItemStack result = createItem(resultStr);
                 if (result != null) {
-                    results.add(new CuttingBoardRecipe.ResultEntry(result));
+                    int count = Math.max(1, section.getInt("amount", section.getInt("count", 1)));
+                    double chance = Math.max(0.0d, Math.min(1.0d, section.getDouble("chance", 1.0d)));
+                    result.setAmount(count);
+                    results.add(new CuttingBoardRecipe.ResultEntry(result, chance));
                 }
             }
+        }
+        if (results.isEmpty()) {
+            throw new IllegalArgumentException("Recipe must have at least one valid result");
         }
 
         String sound = normalizeSound(section.getString("sound", Constants.SOUND_CUTTING_BOARD_KNIFE));
@@ -268,6 +288,10 @@ public class CuttingBoardRecipeManager {
         return Collections.unmodifiableMap(recipes);
     }
 
+    public List<CuttingBoardRecipe> getSortedRecipes() {
+        return sortedRecipes;
+    }
+
     public int getRecipeCount() {
         return recipes.size();
     }
@@ -347,4 +371,3 @@ public class CuttingBoardRecipeManager {
         }
     }
 }
-

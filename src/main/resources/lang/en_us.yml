@@ -3,6 +3,7 @@ messages:
     no_recipe: "&cThat item has no valid cutting board recipe."
     need_tool: "&cYou need the correct tool for this item."
     wrong_tool: "&cWrong tool. Use the correct tool for this item."
+    no_output: "&cThis cutting recipe produced no output. Check the recipe result item."
 crop:
   need_water: "&cRice must be planted in water."
   invalid_soil: "&cThis crop needs suitable soil."
@@ -84,6 +85,9 @@ console:
     reloading_recipes: "Reloading recipes..."
     craftengine_reload_reason: "CraftEngine reload"
     datapack_reload: "Reloading data packs to {reason}..."
+    datapack_reload_skipped_folia: "Data pack files were updated to {reason}, but automatic data pack reload is not supported on Folia/Luminol. Restart the server to apply advancement changes."
+    datapack_reload_skipped_unsupported: "Data pack files were updated to {reason}, but this server does not support automatic data pack reload here. Restart the server to apply advancement changes."
+    datapack_reload_failed: "Failed to reload data packs to {reason}"
     datapack_reason_remove_disabled_advancements: "remove disabled FarmersDelight advancements"
     datapack_reason_apply_advancement_config: "apply FarmersDelight advancement config changes"
     datapack_reason_apply_advancements: "apply FarmersDelight advancements"

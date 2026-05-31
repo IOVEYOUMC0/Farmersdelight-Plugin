@@ -349,18 +349,16 @@ public class RecipeViewGui implements InventoryHolder {
 
     private void drawCookingPotList(Player player) {
         RecipeViewGuiConfig.RecipeListConfig listConfig = config.getRecipeList();
-        List<CookingPotRecipe> recipes = new ArrayList<>(plugin.getCookingPotRecipes().getRecipes(getActiveCookingPotRecipeGroup()).values());
+        List<CookingPotRecipe> recipes = plugin.getCookingPotRecipes().getSortedRecipes(getActiveCookingPotRecipeGroup());
         if (craftableOnly) {
-            recipes.removeIf(recipe -> !canCraftCookingPotRecipe(recipe));
+            recipes = filterCraftableCookingPotRecipes(recipes);
         }
-        recipes.sort(java.util.Comparator.comparing(CookingPotRecipe::getId));
         drawRecipeList(player, listConfig, recipes, true);
     }
 
     private void drawCuttingBoardList(Player player) {
         RecipeViewGuiConfig.RecipeListConfig listConfig = config.getRecipeList();
-        List<CuttingBoardRecipe> recipes = new ArrayList<>(plugin.getCuttingBoardRecipes().getRecipes().values());
-        recipes.sort(java.util.Comparator.comparing(CuttingBoardRecipe::getId));
+        List<CuttingBoardRecipe> recipes = plugin.getCuttingBoardRecipes().getSortedRecipes();
         drawRecipeList(player, listConfig, recipes, false);
     }
 
@@ -1690,11 +1688,10 @@ public class RecipeViewGui implements InventoryHolder {
 
     private void handleCookingPotListClick(Player player, int slot) {
         RecipeViewGuiConfig.RecipeListConfig listConfig = config.getRecipeList();
-        List<CookingPotRecipe> recipes = new ArrayList<>(plugin.getCookingPotRecipes().getRecipes(getActiveCookingPotRecipeGroup()).values());
+        List<CookingPotRecipe> recipes = plugin.getCookingPotRecipes().getSortedRecipes(getActiveCookingPotRecipeGroup());
         if (craftableOnly) {
-            recipes.removeIf(recipe -> !canCraftCookingPotRecipe(recipe));
+            recipes = filterCraftableCookingPotRecipes(recipes);
         }
-        recipes.sort(java.util.Comparator.comparing(CookingPotRecipe::getId));
         
         handleRecipeListClick(player, slot, listConfig, recipes, true);
     }
@@ -1708,8 +1705,7 @@ public class RecipeViewGui implements InventoryHolder {
 
     private void handleCuttingBoardListClick(Player player, int slot) {
         RecipeViewGuiConfig.RecipeListConfig listConfig = config.getRecipeList();
-        List<CuttingBoardRecipe> recipes = new ArrayList<>(plugin.getCuttingBoardRecipes().getRecipes().values());
-        recipes.sort(java.util.Comparator.comparing(CuttingBoardRecipe::getId));
+        List<CuttingBoardRecipe> recipes = plugin.getCuttingBoardRecipes().getSortedRecipes();
         
         handleRecipeListClick(player, slot, listConfig, recipes, false);
     }
@@ -1817,7 +1813,7 @@ public class RecipeViewGui implements InventoryHolder {
     }
 
     private LinkedRecipe findCookingPotRecipeByResult(ItemStack item) {
-        for (CookingPotRecipe recipe : plugin.getCookingPotRecipes().getRecipes(getActiveCookingPotRecipeGroup()).values()) {
+        for (CookingPotRecipe recipe : plugin.getCookingPotRecipes().getSortedRecipes(getActiveCookingPotRecipeGroup())) {
             if (sameRecipeItem(recipe.getResult(), item)) {
                 return new LinkedRecipe(recipe.getId(), true);
             }
@@ -1826,7 +1822,7 @@ public class RecipeViewGui implements InventoryHolder {
     }
 
     private LinkedRecipe findCuttingBoardRecipeByResult(ItemStack item) {
-        for (CuttingBoardRecipe recipe : plugin.getCuttingBoardRecipes().getRecipes().values()) {
+        for (CuttingBoardRecipe recipe : plugin.getCuttingBoardRecipes().getSortedRecipes()) {
             for (CuttingBoardRecipe.ResultEntry result : recipe.getResults()) {
                 if (sameRecipeItem(result.item(), item)) {
                     return new LinkedRecipe(recipe.getId(), false);
@@ -1884,30 +1880,37 @@ public class RecipeViewGui implements InventoryHolder {
         }
     }
 
-    private boolean canCraftCookingPotRecipe(CookingPotRecipe recipe) {
-        var entity = cookingPotLocation == null ? null : CookingPotBlockBehavior.getBlockEntity(cookingPotLocation);
+    private List<CookingPotRecipe> filterCraftableCookingPotRecipes(List<CookingPotRecipe> recipes) {
+        CookingPotBlockEntity entity = cookingPotLocation == null ? null : CookingPotBlockBehavior.getBlockEntity(cookingPotLocation);
+        List<ItemStack> available = getAvailableCookingPotItems(entity);
+        List<CookingPotRecipe> craftableRecipes = new ArrayList<>();
+        for (CookingPotRecipe recipe : recipes) {
+            if (canCraftCookingPotRecipe(recipe, entity, available)) {
+                craftableRecipes.add(recipe);
+            }
+        }
+        return craftableRecipes;
+    }
+
+    private boolean canCraftCookingPotRecipe(CookingPotRecipe recipe, CookingPotBlockEntity entity, List<ItemStack> available) {
         if (entity != null && !canRecipeFitCookingPot(recipe, entity)) {
             return false;
         }
-        List<ItemStack> available = getAvailableCookingPotItems();
         ItemStack container = findContainerForRecipe(recipe, available);
         return plugin.getCookingPotRecipes().canCraft(recipe, available, container);
     }
 
-    private List<ItemStack> getAvailableCookingPotItems() {
+    private List<ItemStack> getAvailableCookingPotItems(CookingPotBlockEntity entity) {
         List<ItemStack> items = new ArrayList<>();
         for (ItemStack item : player.getInventory().getStorageContents()) {
             if (item != null && !item.getType().isAir()) {
                 items.add(item.clone());
             }
         }
-        if (cookingPotLocation != null) {
-            var entity = CookingPotBlockBehavior.getBlockEntity(cookingPotLocation);
-            if (entity != null) {
-                for (ItemStack item : entity.getInventory()) {
-                    if (item != null && !item.getType().isAir()) {
-                        items.add(item.clone());
-                    }
+        if (entity != null) {
+            for (ItemStack item : entity.getInventory()) {
+                if (item != null && !item.getType().isAir()) {
+                    items.add(item.clone());
                 }
             }
         }
@@ -2139,7 +2142,7 @@ public class RecipeViewGui implements InventoryHolder {
         return -1;
     }
 
-    private boolean canRecipeFitCookingPot(CookingPotRecipe recipe, com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity entity) {
+    private boolean canRecipeFitCookingPot(CookingPotRecipe recipe, CookingPotBlockEntity entity) {
         if (recipe == null || entity == null) {
             return false;
         }
@@ -2564,4 +2567,3 @@ public class RecipeViewGui implements InventoryHolder {
         return activeGuis.get(playerId);
     }
 }
-

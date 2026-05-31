@@ -24,6 +24,7 @@ import org.joml.Vector3f;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 public class StoveManager {
@@ -37,8 +38,12 @@ public class StoveManager {
     private final FarmersDelightPlugin plugin;
     private final Map<Location, StoveData> stoves = new ConcurrentHashMap<>();
     private final Map<UUID, Set<Location>> stovesByWorld = new ConcurrentHashMap<>();
+    private final Map<UUID, Map<Long, Set<Location>>> stovesByChunk = new ConcurrentHashMap<>();
     private final Map<Location, Boolean> blockedAboveCache = new ConcurrentHashMap<>();
     private final Set<Location> scheduledStoveTicks = ConcurrentHashMap.newKeySet();
+    private final AtomicLong tickLocationsVersion = new AtomicLong();
+    private volatile List<Location> tickLocationsSnapshot = List.of();
+    private volatile long tickLocationsSnapshotVersion = -1L;
     private static final long BLOCKED_CACHE_TTL_MS = 30_000;
     private long lastBlockedCacheCleanup;
     private final CampfireRecipeCache campfireRecipes = new CampfireRecipeCache("stove", this::debug);
@@ -74,6 +79,14 @@ public class StoveManager {
         this.plugin = plugin;
         reloadConfig();
         campfireRecipes.rebuild();
+    }
+
+    private long chunkKey(int chunkX, int chunkZ) {
+        return (((long) chunkX) << 32) ^ (chunkZ & 0xffffffffL);
+    }
+
+    private long chunkKey(Location location) {
+        return chunkKey(location.getBlockX() >> 4, location.getBlockZ() >> 4);
     }
 
     public void reloadConfig() {
@@ -114,6 +127,7 @@ public class StoveManager {
             return previous;
         }
         indexStove(normalized);
+        markTickLocationsDirty();
         return created;
     }
 
@@ -238,15 +252,21 @@ public class StoveManager {
 
     public void cleanupWorld(UUID worldId) {
         Set<Location> locations = stovesByWorld.remove(worldId);
+        stovesByChunk.remove(worldId);
         if (locations == null || locations.isEmpty()) {
             return;
         }
+        boolean removedAny = false;
         for (Location location : List.copyOf(locations)) {
             StoveData stove = stoves.remove(location);
             if (stove != null) {
+                removedAny = true;
                 scheduledStoveTicks.remove(location);
                 cleanupAllVisuals(stove);
             }
+        }
+        if (removedAny) {
+            markTickLocationsDirty();
         }
         stopTaskIfIdle();
     }
@@ -255,7 +275,8 @@ public class StoveManager {
         if (world == null) {
             return;
         }
-        Set<Location> locations = stovesByWorld.get(world.getUID());
+        Map<Long, Set<Location>> worldChunks = stovesByChunk.get(world.getUID());
+        Set<Location> locations = worldChunks == null ? null : worldChunks.get(chunkKey(minX >> 4, minZ >> 4));
         if (locations == null || locations.isEmpty()) {
             return;
         }
@@ -355,7 +376,10 @@ public class StoveManager {
         }
         stoves.clear();
         stovesByWorld.clear();
+        stovesByChunk.clear();
         scheduledStoveTicks.clear();
+        tickLocationsSnapshot = List.of();
+        markTickLocationsDirty();
     }
 
     public void reloadRecipeCache() {
@@ -378,6 +402,7 @@ public class StoveManager {
         Location normalized = ManagerSupport.normalize(location);
         StoveData previous = stoves.put(normalized, stove);
         indexStove(normalized);
+        markTickLocationsDirty();
         return previous;
     }
 
@@ -387,8 +412,32 @@ public class StoveManager {
         if (removed != null) {
             scheduledStoveTicks.remove(normalized);
             deindexStove(normalized);
+            markTickLocationsDirty();
         }
         return removed;
+    }
+
+    private void markTickLocationsDirty() {
+        tickLocationsVersion.incrementAndGet();
+    }
+
+    private List<Location> getTickLocationsSnapshot() {
+        long version = tickLocationsVersion.get();
+        List<Location> snapshot = tickLocationsSnapshot;
+        if (tickLocationsSnapshotVersion == version) {
+            return snapshot;
+        }
+
+        List<Location> refreshed = new ArrayList<>(stoves.size());
+        for (Location location : stoves.keySet()) {
+            if (location != null && location.getWorld() != null) {
+                refreshed.add(location);
+            }
+        }
+        List<Location> updated = refreshed.isEmpty() ? List.of() : Collections.unmodifiableList(refreshed);
+        tickLocationsSnapshot = updated;
+        tickLocationsSnapshotVersion = version;
+        return updated;
     }
 
     private void indexStove(Location location) {
@@ -397,6 +446,10 @@ public class StoveManager {
         }
         stovesByWorld
                 .computeIfAbsent(location.getWorld().getUID(), ignored -> ConcurrentHashMap.newKeySet())
+                .add(location);
+        stovesByChunk
+                .computeIfAbsent(location.getWorld().getUID(), ignored -> new ConcurrentHashMap<>())
+                .computeIfAbsent(chunkKey(location), ignored -> ConcurrentHashMap.newKeySet())
                 .add(location);
     }
 
@@ -412,6 +465,23 @@ public class StoveManager {
         locations.remove(location);
         if (locations.isEmpty()) {
             stovesByWorld.remove(worldId);
+        }
+
+        Map<Long, Set<Location>> worldChunks = stovesByChunk.get(worldId);
+        if (worldChunks == null) {
+            return;
+        }
+        long chunkKey = chunkKey(location);
+        Set<Location> chunkLocations = worldChunks.get(chunkKey);
+        if (chunkLocations == null) {
+            return;
+        }
+        chunkLocations.remove(location);
+        if (chunkLocations.isEmpty()) {
+            worldChunks.remove(chunkKey);
+        }
+        if (worldChunks.isEmpty()) {
+            stovesByChunk.remove(worldId);
         }
     }
 
@@ -448,16 +518,21 @@ public class StoveManager {
             heartbeatTicks = 0;
             debug(() -> "tick heartbeat: activeStoves=" + stoves.size());
         }
-        List<Map.Entry<Location, StoveData>> snapshot = List.copyOf(stoves.entrySet());
+        List<Location> snapshot = getTickLocationsSnapshot();
         int size = snapshot.size();
+        if (size == 0) {
+            tickCursor = 0;
+            stopTaskIfIdle();
+            return;
+        }
         int budget = Math.min(tickBudget, size);
         int start = tickCursor >= size ? 0 : tickCursor;
 
         for (int processed = 0; processed < budget; processed++) {
-            Map.Entry<Location, StoveData> entry = snapshot.get((start + processed) % size);
-            Location location = entry.getKey();
-            StoveData stove = entry.getValue();
-            if (stoves.get(location) != stove) {
+            Location location = snapshot.get((start + processed) % size);
+            StoveData stove = stoves.get(location);
+            if (stove == null) {
+                markTickLocationsDirty();
                 continue;
             }
 
@@ -697,7 +772,7 @@ public class StoveManager {
         ItemStack visualItem = item.clone();
         visualItem.setAmount(1);
 
-        float yRotation = CustomBlockUtils.getYRotation(facing);
+        float yRotation = DisplayTransformUtils.stoveYaw(facing);
 
         Quaternionf leftRotation = new Quaternionf();
         leftRotation.rotationYXZ(
@@ -732,13 +807,7 @@ public class StoveManager {
 
     private double[] getRotatedSlotOffset(int slot, BlockFace facing) {
         double[] offset = slotOffsets[slot];
-
-        return switch (facing) {
-            case EAST -> new double[]{offset[2], offset[1], -offset[0]};
-            case SOUTH -> new double[]{-offset[0], offset[1], -offset[2]};
-            case WEST -> new double[]{-offset[2], offset[1], offset[0]};
-            default -> new double[]{offset[0], offset[1], offset[2]};
-        };
+        return DisplayTransformUtils.stoveSlotOffset(offset[0], offset[1], offset[2], facing);
     }
 
     private double[][] loadSlotOffsets() {

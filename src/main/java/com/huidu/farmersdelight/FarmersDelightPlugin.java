@@ -148,7 +148,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private boolean skilletConductorsAllowed;
     private float skilletDisplayScale = 0.5F;
     private double skilletDisplayYOffset = 0.1D;
-    private double skilletDisplaySpread = 0.125D;
+    private double skilletDisplaySpread = 0.15D;
     private float stoveDisplayScale = 0.375F;
     private Set<String> knifeItemIds = Set.of();
     private Set<String> knifeTagIds = Set.of();
@@ -503,7 +503,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             try {
                 CEWorld ceWorld = worldManager.getWorld(world.getUID());
                 if (ceWorld != null) {
-                    ceWorld.save();
+                    ceWorld.saveChunks();
+                    ceWorld.saveSettings();
                 }
             } catch (Throwable throwable) {
                 getLogger().log(Level.WARNING, I18n.formatConsole("plugin.craftengine_world_flush_failed",
@@ -573,9 +574,24 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                     ? pendingDatapackReloadReason
                     : I18n.formatConsole("plugin.datapack_reason_apply_advancement_changes");
             pendingDatapackReloadReason = null;
-            I18n.logInfo("plugin.datapack_reload", "reason", reloadReason);
-            getServer().reloadData();
+            reloadServerDataPacks(reloadReason);
         }, 10L);
+    }
+
+    private void reloadServerDataPacks(String reason) {
+        if (scheduler != null && scheduler.isFolia()) {
+            I18n.logWarning("plugin.datapack_reload_skipped_folia", "reason", reason);
+            return;
+        }
+        try {
+            I18n.logInfo("plugin.datapack_reload", "reason", reason);
+            getServer().reloadData();
+        } catch (UnsupportedOperationException e) {
+            I18n.logWarning("plugin.datapack_reload_skipped_unsupported", "reason", reason);
+        } catch (Throwable throwable) {
+            getLogger().log(Level.WARNING, I18n.formatConsole("plugin.datapack_reload_failed",
+                    "reason", reason), throwable);
+        }
     }
 
     private void queueDatapackSync(String reason) {
@@ -708,7 +724,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         clearLegacySkilletRecipeCache();
 
         if (knifeDropHandler != null) {
-            knifeDropHandler.reload();
+            knifeDropHandler.loadConfig();
         }
         if (trayManager != null) {
             trayManager.reload();
@@ -752,7 +768,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         clearLegacySkilletRecipeCache();
 
         if (knifeDropHandler != null) {
-            knifeDropHandler.reload();
+            knifeDropHandler.loadConfig();
         }
         if (trayManager != null) {
             trayManager.reload();
@@ -921,7 +937,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         skilletDisplayYOffset = getConfigDouble(0.1D,
                 "skillet.display.y-offset",
                 "display-visuals.skillet.y-offset");
-        skilletDisplaySpread = Math.max(0.0D, getConfigDouble(0.125D,
+        skilletDisplaySpread = Math.max(0.0D, getConfigDouble(0.15D,
                 "skillet.display.item-spread",
                 "display-visuals.skillet.item-spread"));
         stoveDisplayScale = (float) getConfigDouble(0.375D,

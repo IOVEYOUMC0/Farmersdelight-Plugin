@@ -18,12 +18,23 @@ final class RecipeFileLoader {
                                    String rootSectionKey,
                                    String recipeTypeName,
                                    BiConsumer<String, ConfigurationSection> sectionConsumer) {
+        loadRecipeSections(plugin, loadRecipeFile(plugin, relativePath), rootSectionKey, recipeTypeName, sectionConsumer);
+    }
+
+    static YamlConfiguration loadRecipeFile(FarmersDelightPlugin plugin, String relativePath) {
         File recipesFile = new File(plugin.getDataFolder(), relativePath);
         if (!recipesFile.exists()) {
             plugin.saveResource(relativePath, false);
         }
 
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(recipesFile);
+        return YamlConfiguration.loadConfiguration(recipesFile);
+    }
+
+    static void loadRecipeSections(FarmersDelightPlugin plugin,
+                                   YamlConfiguration config,
+                                   String rootSectionKey,
+                                   String recipeTypeName,
+                                   BiConsumer<String, ConfigurationSection> sectionConsumer) {
         ConfigurationSection recipesSection = config.getConfigurationSection(rootSectionKey);
         if (recipesSection == null) {
             return;
@@ -50,4 +61,3 @@ final class RecipeFileLoader {
         I18n.logInfo("recipe.loaded_total", "count", loadedCount, "type", recipeTypeName);
     }
 }
-

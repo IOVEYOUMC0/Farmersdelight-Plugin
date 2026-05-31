@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.util.BlockPosKey;
+import com.huidu.farmersdelight.util.DisplayTransformUtils;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import net.momirealms.craftengine.core.world.BlockPos;
 import org.bukkit.Bukkit;
@@ -240,6 +241,10 @@ public class StoveCookingBlockEntity {
     }
 
     public void createDisplayEntity(int slotIndex, World world, Location blockLoc) {
+        createDisplayEntity(slotIndex, world, blockLoc, BlockFace.NORTH);
+    }
+
+    public void createDisplayEntity(int slotIndex, World world, Location blockLoc, BlockFace facing) {
         if (slotIndex < 0 || slotIndex >= displayEntityIds.length) return;
 
         CookingSlot slot = slots[slotIndex];
@@ -250,10 +255,21 @@ public class StoveCookingBlockEntity {
         ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getItemDisplayManager();
         if (visualManager == null || !visualManager.isAvailable()) return;
 
-        float[] offset = SLOT_OFFSETS[slotIndex];
-        Location displayLoc = blockLoc.clone().add(0.5 + offset[0], 0.375, 0.5 + offset[1]);
+        float[] offset = DisplayTransformUtils.stoveSlotOffset(
+                SLOT_OFFSETS[slotIndex][0],
+                1.02f,
+                SLOT_OFFSETS[slotIndex][1],
+                facing
+        );
+        Location displayLoc = blockLoc.clone().add(0.5 + offset[0], offset[1], 0.5 + offset[2]);
         ItemStack visualItem = slot.getItem().clone();
         visualItem.setAmount(1);
+        org.joml.Quaternionf leftRotation = new org.joml.Quaternionf();
+        leftRotation.rotationYXZ(
+                (float) Math.toRadians(DisplayTransformUtils.stoveYaw(facing)),
+                (float) Math.toRadians(90.0f),
+                0.0f
+        );
 
         displayEntityIds[slotIndex] = visualManager.createDisplay(new ItemDisplayManager.DisplaySpec(
                 displayLoc,
@@ -261,8 +277,8 @@ public class StoveCookingBlockEntity {
                 ItemDisplay.ItemDisplayTransform.FIXED,
                 new org.bukkit.util.Transformation(
                         new org.joml.Vector3f(),
-                        new org.joml.Quaternionf(),
-                        new org.joml.Vector3f(0.6f, 0.6f, 0.6f),
+                        leftRotation,
+                        new org.joml.Vector3f(0.375f, 0.375f, 0.375f),
                         new org.joml.Quaternionf()
                 )
         ));
@@ -278,7 +294,7 @@ public class StoveCookingBlockEntity {
         }
         
         Location blockLoc = new Location(world, posKey.x(), posKey.y(), posKey.z());
-        createDisplayEntity(slotIndex, world, blockLoc);
+        createDisplayEntity(slotIndex, world, blockLoc, facing);
     }
 
     public void removeDisplayEntity(int slotIndex) {

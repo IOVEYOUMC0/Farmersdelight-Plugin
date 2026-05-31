@@ -12,3 +12,4 @@ out/
 .vscode/
 
 local.properties
+.local/

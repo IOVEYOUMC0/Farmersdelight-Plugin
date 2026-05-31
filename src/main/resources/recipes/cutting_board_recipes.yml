@@ -129,7 +129,7 @@ cutting_board_recipes:
     input: "minecraft:cooked_beef"
     tool: "#farmersdelight:knives"
     results:
-      - item: "farmersdelight:cooked_minced_beef"
+      - item: "farmersdelight:beef_patty"
         count: 2
   
   cooked_chicken:

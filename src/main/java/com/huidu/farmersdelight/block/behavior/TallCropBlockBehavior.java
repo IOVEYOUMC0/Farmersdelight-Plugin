@@ -74,17 +74,19 @@ public class TallCropBlockBehavior extends BlockBehavior {
     private final Key upperBlockId;
     private final Set<Key> harvestToolTags;
     private final Set<String> harvestToolItems;
+    private final Set<Key> extraPlantingItems;
     private static final Map<Key, TallCropBlockBehavior> BEHAVIORS = new ConcurrentHashMap<>();
     private static final Map<Key, SoilRules> SOIL_RULES = new ConcurrentHashMap<>();
+    private static final Map<Key, Key> EXTRA_PLANTING_ITEMS = new ConcurrentHashMap<>();
 
     private TallCropBlockBehavior(BlockDefinition block, Property<Integer> ageProperty,
                                    Property<?> halfProperty, Property<Boolean> supportingProperty,
                                    float growSpeed, int minGrowLight, boolean isBoneMealTarget, boolean randomBoneMealGrowth,
                                    int boneMealMin, int boneMealMax,
-                                   int maxAgeLower, int maxAgeUpper, Object halfLowerValue, Object halfUpperValue,
-                                   boolean requiresWater, boolean resetOnHarvest, Key upperBlockId,
-                                   Set<Key> harvestToolTags, Set<String> harvestToolItems,
-                                   SoilRules soilRules) {
+                                    int maxAgeLower, int maxAgeUpper, Object halfLowerValue, Object halfUpperValue,
+                                    boolean requiresWater, boolean resetOnHarvest, Key upperBlockId,
+                                    Set<Key> harvestToolTags, Set<String> harvestToolItems,
+                                    Set<Key> extraPlantingItems, SoilRules soilRules) {
         super(block);
         this.ageProperty = ageProperty;
         this.halfProperty = halfProperty;
@@ -104,6 +106,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
         this.upperBlockId = upperBlockId;
         this.harvestToolTags = harvestToolTags;
         this.harvestToolItems = harvestToolItems;
+        this.extraPlantingItems = Set.copyOf(extraPlantingItems);
     }
 
     @SuppressWarnings("unchecked")
@@ -151,6 +154,8 @@ public class TallCropBlockBehavior extends BlockBehavior {
             Set<Key> harvestToolTags = SoilRuleSupport.parseKeys(arguments, "harvest-tool-tags");
             Set<String> harvestToolItems = parseConfiguredItemIds(arguments, "harvest-tool-items");
             SoilRules soilRules = SoilRuleSupport.parseSoilRules(arguments);
+            Set<Key> extraPlantingItems = parseConfiguredKeys(arguments,
+                    "extra-planting-items", "extra_planting_items", "extraPlantingItems");
             
             String upperBlockStr = getString(arguments, "upper-block", "");
             Key upperBlockId = upperBlockStr.isEmpty() ? null : Key.of(upperBlockStr);
@@ -175,10 +180,12 @@ public class TallCropBlockBehavior extends BlockBehavior {
                     upperBlockId,
                     harvestToolTags,
                     harvestToolItems,
+                    extraPlantingItems,
                     soilRules
             );
             BEHAVIORS.put(block.id(), behavior);
             SOIL_RULES.put(block.id(), soilRules);
+            registerExtraPlantingItems(block.id(), extraPlantingItems);
             return behavior;
         }
     };
@@ -193,6 +200,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
     public static void cleanupAll() {
         BEHAVIORS.clear();
         SOIL_RULES.clear();
+        EXTRA_PLANTING_ITEMS.clear();
     }
 
     public static TallCropBlockBehavior getBehavior(ImmutableBlockState state) {
@@ -207,6 +215,17 @@ public class TallCropBlockBehavior extends BlockBehavior {
             return null;
         }
         return SOIL_RULES.get(cropId);
+    }
+
+    public static Key getExtraPlantingCrop(Key itemId) {
+        if (itemId == null) {
+            return null;
+        }
+        return EXTRA_PLANTING_ITEMS.get(itemId);
+    }
+
+    public Set<Key> extraPlantingItems() {
+        return extraPlantingItems;
     }
 
     public int getMaxAgeLower() {
@@ -751,6 +770,62 @@ public class TallCropBlockBehavior extends BlockBehavior {
             }
         }
         return result;
+    }
+
+    private static Set<Key> parseConfiguredKeys(Map<String, Object> arguments, String... keys) {
+        Object raw = null;
+        if (arguments != null) {
+            for (String key : keys) {
+                if (arguments.containsKey(key)) {
+                    raw = arguments.get(key);
+                    break;
+                }
+            }
+        }
+        if (raw == null) {
+            return Collections.emptySet();
+        }
+
+        Set<Key> result = new HashSet<>();
+        if (raw instanceof Iterable<?> iterable) {
+            for (Object value : iterable) {
+                addKey(result, value);
+            }
+        } else {
+            addKey(result, raw);
+        }
+        return result;
+    }
+
+    private static void addKey(Set<Key> result, Object value) {
+        if (value == null) {
+            return;
+        }
+        String text = String.valueOf(value).trim();
+        if (!text.isEmpty()) {
+            result.add(Key.of(text));
+        }
+    }
+
+    private static void registerExtraPlantingItems(Key cropId, Set<Key> extraPlantingItems) {
+        EXTRA_PLANTING_ITEMS.entrySet().removeIf(entry -> cropId.equals(entry.getValue()));
+        for (Key itemId : extraPlantingItems) {
+            if (cropId.equals(itemId)) {
+                continue;
+            }
+            Key existing = EXTRA_PLANTING_ITEMS.putIfAbsent(itemId, cropId);
+            if (existing != null && !existing.equals(cropId)) {
+                warn("Ignoring extra planting item '" + itemId + "' for crop '" + cropId
+                        + "' because it is already mapped to crop '" + existing + "'.");
+            }
+        }
+    }
+
+    private static void warn(String message) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin != null) {
+            plugin.getLogger().warning(message);
+        }
     }
 
     private static int inferMaxIntegerValue(Property<Integer> property, int fallback) {

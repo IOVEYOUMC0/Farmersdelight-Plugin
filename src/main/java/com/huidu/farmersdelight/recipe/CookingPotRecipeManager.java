@@ -10,8 +10,8 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
 
-import java.io.File;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class CookingPotRecipeManager {
 
@@ -20,6 +20,9 @@ public class CookingPotRecipeManager {
     private final Map<String, Map<String, CookingPotRecipe>> customRecipes = new HashMap<>();
     private final Map<String, Set<String>> ingredientToRecipes = new HashMap<>();
     private final Map<String, Map<String, Set<String>>> customIngredientToRecipes = new HashMap<>();
+    private List<CookingPotRecipe> sortedRecipes = List.of();
+    private final Map<String, List<CookingPotRecipe>> sortedCustomRecipes = new HashMap<>();
+    private final Map<Key, Set<String>> vanillaItemIdsByTagCache = new ConcurrentHashMap<>();
     private final Map<String, CookingPotRecipe> recipeCache = new LinkedHashMap<>(MAX_CACHE_SIZE + 1, 0.75f, true) {
         @Override
         protected boolean removeEldestEntry(Map.Entry<String, CookingPotRecipe> eldest) {
@@ -38,11 +41,15 @@ public class CookingPotRecipeManager {
         customRecipes.clear();
         ingredientToRecipes.clear();
         customIngredientToRecipes.clear();
+        sortedRecipes = List.of();
+        sortedCustomRecipes.clear();
+        vanillaItemIdsByTagCache.clear();
         synchronized (recipeCache) {
             recipeCache.clear();
         }
         validContainerKeys.clear();
-        RecipeFileLoader.loadRecipeSections(plugin, "recipes/cooking_pot_recipes.yml", "cooking_pot_recipes", "cooking pot",
+        YamlConfiguration config = RecipeFileLoader.loadRecipeFile(plugin, "recipes/cooking_pot_recipes.yml");
+        RecipeFileLoader.loadRecipeSections(plugin, config, "cooking_pot_recipes", "cooking pot",
                 (recipeId, section) -> {
                     CookingPotRecipe recipe = parseRecipe(recipeId, section, 6);
                     recipes.put(recipeId, recipe);
@@ -50,16 +57,11 @@ public class CookingPotRecipeManager {
                     indexDefaultRecipe(recipeId, recipe);
                     indexContainer(recipe);
                 });
-        loadCustomRecipes();
+        loadCustomRecipes(config);
+        rebuildSortedRecipeLists();
     }
 
-    private void loadCustomRecipes() {
-        File recipesFile = new File(plugin.getDataFolder(), "recipes/cooking_pot_recipes.yml");
-        if (!recipesFile.exists()) {
-            return;
-        }
-
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(recipesFile);
+    private void loadCustomRecipes(YamlConfiguration config) {
         ConfigurationSection root = config.getConfigurationSection("custom_cooking_pot_recipes");
         if (root == null) {
             return;
@@ -93,6 +95,25 @@ public class CookingPotRecipeManager {
         if (loadedCount > 0 || plugin.isDebugEnabled()) {
             I18n.logInfo("recipe.custom_cooking_pot_loaded", "count", loadedCount);
         }
+    }
+
+    private void rebuildSortedRecipeLists() {
+        sortedRecipes = sortedRecipeList(recipes);
+        sortedCustomRecipes.clear();
+        for (Map.Entry<String, Map<String, CookingPotRecipe>> entry : customRecipes.entrySet()) {
+            Map<String, CookingPotRecipe> merged = new LinkedHashMap<>(recipes);
+            merged.putAll(entry.getValue());
+            sortedCustomRecipes.put(entry.getKey(), sortedRecipeList(merged));
+        }
+    }
+
+    private List<CookingPotRecipe> sortedRecipeList(Map<String, CookingPotRecipe> source) {
+        if (source.isEmpty()) {
+            return List.of();
+        }
+        List<CookingPotRecipe> sorted = new ArrayList<>(source.values());
+        sorted.sort(Comparator.comparing(CookingPotRecipe::getId));
+        return Collections.unmodifiableList(sorted);
     }
 
     private void indexDefaultRecipe(String recipeId, CookingPotRecipe recipe) {
@@ -445,19 +466,15 @@ public class CookingPotRecipeManager {
                 return true;
             }
 
-            var vanillaTags = plugin.getCraftEngine().itemManager()
-                    .vanillaItemIdsByTag(tagIngredient.key());
-            boolean matchesBase = vanillaId != null && (vanillaTags.stream()
-                    .anyMatch(k -> k.toString().equals(vanillaId))
+            Set<String> vanillaTags = getVanillaItemIdsByTag(tagIngredient.key());
+            boolean matchesBase = vanillaId != null && (vanillaTags.contains(vanillaId)
                     || ItemUtils.matchesVanillaItemTag(item, tagIngredient.key(),
                     tagIngredient.excludedItems(), tagIngredient.excludedTags()));
             if (!matchesBase) {
                 return false;
             }
             for (Key excludedTag : tagIngredient.excludedTags()) {
-                boolean blocked = vanillaId != null && plugin.getCraftEngine().itemManager()
-                        .vanillaItemIdsByTag(excludedTag).stream()
-                        .anyMatch(k -> k.toString().equals(vanillaId));
+                boolean blocked = vanillaId != null && getVanillaItemIdsByTag(excludedTag).contains(vanillaId);
                 if (blocked) {
                     return false;
                 }
@@ -465,6 +482,23 @@ public class CookingPotRecipeManager {
             return true;
         }
         return false;
+    }
+
+    private Set<String> getVanillaItemIdsByTag(Key tagKey) {
+        if (tagKey == null) {
+            return Set.of();
+        }
+        return vanillaItemIdsByTagCache.computeIfAbsent(tagKey, key -> {
+            var craftEngine = plugin.getCraftEngine();
+            if (craftEngine == null || craftEngine.itemManager() == null) {
+                return Set.of();
+            }
+            Set<String> itemIds = new HashSet<>();
+            for (var itemId : craftEngine.itemManager().vanillaItemIdsByTag(key)) {
+                itemIds.add(itemId.toString());
+            }
+            return itemIds.isEmpty() ? Set.of() : Collections.unmodifiableSet(itemIds);
+        });
     }
 
     private String getItemKey(ItemStack item) {
@@ -492,6 +526,14 @@ public class CookingPotRecipeManager {
         Map<String, CookingPotRecipe> merged = new LinkedHashMap<>(recipes);
         merged.putAll(groupRecipes);
         return Collections.unmodifiableMap(merged);
+    }
+
+    public List<CookingPotRecipe> getSortedRecipes(String customRecipeGroupId) {
+        String normalizedGroupId = normalizeRecipeGroupId(customRecipeGroupId);
+        if (normalizedGroupId == null) {
+            return sortedRecipes;
+        }
+        return sortedCustomRecipes.getOrDefault(normalizedGroupId, sortedRecipes);
     }
 
     public Set<String> getValidContainerKeys() {
@@ -533,4 +575,3 @@ public class CookingPotRecipeManager {
         return customRecipeGroupId.trim();
     }
 }
-
