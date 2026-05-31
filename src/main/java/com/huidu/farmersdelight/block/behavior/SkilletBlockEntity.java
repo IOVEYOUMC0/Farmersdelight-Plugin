@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.block.behavior;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.util.DisplayTransformUtils;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import net.momirealms.craftengine.core.world.BlockPos;
 import org.bukkit.Bukkit;
@@ -261,12 +262,7 @@ public class SkilletBlockEntity {
         ItemStack visualItem = storedItem.clone();
         visualItem.setAmount(1);
 
-        float yaw = switch (facing) {
-            case SOUTH -> 180f;
-            case WEST -> 270f;
-            case EAST -> 90f;
-            default -> 0f;
-        };
+        float yaw = DisplayTransformUtils.skilletYaw(facing);
 
         org.joml.Quaternionf leftRotation = new org.joml.Quaternionf();
         leftRotation.rotationYXZ(
@@ -282,7 +278,7 @@ public class SkilletBlockEntity {
                 new org.bukkit.util.Transformation(
                         new org.joml.Vector3f(),
                         leftRotation,
-                        new org.joml.Vector3f(0.6f, 0.6f, 0.6f),
+                        new org.joml.Vector3f(0.5f, 0.5f, 0.5f),
                         new org.joml.Quaternionf()
                 )
         ));

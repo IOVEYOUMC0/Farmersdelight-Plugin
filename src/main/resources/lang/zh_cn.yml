@@ -3,6 +3,7 @@ messages:
     no_recipe: "&c这个物品没有可用的砧板配方。"
     need_tool: "&c你需要正确的工具来处理这个物品。"
     wrong_tool: "&c工具不匹配，请使用正确的工具。"
+    no_output: "&c该砧板配方没有生成产物，请检查配方输出物品。"
 crop:
   invalid_soil: "&c该作物貌似需要种在指定方块上..."
   need_water: "&c该作物貌似需要种在水中..."
@@ -84,6 +85,9 @@ console:
     reloading_recipes: "正在重新加载配方..."
     craftengine_reload_reason: "CraftEngine 重载"
     datapack_reload: "正在重载数据包以{reason}..."
+    datapack_reload_skipped_folia: "已更新数据包以{reason}，但 Folia/Luminol 不支持在此处自动重载数据包。请重启服务器以应用进度变更。"
+    datapack_reload_skipped_unsupported: "已更新数据包以{reason}，但当前服务端不支持在此处自动重载数据包。请重启服务器以应用进度变更。"
+    datapack_reload_failed: "重载数据包以{reason}失败"
     datapack_reason_remove_disabled_advancements: "移除已禁用的 FarmersDelight 进度"
     datapack_reason_apply_advancement_config: "应用 FarmersDelight 进度配置变更"
     datapack_reason_apply_advancements: "应用 FarmersDelight 进度"

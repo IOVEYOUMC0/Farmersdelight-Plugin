@@ -474,10 +474,6 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
             }
 
             if (!mainHandEmpty) {
-                if (bukkitPlayer.isSneaking() && mainHandTool) {
-                    return InteractionResult.PASS;
-                }
-
                 if (tryPlaceOnEmptyBoard(mainHand, false, bukkitPlayer, world, posKey, facing, blockEntity)) {
                     return InteractionResult.SUCCESS_AND_CANCEL;
                 }
@@ -710,7 +706,7 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         }
     }
 
-    private boolean isTool(ItemStack item) {
+    public boolean isTool(ItemStack item) {
         if (item == null || item.getType().isAir()) return false;
 
         if (isKnifeTool(item) || isAxeTool(item) || isPickaxeTool(item) || isConfiguredToolItem(item)) {
@@ -772,7 +768,12 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         int fortuneLevel = tool.getEnchantmentLevel(org.bukkit.enchantments.Enchantment.FORTUNE);
 
         ItemStack firstResult = null;
+        boolean hasPossibleResult = false;
         for (CuttingBoardRecipe.ResultEntry resultEntry : recipe.getResults()) {
+            ItemStack configuredResult = resultEntry.item();
+            if (configuredResult != null && !configuredResult.getType().isAir() && configuredResult.getAmount() > 0) {
+                hasPossibleResult = true;
+            }
             if (resultEntry.chance() < 1.0d && ThreadLocalRandom.current().nextDouble() > resultEntry.chance()) {
                 continue;
             }
@@ -793,6 +794,16 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
                 firstResult = result.clone();
             }
             spawnItemEntity(world, posKey, result, facing);
+        }
+
+        if (!hasPossibleResult) {
+            debug("recipe=" + recipe.getId()
+                    + " matched input=" + formatItem(storedItem)
+                    + " tool=" + formatItem(tool)
+                    + " but produced no output");
+            player.sendActionBar(I18n.getComponent("messages.cutting_board.no_output", player));
+            player.playSound(location, Sound.BLOCK_NOTE_BLOCK_BASS, 0.5f, 0.8f);
+            return true;
         }
 
         Bukkit.getPluginManager().callEvent(new ProfessionCookingExperienceEvent(
@@ -871,7 +882,7 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
             droppedStack.setAmount(Math.min(remaining, maxStackSize));
             remaining -= droppedStack.getAmount();
 
-            org.bukkit.entity.Item droppedItem = world.dropItemNaturally(location, droppedStack);
+            org.bukkit.entity.Item droppedItem = world.dropItem(location, droppedStack);
             droppedItem.setVelocity(new Vector(
                     ejectFace.getModX() * 0.2,
                     0.0,
@@ -943,4 +954,3 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         return customId != null ? customId + " x" + item.getAmount() : item.getType().name() + " x" + item.getAmount();
     }
 }
-

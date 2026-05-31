@@ -1,11 +1,9 @@
 package com.huidu.farmersdelight.listener;
 
-import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntity;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
-import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.WorldGuardCompat;
 import org.bukkit.GameMode;
 import org.bukkit.Sound;
@@ -19,8 +17,6 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
-
-import java.util.Set;
 
 public class CuttingBoardInteractListener implements Listener {
 
@@ -47,7 +43,8 @@ public class CuttingBoardInteractListener implements Listener {
         }
 
         ItemStack mainHand = player.getInventory().getItemInMainHand();
-        if (!isTool(mainHand)) {
+        CuttingBoardBlockBehavior behavior = CuttingBoardBlockBehavior.getBlockBehavior(block.getLocation());
+        if (behavior == null || !behavior.isTool(mainHand)) {
             return;
         }
 
@@ -85,33 +82,6 @@ public class CuttingBoardInteractListener implements Listener {
         event.setUseInteractedBlock(Event.Result.DENY);
         event.setCancelled(true);
         player.updateInventory();
-    }
-
-    private boolean isTool(ItemStack item) {
-        if (item == null || item.getType().isAir()) {
-            return false;
-        }
-
-        if (isKnifeTool(item) || item.getType().name().endsWith("_AXE")) {
-            return true;
-        }
-
-        String customId = ItemUtils.getCustomItemId(item);
-        if (customId != null) {
-            Set<String> itemTags = ItemUtils.getItemTagIds(item);
-            for (String tag : FarmersDelightPlugin.getInstance().getKnifeTagIds()) {
-                if (itemTags.contains(tag)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private boolean isKnifeTool(ItemStack item) {
-        String customId = ItemUtils.getCustomItemId(item);
-        return FarmersDelightPlugin.getInstance().isKnifeItemId(customId);
     }
 }
 

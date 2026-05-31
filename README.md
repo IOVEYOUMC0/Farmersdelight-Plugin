@@ -657,12 +657,12 @@ skillet:
   display:
     scale: 0.5
     y-offset: 0.1
-    item-spread: 0.125
+    item-spread: 0.15
 ```
 
 - `scale`：食物大小。
 - `y-offset`：食物基础高度。陷进锅里就调高，漂浮明显就调低。
-- `item-spread`：多个食物的随机散开范围。默认 `0.125` 接近原模组，即最大约 `+-0.0625` 方块。
+- `item-spread`：多个食物的随机散开范围。默认 `0.15` 接近原模组，即最大约 `+-0.075` 方块。
 
 ### 10.3 炉灶物品展示
 
@@ -1066,6 +1066,8 @@ build/libs/farmersdelight-1.0.0-folia.jar
 ```text
 build/libs/farmersdelight-1.0.0-paper-obf.jar
 build/libs/farmersdelight-1.0.0-folia-obf.jar
+build/reports/proguard/farmersdelight-1.0.0-paper-mapping.txt
+build/reports/proguard/farmersdelight-1.0.0-folia-mapping.txt
 ```
 
-混淆构建会保留 Bukkit 主类、事件监听注解、枚举入口和公开 API 包，避免 Bukkit、CraftEngine 或外部插件需要反射访问的入口被改名。Paper/Folia jar 的 `paper-plugin.yml` 会分别写入对应的 `folia-supported` 值；Folia 构建仍建议在测试服验证区域调度、显示同步和区块卸载保存。
+混淆构建会保留 Bukkit 主类、事件监听注解、枚举入口、公开 API 包、行号和统一的 `SourceFile` 标记，避免 Bukkit、CraftEngine 或外部插件需要反射访问的入口被改名，并让混淆堆栈可以用同一轮构建的 mapping 反查。`build/reports/proguard/*-mapping.txt` 仅作内部排查留档，`build/` 已被 git 忽略，不要提交到公开仓库。Paper/Folia jar 的 `paper-plugin.yml` 会分别写入对应的 `folia-supported` 值；Folia 构建仍建议在测试服验证区域调度、显示同步和区块卸载保存。

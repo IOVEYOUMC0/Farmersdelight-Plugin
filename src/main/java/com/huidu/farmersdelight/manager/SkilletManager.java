@@ -37,6 +37,7 @@ public class SkilletManager {
     private final FarmersDelightPlugin plugin;
     private final Map<Location, SkilletData> skillets = new ConcurrentHashMap<>();
     private final Map<UUID, Set<Location>> skilletsByWorld = new ConcurrentHashMap<>();
+    private final Map<UUID, Map<Long, Set<Location>>> skilletsByChunk = new ConcurrentHashMap<>();
     private final Set<Location> scheduledSkilletTicks = ConcurrentHashMap.newKeySet();
     private final AtomicLong tickLocationsVersion = new AtomicLong();
     private volatile List<Location> tickLocationsSnapshot = List.of();
@@ -75,6 +76,14 @@ public class SkilletManager {
         this.plugin = plugin;
         reloadConfig();
         campfireRecipes.rebuild();
+    }
+
+    private long chunkKey(int chunkX, int chunkZ) {
+        return (((long) chunkX) << 32) ^ (chunkZ & 0xffffffffL);
+    }
+
+    private long chunkKey(Location location) {
+        return chunkKey(location.getBlockX() >> 4, location.getBlockZ() >> 4);
     }
 
     public void reloadConfig() {
@@ -364,6 +373,7 @@ public class SkilletManager {
 
     public void cleanupWorld(UUID worldId) {
         Set<Location> locations = skilletsByWorld.remove(worldId);
+        skilletsByChunk.remove(worldId);
         if (locations == null || locations.isEmpty()) {
             return;
         }
@@ -383,11 +393,12 @@ public class SkilletManager {
         if (world == null) {
             return;
         }
-        Set<Location> locations = skilletsByWorld.get(world.getUID());
+        Map<Long, Set<Location>> worldChunks = skilletsByChunk.get(world.getUID());
+        Set<Location> locations = worldChunks == null ? null : worldChunks.get(chunkKey(minX >> 4, minZ >> 4));
         if (locations == null || locations.isEmpty()) {
             return;
         }
-        for (Location location : locations) {
+        for (Location location : List.copyOf(locations)) {
             if (location.getBlockX() >= minX && location.getBlockX() <= maxX
                     && location.getBlockZ() >= minZ && location.getBlockZ() <= maxZ) {
                 SkilletData skillet = skillets.get(location);
@@ -487,6 +498,7 @@ public class SkilletManager {
         }
         skillets.clear();
         skilletsByWorld.clear();
+        skilletsByChunk.clear();
         scheduledSkilletTicks.clear();
         tickLocationsSnapshot = List.of();
         markTickLocationsDirty();
@@ -572,6 +584,10 @@ public class SkilletManager {
         skilletsByWorld
                 .computeIfAbsent(location.getWorld().getUID(), ignored -> ConcurrentHashMap.newKeySet())
                 .add(location);
+        skilletsByChunk
+                .computeIfAbsent(location.getWorld().getUID(), ignored -> new ConcurrentHashMap<>())
+                .computeIfAbsent(chunkKey(location), ignored -> ConcurrentHashMap.newKeySet())
+                .add(location);
     }
 
     private void deindexSkillet(Location location) {
@@ -586,6 +602,23 @@ public class SkilletManager {
         locations.remove(location);
         if (locations.isEmpty()) {
             skilletsByWorld.remove(worldId);
+        }
+
+        Map<Long, Set<Location>> worldChunks = skilletsByChunk.get(worldId);
+        if (worldChunks == null) {
+            return;
+        }
+        long chunkKey = chunkKey(location);
+        Set<Location> chunkLocations = worldChunks.get(chunkKey);
+        if (chunkLocations == null) {
+            return;
+        }
+        chunkLocations.remove(location);
+        if (chunkLocations.isEmpty()) {
+            worldChunks.remove(chunkKey);
+        }
+        if (worldChunks.isEmpty()) {
+            skilletsByChunk.remove(worldId);
         }
     }
 
@@ -865,7 +898,7 @@ public class SkilletManager {
 
         int displayCount = getModelCount(skillet.storedItem);
         Random random = new Random(getVisualSeed(skillet.storedItem));
-        float yRotation = getSkilletDisplayYRotation(facing);
+        float yRotation = DisplayTransformUtils.skilletYaw(facing);
         debug("spawn display: target " + displayCount + " displays for " + formatItem(skillet.storedItem)
                 + " at " + formatLocation(location));
 
@@ -918,15 +951,6 @@ public class SkilletManager {
                         + ", location=" + formatLocation(location));
             }
         }
-    }
-
-    private float getSkilletDisplayYRotation(BlockFace facing) {
-        return switch (facing) {
-            case SOUTH -> 180.0f;
-            case EAST -> 90.0f;
-            case WEST -> -90.0f;
-            default -> 0.0f;
-        };
     }
 
     private int getModelCount(ItemStack stack) {

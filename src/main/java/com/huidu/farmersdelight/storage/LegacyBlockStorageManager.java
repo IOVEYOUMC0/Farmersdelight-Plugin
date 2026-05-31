@@ -105,8 +105,46 @@ public class LegacyBlockStorageManager {
         }
     }
 
+    private Map<String, Object> copyDataMap(Map<String, Object> source) {
+        Map<String, Object> copy = new HashMap<>();
+        if (source == null || source.isEmpty()) {
+            return copy;
+        }
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
+            copy.put(entry.getKey(), copyStoredValue(entry.getValue()));
+        }
+        return copy;
+    }
+
+    private Map<String, Object> copyBlockDataMap(BlockData blockData) {
+        return copyDataMap(blockData.data);
+    }
+
+    private Object copyStoredValue(Object value) {
+        if (value instanceof ItemStack itemStack) {
+            return itemStack.clone();
+        }
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> copy = new HashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry.getKey() != null) {
+                    copy.put(String.valueOf(entry.getKey()), copyStoredValue(entry.getValue()));
+                }
+            }
+            return copy;
+        }
+        if (value instanceof Iterable<?> iterable) {
+            java.util.List<Object> copy = new java.util.ArrayList<>();
+            for (Object item : iterable) {
+                copy.add(copyStoredValue(item));
+            }
+            return copy;
+        }
+        return value;
+    }
+
     private Map<String, Object> toBlockDataView(BlockData blockData, ParsedPos pos) {
-        Map<String, Object> view = new HashMap<>(blockData.data);
+        Map<String, Object> view = copyBlockDataMap(blockData);
         view.put("_blockType", blockData.blockType);
         view.put("_x", pos.x);
         view.put("_y", pos.y);
@@ -125,27 +163,28 @@ public class LegacyBlockStorageManager {
                 .put(posKey, data);
     }
 
-    private void deindexBlockData(String worldId, String posKey) {
+    private boolean deindexBlockData(String worldId, String posKey) {
         ParsedPos pos = parsePosKey(posKey);
         if (pos == null) {
-            return;
+            return false;
         }
         Map<Long, Map<String, BlockData>> worldChunks = chunkIndex.get(worldId);
         if (worldChunks == null) {
-            return;
+            return false;
         }
         long chunkKey = chunkKeyForBlock(pos.x, pos.z);
         Map<String, BlockData> chunkBlocks = worldChunks.get(chunkKey);
         if (chunkBlocks == null) {
-            return;
+            return false;
         }
-        chunkBlocks.remove(posKey);
+        boolean removed = chunkBlocks.remove(posKey) != null;
         if (chunkBlocks.isEmpty()) {
             worldChunks.remove(chunkKey);
         }
         if (worldChunks.isEmpty()) {
             chunkIndex.remove(worldId);
         }
+        return removed;
     }
 
     public String locationToKey(Location loc) {
@@ -160,7 +199,7 @@ public class LegacyBlockStorageManager {
 
         dataLock.writeLock().lock();
         try {
-            BlockData blockData = new BlockData(blockType, data);
+            BlockData blockData = new BlockData(blockType, copyDataMap(data));
             worldData.computeIfAbsent(worldId, k -> new ConcurrentHashMap<>())
                     .put(posKey, blockData);
             indexBlockData(worldId, posKey, blockData);
@@ -176,17 +215,22 @@ public class LegacyBlockStorageManager {
         String worldId = location.getWorld().getUID().toString();
         String posKey = posToKey(location.getBlockX(), location.getBlockY(), location.getBlockZ());
 
-        Map<String, BlockData> worldBlocks = worldData.get(worldId);
-        if (worldBlocks == null) return null;
+        dataLock.readLock().lock();
+        try {
+            Map<String, BlockData> worldBlocks = worldData.get(worldId);
+            if (worldBlocks == null) return null;
 
-        BlockData data = worldBlocks.get(posKey);
-        if (data == null) return null;
+            BlockData data = worldBlocks.get(posKey);
+            if (data == null) return null;
 
-        if (expectedType != null && !expectedType.equals(data.blockType)) {
-            return null;
+            if (expectedType != null && !expectedType.equals(data.blockType)) {
+                return null;
+            }
+
+            return copyBlockDataMap(data);
+        } finally {
+            dataLock.readLock().unlock();
         }
-
-        return data.data;
     }
 
     public void removeBlockData(Location location) {
@@ -197,15 +241,18 @@ public class LegacyBlockStorageManager {
 
         dataLock.writeLock().lock();
         try {
+            boolean removed = false;
             Map<String, BlockData> worldBlocks = worldData.get(worldId);
             if (worldBlocks != null) {
-                worldBlocks.remove(posKey);
+                removed = worldBlocks.remove(posKey) != null;
                 if (worldBlocks.isEmpty()) {
                     worldData.remove(worldId);
                 }
             }
-            deindexBlockData(worldId, posKey);
-            dataVersion.incrementAndGet();
+            removed |= deindexBlockData(worldId, posKey);
+            if (removed) {
+                dataVersion.incrementAndGet();
+            }
         } finally {
             dataLock.writeLock().unlock();
         }
@@ -225,18 +272,14 @@ public class LegacyBlockStorageManager {
             return null;
         }
 
-        Map<String, Map<String, BlockData>> snapshot;
+        Map<String, Map<String, SerializedBlockData>> snapshot;
         dataLock.readLock().lock();
         try {
             snapshot = new HashMap<>();
             for (Map.Entry<String, Map<String, BlockData>> entry : worldData.entrySet()) {
-                Map<String, BlockData> worldSnapshot = new HashMap<>();
+                Map<String, SerializedBlockData> worldSnapshot = new HashMap<>();
                 for (Map.Entry<String, BlockData> blockEntry : entry.getValue().entrySet()) {
-                    BlockData blockData = blockEntry.getValue();
-                    worldSnapshot.put(
-                            blockEntry.getKey(),
-                            new BlockData(blockData.blockType(), copyDataMap(blockData.data()))
-                    );
+                    worldSnapshot.put(blockEntry.getKey(), serializeBlockData(blockEntry.getValue()));
                 }
                 snapshot.put(entry.getKey(), worldSnapshot);
             }
@@ -246,16 +289,34 @@ public class LegacyBlockStorageManager {
         return new SaveSnapshot(currentVersion, snapshot);
     }
 
-    private Map<String, Object> copyDataMap(Map<String, Object> data) {
-        Map<String, Object> copy = new HashMap<>();
-        for (Map.Entry<String, Object> entry : data.entrySet()) {
+    private SerializedBlockData serializeBlockData(BlockData blockData) {
+        Map<String, SerializedItemData> items = new HashMap<>();
+        Map<String, Object> data = new HashMap<>();
+        for (Map.Entry<String, Object> entry : blockData.data().entrySet()) {
             Object value = entry.getValue();
-            copy.put(entry.getKey(), value instanceof ItemStack itemStack ? itemStack.clone() : value);
+            try {
+                if (value instanceof ItemStack itemStack) {
+                    items.put(entry.getKey(), new SerializedItemData(
+                            itemStack.getType().name(),
+                            itemStack.getAmount(),
+                            serializeItemStack(itemStack)
+                    ));
+                } else if (value instanceof Integer || value instanceof Double || value instanceof Float
+                        || value instanceof Long || value instanceof Boolean || value instanceof String) {
+                    data.put(entry.getKey(), value);
+                } else if (value != null) {
+                    data.put(entry.getKey(), value.toString());
+                }
+            } catch (Exception e) {
+                I18n.logWarning("legacy_storage.save_data_failed",
+                        "key", entry.getKey(),
+                        "error", e.getMessage());
+            }
         }
-        return copy;
+        return new SerializedBlockData(blockData.blockType(), items, data);
     }
 
-    private void writeSnapshot(SaveSnapshot snapshot) {
+    private synchronized void writeSnapshot(SaveSnapshot snapshot) {
         long currentVersion = snapshot.version();
 
         if (snapshot.worldData().isEmpty()) {
@@ -265,36 +326,27 @@ public class LegacyBlockStorageManager {
 
         YamlConfiguration config = new YamlConfiguration();
 
-        for (Map.Entry<String, Map<String, BlockData>> worldEntry : snapshot.worldData().entrySet()) {
+        for (Map.Entry<String, Map<String, SerializedBlockData>> worldEntry : snapshot.worldData().entrySet()) {
             String worldId = worldEntry.getKey();
             ConfigurationSection worldSection = config.createSection("worlds." + worldId);
 
-            for (Map.Entry<String, BlockData> posEntry : worldEntry.getValue().entrySet()) {
+            for (Map.Entry<String, SerializedBlockData> posEntry : worldEntry.getValue().entrySet()) {
                 String posKey = posEntry.getKey();
-                BlockData blockData = posEntry.getValue();
+                SerializedBlockData blockData = posEntry.getValue();
 
                 ConfigurationSection blockSection = worldSection.createSection(posKey);
                 blockSection.set("type", blockData.blockType);
 
-                for (Map.Entry<String, Object> dataEntry : blockData.data.entrySet()) {
-                    try {
-                        Object value = dataEntry.getValue();
-                        if (value instanceof ItemStack itemStack) {
-                            ConfigurationSection itemSection = blockSection.createSection("items." + dataEntry.getKey());
-                            itemSection.set("material", itemStack.getType().name());
-                            itemSection.set("amount", itemStack.getAmount());
-                            itemSection.set("bytes", serializeItemStack(itemStack));
-                        } else if (value instanceof Integer || value instanceof Double || value instanceof Float
-                                || value instanceof Long || value instanceof Boolean || value instanceof String) {
-                            blockSection.set("data." + dataEntry.getKey(), value);
-                        } else {
-                            blockSection.set("data." + dataEntry.getKey(), value.toString());
-                        }
-                    } catch (Exception e) {
-                        I18n.logWarning("legacy_storage.save_data_failed",
-                                "key", dataEntry.getKey(),
-                                "error", e.getMessage());
-                    }
+                for (Map.Entry<String, SerializedItemData> itemEntry : blockData.items().entrySet()) {
+                    SerializedItemData item = itemEntry.getValue();
+                    ConfigurationSection itemSection = blockSection.createSection("items." + itemEntry.getKey());
+                    itemSection.set("material", item.material());
+                    itemSection.set("amount", item.amount());
+                    itemSection.set("bytes", item.bytes());
+                }
+
+                for (Map.Entry<String, Object> dataEntry : blockData.data().entrySet()) {
+                    blockSection.set("data." + dataEntry.getKey(), dataEntry.getValue());
                 }
             }
         }
@@ -517,79 +569,10 @@ public class LegacyBlockStorageManager {
         if (worldBlocks == null || worldBlocks.isEmpty()) {
             worldData.remove(worldIdStr);
             chunkIndex.remove(worldIdStr);
-            return;
         }
-
-        saveWorldDataToFile(worldIdStr, worldBlocks);
-
-        worldData.remove(worldIdStr);
-        chunkIndex.remove(worldIdStr);
-        dataVersion.incrementAndGet();
-    }
-
-    private void saveWorldDataToFile(String worldIdStr, Map<String, BlockData> worldBlocks) {
-        if (worldBlocks == null || worldBlocks.isEmpty()) {
-            saveAll();
-            return;
-        }
-
-        YamlConfiguration config = new YamlConfiguration();
-
-        try {
-            YamlConfiguration existingConfig = YamlConfiguration.loadConfiguration(storageFile);
-            for (String key : existingConfig.getKeys(false)) {
-                config.set(key, existingConfig.get(key));
-            }
-        } catch (Exception e) {
-            plugin.getLogger().fine(I18n.formatConsole("legacy_storage.merge_existing_missing",
-                    "error", e.getMessage()));
-        }
-
-        ConfigurationSection worldsSection = config.getConfigurationSection("worlds");
-        if (worldsSection == null) {
-            worldsSection = config.createSection("worlds");
-        }
-
-        // Rebuild the world section from the in-memory snapshot so removed blocks
-        // do not linger on disk and get resurrected on the next load.
-        worldsSection.set(worldIdStr, null);
-        ConfigurationSection worldSection = worldsSection.createSection(worldIdStr);
-
-        for (Map.Entry<String, BlockData> posEntry : worldBlocks.entrySet()) {
-            String posKey = posEntry.getKey();
-            BlockData blockData = posEntry.getValue();
-
-            ConfigurationSection blockSection = worldSection.createSection(posKey);
-            blockSection.set("type", blockData.blockType);
-
-            for (Map.Entry<String, Object> dataEntry : blockData.data.entrySet()) {
-                try {
-                    Object value = dataEntry.getValue();
-                    if (value instanceof ItemStack itemStack) {
-                        ConfigurationSection itemSection = blockSection.createSection("items." + dataEntry.getKey());
-                        itemSection.set("material", itemStack.getType().name());
-                        itemSection.set("amount", itemStack.getAmount());
-                        itemSection.set("bytes", serializeItemStack(itemStack));
-                    } else if (value instanceof Integer || value instanceof Double || value instanceof Float
-                            || value instanceof Long || value instanceof Boolean || value instanceof String) {
-                        blockSection.set("data." + dataEntry.getKey(), value);
-                    } else {
-                        blockSection.set("data." + dataEntry.getKey(), value.toString());
-                    }
-                } catch (Exception e) {
-                    I18n.logWarning("legacy_storage.save_data_failed",
-                            "key", dataEntry.getKey(),
-                            "error", e.getMessage());
-                }
-            }
-        }
-
-        try {
-            config.save(storageFile);
-            lastSavedVersion.set(dataVersion.get());
-        } catch (IOException e) {
-            I18n.logSevere("legacy_storage.save_world_cleanup_failed", "error", e.getMessage());
-        }
+        // Keep non-empty legacy records resident after world unload. They contain
+        // only serialized data, and the next async/full save can rewrite the file
+        // without blocking the unload event or losing not-yet-migrated entries.
     }
 
     public void cleanupAll() {
@@ -663,7 +646,13 @@ public class LegacyBlockStorageManager {
     private record BlockData(String blockType, Map<String, Object> data) {
     }
 
-    private record SaveSnapshot(long version, Map<String, Map<String, BlockData>> worldData) {
+    private record SerializedBlockData(String blockType, Map<String, SerializedItemData> items,
+                                       Map<String, Object> data) {
+    }
+
+    private record SerializedItemData(String material, int amount, String bytes) {
+    }
+
+    private record SaveSnapshot(long version, Map<String, Map<String, SerializedBlockData>> worldData) {
     }
 }
-

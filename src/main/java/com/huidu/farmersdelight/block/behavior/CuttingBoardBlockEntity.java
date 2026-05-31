@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.config.CuttingBoardDisplayConfig;
+import com.huidu.farmersdelight.util.DisplayTransformUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
@@ -206,7 +207,7 @@ public class CuttingBoardBlockEntity {
         float yOffset = baseYOffset + 0.03f * (index + 1);
         float scale = isBlockItem ? 0.8f : 0.6f;
 
-        float yRotation = getYRotation(facing.getOppositeFace());
+        float yRotation = DisplayTransformUtils.cuttingBoardYaw(facing);
         float xRotation = itemCarved ? 0.0f : (isBlockItem ? 0.0f : 90.0f);
         float zRotation = itemCarved ? getCarvedToolZRotation(visualItem) : 0.0f;
         if (itemCarved) {
@@ -282,15 +283,6 @@ public class CuttingBoardBlockEntity {
         seed = 31L * seed + (item == null ? 0 : item.getType().ordinal());
         seed = 31L * seed + (item != null && item.hasItemMeta() ? item.getItemMeta().hashCode() : 0);
         return seed;
-    }
-
-    private float getYRotation(BlockFace facing) {
-        return switch (facing) {
-            case SOUTH -> 0.0f;
-            case WEST -> 90.0f;
-            case EAST -> -90.0f;
-            default -> 180.0f;
-        };
     }
 
     @SuppressWarnings("unused")

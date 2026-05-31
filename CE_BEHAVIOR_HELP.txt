@@ -78,8 +78,30 @@ behaviors:
       - minecraft:dirt
     bottom-blocks:
       - minecraft:farmland
+    extra_planting_items:
+      - farmersdelight:rice_panicle
 
-4. Recipe syntax style
+4. tall_crop extra planting items
+
+Use `extra_planting_items` on the crop block behavior when additional items
+should reuse that crop's planting logic.
+
+Recommended rice crop block example:
+
+behaviors:
+  - type: farmersdelight:tall_crop
+    requires-water: true
+    extra_planting_items:
+      - farmersdelight:rice_panicle
+
+Conflict rules:
+- A direct crop block behavior matching the held item id wins.
+- The same extra planting item can map to only one crop block.
+- Extra mappings reuse the target crop block's placement logic.
+
+`extra-planting-items` is also accepted for configs that prefer hyphenated keys.
+
+5. Recipe syntax style
 
 To keep recipe files close to CE style:
 

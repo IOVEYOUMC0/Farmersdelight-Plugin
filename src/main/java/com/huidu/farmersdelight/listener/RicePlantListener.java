@@ -38,11 +38,9 @@ import java.util.Set;
 public class RicePlantListener implements Listener {
 
     private static final String RICE_BLOCK_ID = Constants.BLOCK_RICE;
-    private static final String RICE_ITEM_ID = Constants.ITEM_RICE;
-    private static final String RICE_PANICLE_ID = Constants.ITEM_RICE_PANICLE;
     private static final String WILD_RICE_BLOCK_ID = Constants.BLOCK_WILD_RICE;
-    private static final String WILD_RICE_ITEM_ID = Constants.ITEM_WILD_RICE;
     private static final Key RICE_BLOCK_KEY = Key.of(RICE_BLOCK_ID);
+    private static final Key WILD_RICE_BLOCK_KEY = Key.of(WILD_RICE_BLOCK_ID);
 
     private final FarmersDelightPlugin plugin;
     private final Set<String> pendingRiceStabilizations = new HashSet<>();
@@ -113,7 +111,8 @@ public class RicePlantListener implements Listener {
 
         Player player = event.getPlayer();
         ItemStack item = getHeldItem(player, hand);
-        if (!isRiceSeed(item)) {
+        Key cropId = resolvePlantingCrop(item);
+        if (!RICE_BLOCK_KEY.equals(cropId)) {
             return;
         }
 
@@ -178,7 +177,8 @@ public class RicePlantListener implements Listener {
 
         Player player = event.getPlayer();
         ItemStack item = getHeldItem(player, hand);
-        if (!isWildRiceItem(item)) {
+        Key cropId = resolvePlantingCrop(item);
+        if (!WILD_RICE_BLOCK_KEY.equals(cropId)) {
             return;
         }
 
@@ -220,21 +220,33 @@ public class RicePlantListener implements Listener {
                 && clickedBlock.getType().isInteractable();
     }
 
-    private boolean isRiceSeed(ItemStack item) {
+    private Key resolvePlantingCrop(ItemStack item) {
         if (item == null || item.getType().isAir()) {
-            return false;
+            return null;
         }
 
         String customItemId = ItemUtils.getCustomItemId(item);
-        return RICE_ITEM_ID.equals(customItemId) || RICE_PANICLE_ID.equals(customItemId);
-    }
-
-    private boolean isWildRiceItem(ItemStack item) {
-        if (item == null || item.getType().isAir()) {
-            return false;
+        String itemId = customItemId != null ? customItemId : ItemUtils.getVanillaMaterialItemId(item);
+        if (itemId == null) {
+            return null;
         }
 
-        return WILD_RICE_ITEM_ID.equals(ItemUtils.getCustomItemId(item));
+        try {
+            Key itemKey = Key.of(itemId);
+            if (Constants.ITEM_RICE.equals(itemId) || Constants.ITEM_RICE_PANICLE.equals(itemId)) {
+                return RICE_BLOCK_KEY;
+            }
+            if (Constants.ITEM_WILD_RICE.equals(itemId)) {
+                return WILD_RICE_BLOCK_KEY;
+            }
+            if (TallCropBlockBehavior.getBehavior(itemKey) != null
+                    || WildRiceBlockBehavior.getBehavior(itemKey) != null) {
+                return itemKey;
+            }
+            return TallCropBlockBehavior.getExtraPlantingCrop(itemKey);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 
     private ItemStack getHeldItem(Player player, EquipmentSlot hand) {
@@ -869,4 +881,3 @@ public class RicePlantListener implements Listener {
         }
     }
 }
-
