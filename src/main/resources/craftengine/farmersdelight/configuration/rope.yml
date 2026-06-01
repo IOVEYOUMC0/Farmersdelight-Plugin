@@ -1,0 +1,156 @@
+items:
+  farmersdelight:rope:
+    data:
+      item-name: <!i><l10n:block.farmersdelight.rope>
+    model: farmersdelight:item/rope
+    behavior:
+      type: block_item
+      block: farmersdelight:rope
+blocks:
+  farmersdelight:rope:
+    settings:
+      hardness: 0.4
+      resistance: 0.15
+      burnable: true
+      burn-chance: 60
+      fire-spread-chance: 30
+      tags:
+        - minecraft:mineable/shears
+        - minecraft:sword_efficient
+        - minecraft:climbable
+        - minecraft:fall_damge_resetting
+      sounds:
+        break: minecraft:block.wool.break
+        fall: minecraft:block.wool.fall
+        hit: minecraft:block.wool.hit
+        place: minecraft:block.wool.place
+        step: minecraft:block.wool.step
+    behaviors:
+      - type: farmersdelight:rope
+    states:
+      properties:
+        north:
+          type: boolean
+          default: false
+        east:
+          type: boolean
+          default: false
+        south:
+          type: boolean
+          default: false
+        west:
+          type: boolean
+          default: false
+      appearances:
+        east=false,north=false,south=false,west=false:
+          auto-state: twisting_vines
+          model:
+            path: ${__NAMESPACE__}:block/rope_post
+        east=false,north=true,south=false,west=false:
+          auto-state: twisting_vines
+          model:
+            path: ${__NAMESPACE__}:block/rope_north_side
+        east=true,north=false,south=false,west=false:
+          auto-state: twisting_vines
+          model:
+            path: ${__NAMESPACE__}:block/rope_east_side
+        east=false,north=false,south=true,west=false:
+          auto-state: twisting_vines
+          model:
+            path: ${__NAMESPACE__}:block/rope_south_side
+        east=false,north=false,south=false,west=true:
+          auto-state: twisting_vines
+          model:
+            path: ${__NAMESPACE__}:block/rope_west_side
+        east=false,north=true,south=true,west=false:
+          auto-state: twisting_vines
+          model:
+            path: ${__NAMESPACE__}:block/rope_north_south_side
+        east=true,north=false,south=false,west=true:
+          auto-state: twisting_vines
+          model:
+            path: ${__NAMESPACE__}:block/rope_east_west_side
+        east=true,north=true,south=false,west=false:
+          auto-state: twisting_vines
+          model:
+            path: ${__NAMESPACE__}:block/rope_east_north_side
+        east=true,north=false,south=true,west=false:
+          auto-state: twisting_vines
+          model:
+            path: ${__NAMESPACE__}:block/rope_east_south_side
+        east=false,north=false,south=true,west=true:
+          auto-state: twisting_vines
+          model:
+            path: ${__NAMESPACE__}:block/rope_south_west_side
+        east=false,north=true,south=false,west=true:
+          auto-state: twisting_vines
+          model:
+            path: ${__NAMESPACE__}:block/rope_north_west_side
+        east=true,north=true,south=true,west=false:
+          auto-state: twisting_vines
+          model:
+            path: ${__NAMESPACE__}:block/rope_east_north_south_side
+        east=false,north=true,south=true,west=true:
+          auto-state: twisting_vines
+          model:
+            path: ${__NAMESPACE__}:block/rope_north_south_west_side
+        east=true,north=false,south=true,west=true:
+          auto-state: twisting_vines
+          model:
+            path: ${__NAMESPACE__}:block/rope_east_south_west_side
+        east=true,north=true,south=false,west=true:
+          auto-state: twisting_vines
+          model:
+            path: ${__NAMESPACE__}:block/rope_east_north_west_side
+        east=true,north=true,south=true,west=true:
+          auto-state: twisting_vines
+          model:
+            path: ${__NAMESPACE__}:block/rope_all_side
+      variants:
+        east=false,north=false,south=false,west=false:
+          appearance: east=false,north=false,south=false,west=false
+        east=false,north=true,south=false,west=false:
+          appearance: east=false,north=true,south=false,west=false
+        east=true,north=false,south=false,west=false:
+          appearance: east=true,north=false,south=false,west=false
+        east=false,north=false,south=true,west=false:
+          appearance: east=false,north=false,south=true,west=false
+        east=false,north=false,south=false,west=true:
+          appearance: east=false,north=false,south=false,west=true
+        east=false,north=true,south=true,west=false:
+          appearance: east=false,north=true,south=true,west=false
+        east=true,north=false,south=false,west=true:
+          appearance: east=true,north=false,south=false,west=true
+        east=true,north=true,south=false,west=false:
+          appearance: east=true,north=true,south=false,west=false
+        east=true,north=false,south=true,west=false:
+          appearance: east=true,north=false,south=true,west=false
+        east=false,north=false,south=true,west=true:
+          appearance: east=false,north=false,south=true,west=true
+        east=false,north=true,south=false,west=true:
+          appearance: east=false,north=true,south=false,west=true
+        east=true,north=true,south=true,west=false:
+          appearance: east=true,north=true,south=true,west=false
+        east=false,north=true,south=true,west=true:
+          appearance: east=false,north=true,south=true,west=true
+        east=true,north=false,south=true,west=true:
+          appearance: east=true,north=false,south=true,west=true
+        east=true,north=true,south=false,west=true:
+          appearance: east=true,north=true,south=false,west=true
+        east=true,north=true,south=true,west=true:
+          appearance: east=true,north=true,south=true,west=true
+    loot:
+      template: default:loot_table/self
+recipes:
+  farmersdelight:rope:
+    type: shaped
+    category: building
+    pattern:
+      - "S"
+      - "S"
+      - "S"
+    ingredients:
+      S: "farmersdelight:straw"
+    result:
+      id: farmersdelight:rope
+      count: 3

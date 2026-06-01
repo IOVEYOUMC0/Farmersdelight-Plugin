@@ -1,0 +1,221 @@
+{
+  "format_version": "1.9.0",
+  "render_type": "minecraft:cutout",
+  "parent": "block/block",
+  "textures": {
+    "tray": "farmersdelight:block/tray",
+    "tray_bottom": "farmersdelight:block/tray_bottom",
+    "leftovers": "farmersdelight:block/roast_chicken_leftovers",
+    "particle": "farmersdelight:block/roast_chicken",
+    "chicken": "farmersdelight:block/roast_chicken",
+    "details": "farmersdelight:block/roast_chicken_details",
+    "side_dish": "farmersdelight:block/roast_chicken_side_dish"
+  },
+  "elements": [
+    {
+      "name": "base",
+      "from": [1, 0, 1],
+      "to": [15, 1, 15],
+      "faces": {
+        "north": {"uv": [1, 15, 15, 16], "texture": "#tray"},
+        "east": {"uv": [1, 15, 15, 16], "texture": "#tray"},
+        "south": {"uv": [1, 15, 15, 16], "texture": "#tray"},
+        "west": {"uv": [1, 15, 15, 16], "texture": "#tray"},
+        "up": {"uv": [1, 1, 15, 15], "texture": "#leftovers"},
+        "down": {"uv": [1, 1, 15, 15], "texture": "#tray_bottom", "cullface": "down"}
+      }
+    },
+    {
+      "name": "north_edge",
+      "from": [2, 1, 1],
+      "to": [14, 2, 2],
+      "faces": {
+        "north": {"uv": [2, 14, 14, 15], "texture": "#tray"},
+        "south": {"uv": [2, 14, 14, 15], "texture": "#tray"},
+        "up": {"uv": [2, 0, 14, 1], "texture": "#tray"}
+      }
+    },
+    {
+      "name": "south_edge",
+      "from": [2, 1, 14],
+      "to": [14, 2, 15],
+      "faces": {
+        "south": {"uv": [2, 14, 14, 15], "texture": "#tray"},
+        "up": {"uv": [2, 13, 14, 14], "texture": "#tray"}
+      }
+    },
+    {
+      "name": "west_edge",
+      "from": [1, 1, 1],
+      "to": [2, 2, 15],
+      "faces": {
+        "north": {"uv": [14, 14, 15, 15], "texture": "#tray"},
+        "east": {"uv": [1, 14, 15, 15], "texture": "#tray"},
+        "south": {"uv": [1, 14, 2, 15], "texture": "#tray"},
+        "west": {"uv": [1, 14, 15, 15], "texture": "#tray"},
+        "up": {"uv": [1, 0, 2, 14], "texture": "#tray"}
+      }
+    },
+    {
+      "name": "east_edge",
+      "from": [14, 1, 1],
+      "to": [15, 2, 15],
+      "faces": {
+        "north": {"uv": [1, 14, 2, 15], "texture": "#tray"},
+        "east": {"uv": [1, 14, 15, 15], "texture": "#tray"},
+        "south": {"uv": [14, 14, 15, 15], "texture": "#tray"},
+        "west": {"uv": [1, 14, 15, 15], "texture": "#tray"},
+        "up": {"uv": [14, 0, 15, 14], "texture": "#tray"}
+      }
+    },
+    {
+      "name": "body",
+      "from": [4, 1, 8],
+      "to": [12, 8, 12],
+      "faces": {
+        "north": {"uv": [8, 9, 16, 16], "texture": "#details"},
+        "east": {"uv": [0, 9, 4, 16], "texture": "#chicken"},
+        "south": {"uv": [8, 9, 16, 16], "texture": "#chicken"},
+        "west": {"uv": [4, 9, 0, 16], "texture": "#chicken"},
+        "up": {"uv": [0, 4, 8, 8], "texture": "#chicken"}
+      }
+    },
+    {
+      "name": "west_leg",
+      "from": [2, 4, 9],
+      "to": [4, 7, 13],
+      "faces": {
+        "north": {"uv": [14, 2, 16, 5], "texture": "#details"},
+        "east": {"uv": [10, 2, 14, 5], "texture": "#details"},
+        "south": {"uv": [8, 2, 10, 5], "texture": "#details"},
+        "west": {"uv": [14, 2, 10, 5], "texture": "#details"},
+        "up": {"uv": [10, 0, 14, 2], "rotation": 90, "texture": "#details"},
+        "down": {"uv": [10, 5, 14, 7], "rotation": 90, "texture": "#details"}
+      }
+    },
+    {
+      "name": "east_leg",
+      "from": [12, 4, 9],
+      "to": [14, 7, 13],
+      "faces": {
+        "north": {"uv": [14, 2, 16, 5], "texture": "#details"},
+        "east": {"uv": [10, 2, 14, 5], "texture": "#details"},
+        "south": {"uv": [8, 2, 10, 5], "texture": "#details"},
+        "west": {"uv": [14, 2, 10, 5], "texture": "#details"},
+        "up": {"uv": [10, 2, 14, 0], "rotation": 90, "texture": "#details"},
+        "down": {"uv": [10, 5, 14, 7], "rotation": 90, "texture": "#details"}
+      }
+    },
+    {
+      "name": "south_carrot",
+      "from": [9, 1, 12],
+      "to": [14, 3, 14],
+      "faces": {
+        "east": {"uv": [5, 2, 7, 4], "texture": "#side_dish"},
+        "south": {"uv": [5, 2, 0, 4], "texture": "#side_dish"},
+        "west": {"uv": [5, 0, 7, 2], "texture": "#side_dish"},
+        "up": {"uv": [0, 0, 5, 2], "rotation": 180, "texture": "#side_dish"}
+      }
+    },
+    {
+      "name": "east_potato",
+      "from": [12, 1, 9],
+      "to": [14, 3, 12],
+      "faces": {
+        "north": {"uv": [12, 0, 10, 2], "texture": "#side_dish"},
+        "east": {"uv": [7, 2, 10, 4], "texture": "#side_dish"},
+        "west": {"uv": [7, 2, 10, 4], "texture": "#side_dish"},
+        "up": {"uv": [7, 0, 10, 2], "rotation": 90, "texture": "#side_dish"}
+      }
+    },
+    {
+      "name": "south_slices",
+      "from": [4, 1, 12],
+      "to": [9, 2, 14],
+      "faces": {
+        "up": {"uv": [6, 12, 11, 14], "texture": "#side_dish"}
+      }
+    },
+    {
+      "name": "west_slices",
+      "from": [2, 1, 12],
+      "to": [4, 3, 14],
+      "faces": {
+        "north": {"uv": [2, 14, 0, 16], "texture": "#side_dish"},
+        "east": {"uv": [0, 14, 2, 16], "texture": "#side_dish"},
+        "south": {"uv": [4, 14, 6, 16], "texture": "#side_dish"},
+        "west": {"uv": [4, 14, 6, 16], "texture": "#side_dish"},
+        "up": {"uv": [4, 12, 6, 14], "rotation": 90, "texture": "#side_dish"}
+      }
+    },
+    {
+      "name": "spine",
+      "from": [5, 2, 5],
+      "to": [11, 2, 11],
+      "faces": {
+        "up": {"uv": [0, 0, 6, 6], "texture": "#details"},
+        "down": {"uv": [0, 0, 6, 6], "rotation": 180, "texture": "#details"}
+      }
+    },
+    {
+      "name": "west_ribs",
+      "from": [5, 2, 5],
+      "to": [5, 7, 10],
+      "faces": {
+        "east": {"uv": [5, 11, 0, 16], "texture": "#details"},
+        "west": {"uv": [0, 11, 5, 16], "texture": "#details"}
+      }
+    },
+    {
+      "name": "east_ribs",
+      "from": [11, 2, 5],
+      "to": [11, 7, 10],
+      "faces": {
+        "east": {"uv": [5, 11, 0, 16], "texture": "#details"},
+        "west": {"uv": [0, 11, 5, 16], "texture": "#details"}
+      }
+    },
+    {
+      "name": "rib_tips",
+      "from": [5, 7, 5],
+      "to": [11, 7, 10],
+      "faces": {
+        "up": {"uv": [0, 6, 6, 11], "texture": "#details"},
+        "down": {"uv": [0, 6, 6, 11], "rotation": 180, "texture": "#details"}
+      }
+    }
+  ],
+  "groups": [
+    {
+      "name": "stage2",
+      "origin": [8, 8, 8],
+      "color": 0,
+      "children": [
+        {
+          "name": "tray",
+          "origin": [1, 0, 1],
+          "color": 0,
+          "children": [0, 1, 2, 3, 4]
+        },
+        {
+          "name": "chicken",
+          "origin": [8, 8, 8],
+          "color": 0,
+          "children": [5, 6, 7]
+        },
+        {
+          "name": "side_dish",
+          "origin": [8, 8, 8],
+          "color": 0,
+          "children": [8, 9, 10, 11]
+        },
+        {
+          "name": "ribcage",
+          "origin": [16, 28, 16],
+          "color": 0,
+          "children": [12, 13, 14, 15]
+        }
+      ]
+    }
+  ]
+}

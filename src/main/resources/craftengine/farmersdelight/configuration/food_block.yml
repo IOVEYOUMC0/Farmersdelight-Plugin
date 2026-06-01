@@ -1,0 +1,3654 @@
+blocks:
+  farmersdelight:apple_pie:
+    settings:
+      hardness: 0.5
+      template:
+        - default:hardness/none
+      sounds:
+        break: minecraft:block.wool.break
+        fall: minecraft:block.wool.fall
+        hit: minecraft:block.wool.hit
+        place: minecraft:block.wool.place
+        step: minecraft:block.wool.step
+    states:
+      properties:
+        bites:
+          type: int
+          default: 0
+          range: 0~3
+        facing:  
+          type: 4-direction
+          default: north
+      appearances:
+        count_0_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:apple_pie_slice0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_0_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:apple_pie_slice0
+            scale: 1.0
+            translation: 0,0,0
+        count_0_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:apple_pie_slice0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_0_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:apple_pie_slice0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_1_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:apple_pie_slice1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_1_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:apple_pie_slice1
+            scale: 1.0
+            translation: 0,0,0
+        count_1_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:apple_pie_slice1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_1_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:apple_pie_slice1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_2_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:apple_pie_slice2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_2_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:apple_pie_slice2
+            scale: 1.0
+            translation: 0,0,0
+        count_2_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:apple_pie_slice2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_2_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:apple_pie_slice2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_3_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:apple_pie_slice3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_3_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:apple_pie_slice3
+            scale: 1.0
+            translation: 0,0,0
+        count_3_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:apple_pie_slice3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_3_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:apple_pie_slice3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+      variants:
+        bites=0,facing=east:
+          appearance: count_0_east
+        bites=0,facing=north:
+          appearance: count_0_north
+        bites=0,facing=south:
+          appearance: count_0_south
+        bites=0,facing=west:
+          appearance: count_0_west
+        bites=1,facing=east:
+          appearance: count_1_east
+        bites=1,facing=north:
+          appearance: count_1_north
+        bites=1,facing=south:
+          appearance: count_1_south
+        bites=1,facing=west:
+          appearance: count_1_west
+        bites=2,facing=east:
+          appearance: count_2_east
+        bites=2,facing=north:
+          appearance: count_2_north
+        bites=2,facing=south:
+          appearance: count_2_south
+        bites=2,facing=west:
+          appearance: count_2_west
+        bites=3,facing=east:
+          appearance: count_3_east
+        bites=3,facing=north:
+          appearance: count_3_north
+        bites=3,facing=south:
+          appearance: count_3_south
+        bites=3,facing=west:
+          appearance: count_3_west
+    events:
+      - on: right_click
+        conditions:
+          - type: expression  
+            expression: "<arg:player.food> < 20"
+          - type: match_block_property
+            properties:
+              bites: 0
+        functions:
+          - type: update_interaction_tick
+          - type: set_food
+            target: self
+            food: 6
+            add: true
+          - type: set_saturation
+            target: self
+            saturation: 3
+            add: true
+          - type: update_block_property
+            properties:
+              bites: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:entity.generic.eat
+          - type: potion_effect
+            target: self
+            potion-effect: minecraft:speed
+            duration: 600
+            amplifier: 0
+            particles: false
+      - on: right_click
+        conditions:
+          - type: expression
+            expression: "<arg:player.food> < 20"
+          - type: match_block_property
+            properties:
+              bites: 1
+        functions:
+          - type: update_interaction_tick
+          - type: set_food
+            target: self
+            food: 6
+            add: true
+          - type: set_saturation
+            target: self
+            saturation: 3
+            add: true
+          - type: update_block_property
+            properties:
+              bites: 2
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:entity.generic.eat
+          - type: potion_effect
+            target: self
+            potion-effect: minecraft:speed
+            duration: 600
+            amplifier: 0
+            particles: false
+      - on: right_click
+        conditions:
+          - type: expression
+            expression: "<arg:player.food> < 20"
+          - type: match_block_property
+            properties:
+              bites: 2
+        functions:
+          - type: update_interaction_tick
+          - type: set_food
+            target: self
+            food: 6
+            add: true
+          - type: set_saturation
+            target: self
+            saturation: 4
+            add: true
+          - type: update_block_property
+            properties:
+              bites: 3
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:entity.generic.eat
+          - type: potion_effect
+            target: self
+            potion-effect: minecraft:speed
+            duration: 600
+            amplifier: 0
+            particles: false
+      - on: right_click  
+        conditions:
+          - type: expression
+            expression: "<arg:player.food> < 20"
+          - type: match_block_property
+            properties:
+              bites: 3
+        functions:
+          - type: update_interaction_tick
+          - type: set_food
+            target: self
+            food: 6
+            add: true
+          - type: set_saturation
+            target: self
+            saturation: 4
+            add: true
+          - type: break_block
+            x: <arg:block.block_x>
+            y: <arg:block.block_y>
+            z: <arg:block.block_z>
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:entity.generic.eat
+          - type: potion_effect
+            target: self
+            potion-effect: minecraft:speed
+            duration: 600
+            amplifier: 0
+            particles: false
+  farmersdelight:sweet_berry_cheesecake:
+    settings:
+      hardness: 0.5
+      template:
+        - default:hardness/none
+      sounds:
+        break: minecraft:block.wool.break
+        fall: minecraft:block.wool.fall
+        hit: minecraft:block.wool.hit
+        place: minecraft:block.wool.place
+        step: minecraft:block.wool.step
+    states:
+      properties:
+        bites:
+          type: int
+          default: 0
+          range: 0~3
+        facing:  
+          type: 4-direction
+          default: north
+      appearances:
+        count_0_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:sweet_berry_cheesecake_slice0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_0_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:sweet_berry_cheesecake_slice0
+            scale: 1.0
+            translation: 0,0,0
+        count_0_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:sweet_berry_cheesecake_slice0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_0_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:sweet_berry_cheesecake_slice0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_1_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:sweet_berry_cheesecake_slice1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_1_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:sweet_berry_cheesecake_slice1
+            scale: 1.0
+            translation: 0,0,0
+        count_1_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:sweet_berry_cheesecake_slice1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_1_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:sweet_berry_cheesecake_slice1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_2_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:sweet_berry_cheesecake_slice2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_2_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:sweet_berry_cheesecake_slice2
+            scale: 1.0
+            translation: 0,0,0
+        count_2_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:sweet_berry_cheesecake_slice2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_2_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:sweet_berry_cheesecake_slice2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_3_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:sweet_berry_cheesecake_slice3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_3_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:sweet_berry_cheesecake_slice3
+            scale: 1.0
+            translation: 0,0,0
+        count_3_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:sweet_berry_cheesecake_slice3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_3_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:sweet_berry_cheesecake_slice3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+      variants:
+        bites=0,facing=east:
+          appearance: count_0_east
+        bites=0,facing=north:
+          appearance: count_0_north
+        bites=0,facing=south:
+          appearance: count_0_south
+        bites=0,facing=west:
+          appearance: count_0_west
+        bites=1,facing=east:
+          appearance: count_1_east
+        bites=1,facing=north:
+          appearance: count_1_north
+        bites=1,facing=south:
+          appearance: count_1_south
+        bites=1,facing=west:
+          appearance: count_1_west
+        bites=2,facing=east:
+          appearance: count_2_east
+        bites=2,facing=north:
+          appearance: count_2_north
+        bites=2,facing=south:
+          appearance: count_2_south
+        bites=2,facing=west:
+          appearance: count_2_west
+        bites=3,facing=east:
+          appearance: count_3_east
+        bites=3,facing=north:
+          appearance: count_3_north
+        bites=3,facing=south:
+          appearance: count_3_south
+        bites=3,facing=west:
+          appearance: count_3_west
+    events:
+      - on: right_click
+        conditions:
+          - type: expression  
+            expression: "<arg:player.food> < 20"
+          - type: match_block_property
+            properties:
+              bites: 0
+        functions:
+          - type: update_interaction_tick
+          - type: set_food
+            target: self
+            food: 6
+            add: true
+          - type: set_saturation
+            target: self
+            saturation: 3
+            add: true
+          - type: update_block_property
+            properties:
+              bites: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:entity.generic.eat
+          - type: potion_effect
+            target: self
+            potion-effect: minecraft:speed
+            duration: 600
+            amplifier: 0
+            particles: false
+      - on: right_click
+        conditions:
+          - type: expression
+            expression: "<arg:player.food> < 20"
+          - type: match_block_property
+            properties:
+              bites: 1
+        functions:
+          - type: update_interaction_tick
+          - type: set_food
+            target: self
+            food: 6
+            add: true
+          - type: set_saturation
+            target: self
+            saturation: 3
+            add: true
+          - type: update_block_property
+            properties:
+              bites: 2
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:entity.generic.eat
+          - type: potion_effect
+            target: self
+            potion-effect: minecraft:speed
+            duration: 600
+            amplifier: 0
+            particles: false
+      - on: right_click
+        conditions:
+          - type: expression
+            expression: "<arg:player.food> < 20"
+          - type: match_block_property
+            properties:
+              bites: 2
+        functions:
+          - type: update_interaction_tick
+          - type: set_food
+            target: self
+            food: 6
+            add: true
+          - type: set_saturation
+            target: self
+            saturation: 4
+            add: true
+          - type: update_block_property
+            properties:
+              bites: 3
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:entity.generic.eat
+          - type: potion_effect
+            target: self
+            potion-effect: minecraft:speed
+            duration: 600
+            amplifier: 0
+            particles: false
+      - on: right_click  
+        conditions:
+          - type: expression
+            expression: "<arg:player.food> < 20"
+          - type: match_block_property
+            properties:
+              bites: 3
+        functions:
+          - type: update_interaction_tick
+          - type: set_food
+            target: self
+            food: 6
+            add: true
+          - type: set_saturation
+            target: self
+            saturation: 4
+            add: true
+          - type: break_block
+            x: <arg:block.block_x>
+            y: <arg:block.block_y>
+            z: <arg:block.block_z>
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:entity.generic.eat
+          - type: potion_effect
+            target: self
+            potion-effect: minecraft:speed
+            duration: 600
+            amplifier: 0
+            particles: false
+  farmersdelight:chocolate_pie:
+    settings:
+      hardness: 0.5
+      template:
+        - default:hardness/none
+      sounds:
+        break: minecraft:block.wool.break
+        fall: minecraft:block.wool.fall
+        hit: minecraft:block.wool.hit
+        place: minecraft:block.wool.place
+        step: minecraft:block.wool.step
+    states:
+      properties:
+        bites:
+          type: int
+          default: 0
+          range: 0~3
+        facing:  
+          type: 4-direction
+          default: north
+      appearances:
+        count_0_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:chocolate_pie_slice0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_0_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:chocolate_pie_slice0
+            scale: 1.0
+            translation: 0,0,0
+        count_0_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:chocolate_pie_slice0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_0_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:chocolate_pie_slice0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_1_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:chocolate_pie_slice1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_1_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:chocolate_pie_slice1
+            scale: 1.0
+            translation: 0,0,0
+        count_1_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:chocolate_pie_slice1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_1_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:chocolate_pie_slice1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_2_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:chocolate_pie_slice2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_2_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:chocolate_pie_slice2
+            scale: 1.0
+            translation: 0,0,0
+        count_2_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:chocolate_pie_slice2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_2_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:chocolate_pie_slice2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_3_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:chocolate_pie_slice3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_3_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:chocolate_pie_slice3
+            scale: 1.0
+            translation: 0,0,0
+        count_3_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:chocolate_pie_slice3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_3_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:chocolate_pie_slice3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+      variants:
+        bites=0,facing=east:
+          appearance: count_0_east
+        bites=0,facing=north:
+          appearance: count_0_north
+        bites=0,facing=south:
+          appearance: count_0_south
+        bites=0,facing=west:
+          appearance: count_0_west
+        bites=1,facing=east:
+          appearance: count_1_east
+        bites=1,facing=north:
+          appearance: count_1_north
+        bites=1,facing=south:
+          appearance: count_1_south
+        bites=1,facing=west:
+          appearance: count_1_west
+        bites=2,facing=east:
+          appearance: count_2_east
+        bites=2,facing=north:
+          appearance: count_2_north
+        bites=2,facing=south:
+          appearance: count_2_south
+        bites=2,facing=west:
+          appearance: count_2_west
+        bites=3,facing=east:
+          appearance: count_3_east
+        bites=3,facing=north:
+          appearance: count_3_north
+        bites=3,facing=south:
+          appearance: count_3_south
+        bites=3,facing=west:
+          appearance: count_3_west
+    events:
+      - on: right_click
+        conditions:
+          - type: expression  
+            expression: "<arg:player.food> < 20"
+          - type: match_block_property
+            properties:
+              bites: 0
+        functions:
+          - type: update_interaction_tick
+          - type: set_food
+            target: self
+            food: 6
+            add: true
+          - type: set_saturation
+            target: self
+            saturation: 3
+            add: true
+          - type: update_block_property
+            properties:
+              bites: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:entity.generic.eat
+          - type: potion_effect
+            target: self
+            potion-effect: minecraft:speed
+            duration: 600
+            amplifier: 0
+            particles: false
+      - on: right_click
+        conditions:
+          - type: expression
+            expression: "<arg:player.food> < 20"
+          - type: match_block_property
+            properties:
+              bites: 1
+        functions:
+          - type: update_interaction_tick
+          - type: set_food
+            target: self
+            food: 6
+            add: true
+          - type: set_saturation
+            target: self
+            saturation: 3
+            add: true
+          - type: update_block_property
+            properties:
+              bites: 2
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:entity.generic.eat
+          - type: potion_effect
+            target: self
+            potion-effect: minecraft:speed
+            duration: 600
+            amplifier: 0
+            particles: false
+      - on: right_click
+        conditions:
+          - type: expression
+            expression: "<arg:player.food> < 20"
+          - type: match_block_property
+            properties:
+              bites: 2
+        functions:
+          - type: update_interaction_tick
+          - type: set_food
+            target: self
+            food: 6
+            add: true
+          - type: set_saturation
+            target: self
+            saturation: 4
+            add: true
+          - type: update_block_property
+            properties:
+              bites: 3
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:entity.generic.eat
+          - type: potion_effect
+            target: self
+            potion-effect: minecraft:speed
+            duration: 600
+            amplifier: 0
+            particles: false
+      - on: right_click  
+        conditions:
+          - type: expression
+            expression: "<arg:player.food> < 20"
+          - type: match_block_property
+            properties:
+              bites: 3
+        functions:
+          - type: update_interaction_tick
+          - type: set_food
+            target: self
+            food: 6
+            add: true
+          - type: set_saturation
+            target: self
+            saturation: 4
+            add: true
+          - type: break_block
+            x: <arg:block.block_x>
+            y: <arg:block.block_y>
+            z: <arg:block.block_z>
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:entity.generic.eat
+          - type: potion_effect
+            target: self
+            potion-effect: minecraft:speed
+            duration: 600
+            amplifier: 0
+            particles: false
+  farmersdelight:roast_chicken_block:
+    settings:
+      hardness: 0.5
+      template:
+        - default:hardness/none
+      sounds:
+        break: minecraft:block.wool.break
+        hit: minecraft:block.wool.hit
+        place: minecraft:block.wool.place
+    states:
+      properties:
+        servings:
+          type: int
+          default: 0
+          range: 0~4
+        facing:  
+          type: 4-direction
+          default: north
+      appearances:
+        count_0_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:roast_chicken_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_0_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:roast_chicken_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+        count_0_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:roast_chicken_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_0_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:roast_chicken_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_1_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:roast_chicken_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_1_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:roast_chicken_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+        count_1_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:roast_chicken_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_1_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:roast_chicken_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_2_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:roast_chicken_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_2_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:roast_chicken_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+        count_2_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:roast_chicken_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_2_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:roast_chicken_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_3_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:roast_chicken_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_3_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:roast_chicken_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+        count_3_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:roast_chicken_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_3_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:roast_chicken_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_4_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:roast_chicken_block_leftovers
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_4_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:roast_chicken_block_leftovers
+            scale: 1.0
+            translation: 0,0,0
+        count_4_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:roast_chicken_block_leftovers
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_4_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:roast_chicken_block_leftovers
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+      variants:
+        servings=0,facing=east:
+          appearance: count_0_east
+        servings=0,facing=north:
+          appearance: count_0_north
+        servings=0,facing=south:
+          appearance: count_0_south
+        servings=0,facing=west:
+          appearance: count_0_west
+        servings=1,facing=east:
+          appearance: count_1_east
+        servings=1,facing=north:
+          appearance: count_1_north
+        servings=1,facing=south:
+          appearance: count_1_south
+        servings=1,facing=west:
+          appearance: count_1_west
+        servings=2,facing=east:
+          appearance: count_2_east
+        servings=2,facing=north:
+          appearance: count_2_north
+        servings=2,facing=south:
+          appearance: count_2_south
+        servings=2,facing=west:
+          appearance: count_2_west
+        servings=3,facing=east:
+          appearance: count_3_east
+        servings=3,facing=north:
+          appearance: count_3_north
+        servings=3,facing=south:
+          appearance: count_3_south
+        servings=3,facing=west:
+          appearance: count_3_west
+        servings=4,facing=east:
+          appearance: count_4_east
+        servings=4,facing=north:
+          appearance: count_4_north
+        servings=4,facing=south:
+          appearance: count_4_south
+        servings=4,facing=west:
+          appearance: count_4_west
+    events:
+      - on: right_click
+        conditions:
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 0
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:roast_chicken
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 1
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:roast_chicken
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 2
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 2
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:roast_chicken
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 3
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 3
+        functions:
+          - type: update_interaction_tick
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:roast_chicken
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 4
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_block_property
+            properties:
+              servings: 4
+        functions:
+          - type: update_interaction_tick
+          - type: break_block
+            x: <arg:block.block_x>
+            y: <arg:block.block_y>
+            z: <arg:block.block_z>
+          - type: drop_loot
+            x: <arg:block.block_x>
+            y: <arg:block.block_y>
+            z: <arg:block.block_z>
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: minecraft:bowl
+                      count: 1
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: minecraft:bone_meal
+                      count: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:block.wool.break
+          - type: cancel_event
+  farmersdelight:stuffed_pumpkin_block:
+    settings:
+      hardness: 0.5
+      template:
+        - default:hardness/none
+      sounds:
+        break: minecraft:block.wood.break
+        hit: minecraft:block.wood.hit
+        place: minecraft:block.wood.place
+    states:
+      properties:
+        servings:
+          type: int
+          default: 0
+          range: 0~3
+        facing:  
+          type: 4-direction
+          default: north
+      appearances:
+        count_0_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:stuffed_pumpkin_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_0_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:stuffed_pumpkin_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+        count_0_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:stuffed_pumpkin_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_0_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:stuffed_pumpkin_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_1_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:stuffed_pumpkin_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_1_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:stuffed_pumpkin_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+        count_1_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:stuffed_pumpkin_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_1_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:stuffed_pumpkin_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_2_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:stuffed_pumpkin_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_2_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:stuffed_pumpkin_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+        count_2_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:stuffed_pumpkin_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_2_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:stuffed_pumpkin_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_3_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:stuffed_pumpkin_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_3_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:stuffed_pumpkin_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+        count_3_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:stuffed_pumpkin_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_3_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:stuffed_pumpkin_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+      variants:
+        servings=0,facing=east:
+          appearance: count_0_east
+        servings=0,facing=north:
+          appearance: count_0_north
+        servings=0,facing=south:
+          appearance: count_0_south
+        servings=0,facing=west:
+          appearance: count_0_west
+        servings=1,facing=east:
+          appearance: count_1_east
+        servings=1,facing=north:
+          appearance: count_1_north
+        servings=1,facing=south:
+          appearance: count_1_south
+        servings=1,facing=west:
+          appearance: count_1_west
+        servings=2,facing=east:
+          appearance: count_2_east
+        servings=2,facing=north:
+          appearance: count_2_north
+        servings=2,facing=south:
+          appearance: count_2_south
+        servings=2,facing=west:
+          appearance: count_2_west
+        servings=3,facing=east:
+          appearance: count_3_east
+        servings=3,facing=north:
+          appearance: count_3_north
+        servings=3,facing=south:
+          appearance: count_3_south
+        servings=3,facing=west:
+          appearance: count_3_west
+    events:
+      - on: right_click
+        conditions:
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 0
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:stuffed_pumpkin
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 1
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:stuffed_pumpkin
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 2
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 2
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:stuffed_pumpkin
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 3
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 3
+        functions:
+          - type: update_interaction_tick
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:stuffed_pumpkin
+                      count: 1
+          - type: break_block
+            x: <arg:block.block_x>
+            y: <arg:block.block_y>
+            z: <arg:block.block_z>
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+  farmersdelight:honey_glazed_ham_block:
+    settings:
+      hardness: 0.5
+      template:
+        - default:hardness/none
+      sounds:
+        break: minecraft:block.wool.break
+        hit: minecraft:block.wool.hit
+        place: minecraft:block.wool.place
+    states:
+      properties:
+        servings:
+          type: int
+          default: 0
+          range: 0~4
+        facing:  
+          type: 4-direction
+          default: north
+      appearances:
+        count_0_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:honey_glazed_ham_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_0_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:honey_glazed_ham_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+        count_0_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:honey_glazed_ham_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_0_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:honey_glazed_ham_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_1_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:honey_glazed_ham_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_1_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:honey_glazed_ham_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+        count_1_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:honey_glazed_ham_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_1_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:honey_glazed_ham_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_2_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:honey_glazed_ham_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_2_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:honey_glazed_ham_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+        count_2_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:honey_glazed_ham_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_2_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:honey_glazed_ham_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_3_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:honey_glazed_ham_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_3_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:honey_glazed_ham_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+        count_3_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:honey_glazed_ham_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_3_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:honey_glazed_ham_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_4_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:honey_glazed_ham_block_leftovers
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_4_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:honey_glazed_ham_block_leftovers
+            scale: 1.0
+            translation: 0,0,0
+        count_4_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:honey_glazed_ham_block_leftovers
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_4_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:honey_glazed_ham_block_leftovers
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+      variants:
+        servings=0,facing=east:
+          appearance: count_0_east
+        servings=0,facing=north:
+          appearance: count_0_north
+        servings=0,facing=south:
+          appearance: count_0_south
+        servings=0,facing=west:
+          appearance: count_0_west
+        servings=1,facing=east:
+          appearance: count_1_east
+        servings=1,facing=north:
+          appearance: count_1_north
+        servings=1,facing=south:
+          appearance: count_1_south
+        servings=1,facing=west:
+          appearance: count_1_west
+        servings=2,facing=east:
+          appearance: count_2_east
+        servings=2,facing=north:
+          appearance: count_2_north
+        servings=2,facing=south:
+          appearance: count_2_south
+        servings=2,facing=west:
+          appearance: count_2_west
+        servings=3,facing=east:
+          appearance: count_3_east
+        servings=3,facing=north:
+          appearance: count_3_north
+        servings=3,facing=south:
+          appearance: count_3_south
+        servings=3,facing=west:
+          appearance: count_3_west
+        servings=4,facing=east:
+          appearance: count_4_east
+        servings=4,facing=north:
+          appearance: count_4_north
+        servings=4,facing=south:
+          appearance: count_4_south
+        servings=4,facing=west:
+          appearance: count_4_west
+    events:
+      - on: right_click
+        conditions:
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 0
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:honey_glazed_ham
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 1
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:honey_glazed_ham
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 2
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 2
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:honey_glazed_ham
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 3
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 3
+        functions:
+          - type: update_interaction_tick
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:honey_glazed_ham
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 4
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_block_property
+            properties:
+              servings: 4
+        functions:
+          - type: update_interaction_tick
+          - type: break_block
+            x: <arg:block.block_x>
+            y: <arg:block.block_y>
+            z: <arg:block.block_z>
+          - type: drop_loot
+            x: <arg:block.block_x>
+            y: <arg:block.block_y>
+            z: <arg:block.block_z>
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: minecraft:bowl
+                      count: 1
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: minecraft:bone
+                      count: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:block.wool.break
+          - type: cancel_event
+  farmersdelight:shepherds_pie_block:
+    settings:
+      hardness: 0.5
+      template:
+        - default:hardness/none
+      sounds:
+        break: minecraft:block.wool.break
+        hit: minecraft:block.wool.hit
+        place: minecraft:block.wool.place
+    states:
+      properties:
+        servings:
+          type: int
+          default: 0
+          range: 0~4
+        facing:  
+          type: 4-direction
+          default: north
+      appearances:
+        count_0_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:shepherds_pie_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_0_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:shepherds_pie_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+        count_0_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:shepherds_pie_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_0_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:shepherds_pie_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_1_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:shepherds_pie_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_1_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:shepherds_pie_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+        count_1_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:shepherds_pie_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_1_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:shepherds_pie_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_2_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:shepherds_pie_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_2_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:shepherds_pie_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+        count_2_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:shepherds_pie_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_2_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:shepherds_pie_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_3_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:shepherds_pie_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_3_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:shepherds_pie_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+        count_3_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:shepherds_pie_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_3_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:shepherds_pie_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_4_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:shepherds_pie_block_leftovers
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_4_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:shepherds_pie_block_leftovers
+            scale: 1.0
+            translation: 0,0,0
+        count_4_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:shepherds_pie_block_leftovers
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_4_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:shepherds_pie_block_leftovers
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+      variants:
+        servings=0,facing=east:
+          appearance: count_0_east
+        servings=0,facing=north:
+          appearance: count_0_north
+        servings=0,facing=south:
+          appearance: count_0_south
+        servings=0,facing=west:
+          appearance: count_0_west
+        servings=1,facing=east:
+          appearance: count_1_east
+        servings=1,facing=north:
+          appearance: count_1_north
+        servings=1,facing=south:
+          appearance: count_1_south
+        servings=1,facing=west:
+          appearance: count_1_west
+        servings=2,facing=east:
+          appearance: count_2_east
+        servings=2,facing=north:
+          appearance: count_2_north
+        servings=2,facing=south:
+          appearance: count_2_south
+        servings=2,facing=west:
+          appearance: count_2_west
+        servings=3,facing=east:
+          appearance: count_3_east
+        servings=3,facing=north:
+          appearance: count_3_north
+        servings=3,facing=south:
+          appearance: count_3_south
+        servings=3,facing=west:
+          appearance: count_3_west
+        servings=4,facing=east:
+          appearance: count_4_east
+        servings=4,facing=north:
+          appearance: count_4_north
+        servings=4,facing=south:
+          appearance: count_4_south
+        servings=4,facing=west:
+          appearance: count_4_west
+    events:
+      - on: right_click
+        conditions:
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 0
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:shepherds_pie
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 1
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:shepherds_pie
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 2
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 2
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:shepherds_pie
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 3
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 3
+        functions:
+          - type: update_interaction_tick
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:shepherds_pie
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 4
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_block_property
+            properties:
+              servings: 4
+        functions:
+          - type: update_interaction_tick
+          - type: break_block
+            x: <arg:block.block_x>
+            y: <arg:block.block_y>
+            z: <arg:block.block_z>
+          - type: drop_loot
+            x: <arg:block.block_x>
+            y: <arg:block.block_y>
+            z: <arg:block.block_z>
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: minecraft:bowl
+                      count: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:block.wool.break
+          - type: cancel_event
+  farmersdelight:gleaming_salad_block:
+    settings:
+      hardness: 0.5
+      template:
+        - default:hardness/none
+      sounds:
+        break: minecraft:block.wool.break
+        hit: minecraft:block.wool.hit
+        place: minecraft:block.wool.place
+    states:
+      properties:
+        servings:
+          type: int
+          default: 0
+          range: 0~4
+        facing:  
+          type: 4-direction
+          default: north
+      appearances:
+        count_0_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:gleaming_salad_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_0_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:gleaming_salad_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+        count_0_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:gleaming_salad_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_0_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:gleaming_salad_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_1_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:gleaming_salad_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_1_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:gleaming_salad_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+        count_1_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:gleaming_salad_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_1_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:gleaming_salad_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_2_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:gleaming_salad_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_2_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:gleaming_salad_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+        count_2_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:gleaming_salad_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_2_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:gleaming_salad_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_3_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:gleaming_salad_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_3_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:gleaming_salad_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+        count_3_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:gleaming_salad_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_3_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:gleaming_salad_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_4_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:gleaming_salad_block_leftovers
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_4_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:gleaming_salad_block_leftovers
+            scale: 1.0
+            translation: 0,0,0
+        count_4_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:gleaming_salad_block_leftovers
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_4_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:gleaming_salad_block_leftovers
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+      variants:
+        servings=0,facing=east:
+          appearance: count_0_east
+        servings=0,facing=north:
+          appearance: count_0_north
+        servings=0,facing=south:
+          appearance: count_0_south
+        servings=0,facing=west:
+          appearance: count_0_west
+        servings=1,facing=east:
+          appearance: count_1_east
+        servings=1,facing=north:
+          appearance: count_1_north
+        servings=1,facing=south:
+          appearance: count_1_south
+        servings=1,facing=west:
+          appearance: count_1_west
+        servings=2,facing=east:
+          appearance: count_2_east
+        servings=2,facing=north:
+          appearance: count_2_north
+        servings=2,facing=south:
+          appearance: count_2_south
+        servings=2,facing=west:
+          appearance: count_2_west
+        servings=3,facing=east:
+          appearance: count_3_east
+        servings=3,facing=north:
+          appearance: count_3_north
+        servings=3,facing=south:
+          appearance: count_3_south
+        servings=3,facing=west:
+          appearance: count_3_west
+        servings=4,facing=east:
+          appearance: count_4_east
+        servings=4,facing=north:
+          appearance: count_4_north
+        servings=4,facing=south:
+          appearance: count_4_south
+        servings=4,facing=west:
+          appearance: count_4_west
+    events:
+      - on: right_click
+        conditions:
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 0
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:gleaming_salad
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 1
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:gleaming_salad
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 2
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 2
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:gleaming_salad
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 3
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 3
+        functions:
+          - type: update_interaction_tick
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:gleaming_salad
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 4
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_block_property
+            properties:
+              servings: 4
+        functions:
+          - type: update_interaction_tick
+          - type: break_block
+            x: <arg:block.block_x>
+            y: <arg:block.block_y>
+            z: <arg:block.block_z>
+          - type: drop_loot
+            x: <arg:block.block_x>
+            y: <arg:block.block_y>
+            z: <arg:block.block_z>
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: minecraft:bowl
+                      count: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:block.wool.break
+          - type: cancel_event
+  farmersdelight:rice_roll_medley_block:
+    settings:
+      hardness: 0.5
+      template:
+        - default:hardness/none
+      sounds:
+        break: minecraft:block.wool.break
+        hit: minecraft:block.wool.hit
+        place: minecraft:block.wool.place
+    states:
+      properties:
+        servings:
+          type: int
+          default: 0
+          range: 0~8
+        facing:  
+          type: 4-direction
+          default: north
+      appearances:
+        count_0_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_0_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+        count_0_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_0_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage0
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_1_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_1_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+        count_1_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_1_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage1
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_2_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_2_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+        count_2_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_2_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage2
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_3_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_3_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+        count_3_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_3_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage3
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_4_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage4
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_4_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage4
+            scale: 1.0
+            translation: 0,0,0
+        count_4_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage4
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_4_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage4
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_5_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage5
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_5_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage5
+            scale: 1.0
+            translation: 0,0,0
+        count_5_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage5
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_5_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage5
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_6_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage6
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_6_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage6
+            scale: 1.0
+            translation: 0,0,0
+        count_6_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage6
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_6_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage6
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_7_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage7
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_7_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage7
+            scale: 1.0
+            translation: 0,0,0
+        count_7_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage7
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_7_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_stage7
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+        count_8_east:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_leftovers
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 90
+        count_8_north:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_leftovers
+            scale: 1.0
+            translation: 0,0,0
+        count_8_south:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_leftovers
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 180
+        count_8_west:
+          state: tripwire[attached=false,disarmed=false,east=false,north=false,powered=false,south=false,west=false]
+          transparent: true
+          entity-renderer:
+            type: item_display
+            item: farmersdelight:rice_roll_medley_block_leftovers
+            scale: 1.0
+            translation: 0,0,0
+            yaw: 270
+      variants:
+        servings=0,facing=east:
+          appearance: count_0_east
+        servings=0,facing=north:
+          appearance: count_0_north
+        servings=0,facing=south:
+          appearance: count_0_south
+        servings=0,facing=west:
+          appearance: count_0_west
+        servings=1,facing=east:
+          appearance: count_1_east
+        servings=1,facing=north:
+          appearance: count_1_north
+        servings=1,facing=south:
+          appearance: count_1_south
+        servings=1,facing=west:
+          appearance: count_1_west
+        servings=2,facing=east:
+          appearance: count_2_east
+        servings=2,facing=north:
+          appearance: count_2_north
+        servings=2,facing=south:
+          appearance: count_2_south
+        servings=2,facing=west:
+          appearance: count_2_west
+        servings=3,facing=east:
+          appearance: count_3_east
+        servings=3,facing=north:
+          appearance: count_3_north
+        servings=3,facing=south:
+          appearance: count_3_south
+        servings=3,facing=west:
+          appearance: count_3_west
+        servings=4,facing=east:
+          appearance: count_4_east
+        servings=4,facing=north:
+          appearance: count_4_north
+        servings=4,facing=south:
+          appearance: count_4_south
+        servings=4,facing=west:
+          appearance: count_4_west
+        servings=5,facing=east:
+          appearance: count_5_east
+        servings=5,facing=north:
+          appearance: count_5_north
+        servings=5,facing=south:
+          appearance: count_5_south
+        servings=5,facing=west:
+          appearance: count_5_west
+        servings=6,facing=east:
+          appearance: count_6_east
+        servings=6,facing=north:
+          appearance: count_6_north
+        servings=6,facing=south:
+          appearance: count_6_south
+        servings=6,facing=west:
+          appearance: count_6_west
+        servings=7,facing=east:
+          appearance: count_7_east
+        servings=7,facing=north:
+          appearance: count_7_north
+        servings=7,facing=south:
+          appearance: count_7_south
+        servings=7,facing=west:
+          appearance: count_7_west
+        servings=8,facing=east:
+          appearance: count_8_east
+        servings=8,facing=north:
+          appearance: count_8_north
+        servings=8,facing=south:
+          appearance: count_8_south
+        servings=8,facing=west:
+          appearance: count_8_west
+    events:
+      - on: right_click
+        conditions:
+          - type: match_block_property
+            properties:
+              servings: 0
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:kelp_roll_slice
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_block_property
+            properties:
+              servings: 1
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:kelp_roll_slice
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 2
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_block_property
+            properties:
+              servings: 2
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:kelp_roll_slice
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 3
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_block_property
+            properties:
+              servings: 3
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:salmon_roll
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 4
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_block_property
+            properties:
+              servings: 4
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:salmon_roll
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 5
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_block_property
+            properties:
+              servings: 5
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:salmon_roll
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 6
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_block_property
+            properties:
+              servings: 6
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:cod_roll
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 7
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_block_property
+            properties:
+              servings: 7
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:cod_roll
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 8
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_block_property
+            properties:
+              servings: 8
+        functions:
+          - type: update_interaction_tick
+          - type: break_block
+            x: <arg:block.block_x>
+            y: <arg:block.block_y>
+            z: <arg:block.block_z>
+          - type: drop_loot
+            x: <arg:block.block_x>
+            y: <arg:block.block_y>
+            z: <arg:block.block_z>
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: minecraft:bowl
+                      count: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:block.wool.break
+          - type: cancel_event
+items:
+  farmersdelight:apple_pie_slice0:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.apple_pie>
+    model: farmersdelight:block/apple_pie
+  farmersdelight:apple_pie_slice1:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.apple_pie>
+    model: farmersdelight:block/apple_pie_slice1
+  farmersdelight:apple_pie_slice2:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.apple_pie>
+    model: farmersdelight:block/apple_pie_slice2
+  farmersdelight:apple_pie_slice3:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.apple_pie>
+    model: farmersdelight:block/apple_pie_slice3
+  farmersdelight:sweet_berry_cheesecake_slice0:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.sweet_berry_cheesecake>
+    model: farmersdelight:block/sweet_berry_cheesecake
+  farmersdelight:sweet_berry_cheesecake_slice1:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.sweet_berry_cheesecake>
+    model: farmersdelight:block/sweet_berry_cheesecake_slice1
+  farmersdelight:sweet_berry_cheesecake_slice2:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.sweet_berry_cheesecake>
+    model: farmersdelight:block/sweet_berry_cheesecake_slice2
+  farmersdelight:sweet_berry_cheesecake_slice3:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.sweet_berry_cheesecake>
+    model: farmersdelight:block/sweet_berry_cheesecake_slice3
+  farmersdelight:chocolate_pie_slice0:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.chocolate_pie>
+    model: farmersdelight:block/chocolate_pie
+  farmersdelight:chocolate_pie_slice1:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.chocolate_pie>
+    model: farmersdelight:block/chocolate_pie_slice1
+  farmersdelight:chocolate_pie_slice2:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.chocolate_pie>
+    model: farmersdelight:block/chocolate_pie_slice2
+  farmersdelight:chocolate_pie_slice3:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.chocolate_pie>
+    model: farmersdelight:block/chocolate_pie_slice3
+  farmersdelight:roast_chicken_block_stage0:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.roast_chicken_block>
+    model: farmersdelight:block/roast_chicken_block_stage0
+  farmersdelight:roast_chicken_block_stage1:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.roast_chicken_block>
+    model: farmersdelight:block/roast_chicken_block_stage1
+  farmersdelight:roast_chicken_block_stage2:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.roast_chicken_block>
+    model: farmersdelight:block/roast_chicken_block_stage2
+  farmersdelight:roast_chicken_block_stage3:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.roast_chicken_block>
+    model: farmersdelight:block/roast_chicken_block_stage3
+  farmersdelight:roast_chicken_block_leftovers:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.roast_chicken_block>
+    model: farmersdelight:block/roast_chicken_block_leftovers
+  farmersdelight:stuffed_pumpkin_block_stage0:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.stuffed_pumpkin_block>
+    model: farmersdelight:block/stuffed_pumpkin_block_stage0
+  farmersdelight:stuffed_pumpkin_block_stage1:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.stuffed_pumpkin_block>
+    model: farmersdelight:block/stuffed_pumpkin_block_stage1
+  farmersdelight:stuffed_pumpkin_block_stage2:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.stuffed_pumpkin_block>
+    model: farmersdelight:block/stuffed_pumpkin_block_stage2
+  farmersdelight:stuffed_pumpkin_block_stage3:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.stuffed_pumpkin_block>
+    model: farmersdelight:block/stuffed_pumpkin_block_stage3
+  farmersdelight:honey_glazed_ham_block_stage0:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.honey_glazed_ham_block>
+    model: farmersdelight:block/honey_glazed_ham_block_stage0
+  farmersdelight:honey_glazed_ham_block_stage1:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.honey_glazed_ham_block>
+    model: farmersdelight:block/honey_glazed_ham_block_stage1
+  farmersdelight:honey_glazed_ham_block_stage2:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.honey_glazed_ham_block>
+    model: farmersdelight:block/honey_glazed_ham_block_stage2
+  farmersdelight:honey_glazed_ham_block_stage3:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.honey_glazed_ham_block>
+    model: farmersdelight:block/honey_glazed_ham_block_stage3
+  farmersdelight:honey_glazed_ham_block_leftovers:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.honey_glazed_ham_block>
+    model: farmersdelight:block/honey_glazed_ham_block_leftovers
+  farmersdelight:shepherds_pie_block_stage0:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.shepherds_pie_block>
+    model: farmersdelight:block/shepherds_pie_block_stage0
+  farmersdelight:shepherds_pie_block_stage1:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.shepherds_pie_block>
+    model: farmersdelight:block/shepherds_pie_block_stage1
+  farmersdelight:shepherds_pie_block_stage2:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.shepherds_pie_block>
+    model: farmersdelight:block/shepherds_pie_block_stage2
+  farmersdelight:shepherds_pie_block_stage3:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.shepherds_pie_block>
+    model: farmersdelight:block/shepherds_pie_block_stage3
+  farmersdelight:shepherds_pie_block_leftovers:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.shepherds_pie_block>
+    model: farmersdelight:block/shepherds_pie_block_leftovers
+  farmersdelight:gleaming_salad_block_stage0:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.gleaming_salad_block>
+    model: farmersdelight:block/gleaming_salad_block_stage0
+  farmersdelight:gleaming_salad_block_stage1:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.gleaming_salad_block>
+    model: farmersdelight:block/gleaming_salad_block_stage1
+  farmersdelight:gleaming_salad_block_stage2:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.gleaming_salad_block>
+    model: farmersdelight:block/gleaming_salad_block_stage2
+  farmersdelight:gleaming_salad_block_stage3:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.gleaming_salad_block>
+    model: farmersdelight:block/gleaming_salad_block_stage3
+  farmersdelight:gleaming_salad_block_leftovers:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.gleaming_salad_block>
+    model: farmersdelight:block/gleaming_salad_block_leftovers
+  farmersdelight:rice_roll_medley_block_stage0:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.rice_roll_medley_block>
+    model: farmersdelight:block/rice_roll_medley_block_stage0
+  farmersdelight:rice_roll_medley_block_stage1:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.rice_roll_medley_block>
+    model: farmersdelight:block/rice_roll_medley_block_stage1
+  farmersdelight:rice_roll_medley_block_stage2:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.rice_roll_medley_block>
+    model: farmersdelight:block/rice_roll_medley_block_stage2
+  farmersdelight:rice_roll_medley_block_stage3:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.rice_roll_medley_block>
+    model: farmersdelight:block/rice_roll_medley_block_stage3
+  farmersdelight:rice_roll_medley_block_stage4:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.rice_roll_medley_block>
+    model: farmersdelight:block/rice_roll_medley_block_stage4
+  farmersdelight:rice_roll_medley_block_stage5:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.rice_roll_medley_block>
+    model: farmersdelight:block/rice_roll_medley_block_stage5
+  farmersdelight:rice_roll_medley_block_stage6:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.rice_roll_medley_block>
+    model: farmersdelight:block/rice_roll_medley_block_stage6
+  farmersdelight:rice_roll_medley_block_stage7:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.rice_roll_medley_block>
+    model: farmersdelight:block/rice_roll_medley_block_stage7
+  farmersdelight:rice_roll_medley_block_leftovers:
+    material: paper
+    data:
+      item-name: <!i><l10n:block.farmersdelight.rice_roll_medley_block>
+    model: farmersdelight:block/rice_roll_medley_block_leftovers

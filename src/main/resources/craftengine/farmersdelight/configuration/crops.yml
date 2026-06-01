@@ -1,0 +1,538 @@
+blocks:
+  farmersdelight:onions:
+    settings:
+      template:
+        - default:hardness/none
+        - default:sound/grass
+      overrides:
+        item: farmersdelight:onion
+        push-reaction: destroy
+        is-randomly-ticking: true
+      tags:
+        - minecraft:bee_growables
+    behaviors:
+      - type: liquid_flowable_block
+      - type: crop_block
+        grow-speed: 0.25
+        light-requirement: 9
+        is-bone-meal-target: true
+      - type: bush_block
+        bottom-blocks:
+          - minecraft:farmland
+    states:
+      properties:
+        age:
+          type: int
+          default: 0
+          range: 0~3
+      appearances:
+        age=0:
+          auto-state: lower_tripwire
+          model: farmersdelight:block/onions_stage0
+        age=1:
+          auto-state: higher_tripwire
+          model: farmersdelight:block/onions_stage1
+        age=2:
+          auto-state: higher_tripwire
+          model: farmersdelight:block/onions_stage2
+        age=3:
+          auto-state: sugar_cane
+          model: farmersdelight:block/onions_stage3
+      variants:
+        age=0:
+          appearance: age=0
+        age=1:
+          appearance: age=1
+        age=2:
+          appearance: age=2
+        age=3:
+          appearance: age=3
+    events:
+      - on: break
+        conditions:
+          - type: match_block_property
+            properties:
+              age: 3
+        functions:
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: alternatives
+                      children:
+                        - type: item
+                          item: farmersdelight:onion
+                          functions:
+                            - type: set_count
+                              count:
+                                type: uniform
+                                min: 1
+                                max: 3
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                age: 3
+                        - type: item
+                          item: farmersdelight:onion
+                          count: 1
+                          conditions:
+                            - type: inverted
+                              term:
+                                type: match_block_property
+                                properties:
+                                  age: 3
+                - rolls: 1
+                  conditions:
+                    - type: enchantment
+                      predicate: minecraft:fortune>=1
+                  entries:
+                    - type: item
+                      item: farmersdelight:onion
+                      functions:
+                        - type: set_count
+                          count:
+                            type: uniform
+                            min: 1
+                            max: 3
+                        - type: apply_bonus
+                          enchantment: minecraft:fortune
+                          formula:
+                            type: binomial_with_bonus_count
+                            extra: 5
+                            probability: 0.5714286
+  farmersdelight:rice:
+    settings:
+      template:
+        - default:hardness/none
+        - default:sound/grass
+      overrides:
+        item: farmersdelight:rice
+        push-reaction: destroy
+        is-randomly-ticking: true
+      tags:
+        - minecraft:bee_growables
+    behaviors:
+      - type: farmersdelight:tall_crop
+        extra_planting_items:
+          - farmersdelight:rice_panicle
+        grow-speed: 0.25
+        light-requirement: 6
+        is-bone-meal-target: true
+        bone-meal-min: 1
+        bone-meal-max: 4
+        random-bone-meal-growth: true
+        requires-water: true
+        harvest-tool-tags:
+          - "#farmersdelight:knives"
+        bottom-block-tags:
+          - "#minecraft:dirt"
+        bottom-blocks:
+          - minecraft:grass_block
+    states:
+      properties:
+        age:
+          type: int
+          default: 0
+          range: 0~4
+        half:
+          type: double_block_half
+          default: lower
+      appearances:
+        age=0,half=lower:
+          auto-state: kelp
+          model: farmersdelight:block/rice_stage0
+        age=1,half=lower:
+          auto-state: kelp
+          model: farmersdelight:block/rice_stage1
+        age=2,half=lower:
+          auto-state: kelp
+          model: farmersdelight:block/rice_stage2
+        age=3,half=lower:
+          auto-state: kelp
+          model: farmersdelight:block/rice_stage3
+        age=4,half=lower:
+          auto-state: kelp
+          model: farmersdelight:block/rice_supporting
+        age=0,half=upper:
+          auto-state: lower_tripwire
+          model: farmersdelight:block/rice_panicles_stage0
+        age=1,half=upper:
+          auto-state: lower_tripwire
+          model: farmersdelight:block/rice_panicles_stage1
+        age=2,half=upper:
+          auto-state: higher_tripwire
+          model: farmersdelight:block/rice_panicles_stage2
+        age=3,half=upper:
+          auto-state: higher_tripwire
+          model: farmersdelight:block/rice_panicles_stage3
+      variants:
+        age=0,half=lower:
+          appearance: age=0,half=lower
+        age=1,half=lower:
+          appearance: age=1,half=lower
+        age=2,half=lower:
+          appearance: age=2,half=lower
+        age=3,half=lower:
+          appearance: age=3,half=lower
+        age=4,half=lower:
+          appearance: age=4,half=lower
+        age=0,half=upper:
+          appearance: age=0,half=upper
+        age=1,half=upper:
+          appearance: age=1,half=upper
+        age=2,half=upper:
+          appearance: age=2,half=upper
+        age=3,half=upper:
+          appearance: age=3,half=upper
+    events:
+      - on: break
+        conditions:
+          - type: match_block_property
+            properties:
+              half: upper
+              age: 3
+        functions:
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: alternatives
+                      children:
+                        - type: item
+                          item: farmersdelight:rice
+                          conditions:
+                            - type: match_item
+                              item: "farmersdelight:.*_knife"
+                              regex: true
+                        - type: item
+                          item: farmersdelight:rice_panicle
+  farmersdelight:cabbages:
+    settings:
+      template:
+        - default:hardness/none
+        - default:sound/grass
+      overrides:
+        item: farmersdelight:cabbage_seeds
+        push-reaction: destroy
+        is-randomly-ticking: true
+    behaviors:
+      - type: liquid_flowable_block
+      - type: crop_block
+        grow-speed: 0.25
+        light-requirement: 9
+        is-bone-meal-target: true
+      - type: bush_block
+        bottom-blocks:
+          - minecraft:farmland
+    states:
+      properties:
+        age:
+          type: int
+          default: 0
+          range: 0~7
+      appearances:
+        age=0:
+          auto-state: lower_tripwire
+          model: farmersdelight:block/cabbages_stage0
+        age=1:
+          auto-state: higher_tripwire
+          model: farmersdelight:block/cabbages_stage1
+        age=2:
+          auto-state: higher_tripwire
+          model: farmersdelight:block/cabbages_stage2
+        age=3:
+          auto-state: higher_tripwire
+          model: farmersdelight:block/cabbages_stage3
+        age=4:
+          auto-state: higher_tripwire
+          model: farmersdelight:block/cabbages_stage4
+        age=5:
+          auto-state: higher_tripwire
+          model: farmersdelight:block/cabbages_stage5
+        age=6:
+          auto-state: higher_tripwire
+          model: farmersdelight:block/cabbages_stage6
+        age=7:
+          auto-state: higher_tripwire
+          model: farmersdelight:block/cabbages_stage7
+      variants:
+        age=0:
+          appearance: age=0
+        age=1:
+          appearance: age=1
+        age=2:
+          appearance: age=2
+        age=3:
+          appearance: age=3
+        age=4:
+          appearance: age=4
+        age=5:
+          appearance: age=5
+        age=6:
+          appearance: age=6
+        age=7:
+          appearance: age=7
+    events:
+      - on: break
+        functions:
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: alternatives
+                      children:
+                        - type: item
+                          item: farmersdelight:cabbage
+                          functions:
+                            - type: set_count
+                              count:
+                                type: uniform
+                                min: 1
+                                max: 3
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                age: 7
+                        - type: item
+                          item: farmersdelight:cabbage_seeds
+                          count: 1
+                          conditions:
+                            - type: inverted
+                              term:
+                                type: match_block_property
+                                properties:
+                                  age: 7
+                - rolls: 1
+                  conditions:
+                    - type: enchantment
+                      predicate: minecraft:fortune>=1
+                    - type: match_block_property
+                      properties:
+                        age: 7
+                  entries:
+                    - type: item
+                      item: farmersdelight:cabbage_seeds
+                      functions:
+                        - type: set_count
+                          count:
+                            type: uniform
+                            min: 1
+                            max: 3
+                        - type: apply_bonus
+                          enchantment: minecraft:fortune
+                          formula:
+                            type: binomial_with_bonus_count
+                            extra: 5
+                            probability: 0.5714286
+                    - type: item
+                      item: farmersdelight:cabbage
+                      functions:
+                        - type: set_count
+                          count:
+                            type: uniform
+                            min: 1
+                            max: 3
+                        - type: apply_bonus
+                          enchantment: minecraft:fortune
+                          formula:
+                            type: binomial_with_bonus_count
+                            extra: 5
+                            probability: 0.5714286
+  farmersdelight:tomatoes:
+    settings:
+      template:
+        - default:hardness/none
+        - default:sound/grass
+      overrides:
+        item: farmersdelight:tomato_seeds
+        push-reaction: destroy
+        is-randomly-ticking: true
+      tags:
+        - minecraft:bee_growables
+    behaviors:
+      - type: liquid_flowable_block
+      - type: crop_block
+        grow-speed: 0.25
+        light-requirement: 9
+        is-bone-meal-target: true
+      - type: bush_block
+        bottom-blocks:
+          - minecraft:farmland
+    states:
+      properties:
+        age:
+          type: int
+          default: 0
+          range: 0~7
+      appearances:
+        age=0:
+          auto-state: lower_tripwire
+          model: farmersdelight:block/budding_tomatoes_stage0
+        age=1:
+          auto-state: lower_tripwire
+          model: farmersdelight:block/budding_tomatoes_stage1
+        age=2:
+          auto-state: higher_tripwire
+          model: farmersdelight:block/budding_tomatoes_stage2
+        age=3:
+          auto-state: higher_tripwire
+          model: farmersdelight:block/budding_tomatoes_stage3
+        age=4:
+          auto-state: sugar_cane
+          model: farmersdelight:block/tomatoes_stage0
+        age=5:
+          auto-state: sugar_cane
+          model: farmersdelight:block/tomatoes_stage1
+        age=6:
+          auto-state: sugar_cane
+          model: farmersdelight:block/tomatoes_stage2
+        age=7:
+          auto-state: sugar_cane
+          model: farmersdelight:block/tomatoes_stage3
+      variants:
+        age=0:
+          appearance: age=0
+        age=1:
+          appearance: age=1
+        age=2:
+          appearance: age=2
+        age=3:
+          appearance: age=3
+        age=4:
+          appearance: age=4
+        age=5:
+          appearance: age=5
+        age=6:
+          appearance: age=6
+        age=7:
+          appearance: age=7
+    events:
+      - on: right_click
+        conditions:
+          - type: match_block_property
+            properties:
+              age: 7
+        functions:
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:tomato
+                      functions:
+                        - type: set_count
+                          count:
+                            type: uniform
+                            min: 1
+                            max: 3
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:rotten_tomato
+                      functions:
+                        - type: set_count
+                          count:
+                            type: uniform
+                            min: 1
+                            max: 2
+                      conditions:
+                        - type: random
+                          chance: 0.0001
+          - type: update_block_property
+            properties:
+              age: 4
+          - type: swing_hand
+      - on: break
+        conditions:
+          - type: match_block_property
+            properties:
+              age: 7
+        functions:
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: alternatives
+                      children:
+                        - type: item
+                          item: farmersdelight:tomato_seeds
+                          functions:
+                          - type: set_count
+                            count:
+                              type: uniform
+                              min: 1
+                              max: 3
+                        - type: item
+                          item: farmersdelight:tomato
+                          functions:
+                            - type: set_count
+                              count:
+                                type: uniform
+                                min: 1
+                                max: 3
+                - rolls: 1
+                  conditions:
+                    - type: enchantment
+                      predicate: minecraft:fortune>=1
+                  entries:
+                    - type: item
+                      item: farmersdelight:tomato
+                      functions:
+                        - type: set_count
+                          count:
+                            type: uniform
+                            min: 1
+                            max: 3
+                        - type: apply_bonus
+                          enchantment: minecraft:fortune
+                          formula:
+                            type: binomial_with_bonus_count
+                            extra: 5
+                            probability: 0.5714286
+                    - type: item
+                      item: farmersdelight:tomato_seeds
+                      functions:
+                        - type: set_count
+                          count:
+                            type: uniform
+                            min: 1
+                            max: 3
+                        - type: apply_bonus
+                          enchantment: minecraft:fortune
+                          formula:
+                            type: binomial_with_bonus_count
+                            extra: 5
+                            probability: 0.5714286
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:rotten_tomato
+                      functions:
+                        - type: set_count
+                          count:
+                            type: uniform
+                            min: 0
+                            max: 1
+                      conditions:
+                        - type: random
+                          chance: 0.0001

@@ -100,6 +100,18 @@ cooking-pot:
   hopper-interactions: true
   # true = 打包锅内物品到掉落的厨锅物品；false = 掉落空锅并把锅内物品散落出来。
   pack-contents-on-break: true
+  # 玩家从厨锅输出槽/待取出成品中拿走烹饪成品时，如何结算配方 experience。
+  # vanilla = 掉落原版经验球；auraskills = 只给 AuraSkills 经验；both = 两者都有；none = 不给经验奖励。
+  # base experience 仍由 recipes/cooking_pot_recipes.yml 里的每个配方 experience 字段决定。
+  experience-reward:
+    mode: vanilla
+    # mode 为 auraskills 或 both 时生效。技能 ID 可写 farming、auraskills/farming，或 namespace/custom_skill。
+    # multiplier 会用“配方 experience × 倍率”作为 AuraSkills 经验；如果写 amount，则改为每次取出固定给 amount。
+    # raw=false 走 AuraSkills 自身倍率/修饰；raw=true 直接添加原始经验。
+    auraskills:
+      skill: farming
+      multiplier: 1.0
+      raw: false
   # 厨锅烹饪中的悬浮 TextDisplay。
   progress-display:
     # false = 完全关闭厨锅烹饪进度 TextDisplay。大量厨锅压测或服务器性能优先时建议关闭。

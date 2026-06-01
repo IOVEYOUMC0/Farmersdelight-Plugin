@@ -1,0 +1,1737 @@
+templates:
+  farmersdelight:block_item_template:
+    model: ${__NAMESPACE__}:block/${__ID__}
+    behavior:
+      type: block_item
+      block: ${__NAMESPACE__}:${__ID__}
+  farmersdelight:block_loot_template:
+    loot:
+      template: default:loot_table/self
+  farmersdelight:block_template:
+    states:
+      properties:
+        facing:
+          type: 4-direction
+          default: north
+      appearances:
+        east:
+          auto-state: mushroom
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            y: 90
+        north:
+          auto-state: mushroom
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+        south:
+          auto-state: mushroom
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            y: 180
+        west:
+          auto-state: mushroom
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            y: 270
+      variants:
+        facing=east:
+          appearance: east
+        facing=north:
+          appearance: north
+        facing=south:
+          appearance: south
+        facing=west:
+          appearance: west
+  farmersdelight:block_crate_template:
+    settings:
+      hardness: 2
+      resistance: 1
+      burnable: true
+      burn-chance: 75
+      fire-spread-chance: 50
+      tags:
+        - minecraft:mineable/axe
+      sounds:
+        break: minecraft:block.wood.break
+        fall: minecraft:block.wood.fall
+        hit: minecraft:block.wood.hit
+        place: minecraft:block.wood.place
+        step: minecraft:block.wood.step
+    states:
+      auto-state: mushroom_stem
+      model:
+        path: ${__NAMESPACE__}:block/${__ID__}
+  farmersdelight:block_cabinet_template:
+    settings:
+      hardness: 1.5
+      resistance: 0.5
+      push-reaction: block
+      burnable: true
+      burn-chance: 50
+      fire-spread-chance: 50
+      propagate-skylight: true
+      is-randomly-ticking: false
+      tags:
+        - minecraft:mineable/axe
+      sounds:
+        break: minecraft:block.wood.break
+        fall: minecraft:block.wood.fall
+        hit: minecraft:block.wood.hit
+        place: minecraft:block.wood.place
+        step: minecraft:block.wood.step
+    behavior:
+      type: simple_storage_block
+      title: "<!i>橱柜"
+      rows: 3
+      allow-input: true
+      allow-output: true
+      sounds:
+        open: minecraft:block.barrel.open
+        close: minecraft:block.barrel.close
+    states:
+      properties:
+        facing:
+          type: 4-direction
+          default: north
+        open:
+          type: boolean
+          default: false
+      appearances:
+        east:
+          auto-state: note_block
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            y: 90
+        east_open:
+          auto-state: note_block
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}_open
+            y: 90
+        north:
+          auto-state: note_block
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+        north_open:
+          auto-state: note_block
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}_open
+        south:
+          auto-state: note_block
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            y: 180
+        south_open:
+          auto-state: note_block
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}_open
+            y: 180
+        west:
+          auto-state: note_block
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            y: 270
+        west_open:
+          auto-state: note_block
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}_open
+            y: 270
+      variants:
+        facing=east,open=false:
+          appearance: east
+        facing=east,open=true:
+          appearance: east_open
+        facing=north,open=false:
+          appearance: north
+        facing=north,open=true:
+          appearance: north_open
+        facing=south,open=false:
+          appearance: south
+        facing=south,open=true:
+          appearance: south_open
+        facing=west,open=false:
+          appearance: west
+        facing=west,open=true:
+          appearance: west_open
+items:
+  farmersdelight:stove:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.stove>
+    behavior:
+      type: block_item
+      block: farmersdelight:stove
+  farmersdelight:cooking_pot:
+    data:
+      item-name: <!i><l10n:block.farmersdelight.cooking_pot>
+    model: farmersdelight:block/cooking_pot
+    behavior:
+      type: ground_block_item
+      block: farmersdelight:cooking_pot
+    nbt:
+      HideDurability: true
+  farmersdelight:skillet:
+    material: iron_sword
+    data:
+      item-name: <!i><l10n:block.farmersdelight.skillet>
+      hide-tooltip:
+        - attribute_modifiers
+      attribute-modifiers:
+        - type: minecraft:attack_damage
+          slot: mainhand
+          amount: 8
+          operation: add_value
+        - type: minecraft:attack_speed
+          slot: mainhand
+          amount: -0.7
+          operation: add_multiplied_base
+        - type: minecraft:attack_knockback
+          slot: mainhand
+          amount: 1
+          operation: add_value
+      lore:
+        - content:
+          - ''
+          - '<!i><gray><lang:item.modifiers.mainhand></gray>'
+          - '<!i><dark_green>  8 <lang:attribute.name.attack_damage></dark_green>'
+          - '<!i><dark_green>  0.9 <lang:attribute.name.attack_speed></dark_green>'
+          - '<!i><blue>  +1 <lang:attribute.name.attack_knockback></blue>'
+    model: farmersdelight:item/skillet
+  farmersdelight:cutting_board:
+    data:
+      item-name: <!i><l10n:block.farmersdelight.cutting_board>
+    model: farmersdelight:block/cutting_board
+    behavior:
+      type: ground_block_item
+      block: farmersdelight:cutting_board
+  farmersdelight:basket:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.basket>
+      model: farmersdelight:block/basket
+  farmersdelight:tray:
+    data:
+      item-name: <!i><l10n:block.farmersdelight.tray>
+      lore: 
+        - content:
+          - <!i><red><l10n:farmersdelight.tooltip.no_collision></red>
+    model: ${__NAMESPACE__}:block/${__ID__}
+    behavior:
+      type: furniture_item
+      rules:
+        ground:
+          rotation: four
+          alignment: center
+      furniture: ${__NAMESPACE__}:${__ID__}
+  farmersdelight:carrot_crate:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.carrot_crate>
+  farmersdelight:potato_crate:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.potato_crate>
+  farmersdelight:beetroot_crate:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.beetroot_crate>
+  farmersdelight:cabbage_crate:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.cabbage_crate>
+  farmersdelight:tomato_crate:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.tomato_crate>
+  farmersdelight:onion_crate:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.onion_crate>
+  farmersdelight:rice_bale:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.rice_bale>
+  farmersdelight:rice_bag:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.rice_bag>
+  farmersdelight:straw_bale:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.straw_bale>
+  farmersdelight:tatami:
+    data:
+      item_name: <!i><l10n:block.farmersdelight.tatami>
+      lore: <!i><red><l10n:farmersdelight.tooltip.no_connected_texture></red>
+    model: ${__NAMESPACE__}:item/${__ID__}
+    behavior:
+      type: block_item
+      block: ${__NAMESPACE__}:${__ID__}
+  farmersdelight:full_tatami_mat:
+    data:
+      item_name: <!i><l10n:block.farmersdelight.full_tatami_mat>
+      lore: <!i><red><l10n:farmersdelight.tooltip.no_collision></red>
+    model: ${__NAMESPACE__}:item/${__ID__}
+    behavior:
+      type: furniture_item
+      rules:
+        ground:
+          rotation: four
+          alignment: center
+      furniture: ${__NAMESPACE__}:${__ID__}
+  farmersdelight:full_tatami_mat_elements:
+    data:
+      item_name: <!i><l10n:block.farmersdelight.full_tatami_mat>
+    model:
+      type: minecraft:select
+      property: minecraft:display_context
+      cases:
+        - when:
+            - gui
+          model:
+            type: minecraft:model
+            path: ${__NAMESPACE__}:item/full_tatami_mat
+      fallback:
+        type: minecraft:model
+        path: ${__NAMESPACE__}:block/full_tatami_mat
+  farmersdelight:half_tatami_mat:
+    data:
+      item_name: <!i><l10n:block.farmersdelight.half_tatami_mat>
+      lore: <!i><red><l10n:farmersdelight.tooltip.no_collision></red>
+    model: ${__NAMESPACE__}:item/${__ID__}
+    behavior:
+      type: furniture_item
+      rules:
+        ground:
+          rotation: four
+          alignment: center
+      furniture: ${__NAMESPACE__}:${__ID__}
+  farmersdelight:half_tatami_mat_elements:
+    data:
+      item_name: <!i><l10n:block.farmersdelight.half_tatami_mat>
+    model:
+      type: minecraft:select
+      property: minecraft:display_context
+      cases:
+        - when:
+            - gui
+          model:
+            type: minecraft:model
+            path: ${__NAMESPACE__}:item/half_tatami_mat
+      fallback:
+        type: minecraft:model
+        path: ${__NAMESPACE__}:block/half_tatami_mat
+  farmersdelight:canvas_rug:
+    data:
+      item_name: <!i><l10n:block.farmersdelight.canvas_rug>
+      lore: <!i><red><l10n:farmersdelight.tooltip.no_collision></red>
+    model: ${__NAMESPACE__}:item/${__ID__}
+    behavior:
+      type: furniture_item
+      rules:
+        ground:
+          rotation: four
+          alignment: center
+      furniture: ${__NAMESPACE__}:${__ID__}
+  farmersdelight:oak_cabinet:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.oak_cabinet>
+  farmersdelight:spruce_cabinet:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.spruce_cabinet>
+  farmersdelight:birch_cabinet:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.birch_cabinet>
+  farmersdelight:jungle_cabinet:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.jungle_cabinet>
+  farmersdelight:acacia_cabinet:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.acacia_cabinet>
+  farmersdelight:dark_oak_cabinet:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.dark_oak_cabinet>
+  farmersdelight:mangrove_cabinet:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.mangrove_cabinet>
+  farmersdelight:cherry_cabinet:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.cherry_cabinet>
+  farmersdelight:bamboo_cabinet:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.bamboo_cabinet>
+  farmersdelight:pale_oak_cabinet:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.pale_oak_cabinet>
+  farmersdelight:crimson_cabinet:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.crimson_cabinet>
+  farmersdelight:warped_cabinet:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><l10n:block.farmersdelight.warped_cabinet>
+furniture:
+  farmersdelight:full_tatami_mat:
+    settings:
+      item: farmersdelight:full_tatami_mat
+      sounds:
+        break: minecraft:block.wool.break
+        place: minecraft:block.wool.place
+    loot:
+      template: default:loot_table/self
+    variants:
+      ground:
+        elements:
+          - item: farmersdelight:full_tatami_mat_elements
+            position: 0,0.435,0
+            translation: 0,0.0625,0
+        hitboxes:
+          - position: 0,0,0
+            type: interaction
+            width: 1
+            height: 0.1
+            blocks-building: true
+            interactive: false
+            invisible: true
+          - position: 0,0,-1
+            type: interaction
+            width: 1
+            height: 0.1
+            blocks-building: true
+            interactive: false
+            invisible: true
+  farmersdelight:half_tatami_mat:
+    settings:
+      item: farmersdelight:half_tatami_mat
+      sounds:
+        break: minecraft:block.wool.break
+        place: minecraft:block.wool.place
+    loot:
+      template: default:loot_table/self
+    variants:
+      ground:
+        elements:
+          - item: farmersdelight:half_tatami_mat_elements
+            position: 0,0.435,0
+            translation: 0,0.0625,0
+        hitboxes:
+          - position: 0,0,0
+            type: interaction
+            width: 1
+            height: 0.1
+            blocks-building: true
+            interactive: false
+            invisible: true
+  farmersdelight:canvas_rug:
+    settings:
+      item: farmersdelight:canvas_rug
+      sounds:
+        break: minecraft:block.wool.break
+        place: minecraft:block.wool.place
+    loot:
+      template: default:loot_table/self
+    variants:
+      ground:
+        elements:
+          - item: farmersdelight:canvas_rug
+            position: 0,0.435,0
+            translation: 0,0.0625,0
+        hitboxes:
+          - position: 0,0,0
+            type: interaction
+            width: 1
+            height: 0.1
+            blocks-building: true
+            interactive: false
+            invisible: true
+  farmersdelight:tray:
+    settings:
+      item: farmersdelight:tray
+      sounds:
+        break: minecraft:block.lantern.break
+        place: minecraft:block.lantern.place
+    loot:
+      template: default:loot_table/self
+    variants:
+      ground:
+        elements:
+          - item: farmersdelight:tray
+            position: 0,0.5,0
+            translation: 0,0,0
+        hitboxes:
+          - position: 0,0,0
+            type: interaction
+            width: 0.5
+            height: 1
+            blocks-building: false
+            interactive: false
+            invisible: true
+block:
+  farmersdelight:stove:
+    settings:
+      hardness: 1
+      resistance: 2
+      push-reaction: block
+      require-correct-tools: true
+      correct-tools:
+        - minecraft:wooden_pickaxe
+        - minecraft:stone_pickaxe
+        - minecraft:iron_pickaxe
+        - minecraft:golden_pickaxe
+        - minecraft:diamond_pickaxe
+        - minecraft:netherite_pickaxe
+      tags:
+        - minecraft:mineable/pickaxe
+      sounds:
+        break: minecraft:block.stone.break
+        fall: minecraft:block.stone.fall
+        hit: minecraft:block.stone.hit
+        place: minecraft:block.stone.place
+        step: minecraft:block.stone.step
+    behavior:
+      - type: farmersdelight:stove
+        crackle-sound: farmersdelight:block.stove.crackle
+    loot:
+      template: default:loot_table/self
+    states:
+      properties:
+        facing:
+          type: 4-direction
+          default: north
+        fire:
+          type: boolean
+          default: true
+      appearances:
+        east:
+          auto-state: note_block
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            y: 90
+        east_on:
+          auto-state: note_block
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}_on
+            y: 90
+        north:
+          auto-state: note_block
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+        north_on:
+          auto-state: note_block
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}_on
+        south:
+          auto-state: note_block
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            y: 180
+        south_on:
+          auto-state: note_block
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}_on
+            y: 180
+        west:
+          auto-state: note_block
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            y: 270
+        west_on:
+          auto-state: note_block
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}_on
+            y: 270
+          settings:
+            luminance: 15 
+      variants:
+        facing=east,fire=false:
+          appearance: east
+        facing=east,fire=true:
+          appearance: east_on
+          settings:
+            luminance: 15
+        facing=north,fire=false:
+          appearance: north
+        facing=north,fire=true:
+          appearance: north_on
+          settings:
+            luminance: 15
+        facing=south,fire=false:
+          appearance: south
+        facing=south,fire=true:
+          appearance: south_on
+          settings:
+            luminance: 15
+        facing=west,fire=false:
+          appearance: west
+        facing=west,fire=true:
+          appearance: west_on
+          settings:
+            luminance: 15
+    events:
+      - on: right_click
+        conditions:
+          - type: match_block_property
+            properties:
+              fire: true
+          - type: match_item
+            id: minecraft:potion
+        functions:
+          - type: update_interaction_tick
+          - type: update_block_property
+            properties:
+              fire: false
+          - type: play_sound
+            sound: minecraft:block.fire.extinguish
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: swing_hand
+          - type: drop_loot
+            x: <arg:block.block_x>
+            y: <arg:block.block_y> + 2
+            z: <arg:block.block_z>
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: minecraft:glass_bottle
+                      count: 1
+      - on: right_click
+        conditions:
+          - type: match_block_property
+            properties:
+              fire: true
+          - type: match_item
+            id: minecraft:water_bucket
+        functions:
+          - type: update_interaction_tick
+          - type: update_block_property
+            properties:
+              fire: false
+          - type: play_sound
+            sound: minecraft:block.fire.extinguish
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: swing_hand
+          - type: drop_loot
+            x: <arg:block.block_x>
+            y: <arg:block.block_y> + 2
+            z: <arg:block.block_z>
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: minecraft:bucket
+                      count: 1
+      - on: right_click
+        conditions:
+          - type: match_block_property
+            properties:
+              fire: false
+          - type: match_item
+            id: minecraft:flint_and_steel
+        functions:
+          - type: cancel_event
+          - type: update_interaction_tick
+          - type: update_block_property
+            properties:
+              fire: true
+          - type: play_sound
+            sound: minecraft:item.flintandsteel.use
+          - type: damage_item
+            damage: 1
+          - type: swing_hand
+      - on: right_click
+        conditions:
+          - type: match_block_property
+            properties:
+              fire: false
+          - type: match_item
+            id: minecraft:fire_charge
+        functions:
+          - type: cancel_event
+          - type: update_interaction_tick
+          - type: update_block_property
+            properties:
+              fire: true
+          - type: play_sound
+            sound: minecraft:item.firecharge.use
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: swing_hand
+  farmersdelight:cooking_pot:
+    settings:
+      hardness: 1
+      resistance: 1
+      push-reaction: block
+      tags:
+        - minecraft:mineable/pickaxe
+      sounds:
+        break: minecraft:block.lantern.break
+        fall: minecraft:block.lantern.fall
+        hit: minecraft:block.lantern.hit
+        place: minecraft:block.lantern.place
+        step: minecraft:block.lantern.step
+    behavior:
+      - type: farmersdelight:cooking_pot
+        boil-sound: farmersdelight:block.cooking_pot.boil
+        soup-boil-sound: farmersdelight:block.cooking_pot.boil_soup
+        sound-chance: 0.10
+        sound-volume: 0.5
+        sound-pitch-min: 0.9
+        sound-pitch-max: 1.1
+    loot:
+      template: default:loot_table/self
+    states:
+      properties:
+        facing:
+          type: 4-direction
+          default: north
+      appearances:
+        east:
+          auto-state: cactus
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            y: 90
+        north:
+          auto-state: cactus
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+        south:
+          auto-state: cactus
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            y: 180
+        west:
+          auto-state: cactus
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            y: 270
+      variants:
+        facing=east:
+          appearance: east
+        facing=north:
+          appearance: north
+        facing=south:
+          appearance: south
+        facing=west:
+          appearance: west
+  farmersdelight:skillet:
+    template:
+      - farmersdelight:block_loot_template
+    settings:
+      hardness: 0.5
+      resistance: 1
+      push-reaction: block
+      tags:
+        - minecraft:mineable/pickaxe
+      sounds:
+        break: minecraft:block.lantern.break
+        fall: minecraft:block.lantern.fall
+        hit: minecraft:block.lantern.hit
+        place: minecraft:block.lantern.place
+        step: minecraft:block.lantern.step
+    behavior:
+      - type: farmersdelight:skillet
+        add-food-sound: farmersdelight:block.skillet.add_food
+        sizzle-sound: farmersdelight:block.skillet.sizzle
+    states:
+      properties:
+        facing:
+          type: 4-direction
+          default: south
+      appearances:
+        east:
+          auto-state: higher_tripwire
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            y: 270
+        north:
+          auto-state: higher_tripwire
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            y: 180
+        south:
+          auto-state: higher_tripwire
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+        west:
+          auto-state: higher_tripwire
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            y: 90
+      variants:
+        facing=east:
+          appearance: east
+        facing=north:
+          appearance: north
+        facing=south:
+          appearance: south
+        facing=west:
+          appearance: west
+  farmersdelight:cutting_board:
+    template:
+      - farmersdelight:block_loot_template
+    settings:
+      hardness: 0.5
+      resistance: 0.5
+      push-reaction: block
+      tags:
+        - minecraft:mineable/axe
+      sounds:
+        break: minecraft:block.wood.break
+        fall: minecraft:block.wood.fall
+        hit: minecraft:block.wood.hit
+        place: minecraft:block.wood.place
+        step: minecraft:block.wood.step
+    behavior:
+      - type: farmersdelight:cutting_board
+        knife-sound: farmersdelight:block.cutting_board.knife
+        tool-tags:
+          - "#farmersdelight:knives"
+          - "#minecraft:axes"
+          - "#minecraft:pickaxes"
+        tool-items:
+          - minecraft:shears
+    states:
+      properties:
+        facing:
+          type: 4-direction
+          default: north
+      appearances:
+        east:
+          auto-state: lower_tripwire
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            y: 90
+        north:
+          auto-state: lower_tripwire
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+        south:
+          auto-state: lower_tripwire
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            y: 180
+        west:
+          auto-state: lower_tripwire
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            y: 270
+      variants:
+        facing=east:
+          appearance: east
+        facing=north:
+          appearance: north
+        facing=south:
+          appearance: south
+        facing=west:
+          appearance: west
+  farmersdelight:basket:
+    template:
+      - farmersdelight:block_loot_template
+    settings:
+      hardness: 0.5
+      resistance: 0.5
+      push-reaction: block
+      burnable: true
+      burn-chance: 50
+      fire-spread-chance: 50
+      propagate-skylight: true
+      is-randomly-ticking: false
+      tags:
+        - minecraft:mineable/axe
+      sounds:
+        break: minecraft:block.scaffolding.break
+        fall: minecraft:block.scaffolding.fall
+        hit: minecraft:block.scaffolding.hit
+        place: minecraft:block.scaffolding.place
+        step: minecraft:block.scaffolding.step
+    behavior:
+      type: simple_storage_block
+      title: "<!i>篮子"
+      rows: 3
+      allow-input: true
+      allow-output: true
+    states:
+      properties:
+        facing:
+          type: direction
+          default: up
+      appearances:
+        east:
+          auto-state: non_tintable_leaves
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 90
+            y: 90
+        north:
+          auto-state: non_tintable_leaves
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 90
+        south:
+          auto-state: non_tintable_leaves
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 90
+            y: 180
+        west:
+          auto-state: non_tintable_leaves
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 90
+            y: 270
+        up:
+          auto-state: non_tintable_leaves
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+        down:
+          auto-state: non_tintable_leaves
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 180
+      variants:
+        facing=east:
+          appearance: east
+        facing=north:
+          appearance: north
+        facing=south:
+          appearance: south
+        facing=west:
+          appearance: west
+        facing=up:
+          appearance: up
+        facing=down:
+          appearance: down
+  farmersdelight:carrot_crate:
+    template:
+      - farmersdelight:block_crate_template
+      - farmersdelight:block_loot_template
+  farmersdelight:potato_crate:
+    template:
+      - farmersdelight:block_crate_template
+      - farmersdelight:block_loot_template
+  farmersdelight:beetroot_crate:
+    template:
+      - farmersdelight:block_crate_template
+      - farmersdelight:block_loot_template
+  farmersdelight:cabbage_crate:
+    template:
+      - farmersdelight:block_crate_template
+      - farmersdelight:block_loot_template
+  farmersdelight:tomato_crate:
+    template:
+      - farmersdelight:block_crate_template
+      - farmersdelight:block_loot_template
+  farmersdelight:onion_crate:
+    template:
+      - farmersdelight:block_crate_template
+      - farmersdelight:block_loot_template
+  farmersdelight:rice_bale:
+    template:
+      - farmersdelight:block_loot_template
+    settings:
+      hardness: 0.25
+      resistance: 0.25
+      burnable: true
+      burn-chance: 50
+      fire-spread-chance: 50
+      tags:
+        - minecraft:mineable/hoe
+      sounds:
+        break: minecraft:block.grass.break
+        fall: minecraft:block.grass.fall
+        hit: minecraft:block.grass.hit
+        place: minecraft:block.grass.place
+        step: minecraft:block.grass.step
+    states:
+      properties:
+        facing:
+          type: direction
+          default: up
+      appearances:
+        east:
+          auto-state: mushroom
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 90
+            y: 90
+        north:
+          auto-state: mushroom
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 90
+        south:
+          auto-state: mushroom
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 90
+            y: 180
+        west:
+          auto-state: mushroom
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 90
+            y: 270
+        up:
+          auto-state: mushroom
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+        down:
+          auto-state: mushroom
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 180
+      variants:
+        facing=east:
+          appearance: east
+        facing=north:
+          appearance: north
+        facing=south:
+          appearance: south
+        facing=west:
+          appearance: west
+        facing=up:
+          appearance: up
+        facing=down:
+          appearance: down
+  farmersdelight:rice_bag:
+    template:
+      - farmersdelight:block_loot_template
+    settings:
+      hardness: 0.45
+      resistance: 0.25
+      burnable: true
+      burn-chance: 75
+      fire-spread-chance: 50
+      tags:
+        - minecraft:mineable/hoe
+      sounds:
+        break: minecraft:block.wool.break
+        fall: minecraft:block.wool.fall
+        hit: minecraft:block.wool.hit
+        place: minecraft:block.wool.place
+        step: minecraft:block.wool.step
+    states:
+      auto-state: mushroom
+      model:
+        path: ${__NAMESPACE__}:block/${__ID__}
+  farmersdelight:straw_bale:
+    template:
+      - farmersdelight:block_loot_template
+    settings:
+      hardness: 0.35
+      resistance: 0.25
+      burnable: true
+      burn-chance: 50
+      fire-spread-chance: 50
+      tags:
+        - minecraft:mineable/hoe
+      sounds:
+        break: minecraft:block.grass.break
+        fall: minecraft:block.grass.fall
+        hit: minecraft:block.grass.hit
+        place: minecraft:block.grass.place
+        step: minecraft:block.grass.step
+    states:
+      properties:
+        facing:
+          type: direction
+          default: up
+      appearances:
+        x:
+          auto-state: mushroom
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 90
+        y:
+          auto-state: mushroom
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 90
+            y: 90
+        z:
+          auto-state: mushroom
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+      variants:
+        facing=east:
+          appearance: y
+        facing=north:
+          appearance: x
+        facing=south:
+          appearance: x
+        facing=west:
+          appearance: y
+        facing=up:
+          appearance: z
+        facing=down:
+          appearance: z
+  farmersdelight:tatami:
+    template:
+      - farmersdelight:block_loot_template
+    settings:
+      hardness: 0.5
+      resistance: 1
+      burnable: true
+      burn-chance: 75
+      fire-spread-chance: 50
+      tags:
+        - minecraft:mineable/shears
+      sounds:
+        break: minecraft:block.wool.break
+        fall: minecraft:block.wool.fall
+        hit: minecraft:block.wool.hit
+        place: minecraft:block.wool.place
+        step: minecraft:block.wool.step
+    behavior:
+      - type: farmersdelight:tatami
+        block-id: farmersdelight:tatami
+        facing-property: facing
+        paired-property: paired
+    states:
+      properties:
+        facing:
+          type: direction
+          default: down
+        paired:
+          type: boolean
+          default: false
+      appearances:
+        half:
+          auto-state: mushroom_stem
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}_half
+        north_even:
+          auto-state: mushroom_stem
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}_even
+            x: 90
+        east_odd:
+          auto-state: mushroom_stem
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}_odd
+            x: 90
+            y: 90
+        south_odd:
+          auto-state: mushroom_stem
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}_odd
+            x: 90
+            y: 180
+        west_even:
+          auto-state: mushroom_stem
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}_even
+            x: 90
+            y: 270
+        up_odd:
+          auto-state: mushroom_stem
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}_odd
+        down_even:
+          auto-state: mushroom_stem
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}_even
+            x: 180
+      variants:
+        paired=false:
+          appearance: half
+        facing=north,paired=true:
+          appearance: north_even
+        facing=east,paired=true:
+          appearance: east_odd
+        facing=south,paired=true:
+          appearance: south_odd
+        facing=west,paired=true:
+          appearance: west_even
+        facing=up,paired=true:
+          appearance: up_odd
+        facing=down,paired=true:
+          appearance: down_even
+  farmersdelight:oak_cabinet:
+    template: 
+      - farmersdelight:block_cabinet_template
+      - farmersdelight:block_loot_template
+  farmersdelight:spruce_cabinet:
+    template: 
+      - farmersdelight:block_cabinet_template
+      - farmersdelight:block_loot_template
+  farmersdelight:birch_cabinet:
+    template: 
+      - farmersdelight:block_cabinet_template
+      - farmersdelight:block_loot_template
+  farmersdelight:jungle_cabinet:
+    template: 
+      - farmersdelight:block_cabinet_template
+      - farmersdelight:block_loot_template
+  farmersdelight:acacia_cabinet:
+    template: 
+      - farmersdelight:block_cabinet_template
+      - farmersdelight:block_loot_template
+  farmersdelight:dark_oak_cabinet:
+    template: 
+      - farmersdelight:block_cabinet_template
+      - farmersdelight:block_loot_template
+  farmersdelight:mangrove_cabinet:
+    template: 
+      - farmersdelight:block_cabinet_template
+      - farmersdelight:block_loot_template
+  farmersdelight:cherry_cabinet:
+    template: 
+      - farmersdelight:block_cabinet_template
+      - farmersdelight:block_loot_template
+  farmersdelight:bamboo_cabinet:
+    template: 
+      - farmersdelight:block_cabinet_template
+      - farmersdelight:block_loot_template
+  farmersdelight:pale_oak_cabinet:
+    template: 
+      - farmersdelight:block_cabinet_template
+      - farmersdelight:block_loot_template
+  farmersdelight:crimson_cabinet:
+    template: 
+      - farmersdelight:block_cabinet_template
+      - farmersdelight:block_loot_template
+  farmersdelight:warped_cabinet:
+    template: 
+      - farmersdelight:block_cabinet_template
+      - farmersdelight:block_loot_template
+recipes:
+  farmersdelight:stove:
+    type: shaped
+    category: misc
+    pattern:
+      - "III"
+      - "B B"
+      - "BCB"
+    ingredients:
+      B: "minecraft:bricks"
+      C: "minecraft:campfire"
+      I: "minecraft:iron_ingot"
+    result:
+      id: farmersdelight:stove
+      count: 1
+  farmersdelight:cooking_pot:
+    type: shaped
+    category: misc
+    pattern:
+      - "BSB"
+      - "IWI"
+      - "III"
+    ingredients:
+      B: "minecraft:brick"
+      I: "minecraft:iron_ingot"
+      S: "minecraft:wooden_shovel"
+      W: "minecraft:water_bucket"
+    result:
+      id: farmersdelight:cooking_pot
+      count: 1
+  farmersdelight:skillet:
+    type: shaped
+    category: misc
+    pattern:
+      - " II"
+      - " II"
+      - "B  "
+    ingredients:
+      B: "minecraft:brick"
+      I: "minecraft:iron_ingot"
+    result:
+      id: farmersdelight:skillet
+      count: 1
+  farmersdelight:cutting_board:
+    type: shaped
+    category: misc 
+    pattern:
+      - "SPP"
+      - "SPP"
+    ingredients:
+      P: "#minecraft:planks"
+      S: "minecraft:stick"
+    result:
+      id: farmersdelight:cutting_board
+      count: 1
+  farmersdelight:basket:
+    type: shaped
+    category: misc
+    pattern:
+      - "B B"
+      - "C C"
+      - "BCB"
+    ingredients:
+      B: "minecraft:bamboo"
+      C: "farmersdelight:canvas"
+    result:
+      id: farmersdelight:basket
+      count: 1
+  farmersdelight:carrot_crate:
+    type: shaped
+    category: building
+    group: crate
+    pattern:
+      - "CCC"
+      - "CCC"
+      - "CCC"
+    ingredients:
+      C: "minecraft:carrot"
+    result:
+      id: farmersdelight:carrot_crate
+      count: 1
+  farmersdelight:carrot_crate_unpack:
+    type: shapeless
+    category: misc
+    group: unpack_crate
+    ingredients:
+      - "farmersdelight:carrot_crate"
+    result:
+      id: minecraft:carrot
+      count: 9
+  farmersdelight:potato_crate:
+    type: shaped
+    category: building
+    group: crate
+    pattern:
+      - "PPP"
+      - "PPP"
+      - "PPP"
+    ingredients:
+      P: "minecraft:potato"
+    result:
+      id: farmersdelight:potato_crate
+      count: 1
+  farmersdelight:potato_crate_unpack:
+    type: shapeless
+    category: misc
+    group: unpack_crate
+    ingredients:
+      - "farmersdelight:potato_crate"
+    result:
+      id: minecraft:potato
+      count: 9
+  farmersdelight:beetroot_crate:
+    type: shaped
+    category: building
+    group: crate
+    pattern:
+      - "BBB"
+      - "BBB"
+      - "BBB"
+    ingredients:
+      B: "minecraft:beetroot"
+    result:
+      id: farmersdelight:beetroot_crate
+      count: 1
+  farmersdelight:beetroot_crate_unpack:
+    type: shapeless
+    category: misc
+    group: unpack_crate
+    ingredients:
+      - "farmersdelight:beetroot_crate"
+    result:
+      id: minecraft:beetroot
+      count: 9
+  farmersdelight:cabbage_crate:
+    type: shaped
+    category: building
+    group: crate
+    pattern:
+      - "CCC"
+      - "CCC"
+      - "CCC"
+    ingredients:
+      C: "farmersdelight:cabbage"
+    result:
+      id: farmersdelight:cabbage_crate
+      count: 1
+  farmersdelight:cabbage_crate_unpack:
+    type: shapeless
+    category: misc
+    group: unpack_crate
+    ingredients:
+      - "farmersdelight:cabbage_crate"
+    result:
+      id: farmersdelight:cabbage
+      count: 9
+  farmersdelight:tomato_crate:
+    type: shaped
+    category: building
+    group: crate
+    pattern:
+      - "TTT"
+      - "TTT"
+      - "TTT"
+    ingredients:
+      T: "farmersdelight:tomato"
+    result:
+      id: farmersdelight:tomato_crate
+      count: 1
+  farmersdelight:tomato_crate_unpack:
+    type: shapeless
+    category: misc
+    group: unpack_crate
+    ingredients:
+      - "farmersdelight:tomato_crate"
+    result:
+      id: farmersdelight:tomato
+      count: 9
+  farmersdelight:onion_crate:
+    type: shaped
+    category: building
+    group: crate
+    pattern:
+      - "OOO"
+      - "OOO"
+      - "OOO"
+    ingredients:
+      O: "farmersdelight:onion"
+    result:
+      id: farmersdelight:onion_crate
+      count: 1
+  farmersdelight:onion_crate_unpack:
+    type: shapeless
+    category: misc
+    group: unpack_crate
+    ingredients:
+      - "farmersdelight:onion_crate"
+    result:
+      id: farmersdelight:onion
+      count: 9
+  farmersdelight:rice_bale:
+    type: shaped
+    category: building
+    group: crate
+    pattern:
+      - "RRR"
+      - "RRR"
+      - "RRR"
+    ingredients:
+      R: "farmersdelight:rice_panicle"
+    result:
+      id: farmersdelight:rice_bale
+      count: 1
+  farmersdelight:rice_bale_unpack:
+    type: shapeless
+    category: misc
+    ingredients:
+      - "farmersdelight:rice_bale"
+    result:
+      id: farmersdelight:rice_panicle
+      count: 9
+  farmersdelight:rice_bag:
+    type: shaped
+    category: building
+    group: crate
+    pattern:
+      - "RRR"
+      - "RRR"
+      - "RRR"
+    ingredients:
+      R: "farmersdelight:rice"
+    result:
+      id: farmersdelight:rice_bag
+      count: 1
+  farmersdelight:rice_bag_unpack:
+    type: shapeless
+    category: misc
+    group: rice
+    ingredients:
+      - "farmersdelight:rice_bag"
+    result:
+      id: farmersdelight:rice
+      count: 9
+  farmersdelight:straw_bale:
+    type: shaped
+    category: building
+    group: crate
+    pattern:
+      - "SSS"
+      - "SSS"
+      - "SSS"
+    ingredients:
+      S: "farmersdelight:straw"
+    result:
+      id: farmersdelight:straw_bale
+      count: 1
+  farmersdelight:straw_bale_unpack:
+    type: shapeless
+    category: misc
+    ingredients:
+      - "farmersdelight:straw_bale"
+    result:
+      id: farmersdelight:straw
+      count: 9
+  farmersdelight:tatami_1:
+    type: shaped
+    category: building
+    group: tatami
+    pattern:
+      - "CS"
+      - "SC"
+    ingredients:
+      C: "farmersdelight:canvas"
+      S: "farmersdelight:straw"
+    result:
+      id: farmersdelight:tatami
+      count: 1
+  farmersdelight:tatami_2:
+    type: shaped
+    category: building
+    group: tatami
+    pattern:
+      - "SC"
+      - "CS"
+    ingredients:
+      C: "farmersdelight:canvas"
+      S: "farmersdelight:straw"
+    result:
+      id: farmersdelight:tatami
+      count: 1
+  farmersdelight:tatami_mat:
+    type: shaped
+    category: building
+    group: tatami
+    pattern:
+      - "FF"
+    ingredients:
+      F: "farmersdelight:full_tatami_mat"
+    result:
+      id: farmersdelight:tatami
+      count: 1
+  farmersdelight:full_tatami_mat:
+    type: shapeless
+    category: building
+    group: tatami_mat
+    ingredients:
+      - "farmersdelight:tatami"
+    result:
+      id: farmersdelight:full_tatami_mat
+      count: 2
+  farmersdelight:full_tatami_mat_half:
+    type: shaped
+    category: building
+    group: tatami_mat
+    pattern:
+      - "HH"
+    ingredients:
+      H: "farmersdelight:half_tatami_mat"
+    result:
+      id: farmersdelight:full_tatami_mat
+      count: 1
+  farmersdelight:half_tatami_mat:
+    type: shapeless
+    category: building
+    ingredients:
+      - "farmersdelight:full_tatami_mat"
+    result:
+      id: farmersdelight:half_tatami_mat
+      count: 2
+  farmersdelight:canvas_rug:
+    type: shaped
+    category: building
+    pattern:
+      - "CC"
+    ingredients:
+      C: "farmersdelight:canvas"
+    result:
+      id: farmersdelight:canvas_rug
+      count: 2
+  farmersdelight:oak_cabinet:
+    type: shaped
+    category: building
+    group: cabinet
+    pattern:
+      - "PPP"
+      - "S S"
+      - "PPP"
+    ingredients:
+      P: "minecraft:oak_planks"
+      S: "minecraft:oak_slab"
+    result:
+      id: farmersdelight:oak_cabinet
+      count: 1
+  farmersdelight:spruce_cabinet:
+    type: shaped
+    category: building
+    group: cabinet
+    pattern:
+      - "PPP"
+      - "S S"
+      - "PPP"
+    ingredients:
+      P: "minecraft:spruce_planks"
+      S: "minecraft:spruce_slab"
+    result:
+      id: farmersdelight:spruce_cabinet
+      count: 1
+  farmersdelight:birch_cabinet:
+    type: shaped
+    category: building
+    group: cabinet
+    pattern:
+      - "PPP"
+      - "S S"
+      - "PPP"
+    ingredients:
+      P: "minecraft:birch_planks"
+      S: "minecraft:birch_slab"
+    result:
+      id: farmersdelight:birch_cabinet
+      count: 1
+  farmersdelight:jungle_cabinet:
+    type: shaped
+    category: building
+    group: cabinet
+    pattern:
+      - "PPP"
+      - "S S"
+      - "PPP"
+    ingredients:
+      P: "minecraft:jungle_planks"
+      S: "minecraft:jungle_slab"
+    result:
+      id: farmersdelight:jungle_cabinet
+      count: 1
+  farmersdelight:acacia_cabinet:
+    type: shaped
+    category: building
+    group: cabinet
+    pattern:
+      - "PPP"
+      - "S S"
+      - "PPP"
+    ingredients:
+      P: "minecraft:acacia_planks"
+      S: "minecraft:acacia_slab"
+    result:
+      id: farmersdelight:acacia_cabinet
+      count: 1
+  farmersdelight:dark_oak_cabinet:
+    type: shaped
+    category: building
+    group: cabinet
+    pattern:
+      - "PPP"
+      - "S S"
+      - "PPP"
+    ingredients:
+      P: "minecraft:dark_oak_planks"
+      S: "minecraft:dark_oak_slab"
+    result:
+      id: farmersdelight:dark_oak_cabinet
+      count: 1
+  farmersdelight:mangrove_cabinet:
+    type: shaped
+    category: building
+    group: cabinet
+    pattern:
+      - "PPP"
+      - "S S"
+      - "PPP"
+    ingredients:
+      P: "minecraft:mangrove_planks"
+      S: "minecraft:mangrove_slab"
+    result:
+      id: farmersdelight:mangrove_cabinet
+      count: 1
+  farmersdelight:cherry_cabinet:
+    type: shaped
+    category: building
+    group: cabinet
+    pattern:
+      - "PPP"
+      - "S S"
+      - "PPP"
+    ingredients:
+      P: "minecraft:cherry_planks"
+      S: "minecraft:cherry_slab"
+    result:
+      id: farmersdelight:cherry_cabinet
+      count: 1
+  farmersdelight:bamboo_cabinet:
+    type: shaped
+    category: building
+    group: cabinet
+    pattern:
+      - "PPP"
+      - "S S"
+      - "PPP"
+    ingredients:
+      P: "minecraft:bamboo_planks"
+      S: "minecraft:bamboo_slab"
+    result:
+      id: farmersdelight:bamboo_cabinet
+      count: 1
+  farmersdelight:pale_oak_cabinet:
+    type: shaped
+    category: building
+    group: cabinet
+    pattern:
+      - "PPP"
+      - "S S"
+      - "PPP"
+    ingredients:
+      P: "minecraft:pale_oak_planks"
+      S: "minecraft:pale_oak_slab"
+    result:
+      id: farmersdelight:pale_oak_cabinet
+      count: 1
+  farmersdelight:crimson_cabinet:
+    type: shaped
+    category: building
+    group: cabinet
+    pattern:
+      - "PPP"
+      - "S S"
+      - "PPP"
+    ingredients:
+      P: "minecraft:crimson_planks"
+      S: "minecraft:crimson_slab"
+    result:
+      id: farmersdelight:crimson_cabinet
+      count: 1
+  farmersdelight:warped_cabinet:
+    type: shaped
+    category: building
+    group: cabinet
+    pattern:
+      - "PPP"
+      - "S S"
+      - "PPP"
+    ingredients:
+      P: "minecraft:warped_planks"
+      S: "minecraft:warped_slab"
+    result:
+      id: farmersdelight:warped_cabinet
+      count: 1
+  farmersdelight:tray:
+    type: shaped
+    category: building
+    pattern:
+      - "ITI"
+      - "I I"
+      - "I I"
+    ingredients:
+      I: "minecraft:iron_nugget"
+      T: "minecraft:iron_trapdoor"
+    result:
+      id: farmersdelight:tray
+      count: 2

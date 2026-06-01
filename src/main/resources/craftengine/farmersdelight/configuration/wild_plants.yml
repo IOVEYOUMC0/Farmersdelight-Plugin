@@ -1,0 +1,712 @@
+﻿items:
+  farmersdelight:sandy_shrub:
+    data:
+      item-name: <l10n:block.farmersdelight.sandy_shrub>
+    texture: farmersdelight:block/sandy_shrub
+    behavior:
+      type: block_item
+      block:
+        settings:
+          template:
+            - default:hardness/none
+            - default:sound/grass
+        overrides:
+          item: farmersdelight:sandy_shrub
+          push-reaction: destroy
+        behavior:
+          - type: liquid_flowable_block
+          - type: bush_block
+            bottom-block-tags:
+              - minecraft:sand
+        state:
+          auto-state: higher_tripwire
+          models:
+            - path: farmersdelight:block/sandy_shrub
+        loot:
+          pools:
+            - rolls: 1
+              entries:
+                - type: alternatives
+                  children:
+                    - type: item
+                      item: farmersdelight:sandy_shrub
+                      conditions:
+                        - type: enchantment
+                          predicate: minecraft:silk_touch>=1
+                    - type: item
+                      item: minecraft:beetroot_seeds
+                      conditions:
+                        - type: random
+                          chance: 0.01
+  farmersdelight:wild_cabbages:
+    data:
+      item-name: <l10n:block.farmersdelight.wild_cabbages>
+    texture: farmersdelight:block/wild_cabbages
+    behavior:
+      type: block_item
+      block:
+        settings:
+          template:
+            - default:hardness/none
+            - default:sound/grass
+        overrides:
+          item: farmersdelight:wild_cabbages
+          push-reaction: destroy
+        tags:
+          - minecraft:flowers
+        behavior:
+          - type: liquid_flowable_block
+          - type: bush_block
+            bottom-block-tags:
+              - minecraft:sand
+        state:
+          auto-state: sugar_cane
+          models:
+            - path: farmersdelight:block/wild_cabbages
+        loot:
+          pools:
+            - rolls: 1
+              entries:
+                - type: alternatives
+                  children:
+                    - type: item
+                      item: farmersdelight:wild_cabbages
+                      conditions:
+                        - type: enchantment
+                          predicate: minecraft:silk_touch>=1
+                    - type: item
+                      item: farmersdelight:cabbage_seeds
+                      functions:
+                        - type: set_count
+                          count:
+                            type: uniform
+                            min: 1
+                            max: 2
+            - rolls: 1
+              entries:
+                - type: item
+                  item: farmersdelight:cabbage
+                  count: 1
+                  conditions:
+                    - type: random
+                      chance: 0.0001
+  farmersdelight:wild_onions:
+    data:
+      item-name: <l10n:block.farmersdelight.wild_onions>
+    texture: farmersdelight:block/wild_onions
+    behavior:
+      type: block_item
+      block:
+        settings:
+          template:
+            - default:hardness/none
+            - default:sound/grass
+        overrides:
+          item: farmersdelight:wild_onions
+          push-reaction: destroy
+        tags:
+          - minecraft:flowers
+        behavior:
+          - type: liquid_flowable_block
+          - type: bush_block
+            bottom-block-tags:
+              - minecraft:dirt
+              - minecraft:grass_block
+        state:
+          auto-state: sugar_cane
+          models:
+            - path: farmersdelight:block/wild_onions
+        loot:
+          pools:
+            - rolls: 1
+              entries:
+                - type: alternatives
+                  children:
+                    - type: item
+                      item: farmersdelight:wild_onions
+                      conditions:
+                        - type: enchantment
+                          predicate: minecraft:silk_touch>=1
+                    - type: item
+                      item: farmersdelight:onion
+                      functions:
+                        - type: set_count
+                          count:
+                            type: uniform
+                            min: 1
+                            max: 2
+  farmersdelight:wild_tomatoes:
+    data:
+      item-name: <l10n:block.farmersdelight.wild_tomatoes>
+    texture: farmersdelight:block/wild_tomatoes
+    behavior:
+      type: block_item
+      block:
+        settings:
+          template:
+            - default:hardness/none
+            - default:sound/grass
+        overrides:
+          item: farmersdelight:wild_tomatoes
+          push-reaction: destroy
+        tags:
+          - minecraft:flowers
+        behavior:
+          - type: liquid_flowable_block
+          - type: bush_block
+            bottom-block-tags:
+              - minecraft:dirt
+              - minecraft:grass_block
+        state:
+          auto-state: sugar_cane
+          models:
+            - path: farmersdelight:block/wild_tomatoes
+        loot:
+          pools:
+            - rolls: 1
+              entries:
+                - type: alternatives
+                  children:
+                    - type: item
+                      item: farmersdelight:wild_tomatoes
+                      conditions:
+                        - type: enchantment
+                          predicate: minecraft:silk_touch>=1
+                    - type: item
+                      item: farmersdelight:tomato_seeds
+                      functions:
+                        - type: set_count
+                          count:
+                            type: uniform
+                            min: 1
+                            max: 2
+            - rolls: 1
+              entries:
+                - type: item
+                  item: farmersdelight:tomato
+                  count: 1
+                  conditions:
+                    - type: random
+                      chance: 0.0001
+  farmersdelight:wild_rice:
+    data:
+      item-name: <l10n:block.farmersdelight.wild_rice>
+    texture: farmersdelight:block/wild_rice_top
+    behavior:
+      type: double_high_block_item
+      block:
+        settings:
+          template:
+            - default:hardness/none
+            - default:sound/grass
+        overrides:
+          item: farmersdelight:wild_rice
+          push-reaction: destroy
+        tags:
+          - minecraft:flowers
+        behavior:
+          - type: double_high_block
+          - type: farmersdelight:wild_rice
+            requires-water: true
+            bottom-block-tags:
+              - "#minecraft:dirt"
+            bottom-blocks:
+              - minecraft:grass_block
+              - minecraft:mud
+              - minecraft:sand
+              - minecraft:red_sand
+          - type: farmersdelight:upper_half_loot_relay
+        states:
+          properties:
+            half:
+              type: double_block_half
+              default: lower
+          appearances:
+            half=lower:
+              auto-state: kelp
+              model: farmersdelight:block/wild_rice_bottom
+            half=upper:
+              auto-state: higher_tripwire
+              model: farmersdelight:block/wild_rice_top
+          variants:
+            half=lower:
+              appearance: half=lower
+            half=upper:
+              appearance: half=upper
+        loot:
+          pools: 
+            - rolls: 1  
+              entries:  
+                - type: alternatives  
+                  children:  
+                    - type: item  
+                      item: farmersdelight:wild_rice  
+                      conditions:  
+                        - type: enchantment  
+                          predicate: minecraft:silk_touch>=1  
+                        - type: match_block_property   
+                          properties:    
+                            half: lower  
+                    - type: item  
+                      item: farmersdelight:rice  
+                      functions:  
+                        - type: set_count  
+                          count:  
+                            type: uniform  
+                            min: 1  
+                            max: 2  
+                      conditions:  
+                        - type: enchantment  
+                          predicate: minecraft:silk_touch<=0  
+                        - type: match_block_property   
+                          properties:    
+                            half: lower  
+                    - type: item  
+                      item: farmersdelight:rice_panicle  
+                      functions:  
+                        - type: set_count  
+                          count: 1  
+                      conditions:  
+                        - type: enchantment  
+                          predicate: minecraft:silk_touch<=0  
+                        - type: random  
+                          chance: 0.0001  
+placed-features:
+  farmersdelight:wild_cabbages:
+    biome:
+      - minecraft:beach
+      - minecraft:snowy_beach
+    environment:
+      - minecraft:overworld
+    feature:
+      $$>=26.1:
+        type: 'minecraft:simple_block'
+        config:
+          to_place:
+            type: 'minecraft:simple_state_provider'
+            state:
+              Name: 'farmersdelight:wild_cabbages'
+      $$fallback:
+        type: 'minecraft:random_patch'
+        config:
+          feature:
+            feature:
+              type: 'minecraft:simple_block'
+              config:
+                to_place:
+                  type: 'minecraft:simple_state_provider'
+                  state:
+                    Name: 'farmersdelight:wild_cabbages'
+            placement:
+              - type: 'minecraft:block_predicate_filter'
+                predicate:
+                  type: 'minecraft:all_of'
+                  predicates:
+                    - type: 'minecraft:replaceable'
+                    - type: 'minecraft:matching_fluids'
+                      fluids: 'minecraft:empty'
+                    - type: 'minecraft:matching_blocks'
+                      blocks:
+                        - minecraft:sand
+                        - minecraft:red_sand
+                      offset:
+                        - 0
+                        - -1
+                        - 0
+          tries: 64
+          xz_spread: 6
+          y_spread: 3
+    placement:
+      $$>=26.1:
+        - type: 'minecraft:rarity_filter'
+          chance: 30
+        - type: 'minecraft:in_square'
+        - type: 'minecraft:heightmap'
+          heightmap: MOTION_BLOCKING
+        - type: 'minecraft:count'
+          count: 64
+        - type: 'minecraft:random_offset'
+          xz_spread:
+            type: 'minecraft:trapezoid'
+            max: 6
+            min: -6
+            plateau: 0
+          y_spread:
+            type: 'minecraft:trapezoid'
+            max: 3
+            min: -3
+            plateau: 0
+        - type: 'minecraft:block_predicate_filter'
+          predicate:
+            type: 'minecraft:all_of'
+            predicates:
+              - type: 'minecraft:replaceable'
+              - type: 'minecraft:matching_fluids'
+                fluids: 'minecraft:empty'
+              - type: 'minecraft:matching_blocks'
+                blocks:
+                  - minecraft:sand
+                  - minecraft:red_sand
+                offset:
+                  - 0
+                  - -1
+                  - 0
+        - type: 'minecraft:biome'
+      $$fallback:
+        - type: 'minecraft:rarity_filter'
+          chance: 30
+        - type: 'minecraft:in_square'
+        - type: 'minecraft:heightmap'
+          heightmap: MOTION_BLOCKING
+        - type: 'minecraft:biome'
+  farmersdelight:wild_onions:
+    biome:
+      - minecraft:stony_peaks
+      - minecraft:meadow
+      - minecraft:cherry_grove
+      - minecraft:windswept_hills
+      - minecraft:windswept_gravelly_hills
+      - minecraft:windswept_forest
+      - minecraft:forest
+      - minecraft:taiga
+      - minecraft:old_growth_pine_taiga
+      - minecraft:old_growth_spruce_taiga
+      - minecraft:flower_forest
+      - minecraft:birch_forest
+      - minecraft:old_growth_birch_forest
+      - minecraft:dark_forest
+      - minecraft:jungle
+      - minecraft:sparse_jungle
+      - minecraft:bamboo_jungle
+      - minecraft:swamp
+      - minecraft:mangrove_swamp
+      - minecraft:plains
+      - minecraft:sunflower_plains
+      - minecraft:savanna
+    environment:
+      - minecraft:overworld
+    feature:
+      $$>=26.1:
+        type: 'minecraft:simple_block'
+        config:
+          to_place:
+            type: 'minecraft:simple_state_provider'
+            state:
+              Name: 'farmersdelight:wild_onions'
+      $$fallback:
+        type: 'minecraft:random_patch'
+        config:
+          feature:
+            feature:
+              type: 'minecraft:simple_block'
+              config:
+                to_place:
+                  type: 'minecraft:simple_state_provider'
+                  state:
+                    Name: 'farmersdelight:wild_onions'
+            placement:
+              - type: 'minecraft:block_predicate_filter'
+                predicate:
+                  type: 'minecraft:all_of'
+                  predicates:
+                    - type: 'minecraft:replaceable'
+                    - type: 'minecraft:matching_fluids'
+                      fluids: 'minecraft:empty'
+                    - type: 'minecraft:matching_blocks'
+                      blocks:
+                        - minecraft:dirt
+                        - minecraft:grass_block
+                        - minecraft:coarse_dirt
+                        - minecraft:podzol
+                        - minecraft:rooted_dirt
+                        - minecraft:mycelium
+                      offset:
+                        - 0
+                        - -1
+                        - 0
+          tries: 64
+          xz_spread: 6
+          y_spread: 3
+    placement:
+      $$>=26.1:
+        - type: 'minecraft:rarity_filter'
+          chance: 120
+        - type: 'minecraft:in_square'
+        - type: 'minecraft:heightmap'
+          heightmap: MOTION_BLOCKING
+        - type: 'minecraft:count'
+          count: 64
+        - type: 'minecraft:random_offset'
+          xz_spread:
+            type: 'minecraft:trapezoid'
+            max: 6
+            min: -6
+            plateau: 0
+          y_spread:
+            type: 'minecraft:trapezoid'
+            max: 3
+            min: -3
+            plateau: 0
+        - type: 'minecraft:block_predicate_filter'
+          predicate:
+            type: 'minecraft:all_of'
+            predicates:
+              - type: 'minecraft:replaceable'
+              - type: 'minecraft:matching_fluids'
+                fluids: 'minecraft:empty'
+              - type: 'minecraft:matching_blocks'
+                blocks:
+                  - minecraft:dirt
+                  - minecraft:grass_block
+                  - minecraft:coarse_dirt
+                  - minecraft:podzol
+                  - minecraft:rooted_dirt
+                  - minecraft:mycelium
+                offset:
+                  - 0
+                  - -1
+                  - 0
+        - type: 'minecraft:biome'
+      $$fallback:
+        - type: 'minecraft:rarity_filter'
+          chance: 120
+        - type: 'minecraft:in_square'
+        - type: 'minecraft:heightmap'
+          heightmap: MOTION_BLOCKING
+        - type: 'minecraft:biome'
+  farmersdelight:wild_tomatoes:
+    biome:
+      - minecraft:badlands
+      - minecraft:bamboo_jungle
+      - minecraft:desert
+      - minecraft:eroded_badlands
+      - minecraft:jungle
+      - minecraft:mangrove_swamp
+      - minecraft:savanna
+      - minecraft:savanna_plateau
+      - minecraft:sparse_jungle
+      - minecraft:stony_peaks
+      - minecraft:swamp
+      - minecraft:warm_ocean
+      - minecraft:windswept_savanna
+      - minecraft:wooded_badlands
+    environment:
+      - minecraft:overworld
+    feature:
+      $$>=26.1:
+        type: 'minecraft:simple_block'
+        config:
+          to_place:
+            type: 'minecraft:simple_state_provider'
+            state:
+              Name: 'farmersdelight:wild_tomatoes'
+      $$fallback:
+        type: 'minecraft:random_patch'
+        config:
+          feature:
+            feature:
+              type: 'minecraft:simple_block'
+              config:
+                to_place:
+                  type: 'minecraft:simple_state_provider'
+                  state:
+                    Name: 'farmersdelight:wild_tomatoes'
+            placement:
+              - type: 'minecraft:block_predicate_filter'
+                predicate:
+                  type: 'minecraft:all_of'
+                  predicates:
+                    - type: 'minecraft:replaceable'
+                    - type: 'minecraft:matching_fluids'
+                      fluids: 'minecraft:empty'
+                    - type: 'minecraft:matching_blocks'
+                      blocks:
+                        - minecraft:dirt
+                        - minecraft:grass_block
+                        - minecraft:coarse_dirt
+                        - minecraft:sand
+                        - minecraft:red_sand
+                      offset:
+                        - 0
+                        - -1
+                        - 0
+          tries: 64
+          xz_spread: 7
+          y_spread: 3
+    placement:
+      $$>=26.1:
+        - type: 'minecraft:rarity_filter'
+          chance: 100
+        - type: 'minecraft:in_square'
+        - type: 'minecraft:heightmap'
+          heightmap: MOTION_BLOCKING
+        - type: 'minecraft:count'
+          count: 64
+        - type: 'minecraft:random_offset'
+          xz_spread:
+            type: 'minecraft:trapezoid'
+            max: 7
+            min: -7
+            plateau: 0
+          y_spread:
+            type: 'minecraft:trapezoid'
+            max: 3
+            min: -3
+            plateau: 0
+        - type: 'minecraft:block_predicate_filter'
+          predicate:
+            type: 'minecraft:all_of'
+            predicates:
+              - type: 'minecraft:replaceable'
+              - type: 'minecraft:matching_fluids'
+                fluids: 'minecraft:empty'
+              - type: 'minecraft:matching_blocks'
+                blocks:
+                  - minecraft:dirt
+                  - minecraft:grass_block
+                  - minecraft:coarse_dirt
+                  - minecraft:sand
+                  - minecraft:red_sand
+                offset:
+                  - 0
+                  - -1
+                  - 0
+        - type: 'minecraft:biome'
+      $$fallback:
+        - type: 'minecraft:rarity_filter'
+          chance: 100
+        - type: 'minecraft:in_square'
+        - type: 'minecraft:heightmap'
+          heightmap: MOTION_BLOCKING
+        - type: 'minecraft:biome'
+  farmersdelight:wild_rice:
+    biome:
+      - minecraft:swamp
+      - minecraft:mangrove_swamp
+      - minecraft:jungle
+      - minecraft:river
+    environment:
+      - minecraft:overworld
+    feature:
+      $$>=26.1:
+        type: 'minecraft:block_column'
+        config:
+          allowed_placement:
+            type: 'minecraft:matching_blocks'
+            blocks: 'minecraft:air'
+          direction: up
+          layers:
+            - height:
+                type: 'minecraft:uniform'
+                max_inclusive: 1
+                min_inclusive: 1
+              provider:
+                type: 'minecraft:simple_state_provider'
+                state:
+                  Name: 'farmersdelight:wild_rice'
+                  Properties:
+                    half: 'lower'
+            - height:
+                type: 'minecraft:uniform'
+                max_inclusive: 1
+                min_inclusive: 1
+              provider:
+                type: 'minecraft:simple_state_provider'
+                state:
+                  Name: 'farmersdelight:wild_rice'
+                  Properties:
+                    half: 'upper'
+          prioritize_tip: false
+      $$fallback:
+        type: 'minecraft:random_patch'
+        config:
+          feature:
+            feature:
+              type: 'minecraft:block_column'
+              config:
+                allowed_placement:
+                  type: 'minecraft:matching_blocks'
+                  blocks: 'minecraft:air'
+                direction: up
+                layers:
+                  - height:
+                      type: 'minecraft:uniform'
+                      max_inclusive: 1
+                      min_inclusive: 1
+                    provider:
+                      type: 'minecraft:simple_state_provider'
+                      state:
+                        Name: 'farmersdelight:wild_rice'
+                        Properties:
+                          half: 'lower'
+                  - height:
+                      type: 'minecraft:uniform'
+                      max_inclusive: 1
+                      min_inclusive: 1
+                    provider:
+                      type: 'minecraft:simple_state_provider'
+                      state:
+                        Name: 'farmersdelight:wild_rice'
+                        Properties:
+                          half: 'upper'
+                prioritize_tip: false
+            placement:
+              - type: 'minecraft:block_predicate_filter'
+                predicate:
+                  type: 'minecraft:all_of'
+                  predicates:
+                    - type: 'minecraft:matching_fluids'
+                      fluids: '#minecraft:water'
+                      offset: [0,0,0]
+                    - type: 'minecraft:matching_blocks'
+                      blocks:
+                        - minecraft:dirt
+                        - minecraft:grass_block
+                        - minecraft:mud
+                      offset: [0,-1,0]
+          tries: 96
+          xz_spread: 7
+          y_spread: 3
+    placement:
+      $$>=26.1:
+        - type: 'minecraft:rarity_filter'
+          chance: 20
+        - type: 'minecraft:in_square'
+        - type: 'minecraft:heightmap'
+          heightmap: OCEAN_FLOOR
+        - type: 'minecraft:count'
+          count: 96
+        - type: 'minecraft:random_offset'
+          xz_spread:
+            type: 'minecraft:trapezoid'
+            max: 7
+            min: -7
+            plateau: 0
+          y_spread:
+            type: 'minecraft:trapezoid'
+            max: 3
+            min: -3
+            plateau: 0
+        - type: 'minecraft:block_predicate_filter'
+          predicate:
+            type: 'minecraft:all_of'
+            predicates:
+              - type: 'minecraft:matching_fluids'
+                fluids: '#minecraft:water'
+                offset: [0,0,0]
+              - type: 'minecraft:matching_blocks'
+                blocks:
+                  - minecraft:dirt
+                  - minecraft:grass_block
+                  - minecraft:mud
+                offset: [0,-1,0]
+        - type: 'minecraft:biome'
+      $$fallback:
+        - type: 'minecraft:rarity_filter'
+          chance: 20
+        - type: 'minecraft:in_square'
+        - type: 'minecraft:heightmap'
+          heightmap: OCEAN_FLOOR
+        - type: 'minecraft:biome'
+
+

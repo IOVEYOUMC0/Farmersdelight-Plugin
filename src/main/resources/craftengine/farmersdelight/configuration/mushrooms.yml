@@ -1,0 +1,379 @@
+﻿items:
+  farmersdelight:brown_mushroom_colony:
+    data:
+      item-name: <!i><l10n:block.farmersdelight.brown_mushroom_colony>
+    model: farmersdelight:item/brown_mushroom_colony
+    behavior:
+      type: block_item
+      block: farmersdelight:brown_mushroom_colony
+  farmersdelight:red_mushroom_colony:
+    data:
+      item-name: <!i><l10n:block.farmersdelight.red_mushroom_colony>
+    model: farmersdelight:item/red_mushroom_colony
+    behavior:
+      type: block_item
+      block: farmersdelight:red_mushroom_colony
+blocks:
+  farmersdelight:brown_mushroom_colony:
+    settings:
+      template:
+        - default:hardness/none
+      overrides:
+        item: farmersdelight:brown_mushroom_colony
+        push-reaction: destroy
+        is-randomly-ticking: true
+    behaviors:
+      - type: bush_block
+        bottom-blocks:
+          - minecraft:mycelium
+          - minecraft:mushroom_stem
+          - minecraft:podzol
+      - type: farmersdelight:mushroom_colony
+        mushroom-type: "minecraft:brown_mushroom"
+        light-requirement: 0
+    states:
+      properties:
+        age:
+          type: int
+          default: 0
+          range: 0~3
+      appearances:
+        age=0:
+          auto-state: lower_tripwire
+          model: farmersdelight:block/brown_mushroom_colony_stage0
+        age=1:
+          auto-state: lower_tripwire
+          model: farmersdelight:block/brown_mushroom_colony_stage1
+        age=2:
+          auto-state: higher_tripwire
+          model: farmersdelight:block/brown_mushroom_colony_stage2
+        age=3:
+          auto-state: sugar_cane
+          model: farmersdelight:block/brown_mushroom_colony_stage3
+      variants:
+        age=0:
+          appearance: age=0
+        age=1:
+          appearance: age=1
+        age=2:
+          appearance: age=2
+        age=3:
+          appearance: age=3
+    events:
+      - on: break
+        functions:
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: alternatives
+                      children:
+                        - type: item
+                          item: farmersdelight:brown_mushroom_colony
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                age: 3
+                            - type: enchantment
+                              predicate: minecraft:silk_touch>=1
+                        - type: item
+                          item: minecraft:brown_mushroom
+                          count: 5
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                age: 3
+                        - type: item
+                          item: minecraft:brown_mushroom
+                          count: 4
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                age: 2
+                        - type: item
+                          item: minecraft:brown_mushroom
+                          count: 3
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                age: 1
+                        - type: item
+                          item: minecraft:brown_mushroom
+                          count: 2
+  farmersdelight:red_mushroom_colony:
+    settings:
+      template:
+        - default:hardness/none
+      overrides:
+        item: farmersdelight:red_mushroom_colony
+        push-reaction: destroy
+        is-randomly-ticking: true
+    behaviors:
+      - type: bush_block
+        bottom-blocks:
+          - minecraft:mycelium
+          - minecraft:mushroom_stem
+          - minecraft:podzol
+      - type: farmersdelight:mushroom_colony
+        mushroom-type: "minecraft:red_mushroom"
+        light-requirement: 0
+    states:
+      properties:
+        age:
+          type: int
+          default: 0
+          range: 0~3
+      appearances:
+        age=0:
+          auto-state: lower_tripwire
+          model: farmersdelight:block/red_mushroom_colony_stage0
+        age=1:
+          auto-state: lower_tripwire
+          model: farmersdelight:block/red_mushroom_colony_stage1
+        age=2:
+          auto-state: higher_tripwire
+          model: farmersdelight:block/red_mushroom_colony_stage2
+        age=3:
+          auto-state: sugar_cane
+          model: farmersdelight:block/red_mushroom_colony_stage3
+      variants:
+        age=0:
+          appearance: age=0
+        age=1:
+          appearance: age=1
+        age=2:
+          appearance: age=2
+        age=3:
+          appearance: age=3
+    events:
+      - on: break
+        functions:
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: alternatives
+                      children:
+                        - type: item
+                          item: farmersdelight:red_mushroom_colony
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                age: 3
+                            - type: enchantment
+                              predicate: minecraft:silk_touch>=1
+                        - type: item
+                          item: minecraft:red_mushroom
+                          count: 5
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                age: 3
+                        - type: item
+                          item: minecraft:red_mushroom
+                          count: 4
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                age: 2
+                        - type: item
+                          item: minecraft:red_mushroom
+                          count: 3
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                age: 1
+                        - type: item
+                          item: minecraft:red_mushroom
+                          count: 2
+recipes:
+  farmersdelight:brown_mushroom_colony:
+    type: shapeless
+    category: building
+    ingredients:
+      - minecraft:brown_mushroom_block
+      - minecraft:brown_mushroom
+    result:
+      id: farmersdelight:brown_mushroom_colony
+      count: 1
+  farmersdelight:red_mushroom_colony:
+    type: shapeless
+    category: building
+    ingredients:
+      - minecraft:red_mushroom_block
+      - minecraft:red_mushroom
+    result:
+      id: farmersdelight:red_mushroom_colony
+      count: 1
+placed-features:
+  farmersdelight:wild_brown_mushroom_colony:
+    biome:
+      - minecraft:mushroom_fields
+    environment:
+      - minecraft:overworld
+    feature:
+      $$>=26.1:
+        type: 'minecraft:simple_block'
+        config:
+          to_place:
+            type: 'minecraft:simple_state_provider'
+            state:
+              Name: 'farmersdelight:brown_mushroom_colony'
+              Properties:
+                age: '3'
+      $$fallback:
+        type: 'minecraft:random_patch'
+        config:
+          feature:
+            feature:
+              type: 'minecraft:simple_block'
+              config:
+                to_place:
+                  type: 'minecraft:simple_state_provider'
+                  state:
+                    Name: 'farmersdelight:brown_mushroom_colony'
+                    Properties:
+                      age: '3'
+            placement:
+              - type: 'minecraft:block_predicate_filter'
+                predicate:
+                  type: 'minecraft:all_of'
+                  predicates:
+                    - type: 'minecraft:replaceable'
+                    - type: 'minecraft:matching_fluids'
+                      fluids: 'minecraft:empty'
+                    - type: 'minecraft:matching_blocks'
+                      blocks: 'minecraft:mycelium'
+                      offset: [0, -1, 0]
+          tries: 64
+          xz_spread: 6
+          y_spread: 3
+    placement:
+      $$>=26.1:
+        - type: 'minecraft:rarity_filter'
+          chance: 15
+        - type: 'minecraft:in_square'
+        - type: 'minecraft:heightmap'
+          heightmap: MOTION_BLOCKING
+        - type: 'minecraft:count'
+          count: 64
+        - type: 'minecraft:random_offset'
+          xz_spread:
+            type: 'minecraft:trapezoid'
+            max: 6
+            min: -6
+            plateau: 0
+          y_spread:
+            type: 'minecraft:trapezoid'
+            max: 3
+            min: -3
+            plateau: 0
+        - type: 'minecraft:block_predicate_filter'
+          predicate:
+            type: 'minecraft:all_of'
+            predicates:
+              - type: 'minecraft:replaceable'
+              - type: 'minecraft:matching_fluids'
+                fluids: 'minecraft:empty'
+              - type: 'minecraft:matching_blocks'
+                blocks: 'minecraft:mycelium'
+                offset: [0, -1, 0]
+        - type: 'minecraft:biome'
+      $$fallback:
+        - type: 'minecraft:rarity_filter'
+          chance: 15
+        - type: 'minecraft:in_square'
+        - type: 'minecraft:heightmap'
+          heightmap: MOTION_BLOCKING
+        - type: 'minecraft:biome'
+  farmersdelight:wild_red_mushroom_colony:
+    biome:
+      - minecraft:mushroom_fields
+    environment:
+      - minecraft:overworld
+    feature:
+      $$>=26.1:
+        type: 'minecraft:simple_block'
+        config:
+          to_place:
+            type: 'minecraft:simple_state_provider'
+            state:
+              Name: 'farmersdelight:red_mushroom_colony'
+              Properties:
+                age: '3'
+      $$fallback:
+        type: 'minecraft:random_patch'
+        config:
+          feature:
+            feature:
+              type: 'minecraft:simple_block'
+              config:
+                to_place:
+                  type: 'minecraft:simple_state_provider'
+                  state:
+                    Name: 'farmersdelight:red_mushroom_colony'
+                    Properties:
+                      age: '3'
+            placement:
+              - type: 'minecraft:block_predicate_filter'
+                predicate:
+                  type: 'minecraft:all_of'
+                  predicates:
+                    - type: 'minecraft:replaceable'
+                    - type: 'minecraft:matching_fluids'
+                      fluids: 'minecraft:empty'
+                    - type: 'minecraft:matching_blocks'
+                      blocks: 'minecraft:mycelium'
+                      offset: [0, -1, 0]
+          tries: 64
+          xz_spread: 6
+          y_spread: 3
+    placement:
+      $$>=26.1:
+        - type: 'minecraft:rarity_filter'
+          chance: 15
+        - type: 'minecraft:in_square'
+        - type: 'minecraft:heightmap'
+          heightmap: MOTION_BLOCKING
+        - type: 'minecraft:count'
+          count: 64
+        - type: 'minecraft:random_offset'
+          xz_spread:
+            type: 'minecraft:trapezoid'
+            max: 6
+            min: -6
+            plateau: 0
+          y_spread:
+            type: 'minecraft:trapezoid'
+            max: 3
+            min: -3
+            plateau: 0
+        - type: 'minecraft:block_predicate_filter'
+          predicate:
+            type: 'minecraft:all_of'
+            predicates:
+              - type: 'minecraft:replaceable'
+              - type: 'minecraft:matching_fluids'
+                fluids: 'minecraft:empty'
+              - type: 'minecraft:matching_blocks'
+                blocks: 'minecraft:mycelium'
+                offset: [0, -1, 0]
+        - type: 'minecraft:biome'
+      $$fallback:
+        - type: 'minecraft:rarity_filter'
+          chance: 15
+        - type: 'minecraft:in_square'
+        - type: 'minecraft:heightmap'
+          heightmap: MOTION_BLOCKING
+        - type: 'minecraft:biome'
+

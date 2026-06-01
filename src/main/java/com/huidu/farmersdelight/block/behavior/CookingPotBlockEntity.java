@@ -711,6 +711,14 @@ public class CookingPotBlockEntity {
     }
 
     public ItemStack useHeldContainerOnPendingMeal(World world, ItemStack container) {
+        TakenMeal meal = useHeldContainerOnPendingMeal(container);
+        if (meal != null && world != null && meal.experience() > 0.0D && shouldDropVanillaExperience()) {
+            dropExperience(world, meal.experience());
+        }
+        return meal == null ? null : meal.item();
+    }
+
+    public TakenMeal useHeldContainerOnPendingMeal(ItemStack container) {
         synchronized (inventoryLock) {
             if (!doesMealHaveContainer() || !isContainerValid(container)) {
                 return null;
@@ -734,37 +742,39 @@ public class CookingPotBlockEntity {
                 }
             }
 
-            if (world != null) {
-                double mealExperience = result.experience();
-                if (mealExperience > 0.0D) {
-                    dropExperience(world, mealExperience);
-                }
-            }
             syncWorldlyContainer();
-            return result.item();
+            return TakenMeal.from(result);
         }
     }
 
     public ItemStack takeMealPortionForDelivery(World world, int requestedAmount) {
-        SplitItem meal = takeMealPortionWithExperience(requestedAmount);
-        if (meal != null && world != null) {
-            double mealExperience = meal.experience();
-            if (mealExperience > 0.0D) {
-                dropExperience(world, mealExperience);
-            }
+        TakenMeal meal = takeMealPortionForDelivery(requestedAmount);
+        if (meal != null && world != null && meal.experience() > 0.0D && shouldDropVanillaExperience()) {
+            dropExperience(world, meal.experience());
         }
         return meal == null ? null : meal.item();
+    }
+
+    public TakenMeal takeMealPortionForDelivery(int requestedAmount) {
+        return TakenMeal.from(takeMealPortionWithExperience(requestedAmount));
     }
 
     public ItemStack takeOutputSlotPortionForDelivery(World world, int outputSlot, int requestedAmount) {
         if (!layout.isOutputSlot(outputSlot)) {
             return null;
         }
-        SplitItem meal = takeMealPortionWithExperience(outputSlot, requestedAmount);
-        if (meal != null && world != null && meal.experience() > 0.0D) {
+        TakenMeal meal = takeOutputSlotPortionForDelivery(outputSlot, requestedAmount);
+        if (meal != null && world != null && meal.experience() > 0.0D && shouldDropVanillaExperience()) {
             dropExperience(world, meal.experience());
         }
         return meal == null ? null : meal.item();
+    }
+
+    public TakenMeal takeOutputSlotPortionForDelivery(int outputSlot, int requestedAmount) {
+        if (!layout.isOutputSlot(outputSlot)) {
+            return null;
+        }
+        return TakenMeal.from(takeMealPortionWithExperience(outputSlot, requestedAmount));
     }
 
     public ItemStack takeMealPortion(int requestedAmount) {
@@ -838,10 +848,15 @@ public class CookingPotBlockEntity {
             tryMovePendingToOutput();
         }
         syncWorldlyContainer();
-        if (world != null && meal.experience() > 0.0D) {
+        if (world != null && meal.experience() > 0.0D && shouldDropVanillaExperience()) {
             dropExperience(world, meal.experience());
         }
         return meal.item();
+    }
+
+    private boolean shouldDropVanillaExperience() {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        return plugin == null || plugin.shouldDropCookingPotVanillaExperience();
     }
 
     public void dropExperience(World world, double totalExp) {
@@ -1248,5 +1263,22 @@ public class CookingPotBlockEntity {
 
     private record SplitItem(ItemStack item, double experience) {
     }
-}
 
+    public record TakenMeal(ItemStack item, double experience) {
+        private static TakenMeal from(SplitItem splitItem) {
+            if (splitItem == null) {
+                return null;
+            }
+            return new TakenMeal(splitItem.item(), splitItem.experience());
+        }
+
+        public TakenMeal {
+            item = item == null ? null : item.clone();
+        }
+
+        @Override
+        public ItemStack item() {
+            return item == null ? null : item.clone();
+        }
+    }
+}
