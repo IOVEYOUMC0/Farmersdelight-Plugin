@@ -1,0 +1,5 @@
+author: HuiDu_OwO
+version: 0.0.1
+description: 农夫乐事 (Plugin version for Mod Farmer's Delight)
+namespace: farmersdelight
+enable: true

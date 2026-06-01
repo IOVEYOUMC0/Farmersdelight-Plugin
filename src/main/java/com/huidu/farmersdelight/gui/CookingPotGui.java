@@ -493,9 +493,11 @@ public class CookingPotGui implements InventoryHolder {
                 return;
             }
 
-            ItemStack meal = takeOutputFromSlot(rawSlot, requestedAmount);
-            if (meal != null) {
-                deliverOutputToPlayer(event, player, meal);
+            CookingPotBlockEntity.TakenMeal meal = takeOutputFromSlot(rawSlot, requestedAmount);
+            ItemStack outputItem = meal == null ? null : meal.item();
+            if (outputItem != null && !outputItem.getType().isAir()) {
+                deliverOutputToPlayer(event, player, outputItem);
+                applyOutputExperienceReward(player, outputItem, meal.experience());
                 player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.0f);
 
                 updateDisplayItems();
@@ -910,12 +912,24 @@ public class CookingPotGui implements InventoryHolder {
         return Math.min(rightClick ? 1 : currentOutput.getAmount(), availableCursorSpace);
     }
 
-    private ItemStack takeOutputFromSlot(int guiSlot, int requestedAmount) {
+    private CookingPotBlockEntity.TakenMeal takeOutputFromSlot(int guiSlot, int requestedAmount) {
         Integer entitySlot = slotMapping.get(guiSlot);
         if (entitySlot == null) {
             return null;
         }
-        return blockEntity.takeOutputSlotPortionForDelivery(world, entitySlot, requestedAmount);
+        return blockEntity.takeOutputSlotPortionForDelivery(entitySlot, requestedAmount);
+    }
+
+    private void applyOutputExperienceReward(Player player, ItemStack result, double experience) {
+        if (experience <= 0.0D) {
+            plugin.callCookingPotExperienceEvent(player, result, experience);
+            return;
+        }
+        if (plugin.shouldDropCookingPotVanillaExperience()) {
+            blockEntity.dropExperience(world, experience);
+        }
+        plugin.awardCookingPotAuraSkillsExperience(player, experience);
+        plugin.callCookingPotExperienceEvent(player, result, experience);
     }
 
     private void deliverOutputToPlayer(InventoryClickEvent event, Player player, ItemStack meal) {
@@ -963,4 +977,3 @@ public class CookingPotGui implements InventoryHolder {
     }
 
 }
-

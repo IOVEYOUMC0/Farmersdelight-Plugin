@@ -5,10 +5,12 @@ import com.huidu.farmersdelight.block.behavior.*;
 import com.huidu.farmersdelight.listener.*;
 import com.huidu.farmersdelight.command.FarmersDelightCommand;
 import com.huidu.farmersdelight.config.ContainerReturnConfig;
+import com.huidu.farmersdelight.config.CookingPotExperienceRewardConfig;
 import com.huidu.farmersdelight.config.CuttingBoardDisplayConfig;
 import com.huidu.farmersdelight.config.HeatSourceConfig;
 import com.huidu.farmersdelight.config.PetFoodConfig;
 import com.huidu.farmersdelight.config.StrawDropConfig;
+import com.huidu.farmersdelight.compat.AuraSkillsHook;
 import com.huidu.farmersdelight.compat.CraftEngineStateUsageMonitor;
 import com.huidu.farmersdelight.effect.EffectListener;
 import com.huidu.farmersdelight.gui.CookingPotGui;
@@ -32,6 +34,7 @@ import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import com.huidu.farmersdelight.util.scheduler.SchedulerAdapter;
 import com.huidu.farmersdelight.visual.ProxyItemDisplayManager;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
+import fr.ateastudio.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import net.momirealms.craftengine.bukkit.api.event.CraftEngineReloadEvent;
 import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
 import net.momirealms.craftengine.bukkit.world.BukkitWorldManager;
@@ -43,6 +46,7 @@ import net.momirealms.craftengine.core.world.CEWorld;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
@@ -53,6 +57,13 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystemAlreadyExistsException;
+import java.nio.file.FileSystems;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -62,10 +73,14 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.logging.Level;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class FarmersDelightPlugin extends JavaPlugin implements Listener {
+
+    private static final String CRAFTENGINE_RESOURCE_ROOT = "craftengine/farmersdelight";
+    private static final Path CRAFTENGINE_RESOURCE_TARGET = Path.of("CraftEngine", "resources", "farmersdelight");
 
     private static final List<String> ADVANCEMENT_RESOURCES = List.of(
             "advancements/pack.mcmeta",
@@ -120,6 +135,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private HorseFeedTemptListener horseFeedTemptListener;
     private AchievementListener achievementListener;
     private EffectListener effectListener;
+    private AuraSkillsHook auraSkillsHook;
 
     private HeatSourceConfig heatSourceConfig;
     private GuiConfig cookingPotGuiConfig;
@@ -129,6 +145,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private PetFoodConfig petFoodConfig;
     private ContainerReturnConfig containerReturnConfig;
     private CuttingBoardDisplayConfig cuttingBoardDisplayConfig;
+    private CookingPotExperienceRewardConfig cookingPotExperienceRewardConfig;
     private AdvancementManager advancementManager;
     private boolean advancementsEnabled;
     private boolean debugEnabled;
@@ -225,6 +242,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         instance = this;
         ensureConfigDefaults();
         I18n.init(this);
+        releaseBundledCraftEngineResourcesOnce();
         registerBlockBehaviors();
     }
 
@@ -445,9 +463,11 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         blockBreakListener = null;
         strawDropListener = null;
         foodEatListener = null;
+        auraSkillsHook = null;
 
         heatSourceConfig = null;
         cookingPotGuiConfig = null;
+        cookingPotExperienceRewardConfig = null;
         strawDropConfig = null;
 
         legacyBlockStorageManager = null;
@@ -918,6 +938,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 "cooking-pot.progress-display.disable-above-active-pots",
                 "cooking-pot-progress-display.disable-above-active-pots"));
         cookingPotPackContentsOnBreak = getConfig().getBoolean("cooking-pot.pack-contents-on-break", true);
+        cookingPotExperienceRewardConfig = new CookingPotExperienceRewardConfig();
+        cookingPotExperienceRewardConfig.loadFromConfig(getConfig().getConfigurationSection("cooking-pot.experience-reward"));
         cuttingBoardInteractionMode = normalizeCuttingBoardInteractionMode(
                 getConfig().getString("cutting-board.interaction-mode", "stacking")
         );
@@ -1034,6 +1056,61 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return cookingPotPackContentsOnBreak;
     }
 
+    public boolean shouldDropCookingPotVanillaExperience() {
+        return getCookingPotExperienceRewardConfig().shouldDropVanillaExperience();
+    }
+
+    public boolean shouldAwardCookingPotAuraSkillsExperience() {
+        return getCookingPotExperienceRewardConfig().shouldAwardAuraSkillsExperience();
+    }
+
+    public void awardCookingPotAuraSkillsExperience(Player player, double baseExperience) {
+        if (player == null || baseExperience <= 0.0D || !shouldAwardCookingPotAuraSkillsExperience()) {
+            return;
+        }
+        for (CookingPotExperienceRewardConfig.AuraSkillsReward reward
+                : getCookingPotExperienceRewardConfig().auraSkillsRewards()) {
+            if (!shouldApplyReward(reward.chance())) {
+                continue;
+            }
+            var xpDefinition = reward.toXpDefinition(baseExperience);
+            if (xpDefinition.amount() > 0.0D) {
+                getAuraSkillsHook().addXp(player, xpDefinition);
+            }
+        }
+    }
+
+    public void callCookingPotExperienceEvent(Player player, org.bukkit.inventory.ItemStack result, double baseExperience) {
+        if (player == null) {
+            return;
+        }
+        getServer().getPluginManager().callEvent(new ProfessionCookingExperienceEvent(
+                player.getUniqueId(),
+                player.getName(),
+                "cooking_pot",
+                result,
+                (float) Math.max(0.0D, baseExperience)
+        ));
+    }
+
+    private boolean shouldApplyReward(double chance) {
+        return chance >= 1.0D || (chance > 0.0D && ThreadLocalRandom.current().nextDouble() < chance);
+    }
+
+    public AuraSkillsHook getAuraSkillsHook() {
+        if (auraSkillsHook == null) {
+            auraSkillsHook = new AuraSkillsHook(this);
+        }
+        return auraSkillsHook;
+    }
+
+    private CookingPotExperienceRewardConfig getCookingPotExperienceRewardConfig() {
+        if (cookingPotExperienceRewardConfig == null) {
+            cookingPotExperienceRewardConfig = new CookingPotExperienceRewardConfig();
+        }
+        return cookingPotExperienceRewardConfig;
+    }
+
     public boolean isCuttingBoardHopperInteractionsEnabled() {
         return hopperInteractionsEnabled && cuttingBoardHopperInteractionsEnabled;
     }
@@ -1133,6 +1210,159 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                         StandardOpenOption.WRITE
                 );
             }
+        }
+    }
+
+    private void releaseBundledCraftEngineResourcesOnce() {
+        Path pluginsFolder = getDataFolder().toPath().getParent();
+        if (pluginsFolder == null) {
+            I18n.logWarning("plugin.craftengine_resources_release_failed",
+                    "error", "Unable to resolve the plugins folder.");
+            return;
+        }
+
+        Path targetRoot = pluginsFolder.resolve(CRAFTENGINE_RESOURCE_TARGET);
+        if (Files.exists(targetRoot)) {
+            return;
+        }
+
+        try {
+            int copiedFiles = copyBundledResourceDirectory(CRAFTENGINE_RESOURCE_ROOT, targetRoot);
+            I18n.logInfo("plugin.craftengine_resources_released",
+                    "path", targetRoot,
+                    "count", copiedFiles);
+        } catch (IOException e) {
+            I18n.logWarning("plugin.craftengine_resources_release_failed", "error", e.getMessage());
+        }
+    }
+
+    private int copyBundledResourceDirectory(String resourceRoot, Path targetRoot) throws IOException {
+        List<String> resourcePaths = listBundledResourceFiles(resourceRoot);
+        if (resourcePaths.isEmpty()) {
+            throw new IOException("No bundled CraftEngine resources found at " + resourceRoot);
+        }
+
+        Path parent = Objects.requireNonNull(targetRoot.getParent(), "targetRoot parent");
+        Files.createDirectories(parent);
+        Path tempRoot = Files.createTempDirectory(parent, targetRoot.getFileName() + "-");
+        boolean moved = false;
+
+        try {
+            int copiedFiles = 0;
+            for (String resourcePath : resourcePaths) {
+                String relativePath = resourcePath.substring(resourceRoot.length() + 1);
+                Path targetPath = resolveSafeChild(tempRoot, relativePath);
+                Files.createDirectories(Objects.requireNonNull(targetPath.getParent(), "targetPath parent"));
+                try (InputStream inputStream = getResource(resourcePath)) {
+                    if (inputStream == null) {
+                        throw new IOException("Bundled " + resourcePath + " was not found in the plugin jar.");
+                    }
+                    Files.copy(inputStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
+                    copiedFiles++;
+                }
+            }
+
+            try {
+                Files.move(tempRoot, targetRoot, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException ignored) {
+                Files.move(tempRoot, targetRoot);
+            }
+            moved = true;
+            return copiedFiles;
+        } finally {
+            if (!moved) {
+                deleteTreeQuietly(tempRoot);
+            }
+        }
+    }
+
+    private Path resolveSafeChild(Path root, String relativePath) throws IOException {
+        Path normalizedRoot = root.normalize();
+        Path targetPath = normalizedRoot.resolve(relativePath).normalize();
+        if (!targetPath.startsWith(normalizedRoot)) {
+            throw new IOException("Invalid bundled resource path: " + relativePath);
+        }
+        return targetPath;
+    }
+
+    private List<String> listBundledResourceFiles(String resourceRoot) throws IOException {
+        URL resourceUrl = getClass().getClassLoader().getResource(resourceRoot);
+        if (resourceUrl == null) {
+            return List.of();
+        }
+
+        try {
+            URI resourceUri = resourceUrl.toURI();
+            if ("file".equals(resourceUrl.getProtocol())) {
+                return listFileResourceFiles(resourceRoot, Path.of(resourceUri));
+            }
+            if ("jar".equals(resourceUrl.getProtocol())) {
+                return listJarResourceFiles(resourceRoot, resourceUri);
+            }
+            throw new IOException("Unsupported bundled resource protocol: " + resourceUrl.getProtocol());
+        } catch (URISyntaxException e) {
+            throw new IOException("Invalid bundled resource URI for " + resourceRoot, e);
+        }
+    }
+
+    private List<String> listFileResourceFiles(String resourceRoot, Path rootPath) throws IOException {
+        try (Stream<Path> stream = Files.walk(rootPath)) {
+            return stream
+                    .filter(Files::isRegularFile)
+                    .map(rootPath::relativize)
+                    .map(path -> resourceRoot + "/" + path.toString().replace('\\', '/'))
+                    .sorted()
+                    .toList();
+        }
+    }
+
+    private List<String> listJarResourceFiles(String resourceRoot, URI resourceUri) throws IOException {
+        String uriText = resourceUri.toString();
+        int separatorIndex = uriText.indexOf("!/");
+        if (separatorIndex < 0) {
+            throw new IOException("Invalid jar resource URI: " + resourceUri);
+        }
+
+        URI jarUri = URI.create(uriText.substring(0, separatorIndex));
+        FileSystem fileSystem = null;
+        boolean closeFileSystem = false;
+
+        try {
+            try {
+                fileSystem = FileSystems.newFileSystem(jarUri, Map.of());
+                closeFileSystem = true;
+            } catch (FileSystemAlreadyExistsException ignored) {
+                fileSystem = FileSystems.getFileSystem(jarUri);
+            }
+
+            Path rootPath = fileSystem.getPath("/" + resourceRoot);
+            try (Stream<Path> stream = Files.walk(rootPath)) {
+                return stream
+                        .filter(Files::isRegularFile)
+                        .map(rootPath::relativize)
+                        .map(path -> resourceRoot + "/" + path.toString().replace('\\', '/'))
+                        .sorted()
+                        .toList();
+            }
+        } finally {
+            if (closeFileSystem && fileSystem != null) {
+                fileSystem.close();
+            }
+        }
+    }
+
+    private void deleteTreeQuietly(Path root) {
+        if (root == null || !Files.exists(root)) {
+            return;
+        }
+        try (Stream<Path> stream = Files.walk(root)) {
+            for (Path path : stream.sorted((left, right) -> right.getNameCount() - left.getNameCount()).toList()) {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException ignored) {
+                }
+            }
+        } catch (IOException ignored) {
         }
     }
 

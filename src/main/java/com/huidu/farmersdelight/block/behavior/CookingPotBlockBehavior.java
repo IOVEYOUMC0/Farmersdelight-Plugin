@@ -885,7 +885,8 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
             return false;
         }
 
-        ItemStack meal = blockEntity.useHeldContainerOnPendingMeal(world, heldItem);
+        CookingPotBlockEntity.TakenMeal takenMeal = blockEntity.useHeldContainerOnPendingMeal(heldItem);
+        ItemStack meal = takenMeal == null ? null : takenMeal.item();
         if (meal == null || meal.getType().isAir()) {
             return false;
         }
@@ -902,6 +903,15 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
             Location dropLocation = posKey.toLocation(world).add(0.5, 0.7, 0.5);
             leftovers.values().forEach(item -> world.dropItemNaturally(dropLocation, item));
         }
+
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (takenMeal.experience() > 0.0D) {
+            if (plugin.shouldDropCookingPotVanillaExperience()) {
+                blockEntity.dropExperience(world, takenMeal.experience());
+            }
+            plugin.awardCookingPotAuraSkillsExperience(player, takenMeal.experience());
+        }
+        plugin.callCookingPotExperienceEvent(player, meal, takenMeal.experience());
 
         saveBlockEntityData(world, posKey);
         world.playSound(posKey.toLocation(world), Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.0f);
@@ -1122,4 +1132,3 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         return trimmed.isEmpty() ? null : trimmed;
     }
 }
-

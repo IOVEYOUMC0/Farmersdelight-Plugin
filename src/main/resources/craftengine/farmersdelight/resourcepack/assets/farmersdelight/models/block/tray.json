@@ -1,0 +1,71 @@
+{
+	"format_version": "1.9.0",
+	"credit": "Made with Blockbench",
+	"parent": "block/block",
+	"render_type": "minecraft:cutout",
+	"textures": {
+		"tray_top": "farmersdelight:block/heating_tray_top",
+		"tray_side": "farmersdelight:block/heating_tray_side"
+	},
+	"elements": [
+		{
+			"name": "grate",
+			"from": [0, 15.999, 0],
+			"to": [16, 15.999, 16],
+			"rotation": {"angle": 0, "axis": "y", "origin": [0, 16, 0]},
+			"faces": {
+				"up": {"uv": [0, 0, 16, 16], "texture": "#tray_top"},
+				"down": {"uv": [0, 0, 16, 16], "texture": "#tray_top", "cullface": "down"}
+			}
+		},
+		{
+			"name": "north_legs",
+			"from": [0, 0, 0],
+			"to": [16, 16, 0],
+			"rotation": {"angle": 0, "axis": "y", "origin": [0, 16, 0]},
+			"faces": {
+				"north": {"uv": [0, 0, 16, 16], "texture": "#tray_side"},
+				"south": {"uv": [0, 0, 16, 16], "texture": "#tray_side"}
+			}
+		},
+		{
+			"name": "south_legs",
+			"from": [0, 0, 16],
+			"to": [16, 16, 16],
+			"rotation": {"angle": 0, "axis": "y", "origin": [0, 16, 0]},
+			"faces": {
+				"north": {"uv": [0, 0, 16, 16], "texture": "#tray_side"},
+				"south": {"uv": [0, 0, 16, 16], "texture": "#tray_side"}
+			}
+		},
+		{
+			"name": "east_legs",
+			"from": [16, 0, 0],
+			"to": [16, 16, 16],
+			"rotation": {"angle": 0, "axis": "y", "origin": [0, 16, 0]},
+			"faces": {
+				"east": {"uv": [0, 0, 16, 16], "texture": "#tray_side"},
+				"west": {"uv": [0, 0, 16, 16], "texture": "#tray_side"}
+			}
+		},
+		{
+			"name": "west_legs",
+			"from": [0, 0, 0],
+			"to": [0, 16, 16],
+			"rotation": {"angle": 0, "axis": "y", "origin": [0, 16, 0]},
+			"faces": {
+				"east": {"uv": [0, 0, 16, 16], "texture": "#tray_side"},
+				"west": {"uv": [0, 0, 16, 16], "texture": "#tray_side"}
+			}
+		}
+	],
+	"groups": [
+		{
+			"name": "tray",
+			"origin": [8, 8, 8],
+			"scope": 0,
+			"color": 0,
+			"children": [0, 1, 2, 3, 4]
+		}
+	]
+}

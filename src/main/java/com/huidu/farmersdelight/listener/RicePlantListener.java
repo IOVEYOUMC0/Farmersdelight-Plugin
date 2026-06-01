@@ -233,12 +233,6 @@ public class RicePlantListener implements Listener {
 
         try {
             Key itemKey = Key.of(itemId);
-            if (Constants.ITEM_RICE.equals(itemId) || Constants.ITEM_RICE_PANICLE.equals(itemId)) {
-                return RICE_BLOCK_KEY;
-            }
-            if (Constants.ITEM_WILD_RICE.equals(itemId)) {
-                return WILD_RICE_BLOCK_KEY;
-            }
             if (TallCropBlockBehavior.getBehavior(itemKey) != null
                     || WildRiceBlockBehavior.getBehavior(itemKey) != null) {
                 return itemKey;
