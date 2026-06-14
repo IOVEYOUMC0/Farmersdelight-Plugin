@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.effect;
 
+import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.GameRule;
 import org.bukkit.attribute.Attribute;
@@ -11,12 +12,15 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Stores and updates custom food effect state for online players.
+ * 存储并更新在线玩家的自定义食物效果状态。
  */
 public final class EffectManager {
 
-    private static final int EFFECT_FADE_WARNING_TICKS = 200;
-    private static final int COMFORT_HEAL_INTERVAL_TICKS = 80;
+    private static final int DEFAULT_EFFECT_FADE_WARNING_TICKS = 200;
+    private static final int DEFAULT_COMFORT_HEAL_INTERVAL_TICKS = 80;
+    // 必须与效果任务（EffectListener）的执行周期保持一致。持续时间以真实 tick 数存储，
+    // 因此每次调用之间必须按经过的真实 tick 数进行递减。
+    private static final int TICK_INTERVAL = (int) EffectListener.TICK_INTERVAL;
     private static final Map<UUID, Integer> comfortDurations = new ConcurrentHashMap<>();
     private static final Map<UUID, Integer> nourishmentDurations = new ConcurrentHashMap<>();
 
@@ -29,7 +33,7 @@ public final class EffectManager {
         int newDuration = Math.max(currentDuration, durationSeconds * 20);
         comfortDurations.put(playerId, newDuration);
         if (currentDuration <= 0) {
-            player.sendMessage(I18n.formatNamed(
+            player.sendMessage(I18n.getComponent(
                     "effects.comfort.start",
                     player,
                     durationPlaceholders(newDuration)
@@ -39,10 +43,10 @@ public final class EffectManager {
     }
 
     /**
-     * Applies or refreshes nourishment.
+     * 施加或刷新滋养（nourishment）效果。
      *
-     * @param player target player
-     * @param durationSeconds duration in seconds
+     * @param player 目标玩家
+     * @param durationSeconds 持续时间（单位：秒）
      */
     public static void applyNourishment(Player player, int durationSeconds) {
         UUID playerId = player.getUniqueId();
@@ -50,7 +54,7 @@ public final class EffectManager {
         int newDuration = Math.max(currentDuration, durationSeconds * 20);
         nourishmentDurations.put(playerId, newDuration);
         if (currentDuration <= 0) {
-            player.sendMessage(I18n.formatNamed(
+            player.sendMessage(I18n.getComponent(
                     "effects.nourishment.start",
                     player,
                     durationPlaceholders(newDuration)
@@ -60,7 +64,7 @@ public final class EffectManager {
     }
 
     /**
-     * Returns whether the player currently has nourishment.
+     * 返回该玩家当前是否拥有滋养（nourishment）效果。
      */
     public static boolean hasNourishment(Player player) {
         return getNourishmentDuration(player) > 0;
@@ -73,24 +77,24 @@ public final class EffectManager {
     public static void removeComfort(Player player) {
         comfortDurations.remove(player.getUniqueId());
         if (player.isOnline()) {
-            player.sendMessage(I18n.get("effects.comfort.end", player));
+            player.sendMessage(I18n.getComponent("effects.comfort.end", player));
         }
         checkAndUntrack(player);
     }
 
     /**
-     * Removes nourishment from the player.
+     * 从该玩家身上移除滋养（nourishment）效果。
      */
     public static void removeNourishment(Player player) {
         nourishmentDurations.remove(player.getUniqueId());
         if (player.isOnline()) {
-            player.sendMessage(I18n.get("effects.nourishment.end", player));
+            player.sendMessage(I18n.getComponent("effects.nourishment.end", player));
         }
         checkAndUntrack(player);
     }
 
     /**
-     * Stops tracking players that no longer have active custom effects.
+     * 停止追踪不再拥有任何激活中自定义效果的玩家。
      */
     private static void checkAndUntrack(Player player) {
         if (!hasComfort(player) && !hasNourishment(player)) {
@@ -99,7 +103,7 @@ public final class EffectManager {
     }
 
     /**
-     * Updates remaining duration and applies the in-game nourishment behavior.
+     * 更新剩余持续时间，并应用游戏内的滋养（nourishment）行为。
      */
     public static void tick(Player player) {
         if (player == null || !player.isValid() || !player.isOnline() || player.isDead()) {
@@ -119,18 +123,18 @@ public final class EffectManager {
             if (comfortDuration > 0) {
                 tickComfort(player, comfortDuration);
                 if (player.isValid()) {
-                    if (comfortDuration == EFFECT_FADE_WARNING_TICKS) {
-                        player.sendMessage(I18n.formatNamed(
+                    if (shouldSendFadeWarning(comfortDuration, getComfortFadeWarningTicks())) {
+                        player.sendMessage(I18n.getComponent(
                                 "effects.comfort.fade",
                                 player,
                                 durationPlaceholders(comfortDuration)
                         ));
                     }
-                    int newDuration = comfortDuration - 1;
+                    int newDuration = comfortDuration - TICK_INTERVAL;
                     if (newDuration > 0) {
                         comfortDurations.put(playerId, newDuration);
                     } else {
-                        player.sendMessage(I18n.get("effects.comfort.end", player));
+                        player.sendMessage(I18n.getComponent("effects.comfort.end", player));
                         comfortDurations.remove(playerId);
                     }
                 }
@@ -140,23 +144,23 @@ public final class EffectManager {
                 tickNourishment(player);
             }
             if (player.isValid() && nourishmentDuration > 0) {
-                if (nourishmentDuration == EFFECT_FADE_WARNING_TICKS) {
-                    player.sendMessage(I18n.formatNamed(
+                if (shouldSendFadeWarning(nourishmentDuration, getNourishmentFadeWarningTicks())) {
+                    player.sendMessage(I18n.getComponent(
                             "effects.nourishment.fade",
                             player,
                             durationPlaceholders(nourishmentDuration)
                     ));
                 }
-                int newDuration = nourishmentDuration - 1;
+                int newDuration = nourishmentDuration - TICK_INTERVAL;
                 if (newDuration > 0) {
                     nourishmentDurations.put(playerId, newDuration);
                 } else {
-                    player.sendMessage(I18n.get("effects.nourishment.end", player));
+                    player.sendMessage(I18n.getComponent("effects.nourishment.end", player));
                     nourishmentDurations.remove(playerId);
                 }
             }
 
-            if (comfortDuration <= 1 && nourishmentDuration <= 1) {
+            if (comfortDuration <= TICK_INTERVAL && nourishmentDuration <= TICK_INTERVAL) {
                 EffectListener.untrackPlayer(playerId);
             }
         } catch (Exception e) {
@@ -191,7 +195,7 @@ public final class EffectManager {
     }
 
     /**
-     * Nourishment reduces exhaustion unless hunger-based natural regeneration is active.
+     * 滋养（nourishment）会降低疲劳值，除非基于饥饿度的自然回血（natural regeneration）正在生效。
      */
     private static void tickNourishment(Player player) {
         if (player.isDead()) {
@@ -219,7 +223,8 @@ public final class EffectManager {
         if (player.getSaturation() > 0.0F) {
             return;
         }
-        if (durationTicks % COMFORT_HEAL_INTERVAL_TICKS != 0) {
+        int healIntervalTicks = getComfortHealIntervalTicks();
+        if (healIntervalTicks <= 0 || durationTicks % healIntervalTicks != 0) {
             return;
         }
 
@@ -244,5 +249,37 @@ public final class EffectManager {
                         ? minutes + "m " + remainSeconds + "s"
                         : seconds + "s"
         );
+    }
+
+    private static boolean shouldSendFadeWarning(int durationTicks, int warningTicks) {
+        return warningTicks > 0
+                && durationTicks <= warningTicks
+                && durationTicks > warningTicks - TICK_INTERVAL;
+    }
+
+    private static int getComfortHealIntervalTicks() {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        return plugin == null
+                ? DEFAULT_COMFORT_HEAL_INTERVAL_TICKS
+                : Math.max(0, plugin.getConfigInt(DEFAULT_COMFORT_HEAL_INTERVAL_TICKS,
+                "comfort-foods.heal-interval-ticks"));
+    }
+
+    private static int getComfortFadeWarningTicks() {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        return plugin == null
+                ? DEFAULT_EFFECT_FADE_WARNING_TICKS
+                : Math.max(0, plugin.getConfigInt(DEFAULT_EFFECT_FADE_WARNING_TICKS,
+                "comfort-foods.fade-warning-ticks",
+                "food-effects.fade-warning-ticks"));
+    }
+
+    private static int getNourishmentFadeWarningTicks() {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        return plugin == null
+                ? DEFAULT_EFFECT_FADE_WARNING_TICKS
+                : Math.max(0, plugin.getConfigInt(DEFAULT_EFFECT_FADE_WARNING_TICKS,
+                "nourishment-foods.fade-warning-ticks",
+                "food-effects.fade-warning-ticks"));
     }
 }

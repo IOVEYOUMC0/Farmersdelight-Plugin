@@ -33,4 +33,5 @@ items:
           - recipes:
               - "farmersdelight:honey_cookie"
               - "farmersdelight:honey_glazed_ham_block"
+              - "farmersdelight:gleaming_salad_block"
             craft-remainder: "minecraft:glass_bottle"

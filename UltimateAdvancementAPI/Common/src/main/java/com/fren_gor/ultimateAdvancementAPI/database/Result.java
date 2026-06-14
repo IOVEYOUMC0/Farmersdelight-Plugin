@@ -1,0 +1,143 @@
+package com.fren_gor.ultimateAdvancementAPI.database;
+
+import com.fren_gor.ultimateAdvancementAPI.exceptions.IllegalOperationException;
+import com.fren_gor.ultimateAdvancementAPI.exceptions.UnhandledException;
+import com.google.common.base.Preconditions;
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.Objects;
+
+/**
+ * The Result class represents the result of an operation. It can either succeed or fail.
+ * If it failed, then an Exception occurred.
+ * Example usage:
+ * <blockquote><pre>
+ * Result res = doOperation();
+ * if (res.isSucceeded()) { // the condition here is equivalent to !res.isExceptionOccurred()
+ *     // success
+ * } else {
+ *     // exception occurred!
+ *     Exception exception = res.getOccurredException();
+ * }</pre></blockquote>
+ */
+public class Result {
+
+    /**
+     * A successful Result.
+     */
+    public static final Result SUCCESSFUL = new Result();
+
+    /**
+     * The occurred exception. null if the operation succeed.
+     */
+    protected final Exception occurredException;
+
+    /**
+     * Creates a new successful Result.
+     */
+    public Result() {
+        this.occurredException = null;
+    }
+
+    /**
+     * Creates a failed Result.
+     *
+     * @param occurredException The exception occurred during the operation.
+     * @throws IllegalArgumentException If occurredException is null.
+     */
+    public Result(@NotNull Exception occurredException) {
+        Preconditions.checkNotNull(occurredException, "Exception is null.");
+        this.occurredException = occurredException;
+    }
+
+    /**
+     * Returns whether an Exception occurred executing the operation.
+     * If no Exception occurred, then the operation succeeded.
+     *
+     * @return true if no exception occurred, false otherwise.
+     */
+    public boolean isExceptionOccurred() {
+        return occurredException != null;
+    }
+
+    /**
+     * Returns whether the operation succeeded.
+     * If the operation succeeded, then no Exception occurred.
+     *
+     * @return true if the operation succeeded, false otherwise.
+     */
+    public boolean isSucceeded() {
+        return occurredException == null;
+    }
+
+    /**
+     * Gets the occurred Exception.
+     * An IllegalOperationException is thrown if no exception occurred.
+     *
+     * @return The occurred exception.
+     * @throws IllegalOperationException If no exception occurred.
+     */
+    public Exception getOccurredException() throws IllegalOperationException {
+        if (!isExceptionOccurred()) {
+            throw new IllegalOperationException("No exception occurred.");
+        }
+        return occurredException;
+    }
+
+    /**
+     * Rethrow the occurred exception as an UnhandledException.
+     * An IllegalOperationException is thrown if no exception occurred.
+     *
+     * @throws UnhandledException If an exception occurred.
+     * @throws IllegalOperationException If no exception occurred.
+     */
+    @Contract("-> fail")
+    public void rethrowException() throws UnhandledException, IllegalOperationException {
+        rethrowExceptionIfOccurred();
+        throw new IllegalOperationException("No exception occurred.");
+    }
+
+    /**
+     * Rethrow the occurred exception as an UnhandledException only if that occurred.
+     *
+     * @throws UnhandledException If an exception occurred.
+     */
+    public void rethrowExceptionIfOccurred() throws UnhandledException {
+        if (isExceptionOccurred())
+            throw new UnhandledException(occurredException);
+    }
+
+    /**
+     * Prints the stack trace of the occurred exception.
+     * An IllegalOperationException is thrown if no exception occurred.
+     *
+     * @throws IllegalOperationException If no exception occurred.
+     */
+    public void printStackTrace() throws IllegalOperationException {
+        if (!isExceptionOccurred()) {
+            throw new IllegalOperationException("No exception occurred.");
+        }
+        occurredException.printStackTrace();
+    }
+
+    @Override
+    public String toString() {
+        return "Result{" + (isExceptionOccurred() ? "occurredException=" + occurredException + ", succeeded=false" : "succeeded=true") + '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Result result = (Result) o;
+
+        return Objects.equals(occurredException, result.occurredException);
+    }
+
+    @Override
+    public int hashCode() {
+        return occurredException != null ? occurredException.hashCode() : 0;
+    }
+}

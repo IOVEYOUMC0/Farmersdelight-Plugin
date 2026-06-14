@@ -16,6 +16,7 @@ import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.CraftItemEvent;
 import org.bukkit.event.inventory.SmithItemEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Set;
@@ -64,18 +65,45 @@ public class AchievementListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityPickupItem(EntityPickupItemEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
-        checkSeedAdvancement(player);
-        checkMushroomColonyAdvancement(player);
+
+        // 只有刚刚拾取的物品才会改变这些进度，因此避免在每次拾取时扫描整个
+        // 背包。
+        String pickedId = ItemUtils.getCustomItemId(event.getItem().getItemStack());
+        if (pickedId == null) {
+            return;
+        }
+        AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
+        if (am == null) {
+            return;
+        }
+        if (FD_SEED_IDS.contains(pickedId) && !am.hasAdvancement(player, "get_fd_seed")) {
+            am.award(player, "get_fd_seed");
+        }
+        if (Constants.BLOCK_BROWN_MUSHROOM_COLONY.equals(pickedId)
+                || Constants.BLOCK_RED_MUSHROOM_COLONY.equals(pickedId)) {
+            // 需要同时拥有两种颜色，因此仍需进行一次扫描——但仅在确实拾取到
+            // 相关物品时才执行。
+            checkMushroomColonyAdvancement(player);
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerJoin(PlayerJoinEvent event) {
         AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
         if (am != null) {
+            am.showTo(event.getPlayer());
             am.award(event.getPlayer(), "root");
         }
         checkSeedAdvancement(event.getPlayer());
         checkMushroomColonyAdvancement(event.getPlayer());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
+        if (am != null) {
+            am.forgetPlayer(event.getPlayer().getUniqueId());
+        }
     }
 
     private void handleCraftedItem(Player player, ItemStack result) {

@@ -9,6 +9,7 @@ import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -18,65 +19,110 @@ public final class CuttingBoardDisplayConfig {
     private static final float DEFAULT_ITEM_SPREAD = 0.15F;
     private static final Vector3f ZERO_OFFSET = new Vector3f(0.0F, 0.0F, 0.0F);
 
-    private final Map<String, DisplayOverride> overrides = new HashMap<>();
-    private Vector3f defaultOffset = new Vector3f(ZERO_OFFSET);
-    private float itemSpread = DEFAULT_ITEM_SPREAD;
+    private final Map<String, DisplayOverride> itemOverrides = new HashMap<>();
+    private final Map<String, DisplayOverride> tagOverrides = new LinkedHashMap<>();
+    private final DisplayOverride fallbackDefaults;
+    private final float fallbackItemSpread;
+    private DisplayOverride defaultOverride;
+    private float itemSpread;
+
+    public CuttingBoardDisplayConfig() {
+        this(DisplayOverride.empty(), DEFAULT_ITEM_SPREAD);
+    }
+
+    public CuttingBoardDisplayConfig(DisplayOverride fallbackDefaults, float fallbackItemSpread) {
+        this.fallbackDefaults = fallbackDefaults == null ? DisplayOverride.empty() : fallbackDefaults.copy();
+        this.fallbackItemSpread = Math.max(0.0F, fallbackItemSpread);
+        reset();
+    }
 
     public void loadFromConfig(ConfigurationSection section) {
-        overrides.clear();
-        defaultOffset = new Vector3f(ZERO_OFFSET);
-        itemSpread = DEFAULT_ITEM_SPREAD;
+        reset();
         if (section == null) {
             return;
         }
 
-        Vector3f configuredDefaultOffset = DisplayOverride.readVector(
-                section,
-                "default-display-position",
-                "default-display-offset",
-                "default-position",
-                "default-offset"
-        );
-        if (configuredDefaultOffset != null) {
-            defaultOffset = configuredDefaultOffset;
-        }
+        defaultOverride = defaultOverride.withConfiguredDefaults(DisplayOverride.fromDefaultConfig(section));
         itemSpread = Math.max(0.0F, (float) section.getDouble(
                 "display-item-spread",
-                section.getDouble("item-spread", DEFAULT_ITEM_SPREAD)
+                section.getDouble("item-spread", fallbackItemSpread)
         ));
 
-        ConfigurationSection displaySection = section.getConfigurationSection("display-overrides");
+        loadOverrides(section.getConfigurationSection("display-overrides"), false);
+        loadOverrides(section.getConfigurationSection("display-tag-overrides"), true);
+    }
+
+    private void reset() {
+        itemOverrides.clear();
+        tagOverrides.clear();
+        defaultOverride = fallbackDefaults.copy();
+        itemSpread = fallbackItemSpread;
+    }
+
+    private void loadOverrides(ConfigurationSection displaySection, boolean tagSection) {
         if (displaySection == null) {
             return;
         }
 
-        for (String itemId : displaySection.getKeys(false)) {
-            if (!ItemUtils.isValidItemId(itemId)) {
+        for (String configuredKey : displaySection.getKeys(false)) {
+            String key = configuredKey == null ? "" : configuredKey.trim();
+            boolean tagKey = tagSection || key.startsWith("#");
+            if (tagKey && !isValidTagId(key)) {
                 continue;
             }
-            ConfigurationSection itemSection = displaySection.getConfigurationSection(itemId);
-            if (itemSection == null) {
+            if (!tagKey && !ItemUtils.isValidItemId(key)) {
                 continue;
             }
-            overrides.put(normalize(itemId), DisplayOverride.fromConfig(itemSection));
+            ConfigurationSection overrideSection = displaySection.getConfigurationSection(configuredKey);
+            if (overrideSection == null) {
+                continue;
+            }
+            DisplayOverride override = DisplayOverride.fromConfig(overrideSection);
+            if (tagKey) {
+                tagOverrides.put(normalizeTag(key), override);
+            } else {
+                itemOverrides.put(normalize(key), override);
+            }
         }
     }
 
     public DisplayOverride getOverride(ItemStack storedItem) {
         String itemId = getItemId(storedItem);
         if (itemId == null) {
-            return DisplayOverride.empty();
+            return defaultOverride.copy();
         }
-        return overrides.getOrDefault(normalize(itemId), DisplayOverride.empty());
+
+        DisplayOverride resolved = defaultOverride;
+        for (Map.Entry<String, DisplayOverride> entry : tagOverrides.entrySet()) {
+            try {
+                if (ItemUtils.matchesCustomOrVanillaTag(storedItem, entry.getKey())) {
+                    resolved = resolved.merge(entry.getValue());
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        DisplayOverride itemOverride = itemOverrides.get(normalize(itemId));
+        if (itemOverride != null) {
+            resolved = resolved.merge(itemOverride);
+        }
+        return resolved;
     }
 
     public ItemStack resolveDisplayItem(ItemStack storedItem) {
         if (storedItem == null || storedItem.getType().isAir()) {
             return null;
         }
+        return resolveDisplayItem(storedItem, getOverride(storedItem));
+    }
 
-        DisplayOverride override = getOverride(storedItem);
-        if (override.displayItemId() != null) {
+    /** 复用已解析的 override 的变体，以避免重复调用 getOverride 两次。 */
+    public ItemStack resolveDisplayItem(ItemStack storedItem, DisplayOverride override) {
+        if (storedItem == null || storedItem.getType().isAir()) {
+            return null;
+        }
+
+        if (override != null && override.displayItemId() != null) {
             ItemStack displayItem = ItemUtils.createItem(override.displayItemId());
             if (displayItem != null && !displayItem.getType().isAir()) {
                 displayItem.setAmount(1);
@@ -90,7 +136,12 @@ public final class CuttingBoardDisplayConfig {
     }
 
     public Vector3f getDefaultOffset() {
-        return new Vector3f(defaultOffset);
+        return defaultOverride.offset() == null ? new Vector3f(ZERO_OFFSET) : new Vector3f(defaultOverride.offset());
+    }
+
+    public float getDefaultUniformScale(float fallback) {
+        Vector3f scale = defaultOverride.scale();
+        return scale == null ? fallback : scale.x();
     }
 
     public float getItemSpread() {
@@ -99,6 +150,18 @@ public final class CuttingBoardDisplayConfig {
 
     private String normalize(String itemId) {
         return itemId == null ? "" : itemId.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizeTag(String tagId) {
+        String normalized = tagId == null ? "" : tagId.trim();
+        if (normalized.startsWith("#")) {
+            normalized = normalized.substring(1).trim();
+        }
+        return normalize(normalized);
+    }
+
+    private boolean isValidTagId(String tagId) {
+        return ItemUtils.isValidItemId(normalizeTag(tagId));
     }
 
     private String getItemId(ItemStack item) {
@@ -127,6 +190,51 @@ public final class CuttingBoardDisplayConfig {
             return EMPTY;
         }
 
+        public DisplayOverride copy() {
+            return new DisplayOverride(
+                    displayItemId,
+                    style == null ? DisplayStyle.AUTO : style,
+                    copyVector(offset),
+                    copyVector(translation),
+                    copyVector(rotationDegrees),
+                    copyVector(scale)
+            );
+        }
+
+        public DisplayOverride merge(DisplayOverride override) {
+            if (override == null) {
+                return copy();
+            }
+            return new DisplayOverride(
+                    override.displayItemId != null ? override.displayItemId : displayItemId,
+                    override.style != null && override.style != DisplayStyle.AUTO ? override.style : normalizedStyle(),
+                    addVectors(offset, override.offset),
+                    override.translation != null ? copyVector(override.translation) : copyVector(translation),
+                    override.rotationDegrees != null ? copyVector(override.rotationDegrees) : copyVector(rotationDegrees),
+                    override.scale != null ? copyVector(override.scale) : copyVector(scale)
+            );
+        }
+
+        private DisplayOverride withConfiguredDefaults(DisplayOverride configuredDefaults) {
+            if (configuredDefaults == null) {
+                return copy();
+            }
+            return new DisplayOverride(
+                    configuredDefaults.displayItemId != null ? configuredDefaults.displayItemId : displayItemId,
+                    configuredDefaults.style != null && configuredDefaults.style != DisplayStyle.AUTO
+                            ? configuredDefaults.style
+                            : normalizedStyle(),
+                    configuredDefaults.offset != null ? copyVector(configuredDefaults.offset) : copyVector(offset),
+                    configuredDefaults.translation != null ? copyVector(configuredDefaults.translation) : copyVector(translation),
+                    configuredDefaults.rotationDegrees != null ? copyVector(configuredDefaults.rotationDegrees) : copyVector(rotationDegrees),
+                    configuredDefaults.scale != null ? copyVector(configuredDefaults.scale) : copyVector(scale)
+            );
+        }
+
+        private DisplayStyle normalizedStyle() {
+            return style == null ? DisplayStyle.AUTO : style;
+        }
+
         private static DisplayOverride fromConfig(ConfigurationSection section) {
             String displayItemId = section.getString("display-item");
             if (!ItemUtils.isValidItemId(displayItemId)) {
@@ -140,6 +248,48 @@ public final class CuttingBoardDisplayConfig {
                     readVector(section, "rotation"),
                     readVector(section, "scale")
             );
+        }
+
+        private static DisplayOverride fromDefaultConfig(ConfigurationSection section) {
+            String displayItemId = section.getString("default-display-item");
+            if (!ItemUtils.isValidItemId(displayItemId)) {
+                displayItemId = null;
+            }
+
+            Vector3f defaultOffset = readVector(
+                    section,
+                    "default-display-position",
+                    "default-display-offset",
+                    "default-position",
+                    "default-offset",
+                    "position",
+                    "offset"
+            );
+            if (defaultOffset == null && section.contains("y-offset")) {
+                defaultOffset = new Vector3f(0.0F, (float) section.getDouble("y-offset"), 0.0F);
+            }
+
+            return new DisplayOverride(
+                    displayItemId,
+                    DisplayStyle.fromConfig(firstString(section, "default-display-style", "default-style", "style")),
+                    defaultOffset,
+                    readVector(section, "default-display-translation", "default-translation", "translation"),
+                    readVector(section, "default-display-rotation", "default-rotation", "rotation"),
+                    readVector(section, "default-display-scale", "default-scale", "scale")
+            );
+        }
+
+        @Nullable
+        private static String firstString(ConfigurationSection section, String... keys) {
+            for (String key : keys) {
+                if (section.contains(key)) {
+                    String value = section.getString(key);
+                    if (value != null) {
+                        return value;
+                    }
+                }
+            }
+            return null;
         }
 
         @Nullable
@@ -201,6 +351,22 @@ public final class CuttingBoardDisplayConfig {
             } catch (Exception ignored) {
             }
             return null;
+        }
+
+        @Nullable
+        private static Vector3f copyVector(@Nullable Vector3f vector) {
+            return vector == null ? null : new Vector3f(vector);
+        }
+
+        @Nullable
+        private static Vector3f addVectors(@Nullable Vector3f base, @Nullable Vector3f override) {
+            if (base == null) {
+                return copyVector(override);
+            }
+            if (override == null) {
+                return copyVector(base);
+            }
+            return new Vector3f(base).add(override);
         }
     }
 

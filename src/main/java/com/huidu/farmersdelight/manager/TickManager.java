@@ -7,6 +7,7 @@ import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ManagerSupport;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
@@ -73,7 +74,12 @@ public class TickManager {
     private static final int DEFAULT_ACTIVE_BLOCK_WARNING_THRESHOLD = 1000;
     private static final int CLEANUP_INTERVAL = 6000;
     private static final int DEFAULT_COOKING_POT_TICK_BUDGET = 512;
-    private static final int MAX_ELAPSED_TICKS = 100;
+    // 单次处理累加的最大补偿 tick 数。设得足够大,使被 tick 预算饿到(活跃方块数远超预算)的厨锅不会
+    // 丢失真实经过的烹饪时间。这里不会造成“重载瞬间烹饪一大批”:tickCookingPot 用 Math.min(duration, ...)
+    // 把进度封顶在配方时长,且每次处理最多 finishCooking 一次(单个 if、非循环),无论补偿值多大都只产出一批;
+    // 同时 previousTick 在(重新)激活时被重置、且每次被选中处理都会刷新,因此补偿值永远不包含未加载时段。
+    // 上限仍保留一个合理边界,避免冷却分支 elapsedTicks*2 处的 int 溢出。
+    private static final int MAX_ELAPSED_TICKS = 72_000;
     public TickManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
         reloadConfig();
@@ -151,6 +157,7 @@ public class TickManager {
     
     private void performCleanup() {
         checkPerformanceWarnings();
+        pruneOldPerformanceWarnings();
         if (plugin.scheduler().isFolia()) {
             scheduleCookingPotCleanup();
             return;
@@ -207,6 +214,13 @@ public class TickManager {
                                 "threshold", cookingPotDensityWarningThreshold));
             }
         }
+    }
+
+    private void pruneOldPerformanceWarnings() {
+        // warning-times 映射以 world/chunk 为键，否则会无限增长；移除
+        // 已超过冷却时间的条目（同一键的后续告警会重新添加它）。
+        long cutoff = System.currentTimeMillis() - performanceWarningCooldownMillis;
+        performanceWarningTimes.entrySet().removeIf(entry -> entry.getValue() < cutoff);
     }
 
     private void warnWithCooldown(String key, String message) {
@@ -569,8 +583,8 @@ public class TickManager {
             return;
         }
 
-        // Keep buffer -> output progression in the pot tick, matching the old plugin behavior
-        // instead of relying only on GUI refreshes or manual output pickup.
+        // 在锅的 tick 中保持 buffer -> output 的推进，以匹配旧插件的行为，
+        // 而不是仅依赖 GUI 刷新或手动拾取输出。
         entity.tryMovePendingToOutput();
 
         if (!entity.hasStoredContents()) {
@@ -590,7 +604,10 @@ public class TickManager {
         }
 
         entity.setHasHeatSource(hasHeat);
-        emitCookingPotEffects(world, posKey, entity, hasHeat);
+        // 从已获取的 block state 解析 behavior，而不是每个 tick 都在 emitCookingPotEffects 内部
+        // 重新读取该方块（及其 CE 自定义状态）。
+        CookingPotBlockBehavior behavior = CustomBlockUtils.getBehavior(state, CookingPotBlockBehavior.class);
+        emitCookingPotEffects(world, posKey, entity, hasHeat, behavior);
 
         boolean canCook = hasHeat && entity.canCook();
         CookingPotRecipe recipe = canCook ? entity.getCurrentRecipe() : null;
@@ -617,9 +634,9 @@ public class TickManager {
                     return;
                 }
                 if (entity.finishCooking(world, blockLoc)) {
-                    // Keep the pot active after a successful cook so remaining
-                    // ingredients can immediately start the next batch, matching
-                    // the old plugin behavior.
+                    // 烹饪成功后保持锅处于活跃状态，使剩余的
+                    // 食材可以立即开始下一批，以匹配
+                    // 旧插件的行为。
                     recipe = entity.getCurrentRecipe();
                 }
             }
@@ -665,7 +682,8 @@ public class TickManager {
         return true;
     }
 
-    private void emitCookingPotEffects(World world, BlockPosKey posKey, CookingPotBlockEntity entity, boolean hasHeat) {
+    private void emitCookingPotEffects(World world, BlockPosKey posKey, CookingPotBlockEntity entity, boolean hasHeat,
+                                       CookingPotBlockBehavior behavior) {
         if (!hasHeat) {
             return;
         }
@@ -680,7 +698,6 @@ public class TickManager {
         }
 
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        CookingPotBlockBehavior behavior = CookingPotBlockBehavior.getBlockBehavior(posKey.toLocation(world));
         Location center = ManagerSupport.toLocation(world, posKey);
         if (center == null) {
             return;
@@ -829,7 +846,7 @@ public class TickManager {
         }
 
         try {
-            return Particle.valueOf(normalized.trim().toUpperCase());
+            return Particle.valueOf(normalized.trim().toUpperCase(java.util.Locale.ROOT));
         } catch (IllegalArgumentException ignored) {
             return defaultParticle;
         }
@@ -843,9 +860,9 @@ public class TickManager {
         String trimmed = configured.trim();
         String registryKey;
         if (trimmed.contains(":")) {
-            registryKey = trimmed.toLowerCase();
+            registryKey = trimmed.toLowerCase(java.util.Locale.ROOT);
         } else {
-            registryKey = "minecraft:" + trimmed.toLowerCase().replace('_', '.');
+            registryKey = "minecraft:" + trimmed.toLowerCase(java.util.Locale.ROOT).replace('_', '.');
         }
         Sound registrySound = Registry.SOUNDS.get(NamespacedKey.fromString(registryKey));
         if (registrySound != null) {

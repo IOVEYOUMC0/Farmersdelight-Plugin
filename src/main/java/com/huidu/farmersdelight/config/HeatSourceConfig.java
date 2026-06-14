@@ -20,13 +20,14 @@ import java.util.regex.Pattern;
 public class HeatSourceConfig {
 
     private static final Pattern BLOCK_STATE_PATTERN = Pattern.compile(
-            "^([a-z0-9_]+:[a-z0-9_]+)(?:\\[([^\\]]+)\\])?$"
+            "^([a-z0-9_.-]+:[a-z0-9_./-]+)(?:\\[([^\\]]+)\\])?$"
     );
 
     private static Logger LOGGER;
     private final Set<Material> vanillaBlocks = new HashSet<>();
     private final Set<Material> vanillaLitBlocks = new HashSet<>();
     private final Set<String> vanillaTags = new HashSet<>();
+    private final Set<org.bukkit.Tag<Material>> resolvedVanillaBlockTags = new HashSet<>();
     private final Set<Key> customBlockTags = new HashSet<>();
     private final Set<CustomBlockStateMatcher> customBlockStates = new HashSet<>();
     private final Set<Material> conductors = new HashSet<>();
@@ -90,8 +91,16 @@ public class HeatSourceConfig {
 
     public void addVanillaBlock(String blockId) {
         try {
-            NamespacedKey key = NamespacedKey.minecraft(blockId.replace("minecraft:", "").toLowerCase());
+            NamespacedKey key = NamespacedKey.minecraft(blockId.replace("minecraft:", "").toLowerCase(java.util.Locale.ROOT));
             Material material = Registry.MATERIAL.get(key);
+            // 对于格式正确但未知的 id，Registry.get 返回 null（而不是抛出异常），因此拼写错误的
+            // block id 否则会在没有任何诊断信息的情况下向集合中添加一个 null。
+            if (material == null) {
+                if (LOGGER != null) {
+                    LOGGER.warning(I18n.formatConsole("heat_source.invalid_vanilla_block", "id", blockId));
+                }
+                return;
+            }
             vanillaBlocks.add(material);
         } catch (IllegalArgumentException e) {
             if (LOGGER != null) {
@@ -103,9 +112,27 @@ public class HeatSourceConfig {
     public void addVanillaTag(String tagId) {
         vanillaTags.add(tagId);
         if (tagId.contains("campfires") || tagId.contains("fire")) {
+            // 篝火只有在点燃时才算作热源，因此它们通过下面的 vanillaLitBlocks 进行特殊处理，
+            // 而不是使用通用的标签匹配（后者会忽略点燃状态）。
             vanillaLitBlocks.add(Material.CAMPFIRE);
             vanillaLitBlocks.add(Material.SOUL_CAMPFIRE);
+            return;
         }
+        org.bukkit.Tag<Material> blockTag = resolveVanillaBlockTag(tagId);
+        if (blockTag != null) {
+            resolvedVanillaBlockTags.add(blockTag);
+        } else if (LOGGER != null) {
+            LOGGER.warning(I18n.formatConsole("heat_source.invalid_vanilla_block", "id", tagId));
+        }
+    }
+
+    private static org.bukkit.Tag<Material> resolveVanillaBlockTag(String tagId) {
+        String normalized = (tagId.startsWith("#") ? tagId.substring(1) : tagId).toLowerCase(java.util.Locale.ROOT);
+        NamespacedKey key = NamespacedKey.fromString(normalized);
+        if (key == null) {
+            return null;
+        }
+        return org.bukkit.Bukkit.getTag(org.bukkit.Tag.REGISTRY_BLOCKS, key, Material.class);
     }
 
     public void addCustomBlockTag(Key tag) {
@@ -118,8 +145,14 @@ public class HeatSourceConfig {
 
     public void addVanillaConductor(String conductorId) {
         try {
-            NamespacedKey key = NamespacedKey.minecraft(conductorId.replace("minecraft:", "").toLowerCase());
+            NamespacedKey key = NamespacedKey.minecraft(conductorId.replace("minecraft:", "").toLowerCase(java.util.Locale.ROOT));
             Material material = Registry.MATERIAL.get(key);
+            if (material == null) {
+                if (LOGGER != null) {
+                    LOGGER.warning(I18n.formatConsole("heat_source.invalid_vanilla_conductor", "id", conductorId));
+                }
+                return;
+            }
             conductors.add(material);
         } catch (IllegalArgumentException e) {
             if (LOGGER != null) {
@@ -164,6 +197,12 @@ public class HeatSourceConfig {
                 return lightable.isLit();
             }
             return false;
+        }
+
+        for (org.bukkit.Tag<Material> tag : resolvedVanillaBlockTags) {
+            if (tag.isTagged(blockType)) {
+                return true;
+            }
         }
 
         ImmutableBlockState customState = CraftEngineBlocks.getCustomBlockState(block);
@@ -240,4 +279,3 @@ public class HeatSourceConfig {
         }
     }
 }
-

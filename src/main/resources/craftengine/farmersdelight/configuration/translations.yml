@@ -1,13 +1,13 @@
 ﻿translations:
   en:
-    # Workstation Blocks
+    # 工作站方块
     block.farmersdelight.basket: "Basket"
     block.farmersdelight.cooking_pot: "Cooking Pot"
     block.farmersdelight.cutting_board: "Cutting Board"
     block.farmersdelight.skillet: "Skillet"
     block.farmersdelight.stove: "Stove"
 
-    # Storage And Cabinet Blocks
+    # 存储与橱柜方块
     block.farmersdelight.acacia_cabinet: "Acacia Cabinet"
     block.farmersdelight.bamboo_cabinet: "Bamboo Cabinet"
     block.farmersdelight.beetroot_crate: "Beetroot Crate"
@@ -31,7 +31,7 @@
     block.farmersdelight.tomato_crate: "Tomato Crate"
     block.farmersdelight.warped_cabinet: "Warped Cabinet"
 
-    # Decor Blocks
+    # 装饰方块
     block.farmersdelight.apple_pie: "Apple Pie"
     block.farmersdelight.apple_pie_slice: "Slice of Apple Pie"
     block.farmersdelight.canvas_rug: "Canvas Rug"
@@ -50,8 +50,7 @@
     block.farmersdelight.tatami: "Tatami Block"
     block.farmersdelight.tray: "Tray"
 
-    # Wild Plant Blocks
-    block.farmersdelight.sandy_shrub: "Sandy Shrub"
+    # 野生植物方块
     block.farmersdelight.brown_mushroom_colony: "Brown Mushroom Colony"
     block.farmersdelight.red_mushroom_colony: "Red Mushroom Colony"
     block.farmersdelight.wild_cabbages: "Wild Cabbage"
@@ -59,7 +58,7 @@
     block.farmersdelight.wild_rice: "Wild Rice"
     block.farmersdelight.wild_tomatoes: "Tomato Shrub"
 
-    # Basic Ingredients
+    # 基础食材
     item.farmersdelight.beef_patty: "Beef Patty"
     item.farmersdelight.cabbage: "Cabbage"
     item.farmersdelight.cabbage_leaf: "Cabbage Leaf"
@@ -81,7 +80,7 @@
     item.farmersdelight.wheat_dough: "Wheat Dough"
     item.farmersdelight.rope: "Rope"
 
-    # Drinks And Snacks
+    # 饮品与点心
     item.farmersdelight.apple_cider: "Apple Cider"
     item.farmersdelight.fried_egg: "Fried Egg"
     item.farmersdelight.fruit_salad: "Fruit Salad"
@@ -93,7 +92,7 @@
     item.farmersdelight.milk_bottle: "Milk Bottle"
     item.farmersdelight.sweet_berry_cookie: "Sweet Berry Cookie"
 
-    # Raw Meat And Fish
+    # 生肉与生鱼
     item.farmersdelight.bacon: "Raw Bacon"
     item.farmersdelight.chicken_cuts: "Raw Chicken Cuts"
     item.farmersdelight.cod_slice: "Raw Cod Slice"
@@ -101,7 +100,7 @@
     item.farmersdelight.mutton_chops: "Raw Mutton Chops"
     item.farmersdelight.salmon_slice: "Raw Salmon Slice"
 
-    # Cooked Meat And Fish
+    # 熟肉与熟鱼
     item.farmersdelight.cooked_bacon: "Cooked Bacon"
     item.farmersdelight.cooked_chicken_cuts: "Cooked Chicken Cuts"
     item.farmersdelight.cooked_cod_slice: "Cooked Cod Slice"
@@ -109,14 +108,14 @@
     item.farmersdelight.cooked_salmon_slice: "Cooked Salmon Slice"
     item.farmersdelight.smoked_ham: "Smoked Ham"
 
-    # Knives
+    # 刀具
     item.farmersdelight.diamond_knife: "Diamond Knife"
     item.farmersdelight.flint_knife: "Flint Knife"
     item.farmersdelight.golden_knife: "Golden Knife"
     item.farmersdelight.iron_knife: "Iron Knife"
     item.farmersdelight.netherite_knife: "Netherite Knife"
 
-    # Meals And Platters
+    # 餐点与拼盘
     item.farmersdelight.apple_pie_slice: "Slice of Apple Pie"
     item.farmersdelight.bacon_and_eggs: "Bacon and Eggs"
     item.farmersdelight.bacon_sandwich: "Bacon Sandwich"
@@ -164,11 +163,11 @@
     item.farmersdelight.vegetable_noodles: "Vegetable Noodles"
     item.farmersdelight.vegetable_soup: "Vegetable Soup"
 
-    # Animal Feed
+    # 动物饲料
     item.farmersdelight.dog_food: "Dog Food"
     item.farmersdelight.horse_feed: "Horse Feed"
 
-    # Categories
+    # 分类
     farmersdelight.category.block: "Blocks"
     farmersdelight.category.food: "Foods"
     farmersdelight.category.gui: "GUI"
@@ -176,7 +175,7 @@
     farmersdelight.category.root: "Farmer's Delight"
     farmersdelight.category.weapon: "Weapons"
 
-    # GUI Labels
+    # GUI 标签
     farmersdelight.gui.cooking_time: "Cooking Time"
     farmersdelight.gui.heated: "Heated"
     farmersdelight.gui.not_heated: "Not Heated"
@@ -202,7 +201,10 @@
     farmersdelight.gui.progress.90: "Cooking Progress: 90%"
     farmersdelight.gui.progress.95: "Cooking Progress: 95%"
 
-    # Tooltips
+    # 效果
+    effect.farmersdelight.nourishment: "Nourishment"
+
+    # 工具提示
     farmersdelight.tooltip.dog_food.when_feeding: "When fed to a tamed Wolf:"
     farmersdelight.tooltip.effect_not_implemented: "Effect not implemented yet"
     farmersdelight.tooltip.horse_feed.when_feeding: "When fed to a tamed mount:"
@@ -214,14 +216,14 @@
     farmersdelight.tooltip.requires_bowl_when_placed: "Requires a bowl after being placed"
 
   zh_cn:
-    # Workstation Blocks
+    # 工作站方块
     block.farmersdelight.basket: "篮子"
     block.farmersdelight.cooking_pot: "厨锅"
     block.farmersdelight.cutting_board: "砧板"
     block.farmersdelight.skillet: "煎锅"
     block.farmersdelight.stove: "炉灶"
 
-    # Storage And Cabinet Blocks
+    # 存储与橱柜方块
     block.farmersdelight.acacia_cabinet: "金合欢木橱柜"
     block.farmersdelight.bamboo_cabinet: "竹橱柜"
     block.farmersdelight.beetroot_crate: "箱装甜菜根"
@@ -245,7 +247,7 @@
     block.farmersdelight.tomato_crate: "箱装番茄"
     block.farmersdelight.warped_cabinet: "诡异木橱柜"
 
-    # Decor Blocks
+    # 装饰方块
     block.farmersdelight.apple_pie: "苹果派"
     block.farmersdelight.apple_pie_slice: "苹果派切片"
     block.farmersdelight.canvas_rug: "粗布毯"
@@ -264,8 +266,7 @@
     block.farmersdelight.tatami: "榻榻米方块"
     block.farmersdelight.tray: "托盘"
 
-    # Wild Plant Blocks
-    block.farmersdelight.sandy_shrub: "沙生灌木"
+    # 野生植物方块
     block.farmersdelight.brown_mushroom_colony: "棕色蘑菇菌落"
     block.farmersdelight.red_mushroom_colony: "红色蘑菇菌落"
     block.farmersdelight.wild_cabbages: "野生卷心菜"
@@ -273,7 +274,7 @@
     block.farmersdelight.wild_rice: "野生稻米"
     block.farmersdelight.wild_tomatoes: "番茄灌木"
 
-    # Basic Ingredients
+    # 基础食材
     item.farmersdelight.beef_patty: "牛肉饼"
     item.farmersdelight.cabbage: "卷心菜"
     item.farmersdelight.cabbage_leaf: "卷心菜叶"
@@ -295,7 +296,7 @@
     item.farmersdelight.wheat_dough: "面团"
     item.farmersdelight.rope: "绳子"
 
-    # Drinks And Snacks
+    # 饮品与点心
     item.farmersdelight.apple_cider: "苹果酒"
     item.farmersdelight.fried_egg: "煎鸡蛋"
     item.farmersdelight.fruit_salad: "水果沙拉"
@@ -307,7 +308,7 @@
     item.farmersdelight.milk_bottle: "奶瓶"
     item.farmersdelight.sweet_berry_cookie: "甜浆果曲奇"
 
-    # Raw Meat And Fish
+    # 生肉与生鱼
     item.farmersdelight.bacon: "生培根"
     item.farmersdelight.chicken_cuts: "生鸡肉丁"
     item.farmersdelight.cod_slice: "生鳕鱼片"
@@ -315,7 +316,7 @@
     item.farmersdelight.mutton_chops: "生羊排"
     item.farmersdelight.salmon_slice: "生鲑鱼片"
 
-    # Cooked Meat And Fish
+    # 熟肉与熟鱼
     item.farmersdelight.cooked_bacon: "熟培根"
     item.farmersdelight.cooked_chicken_cuts: "熟鸡肉丁"
     item.farmersdelight.cooked_cod_slice: "熟鳕鱼片"
@@ -323,14 +324,14 @@
     item.farmersdelight.cooked_salmon_slice: "熟鲑鱼片"
     item.farmersdelight.smoked_ham: "烟熏火腿"
 
-    # Knives
+    # 刀具
     item.farmersdelight.diamond_knife: "钻石刀"
     item.farmersdelight.flint_knife: "燧石刀"
     item.farmersdelight.golden_knife: "金刀"
     item.farmersdelight.iron_knife: "铁刀"
     item.farmersdelight.netherite_knife: "下界合金刀"
 
-    # Meals And Platters
+    # 餐点与拼盘
     item.farmersdelight.apple_pie_slice: "苹果派切片"
     item.farmersdelight.bacon_and_eggs: "培根鸡蛋"
     item.farmersdelight.bacon_sandwich: "培根三明治"
@@ -378,11 +379,11 @@
     item.farmersdelight.vegetable_noodles: "蔬菜面"
     item.farmersdelight.vegetable_soup: "蔬菜汤"
 
-    # Animal Feed
+    # 动物饲料
     item.farmersdelight.dog_food: "狗粮"
     item.farmersdelight.horse_feed: "马食"
 
-    # Categories
+    # 分类
     farmersdelight.category.block: "方块"
     farmersdelight.category.food: "食物"
     farmersdelight.category.gui: "界面"
@@ -390,7 +391,7 @@
     farmersdelight.category.root: "农夫乐事"
     farmersdelight.category.weapon: "武器"
 
-    # GUI Labels
+    # GUI 标签
     farmersdelight.gui.cooking_time: "烹饪时长"
     farmersdelight.gui.heated: "热源活跃"
     farmersdelight.gui.not_heated: "无热源"
@@ -415,8 +416,14 @@
     farmersdelight.gui.progress.85: "烹饪进度：85%"
     farmersdelight.gui.progress.90: "烹饪进度：90%"
     farmersdelight.gui.progress.95: "烹饪进度：95%"
+    farmersdelight.gui.cancooked.enabled: "当前可烹饪"
+    farmersdelight.gui.cancooked.disenabled: "显示所有配方"
+    farmersdelight.gui.recipe_book: "配方书"
 
-    # Tooltips
+    # 效果
+    effect.farmersdelight.nourishment: "滋养"
+
+    # 工具提示
     farmersdelight.tooltip.dog_food.when_feeding: "喂给已驯服的狗时："
     farmersdelight.tooltip.effect_not_implemented: "效果暂未实现"
     farmersdelight.tooltip.horse_feed.when_feeding: "喂给已驯服的马时："

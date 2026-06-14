@@ -34,6 +34,54 @@ items:
         parent: minecraft:item/generated
         textures:
           layer0: farmersdelight:gui/sprites/icons/${__ID__}
+  farmersdelight:cooking_pot_can_cooked_enabled:
+    data:
+      item-name: <!i><green><l10n:farmersdelight.gui.cancooked.enabled></green>
+    material: paper
+    model:
+      type: minecraft:model
+      path: farmersdelight:gui/icons/${__ID__}
+      generation:
+        parent: minecraft:item/generated
+        textures:
+          layer0: farmersdelight:gui/sprites/icons/${__ID__}
+        display:
+          gui:
+            scale: [1.5, 1, 1.5]
+  farmersdelight:cooking_pot_can_cooked_disenabled:
+    data:
+      item-name: <!i><red><l10n:farmersdelight.gui.cancooked.disenabled></red>
+    material: paper
+    model:
+      type: minecraft:model
+      path: farmersdelight:gui/icons/${__ID__}
+      generation:
+        parent: minecraft:item/generated
+        textures:
+          layer0: farmersdelight:gui/sprites/icons/${__ID__}
+        display:
+          gui:
+            scale: [1.5, 1, 1.5]
+  farmersdelight:recipe_book:
+    data:
+      item-name: <!i><red><l10n:farmersdelight.gui.recipe_book></red>
+    material: paper
+    model:
+      type: minecraft:model
+      path: farmersdelight:gui/icons/${__ID__}
+      generation:
+        parent: minecraft:item/generated
+        textures:
+          layer0: farmersdelight:gui/sprites/icons/${__ID__}
+  farmersdelight:slot:
+    material: paper
+    model:
+      type: minecraft:model
+      path: farmersdelight:gui/icons/${__ID__}
+      generation:
+        parent: minecraft:item/generated
+        textures:
+          layer0: farmersdelight:gui/sprites/icons/${__ID__}
   farmersdelight:0:
     template: farmersdelight:item
     data:
@@ -125,21 +173,21 @@ items:
 images:
   farmersdelight:cooking_pot_gui:
     file: farmersdelight:gui/cooking_pot.png
-    height: 80
+    height: 85
     ascent: 13
-    font: minecraft:default
+    font: minecraft:custom
   farmersdelight:recipelist:
     file: farmersdelight:gui/recipelist.png
-    height: 256
-    ascent: 13
+    height: 108
+    ascent: -4
     font: minecraft:custom
   farmersdelight:cooking_pot_menu:
     file: farmersdelight:gui/cooking_pot_menu.png
-    height: 140
-    ascent: 13
-    font: minecraft:default
+    height: 108
+    ascent: -4
+    font: minecraft:custom
   farmersdelight:cutting_board_menu:
     file: farmersdelight:gui/cutting_board_menu.png
-    height: 140
-    ascent: 13
-    font: minecraft:default
+    height: 108
+    ascent: -4
+    font: minecraft:custom

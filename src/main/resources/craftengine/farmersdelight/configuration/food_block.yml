@@ -194,10 +194,145 @@ blocks:
         bites=3,facing=west:
           appearance: count_3_west
     events:
+      - on: break
+        conditions:
+          - type: match_block_property
+            properties:
+              bites: 0
+        functions:
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:apple_pie
+                      count: 1
+      - on: right_click
+        conditions:
+          - type: match_item
+            item: "farmersdelight:.*_knife"
+            regex: true
+          - type: match_block_property
+            properties:
+              bites: 0
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.3
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:apple_pie_slice
+                      count: 1
+          - type: update_block_property
+            properties:
+              bites: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: farmersdelight:block.food.slice
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            item: "farmersdelight:.*_knife"
+            regex: true
+          - type: match_block_property
+            properties:
+              bites: 1
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.3
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:apple_pie_slice
+                      count: 1
+          - type: update_block_property
+            properties:
+              bites: 2
+          - type: swing_hand
+          - type: play_sound
+            sound: farmersdelight:block.food.slice
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            item: "farmersdelight:.*_knife"
+            regex: true
+          - type: match_block_property
+            properties:
+              bites: 2
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.3
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:apple_pie_slice
+                      count: 1
+          - type: update_block_property
+            properties:
+              bites: 3
+          - type: swing_hand
+          - type: play_sound
+            sound: farmersdelight:block.food.slice
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            item: "farmersdelight:.*_knife"
+            regex: true
+          - type: match_block_property
+            properties:
+              bites: 3
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.3
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:apple_pie_slice
+                      count: 1
+          - type: break_block
+            x: <arg:block.block_x>
+            y: <arg:block.block_y>
+            z: <arg:block.block_z>
+          - type: swing_hand
+          - type: play_sound
+            sound: farmersdelight:block.food.slice
+          - type: cancel_event
       - on: right_click
         conditions:
           - type: expression  
             expression: "<arg:player.food> < 20"
+          - type: inverted
+            term:
+              type: match_item
+              item: "farmersdelight:.*_knife"
+              regex: true
           - type: match_block_property
             properties:
               bites: 0
@@ -227,6 +362,11 @@ blocks:
         conditions:
           - type: expression
             expression: "<arg:player.food> < 20"
+          - type: inverted
+            term:
+              type: match_item
+              item: "farmersdelight:.*_knife"
+              regex: true
           - type: match_block_property
             properties:
               bites: 1
@@ -256,6 +396,11 @@ blocks:
         conditions:
           - type: expression
             expression: "<arg:player.food> < 20"
+          - type: inverted
+            term:
+              type: match_item
+              item: "farmersdelight:.*_knife"
+              regex: true
           - type: match_block_property
             properties:
               bites: 2
@@ -285,6 +430,11 @@ blocks:
         conditions:
           - type: expression
             expression: "<arg:player.food> < 20"
+          - type: inverted
+            term:
+              type: match_item
+              item: "farmersdelight:.*_knife"
+              regex: true
           - type: match_block_property
             properties:
               bites: 3
@@ -506,10 +656,145 @@ blocks:
         bites=3,facing=west:
           appearance: count_3_west
     events:
+      - on: break
+        conditions:
+          - type: match_block_property
+            properties:
+              bites: 0
+        functions:
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:sweet_berry_cheesecake
+                      count: 1
+      - on: right_click
+        conditions:
+          - type: match_item
+            item: "farmersdelight:.*_knife"
+            regex: true
+          - type: match_block_property
+            properties:
+              bites: 0
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.3
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:sweet_berry_cheesecake_slice
+                      count: 1
+          - type: update_block_property
+            properties:
+              bites: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: farmersdelight:block.food.slice
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            item: "farmersdelight:.*_knife"
+            regex: true
+          - type: match_block_property
+            properties:
+              bites: 1
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.3
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:sweet_berry_cheesecake_slice
+                      count: 1
+          - type: update_block_property
+            properties:
+              bites: 2
+          - type: swing_hand
+          - type: play_sound
+            sound: farmersdelight:block.food.slice
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            item: "farmersdelight:.*_knife"
+            regex: true
+          - type: match_block_property
+            properties:
+              bites: 2
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.3
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:sweet_berry_cheesecake_slice
+                      count: 1
+          - type: update_block_property
+            properties:
+              bites: 3
+          - type: swing_hand
+          - type: play_sound
+            sound: farmersdelight:block.food.slice
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            item: "farmersdelight:.*_knife"
+            regex: true
+          - type: match_block_property
+            properties:
+              bites: 3
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.3
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:sweet_berry_cheesecake_slice
+                      count: 1
+          - type: break_block
+            x: <arg:block.block_x>
+            y: <arg:block.block_y>
+            z: <arg:block.block_z>
+          - type: swing_hand
+          - type: play_sound
+            sound: farmersdelight:block.food.slice
+          - type: cancel_event
       - on: right_click
         conditions:
           - type: expression  
             expression: "<arg:player.food> < 20"
+          - type: inverted
+            term:
+              type: match_item
+              item: "farmersdelight:.*_knife"
+              regex: true
           - type: match_block_property
             properties:
               bites: 0
@@ -539,6 +824,11 @@ blocks:
         conditions:
           - type: expression
             expression: "<arg:player.food> < 20"
+          - type: inverted
+            term:
+              type: match_item
+              item: "farmersdelight:.*_knife"
+              regex: true
           - type: match_block_property
             properties:
               bites: 1
@@ -568,6 +858,11 @@ blocks:
         conditions:
           - type: expression
             expression: "<arg:player.food> < 20"
+          - type: inverted
+            term:
+              type: match_item
+              item: "farmersdelight:.*_knife"
+              regex: true
           - type: match_block_property
             properties:
               bites: 2
@@ -597,6 +892,11 @@ blocks:
         conditions:
           - type: expression
             expression: "<arg:player.food> < 20"
+          - type: inverted
+            term:
+              type: match_item
+              item: "farmersdelight:.*_knife"
+              regex: true
           - type: match_block_property
             properties:
               bites: 3
@@ -818,10 +1118,145 @@ blocks:
         bites=3,facing=west:
           appearance: count_3_west
     events:
+      - on: break
+        conditions:
+          - type: match_block_property
+            properties:
+              bites: 0
+        functions:
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:chocolate_pie
+                      count: 1
+      - on: right_click
+        conditions:
+          - type: match_item
+            item: "farmersdelight:.*_knife"
+            regex: true
+          - type: match_block_property
+            properties:
+              bites: 0
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.3
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:chocolate_pie_slice
+                      count: 1
+          - type: update_block_property
+            properties:
+              bites: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: farmersdelight:block.food.slice
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            item: "farmersdelight:.*_knife"
+            regex: true
+          - type: match_block_property
+            properties:
+              bites: 1
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.3
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:chocolate_pie_slice
+                      count: 1
+          - type: update_block_property
+            properties:
+              bites: 2
+          - type: swing_hand
+          - type: play_sound
+            sound: farmersdelight:block.food.slice
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            item: "farmersdelight:.*_knife"
+            regex: true
+          - type: match_block_property
+            properties:
+              bites: 2
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.3
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:chocolate_pie_slice
+                      count: 1
+          - type: update_block_property
+            properties:
+              bites: 3
+          - type: swing_hand
+          - type: play_sound
+            sound: farmersdelight:block.food.slice
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: match_item
+            item: "farmersdelight:.*_knife"
+            regex: true
+          - type: match_block_property
+            properties:
+              bites: 3
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.3
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:chocolate_pie_slice
+                      count: 1
+          - type: break_block
+            x: <arg:block.block_x>
+            y: <arg:block.block_y>
+            z: <arg:block.block_z>
+          - type: swing_hand
+          - type: play_sound
+            sound: farmersdelight:block.food.slice
+          - type: cancel_event
       - on: right_click
         conditions:
           - type: expression  
             expression: "<arg:player.food> < 20"
+          - type: inverted
+            term:
+              type: match_item
+              item: "farmersdelight:.*_knife"
+              regex: true
           - type: match_block_property
             properties:
               bites: 0
@@ -851,6 +1286,11 @@ blocks:
         conditions:
           - type: expression
             expression: "<arg:player.food> < 20"
+          - type: inverted
+            term:
+              type: match_item
+              item: "farmersdelight:.*_knife"
+              regex: true
           - type: match_block_property
             properties:
               bites: 1
@@ -880,6 +1320,11 @@ blocks:
         conditions:
           - type: expression
             expression: "<arg:player.food> < 20"
+          - type: inverted
+            term:
+              type: match_item
+              item: "farmersdelight:.*_knife"
+              regex: true
           - type: match_block_property
             properties:
               bites: 2
@@ -909,6 +1354,11 @@ blocks:
         conditions:
           - type: expression
             expression: "<arg:player.food> < 20"
+          - type: inverted
+            term:
+              type: match_item
+              item: "farmersdelight:.*_knife"
+              regex: true
           - type: match_block_property
             properties:
               bites: 3
@@ -1171,6 +1621,53 @@ blocks:
         servings=4,facing=west:
           appearance: count_4_west
     events:
+      - on: break
+        functions:
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: alternatives
+                      children:
+                        - type: item
+                          item: farmersdelight:roast_chicken_block
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 0
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 1
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 2
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 3
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 4
       - on: right_click
         conditions:
           - type: match_item
@@ -1516,6 +2013,23 @@ blocks:
         servings=3,facing=west:
           appearance: count_3_west
     events:
+      - on: break
+        conditions:
+          - type: match_block_property
+            properties:
+              servings: 0
+        functions:
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:stuffed_pumpkin_block
+                      count: 1
       - on: right_click
         conditions:
           - type: match_item
@@ -1874,6 +2388,53 @@ blocks:
         servings=4,facing=west:
           appearance: count_4_west
     events:
+      - on: break
+        functions:
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: alternatives
+                      children:
+                        - type: item
+                          item: farmersdelight:honey_glazed_ham_block
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 0
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 1
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 2
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 3
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 4
       - on: right_click
         conditions:
           - type: match_item
@@ -2262,6 +2823,53 @@ blocks:
         servings=4,facing=west:
           appearance: count_4_west
     events:
+      - on: break
+        functions:
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: alternatives
+                      children:
+                        - type: item
+                          item: farmersdelight:shepherds_pie_block
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 0
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 1
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 2
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 3
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 4
       - on: right_click
         conditions:
           - type: match_item
@@ -2645,6 +3253,53 @@ blocks:
         servings=4,facing=west:
           appearance: count_4_west
     events:
+      - on: break
+        functions:
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: alternatives
+                      children:
+                        - type: item
+                          item: farmersdelight:gleaming_salad_block
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 0
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 1
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 2
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 3
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 4
       - on: right_click
         conditions:
           - type: match_item
@@ -3200,6 +3855,81 @@ blocks:
         servings=8,facing=west:
           appearance: count_8_west
     events:
+      - on: break
+        functions:
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: alternatives
+                      children:
+                        - type: item
+                          item: farmersdelight:rice_roll_medley_block
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 0
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 1
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 2
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 3
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 4
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 5
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 6
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 7
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 8
       - on: right_click
         conditions:
           - type: match_block_property

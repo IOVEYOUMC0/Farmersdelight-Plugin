@@ -57,6 +57,27 @@ gui:
   cooking_pot:
     pending_container_hint: "&7容器: &f{container}"
     pending_container_hint_prefix: "&7容器: &f"
+  editor:
+    usage: "&e/fd recipe edit <pot|board> <id> [自定义组]"
+    feedback:
+      invalid_id: "&c配方 id 只能使用小写字母、数字和下划线。"
+      not_configured: "&cgui.yml 中未配置配方编辑器界面。"
+      board_coming: "&e砧板编辑器将在后续阶段提供。"
+      advanced_coming: "&e高级原料编辑(标签/或选/排除)将在后续阶段提供。"
+      no_ingredients: "&c配方至少需要一个原料。"
+      no_input: "&c配方需要一个输入物。"
+      no_result: "&c配方需要一个成品。"
+      too_many_ingredients: "&e该配方有 {total} 个原料,但只显示 {shown} 个槽位;多余原料无法在此编辑。"
+      too_many_results: "&e该配方有 {total} 个产物,但只显示 {shown} 个槽位;多余产物无法在此编辑。"
+      saved: "&a已保存配方 &f{recipe_id}&a 并重载。"
+      deleted: "&a已删除配方 &f{recipe_id}&a 并重载。"
+      save_failed: "&c保存配方失败(详见控制台)。"
+      delete_failed: "&c删除配方失败(详见控制台)。"
+      no_tags: "&c该物品不属于任何标签。"
+    tag:
+      select_hint: "&7左键: 使用此标签 &8| &7右键: 编辑排除项"
+      member_included: "&7点击: 从该标签中排除此物品"
+      member_excluded: "&c已排除 &7(点击恢复)"
 console:
   prefix: "[FarmersDelight]"
   i18n:
@@ -79,7 +100,6 @@ console:
     proxy_display_unavailable: "CraftEngine 代理 ItemDisplay 管线不可用，炉灶和煎锅视觉显示将被禁用。"
     enabled: "FarmersDelight 插件已启用。"
     disabled: "FarmersDelight 插件已禁用。"
-    recipe_load_deferred: "CraftEngine 自定义物品尚未就绪，暂时跳过配方加载。"
     loading_recipes: "正在加载配方..."
     refreshing_recipes_after_ce: "正在于 CraftEngine 重载后刷新配方..."
     reloading_recipes: "正在重新加载配方..."
@@ -89,6 +109,7 @@ console:
     datapack_reload_skipped_unsupported: "已更新数据包以{reason}，但当前服务端不支持在此处自动重载数据包。请重启服务器以应用进度变更。"
     datapack_reload_failed: "重载数据包以{reason}失败"
     datapack_reason_remove_disabled_advancements: "移除已禁用的 FarmersDelight 进度"
+    datapack_reason_remove_legacy_advancements: "移除旧版 FarmersDelight 进度数据包(现由 UltimateAdvancementAPI 接管)"
     datapack_reason_apply_advancement_config: "应用 FarmersDelight 进度配置变更"
     datapack_reason_apply_advancements: "应用 FarmersDelight 进度"
     datapack_reason_apply_advancement_changes: "应用 FarmersDelight 进度变更"
@@ -104,7 +125,7 @@ console:
     config_prepare_failed: "准备配置文件失败：{error}"
     gui_missing_defaults: "gui.yml 缺失，暂时在内存中使用内置默认值，直到下次重载写回。"
     gui_load_failed: "加载 gui.yml 失败：{error}"
-    craftengine_resources_released: "已首次释放 CraftEngine farmersdelight 资源到 {path}（{count} 个文件）。"
+    craftengine_resources_released: "已同步 CraftEngine farmersdelight 资源到 {path}（{count} 个文件）。"
     craftengine_resources_release_failed: "释放 CraftEngine farmersdelight 资源失败：{error}"
     auraskills_hook_failed: "AuraSkills API 兼容初始化失败：{error}"
     auraskills_skill_missing: "AuraSkills 找不到技能：{skill}"
@@ -114,7 +135,7 @@ console:
     custom_cooking_pot_gui_load_failed: "加载自定义厨锅 GUI '{id}' 失败：{error}"
     invalid_cutting_board_mode: "cutting-board.interaction-mode '{value}' 无效，已回退到 stacking。"
     startup_config: "启动配置"
-    config_summary: "{label}：cutting-board mode={mode}, hopper={hopper}, cooking-pot-hopper={cooking_pot_hopper}, cutting-board-hopper={cutting_board_hopper}, advancements={advancements}"
+    config_summary: "{label}：cutting-board mode={mode}, hopper={hopper}, cooking-pot-hopper={cooking_pot_hopper}, cutting-board-hopper={cutting_board_hopper}, skillet-hopper={skillet_hopper}, advancements={advancements}"
     advancement_resource_sync_failed: "同步进度资源 {resource} 到世界 {world} 失败：{error}"
     advancement_file_delete_failed: "删除进度数据包文件 {path} 失败：{error}"
     advancement_directory_delete_failed: "删除进度数据包目录 {path} 失败：{error}"
@@ -161,8 +182,8 @@ console:
     invalid_vanilla_block: "热源配置中的原版方块 ID 无效：{id}"
     invalid_vanilla_conductor: "原版导热方块材质无效：{id}"
   knife:
-    loaded_rules: "已加载 {count} 条小刀掉落规则"
-    loaded_matchers: "已加载 {tags} 个小刀标签和 {items} 个小刀物品"
+    loaded_rules: "已加载 {count} 条生物额外掉落规则"
+    loaded_matchers: "已加载 {tags} 个额外掉落工具标签和 {items} 个额外掉落工具物品"
     dropped: "已在 {location} 从 {entity} 掉落 {item}"
     invalid_item_id: "物品 ID 格式无效：{id}"
   recipe:
@@ -171,6 +192,7 @@ console:
     loaded_total: "已加载 {count} 个 {type} 配方"
     custom_cooking_pot_load_failed: "加载自定义厨锅配方 '{id}' 失败：{error}"
     custom_cooking_pot_loaded: "已加载 {count} 个自定义厨锅配方"
+    editor_missing_custom_pot_gui: "自定义厨锅 '{id}' 没有对应的 recipe-editor-cooking-pot-guis 配置,改用默认编辑器布局。"
     invalid_count: "配方中的 count 无效：{error}"
     invalid_chance: "配方中的 chance 无效：{error}"
   legacy_storage:
@@ -203,6 +225,7 @@ console:
     removed: "已移除 {pos} 的自动托盘，原因={reason}"
     remove_failed: "移除托盘家具失败：{error}"
     duplicates_cleaned: "已清理 {pos} 的重复自动托盘，原因={reason}"
+    invalid_marker_key: "托盘 marker-key '{key}' 无效，已改用 auto_tray_marker"
   gui_runtime:
     create_item_failed: "根据 key 创建物品失败：{key}"
     unregister_tick_failed: "注销 GUI tick 回调失败：{error}"
@@ -265,15 +288,6 @@ command:
   help_help: "显示帮助信息"
   help_cleanup: "清理插件生成的物品展示实体"
   cleanup_done: "&a清理完成，移除了 {count} 个实体。"
-effects:
-  comfort:
-    start: "&6温热的料理让你恢复精神，效果将持续 {time}"
-    fade: "&e舒适感正在逐渐消退，剩余 {seconds} 秒"
-    end: "&7温暖舒适的感觉消退了"
-  nourishment:
-    start: "&6丰富的料理让你暂时不会感到饥饿，效果将持续 {time}"
-    fade: "&e饱腹感正在逐渐消退，剩余 {seconds} 秒"
-    end: "&7你再次感到了饥饿"
 item:
   farmersdelight:
     raw_pasta: "生意面"

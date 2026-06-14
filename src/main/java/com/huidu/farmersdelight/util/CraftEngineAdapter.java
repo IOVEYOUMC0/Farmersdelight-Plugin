@@ -6,7 +6,7 @@ import net.momirealms.craftengine.proxy.minecraft.world.level.LevelProxy;
 import org.bukkit.World;
 
 /**
- * Small bridge helpers for CraftEngine callbacks.
+ * 用于 CraftEngine 回调的小型桥接辅助方法。
  */
 public final class CraftEngineAdapter {
 

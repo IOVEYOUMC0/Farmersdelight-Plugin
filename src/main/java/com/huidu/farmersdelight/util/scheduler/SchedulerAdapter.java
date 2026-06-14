@@ -9,7 +9,9 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -187,6 +189,9 @@ public final class SchedulerAdapter {
     private static final class FoliaReflect {
         private static final Object GLOBAL_SCHEDULER = invokeStatic(Bukkit.class, "getGlobalRegionScheduler");
         private static final Object REGION_SCHEDULER = invokeStatic(Bukkit.class, "getRegionScheduler");
+        // 解析出的 scheduler Method 对于每个 (class, name, arity) 组合都是稳定的；将其缓存，
+        // 这样 Folia 上的每次调度都无需再次遍历 class/interface 层级结构。
+        private static final Map<String, Method> METHOD_CACHE = new ConcurrentHashMap<>();
 
         private FoliaReflect() {
         }
@@ -284,7 +289,13 @@ public final class SchedulerAdapter {
 
         private static Object invoke(Object target, String methodName, Object... args) {
             try {
-                Method method = findMethod(target.getClass(), methodName, args.length);
+                Class<?> targetClass = target.getClass();
+                String cacheKey = targetClass.getName() + "#" + methodName + "/" + args.length;
+                Method method = METHOD_CACHE.get(cacheKey);
+                if (method == null) {
+                    method = findMethod(targetClass, methodName, args.length);
+                    METHOD_CACHE.put(cacheKey, method);
+                }
                 Object[] adaptedArgs = adaptArgs(method.getParameterTypes(), args);
                 if (!method.canAccess(target)) {
                     method.setAccessible(true);

@@ -213,7 +213,7 @@ public class RecipeViewGuiConfig {
                 return null;
             }
 
-            String title = section.getString("title", "GUI");
+            String title = section.getString("title", "界面");
             int rows = section.getInt("rows", 3);
             List<String> layout = section.getStringList("layout");
 
@@ -237,6 +237,7 @@ public class RecipeViewGuiConfig {
                     }
                 }
             }
+            GuiConfig.inheritBackgroundVisualOptions(items);
 
             warnUnknownLayoutCharacters(section.getCurrentPath(), rows, layout, legend);
             return new BaseConfig(title, rows, layout, legend, items);
@@ -338,7 +339,6 @@ public class RecipeViewGuiConfig {
             legend.put('D', "cutting_board");
             legend.put('B', "back");
             legend.put('X', "background");
-            legend.put('#', "background");
 
             Map<String, GuiConfig.GuiItem> items = new HashMap<>();
             items.put("background", new GuiConfig.GuiItem(Material.GRAY_STAINED_GLASS_PANE, null, " ", List.of()));
@@ -346,7 +346,7 @@ public class RecipeViewGuiConfig {
             items.put("cutting_board", new GuiConfig.GuiItem(Material.BAMBOO_MOSAIC, null, "Cutting Board Recipes", List.of("Click to view cutting board recipes")));
             items.put("back", new GuiConfig.GuiItem(Material.BARRIER, null, "Close", List.of()));
 
-            List<String> layout = List.of("####B####", "##C###D##", "####X####");
+            List<String> layout = List.of("XXXXBXXXX", "XXCXXXDXX", "XXXXXXXXX");
             return new MainMenuConfig("Recipe Viewer", 3, layout, legend, items, 11, 15, 4);
         }
     }
@@ -423,9 +423,8 @@ public class RecipeViewGuiConfig {
             legend.put('P', "prev_page");
             legend.put('N', "next_page");
             legend.put('B', "back");
-            legend.put('X', "info");
             legend.put('F', "filter");
-            legend.put('#', "background");
+            legend.put('X', "background");
 
             Map<String, GuiConfig.GuiItem> items = new HashMap<>();
             items.put("background", new GuiConfig.GuiItem(Material.GRAY_STAINED_GLASS_PANE, null, " ", List.of()));
@@ -436,7 +435,7 @@ public class RecipeViewGuiConfig {
             items.put("filter", new GuiConfig.GuiItem(Material.COMPASS, null, "Filter Craftable", List.of()));
 
             List<String> layout = List.of(
-                    "P#F#B###N",
+                    "PXFXBXXXN",
                     "RRRRRRRRR",
                     "RRRRRRRRR",
                     "RRRRRRRRR",
@@ -462,6 +461,7 @@ public class RecipeViewGuiConfig {
         private final int containerSlot;
         private final int toolSlot;
         private final int arrowSlot;
+        private final int progressSlot;
         private final int backSlot;
         private final int filterSlot;
         private final int materialsSlot;
@@ -471,7 +471,7 @@ public class RecipeViewGuiConfig {
                                   Map<Character, String> legend, Map<String, GuiConfig.GuiItem> items,
                                   List<Integer> ingredientSlots, int inputSlot, List<Integer> resultSlots,
                                   int resultSlot, int containerSlot,
-                                  int toolSlot, int arrowSlot, int backSlot,
+                                  int toolSlot, int arrowSlot, int progressSlot, int backSlot,
                                   int filterSlot, int materialsSlot, int fillSlot) {
             super(title, rows, layout, legend, items);
             this.ingredientSlots = ingredientSlots;
@@ -481,6 +481,7 @@ public class RecipeViewGuiConfig {
             this.containerSlot = containerSlot;
             this.toolSlot = toolSlot;
             this.arrowSlot = arrowSlot;
+            this.progressSlot = progressSlot;
             this.backSlot = backSlot;
             this.filterSlot = filterSlot;
             this.materialsSlot = materialsSlot;
@@ -519,6 +520,11 @@ public class RecipeViewGuiConfig {
 
         public int getArrowSlot() {
             return arrowSlot;
+        }
+
+        // 进度条槽位（layout 中 "progress" 类型的首个槽位），解析时缓存，避免每次 GUI tick 重新扫描布局。
+        public int getProgressSlot() {
+            return progressSlot;
         }
 
         public int getBackSlot() {
@@ -560,13 +566,14 @@ public class RecipeViewGuiConfig {
             int containerSlot = base.getFirstSlotByType("container");
             int toolSlot = base.getFirstSlotByType("tool");
             int arrowSlot = base.getFirstSlotByType("arrow");
+            int progressSlot = base.getFirstSlotByType("progress");
             int backSlot = base.getFirstSlotByType("back");
             int filterSlot = base.getFirstSlotByType("filter");
             int materialsSlot = base.getFirstSlotByType("materials");
             int fillSlot = base.getFirstSlotByType("fill");
 
             return new RecipeDetailConfig(base.title, base.rows, base.layout, base.legend,
-                    base.items, ingredientSlots, inputSlot, resultSlots, resultSlot, containerSlot, toolSlot, arrowSlot, backSlot,
+                    base.items, ingredientSlots, inputSlot, resultSlots, resultSlot, containerSlot, toolSlot, arrowSlot, progressSlot, backSlot,
                     filterSlot, materialsSlot, fillSlot);
         }
 
@@ -578,26 +585,29 @@ public class RecipeViewGuiConfig {
             legend.put('C', "container");
             legend.put('B', "back");
             legend.put('P', "fill");
-            legend.put('#', "background");
+            legend.put('G', "progress");
+            legend.put('X', "background");
 
             Map<String, GuiConfig.GuiItem> items = new HashMap<>();
             items.put("background", new GuiConfig.GuiItem(Material.GRAY_STAINED_GLASS_PANE, null, " ", List.of()));
-            items.put("arrow", new GuiConfig.GuiItem(Material.CLOCK, null, "Cooking Process", List.of()));
+            items.put("arrow", new GuiConfig.GuiItem(Material.CLOCK, null, "Cooking Process",
+                    List.of("&7Cook Time: &b{cook_time}", "&7Experience: &a{experience}")));
             items.put("back", new GuiConfig.GuiItem(Material.ARROW, null, "Back", List.of()));
             items.put("fill", new GuiConfig.GuiItem(Material.HOPPER, null, "Fill Ingredients", List.of()));
 
             List<String> layout = List.of(
-                    "B######P#",
-                    "#####A###",
-                    "#III#####",
-                    "#III#####",
-                    "#####C#R#",
-                    "#########"
+                    "BXXXXXXPX",
+                    "XXXXXAXXX",
+                    "XIIIXGXXX",
+                    "XIIIXXXXX",
+                    "XXXXXCXRX",
+                    "XXXXXXXXX"
             );
 
             List<Integer> ingredientSlots = List.of(19, 20, 21, 28, 29, 30);
+            // progress 槽位对应 layout 中 'G'（第 3 行第 6 列 = 23），与 getFirstSlotByType("progress") 一致。
             return new RecipeDetailConfig("Recipe Details", 6, layout, legend, items,
-                    ingredientSlots, -1, List.of(43), 43, 41, -1, 14, 0, -1, -1, 7);
+                    ingredientSlots, -1, List.of(43), 43, 41, -1, 14, 23, 0, -1, -1, 7);
         }
 
         static RecipeDetailConfig createCuttingBoardDefault() {
@@ -606,25 +616,25 @@ public class RecipeViewGuiConfig {
             legend.put('R', "result");
             legend.put('T', "tool");
             legend.put('B', "back");
-            legend.put('#', "background");
+            legend.put('X', "background");
 
             Map<String, GuiConfig.GuiItem> items = new HashMap<>();
             items.put("background", new GuiConfig.GuiItem(Material.GRAY_STAINED_GLASS_PANE, null, " ", List.of()));
             items.put("back", new GuiConfig.GuiItem(Material.ARROW, null, "Back", List.of()));
 
             List<String> layout = List.of(
-                    "B########",
-                    "#########",
-                    "#########",
-                    "#I#T#RR##",
-                    "#####RR##",
-                    "#########"
+                    "BXXXXXXXX",
+                    "XXXXXXXXX",
+                    "XXXXXXXXX",
+                    "XIXTXRRXX",
+                    "XXXXXRRXX",
+                    "XXXXXXXXX"
             );
 
             List<Integer> resultSlots = List.of(32, 33, 41, 42);
+            // 切菜板布局没有 progress 类型，progressSlot 为 -1，与 getFirstSlotByType("progress") 一致。
             return new RecipeDetailConfig("Recipe Details", 6, layout, legend, items,
-                    List.of(), 28, resultSlots, 32, -1, 30, -1, 0, -1, -1, -1);
+                    List.of(), 28, resultSlots, 32, -1, 30, -1, -1, 0, -1, -1, -1);
         }
     }
 }
-

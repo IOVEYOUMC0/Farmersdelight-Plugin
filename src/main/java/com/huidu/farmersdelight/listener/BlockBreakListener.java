@@ -33,13 +33,15 @@ public class BlockBreakListener implements Listener {
     private static final String TATAMI_BLOCK_ID = "farmersdelight:tatami";
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
+        org.bukkit.block.Block block = event.getBlock();
         FarmersDelightPlugin.getInstance().getStoveManager()
-                .invalidateBlockedAboveCache(event.getBlock().getLocation().clone().add(0, -1, 0));
-        syncTraysAroundSupportChange(event.getBlock());
-        if (isStateManagedInteractiveBlock(event.getBlock())) {
+                .invalidateBlockedAboveCache(block.getLocation().clone().add(0, -1, 0));
+        syncTraysAroundSupportChange(block);
+        ImmutableBlockState state = CustomBlockUtils.getState(block);
+        if (isStateManagedInteractiveBlock(state)) {
             return;
         }
-        cleanupBlockAt(event.getBlock());
+        cleanupBlockAt(block, state, false, true);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -93,10 +95,6 @@ public class BlockBreakListener implements Listener {
         plugin.getTrayManager().syncAroundSupportChange(block.getLocation());
     }
 
-    private void cleanupBlockAt(org.bukkit.block.Block block) {
-        cleanupBlockAt(block, false, true);
-    }
-
     private void cleanupBlockAt(org.bukkit.block.Block block, boolean preserveCookingPotContents) {
         cleanupBlockAt(block, preserveCookingPotContents, true);
     }
@@ -122,14 +120,6 @@ public class BlockBreakListener implements Listener {
         if (isTatamiBlock(block)) {
             cleanupTatami(blockLocation);
         }
-    }
-
-    private boolean isCookingPotBlock(org.bukkit.block.Block block) {
-        if (block == null) {
-            return false;
-        }
-        ImmutableBlockState state = CustomBlockUtils.getState(block);
-        return isCookingPotBlock(state);
     }
 
     private void cleanupCookingPot(BlockPos pos, World world, Location dropLocation, ImmutableBlockState state, boolean preserveContents, boolean shouldDropItems) {
@@ -245,8 +235,7 @@ public class BlockBreakListener implements Listener {
                 || TATAMI_BLOCK_ID.equals(CustomBlockUtils.getId(state));
     }
 
-    private boolean isStateManagedInteractiveBlock(org.bukkit.block.Block block) {
-        ImmutableBlockState state = CustomBlockUtils.getState(block);
+    private boolean isStateManagedInteractiveBlock(ImmutableBlockState state) {
         return isCookingPotBlock(state)
                 || isSkilletBlock(state)
                 || CustomBlockUtils.hasBehavior(state, CuttingBoardBlockBehavior.class)

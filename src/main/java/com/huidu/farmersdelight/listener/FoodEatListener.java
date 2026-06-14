@@ -43,7 +43,7 @@ public class FoodEatListener implements Listener {
                 comfortFoodDurations.put(foodId, duration);
             }
         } else {
-            // Backward compatibility with the old plugin config shape:
+            // 兼容旧版插件配置结构：
             // comfort-foods-enabled: false
             // comfort-foods:
             //   item_id:
@@ -99,26 +99,17 @@ public class FoodEatListener implements Listener {
 
         AdvancementManager advancementManager = FarmersDelightPlugin.getInstance().getAdvancementManager();
 
-        if (comfortFoodDurations.containsKey(itemId)) {
-            if (comfortFoodsEnabled) {
-                int duration = comfortFoodDurations.get(itemId);
-                EffectManager.applyComfort(player, duration);
-            }
-
-            if (advancementManager != null) {
-                advancementManager.award(player, "eat_comfort_food");
-            }
+        // 每吃下一种不同的 FD 菜肴就完成一个 master_chef 子任务；非菜肴的 id 会被忽略。
+        if (advancementManager != null && itemId.startsWith("farmersdelight:")) {
+            advancementManager.awardCriteria(player, "master_chef", itemId.substring("farmersdelight:".length()));
         }
 
-        if (nourishmentFoodDurations.containsKey(itemId)) {
-            if (nourishmentFoodsEnabled) {
-                int duration = nourishmentFoodDurations.get(itemId);
-                EffectManager.applyNourishment(player, duration);
-            }
+        if (comfortFoodsEnabled && comfortFoodDurations.containsKey(itemId)) {
+            EffectManager.applyComfort(player, comfortFoodDurations.get(itemId));
+        }
 
-            if (advancementManager != null) {
-                advancementManager.award(player, "eat_nourishing_food");
-            }
+        if (nourishmentFoodsEnabled && nourishmentFoodDurations.containsKey(itemId)) {
+            EffectManager.applyNourishment(player, nourishmentFoodDurations.get(itemId));
         }
     }
 
@@ -132,6 +123,6 @@ public class FoodEatListener implements Listener {
         if (type.isAir()) {
             return null;
         }
-        return "minecraft:" + type.name().toLowerCase();
+        return "minecraft:" + type.name().toLowerCase(java.util.Locale.ROOT);
     }
 }

@@ -4,18 +4,22 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.manager.SkilletManager;
 import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.util.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.InteractionDebouncer;
 import com.huidu.farmersdelight.util.WorldGuardCompat;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.behavior.EntityBlock;
+import net.momirealms.craftengine.core.block.behavior.WorldlyContainerHolder;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.block.entity.BlockEntityController;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.world.BlockPos;
+import net.momirealms.craftengine.core.world.CEWorld;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -27,9 +31,8 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
-import java.util.concurrent.Callable;
 
-public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock {
+public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock, WorldlyContainerHolder {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
@@ -49,6 +52,7 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock {
 
     private final String addFoodSound;
     private final String sizzleSound;
+    private int controllerId;
 
     public static final BlockBehaviorFactory<SkilletBlockBehavior> FACTORY = new BlockBehaviorFactory<>() {
         @Override
@@ -81,6 +85,7 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock {
 
     @Override
     public void initControllerId(int id) {
+        this.controllerId = id;
     }
 
     public static SkilletBlockBehavior getBlockBehavior(Location location) {
@@ -146,6 +151,11 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock {
             return InteractionResult.FAIL;
         }
 
+        // 这个 CraftEngine 行为和 SkilletInteractListener 都可能接收到同一次
+        // 右键点击；共享一个防抖令牌，使 handleInteract 对 skillet 最多只改动一次。
+        if (!InteractionDebouncer.tryAcquire(player.getUniqueId(), block.getLocation())) {
+            return InteractionResult.SUCCESS_AND_CANCEL;
+        }
         if (manager.handleInteract(player, block, mainHand, EquipmentSlot.HAND)) {
             player.updateInventory();
             return InteractionResult.SUCCESS_AND_CANCEL;
@@ -156,7 +166,7 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock {
 
     @Override
     public void tick(Object thisBlock, Object[] args) {
-        // Managed by SkilletManager.
+        // 由 SkilletManager 管理。
     }
 
     @Override
@@ -186,6 +196,37 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock {
         Location location = new Location(world, pos.x(), pos.y(), pos.z());
         manager.saveWorldData(world);
         manager.breakSkillet(location, location.clone().add(0.5, 0.5, 0.5), false);
+    }
+
+    @Override
+    public Object getContainer(Object thisBlock, Object[] args) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin == null || !plugin.isSkilletHopperInteractionsEnabled()) {
+            return null;
+        }
+        if (args == null || args.length < 3) {
+            return null;
+        }
+
+        World world = CraftEngineAdapter.toWorld(args[1]);
+        BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
+        if (world == null || pos == null) {
+            return null;
+        }
+
+        CEWorld ceWorld = CustomBlockUtils.getCEWorld(world);
+        if (ceWorld == null) {
+            return null;
+        }
+
+        BlockEntity blockEntity = ceWorld.getBlockEntityAtIfLoaded(pos);
+        if (blockEntity == null) {
+            return null;
+        }
+        return blockEntity.controller.let(SkilletBlockEntityController.class, this.controllerId, controller -> {
+            controller.syncFromManager();
+            return controller.container();
+        });
     }
 
     public static void cleanupAll() {
@@ -251,7 +292,6 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock {
         if (customItemId != null) {
             return customItemId;
         }
-        return "minecraft:" + item.getType().name().toLowerCase();
+        return "minecraft:" + item.getType().name().toLowerCase(java.util.Locale.ROOT);
     }
 }
-

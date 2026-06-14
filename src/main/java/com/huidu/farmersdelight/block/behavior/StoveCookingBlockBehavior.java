@@ -6,6 +6,7 @@ import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.InteractionDebouncer;
 import com.huidu.farmersdelight.util.WorldGuardCompat;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -148,6 +149,11 @@ public class StoveCookingBlockBehavior extends BlockBehavior implements EntityBl
             return InteractionResult.PASS;
         }
 
+        // 此 CraftEngine behavior 与 StoveInteractListener 都可能接收到同一次右键点击；
+        // 共用一个防抖令牌（该监听器已在使用它），从而保证单次点击只填充一个槽位。
+        if (!InteractionDebouncer.tryAcquire(player.getUniqueId(), block.getLocation())) {
+            return InteractionResult.SUCCESS_AND_CANCEL;
+        }
         if (manager.handleInteract(player, block, mainHand)) {
             player.updateInventory();
             return InteractionResult.SUCCESS_AND_CANCEL;
@@ -158,7 +164,7 @@ public class StoveCookingBlockBehavior extends BlockBehavior implements EntityBl
 
     @Override
     public void tick(Object thisBlock, Object[] args) {
-        // Managed by StoveManager.
+        // 由 StoveManager 管理。
     }
 
     @Override
@@ -267,7 +273,7 @@ public class StoveCookingBlockBehavior extends BlockBehavior implements EntityBl
         if (customItemId != null) {
             return customItemId;
         }
-        return "minecraft:" + item.getType().name().toLowerCase();
+        return "minecraft:" + item.getType().name().toLowerCase(java.util.Locale.ROOT);
     }
 }
 

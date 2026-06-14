@@ -14,29 +14,32 @@ import java.util.*;
 public class CuttingBoardRecipeManager {
 
     private final FarmersDelightPlugin plugin;
-    private final Map<String, CuttingBoardRecipe> recipes = new java.util.HashMap<>();
-    private List<CuttingBoardRecipe> sortedRecipes = List.of();
+    // 在重载时整体重建；通过 volatile 写操作整体发布，使得 Folia 区域/实体线程上的读取方
+    // 永远不会观察到一个被清空了一半的 map。发布之后绝不可原地修改。
+    private volatile Map<String, CuttingBoardRecipe> recipes = Map.of();
+    private volatile List<CuttingBoardRecipe> sortedRecipes = List.of();
 
     public CuttingBoardRecipeManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
     }
 
     public void loadRecipes() {
-        recipes.clear();
-        sortedRecipes = List.of();
+        Map<String, CuttingBoardRecipe> newRecipes = new LinkedHashMap<>();
         RecipeFileLoader.loadRecipeSections(plugin, "recipes/cutting_board_recipes.yml", "cutting_board_recipes", "cutting board",
-                (recipeId, section) -> recipes.put(recipeId, parseRecipe(recipeId, section)));
-        rebuildSortedRecipeList();
-    }
+                (recipeId, section) -> newRecipes.put(recipeId, parseRecipe(recipeId, section)));
 
-    private void rebuildSortedRecipeList() {
-        if (recipes.isEmpty()) {
-            sortedRecipes = List.of();
-            return;
+        List<CuttingBoardRecipe> newSorted;
+        if (newRecipes.isEmpty()) {
+            newSorted = List.of();
+        } else {
+            List<CuttingBoardRecipe> sorted = new ArrayList<>(newRecipes.values());
+            sorted.sort(Comparator.comparingInt(CuttingBoardRecipe::getPriority).reversed()
+                    .thenComparing(CuttingBoardRecipe::getId));
+            newSorted = Collections.unmodifiableList(sorted);
         }
-        List<CuttingBoardRecipe> sorted = new ArrayList<>(recipes.values());
-        sorted.sort(Comparator.comparing(CuttingBoardRecipe::getId));
-        sortedRecipes = Collections.unmodifiableList(sorted);
+
+        this.recipes = newRecipes;
+        this.sortedRecipes = newSorted;
     }
 
     private CuttingBoardRecipe parseRecipe(String id, ConfigurationSection section) {
@@ -51,14 +54,15 @@ public class CuttingBoardRecipeManager {
             throw new IllegalArgumentException("Invalid input ingredient: " + inputStr);
         }
 
+        // 支持标量形式的 'tool:' 或复数形式的 'tools:' 列表（或两者同时存在）。'tools' 优先；
+        // 'tool' 作为兜底。只要求两者中至少存在一个。
         String toolStr = section.getString("tool");
-        if (toolStr == null) {
-            throw new IllegalArgumentException("Recipe must have a tool");
-        }
-
         List<String> toolStrings = section.getStringList("tools");
-        if (toolStrings.isEmpty() && toolStr != null) {
+        if (toolStrings.isEmpty() && toolStr != null && !toolStr.isBlank()) {
             toolStrings = Collections.singletonList(toolStr);
+        }
+        if (toolStrings.isEmpty()) {
+            throw new IllegalArgumentException("Recipe must have a tool");
         }
 
         List<CuttingBoardRecipe.ToolRequirement> tools = new ArrayList<>();
@@ -120,7 +124,8 @@ public class CuttingBoardRecipeManager {
         }
 
         String sound = normalizeSound(section.getString("sound", Constants.SOUND_CUTTING_BOARD_KNIFE));
-        return new CuttingBoardRecipe(id, input, inputDisplay, tools, results, sound);
+        int priority = section.getInt("priority", 0);
+        return new CuttingBoardRecipe(id, input, inputDisplay, tools, results, sound, priority);
     }
 
     private String normalizeSound(String soundStr) {
@@ -128,7 +133,7 @@ public class CuttingBoardRecipeManager {
             return Constants.SOUND_CUTTING_BOARD_KNIFE;
         }
 
-        String normalized = soundStr.trim().toLowerCase();
+        String normalized = soundStr.trim().toLowerCase(java.util.Locale.ROOT);
         if (normalized.contains(":")) {
             return normalized;
         }
@@ -167,9 +172,12 @@ public class CuttingBoardRecipeManager {
 
     public CuttingBoardRecipe matchRecipe(ItemStack input, ItemStack tool) {
         String toolId = ItemUtils.getCustomItemId(tool);
+        // ToolContext 只取决于工具本身，与具体配方无关；在循环外构建一次，避免每个配方都重复
+        // 做 CraftEngine 标签/ID 查找和集合分配（切割是逐次点击的热路径）。
+        ToolContext toolContext = ToolContext.from(plugin, tool, toolId);
 
-        for (CuttingBoardRecipe recipe : recipes.values()) {
-            if (matchesInput(recipe, input) && matchesTool(recipe, toolId, tool)) {
+        for (CuttingBoardRecipe recipe : sortedRecipes) {
+            if (matchesInput(recipe, input) && matchesTool(recipe, toolContext)) {
                 return recipe;
             }
         }
@@ -179,7 +187,7 @@ public class CuttingBoardRecipeManager {
 
     public boolean hasAnyRecipeFor(ItemStack input) {
         if (input == null || input.getType().isAir()) return false;
-        for (CuttingBoardRecipe recipe : recipes.values()) {
+        for (CuttingBoardRecipe recipe : sortedRecipes) {
             if (matchesInput(recipe, input)) return true;
         }
         return false;
@@ -202,8 +210,7 @@ public class CuttingBoardRecipeManager {
         return false;
     }
 
-    private boolean matchesTool(CuttingBoardRecipe recipe, String toolId, ItemStack tool) {
-        ToolContext toolContext = ToolContext.from(plugin, tool, toolId);
+    private boolean matchesTool(CuttingBoardRecipe recipe, ToolContext toolContext) {
         for (CuttingBoardRecipe.ToolRequirement toolRequirement : recipe.getTools()) {
             if (matchesToolRequirement(toolRequirement, toolContext)) {
                 return true;
@@ -239,7 +246,8 @@ public class CuttingBoardRecipeManager {
                 || Constants.ACTION_AXE_DIG.equalsIgnoreCase(toolKeyStr)
                 || Constants.ACTION_AXE_STRIP.equalsIgnoreCase(toolKeyStr)) && toolContext.axe())
                 || (Constants.ACTION_PICKAXE_DIG.equalsIgnoreCase(toolKeyStr) && toolContext.pickaxe())
-                || (Constants.ACTION_SHOVEL_DIG.equalsIgnoreCase(toolKeyStr) && toolContext.shovel())
+                || ((Constants.TAG_SHOVELS.equalsIgnoreCase(toolKeyStr)
+                || Constants.ACTION_SHOVEL_DIG.equalsIgnoreCase(toolKeyStr)) && toolContext.shovel())
                 || (Constants.ITEM_SHEARS.equalsIgnoreCase(toolKeyStr) && toolContext.shears());
     }
 

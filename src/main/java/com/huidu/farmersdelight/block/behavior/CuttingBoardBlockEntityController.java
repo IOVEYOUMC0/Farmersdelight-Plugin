@@ -33,7 +33,6 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
     private static final String STORED_ITEM = "stored_item";
     private static final String ITEM_CARVED = "item_carved";
     private static final int[] SLOT = {0};
-    private static final int[] EMPTY_SLOTS = {};
 
     private final CuttingBoardBlockBehavior behavior;
     private final Object container;
@@ -169,7 +168,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
             entity.clearItem();
             this.itemCarved = false;
         } else {
-            entity.setStoredItem(stack, world, posKey, CustomBlockUtils.getFacing(posKey.toLocation(world).getBlock()));
+            entity.setStoredItem(stack, world, posKey, CustomBlockUtils.getFacing(posKey.toLocation(world).getBlock()), this.itemCarved);
         }
 
         CustomBlockUtils.markBlockEntityDirty(this.blockEntity);
@@ -222,10 +221,6 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
     @Override
     public Item getItem(int slot) {
         if (!isValidSlot(slot)) return Item.empty();
-        CuttingBoardBlockEntity entity = getOrCreateEntity();
-        if (entity != null) {
-            refreshFromEntity(entity);
-        }
         return this.item;
     }
 
@@ -263,6 +258,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
         }
         this.item = Item.empty();
         this.itemCarved = false;
+        setChanged();
         return item;
     }
 
@@ -299,10 +295,6 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
 
     @Override
     public List<Item> contents() {
-        CuttingBoardBlockEntity entity = getOrCreateEntity();
-        if (entity != null) {
-            refreshFromEntity(entity);
-        }
         return Arrays.asList(this.item);
     }
 
@@ -328,8 +320,29 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
 
     @Override
     public boolean canPlaceItem(int slot, Item item) {
+        if (slot != 0) {
+            return false;
+        }
         CuttingBoardBlockEntity entity = getOrCreateEntity();
-        return slot == 0 && (entity == null || !entity.hasItem());
+        if (entity == null || !entity.hasItem()) {
+            return true;
+        }
+        // 当砧板上已存放物品后，仅在开启堆叠模式、物品相互匹配
+        // 且数量低于堆叠上限时，才允许继续放入物品。
+        com.huidu.farmersdelight.FarmersDelightPlugin plugin = com.huidu.farmersdelight.FarmersDelightPlugin.getInstance();
+        ItemStack stored = entity.getStoredItem();
+        ItemStack incoming = asBukkitStack(item);
+        return plugin != null
+                && plugin.isCuttingBoardStackingEnabled()
+                && stored != null
+                && incoming != null
+                && stored.isSimilar(incoming)
+                && stored.getAmount() < stackLimit(stored);
+    }
+
+    private int stackLimit(ItemStack stored) {
+        return Math.max(1, Math.min(this.behavior.getMaxStackAmount(),
+                Math.min(this.maxStackSize, stored.getMaxStackSize())));
     }
 
     @Override
@@ -339,15 +352,12 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
 
     @Override
     public int[] getSlotsForFace(Direction direction) {
-        return switch (direction) {
-            case UP, DOWN -> SLOT;
-            default -> EMPTY_SLOTS;
-        };
+        return SLOT;
     }
 
     @Override
     public boolean canPlaceItemThroughFace(int slot, Item stack, Direction direction) {
-        return direction == Direction.UP && canPlaceItem(slot, stack);
+        return direction != Direction.DOWN && canPlaceItem(slot, stack);
     }
 
     @Override

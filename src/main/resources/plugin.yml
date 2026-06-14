@@ -2,36 +2,36 @@ name: FarmersDelight
 version: ${version}
 main: com.huidu.farmersdelight.FarmersDelightPlugin
 api-version: '1.21'
-folia-supported: ${foliaSupported}
+folia-supported: true
 depend: [CraftEngine]
-softdepend: [AuraSkills]
+softdepend: [AuraSkills, UltimateAdvancementAPI]
 authors:
   - HuiDu_OwO
-description: Farmer's Delight addon for CraftEngine
+description: CraftEngine 的农夫乐事（Farmer's Delight）扩展
 permissions:
   farmersdelight.command:
-    description: Allows using the main command
+    description: 允许使用主命令
     default: true
   farmersdelight.command.recipe:
-    description: Allows viewing recipes
+    description: 允许查看配方
     default: true
   farmersdelight.use.cooking_pot:
-    description: Allows using the cooking pot
+    description: 允许使用烹饪锅
     default: true
   farmersdelight.use.stove:
-    description: Allows using the stove
+    description: 允许使用炉灶
     default: true
   farmersdelight.use.skillet:
-    description: Allows using the skillet
+    description: 允许使用煎锅
     default: true
   farmersdelight.use.cutting_board:
-    description: Allows using the cutting board
+    description: 允许使用砧板
     default: true
   farmersdelight.admin:
-    description: Administrative permission
+    description: 管理员权限
     default: op
   farmersdelight.*:
-    description: All FarmersDelight permissions
+    description: 所有 FarmersDelight 权限
     default: op
     children:
       farmersdelight.command: true

@@ -2,12 +2,13 @@ package com.huidu.farmersdelight.manager;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior;
+import com.huidu.farmersdelight.config.CuttingBoardDisplayConfig;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.storage.LegacyBlockStorageManager;
 import com.huidu.farmersdelight.util.*;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
-import fr.ateastudio.farmersdelight.api.event.ProfessionCookingExperienceEvent;
+import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.property.Property;
@@ -24,6 +25,7 @@ import org.joml.Vector3f;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -34,6 +36,9 @@ public class StoveManager {
     private static final int DEFAULT_COOK_TIME = 600;
     private static final int HEARTBEAT_LOG_INTERVAL = 20;
     private static final int DEFAULT_TICK_BUDGET = 512;
+    private static final int DEFAULT_COOLING_DECREMENT = 2;
+    private static final double DEFAULT_SMOKE_CHANCE = Constants.STOVE_PARTICLE_CHANCE;
+    private static final double DEFAULT_CRACKLE_CHANCE = Constants.STOVE_CRACKLE_CHANCE;
 
     private final FarmersDelightPlugin plugin;
     private final Map<Location, StoveData> stoves = new ConcurrentHashMap<>();
@@ -51,6 +56,21 @@ public class StoveManager {
     private int heartbeatTicks;
     private int tickCursor;
     private int tickBudget;
+    private int defaultCookTime = DEFAULT_COOK_TIME;
+    private int coolingDecrement = DEFAULT_COOLING_DECREMENT;
+    private boolean smokeEnabled = true;
+    private Particle smokeParticle = Particle.SMOKE;
+    private double smokeChance = DEFAULT_SMOKE_CHANCE;
+    private int smokeCount = 1;
+    private double smokeYOffset = 0.0D;
+    private double smokeOffsetX = 0.0D;
+    private double smokeOffsetY = 0.0D;
+    private double smokeOffsetZ = 0.0D;
+    private double smokeSpeed = 0.02D;
+    private boolean crackleEnabled = true;
+    private double crackleChance = DEFAULT_CRACKLE_CHANCE;
+    private float crackleVolume = 1.0F;
+    private float cracklePitch = 1.0F;
     private volatile Property<?> fireProperty;
 
     private static final double[][] DEFAULT_SLOT_OFFSETS = {
@@ -68,9 +88,9 @@ public class StoveManager {
         final UUID[] ownerIds = new UUID[SLOT_COUNT];
         final String[] ownerNames = new String[SLOT_COUNT];
 
-        StoveData(Location location) {
+        StoveData(Location location, int defaultCookTime) {
             this.location = location;
-            Arrays.fill(maxTime, DEFAULT_COOK_TIME);
+            Arrays.fill(maxTime, defaultCookTime);
             Arrays.fill(displayEntities, -1);
         }
     }
@@ -93,7 +113,39 @@ public class StoveManager {
         this.tickBudget = Math.max(1, plugin.getConfigInt(DEFAULT_TICK_BUDGET,
                 "stove.tick-budget",
                 "performance.stove-tick-budget"));
+        this.defaultCookTime = Math.max(1, plugin.getConfigInt(DEFAULT_COOK_TIME,
+                "stove.cooking.default-cook-time",
+                "stove.default-cook-time"));
+        this.coolingDecrement = Math.max(0, plugin.getConfigInt(DEFAULT_COOLING_DECREMENT,
+                "stove.cooking.cooling-decrement",
+                "stove.cooling-decrement"));
+        loadEffectsConfig();
         this.slotOffsets = loadSlotOffsets();
+        refreshVisualsAfterConfigReload();
+    }
+
+    private void loadEffectsConfig() {
+        ConfigurationSection effectsSection = plugin.getFirstConfigSection("stove.effects");
+        ConfigurationSection smokeSection = effectsSection != null ? effectsSection.getConfigurationSection("smoke") : null;
+        smokeEnabled = smokeSection == null || smokeSection.getBoolean("enabled", true);
+        smokeParticle = ManagerSupport.resolveParticle(smokeSection == null ? null : smokeSection.getString("type"), Particle.SMOKE);
+        smokeChance = ManagerSupport.clampChance(smokeSection == null
+                ? DEFAULT_SMOKE_CHANCE
+                : smokeSection.getDouble("chance", DEFAULT_SMOKE_CHANCE));
+        smokeCount = Math.max(1, smokeSection == null ? 1 : smokeSection.getInt("count", 1));
+        smokeYOffset = smokeSection == null ? 0.0D : smokeSection.getDouble("y-offset", 0.0D);
+        smokeOffsetX = Math.max(0.0D, smokeSection == null ? 0.0D : smokeSection.getDouble("offset-x", 0.0D));
+        smokeOffsetY = Math.max(0.0D, smokeSection == null ? 0.0D : smokeSection.getDouble("offset-y", 0.0D));
+        smokeOffsetZ = Math.max(0.0D, smokeSection == null ? 0.0D : smokeSection.getDouble("offset-z", 0.0D));
+        smokeSpeed = Math.max(0.0D, smokeSection == null ? 0.02D : smokeSection.getDouble("speed", 0.02D));
+
+        ConfigurationSection crackleSection = effectsSection != null ? effectsSection.getConfigurationSection("crackle") : null;
+        crackleEnabled = crackleSection == null || crackleSection.getBoolean("enabled", true);
+        crackleChance = ManagerSupport.clampChance(crackleSection == null
+                ? DEFAULT_CRACKLE_CHANCE
+                : crackleSection.getDouble("chance", DEFAULT_CRACKLE_CHANCE));
+        crackleVolume = (float) Math.max(0.0D, crackleSection == null ? 1.0D : crackleSection.getDouble("volume", 1.0D));
+        cracklePitch = (float) Math.max(0.0D, crackleSection == null ? 1.0D : crackleSection.getDouble("pitch", 1.0D));
     }
 
     private void ensureTaskRunning() {
@@ -121,7 +173,7 @@ public class StoveManager {
             return existing;
         }
 
-        StoveData created = new StoveData(normalized);
+        StoveData created = new StoveData(normalized, defaultCookTime);
         StoveData previous = stoves.putIfAbsent(normalized, created);
         if (previous != null) {
             return previous;
@@ -162,7 +214,7 @@ public class StoveManager {
         toPlace.setAmount(1);
         stove.items[emptySlot] = toPlace;
         stove.cookingTime[emptySlot] = 0;
-        stove.maxTime[emptySlot] = recipe.getCookingTime() > 0 ? recipe.getCookingTime() : DEFAULT_COOK_TIME;
+        stove.maxTime[emptySlot] = recipe.getCookingTime() > 0 ? recipe.getCookingTime() : defaultCookTime;
         stove.ownerIds[emptySlot] = player.getUniqueId();
         stove.ownerNames[emptySlot] = player.getName();
         debug("create state: slot=" + emptySlot + ", stored=" + formatItem(toPlace)
@@ -222,7 +274,12 @@ public class StoveManager {
                 }
             }
         }
-        removeStoredData(normalized);
+        // 只有确实有炉灶(内存中)或有持久化数据时才清理,避免每次破坏普通方块都白白获取一次全局写锁
+        // + CEWorld 脏标记。
+        LegacyBlockStorageManager storage = plugin.getLegacyBlockStorageManager();
+        if (stove != null || (storage != null && storage.hasBlockData(normalized))) {
+            removeStoredData(normalized);
+        }
     }
 
     public boolean isStoveStateBlock(Location location) {
@@ -268,6 +325,7 @@ public class StoveManager {
         if (removedAny) {
             markTickLocationsDirty();
         }
+        blockedAboveCache.keySet().removeIf(loc -> loc.getWorld() != null && worldId.equals(loc.getWorld().getUID()));
         stopTaskIfIdle();
     }
 
@@ -307,7 +365,7 @@ public class StoveManager {
             return;
         }
 
-        StoveData stove = new StoveData(location);
+        StoveData stove = new StoveData(location, defaultCookTime);
         boolean hasAnyItem = false;
         BlockFace facing = CustomBlockUtils.getFacing(location.getBlock()).getOppositeFace();
 
@@ -316,7 +374,7 @@ public class StoveManager {
             if (itemObject instanceof ItemStack item && !item.getType().isAir()) {
                 stove.items[i] = item.clone();
                 stove.cookingTime[i] = data.get("slot_" + i + "_progress") instanceof Number progress ? progress.intValue() : 0;
-                stove.maxTime[i] = data.get("slot_" + i + "_duration") instanceof Number duration ? duration.intValue() : DEFAULT_COOK_TIME;
+                stove.maxTime[i] = data.get("slot_" + i + "_duration") instanceof Number duration ? duration.intValue() : defaultCookTime;
                 if (data.get("slot_" + i + "_owner_id") instanceof String ownerId) {
                     try {
                         stove.ownerIds[i] = UUID.fromString(ownerId);
@@ -378,6 +436,7 @@ public class StoveManager {
         stovesByWorld.clear();
         stovesByChunk.clear();
         scheduledStoveTicks.clear();
+        blockedAboveCache.clear();
         tickLocationsSnapshot = List.of();
         markTickLocationsDirty();
     }
@@ -602,9 +661,18 @@ public class StoveManager {
         }
 
         boolean isLit = isStoveLit(state);
-        BlockFace facing = CustomBlockUtils.getFacing(block).getOppositeFace();
-        debug(() -> "tick state: lit=" + isLit + ", hasAnyItem=" + hasAnyItem(stove)
-                + ", location=" + formatLocation(location));
+        BlockFace facing = CustomBlockUtils.getFacing(state).getOppositeFace();
+        // 缓存 debug 标志，这样仅在开启 debug 时才会分配每个槽位的 debug lambda。
+        boolean debugStove = plugin.isDebugEnabled("stove");
+        // 以惰性方式解析 crackle 声音（一次 CE block-state 查询），每个 tick 最多解析一次，
+        // 而不是每个发出噼啪声的槽位都解析一次。
+        String crackleSound = null;
+        boolean crackleResolved = false;
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        if (debugStove) {
+            debug(() -> "tick state: lit=" + isLit + ", hasAnyItem=" + hasAnyItem(stove)
+                    + ", location=" + formatLocation(location));
+        }
         for (int i = 0; i < SLOT_COUNT; i++) {
             if (stove.items[i] == null || stove.items[i].getType().isAir()) {
                 continue;
@@ -612,27 +680,35 @@ public class StoveManager {
 
             ensureVisualExists(location, stove, i, facing);
             int slot = i;
-            debug(() -> "tick slot: slot=" + slot + ", progress=" + stove.cookingTime[slot] + "/" + stove.maxTime[slot]
-                    + ", item=" + formatItem(stove.items[slot]) + ", lit=" + isLit
-                    + ", location=" + formatLocation(location));
+            if (debugStove) {
+                debug(() -> "tick slot: slot=" + slot + ", progress=" + stove.cookingTime[slot] + "/" + stove.maxTime[slot]
+                        + ", item=" + formatItem(stove.items[slot]) + ", lit=" + isLit
+                        + ", location=" + formatLocation(location));
+            }
 
             if (isLit) {
                 stove.cookingTime[i]++;
 
-                if (Math.random() < Constants.STOVE_PARTICLE_CHANCE) {
+                if (smokeEnabled && random.nextDouble() < smokeChance) {
                     spawnCookingParticles(location, i, facing);
                 }
-                if (Math.random() < Constants.STOVE_CRACKLE_CHANCE) {
-                    SoundUtils.play(world, location, getCrackleSound(location), Sound.BLOCK_CAMPFIRE_CRACKLE, 1.0f, 1.0f);
+                if (crackleEnabled && random.nextDouble() < crackleChance) {
+                    if (!crackleResolved) {
+                        crackleSound = getCrackleSound(location);
+                        crackleResolved = true;
+                    }
+                    SoundUtils.play(world, location, crackleSound, Sound.BLOCK_CAMPFIRE_CRACKLE, crackleVolume, cracklePitch);
                 }
                 if (stove.cookingTime[i] >= stove.maxTime[i]) {
                     int finishedSlot = i;
-                    debug(() -> "tick finish: slot=" + finishedSlot + ", item=" + formatItem(stove.items[finishedSlot])
-                            + ", location=" + formatLocation(location));
+                    if (debugStove) {
+                        debug(() -> "tick finish: slot=" + finishedSlot + ", item=" + formatItem(stove.items[finishedSlot])
+                                + ", location=" + formatLocation(location));
+                    }
                     finishCooking(location, stove, i);
                 }
             } else {
-                stove.cookingTime[i] = Math.max(0, stove.cookingTime[i] - 2);
+                stove.cookingTime[i] = Math.max(0, stove.cookingTime[i] - coolingDecrement);
             }
         }
 
@@ -722,7 +798,7 @@ public class StoveManager {
 
         stove.items[slot] = null;
         stove.cookingTime[slot] = 0;
-        stove.maxTime[slot] = DEFAULT_COOK_TIME;
+        stove.maxTime[slot] = defaultCookTime;
         stove.ownerIds[slot] = null;
         stove.ownerNames[slot] = null;
         removeVisual(location, stove, slot);
@@ -738,7 +814,7 @@ public class StoveManager {
                 location.getWorld().dropItemNaturally(location.clone().add(0.5, 1.0, 0.5), stove.items[i].clone());
                 stove.items[i] = null;
                 stove.cookingTime[i] = 0;
-                stove.maxTime[i] = DEFAULT_COOK_TIME;
+                stove.maxTime[i] = defaultCookTime;
                 stove.ownerIds[i] = null;
                 stove.ownerNames[i] = null;
             }
@@ -747,8 +823,16 @@ public class StoveManager {
 
     private void spawnCookingParticles(Location location, int slot, BlockFace facing) {
         double[] offset = getRotatedSlotOffset(slot, facing);
-        Location particleLocation = location.clone().add(0.5 + offset[0], offset[1], 0.5 + offset[2]);
-        location.getWorld().spawnParticle(Particle.SMOKE, particleLocation, 1, 0, 0, 0, 0.02);
+        Location particleLocation = location.clone().add(0.5 + offset[0], offset[1] + smokeYOffset, 0.5 + offset[2]);
+        location.getWorld().spawnParticle(
+                smokeParticle,
+                particleLocation,
+                smokeCount,
+                smokeOffsetX,
+                smokeOffsetY,
+                smokeOffsetZ,
+                smokeSpeed
+        );
     }
 
     private void createVisual(Location location, StoveData stove, int slot, BlockFace facing) {
@@ -769,22 +853,55 @@ public class StoveManager {
         }
 
         Location displayLocation = location.clone().add(0.5 + offset[0], offset[1], 0.5 + offset[2]);
-        ItemStack visualItem = item.clone();
-        visualItem.setAmount(1);
+        CuttingBoardDisplayConfig displayConfig = plugin.getStoveDisplayConfig();
+        CuttingBoardDisplayConfig.DisplayOverride displayOverride = displayConfig.getOverride(item);
+        ItemStack visualItem = displayConfig.resolveDisplayItem(item, displayOverride);
+        if (visualItem == null || visualItem.getType().isAir()) {
+            debug("spawn display: skipped unresolved display item for slot=" + slot + ", item=" + formatItem(item)
+                    + ", location=" + formatLocation(location));
+            return;
+        }
+        if (displayOverride.offset() != null) {
+            double[] configuredOffset = DisplayTransformUtils.stoveSlotOffset(
+                    (double) displayOverride.offset().x(),
+                    (double) displayOverride.offset().y(),
+                    (double) displayOverride.offset().z(),
+                    facing
+            );
+            displayLocation.add(configuredOffset[0], configuredOffset[1], configuredOffset[2]);
+        }
 
+        boolean isBlockItem = switch (displayOverride.style()) {
+            case BLOCK -> true;
+            case ITEM -> false;
+            default -> ItemUtils.shouldUseBlockStyleDisplay(visualItem);
+        };
+        float xRotation = isBlockItem ? 0.0F : 90.0F;
         float yRotation = DisplayTransformUtils.stoveYaw(facing);
+        float zRotation = 0.0F;
+        if (displayOverride.rotationDegrees() != null) {
+            xRotation = displayOverride.rotationDegrees().x();
+            yRotation = displayOverride.rotationDegrees().y();
+            zRotation = displayOverride.rotationDegrees().z();
+        }
 
         Quaternionf leftRotation = new Quaternionf();
         leftRotation.rotationYXZ(
                 (float) Math.toRadians(yRotation),
-                (float) Math.toRadians(90.0f),
-                0.0f
+                (float) Math.toRadians(xRotation),
+                (float) Math.toRadians(zRotation)
         );
 
+        Vector3f translation = displayOverride.translation() == null
+                ? new Vector3f(0.0F, 0.0F, 0.0F)
+                : new Vector3f(displayOverride.translation());
+        Vector3f scale = displayOverride.scale() == null
+                ? new Vector3f(plugin.getStoveDisplayScale(), plugin.getStoveDisplayScale(), plugin.getStoveDisplayScale())
+                : new Vector3f(displayOverride.scale());
         Transformation transformation = new Transformation(
-                new Vector3f(0.0f, 0.0f, 0.0f),
+                translation,
                 leftRotation,
-                new Vector3f(plugin.getStoveDisplayScale(), plugin.getStoveDisplayScale(), plugin.getStoveDisplayScale()),
+                scale,
                 new Quaternionf()
         );
 
@@ -808,6 +925,23 @@ public class StoveManager {
     private double[] getRotatedSlotOffset(int slot, BlockFace facing) {
         double[] offset = slotOffsets[slot];
         return DisplayTransformUtils.stoveSlotOffset(offset[0], offset[1], offset[2], facing);
+    }
+
+    private void refreshVisualsAfterConfigReload() {
+        if (stoves.isEmpty()) {
+            return;
+        }
+        for (StoveData stove : stoves.values()) {
+            if (stove == null || stove.location == null) {
+                continue;
+            }
+            BlockFace facing = CustomBlockUtils.getFacing(stove.location.getBlock()).getOppositeFace();
+            for (int slot = 0; slot < SLOT_COUNT; slot++) {
+                if (stove.items[slot] != null && !stove.items[slot].getType().isAir()) {
+                    createVisual(stove.location, stove, slot, facing);
+                }
+            }
+        }
     }
 
     private double[][] loadSlotOffsets() {
@@ -910,7 +1044,7 @@ public class StoveManager {
         ItemStack toReturn = item.clone();
         stove.items[slot] = null;
         stove.cookingTime[slot] = 0;
-        stove.maxTime[slot] = DEFAULT_COOK_TIME;
+        stove.maxTime[slot] = defaultCookTime;
         stove.ownerIds[slot] = null;
         stove.ownerNames[slot] = null;
         removeVisual(location, stove, slot);

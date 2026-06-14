@@ -27,7 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class HorseFeedTemptListener implements Listener {
 
     private static final long DEFAULT_TICK_INTERVAL = 10L;
-    private static final int DEFAULT_TICK_BUDGET = 64;
+    private static final int DEFAULT_TICK_BUDGET = 128;
 
     private final FarmersDelightPlugin plugin;
     private final Set<UUID> activeTempters = ConcurrentHashMap.newKeySet();
@@ -40,17 +40,27 @@ public class HorseFeedTemptListener implements Listener {
     private int tickBudget;
     private int tickCursor;
     private PluginTask task;
+    // activeTempterPlayers 的结构变更代数。tickTemptGoals 据此缓存可索引快照,成员不变(常态)时
+    // 不再每周期 List.copyOf。代数由多线程(各 region 线程)修改,用 AtomicLong;快照缓存只在单线程的
+    // tickTemptGoals 中读写,故为普通字段。
+    private final java.util.concurrent.atomic.AtomicLong tempterGeneration = new java.util.concurrent.atomic.AtomicLong();
+    private java.util.List<Map.Entry<UUID, Player>> cachedTempterSnapshot = java.util.List.of();
+    private long cachedTempterSnapshotGeneration = -1L;
 
     public HorseFeedTemptListener(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
     }
 
     public void start() {
-        reload();
+        reload(true);
     }
 
     public void reload() {
-        loadConfig();
+        reload(false);
+    }
+
+    public void reload(boolean logSummary) {
+        loadConfig(logSummary);
         restartTask();
     }
 
@@ -59,9 +69,7 @@ public class HorseFeedTemptListener implements Listener {
             task.cancel();
             task = null;
         }
-        activeTempters.clear();
-        activeTempterPlayers.clear();
-        activeTemptDefinitions.clear();
+        clearTempters();
         scheduledTempterTicks.clear();
         if (!enabled) {
             return;
@@ -75,13 +83,11 @@ public class HorseFeedTemptListener implements Listener {
             task.cancel();
             task = null;
         }
-        activeTempters.clear();
-        activeTempterPlayers.clear();
-        activeTemptDefinitions.clear();
+        clearTempters();
         scheduledTempterTicks.clear();
     }
 
-    private void loadConfig() {
+    private void loadConfig(boolean logSummary) {
         PetFoodConfig config = plugin.getPetFoodConfig();
         long shortestInterval = Long.MAX_VALUE;
         temptFoods.clear();
@@ -98,29 +104,53 @@ public class HorseFeedTemptListener implements Listener {
         enabled = !temptFoods.isEmpty();
         tickInterval = shortestInterval == Long.MAX_VALUE ? DEFAULT_TICK_INTERVAL : shortestInterval;
         tickBudget = Math.max(1, plugin.getConfig().getInt("performance.pet-tempt-tick-budget", DEFAULT_TICK_BUDGET));
-        I18n.logInfo("pet_food.tempt_loaded",
-                "enabled", enabled,
-                "foods", temptFoods.size(),
-                "interval", tickInterval);
+        if (logSummary) {
+            I18n.logInfo("pet_food.tempt_loaded",
+                    "enabled", enabled,
+                    "foods", temptFoods.size(),
+                    "interval", tickInterval);
+        }
     }
 
     private void refreshTemptStatus(Player player) {
         UUID playerId = player.getUniqueId();
         if (!enabled) {
-            activeTempters.remove(playerId);
-            activeTempterPlayers.remove(playerId);
-            activeTemptDefinitions.remove(playerId);
+            removeTempter(playerId);
             return;
         }
         PetFoodConfig.PetFoodDefinition definition = getHeldTemptFood(player).orElse(null);
         if (definition != null) {
-            activeTempters.add(playerId);
-            activeTempterPlayers.put(playerId, player);
-            activeTemptDefinitions.put(playerId, definition);
+            addTempter(playerId, player, definition);
         } else {
-            activeTempters.remove(playerId);
-            activeTempterPlayers.remove(playerId);
-            activeTemptDefinitions.remove(playerId);
+            removeTempter(playerId);
+        }
+    }
+
+    // 以下三个方法集中维护 activeTempters / activeTempterPlayers / activeTemptDefinitions 三个并行集合,
+    // 既避免散落各处的三处一致改动出错,也是 tickTemptGoals 快照缓存的唯一代数变更点。
+    private void addTempter(UUID playerId, Player player, PetFoodConfig.PetFoodDefinition definition) {
+        activeTempters.add(playerId);
+        activeTempterPlayers.put(playerId, player);
+        activeTemptDefinitions.put(playerId, definition);
+        tempterGeneration.incrementAndGet();
+    }
+
+    private void removeTempter(UUID playerId) {
+        boolean changed = activeTempters.remove(playerId);
+        changed |= activeTempterPlayers.remove(playerId) != null;
+        changed |= activeTemptDefinitions.remove(playerId) != null;
+        if (changed) {
+            tempterGeneration.incrementAndGet();
+        }
+    }
+
+    private void clearTempters() {
+        boolean had = !activeTempters.isEmpty() || !activeTempterPlayers.isEmpty() || !activeTemptDefinitions.isEmpty();
+        activeTempters.clear();
+        activeTempterPlayers.clear();
+        activeTemptDefinitions.clear();
+        if (had) {
+            tempterGeneration.incrementAndGet();
         }
     }
 
@@ -137,9 +167,7 @@ public class HorseFeedTemptListener implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         UUID playerId = event.getPlayer().getUniqueId();
-        activeTempters.remove(playerId);
-        activeTempterPlayers.remove(playerId);
-        activeTemptDefinitions.remove(playerId);
+        removeTempter(playerId);
         scheduledTempterTicks.remove(playerId);
     }
 
@@ -147,7 +175,13 @@ public class HorseFeedTemptListener implements Listener {
         if (!enabled) return;
         if (activeTempterPlayers.isEmpty()) return;
 
-        java.util.List<Map.Entry<UUID, Player>> snapshot = java.util.List.copyOf(activeTempterPlayers.entrySet());
+        // 仅在成员发生结构变更(代数改变)时才重建可索引快照,常态下复用缓存,避免每周期 List.copyOf。
+        long generation = tempterGeneration.get();
+        if (cachedTempterSnapshotGeneration != generation) {
+            cachedTempterSnapshot = java.util.List.copyOf(activeTempterPlayers.entrySet());
+            cachedTempterSnapshotGeneration = generation;
+        }
+        java.util.List<Map.Entry<UUID, Player>> snapshot = cachedTempterSnapshot;
         int size = snapshot.size();
         int budget = Math.min(tickBudget, size);
         int start = tickCursor >= size ? 0 : tickCursor;
@@ -170,9 +204,7 @@ public class HorseFeedTemptListener implements Listener {
                 });
             } catch (RuntimeException e) {
                 scheduledTempterTicks.remove(playerId);
-                activeTempters.remove(playerId);
-                activeTempterPlayers.remove(playerId);
-                activeTemptDefinitions.remove(playerId);
+                removeTempter(playerId);
             }
         }
         tickCursor = size == 0 ? 0 : (start + Math.max(1, budget)) % size;
@@ -202,24 +234,22 @@ public class HorseFeedTemptListener implements Listener {
 
     private void tickTemptPlayer(UUID playerId, Player player) {
         if (player == null || !player.isOnline() || !player.isValid()) {
-            activeTempters.remove(playerId);
-            activeTempterPlayers.remove(playerId);
-            activeTemptDefinitions.remove(playerId);
+            removeTempter(playerId);
             return;
         }
 
         PetFoodConfig.PetFoodDefinition definition = activeTemptDefinitions.get(playerId);
         if (definition == null || player.getGameMode() == GameMode.SPECTATOR || player.isDead()) {
-            activeTempters.remove(playerId);
-            activeTempterPlayers.remove(playerId);
-            activeTemptDefinitions.remove(playerId);
+            removeTempter(playerId);
             return;
         }
 
+        // player.getLocation() 已经返回一个全新的副本，且计划任务只会读取它，因此
+        // 共享单个快照是安全的——无需为每个附近的生物分别克隆。
         Location targetLocation = player.getLocation();
         for (Entity nearby : player.getNearbyEntities(definition.temptRange, definition.temptRange, definition.temptRange)) {
             if (nearby instanceof Mob mob) {
-                scheduleMobTempt(mob, playerId, targetLocation.clone(), definition);
+                scheduleMobTempt(mob, playerId, targetLocation, definition);
             }
         }
     }
@@ -265,4 +295,3 @@ public class HorseFeedTemptListener implements Listener {
     }
 
 }
-

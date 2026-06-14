@@ -9,8 +9,10 @@ import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.Text;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.momirealms.craftengine.core.util.Key;
@@ -49,6 +51,16 @@ public class RecipeViewGui implements InventoryHolder {
     private static final Set<String> warnedMissingCustomCookingPotDetailConfigs = ConcurrentHashMap.newKeySet();
     private static final Set<String> warnedCookingPotDetailCapacityConfigs = ConcurrentHashMap.newKeySet();
     private static final Map<Key, ItemStack> itemCache = new ConcurrentHashMap<>();
+    // 解析后的 tag 类材料选项列表（构建开销为 O(items x excludedTags x items) 外加 CE 物品创建）对于
+    // 每个 tag 材料是固定的；缓存计算结果，并在重载时清空。调用方拿到的是克隆副本，因此可以随意修改
+    // 展示用的 meta。
+    private static final Map<RecipeIngredient.Tag, List<ItemStack>> tagOptionsCache = new ConcurrentHashMap<>();
+    // Choice（任选其一）材料的展示选项同样固定，但此前每次都重建 LinkedHashMap 并重新排序；缓存计算
+    // 结果，重载时清空。Choice 是 record（值相等），可安全作 key。调用方拿到的是逐个克隆的副本。
+    private static final Map<RecipeIngredient.Choice, List<ItemStack>> choiceOptionsCache = new java.util.concurrent.ConcurrentHashMap<>();
+    // 工具预览选项（按工具 key）同样固定，但此前没有缓存，导致每次配方列表绘制/工具动画都要重新做
+    // CraftEngine 标签扫描；缓存计算结果，重载时清空，调用方拿到克隆副本。
+    private static final Map<Key, List<ItemStack>> toolPreviewCache = new ConcurrentHashMap<>();
     private static final ItemStack EMPTY_SLOT_BACKGROUND = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
     private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
@@ -57,6 +69,9 @@ public class RecipeViewGui implements InventoryHolder {
     private static final int MAX_COMPACT_INGREDIENT_LINE_LENGTH = 42;
     private static final int GUI_TICK_INTERVAL_TICKS = 4;
     private static final int COOKING_PROCESS_BAR_FRAMES = 20;
+    // 这 N+1 个不同的进度条帧物品在每一帧上都是相同的；缓存它们（在重载时清空），这样每次 GUI tick 的
+    // 动画就不会每 4 个 tick 就重新创建一次 CraftEngine 物品。
+    private static final ItemStack[] processBarFrameCache = new ItemStack[COOKING_PROCESS_BAR_FRAMES + 1];
 
     static {
         ItemMeta meta = EMPTY_SLOT_BACKGROUND.getItemMeta();
@@ -97,6 +112,12 @@ public class RecipeViewGui implements InventoryHolder {
     
     private final boolean fromCookingPot;
     private final Location cookingPotLocation;
+    private boolean backButtonCommandsEnabled = false;
+    private boolean editMode = false;
+    // 只解析一次（惰性地，在初次打开期间，此时查看者就在锅旁 = 同一个 Folia region），并记忆化结果，
+    // 这样每 tick / 重绘的流程就永远不会重复进行跨 region 的方块读取。
+    private boolean recipeGroupResolved;
+    private String cachedRecipeGroupId;
     private final Consumer<Void> tickCallback;
     private boolean ignoreNextClose = false;
     private FillButtonState fillButtonState = FillButtonState.READY;
@@ -162,6 +183,13 @@ public class RecipeViewGui implements InventoryHolder {
 
     public static void clearConfigCache() {
         cachedConfig = null;
+        // 已构建的展示物品缓存了解析后的名称/lore（来源于语言文件），所以也要把它们清空；否则
+        // /fd reload lang/gui 之后配方界面里会残留过时的物品名称。
+        itemCache.clear();
+        tagOptionsCache.clear();
+        choiceOptionsCache.clear();
+        toolPreviewCache.clear();
+        java.util.Arrays.fill(processBarFrameCache, null);
         warnedMissingCustomCookingPotDetailConfigs.clear();
         warnedCookingPotDetailCapacityConfigs.clear();
     }
@@ -192,6 +220,7 @@ public class RecipeViewGui implements InventoryHolder {
     }
 
     public void openCookingPotRecipes(Player player) {
+        backButtonCommandsEnabled = true;
         state = GuiState.COOKING_POT_LIST;
         cookingPotMode = true;
         recipeBackState = GuiState.COOKING_POT_LIST;
@@ -200,11 +229,22 @@ public class RecipeViewGui implements InventoryHolder {
     }
 
     public void openCuttingBoardRecipes(Player player) {
+        backButtonCommandsEnabled = true;
         state = GuiState.CUTTING_BOARD_LIST;
         cookingPotMode = false;
         recipeBackState = GuiState.CUTTING_BOARD_LIST;
         currentPage = 0;
         open(player);
+    }
+
+    public void openCookingPotRecipesForEdit(Player player) {
+        editMode = true;
+        openCookingPotRecipes(player);
+    }
+
+    public void openCuttingBoardRecipesForEdit(Player player) {
+        editMode = true;
+        openCuttingBoardRecipes(player);
     }
 
     private void tickToolSwitch() {
@@ -348,6 +388,7 @@ public class RecipeViewGui implements InventoryHolder {
     }
 
     private void drawCookingPotList(Player player) {
+        cookingPotMode = true;
         RecipeViewGuiConfig.RecipeListConfig listConfig = config.getRecipeList();
         List<CookingPotRecipe> recipes = plugin.getCookingPotRecipes().getSortedRecipes(getActiveCookingPotRecipeGroup());
         if (craftableOnly) {
@@ -357,6 +398,7 @@ public class RecipeViewGui implements InventoryHolder {
     }
 
     private void drawCuttingBoardList(Player player) {
+        cookingPotMode = false;
         RecipeViewGuiConfig.RecipeListConfig listConfig = config.getRecipeList();
         List<CuttingBoardRecipe> recipes = plugin.getCuttingBoardRecipes().getSortedRecipes();
         drawRecipeList(player, listConfig, recipes, false);
@@ -437,6 +479,10 @@ public class RecipeViewGui implements InventoryHolder {
         setGuiItem(listConfig, "back", listConfig.getBackSlot());
         if (cookingPotMode) {
             setFilterToggleItem(listConfig, player);
+        } else if (listConfig.getFilterSlot() >= 0) {
+            GuiConfig.GuiItem background = listConfig.getItem("background");
+            inventory.setItem(listConfig.getFilterSlot(),
+                    background != null ? background.createItem() : null);
         }
 
         if (listConfig.getInfoSlot() >= 0) {
@@ -544,26 +590,15 @@ public class RecipeViewGui implements InventoryHolder {
         if (slot < 0 || slot >= inventory.getSize()) {
             return;
         }
-        GuiConfig.GuiItem background = detailConfig.getItem("background");
-        inventory.setItem(slot, background == null ? EMPTY_SLOT_BACKGROUND : background.createItem());
+        inventory.setItem(slot, createBackgroundItem(detailConfig));
     }
 
     private void drawCookingPotDetail(CookingPotRecipe recipe, RecipeViewGuiConfig.RecipeDetailConfig detailConfig, Player player) {
         if (detailConfig.getResultSlot() >= 0) {
-            ItemStack resultItem = recipe.getResult().clone();
-            ItemMeta resultMeta = resultItem.getItemMeta();
-            resultMeta.displayName(itemNameComponent(recipe.getResult(), player).colorIfAbsent(NamedTextColor.GREEN));
-            List<Component> resultLore = new ArrayList<>();
-            resultLore.add(colored("&7" + I18n.get("gui.recipe.result", player)));
-            resultLore.add(colored("&7" + I18n.get("gui.recipe.experience", player) + ": &e" + recipe.getExperience()));
-            resultLore.add(colored("&7" + I18n.get("gui.recipe.cook_time", player) + ": &b"
-                    + (recipe.getCookTime() / 20) + i18nOrDefault("gui.recipe.seconds_suffix", player, "s")));
-            resultMeta.lore(resultLore);
-            resultItem.setItemMeta(resultMeta);
-            inventory.setItem(detailConfig.getResultSlot(), resultItem);
+            inventory.setItem(detailConfig.getResultSlot(), recipe.getResult().clone());
         }
 
-        fillIngredientSlots(detailConfig.getIngredientSlots(), recipe.getIngredients(), player);
+        fillIngredientSlots(detailConfig, detailConfig.getIngredientSlots(), recipe.getIngredients(), player);
 
         if (recipe.needsContainer() && recipe.getContainer() != null && detailConfig.getContainerSlot() >= 0) {
             ItemStack containerItem = recipe.getContainer().clone();
@@ -586,11 +621,19 @@ public class RecipeViewGui implements InventoryHolder {
         }
 
         GuiConfig.GuiItem configured = detailConfig.getItem("arrow");
-        ItemStack processItem = configured == null ? new ItemStack(Material.CLOCK) : configured.createItem();
+        Map<String, String> placeholders = cookingInfoPlaceholders(recipe, player);
+        ItemStack processItem = configured == null ? new ItemStack(Material.CLOCK) : configured.createItem(placeholders);
         ItemMeta meta = processItem.getItemMeta();
         if (meta != null) {
-            meta.displayName(colored("&e" + I18n.get("gui.recipe.cook_time", player) + ": &b"
-                    + formatCookTime(recipe, player)));
+            if (configured == null) {
+                meta.displayName(colored("&e" + I18n.get("gui.recipe.cook_time", player)));
+            }
+            if (meta.lore() == null || meta.lore().isEmpty()) {
+                meta.lore(List.of(
+                        colored("&7" + I18n.get("gui.recipe.cook_time", player) + ": &b" + placeholders.get("cook_time")),
+                        colored("&7" + I18n.get("gui.recipe.experience", player) + ": &a" + placeholders.get("experience"))
+                ));
+            }
             processItem.setItemMeta(meta);
         }
         inventory.setItem(arrowSlot, processItem);
@@ -608,26 +651,33 @@ public class RecipeViewGui implements InventoryHolder {
     }
 
     private int getCookingPotProcessBarSlot(RecipeViewGuiConfig.RecipeDetailConfig detailConfig) {
-        int configuredProgressSlot = detailConfig.getFirstSlotByType("progress");
+        // 优先使用解析时缓存的 progress 槽位，避免每次 GUI tick 重新扫描布局。
+        int configuredProgressSlot = detailConfig.getProgressSlot();
         if (configuredProgressSlot >= 0 && configuredProgressSlot < inventory.getSize()) {
             return configuredProgressSlot;
         }
 
+        // 兜底：配置了 arrow 槽但没有显式 progress 槽时，沿用原行为在 arrow 正下方一格放进度条
+        // （仅当该格为空/背景/装饰时才占用，避免覆盖功能槽）。
         int arrowSlot = detailConfig.getArrowSlot();
-        int progressSlot = arrowSlot + 9;
-        if (arrowSlot < 0 || progressSlot < 0 || progressSlot >= inventory.getSize()) {
+        int fallbackSlot = arrowSlot + 9;
+        if (arrowSlot < 0 || fallbackSlot < 0 || fallbackSlot >= inventory.getSize()) {
             return -1;
         }
-
-        String slotType = detailConfig.getSlotType(progressSlot);
+        String slotType = detailConfig.getSlotType(fallbackSlot);
         if (slotType != null && !"background".equals(slotType) && !"decoration".equals(slotType)) {
             return -1;
         }
-        return progressSlot;
+        return fallbackSlot;
     }
 
     private ItemStack createCookingPotProcessBarItem(int frame) {
         int safeFrame = Math.max(0, Math.min(COOKING_PROCESS_BAR_FRAMES, frame));
+        ItemStack cached = processBarFrameCache[safeFrame];
+        if (cached != null) {
+            return cached.clone();
+        }
+
         ItemStack item = ItemUtils.createItem("farmersdelight:" + safeFrame);
         if (item == null) {
             item = new ItemStack(Material.LIGHT_GRAY_STAINED_GLASS_PANE);
@@ -639,6 +689,7 @@ public class RecipeViewGui implements InventoryHolder {
             meta.lore(List.of());
             item.setItemMeta(meta);
         }
+        processBarFrameCache[safeFrame] = item.clone();
         return item;
     }
 
@@ -653,6 +704,28 @@ public class RecipeViewGui implements InventoryHolder {
 
     private String formatCookTime(CookingPotRecipe recipe, Player player) {
         return cookTimeSeconds(recipe) + i18nOrDefault("gui.recipe.seconds_suffix", player, "s");
+    }
+
+    private Map<String, String> cookingInfoPlaceholders(CookingPotRecipe recipe, Player player) {
+        String cookTime = formatCookTime(recipe, player);
+        String experience = formatExperience(recipe == null ? 0.0D : recipe.getExperience());
+        return Map.of(
+                "cook_time", cookTime,
+                "cooking_time", cookTime,
+                "time", cookTime,
+                "experience", experience,
+                "exp", experience
+        );
+    }
+
+    private String formatExperience(double experience) {
+        if (experience <= 0.0D) {
+            return "0";
+        }
+        if (Math.rint(experience) == experience) {
+            return String.valueOf((int) experience);
+        }
+        return String.format(java.util.Locale.ROOT, "%.1f", experience);
     }
 
     private int cookTimeSeconds(CookingPotRecipe recipe) {
@@ -682,7 +755,7 @@ public class RecipeViewGui implements InventoryHolder {
             }
         }
 
-        fillResultSlots(detailConfig.getResultSlots(), recipe.getResults(), player);
+        fillResultSlots(detailConfig, detailConfig.getResultSlots(), recipe.getResults(), player);
     }
 
     private ItemStack createToolDisplayItem(Key toolKey, int totalTools, int currentIndex, Player player) {
@@ -728,6 +801,15 @@ public class RecipeViewGui implements InventoryHolder {
     }
 
     private List<ItemStack> resolveToolPreviewOptions(Key toolKey) {
+        List<ItemStack> cached = toolPreviewCache.computeIfAbsent(toolKey, this::computeToolPreviewOptions);
+        List<ItemStack> copy = new ArrayList<>(cached.size());
+        for (ItemStack item : cached) {
+            copy.add(item.clone());
+        }
+        return copy;
+    }
+
+    private List<ItemStack> computeToolPreviewOptions(Key toolKey) {
         List<ItemStack> previewOptions = new ArrayList<>();
 
         ItemStack directItem = createItemFromKey(toolKey);
@@ -745,7 +827,7 @@ public class RecipeViewGui implements InventoryHolder {
             case "farmersdelight:knives" -> createKnifePreviewItem();
             case "farmersdelight:axe_dig", "farmersdelight:axe_strip", "minecraft:axes" -> new ItemStack(Material.IRON_AXE);
             case "farmersdelight:pickaxe_dig" -> new ItemStack(Material.IRON_PICKAXE);
-            case "farmersdelight:shovel_dig" -> new ItemStack(Material.IRON_SHOVEL);
+            case "farmersdelight:shovel_dig", "minecraft:shovels" -> new ItemStack(Material.IRON_SHOVEL);
             case "minecraft:shears" -> new ItemStack(Material.SHEARS);
             default -> createItemFromKey(toolKey);
         };
@@ -775,7 +857,7 @@ public class RecipeViewGui implements InventoryHolder {
                 }
             }
         } catch (Exception ignored) {
-            // Some action keys are not CE item tags; fall back to explicit tool previews below.
+            // 有些 action key 并不是 CE 物品 tag；回退到下面显式的工具预览。
         }
 
         for (ItemStack item : ItemUtils.createVanillaTagDisplayItems(toolKey, Set.of(), Set.of())) {
@@ -790,18 +872,20 @@ public class RecipeViewGui implements InventoryHolder {
         return item != null && item.getType() != Material.BARRIER && !item.getType().isAir();
     }
 
-    private void fillIngredientSlots(List<Integer> slots, List<RecipeIngredient> ingredients, Player player) {
+    private void fillIngredientSlots(RecipeViewGuiConfig.BaseConfig guiConfig, List<Integer> slots,
+                                     List<RecipeIngredient> ingredients, Player player) {
         for (int i = 0; i < slots.size(); i++) {
             if (i < ingredients.size()) {
                 ItemStack ingredientDisplay = createIngredientDisplay(ingredients.get(i), player, slots.get(i));
                 inventory.setItem(slots.get(i), ingredientDisplay);
             } else {
-                inventory.setItem(slots.get(i), EMPTY_SLOT_BACKGROUND);
+                inventory.setItem(slots.get(i), createBackgroundItem(guiConfig));
             }
         }
     }
 
-    private void fillResultSlots(List<Integer> slots, List<CuttingBoardRecipe.ResultEntry> results, Player player) {
+    private void fillResultSlots(RecipeViewGuiConfig.BaseConfig guiConfig, List<Integer> slots,
+                                 List<CuttingBoardRecipe.ResultEntry> results, Player player) {
         for (int i = 0; i < slots.size(); i++) {
             if (i < results.size()) {
                 CuttingBoardRecipe.ResultEntry resultEntry = results.get(i);
@@ -823,7 +907,7 @@ public class RecipeViewGui implements InventoryHolder {
                 resultDisplay.setItemMeta(resultMeta);
                 inventory.setItem(slots.get(i), resultDisplay);
             } else {
-                inventory.setItem(slots.get(i), EMPTY_SLOT_BACKGROUND);
+                inventory.setItem(slots.get(i), createBackgroundItem(guiConfig));
             }
         }
     }
@@ -837,7 +921,7 @@ public class RecipeViewGui implements InventoryHolder {
     }
 
     private String applyTitlePlaceholders(String title, Map<String, String> placeholders) {
-        String result = "GUI";
+        String result = "界面";
         if (title != null) {
             result = title;
         }
@@ -930,10 +1014,15 @@ public class RecipeViewGui implements InventoryHolder {
                 if (slotItem != null) {
                     inventory.setItem(i, slotItem.createItem());
                 } else if (slotType != null) {
-                    inventory.setItem(i, EMPTY_SLOT_BACKGROUND);
+                    inventory.setItem(i, createBackgroundItem(guiConfig));
                 }
             }
         }
+    }
+
+    private ItemStack createBackgroundItem(RecipeViewGuiConfig.BaseConfig guiConfig) {
+        GuiConfig.GuiItem background = guiConfig == null ? null : guiConfig.getItem("background");
+        return background == null ? EMPTY_SLOT_BACKGROUND.clone() : background.createItem();
     }
 
     private ItemStack createCookingPotRecipeDisplayItem(CookingPotRecipe recipe, Player player) {
@@ -1112,6 +1201,32 @@ public class RecipeViewGui implements InventoryHolder {
     }
 
     private List<ItemStack> resolveTagIngredientOptions(RecipeIngredient.Tag tagIngredient) {
+        List<ItemStack> cached = tagOptionsCache.computeIfAbsent(tagIngredient, this::computeTagIngredientOptions);
+        List<ItemStack> copy = new ArrayList<>(cached.size());
+        for (ItemStack item : cached) {
+            copy.add(item.clone());
+        }
+        return copy;
+    }
+
+    // 紧凑预览只需要前 limit 个选项的克隆；这里直接从缓存列表（与 resolveTagIngredientOptions 同源、
+    // 同序）只克隆前 limit 个，避免为了显示 6 个名字而克隆全部。完整数量另用 resolveTagIngredientOptionsSize。
+    private List<ItemStack> resolveTagIngredientOptionsPreview(RecipeIngredient.Tag tagIngredient, int limit) {
+        List<ItemStack> cached = tagOptionsCache.computeIfAbsent(tagIngredient, this::computeTagIngredientOptions);
+        int count = Math.min(limit, cached.size());
+        List<ItemStack> copy = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            copy.add(cached.get(i).clone());
+        }
+        return copy;
+    }
+
+    // 返回缓存中 tag 选项的完整数量（与预览同源），用于显示 "matches: N"，保证数量与原实现一致。
+    private int resolveTagIngredientOptionsSize(RecipeIngredient.Tag tagIngredient) {
+        return tagOptionsCache.computeIfAbsent(tagIngredient, this::computeTagIngredientOptions).size();
+    }
+
+    private List<ItemStack> computeTagIngredientOptions(RecipeIngredient.Tag tagIngredient) {
         Map<String, ItemStack> uniqueDisplays = new LinkedHashMap<>();
         for (UniqueKey uniqueKey : plugin.getCraftEngine().itemManager().itemIdsByTag(tagIngredient.key())) {
             if (tagIngredient.excludedItems().contains(uniqueKey.key())) {
@@ -1157,16 +1272,27 @@ public class RecipeViewGui implements InventoryHolder {
         }
 
         if (ingredient instanceof RecipeIngredient.Choice choiceIngredient) {
-            Map<String, ItemStack> uniqueDisplays = new LinkedHashMap<>();
-            for (RecipeIngredient option : choiceIngredient.options()) {
-                for (ItemStack display : resolveIngredientOptions(option)) {
-                    uniqueDisplays.putIfAbsent(buildIngredientDisplayKey(display), display);
-                }
+            // 命中缓存（计算结果未克隆），逐个克隆后返回，语义与 resolveTagIngredientOptions 完全一致，
+            // 避免共享的 ItemStack 在放进 GUI 并设置 meta 时污染缓存。
+            List<ItemStack> cached = choiceOptionsCache.computeIfAbsent(choiceIngredient, this::computeChoiceOptions);
+            List<ItemStack> copy = new ArrayList<>(cached.size());
+            for (ItemStack item : cached) {
+                copy.add(item.clone());
             }
-            return sortIngredientDisplayItems(uniqueDisplays.values());
+            return copy;
         }
 
         return List.of();
+    }
+
+    private List<ItemStack> computeChoiceOptions(RecipeIngredient.Choice choiceIngredient) {
+        Map<String, ItemStack> uniqueDisplays = new LinkedHashMap<>();
+        for (RecipeIngredient option : choiceIngredient.options()) {
+            for (ItemStack display : resolveIngredientOptions(option)) {
+                uniqueDisplays.putIfAbsent(buildIngredientDisplayKey(display), display);
+            }
+        }
+        return sortIngredientDisplayItems(uniqueDisplays.values());
     }
 
     private ItemStack createAnimatedOrStaticIngredientDisplay(
@@ -1246,7 +1372,7 @@ public class RecipeViewGui implements InventoryHolder {
         if (customId != null) {
             return customId;
         }
-        return "minecraft:" + item.getType().name().toLowerCase();
+        return "minecraft:" + item.getType().name().toLowerCase(java.util.Locale.ROOT);
     }
 
     private ItemStack createItemFromKey(Key key) {
@@ -1273,7 +1399,11 @@ public class RecipeViewGui implements InventoryHolder {
                 plugin.getLogger().fine(I18n.formatConsole("gui_runtime.create_item_failed", "key", key));
             }
         }
-        return new ItemStack(Material.BARRIER);
+        // 解析失败（CE 与原版注册表均未命中）时，把 BARRIER 哨兵也缓存起来，避免后续每次都重跑
+        // CraftEngine + 注册表查找。所有调用方都把 BARRIER 视作“未解析/跳过”，缓存清空时一并失效。
+        ItemStack barrier = new ItemStack(Material.BARRIER);
+        itemCache.put(key, barrier.clone());
+        return barrier;
     }
 
     private String formatIngredient(RecipeIngredient ingredient, Player player) {
@@ -1308,17 +1438,19 @@ public class RecipeViewGui implements InventoryHolder {
             return formatCompactItemOptions(options, player);
         }
         if (ingredient instanceof RecipeIngredient.Tag tagIngredient) {
-            List<ItemStack> options = resolveTagIngredientOptions(tagIngredient);
-            if (options.isEmpty()) {
+            // 只克隆前 6 个用于显示名字，完整数量从缓存读取，显示结果与原实现完全一致。
+            int totalSize = resolveTagIngredientOptionsSize(tagIngredient);
+            if (totalSize == 0) {
                 return List.of(colored("&7" + I18n.get("gui.recipe.no_matching_items", player)));
             }
-            int previewCount = Math.min(options.size(), 6);
-            List<Component> lines = formatCompactItemOptions(options.subList(0, previewCount), player);
-            if (options.size() > previewCount) {
+            List<ItemStack> previewOptions = resolveTagIngredientOptionsPreview(tagIngredient, 6);
+            int previewCount = previewOptions.size();
+            List<Component> lines = formatCompactItemOptions(previewOptions, player);
+            if (totalSize > previewCount) {
                 lines.add(colored(I18n.formatNamed(
                         "gui.recipe.more_items",
                         player,
-                        Map.of("count", String.valueOf(options.size() - previewCount))
+                        Map.of("count", String.valueOf(totalSize - previewCount))
                 )));
             }
             return lines;
@@ -1605,7 +1737,8 @@ public class RecipeViewGui implements InventoryHolder {
     }
 
     private Component itemNameComponent(ItemStack item, Player player) {
-        return ItemUtils.getDisplayComponent(item, player);
+        return ItemUtils.getDisplayComponent(item, player)
+                .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE);
     }
 
     private String i18nOrDefault(String key, Player player, String fallback) {
@@ -1620,8 +1753,9 @@ public class RecipeViewGui implements InventoryHolder {
         if (text == null || text.isEmpty()) {
             return Component.empty();
         }
-        String normalized = text.replaceAll("&(?=[0-9a-fk-orA-FK-OR])", "\u00A7");
-        return LEGACY.deserialize(normalized);
+        // \u652F\u6301 MiniMessage \u6807\u7B7E\u4EE5\u53CA\u65E7\u7248 &/\u00A7 \u989C\u8272\u4EE3\u7801\uFF1B\u5F3A\u5236\u5173\u95ED\u659C\u4F53\uFF08\u7269\u54C1 lore/\u540D\u79F0\u9ED8\u8BA4\u4F1A\u4EE5\u659C\u4F53
+        // \u6E32\u67D3\uFF09\uFF0C\u8FD9\u6837\u5F00\u5934\u7684\u989C\u8272\u7247\u6BB5\u4EE5\u53CA\u6BCF\u4E2A\u8FFD\u52A0\u7684\u5B50\u8282\u70B9\u90FD\u662F\u76F4\u7ACB\u7684\uFF0C\u9664\u975E\u6587\u672C\u660E\u786E\u8981\u6C42\u4F7F\u7528\u659C\u4F53\u3002
+        return Text.deserialize(text).decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE);
     }
 
     private Component coloredTitle(String text) {
@@ -1678,10 +1812,15 @@ public class RecipeViewGui implements InventoryHolder {
         RecipeViewGuiConfig.MainMenuConfig menuConfig = config.getMainMenu();
 
         if (slot == menuConfig.getCookingPotSlot()) {
+            backButtonCommandsEnabled = false;
             navigateToState(player, GuiState.COOKING_POT_LIST);
         } else if (slot == menuConfig.getCuttingBoardSlot()) {
+            backButtonCommandsEnabled = false;
             navigateToState(player, GuiState.CUTTING_BOARD_LIST);
         } else if (slot == menuConfig.getBackSlot()) {
+            if (runBackButtonCommands(player, menuConfig.getItem("back"))) {
+                return;
+            }
             closeGui(player);
         }
     }
@@ -1699,6 +1838,9 @@ public class RecipeViewGui implements InventoryHolder {
     private void handleMaterialListClick(Player player, int slot) {
         RecipeViewGuiConfig.RecipeDetailConfig detailConfig = getActiveCookingPotDetailConfig();
         if (slot == detailConfig.getBackSlot()) {
+            if (runBackButtonCommands(player, detailConfig.getItem("back"))) {
+                return;
+            }
             navigateToState(player, GuiState.RECIPE_DETAIL);
         }
     }
@@ -1725,6 +1867,9 @@ public class RecipeViewGui implements InventoryHolder {
             currentPage = 0;
             refreshContentsInPlace(player);
         } else if (slot == listConfig.getBackSlot()) {
+            if (runBackButtonCommands(player, listConfig.getItem("back"))) {
+                return;
+            }
             if (fromCookingPot && isCookingPot) {
                 closeGui(player);
                 returnToCookingPot(player);
@@ -1741,6 +1886,11 @@ public class RecipeViewGui implements InventoryHolder {
                 } else {
                     recipeId = ((CuttingBoardRecipe) recipes.get(recipeIndex)).getId();
                 }
+                if (editMode) {
+                    closeGui(player);
+                    openEditorForRecipe(player, recipeId, isCookingPot);
+                    return;
+                }
                 selectedRecipeId = recipeId;
                 cookingPotMode = isCookingPot;
                 fillButtonState = FillButtonState.READY;
@@ -1754,6 +1904,9 @@ public class RecipeViewGui implements InventoryHolder {
         RecipeViewGuiConfig.RecipeDetailConfig detailConfig = getActiveDetailConfig();
         
         if (slot == detailConfig.getBackSlot()) {
+            if (runBackButtonCommands(player, detailConfig.getItem("back"))) {
+                return;
+            }
             navigateToState(player, recipeBackState);
             return;
         }
@@ -1788,7 +1941,7 @@ public class RecipeViewGui implements InventoryHolder {
         cookingPotMode = linkedRecipe.cookingPot();
         currentToolIndex = 0;
         fillButtonState = FillButtonState.READY;
-        // Keep recipeBackState so linked recipe details return to the original list.
+        // 保留 recipeBackState，这样关联配方的详情界面会返回到原始列表。
         navigateToState(player, GuiState.RECIPE_DETAIL);
     }
 
@@ -2399,12 +2552,43 @@ public class RecipeViewGui implements InventoryHolder {
         }
     }
 
+    private void openEditorForRecipe(Player player, String recipeId, boolean isCookingPot) {
+        plugin.scheduler().runLaterForEntity(player, () -> {
+            if (!player.isOnline()) {
+                return;
+            }
+            if (isCookingPot) {
+                RecipeViewGuiConfig.BaseConfig editorConfig =
+                        plugin.getRecipeEditorGuiConfig().getCookingPotConfig(null);
+                if (editorConfig == null) {
+                    return;
+                }
+                CookingPotRecipe existing = plugin.getCookingPotRecipes().getRecipe(recipeId);
+                new com.huidu.farmersdelight.gui.editor.CookingPotEditorGui(
+                        plugin, player, recipeId, null, existing, editorConfig).open();
+            } else {
+                RecipeViewGuiConfig.BaseConfig boardConfig =
+                        plugin.getRecipeEditorGuiConfig().getCuttingBoardConfig();
+                if (boardConfig == null) {
+                    return;
+                }
+                CuttingBoardRecipe existing = plugin.getCuttingBoardRecipes().getRecipe(recipeId);
+                new com.huidu.farmersdelight.gui.editor.CuttingBoardEditorGui(
+                        plugin, player, recipeId, existing, boardConfig).open();
+            }
+        }, 1L);
+    }
+
     private String getActiveCookingPotRecipeGroup() {
         if (!fromCookingPot || cookingPotLocation == null) {
             return null;
         }
-        CookingPotBlockBehavior behavior = CookingPotBlockBehavior.getBlockBehavior(cookingPotLocation);
-        return behavior == null ? null : behavior.getCustomRecipeGroupId();
+        if (!recipeGroupResolved) {
+            CookingPotBlockBehavior behavior = CookingPotBlockBehavior.getBlockBehavior(cookingPotLocation);
+            cachedRecipeGroupId = behavior == null ? null : behavior.getCustomRecipeGroupId();
+            recipeGroupResolved = true;
+        }
+        return cachedRecipeGroupId;
     }
 
     private void navigateToState(Player player, GuiState newState) {
@@ -2460,6 +2644,70 @@ public class RecipeViewGui implements InventoryHolder {
         player.closeInventory();
     }
 
+    private boolean runBackButtonCommands(Player player, GuiConfig.GuiItem backItem) {
+        if (!backButtonCommandsEnabled || player == null || backItem == null || !backItem.hasCommands()) {
+            return false;
+        }
+
+        List<String> commands = backItem.getCommands();
+        closeGui(player);
+        plugin.scheduler().runLaterForEntity(player, () -> {
+            if (!player.isOnline()) {
+                return;
+            }
+            for (String command : commands) {
+                dispatchConfiguredCommand(player, command);
+            }
+        }, 1L);
+        return true;
+    }
+
+    private void dispatchConfiguredCommand(Player player, String configuredCommand) {
+        ConfiguredCommand command = parseConfiguredCommand(configuredCommand, player);
+        if (command.command().isEmpty()) {
+            return;
+        }
+        if (command.console()) {
+            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command.command());
+        } else {
+            Bukkit.dispatchCommand(player, command.command());
+        }
+    }
+
+    private ConfiguredCommand parseConfiguredCommand(String configuredCommand, Player player) {
+        String command = applyCommandPlaceholders(configuredCommand, player).trim();
+        boolean console = false;
+        String lower = command.toLowerCase(Locale.ROOT);
+        if (lower.startsWith("[console]")) {
+            console = true;
+            command = command.substring("[console]".length()).trim();
+        } else if (lower.startsWith("[player]")) {
+            command = command.substring("[player]".length()).trim();
+        } else if (lower.startsWith("console:")) {
+            console = true;
+            command = command.substring("console:".length()).trim();
+        } else if (lower.startsWith("player:")) {
+            command = command.substring("player:".length()).trim();
+        }
+        while (command.startsWith("/")) {
+            command = command.substring(1).trim();
+        }
+        return new ConfiguredCommand(command, console);
+    }
+
+    private String applyCommandPlaceholders(String command, Player player) {
+        if (command == null) {
+            return "";
+        }
+        return command
+                .replace("{player}", player.getName())
+                .replace("{player_name}", player.getName())
+                .replace("%player%", player.getName())
+                .replace("%player_name%", player.getName())
+                .replace("{uuid}", player.getUniqueId().toString())
+                .replace("{world}", player.getWorld().getName());
+    }
+
     void onClose(InventoryCloseEvent event) {
         if (event.getView().getTopInventory().getHolder() != this) return;
         if (closed) return;
@@ -2476,6 +2724,9 @@ public class RecipeViewGui implements InventoryHolder {
         if (closed) return;
         closed = true;
         GuiTickManager.getInstance(plugin).unregisterCallback(tickCallback);
+    }
+
+    private record ConfiguredCommand(String command, boolean console) {
     }
 
     private void returnToCookingPot(Player player) {
@@ -2507,6 +2758,9 @@ public class RecipeViewGui implements InventoryHolder {
         activeGuis.clear();
         cachedConfig = null;
         itemCache.clear();
+        // 重置该标志，这样软重新启用时会重新注册一个新的 EventDispatcher；否则在禁用移除了旧监听器之后，
+        // 配方界面的点击将不再被取消。
+        listenerRegistered = false;
     }
 
     public static void closeAllOpenGuis() {

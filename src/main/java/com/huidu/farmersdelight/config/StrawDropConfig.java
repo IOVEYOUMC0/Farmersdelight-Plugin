@@ -38,7 +38,7 @@ public class StrawDropConfig {
             if (maxAmount < 1) maxAmount = 1;
 
             if (ItemUtils.isEmptyItemId(dropItem)) {
-                rules.remove(blockType.toLowerCase());
+                rules.remove(blockType.toLowerCase(java.util.Locale.ROOT));
                 continue;
             }
 
@@ -47,11 +47,11 @@ public class StrawDropConfig {
     }
 
     private void addRule(String blockType, String dropItem, int minAmount, int maxAmount) {
-        rules.put(blockType.toLowerCase(), new StrawDropRule(blockType, dropItem, minAmount, maxAmount));
+        rules.put(blockType.toLowerCase(java.util.Locale.ROOT), new StrawDropRule(blockType, dropItem, minAmount, maxAmount));
     }
 
     public StrawDropRule getRule(String blockType) {
-        return rules.get(blockType.toLowerCase());
+        return rules.get(blockType.toLowerCase(java.util.Locale.ROOT));
     }
 
     public Map<String, StrawDropRule> getRules() {

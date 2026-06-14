@@ -8,6 +8,7 @@ import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.InteractionDebouncer;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.WorldGuardCompat;
+import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -29,6 +30,11 @@ public class SkilletInteractListener implements Listener {
             return;
         }
 
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin == null || !plugin.isDebugEnabled("interact-probe")) {
+            return;
+        }
+
         Block block = event.getClickedBlock();
         if (block == null) {
             return;
@@ -36,11 +42,6 @@ public class SkilletInteractListener implements Listener {
 
         String ceBlockId = CustomBlockUtils.getId(block);
         if (!shouldLogAttempt(block, ceBlockId)) {
-            return;
-        }
-
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (plugin == null || !plugin.isDebugEnabled("interact-probe")) {
             return;
         }
 
@@ -64,16 +65,17 @@ public class SkilletInteractListener implements Listener {
         }
 
         Block block = event.getClickedBlock();
-        String ceBlockId = CustomBlockUtils.getId(block);
+        ImmutableBlockState state = CustomBlockUtils.getState(block);
+        String ceBlockId = CustomBlockUtils.getId(state);
         Player player = event.getPlayer();
         ItemStack mainHand = player.getInventory().getItemInMainHand();
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
 
-        if (shouldLogAttempt(block, ceBlockId) && plugin.isDebugEnabled("skillet")) {
+        if (plugin.isDebugEnabled("skillet") && shouldLogAttempt(block, ceBlockId)) {
             logDebug(player, block, ceBlockId, "farmersdelight:skillet", mainHand, plugin.getSkilletManager().findRecipeId(mainHand));
         }
 
-        if (!isSkilletBlock(block)) {
+        if (!isSkilletBlock(state, ceBlockId)) {
             return;
         }
         if (!WorldGuardCompat.canUse(player, block) || !WorldGuardCompat.canBuild(player, block)) {
@@ -93,6 +95,7 @@ public class SkilletInteractListener implements Listener {
         }
 
         if (mainHand != null && !mainHand.getType().isAir()
+                && InteractionDebouncer.tryAcquire(player.getUniqueId(), block.getLocation())
                 && plugin.getSkilletManager().handleInteract(player, block, mainHand, EquipmentSlot.HAND)) {
             event.setUseItemInHand(Event.Result.DENY);
             event.setUseInteractedBlock(Event.Result.DENY);
@@ -146,7 +149,7 @@ public class SkilletInteractListener implements Listener {
         if (customItemId != null) {
             return customItemId;
         }
-        return "minecraft:" + item.getType().name().toLowerCase();
+        return "minecraft:" + item.getType().name().toLowerCase(java.util.Locale.ROOT);
     }
 
     private boolean isSkilletBlock(String ceBlockId) {
@@ -157,6 +160,12 @@ public class SkilletInteractListener implements Listener {
         return CustomBlockUtils.hasBehavior(block, SkilletBlockBehavior.class)
                 || CustomBlockUtils.hasId(block, Constants.BLOCK_SKILLET)
                 || Constants.CE_SHORT_SKILLET.equals(CustomBlockUtils.getId(block));
+    }
+
+    private boolean isSkilletBlock(ImmutableBlockState state, String ceBlockId) {
+        return CustomBlockUtils.hasBehavior(state, SkilletBlockBehavior.class)
+                || CustomBlockUtils.hasId(state, Constants.BLOCK_SKILLET)
+                || Constants.CE_SHORT_SKILLET.equals(ceBlockId);
     }
 
     private boolean shouldLogAttempt(Block block, String ceBlockId) {

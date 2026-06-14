@@ -117,7 +117,7 @@ public class UpperHalfLootRelayBehavior extends BlockBehavior {
     }
 
     private String normalizeHalfValue(String value) {
-        return value.trim().toLowerCase();
+        return value.trim().toLowerCase(java.util.Locale.ROOT);
     }
 
     private String getPropertyString(ImmutableBlockState state, String propertyName) {
@@ -141,7 +141,7 @@ public class UpperHalfLootRelayBehavior extends BlockBehavior {
 
     private static BlockFace parseDirection(String directionName) {
         try {
-            return BlockFace.valueOf(directionName.toUpperCase());
+            return BlockFace.valueOf(directionName.toUpperCase(java.util.Locale.ROOT));
         } catch (IllegalArgumentException ignored) {
             return BlockFace.DOWN;
         }

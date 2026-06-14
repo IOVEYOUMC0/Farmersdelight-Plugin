@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Set;
 
 public record CuttingBoardRecipe(String id, RecipeIngredient input, ItemStack inputDisplay, List<ToolRequirement> tools,
-                                 List<ResultEntry> results, String sound) {
+                                 List<ResultEntry> results, String sound, int priority) {
     public String getId() {
         return id;
     }
@@ -30,6 +30,10 @@ public record CuttingBoardRecipe(String id, RecipeIngredient input, ItemStack in
 
     public String getSound() {
         return sound;
+    }
+
+    public int getPriority() {
+        return priority;
     }
 
     public record ToolRequirement(Key key, Set<Key> excludedItems, Set<Key> excludedTags) {
@@ -64,4 +68,3 @@ public record CuttingBoardRecipe(String id, RecipeIngredient input, ItemStack in
         }
     }
 }
-
