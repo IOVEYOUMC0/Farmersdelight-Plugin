@@ -1,8 +1,8 @@
 package com.huidu.farmersdelight.i18n;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.util.Text;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 
@@ -27,13 +27,21 @@ import java.util.regex.Pattern;
 public class I18n {
 
     private static final Pattern LOCALE_PATTERN = Pattern.compile("^[a-z]{2}(_[a-z]{2})?$");
-    private static final LegacyComponentSerializer LEGACY_SERIALIZER = LegacyComponentSerializer.legacyAmpersand();
     private static final String FALLBACK_LOCALE = "zh_cn";
     
     private static FarmersDelightPlugin plugin;
-    private static String defaultLocale = FALLBACK_LOCALE;
-    private static final Map<String, YamlConfiguration> locales = new HashMap<>();
-    private static YamlConfiguration currentLocale;
+    private static volatile LocaleState state = new LocaleState(Map.of(), null, FALLBACK_LOCALE);
+
+    /**
+     * 语言查找状态的不可变快照：locales、currentLocale、defaultLocale 三者始终一致。
+     * 重载时只整体替换 state 这一个 volatile 引用，读取方要么看到完整的旧快照、
+     * 要么看到完整的新快照，避免在 region 线程读取时撞上 clear()/put() 破坏底层 HashMap
+     * （可能导致错误结果、NPE，甚至 region 线程在损坏的桶链上死循环）。
+     */
+    private record LocaleState(Map<String, YamlConfiguration> locales,
+                               YamlConfiguration currentLocale,
+                               String defaultLocale) {
+    }
 
     public static void init(FarmersDelightPlugin pluginInstance) {
         plugin = pluginInstance;
@@ -41,8 +49,6 @@ public class I18n {
     }
 
     private static void loadLocales() {
-        locales.clear();
-        
         File langFolder = new File(plugin.getDataFolder(), "lang");
         if (!langFolder.exists()) {
             langFolder.mkdirs();
@@ -50,28 +56,32 @@ public class I18n {
 
         saveDefaultLanguages();
 
+        // 全部构建在局部 map 里，完成后再一次性原子发布，期间不触碰正在被读取的旧快照。
+        Map<String, YamlConfiguration> loaded = new HashMap<>();
         File[] langFiles = langFolder.listFiles((dir, name) -> name.endsWith(".yml"));
         if (langFiles != null) {
             for (File file : langFiles) {
                 String localeName = file.getName().replace(".yml", "").toLowerCase();
                 YamlConfiguration config = loadYamlUtf8(file);
                 if (config != null) {
-                    locales.put(localeName, config);
+                    loaded.put(localeName, config);
                 }
             }
         }
 
-        defaultLocale = selectServerLocale();
+        String resolvedDefault = selectServerLocale(loaded);
 
-        currentLocale = locales.get(defaultLocale);
-        if (currentLocale == null) {
-            currentLocale = locales.get(FALLBACK_LOCALE);
-            if (currentLocale == null && !locales.isEmpty()) {
-                currentLocale = locales.values().iterator().next();
+        YamlConfiguration resolvedCurrent = loaded.get(resolvedDefault);
+        if (resolvedCurrent == null) {
+            resolvedCurrent = loaded.get(FALLBACK_LOCALE);
+            if (resolvedCurrent == null && !loaded.isEmpty()) {
+                resolvedCurrent = loaded.values().iterator().next();
             }
         }
 
-        logInfo("i18n.loaded", "count", locales.size(), "locale", defaultLocale);
+        state = new LocaleState(Map.copyOf(loaded), resolvedCurrent, resolvedDefault);
+
+        logInfo("i18n.loaded", "count", loaded.size(), "locale", resolvedDefault);
     }
 
     private static void saveDefaultLanguages() {
@@ -199,10 +209,10 @@ public class I18n {
         loadLocales();
     }
 
-    private static String selectServerLocale() {
+    private static String selectServerLocale(Map<String, YamlConfiguration> locales) {
         String configured = normalizeLocale(plugin.getConfig().getString("language", ""), true);
         if (configured != null) {
-            String installed = matchInstalledLocale(configured);
+            String installed = matchInstalledLocale(locales, configured);
             if (installed != null) {
                 return installed;
             }
@@ -211,7 +221,7 @@ public class I18n {
 
         String craftEngineLocale = selectCraftEngineLocale();
         if (craftEngineLocale != null) {
-            String installed = matchInstalledLocale(craftEngineLocale);
+            String installed = matchInstalledLocale(locales, craftEngineLocale);
             if (installed != null) {
                 return installed;
             }
@@ -220,14 +230,14 @@ public class I18n {
         Locale systemLocale = Locale.getDefault();
         String fullLocale = normalizeLocale(systemLocale.toString(), false);
         if (fullLocale != null) {
-            String installed = matchInstalledLocale(fullLocale);
+            String installed = matchInstalledLocale(locales, fullLocale);
             if (installed != null) {
                 return installed;
             }
         }
 
         String languageOnly = normalizeLocale(systemLocale.getLanguage(), false);
-        String matched = matchInstalledLocale(languageOnly);
+        String matched = matchInstalledLocale(locales, languageOnly);
         if (matched != null) {
             return matched;
         }
@@ -258,7 +268,7 @@ public class I18n {
         return normalized;
     }
 
-    private static String matchInstalledLocale(String locale) {
+    private static String matchInstalledLocale(Map<String, YamlConfiguration> locales, String locale) {
         String normalized = normalizeLocale(locale, false);
         if (normalized == null) {
             return null;
@@ -324,33 +334,45 @@ public class I18n {
 
     public static String get(String key) {
         if (key == null) return "";
-        return get(key, defaultLocale);
+        return get(key, state.defaultLocale());
     }
 
     public static String getDefaultLocale() {
-        return defaultLocale;
+        return state.defaultLocale();
     }
 
     public static String get(String key, String locale) {
         if (key == null) return "";
-        if (locale == null) locale = defaultLocale;
-        
-        YamlConfiguration lang = locales.get(locale.toLowerCase());
+        LocaleState snapshot = state;
+        if (locale == null) locale = snapshot.defaultLocale();
+
+        Map<String, YamlConfiguration> locales = snapshot.locales();
+        YamlConfiguration currentLocale = snapshot.currentLocale();
+
+        YamlConfiguration lang = locales.get(locale.toLowerCase(Locale.ROOT));
+        if (lang == null) {
+            // 在彻底回退到服务器语言之前，先尝试按语言前缀匹配（例如玩家语言 en_gb -> 已安装的 en_us），
+            // 这样客户端仍能获得其所用的语言。
+            String matched = matchInstalledLocale(locales, locale);
+            if (matched != null) {
+                lang = locales.get(matched);
+            }
+        }
         if (lang == null) {
             lang = currentLocale;
         }
-        
+
         if (lang != null) {
             String value = lang.getString(key);
             if (value != null) {
-                return colorize(value);
+                return value;
             }
         }
 
-        if (!locale.equalsIgnoreCase(defaultLocale) && currentLocale != null) {
+        if (!locale.equalsIgnoreCase(snapshot.defaultLocale()) && currentLocale != null) {
             String value = currentLocale.getString(key);
             if (value != null) {
-                return colorize(value);
+                return value;
             }
         }
 
@@ -366,9 +388,9 @@ public class I18n {
 
     private static String getPlayerLocale(Player player) {
         try {
-            return player.locale().toString().toLowerCase();
+            return player.locale().toString().toLowerCase(Locale.ROOT);
         } catch (Exception e) {
-            return defaultLocale;
+            return state.defaultLocale();
         }
     }
 
@@ -451,32 +473,24 @@ public class I18n {
     }
 
     public static Component getComponent(String key) {
-        return LEGACY_SERIALIZER.deserialize(get(key));
+        return Text.deserialize(get(key));
     }
 
     public static Component getComponent(String key, Player player) {
-        return LEGACY_SERIALIZER.deserialize(get(key, player));
+        return Text.deserialize(get(key, player));
     }
 
     public static Component getComponent(String key, Map<String, String> placeholders) {
-        return LEGACY_SERIALIZER.deserialize(formatNamed(key, placeholders));
+        return Text.deserialize(formatNamed(key, placeholders));
     }
 
     public static Component getComponent(String key, Player player, Map<String, String> placeholders) {
-        return LEGACY_SERIALIZER.deserialize(formatNamed(key, player, placeholders));
-    }
-
-    private static String colorize(String value) {
-        return LegacyComponentSerializer.legacySection().serialize(
-                LegacyComponentSerializer.legacyAmpersand().deserialize(value)
-        );
+        return Text.deserialize(formatNamed(key, player, placeholders));
     }
 
     public static void cleanup() {
         plugin = null;
-        defaultLocale = FALLBACK_LOCALE;
-        locales.clear();
-        currentLocale = null;
+        state = new LocaleState(Map.of(), null, FALLBACK_LOCALE);
     }
 }
 

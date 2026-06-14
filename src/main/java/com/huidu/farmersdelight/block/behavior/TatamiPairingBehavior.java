@@ -92,7 +92,7 @@ public class TatamiPairingBehavior extends BlockBehavior {
             }
 
             if (pairWithNeighbor(world, pos, state)) {
-                // Re-place the just-placed block with paired=true so both halves stay visually synced.
+                // 将刚放置的方块以 paired=true 重新放置，使两个半块在视觉上保持同步。
                 CraftEngineBlocks.place(block.getLocation(), state.with(pairedProperty, true), false);
             }
         }
@@ -132,7 +132,7 @@ public class TatamiPairingBehavior extends BlockBehavior {
     private ImmutableBlockState withFacingAndPair(ImmutableBlockState state, BlockFace facing, boolean paired) {
         ImmutableBlockState result = state;
         if (facingProperty != null) {
-            result = withPropertyValue(result, facingProperty, facing.name().toLowerCase());
+            result = withPropertyValue(result, facingProperty, facing.name().toLowerCase(java.util.Locale.ROOT));
         }
         if (pairedProperty != null) {
             result = result.with(pairedProperty, paired);
@@ -247,7 +247,7 @@ public class TatamiPairingBehavior extends BlockBehavior {
             return BlockFace.NORTH;
         }
 
-        String facingStr = facingValue.toString().toUpperCase();
+        String facingStr = facingValue.toString().toUpperCase(java.util.Locale.ROOT);
         try {
             return BlockFace.valueOf(facingStr);
         } catch (IllegalArgumentException e) {

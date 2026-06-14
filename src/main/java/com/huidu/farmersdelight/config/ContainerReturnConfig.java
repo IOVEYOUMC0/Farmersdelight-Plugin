@@ -21,7 +21,7 @@ public class ContainerReturnConfig {
         for (String itemId : section.getKeys(false)) {
             String returnItemStr = section.getString(itemId);
             if (ItemUtils.isEmptyItemId(returnItemStr)) {
-                containerReturnMap.remove(itemId.toLowerCase());
+                containerReturnMap.remove(itemId.toLowerCase(java.util.Locale.ROOT));
                 continue;
             }
 
@@ -32,14 +32,14 @@ public class ContainerReturnConfig {
     private void addReturnItem(String itemId, String returnItemId) {
         ItemStack returnItem = ItemUtils.createItem(returnItemId);
         if (returnItem != null) {
-            containerReturnMap.put(itemId.toLowerCase(), returnItem);
+            containerReturnMap.put(itemId.toLowerCase(java.util.Locale.ROOT), returnItem);
         }
     }
 
     public ItemStack getReturnItem(String itemId, int amount) {
         if (itemId == null) return null;
 
-        ItemStack returnItem = containerReturnMap.get(itemId.toLowerCase());
+        ItemStack returnItem = containerReturnMap.get(itemId.toLowerCase(java.util.Locale.ROOT));
         if (returnItem == null) return null;
 
         ItemStack result = returnItem.clone();
@@ -48,7 +48,7 @@ public class ContainerReturnConfig {
     }
 
     public boolean hasReturnItem(String itemId) {
-        return itemId != null && containerReturnMap.containsKey(itemId.toLowerCase());
+        return itemId != null && containerReturnMap.containsKey(itemId.toLowerCase(java.util.Locale.ROOT));
     }
 
     public Map<String, ItemStack> getContainerReturnMap() {

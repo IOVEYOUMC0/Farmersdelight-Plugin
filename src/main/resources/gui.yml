@@ -26,16 +26,13 @@ cooking-pot-gui:
     B: buffer
     O: output
     R: recipe
-    X: decoration
+    X: background
 
   items:
     background:
       material: GRAY_STAINED_GLASS_PANE
       item_model: "air"
       hide-tooltip: true
-      name: " "
-    decoration:
-      material: BROWN_STAINED_GLASS_PANE
       name: " "
     heat-active:
       item: farmersdelight:cooking_pot_heated
@@ -47,7 +44,7 @@ cooking-pot-gui:
       lore:
         - "剩余: {time} 秒"
     recipe:
-      material: KNOWLEDGE_BOOK
+      item: farmersdelight:recipe_book
       name: "查看烹饪配方"
       lore:
         - "点击此处查看配方"
@@ -103,15 +100,12 @@ cooking-pot-guis: {}
 #       B: buffer
 #       O: output
 #       R: recipe
-#       X: decoration
+#       X: background
 #     items:
 #       background:
 #         material: GRAY_STAINED_GLASS_PANE
 #         item_model: "air"
 #         hide-tooltip: true
-#         name: " "
-#       decoration:
-#         material: BROWN_STAINED_GLASS_PANE
 #         name: " "
 #       heat-active:
 #         item: farmersdelight:cooking_pot_heated
@@ -141,17 +135,17 @@ recipe-view-gui:
     title: "<white>农夫乐事"
     rows: 3
     layout:
-      - "#########"
-      - "##C###D##"
-      - "####B####"
+      - "XXXXXXXXX"
+      - "XXCXXXDXX"
+      - "XXXXBXXXX"
     legend:
       C: cooking_pot
       D: cutting_board
       B: back
-      "#": background
+      X: background
     items:
       background:
-        material: GRAY_STAINED_GLASS_PANE
+        material: LIGHT_GRAY_STAINED_GLASS_PANE
         item_model: "air"
         hide-tooltip: true
         name: " "
@@ -174,34 +168,35 @@ recipe-view-gui:
     rows: 6
     title-layout:
       craftengine:
-        offset: "<shift:-7>"
+        offset: "<shift:-1>"
         icon: "<image:farmersdelight:recipelist>"
     layout:
-      - "P#F#B###N"
       - "RRRRRRRRR"
       - "RRRRRRRRR"
       - "RRRRRRRRR"
       - "RRRRRRRRR"
       - "RRRRRRRRR"
+      - "PXFXBXXXN"
     legend:
       R: recipe
       P: prev_page
       N: next_page
       B: back
-      X: info
       F: filter
-      "#": background
+      X: background
     items:
       background:
-        material: GRAY_STAINED_GLASS_PANE
+        material: LIGHT_GRAY_STAINED_GLASS_PANE
         item_model: "air"
         hide-tooltip: true
         name: " "
       prev_page:
         material: ARROW
+        item_model: "air"
         name: "上一页"
       next_page:
         material: ARROW
+        item_model: "air"
         name: "下一页"
       back:
         material: BARRIER
@@ -215,26 +210,24 @@ recipe-view-gui:
         material: COMPASS
         name: "筛选可烹饪配方"
       filter-on:
-        material: LIME_DYE
-        name: "仅显示可烹饪"
+        item: farmersdelight:cooking_pot_can_cooked_enabled
       filter-off:
-        material: GRAY_DYE
-        name: "显示全部配方"
+        item: farmersdelight:cooking_pot_can_cooked_disenabled
 
   recipe-detail-cooking-pot:
     title: "<white><offset><icon><shift:-1600>配方详细"
     rows: 6
     title-layout:
       craftengine:
-        offset: "<shift:-8>"
+        offset: "<shift:-1>"
         icon: "<image:farmersdelight:cooking_pot_menu>"
     layout:
-      - "B######P#"
-      - "#####A###"
-      - "#III#####"
-      - "#III#####"
-      - "#####C#R#"
-      - "#########"
+      - "BXXXXXXPX"
+      - "XXXXXAXXX"
+      - "XIIIXGXXX"
+      - "XIIIXXXXX"
+      - "XXXXXCXRX"
+      - "XXXXXXXXX"
     legend:
       R: result
       I: ingredient
@@ -242,18 +235,23 @@ recipe-view-gui:
       C: container
       B: back
       P: fill
-      "#": background
+      G: progress
+      X: background
     items:
       background:
-        material: GRAY_STAINED_GLASS_PANE
+        material: LIGHT_GRAY_STAINED_GLASS_PANE
         item_model: "air"
         hide-tooltip: true
         name: " "
       arrow:
         item: farmersdelight:cooking_time
         name: "烹饪过程"
+        lore:
+          - "&7烹饪时间: &b{cook_time}"
+          - "&7经验: &a{experience}"
       back:
         material: ARROW
+        item_model: "air"
         name: "返回"
       # 配方详情页的填入按钮。
       # 普通点击：每个配方材料最多填入 1 个匹配物品。
@@ -298,19 +296,20 @@ recipe-view-gui:
   #         offset: "<shift:-8>"
   #         icon: "<image:farmersdelight:cooking_pot_menu>"
   #     layout:
-  #       - "B######P#"
-  #       - "###III###"
-  #       - "###III###"
-  #       - "###III###"
-  #       - "#####C#R#"
-  #       - "#########"
+  #       - "BXXXXXXPX"
+  #       - "XXXIIIGXX"
+  #       - "XXXIIIXXX"
+  #       - "XXXIIIXXX"
+  #       - "XXXXXCXRX"
+  #       - "XXXXXXXXX"
   #     legend:
   #       R: result
   #       I: ingredient
   #       C: container
   #       B: back
   #       P: fill
-  #       "#": background
+  #       G: progress
+  #       X: background
   #     items:
   #       background:
   #         material: GRAY_STAINED_GLASS_PANE
@@ -329,27 +328,260 @@ recipe-view-gui:
     rows: 6
     title-layout:
       craftengine:
-        offset: "<shift:-8>"
+        offset: "<shift:-1>"
         icon: "<image:farmersdelight:cutting_board_menu>"
     layout:
-      - "B########"
-      - "#########"
-      - "#########"
-      - "#I#T#RR##"
-      - "#####RR##"
-      - "#########"
+      - "BXXXXXXXX"
+      - "XXXXXXXXX"
+      - "XIXTXRRXX"
+      - "XXXXXRRXX"
+      - "XXXXXXXXX"
+      - "XXXXXXXXX"
     legend:
       I: input
       R: result
       T: tool
       B: back
-      "#": background
+      X: background
     items:
       background:
-        material: GRAY_STAINED_GLASS_PANE
+        material: LIGHT_GRAY_STAINED_GLASS_PANE
         item_model: "air"
         hide-tooltip: true
         name: " "
       back:
         material: ARROW
+        item_model: "air"
         name: "返回"
+
+# 厨锅配方编辑器界面。/fd recipe edit pot <id> [组] 打开。
+# 槽位文本与材质均在此配置,代码不写死。动态数值用占位符:
+# info: {recipe_id} {type}; result-count: {count}; cook-time: {cook_time} {seconds};
+# experience: {experience}; priority: {priority}; category: {category}
+recipe-editor-gui:
+  title: "<white>厨锅配方编辑器"
+  rows: 6
+  layout:
+    - "####i####"
+    - "#III#C#R#"
+    - "#III###N#"
+    - "#########"
+    - "#T#E#P#G#"
+    - "X###D###S"
+  legend:
+    i: info
+    I: ingredient
+    C: container
+    R: result
+    N: result-count
+    T: cook-time
+    E: experience
+    P: priority
+    G: category
+    X: cancel
+    D: delete
+    S: save
+    "#": background
+  items:
+    background:
+      material: LIGHT_GRAY_STAINED_GLASS_PANE
+      item_model: "air"
+      hide-tooltip: true
+      name: " "
+    info:
+      material: KNOWLEDGE_BOOK
+      name: "&a厨锅配方: &f{recipe_id}"
+      lore:
+        - "&7类型: &f{type}"
+        - "&7点击背包物品 → 复制到光标。"
+        - "&7光标有物点槽位 → 放入;空光标点已填槽 → 取回(清空)。"
+        - "&7数值槽: 左键 +,右键 -。"
+        - "&7原料槽 Shift 点击: 标签/或选/排除(后续支持)。"
+        - "&7背包物品不会被消耗。"
+    ingredient:
+      material: GRAY_STAINED_GLASS_PANE
+      name: "&7原料 &8(空)"
+      lore:
+        - "&7从光标放入一个物品作为原料。"
+    container:
+      material: GRAY_STAINED_GLASS_PANE
+      name: "&b容器 &8(可选)"
+      lore:
+        - "&7随成品返还的碗/瓶等。"
+    result:
+      material: GRAY_STAINED_GLASS_PANE
+      name: "&a成品 &8(空)"
+      lore:
+        - "&7本配方产出的物品。"
+    result-count:
+      material: PAPER
+      name: "&e成品数量: &f{count}"
+      lore:
+        - "&7左键 &f+1 &7/ 右键 &f-1"
+    cook-time:
+      material: CLOCK
+      name: "&e烹饪时间: &f{cook_time} &7tick ({seconds}s)"
+      lore:
+        - "&7左键 &f+20 &7(Shift &f+100&7)"
+        - "&7右键 &f-20 &7(Shift &f-100&7)"
+    experience:
+      material: EXPERIENCE_BOTTLE
+      name: "&e经验: &f{experience}"
+      lore:
+        - "&7左键 &f+0.1 &7(Shift &f+1.0&7)"
+        - "&7右键 &f-0.1 &7(Shift &f-1.0&7)"
+    priority:
+      material: COMPARATOR
+      name: "&e优先级: &f{priority}"
+      lore:
+        - "&7左键 &f+1 &7/ 右键 &f-1"
+    category:
+      material: BOOK
+      name: "&e分类: &f{category}"
+      lore:
+        - "&7点击切换分类。"
+    save:
+      material: LIME_CONCRETE
+      name: "&a保存"
+      lore:
+        - "&7写入配方文件并重载。"
+    cancel:
+      material: BARRIER
+      name: "&c取消"
+      lore:
+        - "&7放弃修改并关闭。"
+    delete:
+      material: LAVA_BUCKET
+      name: "&4删除配方"
+      lore:
+        - "&7从配方文件中移除该配方。"
+
+# 自定义厨锅(大锅)编辑器界面覆盖。键名必须等于 behavior.custom.id。
+# 缺省时回退到 recipe-editor-gui,并在控制台告警一次。
+# 自定义锅可在此把 ingredient 槽扩展到更多个,以容纳更多原料。
+recipe-editor-cooking-pot-guis: {}
+
+# 删除配方确认页。点击编辑器的删除按钮时打开。
+# info: {recipe_id}
+recipe-editor-confirm-delete-gui:
+  title: "<white>确认删除"
+  rows: 3
+  layout:
+    - "####i####"
+    - "##C###X##"
+    - "#########"
+  legend:
+    i: info
+    C: confirm
+    X: cancel
+    "#": background
+  items:
+    background:
+      material: LIGHT_GRAY_STAINED_GLASS_PANE
+      item_model: "air"
+      hide-tooltip: true
+      name: " "
+    info:
+      material: PAPER
+      name: "&c删除配方: &f{recipe_id} ?"
+      lore:
+        - "&7此操作不可撤销。"
+        - "&7点击左侧确认,或右侧取消。"
+    confirm:
+      material: RED_CONCRETE
+      name: "&4确认删除"
+      lore:
+        - "&c从配方文件中永久删除该配方。"
+    cancel:
+      material: LIME_CONCRETE
+      name: "&a取消"
+      lore:
+        - "&7返回编辑器,不删除。"
+
+# 砧板配方编辑器界面。/fd recipe edit board <id> 打开。
+# info: {recipe_id}; result-count: {count}; result-chance: {chance}; priority: {priority}
+recipe-cutting-board-editor-gui:
+  title: "<white>砧板配方编辑器"
+  rows: 6
+  layout:
+    - "####i####"
+    - "#N#T#T#T#"
+    - "#########"
+    - "#RRRRRRR#"
+    - "#K#H#P###"
+    - "X###D###S"
+  legend:
+    i: info
+    N: input
+    T: tool
+    R: result
+    K: result-count
+    H: result-chance
+    P: priority
+    X: cancel
+    D: delete
+    S: save
+    "#": background
+  items:
+    background:
+      material: GRAY_STAINED_GLASS_PANE
+      item_model: "air"
+      hide-tooltip: true
+      name: " "
+    info:
+      material: KNOWLEDGE_BOOK
+      name: "&a砧板配方: &f{recipe_id}"
+      lore:
+        - "&7点击背包物品 → 复制到光标,点槽位放入。"
+        - "&7N=输入物 T=工具 R=产物。"
+        - "&7左键产物=选中(可调数量/概率),右键=清空。"
+        - "&7工具全空时使用默认刀具标签。"
+        - "&7背包物品不会被消耗。"
+    input:
+      material: GRAY_STAINED_GLASS_PANE
+      name: "&7输入物 &8(空)"
+      lore:
+        - "&7被切割处理的物品。"
+    tool:
+      material: GRAY_STAINED_GLASS_PANE
+      name: "&b工具 &8(空)"
+      lore:
+        - "&7放入一个工具物品。"
+        - "&7全部留空 = 使用默认刀具标签。"
+    result:
+      material: GRAY_STAINED_GLASS_PANE
+      name: "&a产物 &8(空)"
+      lore:
+        - "&7左键放入/选中,右键清空。"
+    result-count:
+      material: PAPER
+      name: "&e所选产物数量: &f{count}"
+      lore:
+        - "&7左键 &f+1 &7/ 右键 &f-1"
+        - "&7先左键选中一个产物槽。"
+    result-chance:
+      material: GOLD_NUGGET
+      name: "&e所选产物概率: &f{chance}"
+      lore:
+        - "&7左键 &f+0.05 &7/ 右键 &f-0.05"
+        - "&7先左键选中一个产物槽。"
+    priority:
+      material: COMPARATOR
+      name: "&e优先级: &f{priority}"
+      lore:
+        - "&7左键 &f+1 &7/ 右键 &f-1"
+    save:
+      material: LIME_CONCRETE
+      name: "&a保存"
+      lore:
+        - "&7写入配方文件并重载。"
+    cancel:
+      material: BARRIER
+      name: "&c取消"
+      lore:
+        - "&7放弃修改并关闭。"
+    delete:
+      material: LAVA_BUCKET
+      name: "&4删除配方"
+      lore:
+        - "&7从配方文件中移除该配方。"

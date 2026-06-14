@@ -41,7 +41,7 @@ public class GuiTickManager {
         }
     }
 
-    public void start() {
+    public synchronized void start() {
         if (running) return;
         running = true;
 
@@ -83,7 +83,7 @@ public class GuiTickManager {
         }, TICK_INTERVAL, TICK_INTERVAL);
     }
 
-    public void stop() {
+    public synchronized void stop() {
         running = false;
         if (globalTickTask != null) {
             globalTickTask.cancel();

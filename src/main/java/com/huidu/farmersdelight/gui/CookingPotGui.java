@@ -7,10 +7,11 @@ import com.huidu.farmersdelight.block.behavior.CookingPotLayout;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.Text;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.momirealms.craftengine.bukkit.api.CraftEngineImages;
 import net.momirealms.craftengine.core.font.Image;
 import net.momirealms.craftengine.core.util.Key;
@@ -22,6 +23,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.ClickType;
+import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
@@ -47,7 +50,6 @@ public class CookingPotGui implements InventoryHolder {
     private static final Pattern SHIFT_TAG_PATTERN = Pattern.compile("<shift:([+-]?\\d+)>");
     private static final Pattern IMAGE_TAG_PATTERN = Pattern.compile("<image:([a-z0-9_./-]+:[a-z0-9_./-]+)>");
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
-    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
 
     private final FarmersDelightPlugin plugin;
     private final CookingPotBlockEntity blockEntity;
@@ -76,6 +78,8 @@ public class CookingPotGui implements InventoryHolder {
     private final Map<Integer, ItemStack> cachedDisplayItems = new HashMap<>();
     private ItemStack cachedPendingContainer;
     private boolean syncQueued;
+    // 上一次重扫输入槽时看到的库存版本号；版本未变化则跳过该轮重扫。
+    private long lastSeenInventoryVersion = Long.MIN_VALUE;
 
     public CookingPotGui(FarmersDelightPlugin plugin, CookingPotBlockEntity blockEntity,
                          CookingPotBlockBehavior blockBehavior, World world) {
@@ -145,12 +149,25 @@ public class CookingPotGui implements InventoryHolder {
     private void tick() {
         if (closed) return;
 
-        if (world != null && blockBehavior != null) {
-            blockEntity.setHasHeatSource(blockBehavior.checkHeatSource(blockEntity.getPos(), world));
-        }
+        // tick 回调运行在 VIEWER 的 region/entity 线程上（GuiTickManager 使用
+        // runForEntity）。在这里读取锅的方块在 Folia 上会构成跨 region 访问，
+        // 因此将热源方块的读取分派到锅自身所在的 region；结果会存储在
+        // 线程安全的 block entity 上，并由下方的 updateDisplayItems 或下一次 tick 消费。
+        refreshHeatStateOnRegion();
 
         blockEntity.tryMovePendingToOutput();
         updateDisplayItems();
+    }
+
+    private void refreshHeatStateOnRegion() {
+        if (world == null || blockBehavior == null) {
+            return;
+        }
+        plugin.scheduler().runAt(cookingPotLocation, () -> {
+            if (!closed && world != null && blockBehavior != null) {
+                blockEntity.setHasHeatSource(blockBehavior.checkHeatSource(blockEntity.getPos(), world));
+            }
+        });
     }
 
     @Override
@@ -160,6 +177,8 @@ public class CookingPotGui implements InventoryHolder {
 
     private void refreshInventory() {
         resetDisplayCache();
+        // 强制下一次 updateDisplayItems 必定重扫一次，确保打开/重绘后输入槽状态正确。
+        lastSeenInventoryVersion = Long.MIN_VALUE;
         inventory.clear();
 
         for (int slot = 0; slot < config.getSize(); slot++) {
@@ -204,7 +223,7 @@ public class CookingPotGui implements InventoryHolder {
     }
 
     private String resolveTitleLayout(String rawTitle) {
-        String title = "Cooking Pot";
+        String title = "烹饪锅";
         if (rawTitle != null) {
             title = rawTitle;
         }
@@ -269,7 +288,12 @@ public class CookingPotGui implements InventoryHolder {
     @SuppressWarnings({ "null" })
     private void updateDisplayItems() {
         if (!syncQueued) {
-            refreshInputSlotsFromBlockEntity();
+            // 仅当库存版本变化时才做全量输入槽重扫，锅内容未变时跳过这次重扫。
+            long version = blockEntity.getInventoryVersion();
+            if (version != lastSeenInventoryVersion) {
+                refreshInputSlotsFromBlockEntity();
+                lastSeenInventoryVersion = version;
+            }
         }
 
         if (heatSlot >= 0) {
@@ -314,18 +338,21 @@ public class CookingPotGui implements InventoryHolder {
         cachedPendingContainer = cloneOrNull(container);
     }
 
-    private void updateMappedDisplaySlot(int guiSlot, boolean appendContainerHint, ItemStack container) {
+    private void updateMappedDisplaySlot(int guiSlot, boolean containerChanged, ItemStack container) {
         Integer entitySlot = slotMapping.get(guiSlot);
         if (entitySlot == null) {
             return;
         }
+        // 容器提示是否存在只取决于当前是否有待返还容器；而是否需要重建只取决于物品或容器是否发生变化。
+        // 之前用同一个标志兼顾两者，导致“缓冲物品数量变化但容器不变”时重建了显示却漏掉了提示。
+        boolean hasContainerHint = container != null && !container.getType().isAir();
         ItemStack item = blockEntity.getInventorySlot(entitySlot);
         ItemStack cached = cachedDisplayItems.get(guiSlot);
-        if (!appendContainerHint && sameItemState(item, cached)) {
+        if (!containerChanged && sameItemState(item, cached)) {
             return;
         }
         ItemStack display = cloneOrNull(item);
-        if (appendContainerHint && display != null) {
+        if (hasContainerHint && display != null) {
             appendContainerHint(display, container);
         }
         inventory.setItem(guiSlot, display);
@@ -391,7 +418,11 @@ public class CookingPotGui implements InventoryHolder {
         if (!inventory.getViewers().isEmpty() && inventory.getViewers().getFirst() instanceof Player player) {
             viewer = player;
         }
-        Component containerName = ItemUtils.getDisplayComponent(container, viewer);
+        // 默认将容器名称设为白色，使其从灰色提示前缀中突出出来。lang
+        // 字符串在 {container} 之前放置了一个末尾的白色代码；MiniMessage 会折叠掉那个空的
+        // 片段，否则附加上去的名称会继承前缀的灰色。
+        Component containerName = ItemUtils.getDisplayComponent(container, viewer)
+                .colorIfAbsent(NamedTextColor.WHITE);
         Component hintPrefix = I18n.getComponent("gui.cooking_pot.pending_container_hint_prefix", viewer);
         String rawHint = viewer != null
                 ? I18n.get("gui.cooking_pot.pending_container_hint", viewer)
@@ -409,13 +440,13 @@ public class CookingPotGui implements InventoryHolder {
     private Component componentWithInsertedItemName(String template, String marker, Component itemName) {
         int markerIndex = template.indexOf(marker);
         if (markerIndex < 0) {
-            return LEGACY.deserialize(template).append(itemName);
+            return Text.deserialize(template).append(itemName);
         }
         String before = template.substring(0, markerIndex);
         String after = template.substring(markerIndex + marker.length());
-        return LEGACY.deserialize(before)
+        return Text.deserialize(before)
                 .append(itemName)
-                .append(LEGACY.deserialize(after));
+                .append(Text.deserialize(after));
     }
 
     private void syncToBlockEntity() {
@@ -435,9 +466,9 @@ public class CookingPotGui implements InventoryHolder {
                     tickManager.unregisterActiveBlock(world, blockEntity.getPosKey(), TickManager.BlockType.COOKING_POT);
                 }
             }
-            if (blockBehavior != null) {
-                blockEntity.setHasHeatSource(blockBehavior.checkHeatSource(blockEntity.getPos(), world));
-            }
+            // 热源检测会读取锅的方块，因此它通过 refreshHeatStateOnRegion()（由 sync/tick
+            // 路径调用）分派到锅所在的 region，而不是在这里读取，
+            // 因为这里我们可能处于 viewer 的线程上。
         }
     }
 
@@ -468,6 +499,24 @@ public class CookingPotGui implements InventoryHolder {
         Inventory clickedInventory = event.getClickedInventory();
         boolean clickedTop = clickedInventory != null && clickedInventory.equals(inventory);
         boolean clickedBottom = clickedInventory != null && clickedInventory.getType() == InventoryType.PLAYER;
+
+        // 双击的“收集到光标”会从两个容器中收集匹配的物品堆，
+        // 包括映射 block entity 的只读顶部展示/输出/缓冲槽位。
+        // syncToBlockEntity 只会写回可写槽位，因此一次收集会从展示槽位中
+        // 拉出物品却不会将它们从 entity 中移除 -> 物品复制。拒绝该操作。
+        InventoryAction action = event.getAction();
+        if (action == InventoryAction.COLLECT_TO_CURSOR || action == InventoryAction.UNKNOWN) {
+            event.setCancelled(true);
+            return;
+        }
+        // 针对顶部（GUI）槽位的快捷栏数字键 / 副手交换不符合本 GUI 的
+        // 槽位模型（它们会落入光标拾取分支）。在顶部容器上拒绝它们；
+        // 玩家仍然可以自由地整理自己的容器。
+        ClickType click = event.getClick();
+        if (clickedTop && (click == ClickType.NUMBER_KEY || click == ClickType.SWAP_OFFHAND)) {
+            event.setCancelled(true);
+            return;
+        }
         if (rawSlot == heatSlot || rawSlot == progressSlot || config.isBufferSlot(rawSlot)) {
             event.setCancelled(true);
             return;
@@ -528,20 +577,86 @@ public class CookingPotGui implements InventoryHolder {
             return;
         }
 
-        scheduleGuiSync();
+        scheduleGuiSync(event.getWhoClicked() instanceof Player p ? p : null);
     }
 
     void onDrag(InventoryDragEvent event) {
         if (event.getInventory().getHolder() != this) return;
-
-        for (int slot : event.getRawSlots()) {
-            if (slot >= 0 && slot < config.getSize()) {
-                event.setCancelled(true);
-                return;
-            }
+        if (closed) {
+            event.setCancelled(true);
+            return;
         }
 
-        scheduleGuiSync();
+        boolean touchesTop = false;
+        for (int slot : event.getRawSlots()) {
+            if (slot >= 0 && slot < config.getSize()) {
+                touchesTop = true;
+                break;
+            }
+        }
+        if (!touchesTop) {
+            // 纯玩家背包内的拖拽,交给原版处理。
+            scheduleGuiSync(event.getWhoClicked() instanceof Player p ? p : null);
+            return;
+        }
+
+        // 触及顶部:一律取消(原版会把拖拽应用到所有触及槽位,包括只读的展示/产出/缓冲槽 → 会刷物品),
+        // 改为只把原版计算好的分发结果手动应用到“可写入的输入槽”,其余份额原样留在光标上,杜绝刷/丢物品。
+        event.setCancelled(true);
+        if (!(event.getWhoClicked() instanceof Player player)) {
+            return;
+        }
+
+        ItemStack oldCursor = event.getOldCursor();
+        if (oldCursor == null || oldCursor.getType().isAir()) {
+            return;
+        }
+
+        int placedTotal = 0;
+        boolean anyPlaced = false;
+        int maxStack = Math.min(oldCursor.getMaxStackSize(), inventory.getMaxStackSize());
+        for (Map.Entry<Integer, ItemStack> entry : event.getNewItems().entrySet()) {
+            int rawSlot = entry.getKey();
+            if (rawSlot < 0 || rawSlot >= config.getSize() || !isPlayerInputSlot(rawSlot)) {
+                continue; // 只处理顶部可写入的输入槽
+            }
+            ItemStack newItem = entry.getValue();
+            if (newItem == null || newItem.getType().isAir() || !newItem.isSimilar(oldCursor)) {
+                continue;
+            }
+            ItemStack existing = inventory.getItem(rawSlot);
+            int existingAmount = (existing == null || existing.getType().isAir()) ? 0 : existing.getAmount();
+            if (existingAmount > 0 && !newItem.isSimilar(existing)) {
+                continue; // 槽内已有不同物品,不混放
+            }
+            int finalAmount = Math.min(newItem.getAmount(), maxStack);
+            int delta = finalAmount - existingAmount;
+            if (delta <= 0) {
+                continue;
+            }
+            ItemStack placed = oldCursor.clone();
+            placed.setAmount(finalAmount);
+            inventory.setItem(rawSlot, placed);
+            placedTotal += delta;
+            anyPlaced = true;
+        }
+
+        if (!anyPlaced) {
+            return; // 没有可应用的输入槽,光标保持不变(事件已取消)
+        }
+
+        // 光标剩余 = 原光标数量 - 实际放入总量;未应用到只读槽/背包的份额都留在光标上。
+        int remaining = oldCursor.getAmount() - placedTotal;
+        if (remaining > 0) {
+            ItemStack leftover = oldCursor.clone();
+            leftover.setAmount(remaining);
+            player.setItemOnCursor(leftover);
+        } else {
+            player.setItemOnCursor(null);
+        }
+
+        syncToBlockEntity();
+        updateDisplayItems();
     }
 
     private void handleTopInventoryInteraction(InventoryClickEvent event) {
@@ -644,13 +759,13 @@ public class CookingPotGui implements InventoryHolder {
         inventory.setItem(rawSlot, leftover.clone());
     }
 
-    private void scheduleGuiSync() {
+    private void scheduleGuiSync(Player viewer) {
         if (closed || syncQueued) {
             return;
         }
 
         syncQueued = true;
-        plugin.scheduler().runAt(cookingPotLocation, () -> {
+        Runnable syncTask = () -> {
             if (closed) {
                 syncQueued = false;
                 return;
@@ -662,7 +777,16 @@ public class CookingPotGui implements InventoryHolder {
                 syncQueued = false;
             }
             updateDisplayItems();
-        });
+            refreshHeatStateOnRegion();
+        };
+        // GUI 容器归 viewer 的 region/entity 线程所有，因此延迟的读/写
+        // 必须在那里运行（而不是在锅所在的 region），以避免在 Folia 上跨线程访问
+        // Bukkit 容器。涉及方块的工作会从 syncTask 内部分派到锅所在的 region。
+        if (viewer != null) {
+            plugin.scheduler().runForEntity(viewer, syncTask);
+        } else {
+            plugin.scheduler().runAt(cookingPotLocation, syncTask);
+        }
     }
 
     void onClose(InventoryCloseEvent event) {
@@ -683,6 +807,10 @@ public class CookingPotGui implements InventoryHolder {
         }
         activeGuis.clear();
         GuiTickManager.cleanup();
+        // 在禁用时调用 HandlerList.unregisterAll(plugin) 会移除 EventDispatcher，但还
+        // 必须重置这个静态标志，以便软重启时重新注册一个全新的 dispatcher；
+        // 否则 GUI 点击将不再被取消（复制/丢失）。
+        listenerRegistered = false;
     }
 
     public static void closeAllOpenGuis() {
@@ -732,7 +860,7 @@ public class CookingPotGui implements InventoryHolder {
 
         @EventHandler(priority = EventPriority.MONITOR)
         public void onPlayerQuit(PlayerQuitEvent event) {
-            // PlayerQuit needs to iterate activeGuis directly, not holder
+            // PlayerQuit 需要直接遍历 activeGuis，而不是 holder
             UUID uuid = event.getPlayer().getUniqueId();
             CookingPotGui gui = activeGuis.remove(uuid);
             if (gui != null && !gui.closed) {
@@ -926,7 +1054,9 @@ public class CookingPotGui implements InventoryHolder {
             return;
         }
         if (plugin.shouldDropCookingPotVanillaExperience()) {
-            blockEntity.dropExperience(world, experience);
+            // 取出成品的点击事件运行在玩家所在 region 线程上，但经验球要在锅的位置生成；
+            // 在 Folia 上跨 region 调用 world.spawn 会抛异常，因此分派到锅自身的 region（与热源读取一致）。
+            plugin.scheduler().runAt(cookingPotLocation, () -> blockEntity.dropExperience(world, experience));
         }
         plugin.awardCookingPotAuraSkillsExperience(player, experience);
         plugin.callCookingPotExperienceEvent(player, result, experience);
@@ -972,7 +1102,7 @@ public class CookingPotGui implements InventoryHolder {
         if (customId != null && plugin.getCookingPotRecipes().getValidContainerKeys().contains(customId)) {
             return true;
         }
-        String materialKey = "minecraft:" + item.getType().name().toLowerCase();
+        String materialKey = "minecraft:" + item.getType().name().toLowerCase(java.util.Locale.ROOT);
         return plugin.getCookingPotRecipes().getValidContainerKeys().contains(materialKey);
     }
 

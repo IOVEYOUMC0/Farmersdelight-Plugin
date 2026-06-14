@@ -31,6 +31,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -67,11 +68,15 @@ public class BlockPlaceListener implements Listener {
     );
     private static final Map<PlacedItemKey, ItemStack> pendingPlacedItems = new ConcurrentHashMap<>();
     private static PluginTask cleanupTask;
+    // cleanupTask 由每个玩家所在的 region 线程启动，并由调度器线程清除。
+    private static final Object cleanupTaskLock = new Object();
 
     public static void cleanup() {
-        if (cleanupTask != null) {
-            cleanupTask.cancel();
-            cleanupTask = null;
+        synchronized (cleanupTaskLock) {
+            if (cleanupTask != null) {
+                cleanupTask.cancel();
+                cleanupTask = null;
+            }
         }
         pendingPlacedItems.clear();
     }
@@ -86,7 +91,14 @@ public class BlockPlaceListener implements Listener {
 
         String customBlockId = getCustomBlockId(event);
         if (customBlockId == null) {
-            awardPlantAllCropsCriterion(player, VANILLA_CROP_CRITERIA.get(event.getBlock().getType()));
+            Material placedType = event.getBlock().getType();
+            if (placedType == Material.CAMPFIRE || placedType == Material.SOUL_CAMPFIRE) {
+                AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
+                if (am != null) {
+                    am.award(player, "place_campfire");
+                }
+            }
+            awardPlantAllCropsCriterion(player, VANILLA_CROP_CRITERIA.get(placedType));
             return;
         }
 
@@ -134,12 +146,12 @@ public class BlockPlaceListener implements Listener {
             Constants.BLOCK_RED_MUSHROOM_COLONY
     );
 
-    private static final Set<Material> MUSHROOM_GROW_BLOCKS = Set.of(
-            Material.MYCELIUM,
-            Material.PODZOL,
-            Material.CRIMSON_NYLIUM,
-            Material.WARPED_NYLIUM,
-            Material.MUSHROOM_STEM
+    private static final Set<String> DEFAULT_MUSHROOM_ALWAYS_VALID_SUPPORTS = Set.of(
+            "minecraft:mycelium",
+            "minecraft:podzol",
+            "minecraft:crimson_nylium",
+            "minecraft:warped_nylium",
+            "minecraft:mushroom_stem"
     );
 
     private boolean isMushroomColony(String customBlockId) {
@@ -151,13 +163,51 @@ public class BlockPlaceListener implements Listener {
         Block blockBelow = world.getBlockAt(
                 event.location().getBlockX(), event.location().getBlockY() - 1, event.location().getBlockZ()
         );
-        if (MUSHROOM_GROW_BLOCKS.contains(blockBelow.getType())) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (isAlwaysValidMushroomSupport(plugin, blockBelow)) {
             return true;
         }
         Block targetBlock = world.getBlockAt(
                 event.location().getBlockX(), event.location().getBlockY(), event.location().getBlockZ()
         );
-        return targetBlock.getLightLevel() < Constants.MUSHROOM_COLONY_MAX_LIGHT && blockBelow.getType().isSolid();
+        if (!plugin.getConfigBoolean(true,
+                "mushroom-colonies.placement.allow-solid-supports-below-max-light")) {
+            return false;
+        }
+        int maxLight = Math.max(0, Math.min(15, plugin.getConfigInt(12,
+                "mushroom-colonies.placement.max-light")));
+        return targetBlock.getLightLevel() <= maxLight && blockBelow.getType().isSolid();
+    }
+
+    private boolean isAlwaysValidMushroomSupport(FarmersDelightPlugin plugin, Block blockBelow) {
+        Set<String> configuredSupports = normalizeMushroomSupports(plugin.getConfig().getStringList(
+                "mushroom-colonies.placement.always-valid-supports"));
+        if (configuredSupports.isEmpty()) {
+            configuredSupports = DEFAULT_MUSHROOM_ALWAYS_VALID_SUPPORTS;
+        }
+        return configuredSupports.contains(toMinecraftBlockId(blockBelow.getType()));
+    }
+
+    private Set<String> normalizeMushroomSupports(Iterable<String> configuredSupports) {
+        Set<String> normalized = ConcurrentHashMap.newKeySet();
+        if (configuredSupports == null) {
+            return normalized;
+        }
+        for (String support : configuredSupports) {
+            String value = support == null ? "" : support.trim().toLowerCase(Locale.ROOT);
+            if (value.isEmpty()) {
+                continue;
+            }
+            if (!value.contains(":")) {
+                value = "minecraft:" + value;
+            }
+            normalized.add(value);
+        }
+        return normalized;
+    }
+
+    private String toMinecraftBlockId(Material material) {
+        return "minecraft:" + material.name().toLowerCase(Locale.ROOT);
     }
 
     private void awardForCustomBlock(Player player, String customBlockId, org.bukkit.Location blockLocation, ItemStack placedItem) {
@@ -181,11 +231,7 @@ public class BlockPlaceListener implements Listener {
         }
 
         if (customBlockId.equals(Constants.BLOCK_CUTTING_BOARD)) {
-            CuttingBoardBlockBehavior.putBlockEntity(
-                    blockLocation.getWorld(),
-                    new BlockPosKey(blockLocation),
-                    new CuttingBoardBlockEntity(new BlockPosKey(blockLocation), blockLocation.getWorld())
-            );
+            ensureCuttingBoardRuntimeEntity(blockLocation);
         }
 
         if (customBlockId.equals(Constants.BLOCK_SKILLET)) {
@@ -195,11 +241,26 @@ public class BlockPlaceListener implements Listener {
             }
         }
 
-        if (am != null && FEAST_BLOCKS.contains(customBlockId.toLowerCase())) {
+        if (am != null && FEAST_BLOCKS.contains(customBlockId.toLowerCase(java.util.Locale.ROOT))) {
             am.award(player, "place_feast");
         }
 
         awardPlantAllCropsCriterion(player, getCustomCropCriterion(customBlockId));
+    }
+
+    private void ensureCuttingBoardRuntimeEntity(org.bukkit.Location blockLocation) {
+        if (blockLocation == null || blockLocation.getWorld() == null) {
+            return;
+        }
+        BlockPosKey posKey = new BlockPosKey(blockLocation);
+        if (CuttingBoardBlockBehavior.getBlockEntity(blockLocation.getWorld(), posKey) != null) {
+            return;
+        }
+        CuttingBoardBlockBehavior.putBlockEntity(
+                blockLocation.getWorld(),
+                posKey,
+                new CuttingBoardBlockEntity(posKey, blockLocation.getWorld())
+        );
     }
 
     private boolean isCookingPotPlacement(String customBlockId, org.bukkit.Location blockLocation) {
@@ -231,7 +292,7 @@ public class BlockPlaceListener implements Listener {
     }
 
     private String getCustomCropCriterion(String customBlockId) {
-        return switch (customBlockId.toLowerCase()) {
+        return switch (customBlockId.toLowerCase(java.util.Locale.ROOT)) {
             case Constants.BLOCK_CABBAGES -> "cabbage";
             case Constants.BLOCK_BUDDING_TOMATOES, Constants.BLOCK_TOMATOES -> "tomato";
             case Constants.BLOCK_ONIONS -> "onion";
@@ -247,8 +308,8 @@ public class BlockPlaceListener implements Listener {
 
         AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
         if (am != null) {
-            // Vanilla placed_block cannot see CE custom crop IDs, so the plugin
-            // mirrors the original criterion names and advances them manually.
+            // 原版的 placed_block 无法识别 CraftEngine 的自定义作物 ID，因此插件
+            // 沿用原始的 criterion 名称，并手动推进这些进度。
             am.awardCriteria(player, "plant_all_crops", criterion);
         }
     }
@@ -283,20 +344,23 @@ public class BlockPlaceListener implements Listener {
     }
 
     private void ensureCleanupTask() {
-        if (cleanupTask != null) {
-            return;
-        }
+        synchronized (cleanupTaskLock) {
+            if (cleanupTask != null) {
+                return;
+            }
 
-        cleanupTask = FarmersDelightPlugin.getInstance().scheduler().runLater(
-                () -> {
-                    pendingPlacedItems.clear();
-                    cleanupTask = null;
-                },
-                2L
-        );
+            cleanupTask = FarmersDelightPlugin.getInstance().scheduler().runLater(
+                    () -> {
+                        pendingPlacedItems.clear();
+                        synchronized (cleanupTaskLock) {
+                            cleanupTask = null;
+                        }
+                    },
+                    2L
+            );
+        }
     }
 
     private record PlacedItemKey(UUID playerId, InteractionHand hand, String blockId) {
     }
 }
-

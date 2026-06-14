@@ -808,6 +808,7 @@ block:
           - "#farmersdelight:knives"
           - "#minecraft:axes"
           - "#minecraft:pickaxes"
+          - "#minecraft:shovels"
         tool-items:
           - minecraft:shears
     states:
@@ -946,6 +947,11 @@ block:
       - farmersdelight:block_crate_template
       - farmersdelight:block_loot_template
   farmersdelight:rice_bale:
+    behavior:
+      - type: bouncing_block
+        bounce_height: 0
+        sync_player_position: false
+        fall_damage_multiplier: 0.2
     template:
       - farmersdelight:block_loot_template
     settings:
@@ -1035,6 +1041,11 @@ block:
       model:
         path: ${__NAMESPACE__}:block/${__ID__}
   farmersdelight:straw_bale:
+    behavior:
+      - type: bouncing_block
+        bounce_height: 0
+        sync_player_position: false
+        fall_damage_multiplier: 0.2
     template:
       - farmersdelight:block_loot_template
     settings:
@@ -1102,71 +1113,10 @@ block:
         hit: minecraft:block.wool.hit
         place: minecraft:block.wool.place
         step: minecraft:block.wool.step
-    behavior:
-      - type: farmersdelight:tatami
-        block-id: farmersdelight:tatami
-        facing-property: facing
-        paired-property: paired
     states:
-      properties:
-        facing:
-          type: direction
-          default: down
-        paired:
-          type: boolean
-          default: false
-      appearances:
-        half:
-          auto-state: mushroom_stem
-          model:
-            path: ${__NAMESPACE__}:block/${__ID__}_half
-        north_even:
-          auto-state: mushroom_stem
-          model:
-            path: ${__NAMESPACE__}:block/${__ID__}_even
-            x: 90
-        east_odd:
-          auto-state: mushroom_stem
-          model:
-            path: ${__NAMESPACE__}:block/${__ID__}_odd
-            x: 90
-            y: 90
-        south_odd:
-          auto-state: mushroom_stem
-          model:
-            path: ${__NAMESPACE__}:block/${__ID__}_odd
-            x: 90
-            y: 180
-        west_even:
-          auto-state: mushroom_stem
-          model:
-            path: ${__NAMESPACE__}:block/${__ID__}_even
-            x: 90
-            y: 270
-        up_odd:
-          auto-state: mushroom_stem
-          model:
-            path: ${__NAMESPACE__}:block/${__ID__}_odd
-        down_even:
-          auto-state: mushroom_stem
-          model:
-            path: ${__NAMESPACE__}:block/${__ID__}_even
-            x: 180
-      variants:
-        paired=false:
-          appearance: half
-        facing=north,paired=true:
-          appearance: north_even
-        facing=east,paired=true:
-          appearance: east_odd
-        facing=south,paired=true:
-          appearance: south_odd
-        facing=west,paired=true:
-          appearance: west_even
-        facing=up,paired=true:
-          appearance: up_odd
-        facing=down,paired=true:
-          appearance: down_even
+      auto-state: mushroom_stem
+      model:
+        path: ${__NAMESPACE__}:block/${__ID__}_half
   farmersdelight:oak_cabinet:
     template: 
       - farmersdelight:block_cabinet_template

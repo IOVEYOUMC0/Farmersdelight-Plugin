@@ -14,13 +14,15 @@ FarmersDelight 是一个基于 CraftEngine 26.5 的 Farmer's Delight 风格玩�
 - 小刀战利品：用小刀击杀成年生物时额外掉落火腿、皮革、羽毛等，可配置概率和抢夺加成。
 - 食物效果：宠物食物、舒适效果、营养效果、容器返还。
 - 配方查看 GUI：厨锅和砧板配方列表、详情页、标签/多选原料展示。
-- 进度系统：内置 Farmer's Delight 风格进度数据包。
+- 配方编辑 GUI：管理员可在游戏内可视化创建、编辑、删除厨锅与砧板配方，支持标签原料（按物品反查标签 + 排除项编辑）、或选 `a|b` 原料、自定义厨锅槽位；不输入配方 ID 时打开配方列表点击即可编辑。
+- 进度系统：基于 UltimateAdvancementAPI（可选依赖）的 Farmer's Delight 风格进度，toast 与聊天提示按玩家客户端语言本地化、使用 CE 物品图标；未安装该插件时自动关闭，不影响其它功能。
 
 ## 2. 安装环境
 
 - Java 21
 - Paper / Purpur 1.21+
 - CraftEngine 26.5
+- 可选依赖：UltimateAdvancementAPI（进度系统）、AuraSkills（厨锅经验奖励）。未安装对应插件时该功能自动关闭，不影响插件其它部分。进度功能支持的 Minecraft 版本由所安装的 UltimateAdvancementAPI 构建决定（随附构建覆盖 1.21.x 与 26.1.x）。
 
 插件内调度通过 scheduler adapter 适配 Paper 与 Folia；在 Folia 上优先走全局、区域或实体调度器。Folia 环境建议在测试服验证厨锅/砧板容器、方块存储、显示同步和异步保存流程。
 
@@ -28,9 +30,21 @@ FarmersDelight 是一个基于 CraftEngine 26.5 的 Farmer's Delight 风格玩�
 
 1. 将 `farmersdelight-1.0.0.jar` 放入服务器 `plugins` 目录。
 2. 安装 CraftEngine 26.5。
-3. 放入本插件配套的 CraftEngine 资源配置。
-4. 启动服务器，等待生成配置文件。
+3. 启动服务器。首次启动时本插件会自动把内置 CraftEngine 资源配置整包释放到 `plugins/CraftEngine/resources/farmersdelight`，之后每次启动会补回被删除/缺失的文件（见下方 `craftengine-resources.auto-completion`）。
+4. 等待生成插件配置文件。
 5. 修改配置后可使用 `/fd reload`；修改 jar、CraftEngine 资源或资源包后建议完整重启服务器。
+6. 如需进度系统，另行安装 UltimateAdvancementAPI 插件（可选）。
+
+### 2.1 CraftEngine 资源自动补齐
+
+本插件自带的 CraftEngine 资源会在首次启动整包释放到 `plugins/CraftEngine/resources/farmersdelight`，之后每次启动还会自动补回被删除/缺失的文件：
+
+```yaml
+craftengine-resources:
+  auto-completion: true
+```
+
+如果你手动删除了某些内置配置且不希望被重新加回，设为 `false`（首次整包释放不受该开关影响）。
 
 生成文件：
 
@@ -808,6 +822,20 @@ fill:
 
 修改 `gui.yml` 后使用 `/fd reload gui` 生效；如果按钮使用了新的 CraftEngine 物品或资源包贴图，仍建议完整重启服务器并让玩家重新加载资源包。
 
+### 11.2 游戏内配方编辑器
+
+管理员可以用 `/fd recipe edit pot|board [id]` 在游戏内可视化编辑配方，无需手动改 YAML。编辑器界面文本全部来自 `gui.yml` 的编辑器小节和语言文件，没有硬编码。
+
+交互采用“光标笔刷”模型：点击背包里的物品会把它的副本放到光标上，再点编辑器槽位放入；真实背包物品不会被消耗。
+
+- 原料格：左键放入光标物品作为普通原料；在已有原料上继续放会合并成或选（`a|b`）。
+- 原料格右键 + 光标持物：按该物品所属标签弹出标签选择器（见下）。
+- 原料格 Shift 点击或右键多选原料：打开或选构建器，可逐项删除或一键“全部清除”。
+- 标签选择器：列出该物品所属的全部标签（CraftEngine 自定义标签 + 原版标签）。左键某标签直接使用；右键进入排除项编辑，列出该标签包含的物品，点击在“排除/包含”间切换。
+- 保存、删除（带确认页）、数量/烹饪时间/经验/优先级/分类等都在界面内调整。
+
+编辑器相关的 `gui.yml` 小节：`recipe-editor-gui`、`recipe-editor-cooking-pot-guis.<id>`（自定义大锅覆盖）、`recipe-cutting-board-editor-gui`、`recipe-editor-confirm-delete-gui`、`recipe-choice-builder-gui`、`recipe-tag-picker-gui`。保存会写入对应配方文件并自动重载配方。
+
 CraftEngine 侧用自定义配置覆盖原版物品时，建议同时给 CE 物品写一个指向原版语言键的显示名，避免 GUI、配方页或物品提示只显示 ID。例如覆盖原版物品 ID 时，可以在 CE 物品显示名里使用：
 
 ```yaml
@@ -908,17 +936,19 @@ pet-foods:
 
 `pet-foods` 的每个键就是一个食物物品 ID，支持 CraftEngine 物品 ID 和原版物品 ID。`entities` 使用 Bukkit `EntityType` 名称，例如 `HORSE`、`DONKEY`、`MULE`、`LLAMA`、`CAMEL`。`tempt` 是手持吸引配置；`tick-interval` 单位是 tick，10 tick 约等于 0.5 秒。需要更多可吸引食物时，直接在 `pet-foods` 下新增物品条目即可。
 
-舒适效果和营养效果默认关闭：
+营养效果（吃下后清除疲劳值、防止掉饿）：吃 `nourishment-foods` 列表里的食物时生效。`duration` 单位为秒，默认按原版模组分档（30 / 60 / 180 / 300）。舒适效果（周期回血）在原版模组里已弃用，因此 `comfort-foods` 默认关闭、列表留空；机制代码保留，需要可自行启用并添加食物。
 
 ```yaml
 comfort-foods:
   enabled: false
-  foods:
-    farmersdelight:pasta_with_meatballs:
-      duration: 300
+  foods: {}
 nourishment-foods:
-  enabled: false
+  enabled: true
   foods:
+    farmersdelight:cooked_rice:
+      duration: 30        # 30/60/180/300 秒分档
+    farmersdelight:beef_stew:
+      duration: 180
     farmersdelight:noodle_soup:
       duration: 300
 ```
@@ -942,6 +972,8 @@ cooking-pot:
 /fd recipe
 /fd recipe cooking_pot
 /fd recipe cutting_board
+/fd recipe edit pot [配方ID] [自定义组]
+/fd recipe edit board [配方ID]
 /fd reload
 /fd reload all
 /fd reload config
@@ -961,12 +993,14 @@ cooking-pot:
 | `/fd recipe` | `/fd recipes` | `farmersdelight.command` + `farmersdelight.command.recipe` | 所有玩家 | 打开配方查看主界面。只能由玩家执行。 |
 | `/fd recipe cooking_pot` | `pot`、`cookingpot` | `farmersdelight.command` + `farmersdelight.command.recipe` | 所有玩家 | 直接打开厨锅配方列表。只能由玩家执行。 |
 | `/fd recipe cutting_board` | `board`、`cuttingboard` | `farmersdelight.command` + `farmersdelight.command.recipe` | 所有玩家 | 直接打开砧板配方列表。只能由玩家执行。 |
+| `/fd recipe edit pot [id] [组]` | `pot`、`cookingpot` | `farmersdelight.command` + `farmersdelight.command.recipe` + `farmersdelight.admin` | OP | 打开厨锅配方编辑器。带 ID 直接编辑该配方（不存在则新建）；带自定义组可编辑自定义大锅配方；不带 ID 打开配方列表点击编辑。只能由玩家执行。 |
+| `/fd recipe edit board [id]` | `board`、`cuttingboard` | `farmersdelight.command` + `farmersdelight.command.recipe` + `farmersdelight.admin` | OP | 打开砧板配方编辑器。带 ID 直接编辑（不存在则新建）；不带 ID 打开配方列表点击编辑。只能由玩家执行。 |
 | `/fd reload` | 默认等同 `/fd reload config` | `farmersdelight.command` + `farmersdelight.admin` | OP | 重载 `config.yml`。 |
 | `/fd reload config` | - | `farmersdelight.command` + `farmersdelight.admin` | OP | 只重载常规玩法配置。 |
 | `/fd reload gui` | - | `farmersdelight.command` + `farmersdelight.admin` | OP | 重载 `gui.yml`，用于刷新 GUI 标题、布局、按钮、图标等。 |
 | `/fd reload lang` | `language`、`languages` | `farmersdelight.command` + `farmersdelight.admin` | OP | 重载语言文件。 |
 | `/fd reload recipes` | `recipe` | `farmersdelight.command` + `farmersdelight.admin` | OP | 重载厨锅、砧板配方，并刷新 CE 物品缓存。 |
-| `/fd reload advancements` | `advancement` | `farmersdelight.command` + `farmersdelight.admin` | OP | 重载内置进度数据包。 |
+| `/fd reload advancements` | `advancement` | `farmersdelight.command` + `farmersdelight.admin` | OP | 重载进度并重建进度树（需安装 UltimateAdvancementAPI；未安装则跳过）。 |
 | `/fd reload all` | - | `farmersdelight.command` + `farmersdelight.admin` | OP | 完整重载配置、GUI、语言、配方和进度。修改 CE 资源或 jar 后仍建议重启。 |
 | `/fd cleanup` | - | `farmersdelight.command` + `farmersdelight.admin` | OP | 清理插件生成的 CE 代理物品展示实体，并清理不符合条件的自动托盘。 |
 
@@ -1026,7 +1060,7 @@ behavior:
 - `/fd reload gui`：重载 `gui.yml`。
 - `/fd reload lang`：重载语言文件。
 - `/fd reload recipes`：重载厨锅和砧板配方，并刷新 CE 物品缓存。
-- `/fd reload advancements`：重载进度数据包。
+- `/fd reload advancements`：重载进度并重建进度树（需安装 UltimateAdvancementAPI）。
 - `/fd reload all`：完整重载本插件配置、GUI、语言、配方和进度。
 
 建议完整重启：
@@ -1052,36 +1086,39 @@ CE 物品名称显示成 ID：检查 CE 物品的显示名、语言文件和资�
 
 开发环境通过 Maven 仓库解析 CraftEngine 26.5 依赖，`build.gradle.kts` 已使用 `net.momirealms:craft-engine-*` 坐标。若依赖仓库暂时不可用，可先把对应 CraftEngine 产物安装到 `mavenLocal()`。
 
+构建产物是**单个通用 jar**，同时支持 Paper 和 Folia（`plugin.yml` / `paper-plugin.yml` 里 `folia-supported: true` 直接写死，不再按平台拆分）。
+
 常用构建：
 
 ```powershell
-.\gradlew.bat clean build
-.\gradlew.bat buildPaper
-.\gradlew.bat buildFolia
+.\gradlew.bat clean shadowJar
 ```
 
 输出：
 
 ```text
 build/libs/farmersdelight-1.0.0.jar
-build/libs/farmersdelight-1.0.0-paper.jar
-build/libs/farmersdelight-1.0.0-folia.jar
 ```
 
 可选混淆构建：
 
 ```powershell
 .\gradlew.bat buildObfuscated
-.\gradlew.bat buildAllVariants
 ```
 
 混淆输出：
 
 ```text
-build/libs/farmersdelight-1.0.0-paper-obf.jar
-build/libs/farmersdelight-1.0.0-folia-obf.jar
-build/reports/proguard/farmersdelight-1.0.0-paper-mapping.txt
-build/reports/proguard/farmersdelight-1.0.0-folia-mapping.txt
+build/libs/farmersdelight-1.0.0-obf.jar
+build/reports/proguard/farmersdelight-1.0.0-mapping.txt
 ```
 
-混淆构建会保留 Bukkit 主类、事件监听注解、枚举入口、公开 API 包、行号和统一的 `SourceFile` 标记，避免 Bukkit、CraftEngine 或外部插件需要反射访问的入口被改名，并让混淆堆栈可以用同一轮构建的 mapping 反查。`build/reports/proguard/*-mapping.txt` 仅作内部排查留档，`build/` 已被 git 忽略，不要提交到公开仓库。Paper/Folia jar 的 `paper-plugin.yml` 会分别写入对应的 `folia-supported` 值；Folia 构建仍建议在测试服验证区域调度、显示同步和区块卸载保存。
+混淆构建（ProGuard）会保留 Bukkit 主类的生命周期方法、`@EventHandler` 方法（保留但允许改名）、枚举入口和公开 API 包 `com.huidu.farmersdelight.api.event.**`；其余类全部重命名并 repackage 到 `fd`。CraftEngine 方块行为按字符串键 + 工厂引用注册，不依赖类名反射，因此可安全混淆。混淆后插件自有代码只有公开 API 包保持可读。`build/reports/proguard/*-mapping.txt` 仅作内部排查留档（用于反查混淆堆栈），`build/` 已被 git 忽略，不要提交到公开仓库。
+
+调试工具（`/fd debugtools …` 性能测试命令）默认不打进 jar，需要时用 `-PdebugTools=true` 构建：
+
+```powershell
+.\gradlew.bat clean shadowJar -PdebugTools=true
+```
+
+Folia 环境建议在测试服验证区域调度、容器交互、显示同步和区块卸载保存。

@@ -42,7 +42,7 @@ public class PetFoodConfig {
         List<String> entityList = section.getStringList("entities");
         for (String entityId : entityList) {
             try {
-                EntityType type = EntityType.valueOf(entityId.toUpperCase());
+                EntityType type = EntityType.valueOf(entityId.toUpperCase(java.util.Locale.ROOT));
                 definition.entities.add(type);
             } catch (IllegalArgumentException e) {
                 if (LOGGER != null) {
@@ -73,7 +73,7 @@ public class PetFoodConfig {
 
         String particleName = section.getString("particle-type", "END_ROD");
         try {
-            definition.particleType = Particle.valueOf(particleName.toUpperCase());
+            definition.particleType = Particle.valueOf(particleName.toUpperCase(java.util.Locale.ROOT));
         } catch (IllegalArgumentException e) {
             definition.particleType = Particle.END_ROD;
             if (LOGGER != null) {

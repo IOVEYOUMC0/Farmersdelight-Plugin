@@ -6,6 +6,7 @@ public final class Constants {
     public static final String TAG_KNIVES = "farmersdelight:knives";
     public static final String TAG_AXES = "minecraft:axes";
     public static final String TAG_PICKAXES = "minecraft:pickaxes";
+    public static final String TAG_SHOVELS = "minecraft:shovels";
     public static final String TAG_HEAT_SOURCES = "farmersdelight:heat_sources";
     public static final String TAG_HEAT_CONDUCTORS = "farmersdelight:heat_conductors";
     public static final String ACTION_AXE_DIG = "farmersdelight:axe_dig";
@@ -58,6 +59,7 @@ public final class Constants {
     public static final String BEHAVIOR_WILD_RICE = "farmersdelight:wild_rice";
     public static final String BEHAVIOR_ROPE = "farmersdelight:rope";
     public static final String BEHAVIOR_MUSHROOM_COLONY = "farmersdelight:mushroom_colony";
+    public static final String BEHAVIOR_WILD_PLANT = "farmersdelight:wild_plant";
     public static final String CE_SHORT_SKILLET = "skillet";
     public static final String CE_SHORT_STOVE = "stove";
     public static final String SOUND_COOKING_POT_BOIL = "farmersdelight:block.cooking_pot.boil";
@@ -98,4 +100,3 @@ public final class Constants {
     private Constants() {
     }
 }
-

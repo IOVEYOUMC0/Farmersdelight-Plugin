@@ -5,7 +5,7 @@ import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
 import com.huidu.farmersdelight.util.*;
-import fr.ateastudio.farmersdelight.api.event.ProfessionCookingExperienceEvent;
+import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
@@ -49,6 +49,10 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
     }
 
     private static final Map<UUID, Map<BlockPosKey, CuttingBoardBlockEntity>> worldBlockEntities = new ConcurrentHashMap<>();
+    // 按区块索引权威 map 中的方块实体位置：worldId -> (chunkKey -> posKey 集合)。
+    // 该索引必须与 worldBlockEntities 的结构性写入紧耦合维护，否则区块卸载时
+    // 漏掉的实体将不会被保存，导致砧板内容丢失。
+    private static final Map<UUID, Map<Long, Set<BlockPosKey>>> chunkIndex = new ConcurrentHashMap<>();
     private static final Map<UUID, Map<BlockPosKey, Long>> recentManualInsertions = new ConcurrentHashMap<>();
     private static final long MANUAL_INSERT_GUARD_MILLIS = 250L;
 
@@ -56,18 +60,16 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
     private final List<Key> toolTags;
     private final List<Key> toolItems;
     private final String knifeSound;
-    private final boolean enableStacking;
     private final int maxStackAmount;
     private final String customDataKey;
     private int controllerId;
 
-    private CuttingBoardBlockBehavior(BlockDefinition block, Property<?> facingProperty, List<Key> toolTags, List<Key> toolItems, String knifeSound, boolean enableStacking, int maxStackAmount, String customDataKey) {
+    private CuttingBoardBlockBehavior(BlockDefinition block, Property<?> facingProperty, List<Key> toolTags, List<Key> toolItems, String knifeSound, int maxStackAmount, String customDataKey) {
         super(block);
         this.facingProperty = facingProperty;
         this.toolTags = toolTags;
         this.toolItems = toolItems;
         this.knifeSound = knifeSound;
-        this.enableStacking = enableStacking;
         this.maxStackAmount = maxStackAmount;
         this.customDataKey = customDataKey;
     }
@@ -119,6 +121,50 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         return Set.of();
     }
 
+    /** 由方块坐标计算区块键(高 32 位为 chunkX,低 32 位为 chunkZ)。 */
+    private static long chunkKey(int blockX, int blockZ) {
+        return (((long) (blockX >> 4)) << 32) | ((blockZ >> 4) & 0xFFFFFFFFL);
+    }
+
+    /** 把一个位置加入区块索引。必须与 worldEntities 的注册写入紧耦合调用。 */
+    private static void indexAdd(UUID worldId, BlockPosKey posKey) {
+        chunkIndex.computeIfAbsent(worldId, k -> new ConcurrentHashMap<>())
+                .computeIfAbsent(chunkKey(posKey.x(), posKey.z()), k -> ConcurrentHashMap.newKeySet())
+                .add(posKey);
+    }
+
+    /** 把一个位置从区块索引移除。必须与 worldEntities 的移除写入紧耦合调用。 */
+    private static void indexRemove(UUID worldId, BlockPosKey posKey) {
+        Map<Long, Set<BlockPosKey>> worldChunks = chunkIndex.get(worldId);
+        if (worldChunks == null) return;
+        long ck = chunkKey(posKey.x(), posKey.z());
+        Set<BlockPosKey> set = worldChunks.get(ck);
+        if (set == null) return;
+        set.remove(posKey);
+        if (set.isEmpty()) worldChunks.remove(ck);
+        if (worldChunks.isEmpty()) chunkIndex.remove(worldId);
+    }
+
+    /**
+     * 仅返回指定区块内的砧板方块实体,避免对整世界做线性扫描。
+     * 以权威 map(worldBlockEntities)为准:索引里可能存在的陈旧多余项若在权威 map 中查不到则跳过。
+     */
+    public static Map<BlockPosKey, CuttingBoardBlockEntity> getBlockEntitiesInChunk(World world, int chunkX, int chunkZ) {
+        Map<BlockPosKey, CuttingBoardBlockEntity> result = new HashMap<>();
+        if (world == null) return result;
+        Map<Long, Set<BlockPosKey>> worldChunks = chunkIndex.get(world.getUID());
+        if (worldChunks == null) return result;
+        Set<BlockPosKey> posKeys = worldChunks.get((((long) chunkX) << 32) | (chunkZ & 0xFFFFFFFFL));
+        if (posKeys == null) return result;
+        Map<BlockPosKey, CuttingBoardBlockEntity> worldEntities = worldBlockEntities.get(world.getUID());
+        if (worldEntities == null) return result;
+        for (BlockPosKey posKey : posKeys) {
+            CuttingBoardBlockEntity entity = worldEntities.get(posKey);
+            if (entity != null) result.put(posKey, entity);
+        }
+        return result;
+    }
+
     public static CuttingBoardBlockEntity putBlockEntity(World world, BlockPosKey posKey, CuttingBoardBlockEntity entity) {
         if (world == null || posKey == null || entity == null) {
             return entity;
@@ -127,6 +173,8 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
                 world.getUID(), k -> new ConcurrentHashMap<>());
         entity.setWorld(world);
         worldEntities.put(posKey, entity);
+        // put 一定写入权威 map,故无条件维护索引。
+        indexAdd(world.getUID(), posKey);
         return entity;
     }
 
@@ -144,6 +192,8 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         if (worldEntities != null) {
             CuttingBoardBlockEntity entity = worldEntities.remove(posKey);
             if (entity != null) {
+                // 仅在确实从权威 map 移除时才同步从索引移除,保持二者一致。
+                indexRemove(world.getUID(), posKey);
                 entity.removeDisplayEntity();
             }
         }
@@ -166,6 +216,8 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
             }
             worldEntities.clear();
         }
+        // 整世界移除时同步丢弃该世界的区块索引。
+        chunkIndex.remove(worldId);
     }
 
     public static void cleanupAll() {
@@ -182,6 +234,8 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
             worldEntities.clear();
         }
         worldBlockEntities.clear();
+        // 清空权威 map 时同步清空区块索引。
+        chunkIndex.clear();
         recentManualInsertions.clear();
     }
 
@@ -189,9 +243,12 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         if (world == null || posKey == null || playerId == null) {
             return;
         }
-        recentManualInsertions
-                .computeIfAbsent(playerId, ignored -> new ConcurrentHashMap<>())
-                .put(posKey, System.currentTimeMillis());
+        long now = System.currentTimeMillis();
+        Map<BlockPosKey, Long> guarded = recentManualInsertions.computeIfAbsent(playerId, ignored -> new ConcurrentHashMap<>());
+        // 丢弃那些从未被后续事件消费的已过期防护条目，这样该 map 就不会
+        // 累积陈旧的位置数据。
+        guarded.entrySet().removeIf(entry -> now - entry.getValue() > MANUAL_INSERT_GUARD_MILLIS);
+        guarded.put(posKey, now);
     }
 
     private static boolean consumeManualInsertionGuard(UUID playerId, BlockPosKey posKey) {
@@ -236,6 +293,21 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         }
     }
 
+    public static void refreshDisplayEntities() {
+        for (Map.Entry<UUID, Map<BlockPosKey, CuttingBoardBlockEntity>> worldEntry : worldBlockEntities.entrySet()) {
+            World world = Bukkit.getWorld(worldEntry.getKey());
+            if (world == null) continue;
+
+            for (Map.Entry<BlockPosKey, CuttingBoardBlockEntity> posEntry : worldEntry.getValue().entrySet()) {
+                BlockPosKey posKey = posEntry.getKey();
+                CuttingBoardBlockEntity entity = posEntry.getValue();
+                if (entity != null) {
+                    entity.refreshDisplayEntity(world, getStoredBlockFacing(world, posKey));
+                }
+            }
+        }
+    }
+
     public static void saveBlockEntityData(World world, BlockPos pos) {
         saveBlockEntityData(world, new BlockPosKey(pos));
     }
@@ -273,8 +345,16 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
 
     public static void loadBlockEntity(World world, BlockPosKey posKey) {
         if (world == null || posKey == null || !isCuttingBoardBlock(world, posKey)) return;
+        // 仅在确实新建了实体时才维护索引。
+        boolean[] created = {false};
         CuttingBoardBlockEntity entity = worldBlockEntities.computeIfAbsent(world.getUID(), k -> new ConcurrentHashMap<>())
-                .computeIfAbsent(posKey, key -> new CuttingBoardBlockEntity(key, world));
+                .computeIfAbsent(posKey, key -> {
+                    created[0] = true;
+                    return new CuttingBoardBlockEntity(key, world);
+                });
+        if (created[0]) {
+            indexAdd(world.getUID(), posKey);
+        }
         entity.setWorld(world);
     }
 
@@ -307,7 +387,7 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
 
             List<String> toolTagStrings = getStringList(arguments, "tool-tags");
             if (toolTagStrings.isEmpty()) {
-                toolTagStrings = List.of(Constants.TAG_KNIVES, Constants.TAG_AXES, Constants.TAG_PICKAXES);
+                toolTagStrings = List.of(Constants.TAG_KNIVES, Constants.TAG_AXES, Constants.TAG_PICKAXES, Constants.TAG_SHOVELS);
             }
 
             List<Key> toolTags = toolTagStrings.stream()
@@ -324,19 +404,14 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
                     .toList();
 
             String knifeSound = getArgumentString(arguments, "knife-sound", Constants.SOUND_CUTTING_BOARD_KNIFE);
-            boolean enableStacking = FarmersDelightPlugin.getInstance().isCuttingBoardStackingEnabled();
             int maxStackAmount = getIntValue(arguments, "max-stack-amount", 64);
             String customDataKey = getArgumentString(arguments, "data-key", "farmersdelight:cutting_board");
-            return new CuttingBoardBlockBehavior(block, facingProperty, toolTags, toolItems, knifeSound, enableStacking, maxStackAmount, customDataKey);
+            return new CuttingBoardBlockBehavior(block, facingProperty, toolTags, toolItems, knifeSound, maxStackAmount, customDataKey);
         }
     };
 
     public String getKnifeSound() {
         return knifeSound;
-    }
-
-    public boolean isStackingEnabled() {
-        return enableStacking;
     }
 
     public int getMaxStackAmount() {
@@ -410,6 +485,8 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         if (blockEntity == null) {
             blockEntity = new CuttingBoardBlockEntity(posKey, world);
             worldEntities.put(posKey, blockEntity);
+            // put 一定写入权威 map,故无条件维护索引。
+            indexAdd(world.getUID(), posKey);
         }
         blockEntity.setWorld(world);
 
@@ -510,7 +587,12 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
                 }
             }
 
-            bukkitPlayer.playSound(bukkitPlayer.getLocation(), Sound.BLOCK_WOOD_HIT, Constants.CUTTING_BOARD_FAIL_VOLUME, Constants.CUTTING_BOARD_FAIL_PITCH);
+            FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+            float volume = (float) Math.max(0.0D, plugin.getConfigDouble(Constants.CUTTING_BOARD_FAIL_VOLUME,
+                    "cutting-board.sounds.retrieve-volume"));
+            float pitch = (float) Math.max(0.0D, plugin.getConfigDouble(Constants.CUTTING_BOARD_FAIL_PITCH,
+                    "cutting-board.sounds.retrieve-pitch"));
+            bukkitPlayer.playSound(bukkitPlayer.getLocation(), Sound.BLOCK_WOOD_HIT, volume, pitch);
             return InteractionResult.SUCCESS_AND_CANCEL;
         }
 
@@ -527,7 +609,9 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         ItemStack itemToPlace = sourceItem.clone();
         int stackLimit = getBoardStackLimit(sourceItem);
         int amountToMove = itemToPlace.getAmount();
-        if (enableStacking) {
+        // 实时读取堆叠开关，避免 /fd reload 切换 interaction-mode 后沿用过期的缓存值
+        // （与 useOnBlock 及漏斗控制器的判断保持一致）。
+        if (FarmersDelightPlugin.getInstance().isCuttingBoardStackingEnabled()) {
             amountToMove = Math.min(amountToMove, stackLimit);
         } else {
             amountToMove = 1;
@@ -555,7 +639,9 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
 
     private boolean tryStackOntoBoard(CuttingBoardBlockEntity blockEntity, ItemStack mainHand, Player player,
                                       BlockFace facing, World world, BlockPosKey posKey) {
-        if (!enableStacking || player.isSneaking() || isTool(mainHand)) {
+        // 实时读取堆叠开关，避免 /fd reload 切换 interaction-mode 后沿用过期的缓存值
+        // （与 useOnBlock 及漏斗控制器的判断保持一致）。
+        if (!FarmersDelightPlugin.getInstance().isCuttingBoardStackingEnabled() || player.isSneaking() || isTool(mainHand)) {
             return false;
         }
         if (mainHand == null || mainHand.getType().isAir()) {
@@ -578,7 +664,13 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         blockEntity.setStoredItem(stored, world, posKey, facing);
         saveBlockEntityData(world, posKey);
         if (player.getGameMode() != GameMode.CREATIVE) {
-            mainHand.setAmount(mainHand.getAmount() - toMove);
+            int remaining = mainHand.getAmount() - toMove;
+            if (remaining <= 0) {
+                player.getInventory().setItemInMainHand(null);
+            } else {
+                mainHand.setAmount(remaining);
+                player.getInventory().setItemInMainHand(mainHand);
+            }
         }
         SoundUtils.play(player.getWorld(), player.getLocation(), null, Sound.BLOCK_WOOD_PLACE, 1.0f, 1.0f);
         return true;
@@ -593,7 +685,7 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
 
     @Override
     public void tick(Object thisBlock, Object[] args) {
-        // Managed by interaction and block entity state.
+        // 由交互逻辑和方块实体状态进行管理。
     }
 
     @Override
@@ -709,7 +801,7 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
     public boolean isTool(ItemStack item) {
         if (item == null || item.getType().isAir()) return false;
 
-        if (isKnifeTool(item) || isAxeTool(item) || isPickaxeTool(item) || isConfiguredToolItem(item)) {
+        if (isKnifeTool(item) || isAxeTool(item) || isPickaxeTool(item) || isShovelTool(item) || isConfiguredToolItem(item)) {
             return true;
         }
 
@@ -722,11 +814,12 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
             }
         }
 
+        String vanillaId = "minecraft:" + item.getType().name().toLowerCase(java.util.Locale.ROOT);
         for (Key toolTag : toolTags) {
             var vanillaItems = FarmersDelightPlugin.getInstance().getCraftEngine().itemManager()
                     .vanillaItemIdsByTag(toolTag);
             for (var vanillaItem : vanillaItems) {
-                if (vanillaItem.toString().equals("minecraft:" + item.getType().name().toLowerCase()))
+                if (vanillaItem.toString().equals(vanillaId))
                     return true;
             }
         }
@@ -745,6 +838,10 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
 
     private boolean isPickaxeTool(ItemStack item) {
         return item.getType().name().endsWith("_PICKAXE");
+    }
+
+    private boolean isShovelTool(ItemStack item) {
+        return item.getType().name().endsWith("_SHOVEL");
     }
 
     private boolean isConfiguredToolItem(ItemStack item) {
@@ -781,9 +878,11 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
             ItemStack result = resultEntry.item().clone();
 
             if (fortuneLevel > 0 && resultEntry.chance() < 1.0d) {
-                double adjustedChance = Math.min(1.0d, resultEntry.chance() + 0.1d * fortuneLevel);
-                if (ThreadLocalRandom.current().nextDouble() > adjustedChance) {
-                    result.setAmount(Math.max(0, result.getAmount() - 1));
+                // 时运（Fortune）会带来一定几率额外多产出一个次要的（基于几率的）产物。
+                // （此前的逻辑是掷骰子来减少一个产物，这会让时运变成一种负面效果。）
+                double bonusChance = Math.min(1.0d, 0.1d * fortuneLevel);
+                if (ThreadLocalRandom.current().nextDouble() < bonusChance) {
+                    result.setAmount(result.getAmount() + 1);
                 }
             }
 
@@ -822,15 +921,20 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         }
 
         if (player.getGameMode() != GameMode.CREATIVE) {
-            if (tool.getItemMeta() instanceof Damageable damageable) {
-                int maxDamage = tool.getType().getMaxDurability();
-                int currentDamage = damageable.getDamage();
-                if (currentDamage + 1 >= maxDamage) {
-                    tool.setAmount(0);
-                    player.playSound(location, Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
-                } else {
-                    damageable.setDamage(currentDamage + 1);
-                    tool.setItemMeta(damageable);
+            if (tool.getItemMeta() instanceof Damageable damageable && !damageable.isUnbreakable()) {
+                // 使用物品的有效最大耐久（CraftEngine 自定义刀具会携带一个自定义的
+                // max_damage 组件）；仅当该组件缺失时才回退到原版材质的耐久值。跳过
+                // 不可损坏的物品（maxDamage <= 0），这样它们就不会在第一次切割时被销毁。
+                int maxDamage = damageable.hasMaxDamage() ? damageable.getMaxDamage() : tool.getType().getMaxDurability();
+                if (maxDamage > 0) {
+                    int currentDamage = damageable.getDamage();
+                    if (currentDamage + 1 >= maxDamage) {
+                        tool.setAmount(0);
+                        player.playSound(location, Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
+                    } else {
+                        damageable.setDamage(currentDamage + 1);
+                        tool.setItemMeta(damageable);
+                    }
                 }
             }
         }

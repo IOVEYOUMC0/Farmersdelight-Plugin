@@ -28,14 +28,18 @@ public class CookingPotBlockEntity {
     private volatile World world;
     private volatile CookingPotLayout layout;
     private volatile String recipeGroupId;
-    private ItemStack[] inventory;
-    private double[] slotExperience;
+    // volatile：布局变更时会在 inventoryLock 保护下整体替换这些数组，但区域线程会在锁外通过
+    // getInventoryInternal() 读取它们——以此安全地发布新的引用。
+    private volatile ItemStack[] inventory;
+    // 库存版本号：每次 inventory 数组发生写入时递增，供 GUI 廉价判断“锅内是否变化”，
+    // 从而在未变化时跳过整轮输入槽重扫。volatile 用于让 GUI 线程读到最新值。
+    private volatile long inventoryVersion;
+    private volatile double[] slotExperience;
     private final AtomicInteger cookingProgress = new AtomicInteger(0);
     private final AtomicInteger cookingDuration = new AtomicInteger(200);
     private final AtomicBoolean hasHeatSource = new AtomicBoolean(false);
     private final AtomicReference<CookingPotRecipe> currentRecipe = new AtomicReference<>(null);
     private final AtomicReference<String> lastRecipeId = new AtomicReference<>(null);
-    private final AtomicReference<String> lastRecipeFingerprint = new AtomicReference<>(null);
     private final AtomicReference<ItemStack> mealContainerStack = new AtomicReference<>(null);
     private final Object inventoryLock = new Object();
     private final Object cookingLock = new Object();
@@ -113,6 +117,8 @@ public class CookingPotBlockEntity {
             double[] oldExperience = this.slotExperience;
             this.layout = newLayout;
             this.inventory = Arrays.copyOf(oldInventory, newLayout.size());
+            // 整体替换了数组，等同于一次库存变更，递增版本号让 GUI 重扫。
+            inventoryVersion++;
             this.slotExperience = Arrays.copyOf(oldExperience, newLayout.size());
         }
     }
@@ -142,12 +148,24 @@ public class CookingPotBlockEntity {
         }
     }
 
+    // 必须在持有 inventoryLock 时调用：所有对 inventory 数组的写入都收口到这里，顺带递增版本号，
+    // 供 GUI 廉价判断“锅内是否变化”。version++ 在锁内执行，故非原子自增是安全的。
+    private void setSlot(int slot, ItemStack item) {
+        inventory[slot] = item;
+        inventoryVersion++;
+    }
+
+    // 供 GUI 读取的库存版本号；版本未变化时 GUI 可跳过输入槽重扫。
+    public long getInventoryVersion() {
+        return inventoryVersion;
+    }
+
     public void setInventorySlot(int slot, ItemStack item) {
         synchronized (inventoryLock) {
             if (!isValidSlot(slot)) {
                 return;
             }
-            inventory[slot] = copyOrNull(item);
+            setSlot(slot, copyOrNull(item));
             if (inventory[slot] == null || inventory[slot].getType().isAir()) {
                 slotExperience[slot] = 0.0D;
             }
@@ -226,7 +244,7 @@ public class CookingPotBlockEntity {
         if (item.getAmount() > 1) {
             item.setAmount(item.getAmount() - 1);
         } else {
-            inventory[slot] = null;
+            setSlot(slot, null);
             slotExperience[slot] = 0.0D;
         }
         return true;
@@ -267,6 +285,13 @@ public class CookingPotBlockEntity {
         }
     }
 
+    /** 仅判断输出槽是否有成品，不克隆物品（供比较器信号等高频查询使用）。 */
+    public boolean hasMealDisplayItem() {
+        synchronized (inventoryLock) {
+            return hasAnyItem(layout.outputSlots());
+        }
+    }
+
     public void setMealDisplayItem(ItemStack item) {
         synchronized (inventoryLock) {
             addItemToSlots(layout.outputSlots(), item);
@@ -296,6 +321,20 @@ public class CookingPotBlockEntity {
             }
         }
         return false;
+    }
+
+    /** 在不复制 inventory 的情况下统计已填充的输入槽数量（用于红石比较器信号）。 */
+    public int countFilledInputSlots() {
+        int count = 0;
+        synchronized (inventoryLock) {
+            for (int i : layout.inputSlots()) {
+                ItemStack item = inventory[i];
+                if (item != null && !item.getType().isAir()) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
     public boolean hasStoredContents() {
@@ -333,7 +372,7 @@ public class CookingPotBlockEntity {
         for (int i : layout.inputSlots()) {
             ItemStack slotItem = inventory[i];
             if (slotItem == null || slotItem.getType().isAir()) {
-                inventory[i] = pending;
+                setSlot(i, pending);
                 slotExperience[i] = 0.0D;
                 return null;
             }
@@ -398,7 +437,7 @@ public class CookingPotBlockEntity {
                 continue;
             }
 
-            inventory[i] = pending.clone();
+            setSlot(i, pending.clone());
             slotExperience[i] = 0.0D;
             return null;
         }
@@ -413,7 +452,7 @@ public class CookingPotBlockEntity {
 
         ItemStack existing = inventory[slot];
         if (existing == null || existing.getType().isAir()) {
-            inventory[slot] = item.clone();
+            setSlot(slot, item.clone());
             slotExperience[slot] = 0.0D;
             return null;
         }
@@ -487,7 +526,7 @@ public class CookingPotBlockEntity {
                 return true;
             }
 
-            Key itemKey = Key.of("minecraft:" + item.getType().name().toLowerCase());
+            Key itemKey = Key.of("minecraft:" + item.getType().name().toLowerCase(java.util.Locale.ROOT));
             boolean matchesBase = FarmersDelightPlugin.getInstance().getCraftEngine().itemManager()
                     .vanillaItemIdsByTag(tagIngredient.key()).stream()
                     .anyMatch(key -> key.toString().equals(itemKey.toString()))
@@ -524,6 +563,16 @@ public class CookingPotBlockEntity {
                     if (!canCookInternal()) return false;
                     recipe = currentRecipe.get();
                     if (recipe == null) return false;
+                } else {
+                    // 缓存的配方在 canCook 与 finishCooking 之间可能因输入被改动（如跨 region 的 GUI 同步、
+                    // 漏斗交互）而失配；产出前在锁内再次校验，避免用零/少量原料凭空产出成品（刷物品）。
+                    FarmersDelightPlugin instance = FarmersDelightPlugin.getInstance();
+                    if (instance == null || !instance.getCookingPotRecipes()
+                            .canCraft(recipe, getIngredientSlotsInternal(), getContainerItemInternal())) {
+                        currentRecipe.set(null);
+                        lastRecipeId.set(null);
+                        return false;
+                    }
                 }
 
                 ItemStack resultItem = recipe.getResult();
@@ -542,7 +591,6 @@ public class CookingPotBlockEntity {
                 cookingProgress.set(0);
                 currentRecipe.set(null);
                 lastRecipeId.set(null);
-                lastRecipeFingerprint.set(null);
 
                 syncWorldlyContainer();
                 return true;
@@ -563,7 +611,6 @@ public class CookingPotBlockEntity {
             if (previousRecipe != null
                     && instance.getCookingPotRecipes().canCraft(previousRecipe, inputItems, containerItem)) {
                 lastRecipeId.set(previousRecipe.getId());
-                lastRecipeFingerprint.set(buildRecipeFingerprint(previousRecipe));
                 currentRecipe.set(previousRecipe);
                 return true;
             }
@@ -574,7 +621,6 @@ public class CookingPotBlockEntity {
             if (recipe == null) {
                 currentRecipe.set(null);
                 lastRecipeId.set(null);
-                lastRecipeFingerprint.set(null);
                 return false;
             }
 
@@ -586,7 +632,6 @@ public class CookingPotBlockEntity {
             }
 
             lastRecipeId.set(newRecipeId);
-            lastRecipeFingerprint.set(buildRecipeFingerprint(recipe));
 
             currentRecipe.set(recipe);
             return true;
@@ -622,7 +667,7 @@ public class CookingPotBlockEntity {
 
                 int newAmount = slotItem.getAmount() - 1;
                 if (newAmount <= 0) {
-                    inventory[i] = null;
+                    setSlot(i, null);
                     slotExperience[i] = 0.0D;
                 } else {
                     slotItem.setAmount(newAmount);
@@ -646,38 +691,6 @@ public class CookingPotBlockEntity {
         }
     }
 
-    private String buildRecipeFingerprint(CookingPotRecipe recipe) {
-        StringBuilder builder = new StringBuilder(recipe.getId()).append('|');
-
-        synchronized (inventoryLock) {
-            List<String> ingredientFingerprints = new ArrayList<>();
-            for (int i : layout.inputSlots()) {
-                String fingerprint = buildItemFingerprint(inventory[i]);
-                if (!"none".equals(fingerprint)) {
-                    ingredientFingerprints.add(fingerprint);
-                }
-            }
-            ingredientFingerprints.sort(String::compareTo);
-            for (String fingerprint : ingredientFingerprints) {
-                builder.append(fingerprint).append(';');
-            }
-        }
-
-        return builder.toString();
-    }
-
-    private String buildItemFingerprint(ItemStack item) {
-        if (item == null || item.getType().isAir()) {
-            return "none";
-        }
-
-        String customId = ItemUtils.getCustomItemId(item);
-        if (customId != null) {
-            return customId;
-        }
-        return "minecraft:" + item.getType().name().toLowerCase();
-    }
-    
     public boolean doesMealHaveContainer() {
         ItemStack container = mealContainerStack.get();
         return container != null && !container.getType().isAir();
@@ -735,7 +748,7 @@ public class CookingPotBlockEntity {
 
             SplitItem result = splitItemFromSlot(pendingSlot, 1);
             if (meal.getAmount() <= 0) {
-                inventory[pendingSlot] = null;
+                setSlot(pendingSlot, null);
                 slotExperience[pendingSlot] = 0.0D;
                 if (!hasAnyItem(layout.pendingOutputSlots())) {
                     mealContainerStack.set(null);
@@ -803,7 +816,7 @@ public class CookingPotBlockEntity {
             SplitItem result = splitItemFromSlot(outputSlot, amount);
 
             if (meal.getAmount() <= 0) {
-                inventory[outputSlot] = null;
+                setSlot(outputSlot, null);
                 slotExperience[outputSlot] = 0.0D;
             }
 
@@ -822,7 +835,7 @@ public class CookingPotBlockEntity {
             ItemStack meal = inventory[outputSlot];
             if (meal != null && !meal.getType().isAir()) {
                 slotExperience[outputSlot] = 0.0D;
-                inventory[outputSlot] = null;
+                setSlot(outputSlot, null);
                 tryMovePendingToOutput();
                 syncWorldlyContainer();
                 return meal;
@@ -843,7 +856,7 @@ public class CookingPotBlockEntity {
                 return null;
             }
             meal = new SplitItem(item, slotExperience[outputSlot]);
-            inventory[outputSlot] = null;
+            setSlot(outputSlot, null);
             slotExperience[outputSlot] = 0.0D;
             tryMovePendingToOutput();
         }
@@ -862,11 +875,18 @@ public class CookingPotBlockEntity {
     public void dropExperience(World world, double totalExp) {
         if (world == null || totalExp <= 0.0D) return;
 
+        // 采用概率性取整，使得小于 1.0 的经验值（例如一次取一份食物时，每份所占的份额 < 1）
+        // 不会每次都被向下取整为 0；在多次领取后，期望的总量仍然等于配置的经验值。
         int expValue = (int) Math.floor(totalExp);
+        double fraction = totalExp - expValue;
+        if (fraction > 0.0D && java.util.concurrent.ThreadLocalRandom.current().nextDouble() < fraction) {
+            expValue += 1;
+        }
 
         if (expValue > 0) {
+            int amount = expValue;
             Location expLocation = new Location(world, posKey.x() + 0.5, posKey.y() + 1.0, posKey.z() + 0.5);
-            world.spawn(expLocation, ExperienceOrb.class, orb -> orb.setExperience(expValue));
+            world.spawn(expLocation, ExperienceOrb.class, orb -> orb.setExperience(amount));
         }
     }
 
@@ -878,7 +898,7 @@ public class CookingPotBlockEntity {
                 ItemStack item = inventory[i];
                 if (item != null && !item.getType().isAir()) {
                     returnedItems.add(item.clone());
-                    inventory[i] = null;
+                    setSlot(i, null);
                     slotExperience[i] = 0.0D;
                 }
             }
@@ -919,7 +939,7 @@ public class CookingPotBlockEntity {
                 }
 
                 if (pending.getAmount() <= 0) {
-                    inventory[pendingSlot] = null;
+                    setSlot(pendingSlot, null);
                     slotExperience[pendingSlot] = 0.0D;
                 }
             }
@@ -1015,7 +1035,7 @@ public class CookingPotBlockEntity {
             if (remaining > 0) {
                 container.setAmount(remaining);
             } else {
-                inventory[slot] = null;
+                setSlot(slot, null);
                 slotExperience[slot] = 0.0D;
             }
         }
@@ -1066,19 +1086,22 @@ public class CookingPotBlockEntity {
             return;
         }
         if (item == null || item.getType().isAir()) {
-            inventory[slot] = null;
+            setSlot(slot, null);
             slotExperience[slot] = 0.0D;
             return;
         }
 
         ItemStack existing = inventory[slot];
         if (existing != null && isSimilarIgnoringStoredExperience(existing, item)) {
-            existing.setAmount(existing.getAmount() + item.getAmount());
+            // 将合并结果限制在最大堆叠数量内，使某个槽位永远不会持有超出堆叠上限的物品。
+            int maxStack = Math.max(1, existing.getMaxStackSize());
+            int merged = Math.min(maxStack, existing.getAmount() + item.getAmount());
+            existing.setAmount(merged);
             slotExperience[slot] += Math.max(0.0D, itemStoredExperience);
             return;
         }
 
-        inventory[slot] = item.clone();
+        setSlot(slot, item.clone());
         slotExperience[slot] = Math.max(0.0D, itemStoredExperience);
     }
 
@@ -1198,23 +1221,19 @@ public class CookingPotBlockEntity {
     }
 
     public void setCookingProgress(int progress) {
-        int previous = cookingProgress.getAndSet(progress);
-        if (previous != progress) {
-            syncWorldlyContainer();
-        }
+        // progress 是一个每 tick 递增的临时计数器。在每次变化时都将该方块实体标记为脏，
+        // 会导致每个正在烹饪的锅在每 tick 都重新序列化所在区块
+        //（从而使“仅保存已变更的区块”失效）。实时数值仍会在区块保存/卸载时由 saveData()
+        // 持久化，而有意义的状态变化（原料/产出）才会标记为脏。
+        cookingProgress.set(progress);
     }
 
     public void incrementCookingProgress() {
         cookingProgress.incrementAndGet();
-        syncWorldlyContainer();
     }
 
     public void decrementCookingProgress() {
-        int previous = cookingProgress.get();
-        int updated = cookingProgress.updateAndGet(v -> Math.max(0, v - 2));
-        if (previous != updated) {
-            syncWorldlyContainer();
-        }
+        cookingProgress.updateAndGet(v -> Math.max(0, v - 2));
     }
 
     public int getCookingDuration() {

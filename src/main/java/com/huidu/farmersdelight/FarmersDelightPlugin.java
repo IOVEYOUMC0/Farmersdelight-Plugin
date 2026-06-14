@@ -15,6 +15,7 @@ import com.huidu.farmersdelight.compat.CraftEngineStateUsageMonitor;
 import com.huidu.farmersdelight.effect.EffectListener;
 import com.huidu.farmersdelight.gui.CookingPotGui;
 import com.huidu.farmersdelight.gui.GuiConfig;
+import com.huidu.farmersdelight.gui.RecipeEditorGuiConfig;
 import com.huidu.farmersdelight.gui.RecipeViewGui;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.loot.KnifeDropHandler;
@@ -34,7 +35,7 @@ import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import com.huidu.farmersdelight.util.scheduler.SchedulerAdapter;
 import com.huidu.farmersdelight.visual.ProxyItemDisplayManager;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
-import fr.ateastudio.farmersdelight.api.event.ProfessionCookingExperienceEvent;
+import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import net.momirealms.craftengine.bukkit.api.event.CraftEngineReloadEvent;
 import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
 import net.momirealms.craftengine.bukkit.world.BukkitWorldManager;
@@ -53,13 +54,18 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.world.WorldLoadEvent;
 import org.bukkit.event.world.WorldUnloadEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.joml.Vector3f;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystemAlreadyExistsException;
@@ -72,6 +78,8 @@ import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.logging.Level;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
@@ -81,6 +89,12 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     private static final String CRAFTENGINE_RESOURCE_ROOT = "craftengine/farmersdelight";
     private static final Path CRAFTENGINE_RESOURCE_TARGET = Path.of("CraftEngine", "resources", "farmersdelight");
+    private static final String[][] CONFIG_KEY_MIGRATIONS = {
+            {"knife-drops", "mob-extra-drops"},
+            {"entity-extra-drops", "mob-extra-drops"},
+            {"knife-drop-tools", "mob-extra-drop-tools"},
+            {"entity-extra-drop-tools", "mob-extra-drop-tools"}
+    };
 
     private static final List<String> ADVANCEMENT_RESOURCES = List.of(
             "advancements/pack.mcmeta",
@@ -94,13 +108,11 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             "advancements/data/farmersdelight/advancement/main/harvest_straw.json",
             "advancements/data/farmersdelight/advancement/main/place_cooking_pot.json",
             "advancements/data/farmersdelight/advancement/main/place_skillet.json",
-            "advancements/data/farmersdelight/advancement/main/eat_comfort_food.json",
             "advancements/data/farmersdelight/advancement/main/place_feast.json",
             "advancements/data/farmersdelight/advancement/main/use_cutting_board.json",
             "advancements/data/farmersdelight/advancement/main/plant_rice.json",
             "advancements/data/farmersdelight/advancement/main/plant_all_crops.json",
             "advancements/data/farmersdelight/advancement/main/get_ham.json",
-            "advancements/data/farmersdelight/advancement/main/eat_nourishing_food.json",
             "advancements/data/farmersdelight/advancement/main/master_chef.json"
     );
 
@@ -126,6 +138,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private KnifeDropHandler knifeDropHandler;
     private CookingPotRecipeManager cookingPotRecipeManager;
     private CuttingBoardRecipeManager cuttingBoardRecipeManager;
+    private volatile com.huidu.farmersdelight.recipe.RecipeEditorStore recipeEditorStore;
     private BlockBreakListener blockBreakListener;
     private BlockPlaceListener blockPlaceListener;
     private StrawDropListener strawDropListener;
@@ -135,17 +148,23 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private HorseFeedTemptListener horseFeedTemptListener;
     private AchievementListener achievementListener;
     private EffectListener effectListener;
-    private AuraSkillsHook auraSkillsHook;
+    // 懒加载，可能被多个 region 线程并发访问（厨锅取出成品时奖励经验），用 volatile + 双重检查加锁，
+    // 与 recipeEditorStore 的写法保持一致。
+    private volatile AuraSkillsHook auraSkillsHook;
 
-    private HeatSourceConfig heatSourceConfig;
+    // volatile：在 reload 时被重新赋值，并由区域线程读取。
+    private volatile HeatSourceConfig heatSourceConfig;
     private GuiConfig cookingPotGuiConfig;
     private Map<String, GuiConfig> customCookingPotGuiConfigs = Map.of();
+    private volatile RecipeEditorGuiConfig recipeEditorGuiConfig;
     private YamlConfiguration guiConfig;
     private StrawDropConfig strawDropConfig;
     private PetFoodConfig petFoodConfig;
-    private ContainerReturnConfig containerReturnConfig;
-    private CuttingBoardDisplayConfig cuttingBoardDisplayConfig;
-    private CookingPotExperienceRewardConfig cookingPotExperienceRewardConfig;
+    private volatile ContainerReturnConfig containerReturnConfig;
+    private volatile CuttingBoardDisplayConfig cuttingBoardDisplayConfig;
+    private volatile CuttingBoardDisplayConfig skilletDisplayConfig;
+    private volatile CuttingBoardDisplayConfig stoveDisplayConfig;
+    private volatile CookingPotExperienceRewardConfig cookingPotExperienceRewardConfig;
     private AdvancementManager advancementManager;
     private boolean advancementsEnabled;
     private boolean debugEnabled;
@@ -161,6 +180,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private boolean hopperInteractionsEnabled;
     private boolean cookingPotHopperInteractionsEnabled;
     private boolean cuttingBoardHopperInteractionsEnabled;
+    private boolean skilletHopperInteractionsEnabled;
     private boolean cookingPotPackContentsOnBreak;
     private boolean skilletConductorsAllowed;
     private float skilletDisplayScale = 0.5F;
@@ -170,6 +190,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private Set<String> knifeItemIds = Set.of();
     private Set<String> knifeTagIds = Set.of();
     private Set<String> debugCategories = Set.of();
+
+    private final Object primaryLevelNameLock = new Object();
+    private volatile boolean primaryLevelNameResolved = false;
+    private volatile String cachedPrimaryLevelName;
 
     public static FarmersDelightPlugin getInstance() {
         return instance;
@@ -196,9 +220,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private void loadRecipeManagersWhenReady(String logKey) {
         if (areCraftEngineItemsReady()) {
             loadRecipeManagers(logKey);
-        } else {
-            I18n.logInfo("plugin.recipe_load_deferred");
         }
+        // 否则：静默延迟处理；CraftEngineReloadEvent 会在 CE 物品加载完成后重试一次。
     }
 
     public boolean isAdvancementsEnabled() {
@@ -210,21 +233,44 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             HandlerList.unregisterAll(achievementListener);
             achievementListener = null;
         }
+        if (advancementManager != null) {
+            advancementManager.dispose();
+        }
         advancementManager = null;
         queueAdvancementDatapackRemoval(I18n.formatConsole("plugin.datapack_reason_remove_disabled_advancements"));
     }
 
+    // 仅在 CraftEngine 物品加载完成后才构建/刷新进度，否则 icon() 会回退到
+    // 原版 Material 图标，而不是使用 CE 物品。
+    private void refreshAdvancementSystemWhenReady(boolean reloading) {
+        if (!advancementsEnabled || !getServer().getPluginManager().isPluginEnabled("UltimateAdvancementAPI")) {
+            disableAdvancementSystem();
+            return;
+        }
+        if (!areCraftEngineItemsReady()) {
+            return; // CraftEngineReloadEvent 会在 CE 物品加载完成后重试此操作。
+        }
+        refreshAdvancementSystem(reloading);
+    }
+
     private void refreshAdvancementSystem(boolean reloading) {
-        if (!advancementsEnabled) {
+        if (!advancementsEnabled || !getServer().getPluginManager().isPluginEnabled("UltimateAdvancementAPI")) {
             disableAdvancementSystem();
             return;
         }
 
-        if (advancementManager == null) {
-            advancementManager = new AdvancementManager(this);
-            advancementManager.load();
-        } else if (reloading) {
-            advancementManager.reload();
+        try {
+            if (advancementManager == null) {
+                advancementManager = new AdvancementManager(this);
+                advancementManager.load();
+            } else if (reloading) {
+                advancementManager.reload();
+            }
+        } catch (Throwable t) {
+            // 运行时缺少 UltimateAdvancementAPI 或版本不兼容 —— 在不启用进度系统的情况下运行。
+            advancementManager = null;
+            I18n.logWarning("advancement.award_failed", "id", "init", "error", String.valueOf(t.getMessage()));
+            return;
         }
 
         if (achievementListener == null) {
@@ -232,9 +278,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             getServer().getPluginManager().registerEvents(achievementListener, this);
         }
 
-        queueDatapackSync(reloading
-                ? I18n.formatConsole("plugin.datapack_reason_apply_advancement_config")
-                : I18n.formatConsole("plugin.datapack_reason_apply_advancements"));
+        // 移除所有旧版进度数据包，避免其原版进度树与 UAA 标签页重复。
+        queueAdvancementDatapackRemoval(I18n.formatConsole("plugin.datapack_reason_remove_legacy_advancements"));
     }
 
     @Override
@@ -255,6 +300,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
 
         ensureConfigDefaults();
+        migrateConfigKeys();
         I18n.init(this);
 
         scheduler = new SchedulerAdapter(this);
@@ -292,6 +338,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(new RicePlantListener(this), this);
         getServer().getPluginManager().registerEvents(new UpperHalfLootRelayListener(), this);
 
+        // 在食用 FD 菜肴时授予 master_chef 条件，并在配置启用时应用 comfort/nourishment 效果。
         foodEatListener = new FoodEatListener(this);
         getServer().getPluginManager().registerEvents(foodEatListener, this);
 
@@ -322,13 +369,12 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(new AutoTrayFurnitureListener(this), this);
 
         getServer().getPluginManager().registerEvents(new RopeBlockListener(this), this);
-        getServer().getPluginManager().registerEvents(new RopeFallListener(), this);
 
         chunkLoadListener = new ChunkLoadListener(this);
         getServer().getPluginManager().registerEvents(chunkLoadListener, this);
         chunkLoadListener.loadAlreadyLoadedChunks();
 
-        refreshAdvancementSystem(false);
+        refreshAdvancementSystemWhenReady(false);
 
         scheduler.run(() -> startupSyncCompleted = true);
 
@@ -377,7 +423,12 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             }
         });
         runDisableStep("plugin.disable_step_close_cooking_pot_guis", CookingPotGui::cleanupAll);
-        runDisableStep("plugin.disable_step_close_recipe_view_guis", RecipeViewGui::cleanupAll);
+        runDisableStep("plugin.disable_step_close_recipe_view_guis", () -> {
+            RecipeViewGui.cleanupAll();
+            // 编辑器监听器会在下方通过 HandlerList 取消注册；重置其标志位，以便软重启
+            // 重新注册一个全新的监听器。
+            com.huidu.farmersdelight.gui.editor.RecipeEditorListener.reset();
+        });
         runDisableStep("plugin.disable_step_save_block_data", this::saveAllBlockData);
 
         runDisableStep("plugin.disable_step_clear_placement_cache", this::cleanupPlacementCache);
@@ -471,6 +522,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         strawDropConfig = null;
 
         legacyBlockStorageManager = null;
+        if (advancementManager != null) {
+            advancementManager.dispose();
+        }
         advancementManager = null;
 
         I18n.logInfo("plugin.disabled");
@@ -549,6 +603,11 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         if (trayManager != null) {
             trayManager.cleanupWorld(worldId);
         }
+        if (itemDisplayManager != null) {
+            // 移除已卸载世界的所有代理显示实体，避免残留条目一直留在 displays 映射中，
+            // 直到某个可能永远不会触发的区块卸载事件才被清理。
+            itemDisplayManager.cleanupWorld(worldId);
+        }
     }
 
     private void saveWorldBlockData(org.bukkit.World world) {
@@ -579,8 +638,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         if (primaryWorld == null || !primaryWorld.getUID().equals(event.getWorld().getUID())) {
             return;
         }
-        queueDatapackSync(I18n.formatConsole("plugin.datapack_reason_world_sync",
-                "world", event.getWorld().getName()));
+        // 进度通过数据包发送；不进行按世界的数据包同步。
     }
 
     private void queueDatapackReload(String reason) {
@@ -700,6 +758,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             I18n.logInfo("plugin.craftengine_reload");
             refreshAfterCraftEngineReload();
             loadRecipeManagersWhenReady("plugin.refreshing_recipes_after_ce");
+            // CE 物品现已加载：（重新）构建进度，使图标使用 CE 物品。
+            refreshAdvancementSystemWhenReady(true);
             CraftEngineStateUsageMonitor.logRealStateUsage(this, I18n.formatConsole("plugin.craftengine_reload_reason"));
         }, 1L);
     }
@@ -723,6 +783,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         if (itemDisplayManager instanceof ProxyItemDisplayManager proxyItemDisplayManager) {
             proxyItemDisplayManager.reload();
         }
+        CuttingBoardBlockBehavior.refreshDisplayEntities();
         if (skilletManager != null) {
             skilletManager.reloadConfig();
             skilletManager.reloadRecipeCache();
@@ -736,6 +797,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     public void reloadAll() {
         ensureConfigDefaults();
         reloadConfig();
+        migrateConfigKeys();
         boolean previousAdvancementsEnabled = advancementsEnabled;
         loadConfigs();
         I18n.reload();
@@ -744,7 +806,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         clearLegacySkilletRecipeCache();
 
         if (knifeDropHandler != null) {
-            knifeDropHandler.loadConfig();
+            knifeDropHandler.loadConfig(false);
         }
         if (trayManager != null) {
             trayManager.reload();
@@ -759,6 +821,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         if (itemDisplayManager instanceof ProxyItemDisplayManager proxyItemDisplayManager) {
             proxyItemDisplayManager.reload();
         }
+        CuttingBoardBlockBehavior.refreshDisplayEntities();
         if (skilletManager != null) {
             skilletManager.reloadConfig();
             skilletManager.reloadRecipeCache();
@@ -774,13 +837,13 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
         reloadRecipesWhenReady("plugin.reloading_recipes");
 
-        logReloadSummary("plugin.configuration_reloaded");
         I18n.logInfo("plugin.configuration_reloaded");
     }
 
     public void reloadMainConfigOnly() {
         ensureConfigDefaults();
         reloadConfig();
+        migrateConfigKeys();
         boolean previousAdvancementsEnabled = advancementsEnabled;
         loadConfigs();
         RecipeViewGui.clearConfigCache();
@@ -788,7 +851,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         clearLegacySkilletRecipeCache();
 
         if (knifeDropHandler != null) {
-            knifeDropHandler.loadConfig();
+            knifeDropHandler.loadConfig(false);
         }
         if (trayManager != null) {
             trayManager.reload();
@@ -803,6 +866,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         if (itemDisplayManager instanceof ProxyItemDisplayManager proxyItemDisplayManager) {
             proxyItemDisplayManager.reload();
         }
+        CuttingBoardBlockBehavior.refreshDisplayEntities();
         if (skilletManager != null) {
             skilletManager.reloadConfig();
             skilletManager.reloadRecipeCache();
@@ -816,7 +880,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         if (previousAdvancementsEnabled != advancementsEnabled) {
             refreshAdvancementSystem(true);
         }
-        logReloadSummary("plugin.main_configuration_reloaded");
         I18n.logInfo("plugin.main_configuration_reloaded");
     }
 
@@ -828,6 +891,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 ? GuiConfig.fromConfig(cookingPotSection)
                 : GuiConfig.createDefault();
         customCookingPotGuiConfigs = loadCustomCookingPotGuiConfigs(guiConfig);
+        recipeEditorGuiConfig = RecipeEditorGuiConfig.fromConfig(guiConfig);
         RecipeViewGui.clearConfigCache();
         CookingPotGui.closeAllOpenGuis();
         RecipeViewGui.closeAllOpenGuis();
@@ -836,6 +900,11 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     public void reloadLanguageFiles() {
         I18n.reload();
+        // GUI 物品名称/lore 来源于语言文件并被缓存，因此需使这些缓存失效，
+        // 并关闭已打开的 GUI，以强制用新语言重新构建。
+        RecipeViewGui.clearConfigCache();
+        CookingPotGui.closeAllOpenGuis();
+        RecipeViewGui.closeAllOpenGuis();
         I18n.logInfo("plugin.language_files_reloaded");
     }
 
@@ -888,6 +957,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 ? GuiConfig.fromConfig(cookingPotSection)
                 : GuiConfig.createDefault();
         customCookingPotGuiConfigs = loadCustomCookingPotGuiConfigs(guiConfig);
+        recipeEditorGuiConfig = RecipeEditorGuiConfig.fromConfig(guiConfig);
 
         ConfigurationSection strawDropSection = getConfig().getConfigurationSection("straw-drops");
         strawDropConfig = new StrawDropConfig();
@@ -909,8 +979,15 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             containerReturnConfig.loadFromConfig(containerReturnSection);
         }
 
-        cuttingBoardDisplayConfig = new CuttingBoardDisplayConfig();
-        cuttingBoardDisplayConfig.loadFromConfig(getConfig().getConfigurationSection("cutting-board"));
+        CuttingBoardDisplayConfig newCuttingBoardDisplayConfig = new CuttingBoardDisplayConfig();
+        newCuttingBoardDisplayConfig.loadFromConfig(getConfig().getConfigurationSection("cutting-board"));
+        cuttingBoardDisplayConfig = newCuttingBoardDisplayConfig;
+        CuttingBoardDisplayConfig newSkilletDisplayConfig = createSkilletDisplayConfig();
+        newSkilletDisplayConfig.loadFromConfig(getFirstConfigSection("skillet.display", "display-visuals.skillet"));
+        skilletDisplayConfig = newSkilletDisplayConfig;
+        CuttingBoardDisplayConfig newStoveDisplayConfig = createStoveDisplayConfig();
+        newStoveDisplayConfig.loadFromConfig(getFirstConfigSection("stove.display", "display-visuals.stove"));
+        stoveDisplayConfig = newStoveDisplayConfig;
 
         cookingPotProgressDisplayEnabled = getConfigBoolean(true,
                 "cooking-pot.progress-display.enabled",
@@ -943,28 +1020,23 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         cuttingBoardInteractionMode = normalizeCuttingBoardInteractionMode(
                 getConfig().getString("cutting-board.interaction-mode", "stacking")
         );
-        hopperInteractionsEnabled = getConfig().getBoolean("hopper-interactions.enabled", false);
+        hopperInteractionsEnabled = getConfig().getBoolean("hopper-interactions.enabled", true);
         cookingPotHopperInteractionsEnabled = getConfigBoolean(true,
                 "cooking-pot.hopper-interactions",
                 "hopper-interactions.cooking-pot");
         cuttingBoardHopperInteractionsEnabled = getConfigBoolean(true,
                 "cutting-board.hopper-interactions",
                 "hopper-interactions.cutting-board");
+        skilletHopperInteractionsEnabled = getConfigBoolean(true,
+                "skillet.hopper-interactions",
+                "hopper-interactions.skillet");
         skilletConductorsAllowed = getConfigBoolean(false,
                 "skillet.heat.allow-conductors",
                 "heat-sources.skillet.allow-conductors");
-        skilletDisplayScale = (float) getConfigDouble(0.5D,
-                "skillet.display.scale",
-                "display-visuals.skillet.scale");
-        skilletDisplayYOffset = getConfigDouble(0.1D,
-                "skillet.display.y-offset",
-                "display-visuals.skillet.y-offset");
-        skilletDisplaySpread = Math.max(0.0D, getConfigDouble(0.15D,
-                "skillet.display.item-spread",
-                "display-visuals.skillet.item-spread"));
-        stoveDisplayScale = (float) getConfigDouble(0.375D,
-                "stove.display.scale",
-                "display-visuals.stove.scale");
+        skilletDisplayScale = skilletDisplayConfig.getDefaultUniformScale(0.5F);
+        skilletDisplayYOffset = skilletDisplayConfig.getDefaultOffset().y();
+        skilletDisplaySpread = skilletDisplayConfig.getItemSpread();
+        stoveDisplayScale = stoveDisplayConfig.getDefaultUniformScale(0.375F);
     }
 
     public ConfigurationSection getFirstConfigSection(String... paths) {
@@ -1098,10 +1170,17 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     public AuraSkillsHook getAuraSkillsHook() {
-        if (auraSkillsHook == null) {
-            auraSkillsHook = new AuraSkillsHook(this);
+        AuraSkillsHook hook = auraSkillsHook;
+        if (hook == null) {
+            synchronized (this) {
+                hook = auraSkillsHook;
+                if (hook == null) {
+                    hook = new AuraSkillsHook(this);
+                    auraSkillsHook = hook;
+                }
+            }
         }
-        return auraSkillsHook;
+        return hook;
     }
 
     private CookingPotExperienceRewardConfig getCookingPotExperienceRewardConfig() {
@@ -1113,6 +1192,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     public boolean isCuttingBoardHopperInteractionsEnabled() {
         return hopperInteractionsEnabled && cuttingBoardHopperInteractionsEnabled;
+    }
+
+    public boolean isSkilletHopperInteractionsEnabled() {
+        return hopperInteractionsEnabled && skilletHopperInteractionsEnabled;
     }
 
     public boolean isSkilletConductorsAllowed() {
@@ -1142,18 +1225,67 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             }
             writeBundledResourceIfMissing("gui.yml", guiPath);
 
-            if (!isYamlReadable(configPath)) {
+            if (shouldRestoreConfig(configPath)) {
                 backupBrokenConfig(configPath);
                 writeBundledConfig(configPath);
-                I18n.logWarning("plugin.config_unreadable_restored", "file", "config.yml");
+                getLogger().warning("Restored unreadable config file from bundled defaults: config.yml");
             }
-            if (!isYamlReadable(guiPath)) {
+            if (shouldRestoreConfig(guiPath)) {
                 backupBrokenConfig(guiPath);
                 writeBundledResource("gui.yml", guiPath, true);
-                I18n.logWarning("plugin.config_unreadable_restored", "file", "gui.yml");
+                getLogger().warning("Restored unreadable config file from bundled defaults: gui.yml");
             }
         } catch (IOException e) {
-            I18n.logWarning("plugin.config_prepare_failed", "error", e.getMessage());
+            getLogger().warning("Failed to prepare bundled config files: " + e.getMessage());
+        }
+    }
+
+    private void migrateConfigKeys() {
+        boolean changed = false;
+        for (String[] migration : CONFIG_KEY_MIGRATIONS) {
+            changed |= migrateConfigSection(migration[0], migration[1]);
+        }
+        if (changed) {
+            saveConfig();
+            reloadConfig();
+        }
+    }
+
+    private boolean migrateConfigSection(String oldPath, String newPath) {
+        if (getConfig().isSet(newPath) || !getConfig().isSet(oldPath)) {
+            return false;
+        }
+        ConfigurationSection oldSection = getConfig().getConfigurationSection(oldPath);
+        if (oldSection != null) {
+            ConfigurationSection newSection = getConfig().createSection(newPath);
+            copyConfigSection(oldSection, newSection);
+        } else {
+            getConfig().set(newPath, getConfig().get(oldPath));
+        }
+        getConfig().set(oldPath, null);
+        getLogger().info("Migrated config key '" + oldPath + "' to '" + newPath + "'.");
+        return true;
+    }
+
+    private void copyConfigSection(ConfigurationSection source, ConfigurationSection target) {
+        for (String key : source.getKeys(false)) {
+            ConfigurationSection child = source.getConfigurationSection(key);
+            if (child != null) {
+                copyConfigSection(child, target.createSection(key));
+            } else {
+                target.set(key, source.get(key));
+            }
+        }
+    }
+
+    private boolean shouldRestoreConfig(Path configPath) {
+        if (!isYamlReadable(configPath)) {
+            return true;
+        }
+        try {
+            return Files.readString(configPath, StandardCharsets.UTF_8).indexOf('\uFFFD') >= 0;
+        } catch (IOException e) {
+            return true;
         }
     }
 
@@ -1191,24 +1323,75 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             if (inputStream == null) {
                 throw new IOException("Bundled " + resourcePath + " was not found in the plugin jar.");
             }
-            String content = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
-            if (replace) {
-                Files.writeString(
-                        targetPath,
-                        content,
-                        StandardCharsets.UTF_8,
-                        StandardOpenOption.CREATE,
-                        StandardOpenOption.TRUNCATE_EXISTING,
-                        StandardOpenOption.WRITE
-                );
-            } else {
-                Files.writeString(
-                        targetPath,
-                        content,
-                        StandardCharsets.UTF_8,
-                        StandardOpenOption.CREATE_NEW,
-                        StandardOpenOption.WRITE
-                );
+            String content = decodeUtf8Resource(inputStream.readAllBytes(), resourcePath);
+            if (isYamlResource(resourcePath) && !isYamlContentReadable(content)) {
+                throw new IOException("Bundled " + resourcePath + " is not valid YAML.");
+            }
+            writeStringAtomically(targetPath, content, replace);
+        }
+    }
+
+    private String decodeUtf8Resource(byte[] bytes, String resourcePath) throws IOException {
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
+        } catch (CharacterCodingException e) {
+            throw new IOException("Bundled " + resourcePath + " is not valid UTF-8.", e);
+        }
+    }
+
+    private boolean isYamlResource(String resourcePath) {
+        return resourcePath != null
+                && (resourcePath.equals("config.yml") || resourcePath.equals("gui.yml"));
+    }
+
+    private boolean isYamlContentReadable(String content) {
+        try {
+            YamlConfiguration yaml = new YamlConfiguration();
+            yaml.loadFromString(content);
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private void writeStringAtomically(Path targetPath, String content, boolean replace) throws IOException {
+        Path parent = targetPath.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        if (!replace && Files.exists(targetPath)) {
+            throw new IOException("Target already exists: " + targetPath);
+        }
+
+        Path tempFile = parent == null
+                ? Files.createTempFile(targetPath.getFileName().toString(), ".tmp")
+                : Files.createTempFile(parent, targetPath.getFileName().toString(), ".tmp");
+        boolean moved = false;
+        try {
+            Files.writeString(tempFile, content, StandardCharsets.UTF_8,
+                    StandardOpenOption.WRITE,
+                    StandardOpenOption.TRUNCATE_EXISTING);
+            try {
+                if (replace) {
+                    Files.move(tempFile, targetPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                } else {
+                    Files.move(tempFile, targetPath, StandardCopyOption.ATOMIC_MOVE);
+                }
+            } catch (AtomicMoveNotSupportedException ignored) {
+                if (replace) {
+                    Files.move(tempFile, targetPath, StandardCopyOption.REPLACE_EXISTING);
+                } else {
+                    Files.move(tempFile, targetPath);
+                }
+            }
+            moved = true;
+        } finally {
+            if (!moved) {
+                Files.deleteIfExists(tempFile);
             }
         }
     }
@@ -1222,18 +1405,64 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
 
         Path targetRoot = pluginsFolder.resolve(CRAFTENGINE_RESOURCE_TARGET);
-        if (Files.exists(targetRoot)) {
-            return;
-        }
-
         try {
-            int copiedFiles = copyBundledResourceDirectory(CRAFTENGINE_RESOURCE_ROOT, targetRoot);
-            I18n.logInfo("plugin.craftengine_resources_released",
-                    "path", targetRoot,
-                    "count", copiedFiles);
+            int copiedFiles;
+            if (Files.exists(targetRoot)) {
+                // 首次释放是无条件进行的；该开关仅控制在后续启动时是否重新补全缺失的文件。
+                if (!getConfig().getBoolean("craftengine-resources.auto-completion", true)) {
+                    return;
+                }
+                copiedFiles = copyMissingBundledResourceFiles(CRAFTENGINE_RESOURCE_ROOT, targetRoot);
+            } else {
+                copiedFiles = copyBundledResourceDirectory(CRAFTENGINE_RESOURCE_ROOT, targetRoot);
+            }
+            if (copiedFiles > 0) {
+                I18n.logInfo("plugin.craftengine_resources_released",
+                        "path", targetRoot,
+                        "count", copiedFiles);
+            }
         } catch (IOException e) {
             I18n.logWarning("plugin.craftengine_resources_release_failed", "error", e.getMessage());
         }
+    }
+
+    private int copyMissingBundledResourceFiles(String resourceRoot, Path targetRoot) throws IOException {
+        List<String> resourcePaths = listBundledResourceFiles(resourceRoot);
+        if (resourcePaths.isEmpty()) {
+            throw new IOException("No bundled CraftEngine resources found at " + resourceRoot);
+        }
+
+        int copiedFiles = 0;
+        Files.createDirectories(targetRoot);
+        for (String resourcePath : resourcePaths) {
+            String relativePath = resourcePath.substring(resourceRoot.length() + 1);
+            Path targetPath = resolveSafeChild(targetRoot, relativePath);
+            if (Files.exists(targetPath)) {
+                continue;
+            }
+
+            Files.createDirectories(Objects.requireNonNull(targetPath.getParent(), "targetPath parent"));
+            Path tempFile = Files.createTempFile(targetPath.getParent(), "fd-ce-resource-", ".tmp");
+            boolean moved = false;
+            try (InputStream inputStream = getResource(resourcePath)) {
+                if (inputStream == null) {
+                    throw new IOException("Bundled " + resourcePath + " was not found in the plugin jar.");
+                }
+                Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+                try {
+                    Files.move(tempFile, targetPath, StandardCopyOption.ATOMIC_MOVE);
+                } catch (AtomicMoveNotSupportedException ignored) {
+                    Files.move(tempFile, targetPath);
+                }
+                moved = true;
+                copiedFiles++;
+            } finally {
+                if (!moved) {
+                    Files.deleteIfExists(tempFile);
+                }
+            }
+        }
+        return copiedFiles;
     }
 
     private int copyBundledResourceDirectory(String resourceRoot, Path targetRoot) throws IOException {
@@ -1286,6 +1515,17 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     private List<String> listBundledResourceFiles(String resourceRoot) throws IOException {
+        // 主要策略：直接扫描插件 jar 的条目。jar 中不保证一定存在目录条目 ——
+        // 经 ProGuard 混淆的 Folia jar（obfuscateFoliaJar）会删除它们 ——
+        // 因此 getClassLoader().getResource(<directory>) 会返回 null，下方基于 URL 的遍历
+        // 也找不到任何内容（"No bundled CraftEngine resources found"）。按前缀读取文件条目
+        // 不受缺失目录条目以及各平台类加载器差异的影响。
+        List<String> fromJar = listJarFileResourceFiles(resourceRoot);
+        if (fromJar != null) {
+            return fromJar;
+        }
+
+        // 针对解压目录/IDE/测试运行场景的回退方案，此时插件未被打包为 jar 文件。
         URL resourceUrl = getClass().getClassLoader().getResource(resourceRoot);
         if (resourceUrl == null) {
             return List.of();
@@ -1303,6 +1543,36 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         } catch (URISyntaxException e) {
             throw new IOException("Invalid bundled resource URI for " + resourceRoot, e);
         }
+    }
+
+    /**
+     * 通过扫描插件 jar 的条目，列出 resourceRoot 下的内置资源文件。
+     * 当插件不是从可读的 jar 文件运行时（例如解压的 IDE/测试运行），返回 null
+     * （而非空列表），以便调用方回退到基于类加载器的发现方式。
+     */
+    private List<String> listJarFileResourceFiles(String resourceRoot) throws IOException {
+        File pluginJar = getFile();
+        if (pluginJar == null || !pluginJar.isFile()) {
+            return null;
+        }
+
+        String prefix = resourceRoot.endsWith("/") ? resourceRoot : resourceRoot + "/";
+        List<String> resourcePaths = new ArrayList<>();
+        try (JarFile jarFile = new JarFile(pluginJar)) {
+            Enumeration<JarEntry> entries = jarFile.entries();
+            while (entries.hasMoreElements()) {
+                JarEntry entry = entries.nextElement();
+                if (entry.isDirectory()) {
+                    continue;
+                }
+                String name = entry.getName();
+                if (name.startsWith(prefix)) {
+                    resourcePaths.add(name);
+                }
+            }
+        }
+        resourcePaths.sort(Comparator.naturalOrder());
+        return resourcePaths;
     }
 
     private List<String> listFileResourceFiles(String resourceRoot, Path rootPath) throws IOException {
@@ -1389,11 +1659,13 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         registerBehavior(Constants.BEHAVIOR_SKILLET, SkilletBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_STOVE, StoveCookingBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_TALL_CROP, TallCropBlockBehavior.FACTORY);
-        registerBehavior(Constants.BEHAVIOR_TATAMI, TatamiPairingBehavior.FACTORY);
+        // 暂时搁置的开发中功能（tatami 配对）—— 在完成之前不注册该 behavior。
+        // registerBehavior(Constants.BEHAVIOR_TATAMI, TatamiPairingBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_UPPER_HALF_LOOT_RELAY, UpperHalfLootRelayBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_WILD_RICE, WildRiceBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_ROPE, RopeBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_MUSHROOM_COLONY, MushroomColonyBehavior.FACTORY);
+        registerBehavior(Constants.BEHAVIOR_WILD_PLANT, WildPlantBlockBehavior.FACTORY);
 
         getLogger().info(I18n.formatConsole("plugin.registered_block_behaviors"));
     }
@@ -1468,6 +1740,20 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return cuttingBoardRecipeManager;
     }
 
+    public com.huidu.farmersdelight.recipe.RecipeEditorStore getRecipeEditorStore() {
+        com.huidu.farmersdelight.recipe.RecipeEditorStore store = this.recipeEditorStore;
+        if (store == null) {
+            synchronized (this) {
+                store = this.recipeEditorStore;
+                if (store == null) {
+                    store = new com.huidu.farmersdelight.recipe.RecipeEditorStore(this);
+                    this.recipeEditorStore = store;
+                }
+            }
+        }
+        return store;
+    }
+
     public HeatSourceConfig getHeatSourceConfig() {
         if (heatSourceConfig == null) {
             heatSourceConfig = new HeatSourceConfig();
@@ -1488,6 +1774,15 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
         GuiConfig customConfig = customCookingPotGuiConfigs.get(customId);
         return customConfig != null ? customConfig : getCookingPotGuiConfig();
+    }
+
+    public RecipeEditorGuiConfig getRecipeEditorGuiConfig() {
+        RecipeEditorGuiConfig config = recipeEditorGuiConfig;
+        if (config == null) {
+            config = RecipeEditorGuiConfig.fromConfig(guiConfig);
+            recipeEditorGuiConfig = config;
+        }
+        return config;
     }
 
     public ConfigurationSection getRecipeViewGuiSection() {
@@ -1546,6 +1841,20 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return cuttingBoardDisplayConfig;
     }
 
+    public CuttingBoardDisplayConfig getSkilletDisplayConfig() {
+        if (skilletDisplayConfig == null) {
+            skilletDisplayConfig = createSkilletDisplayConfig();
+        }
+        return skilletDisplayConfig;
+    }
+
+    public CuttingBoardDisplayConfig getStoveDisplayConfig() {
+        if (stoveDisplayConfig == null) {
+            stoveDisplayConfig = createStoveDisplayConfig();
+        }
+        return stoveDisplayConfig;
+    }
+
     public TrayManager getTrayManager() {
         return trayManager;
     }
@@ -1586,6 +1895,28 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return stoveDisplayScale;
     }
 
+    private CuttingBoardDisplayConfig createSkilletDisplayConfig() {
+        return new CuttingBoardDisplayConfig(new CuttingBoardDisplayConfig.DisplayOverride(
+                null,
+                CuttingBoardDisplayConfig.DisplayStyle.AUTO,
+                new Vector3f(0.0F, 0.1F, 0.0F),
+                null,
+                null,
+                new Vector3f(0.5F, 0.5F, 0.5F)
+        ), 0.15F);
+    }
+
+    private CuttingBoardDisplayConfig createStoveDisplayConfig() {
+        return new CuttingBoardDisplayConfig(new CuttingBoardDisplayConfig.DisplayOverride(
+                null,
+                CuttingBoardDisplayConfig.DisplayStyle.AUTO,
+                new Vector3f(0.0F, 0.0F, 0.0F),
+                null,
+                null,
+                new Vector3f(0.375F, 0.375F, 0.375F)
+        ), 0.0F);
+    }
+
     private String normalizeCuttingBoardInteractionMode(String value) {
         String mode = value == null ? "stacking" : value.trim().toLowerCase(Locale.ROOT);
         if (!mode.equals("stacking") && !mode.equals("offhand")) {
@@ -1599,10 +1930,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         logConfigSummary(I18n.formatConsole("plugin.startup_config"));
     }
 
-    private void logReloadSummary(String labelKey) {
-        logConfigSummary(I18n.formatConsole(labelKey));
-    }
-
     private void logConfigSummary(String label) {
         I18n.logInfo("plugin.config_summary",
                 "label", label,
@@ -1610,6 +1937,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 "hopper", hopperInteractionsEnabled,
                 "cooking_pot_hopper", cookingPotHopperInteractionsEnabled,
                 "cutting_board_hopper", cuttingBoardHopperInteractionsEnabled,
+                "skillet_hopper", skilletHopperInteractionsEnabled,
                 "advancements", advancementsEnabled);
     }
 
@@ -1643,6 +1971,21 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     private String getConfiguredPrimaryLevelName() {
+        // 已缓存：最多只读取一次 server.properties。
+        if (primaryLevelNameResolved) {
+            return cachedPrimaryLevelName;
+        }
+        synchronized (primaryLevelNameLock) {
+            if (primaryLevelNameResolved) {
+                return cachedPrimaryLevelName;
+            }
+            cachedPrimaryLevelName = readConfiguredPrimaryLevelName();
+            primaryLevelNameResolved = true;
+            return cachedPrimaryLevelName;
+        }
+    }
+
+    private String readConfiguredPrimaryLevelName() {
         Path serverProperties = getServer().getWorldContainer().toPath().resolve("server.properties");
         if (!Files.isRegularFile(serverProperties)) {
             return null;

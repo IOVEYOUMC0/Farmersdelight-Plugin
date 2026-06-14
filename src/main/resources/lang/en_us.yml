@@ -57,6 +57,27 @@ gui:
   cooking_pot:
     pending_container_hint: "&7Container: &f{container}"
     pending_container_hint_prefix: "&7Container: &f"
+  editor:
+    usage: "&e/fd recipe edit <pot|board> <id> [customGroup]"
+    feedback:
+      invalid_id: "&cRecipe id must use only lowercase letters, digits and underscores."
+      not_configured: "&cThe recipe editor GUI is not configured in gui.yml."
+      board_coming: "&eThe cutting-board editor is coming in a follow-up phase."
+      advanced_coming: "&eAdvanced ingredient editing (tag / choice / exclusions) is coming in a follow-up phase."
+      no_ingredients: "&cThe recipe needs at least one ingredient."
+      no_input: "&cThe recipe needs an input item."
+      no_result: "&cThe recipe needs a result item."
+      too_many_ingredients: "&eThis recipe has {total} ingredients but only {shown} slots are shown; extra ingredients are not editable here."
+      too_many_results: "&eThis recipe has {total} results but only {shown} slots are shown; extra results are not editable here."
+      saved: "&aSaved recipe &f{recipe_id}&a and reloaded."
+      deleted: "&aDeleted recipe &f{recipe_id}&a and reloaded."
+      save_failed: "&cFailed to save the recipe (see console)."
+      delete_failed: "&cFailed to delete the recipe (see console)."
+      no_tags: "&cThis item does not belong to any tag."
+    tag:
+      select_hint: "&7Left: use this tag &8| &7Right: edit exclusions"
+      member_included: "&7Click: exclude this item from the tag"
+      member_excluded: "&cExcluded &7(click to restore)"
 console:
   prefix: "[FarmersDelight]"
   i18n:
@@ -79,7 +100,6 @@ console:
     proxy_display_unavailable: "CraftEngine proxy item display pipeline unavailable, stove and skillet visuals will be disabled."
     enabled: "FarmersDelight plugin has been enabled."
     disabled: "FarmersDelight plugin has been disabled."
-    recipe_load_deferred: "Skipping recipe load for now because CraftEngine custom items are not ready yet."
     loading_recipes: "Loading recipes..."
     refreshing_recipes_after_ce: "Refreshing recipes after CraftEngine reload..."
     reloading_recipes: "Reloading recipes..."
@@ -89,6 +109,7 @@ console:
     datapack_reload_skipped_unsupported: "Data pack files were updated to {reason}, but this server does not support automatic data pack reload here. Restart the server to apply advancement changes."
     datapack_reload_failed: "Failed to reload data packs to {reason}"
     datapack_reason_remove_disabled_advancements: "remove disabled FarmersDelight advancements"
+    datapack_reason_remove_legacy_advancements: "remove the legacy FarmersDelight advancement datapack (now handled by UltimateAdvancementAPI)"
     datapack_reason_apply_advancement_config: "apply FarmersDelight advancement config changes"
     datapack_reason_apply_advancements: "apply FarmersDelight advancements"
     datapack_reason_apply_advancement_changes: "apply FarmersDelight advancement changes"
@@ -104,7 +125,7 @@ console:
     config_prepare_failed: "Failed to prepare configuration files: {error}"
     gui_missing_defaults: "gui.yml is missing, using bundled defaults in memory until reload writes it back."
     gui_load_failed: "Failed to load gui.yml: {error}"
-    craftengine_resources_released: "Released bundled CraftEngine farmersdelight resources to {path} for the first startup ({count} files)."
+    craftengine_resources_released: "Synchronized bundled CraftEngine farmersdelight resources to {path} ({count} files)."
     craftengine_resources_release_failed: "Failed to release CraftEngine farmersdelight resources: {error}"
     auraskills_hook_failed: "Failed to initialize AuraSkills API compatibility: {error}"
     auraskills_skill_missing: "AuraSkills skill was not found: {skill}"
@@ -114,7 +135,7 @@ console:
     custom_cooking_pot_gui_load_failed: "Failed to load custom cooking pot GUI '{id}': {error}"
     invalid_cutting_board_mode: "Invalid cutting-board.interaction-mode '{value}', falling back to stacking."
     startup_config: "Startup config"
-    config_summary: "{label}: cutting-board mode={mode}, hopper={hopper}, cooking-pot-hopper={cooking_pot_hopper}, cutting-board-hopper={cutting_board_hopper}, advancements={advancements}"
+    config_summary: "{label}: cutting-board mode={mode}, hopper={hopper}, cooking-pot-hopper={cooking_pot_hopper}, cutting-board-hopper={cutting_board_hopper}, skillet-hopper={skillet_hopper}, advancements={advancements}"
     advancement_resource_sync_failed: "Failed to sync advancement resource {resource} for world {world}: {error}"
     advancement_file_delete_failed: "Failed to delete advancement datapack file {path}: {error}"
     advancement_directory_delete_failed: "Failed to delete advancement datapack directory {path}: {error}"
@@ -161,8 +182,8 @@ console:
     invalid_vanilla_block: "Invalid vanilla block ID in heat source config: {id}"
     invalid_vanilla_conductor: "Invalid vanilla conductor material: {id}"
   knife:
-    loaded_rules: "Loaded {count} knife drop rules"
-    loaded_matchers: "Loaded {tags} knife tags and {items} knife items"
+    loaded_rules: "Loaded {count} entity extra drop rules"
+    loaded_matchers: "Loaded {tags} extra-drop tool tags and {items} extra-drop tool items"
     dropped: "Dropped {item} from {entity} at {location}"
     invalid_item_id: "Invalid item ID format: {id}"
   recipe:
@@ -171,6 +192,7 @@ console:
     loaded_total: "Loaded {count} {type} recipes"
     custom_cooking_pot_load_failed: "Failed to load custom cooking pot recipe '{id}': {error}"
     custom_cooking_pot_loaded: "Loaded {count} custom cooking pot recipes"
+    editor_missing_custom_pot_gui: "No recipe-editor-cooking-pot-guis entry for custom pot '{id}'; using the default editor layout."
     invalid_count: "Invalid count for recipe: {error}"
     invalid_chance: "Invalid chance for recipe: {error}"
   legacy_storage:
@@ -203,6 +225,7 @@ console:
     removed: "Removed auto-placed tray at {pos} reason={reason}"
     remove_failed: "Failed to remove tray furniture: {error}"
     duplicates_cleaned: "Cleaned duplicate auto trays at {pos} reason={reason}"
+    invalid_marker_key: "Invalid tray marker-key '{key}', using auto_tray_marker"
   gui_runtime:
     create_item_failed: "Failed to create item from key: {key}"
     unregister_tick_failed: "Error unregistering GUI tick callback: {error}"
@@ -265,15 +288,6 @@ command:
   help_help: "Show help information"
   help_cleanup: "Remove plugin-spawned item display entities"
   cleanup_done: "&aCleanup complete, {count} entities removed."
-effects:
-  comfort:
-    start: "&6Warm food helps you recover. {time} remaining."
-    fade: "&eYour comfort is fading. {seconds}s remaining."
-    end: "&7The comforting warmth fades."
-  nourishment:
-    start: "&6A hearty meal keeps hunger away for {time}."
-    fade: "&eYour fullness is gradually fading. {seconds}s remaining."
-    end: "&7You feel hunger returning."
 item:
   farmersdelight:
     raw_pasta: "Raw Pasta"

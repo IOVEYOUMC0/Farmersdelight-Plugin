@@ -6,7 +6,7 @@ import java.util.List;
 
 public record CookingPotRecipe(String id, List<RecipeIngredient> ingredients, ItemStack container,
                                boolean needsContainer, ItemStack result, float experience, int cookTime,
-                               String category) {
+                               String category, int priority) {
     public String getId() {
         return id;
     }
@@ -37,6 +37,10 @@ public record CookingPotRecipe(String id, List<RecipeIngredient> ingredients, It
 
     public String getCategory() {
         return category;
+    }
+
+    public int getPriority() {
+        return priority;
     }
 }
 

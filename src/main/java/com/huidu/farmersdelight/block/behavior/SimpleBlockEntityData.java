@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.block.behavior;
 import net.momirealms.craftengine.bukkit.util.ItemStackUtils;
 import net.momirealms.craftengine.core.plugin.config.Config;
 import net.momirealms.craftengine.libraries.nbt.CompoundTag;
+import net.momirealms.craftengine.libraries.nbt.NumericTag;
 import net.momirealms.craftengine.libraries.nbt.Tag;
 import org.bukkit.inventory.ItemStack;
 
@@ -76,8 +77,15 @@ final class SimpleBlockEntityData {
             if (text == null) {
                 continue;
             }
-            Integer integer = parseInteger(text);
-            data.put(key, integer != null ? integer : text);
+            // 保留原始类型：仅 NumericTag 才转换为 Integer。此前，只要某个值的文本恰好能被解析为
+            // int，就会被强制转换为 Integer，从而破坏诸如全数字的所有者名称这类字符串字段（消费方会
+            // 用 `instanceof String` 来检测该值的类型）。
+            if (value instanceof NumericTag) {
+                Integer integer = parseInteger(text);
+                data.put(key, integer != null ? integer : text);
+            } else {
+                data.put(key, text);
+            }
         }
         return data;
     }

@@ -12,8 +12,13 @@ import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class SoilRuleSupport {
+
+    // 解析后的 Bukkit 方块标签在服务器整个生命周期内保持不变；将其缓存，使作物
+    // 生长/放置的热点路径无需每次调用都重新执行 NamespacedKey.fromString + Bukkit.getTag。
+    private static final Map<Key, Optional<Tag<Material>>> blockTagResolveCache = new ConcurrentHashMap<>();
 
     private SoilRuleSupport() {
     }
@@ -50,7 +55,7 @@ public final class SoilRuleSupport {
                 String materialName = text.contains(":")
                         ? text.substring(text.indexOf(':') + 1)
                         : text;
-                NamespacedKey nk = NamespacedKey.minecraft(materialName.toLowerCase());
+                NamespacedKey nk = NamespacedKey.minecraft(materialName.toLowerCase(java.util.Locale.ROOT));
                 Material material = Registry.MATERIAL.get(nk);
                 if (material != null) {
                     materials.add(material);
@@ -78,16 +83,11 @@ public final class SoilRuleSupport {
         }
 
         for (Key configuredTag : configuredRules.tags()) {
-            NamespacedKey namespacedKey = NamespacedKey.fromString(configuredTag.toString());
-            if (namespacedKey == null) {
-                continue;
-            }
-            try {
-                Tag<Material> blockTag = Bukkit.getTag("blocks", namespacedKey, Material.class);
-                if (blockTag != null && blockTag.isTagged(block.getType())) {
-                    return true;
-                }
-            } catch (IllegalArgumentException ignored) {
+            Tag<Material> blockTag = blockTagResolveCache
+                    .computeIfAbsent(configuredTag, SoilRuleSupport::resolveBlockTag)
+                    .orElse(null);
+            if (blockTag != null && blockTag.isTagged(block.getType())) {
+                return true;
             }
         }
 
@@ -118,6 +118,18 @@ public final class SoilRuleSupport {
             }
         }
         return false;
+    }
+
+    private static Optional<Tag<Material>> resolveBlockTag(Key configuredTag) {
+        NamespacedKey namespacedKey = NamespacedKey.fromString(configuredTag.toString());
+        if (namespacedKey == null) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.ofNullable(Bukkit.getTag("blocks", namespacedKey, Material.class));
+        } catch (IllegalArgumentException ignored) {
+            return Optional.empty();
+        }
     }
 
     public static Set<Key> parseKeys(Map<String, Object> arguments, String key) {

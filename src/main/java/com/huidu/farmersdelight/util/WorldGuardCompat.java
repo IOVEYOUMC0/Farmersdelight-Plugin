@@ -15,6 +15,13 @@ public final class WorldGuardCompat {
     private static volatile Boolean available;
     private static volatile Object buildFlag;
     private static volatile Object useFlag;
+    // 反射句柄只解析一次并复用，因此每次交互的 canUse/canBuild 查询都
+    // 不会重复执行 Class.forName + getMethod 以及完整的 getMethods() 扫描。
+    private static volatile Object cachedRegionContainer;
+    private static volatile Method createQueryMethod;
+    private static volatile Method adaptLocationMethod;
+    private static volatile Method adaptPlayerMethod;
+    private static volatile Method testStateMethod;
 
     private WorldGuardCompat() {
     }
@@ -45,7 +52,12 @@ public final class WorldGuardCompat {
             if (container == null) {
                 return true;
             }
-            Object query = container.getClass().getMethod("createQuery").invoke(container);
+            Method createQuery = createQueryMethod;
+            if (createQuery == null) {
+                createQuery = container.getClass().getMethod("createQuery");
+                createQueryMethod = createQuery;
+            }
+            Object query = createQuery.invoke(container);
             Object adaptedLocation = adaptLocation(location);
             Object localPlayer = adaptPlayer(player);
             Object flag = build ? buildFlag() : useFlag();
@@ -53,9 +65,13 @@ public final class WorldGuardCompat {
                 return true;
             }
 
-            Method testState = findMethod(query.getClass(), "testState", 3);
+            Method testState = testStateMethod;
             if (testState == null) {
-                return true;
+                testState = findMethod(query.getClass(), "testState", 3);
+                if (testState == null) {
+                    return true;
+                }
+                testStateMethod = testState;
             }
             Class<?> flagArrayType = testState.getParameterTypes()[2];
             Class<?> flagType = flagArrayType.getComponentType();
@@ -80,20 +96,34 @@ public final class WorldGuardCompat {
     }
 
     private static Object regionContainer() throws ReflectiveOperationException {
+        Object container = cachedRegionContainer;
+        if (container != null) {
+            return container;
+        }
         Class<?> worldGuardClass = Class.forName("com.sk89q.worldguard.WorldGuard");
         Object worldGuard = worldGuardClass.getMethod("getInstance").invoke(null);
         Object platform = worldGuardClass.getMethod("getPlatform").invoke(worldGuard);
-        return platform.getClass().getMethod("getRegionContainer").invoke(platform);
+        container = platform.getClass().getMethod("getRegionContainer").invoke(platform);
+        cachedRegionContainer = container;
+        return container;
     }
 
     private static Object adaptLocation(Location location) throws ReflectiveOperationException {
-        Class<?> bukkitAdapter = Class.forName("com.sk89q.worldedit.bukkit.BukkitAdapter");
-        return bukkitAdapter.getMethod("adapt", Location.class).invoke(null, location);
+        Method method = adaptLocationMethod;
+        if (method == null) {
+            method = Class.forName("com.sk89q.worldedit.bukkit.BukkitAdapter").getMethod("adapt", Location.class);
+            adaptLocationMethod = method;
+        }
+        return method.invoke(null, location);
     }
 
     private static Object adaptPlayer(Player player) throws ReflectiveOperationException {
-        Class<?> bukkitAdapter = Class.forName("com.sk89q.worldedit.bukkit.BukkitAdapter");
-        return bukkitAdapter.getMethod("adapt", Player.class).invoke(null, player);
+        Method method = adaptPlayerMethod;
+        if (method == null) {
+            method = Class.forName("com.sk89q.worldedit.bukkit.BukkitAdapter").getMethod("adapt", Player.class);
+            adaptPlayerMethod = method;
+        }
+        return method.invoke(null, player);
     }
 
     private static Object buildFlag() throws ReflectiveOperationException {

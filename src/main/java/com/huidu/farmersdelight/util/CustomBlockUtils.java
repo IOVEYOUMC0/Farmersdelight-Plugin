@@ -278,7 +278,7 @@ public final class CustomBlockUtils {
     }
 
     public static BlockFace parseFacing(String facingValue) {
-        return switch (facingValue.toLowerCase()) {
+        return switch (facingValue.toLowerCase(java.util.Locale.ROOT)) {
             case "south" -> BlockFace.SOUTH;
             case "east" -> BlockFace.EAST;
             case "west" -> BlockFace.WEST;

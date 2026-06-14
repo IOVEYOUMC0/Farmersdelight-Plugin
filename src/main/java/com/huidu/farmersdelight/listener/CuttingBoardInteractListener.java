@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntity;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.WorldGuardCompat;
@@ -35,7 +36,15 @@ public class CuttingBoardInteractListener implements Listener {
         }
 
         Block block = event.getClickedBlock();
-        if (!CuttingBoardBlockBehavior.isCuttingBoardBlock(block.getWorld(), new BlockPosKey(block.getLocation()))) {
+        if (block == null) {
+            return;
+        }
+        BlockPosKey posKey = new BlockPosKey(block.getLocation());
+        if (!CuttingBoardBlockBehavior.isCuttingBoardBlock(block.getWorld(), posKey)) {
+            return;
+        }
+        if (!player.hasPermission("farmersdelight.use.cutting_board")) {
+            player.sendActionBar(I18n.getComponent("general.no_permission", player));
             return;
         }
         if (!WorldGuardCompat.canUse(player, block) || !WorldGuardCompat.canBuild(player, block)) {
@@ -48,7 +57,6 @@ public class CuttingBoardInteractListener implements Listener {
             return;
         }
 
-        BlockPosKey posKey = new BlockPosKey(block.getLocation());
         CuttingBoardBlockEntity blockEntity = CuttingBoardBlockBehavior.getBlockEntity(block.getWorld(), posKey);
         if (blockEntity != null && blockEntity.hasItem()) {
             return;
@@ -59,7 +67,7 @@ public class CuttingBoardInteractListener implements Listener {
             CuttingBoardBlockBehavior.putBlockEntity(block.getWorld(), posKey, blockEntity);
         }
 
-        // Shift-insert is the dedicated "stick the tool into the board" path.
+        // Shift 插入是专门用于“将工具插入切割板”的处理路径。
         ItemStack itemToPlace = mainHand.clone();
         itemToPlace.setAmount(1);
         blockEntity.setItem(itemToPlace, block.getWorld(), posKey, CustomBlockUtils.getFacing(block), true);

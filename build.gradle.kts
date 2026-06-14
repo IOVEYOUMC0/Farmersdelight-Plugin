@@ -28,6 +28,8 @@ dependencies {
     compileOnly("net.momirealms:craft-engine-core:26.5.3")
     compileOnly("net.momirealms:craft-engine-bukkit:26.5.3")
     compileOnly("net.momirealms:craft-engine-bukkit-proxy:26.5.3")
+    // UltimateAdvancementAPI: separate server plugin; vendored only for offline compile against its API.
+    compileOnly(files("libs/UltimateAdvancementAPI-Plugin-2.8.0-folia.jar"))
     testImplementation("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
     testImplementation("net.momirealms:craft-engine-core:26.5.3")
     testImplementation("net.momirealms:craft-engine-bukkit:26.5.3")
@@ -63,10 +65,10 @@ tasks.test {
 tasks.processResources {
     filteringCharset = "UTF-8"
     filesMatching("plugin.yml") {
-        expand("version" to version, "foliaSupported" to false)
+        expand("version" to version)
     }
     filesMatching("paper-plugin.yml") {
-        expand("version" to version, "foliaSupported" to false)
+        expand("version" to version)
     }
 }
 
@@ -124,63 +126,6 @@ tasks.jar {
     enabled = false
 }
 
-val paperResourcesDir = layout.buildDirectory.dir("resources/paper")
-val foliaResourcesDir = layout.buildDirectory.dir("resources/folia")
-
-val processPaperResources = tasks.register<ProcessResources>("processPaperResources") {
-    group = "build"
-    description = "Processes plugin resources for the Paper jar."
-    from(sourceSets.main.get().resources)
-    into(paperResourcesDir)
-    filteringCharset = "UTF-8"
-    filesMatching("plugin.yml") {
-        expand("version" to version, "foliaSupported" to false)
-    }
-    filesMatching("paper-plugin.yml") {
-        expand("version" to version, "foliaSupported" to false)
-    }
-}
-
-val processFoliaResources = tasks.register<ProcessResources>("processFoliaResources") {
-    group = "build"
-    description = "Processes plugin resources for the Folia jar."
-    from(sourceSets.main.get().resources)
-    into(foliaResourcesDir)
-    filteringCharset = "UTF-8"
-    filesMatching("plugin.yml") {
-        expand("version" to version, "foliaSupported" to true)
-    }
-    filesMatching("paper-plugin.yml") {
-        expand("version" to version, "foliaSupported" to true)
-    }
-}
-
-val paperJar = tasks.register<Jar>("paperJar") {
-    group = "build"
-    description = "Builds the Paper-compatible plugin jar."
-    dependsOn(tasks.named("classes"), processPaperResources)
-    archiveBaseName.set(pluginArchiveBaseName)
-    archiveClassifier.set("paper")
-    from(sourceSets.main.get().output.classesDirs)
-    from(paperResourcesDir)
-    if (!debugToolsBuild.get()) {
-        exclude("com/huidu/farmersdelight/debug/**")
-    }
-}
-
-val foliaJar = tasks.register<Jar>("foliaJar") {
-    group = "build"
-    description = "Builds the Folia-compatible plugin jar."
-    dependsOn(tasks.named("classes"), processFoliaResources)
-    archiveBaseName.set(pluginArchiveBaseName)
-    archiveClassifier.set("folia")
-    from(sourceSets.main.get().output.classesDirs)
-    from(foliaResourcesDir)
-    if (!debugToolsBuild.get()) {
-        exclude("com/huidu/farmersdelight/debug/**")
-    }
-}
-
 fun registerObfuscationTask(
     taskName: String,
     taskDescription: String,
@@ -228,7 +173,7 @@ fun registerObfuscationTask(
         }
     """.trimIndent())
         keep("""
-        public class fr.ateastudio.farmersdelight.api.event.** {
+        public class com.huidu.farmersdelight.api.event.** {
             public protected *;
         }
     """.trimIndent())
@@ -255,58 +200,22 @@ fun registerObfuscationTask(
 
 val obfuscateJar = registerObfuscationTask(
     taskName = "obfuscateJar",
-    taskDescription = "Builds the legacy strongly obfuscated plugin jar.",
+    taskDescription = "Builds the strongly obfuscated universal plugin jar.",
     dependency = tasks.shadowJar,
     inputJar = tasks.shadowJar.flatMap { it.archiveFile },
     outputFileName = "$pluginArchiveBaseName-${project.version}-obf.jar",
     reportBaseName = "$pluginArchiveBaseName-${project.version}"
 )
 
-val obfuscatePaperJar = registerObfuscationTask(
-    taskName = "obfuscatePaperJar",
-    taskDescription = "Builds the strongly obfuscated Paper plugin jar.",
-    dependency = paperJar,
-    inputJar = paperJar.flatMap { it.archiveFile },
-    outputFileName = "$pluginArchiveBaseName-${project.version}-paper-obf.jar",
-    reportBaseName = "$pluginArchiveBaseName-${project.version}-paper"
-)
-
-val obfuscateFoliaJar = registerObfuscationTask(
-    taskName = "obfuscateFoliaJar",
-    taskDescription = "Builds the strongly obfuscated Folia plugin jar.",
-    dependency = foliaJar,
-    inputJar = foliaJar.flatMap { it.archiveFile },
-    outputFileName = "$pluginArchiveBaseName-${project.version}-folia-obf.jar",
-    reportBaseName = "$pluginArchiveBaseName-${project.version}-folia"
-)
-
-tasks.register("buildPaper") {
-    group = "build"
-    description = "Builds the Paper-compatible plugin jar."
-    dependsOn(paperJar)
-}
-
-tasks.register("buildFolia") {
-    group = "build"
-    description = "Builds the Folia-compatible plugin jar."
-    dependsOn(foliaJar)
-}
-
 tasks.register("buildObfuscated") {
     group = "build"
-    description = "Builds the strongly obfuscated Paper and Folia plugin jars."
-    dependsOn(obfuscatePaperJar, obfuscateFoliaJar)
-}
-
-tasks.register("buildAllVariants") {
-    group = "build"
-    description = "Builds Paper/Folia jars and their strongly obfuscated variants."
-    dependsOn(paperJar, foliaJar, obfuscatePaperJar, obfuscateFoliaJar)
+    description = "Builds the strongly obfuscated universal plugin jar."
+    dependsOn(obfuscateJar)
 }
 
 tasks.build {
-    dependsOn(paperJar, foliaJar)
+    dependsOn(tasks.shadowJar)
     if (obfuscateBuild.get()) {
-        dependsOn(obfuscatePaperJar, obfuscateFoliaJar)
+        dependsOn(obfuscateJar)
     }
 }

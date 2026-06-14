@@ -16,15 +16,15 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Tracks online players that currently have custom food effects.
- * Only tracked players are processed each tick so the scheduled task stays light.
+ * 跟踪当前拥有自定义食物效果的在线玩家。
+ * 每个 tick 仅处理被跟踪的玩家，以保持调度任务的轻量。
  */
 public class EffectListener implements Listener {
 
     private static final Set<UUID> playersWithEffects = ConcurrentHashMap.newKeySet();
     private static final Map<UUID, Player> trackedPlayers = new ConcurrentHashMap<>();
     private static final Set<UUID> scheduledTicks = ConcurrentHashMap.newKeySet();
-    private static final long TICK_INTERVAL = 4L;
+    static final long TICK_INTERVAL = 4L;
     private final FarmersDelightPlugin plugin;
     private PluginTask effectTask;
 

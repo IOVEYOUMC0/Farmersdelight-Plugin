@@ -21,6 +21,15 @@
       "farmersdelight:block/cutting_board/knife2"
     ]
   },
+  "block.food.slice": {
+    "subtitle": "farmersdelight.subtitles.food.slice",
+    "sounds": [
+      {
+        "name": "block.wool.break",
+        "type": "event"
+      }
+    ]
+  },
   "block.skillet.sizzle": {
     "subtitle": "farmersdelight.subtitles.skillet.sizzle",
     "sounds": [

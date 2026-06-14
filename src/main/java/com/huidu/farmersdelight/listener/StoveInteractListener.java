@@ -9,6 +9,7 @@ import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.InteractionDebouncer;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.WorldGuardCompat;
+import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -30,6 +31,11 @@ public class StoveInteractListener implements Listener {
             return;
         }
 
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin == null || !plugin.isDebugEnabled("interact-probe")) {
+            return;
+        }
+
         Block block = event.getClickedBlock();
         if (block == null) {
             return;
@@ -37,11 +43,6 @@ public class StoveInteractListener implements Listener {
 
         String ceBlockId = CustomBlockUtils.getId(block);
         if (!shouldLogAttempt(block, ceBlockId)) {
-            return;
-        }
-
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (plugin == null || !plugin.isDebugEnabled("interact-probe")) {
             return;
         }
 
@@ -68,7 +69,8 @@ public class StoveInteractListener implements Listener {
         }
 
         Block block = event.getClickedBlock();
-        String ceBlockId = CustomBlockUtils.getId(block);
+        ImmutableBlockState state = CustomBlockUtils.getState(block);
+        String ceBlockId = CustomBlockUtils.getId(state);
         Player player = event.getPlayer();
         ItemStack mainHand = player.getInventory().getItemInMainHand();
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
@@ -80,11 +82,11 @@ public class StoveInteractListener implements Listener {
             return;
         }
 
-        if (shouldLogAttempt(block, ceBlockId) && plugin.isDebugEnabled("stove")) {
+        if (plugin.isDebugEnabled("stove") && shouldLogAttempt(block, ceBlockId)) {
             logDebug(player, block, ceBlockId, "farmersdelight:stove", mainHand, stoveManager.findRecipeId(mainHand));
         }
 
-        if (!isStoveBlock(block)) {
+        if (!isStoveBlock(state, ceBlockId)) {
             return;
         }
         if (!WorldGuardCompat.canUse(player, block) || !WorldGuardCompat.canBuild(player, block)) {
@@ -165,7 +167,7 @@ public class StoveInteractListener implements Listener {
         if (customItemId != null) {
             return customItemId;
         }
-        return "minecraft:" + item.getType().name().toLowerCase();
+        return "minecraft:" + item.getType().name().toLowerCase(java.util.Locale.ROOT);
     }
 
     private boolean isStoveBlock(String ceBlockId) {
@@ -175,6 +177,11 @@ public class StoveInteractListener implements Listener {
     private boolean isStoveBlock(Block block) {
         return CustomBlockUtils.hasBehavior(block, StoveCookingBlockBehavior.class)
                 || CustomBlockUtils.hasId(block, Constants.BLOCK_STOVE);
+    }
+
+    private boolean isStoveBlock(ImmutableBlockState state, String ceBlockId) {
+        return CustomBlockUtils.hasBehavior(state, StoveCookingBlockBehavior.class)
+                || Constants.BLOCK_STOVE.equals(ceBlockId);
     }
 
     private boolean shouldLogAttempt(Block block, String ceBlockId) {

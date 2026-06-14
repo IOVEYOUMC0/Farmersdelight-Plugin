@@ -16,12 +16,17 @@ import java.util.concurrent.ConcurrentHashMap;
 public class CookingPotRecipeManager {
 
     private final FarmersDelightPlugin plugin;
-    private final Map<String, CookingPotRecipe> recipes = new HashMap<>();
-    private final Map<String, Map<String, CookingPotRecipe>> customRecipes = new HashMap<>();
-    private final Map<String, Set<String>> ingredientToRecipes = new HashMap<>();
-    private final Map<String, Map<String, Set<String>>> customIngredientToRecipes = new HashMap<>();
-    private List<CookingPotRecipe> sortedRecipes = List.of();
-    private final Map<String, List<CookingPotRecipe>> sortedCustomRecipes = new HashMap<>();
+    // 这些查找结构会在 /fd reload 时重建。它们以整体、全新构建的、发布后不可变的 map 形式，
+    // 通过单次 volatile 写入进行发布，从而保证并发读取者（cooking-pot 的 tick / GUI，它们在 Folia
+    // 的 region 线程上运行，而 reload 在 global 线程上运行）永远不会观察到一个被清空一半的 map。
+    // 发布之后绝不要对它们进行原地修改。
+    private volatile Map<String, CookingPotRecipe> recipes = Map.of();
+    private volatile Map<String, Map<String, CookingPotRecipe>> customRecipes = Map.of();
+    private volatile Map<String, Set<String>> ingredientToRecipes = Map.of();
+    private volatile Map<String, Map<String, Set<String>>> customIngredientToRecipes = Map.of();
+    private volatile List<CookingPotRecipe> sortedRecipes = List.of();
+    private volatile Map<String, List<CookingPotRecipe>> sortedCustomRecipes = Map.of();
+    private volatile Map<String, List<CookingPotRecipe>> sortedCustomOnlyRecipes = Map.of();
     private final Map<Key, Set<String>> vanillaItemIdsByTagCache = new ConcurrentHashMap<>();
     private final Map<String, CookingPotRecipe> recipeCache = new LinkedHashMap<>(MAX_CACHE_SIZE + 1, 0.75f, true) {
         @Override
@@ -30,38 +35,62 @@ public class CookingPotRecipeManager {
         }
     };
     private static final int MAX_CACHE_SIZE = 100;
-    private final Set<String> validContainerKeys = new HashSet<>();
+    private volatile Set<String> validContainerKeys = Set.of();
 
     public CookingPotRecipeManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
     }
 
     public void loadRecipes() {
-        recipes.clear();
-        customRecipes.clear();
-        ingredientToRecipes.clear();
-        customIngredientToRecipes.clear();
-        sortedRecipes = List.of();
-        sortedCustomRecipes.clear();
-        vanillaItemIdsByTagCache.clear();
-        synchronized (recipeCache) {
-            recipeCache.clear();
-        }
-        validContainerKeys.clear();
+        // 先将所有内容构建到全新的本地集合中，然后（在下方）原子地发布，从而保证读取者
+        // 永远不会看到一个被清空一半的 map。不要对正在使用的字段进行原地 clear()/重新填充。
+        Map<String, CookingPotRecipe> newRecipes = new LinkedHashMap<>();
+        Map<String, Map<String, CookingPotRecipe>> newCustomRecipes = new HashMap<>();
+        Map<String, Set<String>> newIngredientToRecipes = new HashMap<>();
+        Map<String, Map<String, Set<String>>> newCustomIngredientToRecipes = new HashMap<>();
+        Set<String> newValidContainerKeys = new HashSet<>();
+
         YamlConfiguration config = RecipeFileLoader.loadRecipeFile(plugin, "recipes/cooking_pot_recipes.yml");
         RecipeFileLoader.loadRecipeSections(plugin, config, "cooking_pot_recipes", "cooking pot",
                 (recipeId, section) -> {
                     CookingPotRecipe recipe = parseRecipe(recipeId, section, 6);
-                    recipes.put(recipeId, recipe);
+                    newRecipes.put(recipeId, recipe);
 
-                    indexDefaultRecipe(recipeId, recipe);
-                    indexContainer(recipe);
+                    indexDefaultRecipe(newIngredientToRecipes, recipeId, recipe);
+                    indexContainer(newValidContainerKeys, recipe);
                 });
-        loadCustomRecipes(config);
-        rebuildSortedRecipeLists();
+        loadCustomRecipes(config, newCustomRecipes, newCustomIngredientToRecipes, newValidContainerKeys);
+
+        List<CookingPotRecipe> newSortedRecipes = sortedRecipeList(newRecipes);
+        Map<String, List<CookingPotRecipe>> newSortedCustomRecipes = new HashMap<>();
+        Map<String, List<CookingPotRecipe>> newSortedCustomOnlyRecipes = new HashMap<>();
+        for (Map.Entry<String, Map<String, CookingPotRecipe>> entry : newCustomRecipes.entrySet()) {
+            newSortedCustomOnlyRecipes.put(entry.getKey(), sortedRecipeList(entry.getValue()));
+            Map<String, CookingPotRecipe> merged = new LinkedHashMap<>(newRecipes);
+            merged.putAll(entry.getValue());
+            newSortedCustomRecipes.put(entry.getKey(), sortedRecipeList(merged));
+        }
+
+        // 发布全新构建的结构（每个都是单次 volatile 写入）。
+        this.recipes = newRecipes;
+        this.customRecipes = newCustomRecipes;
+        this.ingredientToRecipes = newIngredientToRecipes;
+        this.customIngredientToRecipes = newCustomIngredientToRecipes;
+        this.sortedRecipes = newSortedRecipes;
+        this.sortedCustomRecipes = newSortedCustomRecipes;
+        this.sortedCustomOnlyRecipes = newSortedCustomOnlyRecipes;
+        this.validContainerKeys = Collections.unmodifiableSet(newValidContainerKeys);
+
+        vanillaItemIdsByTagCache.clear();
+        synchronized (recipeCache) {
+            recipeCache.clear();
+        }
     }
 
-    private void loadCustomRecipes(YamlConfiguration config) {
+    private void loadCustomRecipes(YamlConfiguration config,
+                                   Map<String, Map<String, CookingPotRecipe>> targetCustomRecipes,
+                                   Map<String, Map<String, Set<String>>> targetCustomIndex,
+                                   Set<String> targetContainerKeys) {
         ConfigurationSection root = config.getConfigurationSection("custom_cooking_pot_recipes");
         if (root == null) {
             return;
@@ -73,7 +102,7 @@ public class CookingPotRecipeManager {
             if (groupSection == null) {
                 continue;
             }
-            Map<String, CookingPotRecipe> groupRecipes = customRecipes.computeIfAbsent(groupId, key -> new LinkedHashMap<>());
+            Map<String, CookingPotRecipe> groupRecipes = targetCustomRecipes.computeIfAbsent(groupId, key -> new LinkedHashMap<>());
             for (String recipeId : groupSection.getKeys(false)) {
                 ConfigurationSection section = groupSection.getConfigurationSection(recipeId);
                 if (section == null) {
@@ -82,8 +111,8 @@ public class CookingPotRecipeManager {
                 try {
                     CookingPotRecipe recipe = parseRecipe(recipeId, section, 54);
                     groupRecipes.put(recipeId, recipe);
-                    indexCustomRecipe(groupId, recipeId, recipe);
-                    indexContainer(recipe);
+                    indexCustomRecipe(targetCustomIndex, groupId, recipeId, recipe);
+                    indexContainer(targetContainerKeys, recipe);
                     loadedCount++;
                 } catch (Exception e) {
                     I18n.logWarning("recipe.custom_cooking_pot_load_failed",
@@ -97,35 +126,26 @@ public class CookingPotRecipeManager {
         }
     }
 
-    private void rebuildSortedRecipeLists() {
-        sortedRecipes = sortedRecipeList(recipes);
-        sortedCustomRecipes.clear();
-        for (Map.Entry<String, Map<String, CookingPotRecipe>> entry : customRecipes.entrySet()) {
-            Map<String, CookingPotRecipe> merged = new LinkedHashMap<>(recipes);
-            merged.putAll(entry.getValue());
-            sortedCustomRecipes.put(entry.getKey(), sortedRecipeList(merged));
-        }
-    }
-
     private List<CookingPotRecipe> sortedRecipeList(Map<String, CookingPotRecipe> source) {
         if (source.isEmpty()) {
             return List.of();
         }
         List<CookingPotRecipe> sorted = new ArrayList<>(source.values());
-        sorted.sort(Comparator.comparing(CookingPotRecipe::getId));
+        sorted.sort(Comparator.comparingInt(CookingPotRecipe::getPriority).reversed()
+                .thenComparing(CookingPotRecipe::getId));
         return Collections.unmodifiableList(sorted);
     }
 
-    private void indexDefaultRecipe(String recipeId, CookingPotRecipe recipe) {
+    private void indexDefaultRecipe(Map<String, Set<String>> ingredientIndex, String recipeId, CookingPotRecipe recipe) {
         for (RecipeIngredient ingredient : recipe.getIngredients()) {
             for (String ingredientKey : flattenIngredientKeys(ingredient)) {
-                ingredientToRecipes.computeIfAbsent(ingredientKey, k -> new HashSet<>()).add(recipeId);
+                ingredientIndex.computeIfAbsent(ingredientKey, k -> new HashSet<>()).add(recipeId);
             }
         }
     }
 
-    private void indexCustomRecipe(String groupId, String recipeId, CookingPotRecipe recipe) {
-        Map<String, Set<String>> groupIndex = customIngredientToRecipes.computeIfAbsent(groupId, key -> new HashMap<>());
+    private void indexCustomRecipe(Map<String, Map<String, Set<String>>> customIndex, String groupId, String recipeId, CookingPotRecipe recipe) {
+        Map<String, Set<String>> groupIndex = customIndex.computeIfAbsent(groupId, key -> new HashMap<>());
         for (RecipeIngredient ingredient : recipe.getIngredients()) {
             for (String ingredientKey : flattenIngredientKeys(ingredient)) {
                 groupIndex.computeIfAbsent(ingredientKey, key -> new HashSet<>()).add(recipeId);
@@ -133,14 +153,14 @@ public class CookingPotRecipeManager {
         }
     }
 
-    private void indexContainer(CookingPotRecipe recipe) {
+    private void indexContainer(Set<String> containerKeys, CookingPotRecipe recipe) {
         ItemStack container = recipe.getContainer();
         if (container != null && !container.getType().isAir()) {
             String customId = ItemUtils.getCustomItemId(container);
             if (customId != null) {
-                validContainerKeys.add(customId);
+                containerKeys.add(customId);
             }
-            validContainerKeys.add("minecraft:" + container.getType().name().toLowerCase());
+            containerKeys.add("minecraft:" + container.getType().name().toLowerCase(java.util.Locale.ROOT));
         }
     }
 
@@ -173,10 +193,33 @@ public class CookingPotRecipeManager {
         result.setAmount(Math.max(1, section.getInt("result-count", 1)));
 
         float experience = Math.max(0, (float) section.getDouble("experience", 0.0));
-        int cookTime = Math.max(20, Math.min(6000, section.getInt("cook-time", Constants.DEFAULT_COOKING_TIME_COOKING_POT)));
+        int defaultCookTime = Math.max(1, plugin.getConfigInt(Constants.DEFAULT_COOKING_TIME_COOKING_POT,
+                "cooking-pot.cooking.default-cook-time",
+                "cooking-pot.default-cook-time"));
+        int minCookTime = Math.max(1, plugin.getConfigInt(20,
+                "cooking-pot.cooking.min-cook-time",
+                "cooking-pot.min-cook-time"));
+        int maxCookTime = Math.max(minCookTime, plugin.getConfigInt(6000,
+                "cooking-pot.cooking.max-cook-time",
+                "cooking-pot.max-cook-time"));
+        int cookTime = Math.max(minCookTime, Math.min(maxCookTime, getInt(section,
+                defaultCookTime,
+                "cooking_time",
+                "cooking-time",
+                "cook-time")));
         String category = section.getString("category", "misc");
+        int priority = section.getInt("priority", 0);
 
-        return new CookingPotRecipe(id, ingredients, container, needsContainer, result, experience, cookTime, category);
+        return new CookingPotRecipe(id, ingredients, container, needsContainer, result, experience, cookTime, category, priority);
+    }
+
+    private int getInt(ConfigurationSection section, int defaultValue, String... keys) {
+        for (String key : keys) {
+            if (section.contains(key)) {
+                return section.getInt(key, defaultValue);
+            }
+        }
+        return defaultValue;
     }
 
     private RecipeIngredient parseIngredient(String str) {
@@ -283,18 +326,13 @@ public class CookingPotRecipeManager {
             return null;
         }
         Set<String> candidateRecipes = findCandidateRecipes(nonEmptyInputs, customIngredientToRecipes.get(customRecipeGroupId));
-        if (candidateRecipes != null && !candidateRecipes.isEmpty()) {
-            for (String recipeId : candidateRecipes) {
-                CookingPotRecipe recipe = groupRecipes.get(recipeId);
-                if (recipe != null && matchesContainer(recipe, container) && matchRecipe(recipe, nonEmptyInputs)) {
-                    return recipe;
-                }
-            }
+        List<CookingPotRecipe> orderedRecipes = sortedCustomOnlyRecipes.getOrDefault(customRecipeGroupId, List.of());
+        CookingPotRecipe matched = matchFirstRecipe(orderedRecipes, candidateRecipes, container, nonEmptyInputs);
+        if (matched != null) {
+            return matched;
         }
-        for (CookingPotRecipe recipe : groupRecipes.values()) {
-            if (matchesContainer(recipe, container) && matchRecipe(recipe, nonEmptyInputs)) {
-                return recipe;
-            }
+        if (candidateRecipes != null) {
+            return matchFirstRecipe(orderedRecipes, null, container, nonEmptyInputs);
         }
         return null;
     }
@@ -302,15 +340,25 @@ public class CookingPotRecipeManager {
     private CookingPotRecipe matchDefaultRecipe(List<ItemStack> nonEmptyInputs, ItemStack container) {
         Set<String> candidateRecipes = findCandidateRecipes(nonEmptyInputs, ingredientToRecipes);
 
-        if (candidateRecipes != null && !candidateRecipes.isEmpty()) {
-            for (String recipeId : candidateRecipes) {
-                CookingPotRecipe recipe = recipes.get(recipeId);
-                if (recipe != null && matchesContainer(recipe, container) && matchRecipe(recipe, nonEmptyInputs)) {
-                    return recipe;
-                }
-            }
+        CookingPotRecipe matched = matchFirstRecipe(sortedRecipes, candidateRecipes, container, nonEmptyInputs);
+        if (matched != null) {
+            return matched;
         }
-        for (CookingPotRecipe recipe : recipes.values()) {
+        if (candidateRecipes != null) {
+            return matchFirstRecipe(sortedRecipes, null, container, nonEmptyInputs);
+        }
+        return null;
+    }
+
+    private CookingPotRecipe matchFirstRecipe(List<CookingPotRecipe> orderedRecipes, Set<String> candidateRecipeIds,
+                                              ItemStack container, List<ItemStack> nonEmptyInputs) {
+        if (orderedRecipes == null || orderedRecipes.isEmpty()) {
+            return null;
+        }
+        for (CookingPotRecipe recipe : orderedRecipes) {
+            if (candidateRecipeIds != null && !candidateRecipeIds.contains(recipe.getId())) {
+                continue;
+            }
             if (matchesContainer(recipe, container) && matchRecipe(recipe, nonEmptyInputs)) {
                 return recipe;
             }

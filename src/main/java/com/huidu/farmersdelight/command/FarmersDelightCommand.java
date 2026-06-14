@@ -126,7 +126,12 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
 
     private void executeRecipe(CommandSender sender, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(I18n.get("command.player_only"));
+            sender.sendMessage(I18n.getComponent("command.player_only"));
+            return;
+        }
+
+        if (args.length >= 2 && normalize(args[1]).equals("edit")) {
+            executeRecipeEdit(player, args);
             return;
         }
 
@@ -140,6 +145,58 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
             case "cooking_pot", "pot", "cookingpot" -> gui.openCookingPotRecipes(player);
             case "cutting_board", "board", "cuttingboard" -> gui.openCuttingBoardRecipes(player);
             default -> gui.open(player);
+        }
+    }
+
+    private void executeRecipeEdit(Player player, String[] args) {
+        if (!player.hasPermission("farmersdelight.admin")) {
+            sendNoPermission(player);
+            return;
+        }
+        if (args.length < 3) {
+            player.sendMessage(I18n.getComponent("gui.editor.usage", player));
+            return;
+        }
+        String type = normalize(args[2]);
+        if (args.length < 4) {
+            RecipeViewGui gui = new RecipeViewGui(plugin, player);
+            switch (type) {
+                case "pot", "cooking_pot", "cookingpot" -> gui.openCookingPotRecipesForEdit(player);
+                case "board", "cutting_board", "cuttingboard" -> gui.openCuttingBoardRecipesForEdit(player);
+                default -> player.sendMessage(I18n.getComponent("gui.editor.usage", player));
+            }
+            return;
+        }
+        String id = normalize(args[3]);
+        if (!id.matches("[a-z0-9_]+")) {
+            player.sendMessage(I18n.getComponent("gui.editor.feedback.invalid_id", player));
+            return;
+        }
+        switch (type) {
+            case "pot", "cooking_pot", "cookingpot" -> {
+                String group = args.length >= 5 ? normalize(args[4]) : null;
+                com.huidu.farmersdelight.gui.RecipeViewGuiConfig.BaseConfig editorConfig =
+                        plugin.getRecipeEditorGuiConfig().getCookingPotConfig(group);
+                if (editorConfig == null) {
+                    player.sendMessage(I18n.getComponent("gui.editor.feedback.not_configured", player));
+                    return;
+                }
+                com.huidu.farmersdelight.recipe.CookingPotRecipe existing = (group == null || group.isBlank())
+                        ? plugin.getCookingPotRecipes().getRecipe(id)
+                        : plugin.getCookingPotRecipes().getRecipe(group, id);
+                new com.huidu.farmersdelight.gui.editor.CookingPotEditorGui(plugin, player, id, group, existing, editorConfig).open();
+            }
+            case "board", "cutting_board", "cuttingboard" -> {
+                com.huidu.farmersdelight.gui.RecipeViewGuiConfig.BaseConfig boardConfig =
+                        plugin.getRecipeEditorGuiConfig().getCuttingBoardConfig();
+                if (boardConfig == null) {
+                    player.sendMessage(I18n.getComponent("gui.editor.feedback.not_configured", player));
+                    return;
+                }
+                com.huidu.farmersdelight.recipe.CuttingBoardRecipe existing = plugin.getCuttingBoardRecipes().getRecipe(id);
+                new com.huidu.farmersdelight.gui.editor.CuttingBoardEditorGui(plugin, player, id, existing, boardConfig).open();
+            }
+            default -> player.sendMessage(I18n.getComponent("gui.editor.usage", player));
         }
     }
 
@@ -158,11 +215,11 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
             }
         }
 
-        sender.sendMessage(I18n.get("general.config_reloaded"));
+        sender.sendMessage(I18n.getComponent("general.config_reloaded"));
         if (sender instanceof Player player) {
-            sender.sendMessage(I18n.get("general.hot_reload_warning", player));
+            sender.sendMessage(I18n.getComponent("general.hot_reload_warning", player));
         } else {
-            sender.sendMessage(I18n.get("general.hot_reload_warning"));
+            sender.sendMessage(I18n.getComponent("general.hot_reload_warning"));
         }
     }
 
@@ -179,7 +236,7 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
             removed += trayManager.cleanupInvalidAutoTrays();
         }
 
-        sender.sendMessage(I18n.get("command.cleanup_done").replace("{count}", String.valueOf(removed)));
+        sender.sendMessage(I18n.getComponent("command.cleanup_done", Map.of("count", String.valueOf(removed))));
     }
 
     private void executeDebugTools(CommandSender sender, String label, String[] args) {
@@ -234,14 +291,43 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
     }
 
     private List<String> completeRecipe(CommandSender sender, String[] args) {
-        if (args.length != 2) {
-            return List.of();
+        boolean admin = sender.hasPermission("farmersdelight.admin");
+        if (args.length == 2) {
+            String partial = normalize(args[1]);
+            List<String> base = new ArrayList<>(List.of("cooking_pot", "cutting_board"));
+            if (admin) {
+                base.add("edit");
+            }
+            List<String> completions = new ArrayList<>();
+            for (String option : base) {
+                if (option.startsWith(partial)) {
+                    completions.add(option);
+                }
+            }
+            return completions;
         }
 
-        String partial = normalize(args[1]);
+        if (admin && args.length >= 3 && normalize(args[1]).equals("edit")) {
+            if (args.length == 3) {
+                return prefixFilter(normalize(args[2]), List.of("pot", "board"));
+            }
+            if (args.length == 4) {
+                String type = normalize(args[2]);
+                if (type.equals("pot") || type.equals("cooking_pot") || type.equals("cookingpot")) {
+                    return prefixFilter(normalize(args[3]), new ArrayList<>(plugin.getCookingPotRecipes().getRecipes().keySet()));
+                }
+                if (type.equals("board") || type.equals("cutting_board") || type.equals("cuttingboard")) {
+                    return prefixFilter(normalize(args[3]), new ArrayList<>(plugin.getCuttingBoardRecipes().getRecipes().keySet()));
+                }
+            }
+        }
+        return List.of();
+    }
+
+    private List<String> prefixFilter(String partial, List<String> options) {
         List<String> completions = new ArrayList<>();
-        for (String option : List.of("cooking_pot", "cutting_board")) {
-            if (option.startsWith(partial)) {
+        for (String option : options) {
+            if (option.toLowerCase(Locale.ROOT).startsWith(partial)) {
                 completions.add(option);
             }
         }
@@ -300,9 +386,9 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
 
     private void sendNoPermission(CommandSender sender) {
         if (sender instanceof Player player) {
-            sender.sendMessage(I18n.get("general.no_permission", player));
+            sender.sendMessage(I18n.getComponent("general.no_permission", player));
         } else {
-            sender.sendMessage(I18n.get("general.no_permission"));
+            sender.sendMessage(I18n.getComponent("general.no_permission"));
         }
     }
 

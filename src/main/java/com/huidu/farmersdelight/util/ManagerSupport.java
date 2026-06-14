@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.util;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.storage.LegacyBlockStorageManager;
 import org.bukkit.Location;
+import org.bukkit.Particle;
 import org.bukkit.World;
 import org.bukkit.inventory.ItemStack;
 
@@ -110,5 +111,26 @@ public final class ManagerSupport {
         }
         return location.getWorld().getName() + "@" + location.getBlockX() + "," + location.getBlockY() + "," + location.getBlockZ();
     }
-}
 
+    public static Particle resolveParticle(String configured, Particle defaultParticle) {
+        if (configured == null || configured.isBlank()) {
+            return defaultParticle;
+        }
+
+        String normalized = configured.trim();
+        int namespaceSeparator = normalized.indexOf(':');
+        if (namespaceSeparator >= 0 && namespaceSeparator < normalized.length() - 1) {
+            normalized = normalized.substring(namespaceSeparator + 1);
+        }
+
+        try {
+            return Particle.valueOf(normalized.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ignored) {
+            return defaultParticle;
+        }
+    }
+
+    public static double clampChance(double value) {
+        return Math.max(0.0D, Math.min(1.0D, value));
+    }
+}

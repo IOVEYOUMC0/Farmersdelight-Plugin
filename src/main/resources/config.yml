@@ -20,48 +20,81 @@ debug:
 advancements:
   enabled: true
 
+# CraftEngine 资源自动补齐。
+# 首次启动始终会整包释放内置 CraftEngine 资源到 CraftEngine/resources/farmersdelight。
+# auto-completion=true 时，之后每次启动还会自动补回被删除/缺失的资源文件。
+# 如果你手动删除了某些内置配置且不希望被重新加回，设为 false 即可（首次释放不受影响）。
+craftengine-resources:
+  auto-completion: true
+
+# 旧版文件存储兼容层。新数据优先写入 CraftEngine 方块实体；这里主要用于迁移/兜底保存。
+storage:
+  # 旧版存储自动保存间隔，单位秒。
+  auto-save-interval: 300
+
 # 全局性能预算。方块自身 tick 预算写在对应方块配置里；这里保留跨功能的维护任务。
 performance:
   # 控制台性能提醒。只输出日志，不会阻止方块工作。
   warnings-enabled: true
   warning-cooldown-seconds: 600
+
   # 活跃插件方块数量超过该值时输出提醒；只影响提示上限，不影响实际 tick 队列容量。
   active-block-warning-threshold: 1000
   cooking-pot-total-warning-threshold: 1000
   cooking-pot-density-warning-threshold: 64
+
   # CraftEngine 服务端方块状态剩余数量低于该值时输出提醒；设为 0 只在完全耗尽时提醒。
   craftengine-free-state-warning-threshold: 32
+
   # 代理 ItemDisplay 可见性同步间隔和每批处理数量。影响煎锅/炉灶食物显示的远近可见性维护。
   proxy-item-display-view-distance: 64.0
   proxy-item-display-sync-interval-ticks: 20
   proxy-item-display-sync-batch-size: 256
+
   # 宠物食物手持吸引每 tick 最多处理多少个玩家/实体关系。
   pet-tempt-tick-budget: 128
 
+  # 插件启动时，每 tick 最多补加载多少个已加载区块里的插件方块数据。
+  # 调大可缩短启动后恢复时间，调小可减轻启动瞬间压力。
+  startup-chunk-loads-per-tick: 16
+
 # 漏斗与插件方块的原版容器桥接总开关。
 # enabled=false 时完全关闭插件方块的漏斗容器桥接，避免漏斗吞物品、重复创建容器或写入异常。
-# 默认关闭；生产服启用前建议在测试服验证。
-# 具体方块是否允许漏斗交互，请在 cooking-pot / cutting-board 对应配置中设置。
+# 默认开启；如遇漏斗兼容问题可先关闭总开关排查。
+# 具体方块是否允许漏斗交互，请在 cooking-pot / cutting-board / skillet 对应配置中设置。
 hopper-interactions:
-  enabled: false
+  enabled: true
 
 # 砧板交互与砧板上物品展示。
 cutting-board:
   # true = 当 hopper-interactions.enabled 开启时，砧板允许漏斗输入/输出。
   hopper-interactions: true
+
   # 砧板交互模式：
   # stacking = 启用 64 堆叠，关闭副手交互
   # offhand  = 启用副手交互，关闭 64 堆叠
   interaction-mode: stacking
+
+  sounds:
+    # 空手取回砧板上物品时的提示音量和音高。
+    retrieve-volume: 0.25
+    retrieve-pitch: 0.5
+
   # 砧板上物品展示实体的全局默认偏移，格式 x,y,z。
   # x/z 控制水平位置，y 控制离砧板表面的高度。
   # 替换砧板模型后，如果所有物品整体偏左/偏右/陷进模型，可调整该项。
   # 单个物品的特殊位置优先使用 display-overrides。
-  default-display-offset: 0,0,0
+  default-display-offset: 0,-0.03,0
+  # 也可以按需设置全局默认 transformation。rotation 会覆盖自动朝向，通常只在整体模型方向需要重做时使用。
+  # default-display-translation: 0,0,0
+  # default-display-rotation: 90,180,0
+  # default-display-scale: 0.6
+
   # 多个物品堆在砧板上时的随机散开范围。
   # 0.15 表示 x/z 最大约 ±0.075 方块，接近原模组表现。
   # 觉得食物太散就调小，例如 0.08；想看出堆叠层次就调大，例如 0.20。
-  display-item-spread: 0.15
+  display-item-spread: 0.1
+
   # 针对某个物品单独覆盖砧板展示。
   # key 写“存放在砧板上的物品 ID”，可以是 minecraft:* 或 CraftEngine 物品 ID。
   # display-item: 用另一个物品作为展示模型，适合原物品模型在 ItemDisplay 里显示不正确时使用。
@@ -79,9 +112,29 @@ cutting-board:
   #     translation: 0,0,0
   #     rotation: 90,180,0
   #     scale: 0.55
-  display-overrides: {}
+  display-overrides:
+    farmersdelight:stove:
+      style: block
+    farmersdelight:cooking_pot:
+      style: block
+    farmersdelight:cutting_board:
+      style: block
+    farmersdelight:skillet:
+      style: block
+      rotation: -90,90,0
+      position: 0,-0.225,0
+    farmersdelight:basket:
+      style: block
+    farmersdelight:tray:
+      style: block
+  # 按物品标签批量覆盖展示。key 可以不写 #，也可以在 display-overrides 中用带引号的 "#namespace:tag"。
+  # display-tag-overrides:
+  #   minecraft:logs:
+  #     style: block
+  #     scale: 0.55
 
 # 小刀识别。建议同时保留标签和具体物品，标签用于 CE 资源侧扩展，具体物品用于兜底。
+# 这里仍表示“哪些物品算小刀”，会影响砧板/小刀配方等小刀语义。
 knife-config:
   tags:
     - farmersdelight:knives
@@ -92,168 +145,24 @@ knife-config:
     - farmersdelight:diamond_knife
     - farmersdelight:netherite_knife
 
-# 厨锅配置。自定义厨锅槽位和 GUI 请在 CraftEngine 方块 behavior 与 gui.yml 中配置。
-cooking-pot:
-  # 每 4 tick 最多处理多少个活跃厨锅。调大响应更快，调小压测时更稳。
-  tick-budget: 512
-  # true = 当 hopper-interactions.enabled 开启时，厨锅允许漏斗输入/输出。
-  hopper-interactions: true
-  # true = 打包锅内物品到掉落的厨锅物品；false = 掉落空锅并把锅内物品散落出来。
-  pack-contents-on-break: true
-  # 玩家从厨锅输出槽/待取出成品中拿走烹饪成品时，如何结算配方 experience。
-  # vanilla = 掉落原版经验球；auraskills = 只给 AuraSkills 经验；both = 两者都有；none = 不给经验奖励。
-  # base experience 仍由 recipes/cooking_pot_recipes.yml 里的每个配方 experience 字段决定。
-  experience-reward:
-    mode: vanilla
-    # mode 为 auraskills 或 both 时生效。技能 ID 可写 farming、auraskills/farming，或 namespace/custom_skill。
-    # multiplier 会用“配方 experience × 倍率”作为 AuraSkills 经验；如果写 amount，则改为每次取出固定给 amount。
-    # raw=false 走 AuraSkills 自身倍率/修饰；raw=true 直接添加原始经验。
-    auraskills:
-      skill: farming
-      multiplier: 1.0
-      raw: false
-  # 厨锅烹饪中的悬浮 TextDisplay。
-  progress-display:
-    # false = 完全关闭厨锅烹饪进度 TextDisplay。大量厨锅压测或服务器性能优先时建议关闭。
-    enabled: true
-    # false 只显示进度/状态；true 会额外显示正在烹饪的配方名。
-    show-recipe-name: false
-    # TextDisplay 相对厨锅方块底部的高度。
-    # 更换高锅或矮锅模型后，如果文字压进锅里或漂得太高，可调整该项。
-    y-offset: 1.2
-    # TextDisplay 缩放。只影响悬浮进度文字，不影响 GUI。
-    scale: 0.5
-    # 玩家距离厨锅多少格以内才可能看到进度文字。
-    # Paper 下还会要求玩家看向厨锅；Folia 下为了避免跨区显示控制，默认直接可见。
-    visibility-distance: 10.0
-    # 玩家视线与厨锅方向的点积阈值。越接近 1，要求看得越准。
-    # 0.95 约等于必须明显看向厨锅；觉得提示太难触发可降到 0.90。
-    look-dot-threshold: 0.95
-    # 悬浮进度文字的刷新间隔。只影响 TextDisplay 更新频率，不会放慢厨锅真实烹饪时间。
-    update-interval-ticks: 8
-    # 活跃厨锅数量超过该值时自动关闭悬浮 TextDisplay，0 = 不按数量自动关闭。
-    disable-above-active-pots: 512
-  # 厨锅打开时自动放置的托盘家具，用于承载 CE 显示效果。
-  tray:
-    # true = 打开/同步厨锅时自动确保下方托盘存在；false = 不自动生成托盘，厨锅内容显示可能不完整。
-    enabled: true
-    # CraftEngine 托盘方块/家具 ID。资源侧改名后该项也需要同步修改。
-    tray-block-id: farmersdelight:tray
-    # 托盘相对厨锅方块坐标的偏移，通常不用改。
-    x-offset: 0.5
-    y-offset: -1.0
-    z-offset: 0.5
-    # true = 只有支撑方块不是完整方块时才自动放托盘，用于避免覆盖普通实体方块。
-    # CraftEngine 自定义热源会绕过该限制；用于支持炉灶这类模型方块。
-    require-non-full-support: true
-    # 托盘批量同步间隔和每批处理数量。sync-batch-size 也限制支撑方块变化/压测批量激活触发的紧急托盘同步。
-    # TPS 紧张时可调大间隔或调小 batch。
-    sync-interval-ticks: 100
-    sync-batch-size: 32
-    # 托盘标记键。已放置世界不建议随意修改；修改后旧托盘无法被识别为自动托盘。
-    marker-key: auto_tray_marker
-  # 厨锅世界粒子效果。
-  effects:
-    bubble:
-      enabled: true
-      type: BUBBLE_POP
-      chance: 0.20
-      count: 1
-      y-offset: 0.02
-      offset-x: 0.0
-      offset-y: 0.0
-      offset-z: 0.0
-      speed: 0.01
-    steam:
-      enabled: true
-      type: CLOUD
-      chance: 0.05
-      count: 1
-      y-offset: 0.08
-      offset-x: 0.0
-      offset-y: 0.03
-      offset-z: 0.0
-      speed: 0.02
-      secondary:
-        enabled: false
-        type: SMOKE
-        count: 1
-        y-offset: 0.05
-        offset-x: 0.0
-        offset-y: 0.025
-        offset-z: 0.0
-        speed: 0.02
-  # 厨锅配方消耗容器类物品后的返还表。
-  # 键是被厨锅消耗的容器物品 ID，值是烹饪后返还到容器槽/玩家背包的物品 ID。
-  # 例如 milk_bottle 被厨锅消耗后返还 glass_bottle。值写 "" 可禁用某一项返还。
-  container-returns:
-    farmersdelight:milk_bottle: minecraft:glass_bottle
-
-# 热源判定。厨锅和煎锅都会用到，煎锅的漏斗导热可单独关闭。
-heat-sources:
-  # CraftEngine 自定义方块标签。CE 方块配置里给方块加上该 tag 后会被视为热源。
+# 生物额外掉落的默认触发工具。只影响下面的 mob-extra-drops，不会把这些物品当作小刀。
+# items 可写任意 minecraft:* 或 CraftEngine 物品 ID；tags 可写原版/CraftEngine 物品标签。
+# 例如想让铁剑也触发生物额外掉落，可在 items 下添加 minecraft:iron_sword。
+mob-extra-drop-tools:
   tags:
-    - farmersdelight:heat_sources
-  # 原版方块 ID。
-  vanilla-blocks:
-    - minecraft:magma_block
-    - minecraft:lava_cauldron
-    - minecraft:lava
-    - minecraft:fire
-    - minecraft:soul_fire
-  # 原版方块标签。minecraft:campfires 会只接受已点燃的营火。
-  vanilla-tags:
-    - minecraft:campfires
-  # CraftEngine 自定义方块 ID，可带状态条件。
-  # 写法示例: namespace:block 或 namespace:block[key:value,key2:value2]
-  custom-blocks:
-    - farmersdelight:stove[fire:true]
-  # 原版导热方块。厨锅可隔着这些方块找热源。
-  conductors:
-    - minecraft:hopper
-  # CraftEngine 导热方块标签。
-  conductor-tags: []
+    - farmersdelight:knives
+  items:
+    - farmersdelight:flint_knife
+    - farmersdelight:iron_knife
+    - farmersdelight:golden_knife
+    - farmersdelight:diamond_knife
+    - farmersdelight:netherite_knife
 
-# 煎锅配置。
-skillet:
-  # 每 4 tick 最多处理多少个活跃煎锅。
-  tick-budget: 512
-  heat:
-    # 原模组煎锅不通过漏斗传导热量，默认关闭。
-    allow-conductors: false
-  display:
-    # 煎锅中食物展示的缩放。换模型后如果食物太大或太小，优先调整该项。
-    scale: 0.5
-    # 食物展示实体的基础高度，原模组约 0.1。
-    # 如果食物陷进煎锅，略微调高；如果漂浮明显，略微调低。
-    y-offset: 0.1
-    # 多个食物在煎锅上的随机散开范围。
-    # 原模组约 0.15，即最大约 ±0.075 方块。
-    # 如果 x/z 水平散开过大，优先调小这个值。
-    item-spread: 0.15
-
-# 炉灶配置。
-stove:
-  # 每 4 tick 最多处理多少个活跃炉灶。
-  tick-budget: 512
-  display:
-    # 炉灶上食物展示的缩放。
-    scale: 0.375
-    # 炉灶 6 个食物展示槽位的默认偏移，格式 x,y,z。
-    # 坐标以 north 朝向为基准：x 左右，y 高度，z 前后；插件会按炉灶朝向自动旋转。
-    # 换用其它炉灶模型后，如果食物不在烤面上，通常只需要调整该项。
-    # 槽位顺序为前排右/中/左，后排右/中/左（以 north 基准观察）。
-    slot-offsets:
-      - "0.3,1.02,0.2"
-      - "0.0,1.02,0.2"
-      - "-0.3,1.02,0.2"
-      - "0.3,1.02,-0.2"
-      - "0.0,1.02,-0.2"
-      - "-0.3,1.02,-0.2"
-
-# 使用小刀击杀成年生物时的额外掉落。
+# 使用 mob-extra-drop-tools 中配置的工具击杀成年生物时的额外掉落。
 # normal 是普通掉落，burning 是目标燃烧时的掉落，chance 是基础概率，looting-multiplier 是每级抢夺增加概率。
-knife-drops:
+# 每条规则可选 tool-item / tool-items / tool-tags 覆盖触发工具；不写则使用 mob-extra-drop-tools。
+# 示例：tool-item: minecraft:iron_sword 表示只有铁剑击杀该生物时触发这一条。
+mob-extra-drops:
   pig:
     normal: farmersdelight:ham
     burning: farmersdelight:smoked_ham
@@ -325,6 +234,281 @@ knife-drops:
     chance: 1.0
     looting-multiplier: 0.0
 
+# 厨锅配置。自定义厨锅槽位和 GUI 请在 CraftEngine 方块 behavior 与 gui.yml 中配置。
+cooking-pot:
+  cooking:
+    # 单个配方没有写 cooking_time / cooking-time / cook-time 时使用的默认烹饪时间。
+    default-cook-time: 200
+    # 所有厨锅配方烹饪时间的安全上下限，防止误写成 0 或极大值。
+    min-cook-time: 20
+    max-cook-time: 6000
+
+  # 每 4 tick 最多处理多少个活跃厨锅。调大响应更快，调小压测时更稳。
+  tick-budget: 512
+
+  # true = 当 hopper-interactions.enabled 开启时，厨锅允许漏斗输入/输出。
+  hopper-interactions: true
+
+  # true = 打包锅内物品到掉落的厨锅物品；false = 掉落空锅并把锅内物品散落出来。
+  pack-contents-on-break: true
+
+  # 玩家从厨锅输出槽/待取出成品中拿走烹饪成品时，如何结算配方 experience。
+  # vanilla = 掉落原版经验球；auraskills = 只给 AuraSkills 经验；both = 两者都有；none = 不给经验奖励。
+  # base experience 仍由 recipes/cooking_pot_recipes.yml 里的每个配方 experience 字段决定。
+  experience-reward:
+    mode: vanilla
+
+    # mode 为 auraskills 或 both 时生效。技能 ID 可写 farming、auraskills/farming，或 namespace/custom_skill。
+    # multiplier 会用“配方 experience × 倍率”作为 AuraSkills 经验；如果写 amount，则改为每次取出固定给 amount。
+    # raw=false 走 AuraSkills 自身倍率/修饰；raw=true 直接添加原始经验。
+    auraskills:
+      skill: farming
+      multiplier: 1.0
+      raw: false
+
+  # 厨锅烹饪中的悬浮 TextDisplay。
+  progress-display:
+    # false = 完全关闭厨锅烹饪进度 TextDisplay。大量厨锅压测或服务器性能优先时建议关闭。
+    enabled: true
+
+    # false 只显示进度/状态；true 会额外显示正在烹饪的配方名。
+    show-recipe-name: false
+
+    # TextDisplay 相对厨锅方块底部的高度。
+    # 更换高锅或矮锅模型后，如果文字压进锅里或漂得太高，可调整该项。
+    y-offset: 1.2
+
+    # TextDisplay 缩放。只影响悬浮进度文字，不影响 GUI。
+    scale: 0.5
+
+    # 玩家距离厨锅多少格以内才可能看到进度文字。
+    # Paper 下还会要求玩家看向厨锅；Folia 下为了避免跨区显示控制，默认直接可见。
+    visibility-distance: 10.0
+
+    # 玩家视线与厨锅方向的点积阈值。越接近 1，要求看得越准。
+    # 0.95 约等于必须明显看向厨锅；觉得提示太难触发可降到 0.90。
+    look-dot-threshold: 0.95
+
+    # 悬浮进度文字的刷新间隔。只影响 TextDisplay 更新频率，不会放慢厨锅真实烹饪时间。
+    update-interval-ticks: 8
+
+    # 活跃厨锅数量超过该值时自动关闭悬浮 TextDisplay，0 = 不按数量自动关闭。
+    disable-above-active-pots: 512
+
+  # 厨锅打开时自动放置的托盘家具，用于承载 CE 显示效果。
+  tray:
+    # true = 打开/同步厨锅时自动确保下方托盘存在；false = 不自动生成托盘，厨锅内容显示可能不完整。
+    enabled: true
+
+    # CraftEngine 托盘方块/家具 ID。资源侧改名后该项也需要同步修改。
+    tray-block-id: farmersdelight:tray
+
+    # 托盘相对厨锅方块坐标的偏移，通常不用改。
+    x-offset: 0.5
+    y-offset: -1.0
+    z-offset: 0.5
+
+    # true = 只有支撑方块不是完整方块时才自动放托盘，用于避免覆盖普通实体方块。
+    # CraftEngine 自定义热源会绕过该限制；用于支持炉灶这类模型方块。
+    require-non-full-support: true
+    # 托盘批量同步间隔和每批处理数量。sync-batch-size 也限制支撑方块变化/压测批量激活触发的紧急托盘同步。
+    # TPS 紧张时可调大间隔或调小 batch。
+    sync-interval-ticks: 100
+    sync-batch-size: 32
+    # Paper 下额外扫描已标记托盘的间隔，用于找回/清理重启或区块重载后的自动托盘。
+    # 默认 1200 tick = 60 秒；设为 0 表示每轮托盘同步都扫描，排查托盘问题时可临时使用。
+    # Folia 下为避免跨区域实体扫描，不会执行全世界托盘扫描。
+    marked-tray-scan-interval-ticks: 1200
+    # 托盘标记键。已放置世界不建议随意修改；修改后旧托盘无法被识别为自动托盘。
+    marker-key: auto_tray_marker
+
+  # 厨锅世界粒子效果。
+  effects:
+    bubble:
+      enabled: true
+      type: BUBBLE_POP
+      chance: 0.20
+      count: 1
+      y-offset: 0.02
+      offset-x: 0.0
+      offset-y: 0.0
+      offset-z: 0.0
+      speed: 0.01
+    steam:
+      enabled: true
+      type: CLOUD
+      chance: 0.05
+      count: 1
+      y-offset: 0.08
+      offset-x: 0.0
+      offset-y: 0.03
+      offset-z: 0.0
+      speed: 0.02
+      secondary:
+        enabled: false
+        type: SMOKE
+        count: 1
+        y-offset: 0.05
+        offset-x: 0.0
+        offset-y: 0.025
+        offset-z: 0.0
+        speed: 0.02
+
+  # 厨锅配方消耗容器类物品后的返还表。
+  # 键是被厨锅消耗的容器物品 ID，值是烹饪后返还到容器槽/玩家背包的物品 ID。
+  # 例如 milk_bottle 被厨锅消耗后返还 glass_bottle。值写 "" 可禁用某一项返还。
+  container-returns:
+    farmersdelight:milk_bottle: minecraft:glass_bottle
+
+# 热源判定。厨锅和煎锅都会用到，煎锅的漏斗导热可单独关闭。
+heat-sources:
+  # CraftEngine 自定义方块标签。CE 方块配置里给方块加上该 tag 后会被视为热源。
+  tags:
+    - farmersdelight:heat_sources
+  # 原版方块 ID。
+  vanilla-blocks:
+    - minecraft:magma_block
+    - minecraft:lava_cauldron
+    - minecraft:lava
+    - minecraft:fire
+    - minecraft:soul_fire
+
+  # 原版方块标签。minecraft:campfires 会只接受已点燃的营火。
+  vanilla-tags:
+    - minecraft:campfires
+
+  # CraftEngine 自定义方块 ID，可带状态条件。
+  # 写法示例: namespace:block 或 namespace:block[key:value,key2:value2]
+  custom-blocks:
+    - farmersdelight:stove[fire:true]
+
+  # 原版导热方块。厨锅可隔着这些方块找热源。
+  conductors:
+    - minecraft:hopper
+
+  # CraftEngine 导热方块标签。
+  conductor-tags: []
+
+# 蘑菇殖民地方块放置规则。生长速度、年龄和掉落仍在 CraftEngine mushrooms.yml 中配置。
+mushroom-colonies:
+  placement:
+    # 这些支撑方块不受光照限制，始终允许放置蘑菇殖民地。
+    always-valid-supports:
+      - minecraft:mycelium
+      - minecraft:podzol
+      - minecraft:crimson_nylium
+      - minecraft:warped_nylium
+      - minecraft:mushroom_stem
+    # true = 其它完整实体方块在低光照下也允许放置。
+    allow-solid-supports-below-max-light: true
+    # 当上方不是 always-valid-supports 时，目标位置光照不高于该值才允许放置。
+    max-light: 12
+
+# 煎锅配置。
+skillet:
+  # true = 当 hopper-interactions.enabled 开启时，煎锅允许漏斗输入食材；成品仍按原模组行为直接弹出，不提供漏斗输出槽。
+  hopper-interactions: true
+
+  # 每 4 tick 最多处理多少个活跃煎锅。
+  tick-budget: 512
+
+  cooking:
+    # 当原版营火配方没有 cooking time 时使用的默认烹饪时间。
+    default-cook-time: 600
+    # 煎锅会把营火配方时间乘以下方倍率；该项限制最快不能低于多少 tick。
+    min-cook-time: 60
+    # 煎锅烹饪时间倍率。0.2 表示约为原版营火时间的 20%。
+    cook-time-multiplier: 0.2
+    # 放置带火焰附加的煎锅时，每级火焰附加从 cook-time-multiplier 中额外减去的倍率。
+    fire-aspect-bonus: 0.05
+    # 煎锅失去热源时，每次 tick 回退多少烹饪进度；设为 0 表示不回退。
+    cooling-decrement: 2
+
+  heat:
+    # 原模组煎锅不通过漏斗传导热量，默认关闭。
+    allow-conductors: false
+
+  effects:
+    smoke:
+      enabled: true
+      type: SMOKE
+      chance: 0.10
+      count: 2
+      y-offset: 0.2
+      offset-x: 0.1
+      offset-y: 0.1
+      offset-z: 0.1
+      speed: 0.02
+    sizzle:
+      enabled: true
+      chance: 0.03
+      volume: 0.5
+      pitch: 1.0
+
+  display:
+    # 煎锅中食物展示的缩放。换模型后如果食物太大或太小，优先调整该项。
+    scale: 0.5
+    # 支持与砧板相同的 position/translation/rotation/scale/display-overrides/display-tag-overrides。
+    # rotation 会覆盖自动朝向；单个物品或标签微调时优先写在 overrides 中。
+    # rotation: 90,0,0
+    # 食物展示实体的基础高度，原模组约 0.1。
+    # 如果食物陷进煎锅，略微调高；如果漂浮明显，略微调低。
+    y-offset: 0.1
+    # 多个食物在煎锅上的随机散开范围。
+    # 原模组约 0.15，即最大约 ±0.075 方块。
+    # 如果 x/z 水平散开过大，优先调小这个值。
+    item-spread: 0.15
+    # display-overrides: {}
+    # display-tag-overrides: {}
+
+# 炉灶配置。
+stove:
+  # 每 4 tick 最多处理多少个活跃炉灶。
+  tick-budget: 512
+
+  cooking:
+    # 当原版营火配方没有 cooking time 时使用的默认烹饪时间。
+    default-cook-time: 600
+    # 炉灶熄火时，每次 tick 回退多少烹饪进度；设为 0 表示不回退。
+    cooling-decrement: 2
+
+  effects:
+    smoke:
+      enabled: true
+      type: SMOKE
+      chance: 0.20
+      count: 1
+      y-offset: 0.0
+      offset-x: 0.0
+      offset-y: 0.0
+      offset-z: 0.0
+      speed: 0.02
+    crackle:
+      enabled: true
+      chance: 0.05
+      volume: 1.0
+      pitch: 1.0
+
+  display:
+    # 炉灶上食物展示的缩放。
+    scale: 0.375
+    # 支持与砧板相同的 position/translation/rotation/scale/display-overrides/display-tag-overrides。
+    # position 会叠加到各槽位偏移上；rotation 会覆盖自动朝向。
+    # rotation: 90,0,0
+    # 炉灶 6 个食物展示槽位的默认偏移，格式 x,y,z。
+    # 坐标以 north 朝向为基准：x 左右，y 高度，z 前后；插件会按炉灶朝向自动旋转。
+    # 换用其它炉灶模型后，如果食物不在烤面上，通常只需要调整该项。
+    # 槽位顺序为前排右/中/左，后排右/中/左（以 north 基准观察）。
+    slot-offsets:
+      - "0.3,1.02,0.2"
+      - "0.0,1.02,0.2"
+      - "-0.3,1.02,0.2"
+      - "0.3,1.02,-0.2"
+      - "0.0,1.02,-0.2"
+      - "-0.3,1.02,-0.2"
+    # display-overrides: {}
+    # display-tag-overrides: {}
+
 # 使用小刀破坏草、成熟小麦、成熟水稻时额外掉落草秆。
 straw-drops:
   short_grass:
@@ -379,7 +563,17 @@ pet-foods:
     # true = 右键喂食时要求目标已经被驯服；false = 未驯服实体也能触发右键食物效果。
     require-tamed: false
     restore-health: true
-    effects: []
+    effects:
+      - type: SPEED
+        duration: 6000
+        amplifier: 1
+        ambient: false
+        particles: true
+      - type: JUMP_BOOST
+        duration: 6000
+        amplifier: 0
+        ambient: false
+        particles: true
     sound: ENTITY_GENERIC_EAT
     sound-volume: 0.8
     sound-pitch: 0.8
@@ -399,46 +593,78 @@ pet-foods:
       # true = 已驯服且主人为喂食玩家的马不会被自己的马食继续拉扯。
       ignore-owned-tamed: true
 
-# 舒适效果。默认关闭；开启后吃下列表食物会给玩家 Comfort。
+# 舒适效果。原版模组已弃用 Comfort（改用 Nourishment），故默认关闭、列表留空。
+# 机制代码保留：需要可把 enabled 设为 true 并在 foods 下自行添加食物。
 comfort-foods:
   enabled: false
+  # 舒适效果每隔多少 tick 回复半颗心；设为 0 可关闭舒适回血，只保留消息/状态。
+  heal-interval-ticks: 80
+  # 效果剩余多少 tick 时发送即将结束提醒；设为 0 可关闭提醒。
+  fade-warning-ticks: 200
+  foods: {}
+
+# 营养效果。吃下列表食物给玩家 Nourishment（清零疲劳值、防止掉饿）。
+# 时长（秒）按原版模组分档：cooked_rice=30；汤底/培根蛋等=60；炖菜/意面等=180；浓汤/盛宴等=300。
+nourishment-foods:
+  enabled: true
+  # 效果剩余多少 tick 时发送即将结束提醒；设为 0 可关闭提醒。
+  fade-warning-ticks: 200
   foods:
-    farmersdelight:apple_cider:
+    farmersdelight:cooked_rice:
+      duration: 30
+    farmersdelight:bone_broth:
+      duration: 60
+    farmersdelight:bacon_and_eggs:
+      duration: 60
+    farmersdelight:ratatouille:
+      duration: 60
+    farmersdelight:beef_stew:
+      duration: 180
+    farmersdelight:vegetable_soup:
+      duration: 180
+    farmersdelight:fish_stew:
+      duration: 180
+    farmersdelight:onion_soup:
+      duration: 180
+    farmersdelight:steak_and_potatoes:
+      duration: 180
+    farmersdelight:pasta_with_meatballs:
+      duration: 180
+    farmersdelight:pasta_with_mutton_chop:
+      duration: 180
+    farmersdelight:mushroom_rice:
+      duration: 180
+    farmersdelight:grilled_salmon:
+      duration: 180
+    minecraft:mushroom_stew:
+      duration: 180
+    minecraft:beetroot_soup:
+      duration: 180
+    farmersdelight:chicken_soup:
       duration: 300
-    farmersdelight:glow_berry_custard:
+    farmersdelight:fried_rice:
       duration: 300
-    farmersdelight:pumpkin_pie:
-      duration: 300
-    farmersdelight:hot_cocoa:
+    farmersdelight:pumpkin_soup:
       duration: 300
     farmersdelight:baked_cod_stew:
       duration: 300
-    minecraft:rabbit_stew:
-      duration: 300
-    farmersdelight:pasta_with_meatballs:
-      duration: 300
-    farmersdelight:pasta_with_mutton_chop:
-      duration: 300
-    farmersdelight:dumplings:
-      duration: 300
-    farmersdelight:cabbage_rolls:
-      duration: 300
-
-# 营养效果。默认关闭；开启后吃下列表食物会给玩家 Nourishment。
-nourishment-foods:
-  enabled: false
-  foods:
     farmersdelight:noodle_soup:
+      duration: 300
+    farmersdelight:roasted_mutton_chops:
       duration: 300
     farmersdelight:vegetable_noodles:
       duration: 300
-    farmersdelight:beef_stew:
+    farmersdelight:squid_ink_pasta:
       duration: 300
-    farmersdelight:chicken_soup:
+    farmersdelight:roast_chicken:
       duration: 300
-    farmersdelight:vegetable_soup:
+    farmersdelight:stuffed_pumpkin:
       duration: 300
-    farmersdelight:fish_stew:
+    farmersdelight:honey_glazed_ham:
       duration: 300
-    farmersdelight:fried_rice:
+    farmersdelight:shepherds_pie:
+      duration: 300
+    farmersdelight:gleaming_salad:
+      duration: 300
+    minecraft:rabbit_stew:
       duration: 300

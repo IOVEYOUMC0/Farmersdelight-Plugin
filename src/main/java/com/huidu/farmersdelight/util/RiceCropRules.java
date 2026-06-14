@@ -140,10 +140,10 @@ public final class RiceCropRules {
             return false;
         }
 
-        // After placement, CE may represent the planted rice using a carrier block
-        // rather than a literal WATER block. Keep the planting-time water check in
-        // canPlantRiceAt(...), but once rice is established, follow the reference
-        // plugin's support rule: the lower half stays valid as long as its soil is.
+        // 放置之后，CE 可能使用载体方块（carrier block）来表示已种植的水稻，
+        // 而不是字面意义上的 WATER 方块。种植时的水检查仍保留在
+        // canPlantRiceAt(...) 中，但一旦水稻已成功种植，则遵循参考
+        // 插件的支撑规则：只要其下方土壤有效，下半部分就保持有效。
         return isValidSoil(block.getRelative(BlockFace.DOWN), cropId);
     }
 }

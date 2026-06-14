@@ -16,7 +16,7 @@ public final class SoundUtils {
             return;
         }
 
-        String normalized = soundKey.trim().toLowerCase();
+        String normalized = soundKey.trim().toLowerCase(java.util.Locale.ROOT);
         NamespacedKey key = normalized.contains(":")
                 ? NamespacedKey.fromString(normalized)
                 : NamespacedKey.minecraft(normalized);

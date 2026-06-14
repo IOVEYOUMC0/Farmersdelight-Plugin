@@ -4,14 +4,17 @@ import com.huidu.farmersdelight.util.*;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior;
+import com.huidu.farmersdelight.config.CuttingBoardDisplayConfig;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.storage.LegacyBlockStorageManager;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
-import fr.ateastudio.farmersdelight.api.event.ProfessionCookingExperienceEvent;
+import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
+import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.CookingRecipe;
@@ -23,6 +26,7 @@ import org.joml.Vector3f;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -30,9 +34,15 @@ public class SkilletManager {
 
     private static final String BLOCK_TYPE = "skillet";
     
-    private static final int MIN_COOK_TIME = 60;
     private static final int HEARTBEAT_LOG_INTERVAL = 20;
     private static final int DEFAULT_TICK_BUDGET = 512;
+    private static final int DEFAULT_COOK_TIME = Constants.DEFAULT_COOKING_TIME_SKILLET;
+    private static final int DEFAULT_MIN_COOK_TIME = 60;
+    private static final int DEFAULT_COOLING_DECREMENT = 2;
+    private static final double DEFAULT_COOK_TIME_MULTIPLIER = Constants.SKILLET_COOKING_TIME_REDUCTION;
+    private static final double DEFAULT_FIRE_ASPECT_BONUS = Constants.SKILLET_FIRE_ASPECT_BONUS;
+    private static final double DEFAULT_SMOKE_CHANCE = Constants.SKILLET_PARTICLE_CHANCE;
+    private static final double DEFAULT_SIZZLE_CHANCE = Constants.SKILLET_SIZZLE_CHANCE;
 
     private final FarmersDelightPlugin plugin;
     private final Map<Location, SkilletData> skillets = new ConcurrentHashMap<>();
@@ -47,6 +57,24 @@ public class SkilletManager {
     private int heartbeatTicks;
     private int tickCursor;
     private int tickBudget;
+    private int defaultCookingTime = DEFAULT_COOK_TIME;
+    private int minCookingTime = DEFAULT_MIN_COOK_TIME;
+    private int coolingDecrement = DEFAULT_COOLING_DECREMENT;
+    private double cookTimeMultiplier = DEFAULT_COOK_TIME_MULTIPLIER;
+    private double fireAspectBonus = DEFAULT_FIRE_ASPECT_BONUS;
+    private boolean smokeEnabled = true;
+    private Particle smokeParticle = Particle.SMOKE;
+    private double smokeChance = DEFAULT_SMOKE_CHANCE;
+    private int smokeCount = 2;
+    private double smokeYOffset = 0.2D;
+    private double smokeOffsetX = 0.1D;
+    private double smokeOffsetY = 0.1D;
+    private double smokeOffsetZ = 0.1D;
+    private double smokeSpeed = 0.02D;
+    private boolean sizzleEnabled = true;
+    private double sizzleChance = DEFAULT_SIZZLE_CHANCE;
+    private float sizzleVolume = 0.5F;
+    private float sizzlePitch = 1.0F;
 
     public static class SkilletData {
         final Location location;
@@ -54,8 +82,12 @@ public class SkilletManager {
         ItemStack skilletStack;
         ItemStack displayedItem;
         BlockFace displayedFacing;
+        CuttingBoardDisplayConfig.DisplayOverride displayedOverride;
+        // 上次构建视觉时所用的原始 storedItem 快照,作为 ensureVisualsExist 的廉价前置判断,
+        // 避免每 tick 重复做 facing/override/resolveDisplayItem 等昂贵的 CraftEngine 查找与分配。
+        ItemStack lastVisualStoredItem;
         int cookingProgress = 0;
-        int cookingDuration = Constants.DEFAULT_COOKING_TIME_SKILLET;
+        int cookingDuration;
         CookingRecipe<?> currentRecipe;
         int fireAspectLevel = 0;
         UUID ownerId;
@@ -63,8 +95,9 @@ public class SkilletManager {
         final List<Integer> displayEntityIds = new ArrayList<>();
         Boolean lastHeatState;
 
-        SkilletData(Location location) {
+        SkilletData(Location location, int defaultCookingTime) {
             this.location = location;
+            this.cookingDuration = defaultCookingTime;
         }
 
         boolean hasItem() {
@@ -90,6 +123,47 @@ public class SkilletManager {
         this.tickBudget = Math.max(1, plugin.getConfigInt(DEFAULT_TICK_BUDGET,
                 "skillet.tick-budget",
                 "performance.skillet-tick-budget"));
+        this.defaultCookingTime = Math.max(1, plugin.getConfigInt(DEFAULT_COOK_TIME,
+                "skillet.cooking.default-cook-time",
+                "skillet.default-cook-time"));
+        this.minCookingTime = Math.max(1, plugin.getConfigInt(DEFAULT_MIN_COOK_TIME,
+                "skillet.cooking.min-cook-time",
+                "skillet.min-cook-time"));
+        this.coolingDecrement = Math.max(0, plugin.getConfigInt(DEFAULT_COOLING_DECREMENT,
+                "skillet.cooking.cooling-decrement",
+                "skillet.cooling-decrement"));
+        this.cookTimeMultiplier = ManagerSupport.clampChance(plugin.getConfigDouble(DEFAULT_COOK_TIME_MULTIPLIER,
+                "skillet.cooking.cook-time-multiplier",
+                "skillet.cooking-time-reduction"));
+        this.fireAspectBonus = ManagerSupport.clampChance(plugin.getConfigDouble(DEFAULT_FIRE_ASPECT_BONUS,
+                "skillet.cooking.fire-aspect-bonus",
+                "skillet.fire-aspect-bonus"));
+        loadEffectsConfig();
+        refreshVisualsAfterConfigReload();
+    }
+
+    private void loadEffectsConfig() {
+        ConfigurationSection effectsSection = plugin.getFirstConfigSection("skillet.effects");
+        ConfigurationSection smokeSection = effectsSection != null ? effectsSection.getConfigurationSection("smoke") : null;
+        smokeEnabled = smokeSection == null || smokeSection.getBoolean("enabled", true);
+        smokeParticle = ManagerSupport.resolveParticle(smokeSection == null ? null : smokeSection.getString("type"), Particle.SMOKE);
+        smokeChance = ManagerSupport.clampChance(smokeSection == null
+                ? DEFAULT_SMOKE_CHANCE
+                : smokeSection.getDouble("chance", DEFAULT_SMOKE_CHANCE));
+        smokeCount = Math.max(1, smokeSection == null ? 2 : smokeSection.getInt("count", 2));
+        smokeYOffset = smokeSection == null ? 0.2D : smokeSection.getDouble("y-offset", 0.2D);
+        smokeOffsetX = Math.max(0.0D, smokeSection == null ? 0.1D : smokeSection.getDouble("offset-x", 0.1D));
+        smokeOffsetY = Math.max(0.0D, smokeSection == null ? 0.1D : smokeSection.getDouble("offset-y", 0.1D));
+        smokeOffsetZ = Math.max(0.0D, smokeSection == null ? 0.1D : smokeSection.getDouble("offset-z", 0.1D));
+        smokeSpeed = Math.max(0.0D, smokeSection == null ? 0.02D : smokeSection.getDouble("speed", 0.02D));
+
+        ConfigurationSection sizzleSection = effectsSection != null ? effectsSection.getConfigurationSection("sizzle") : null;
+        sizzleEnabled = sizzleSection == null || sizzleSection.getBoolean("enabled", true);
+        sizzleChance = ManagerSupport.clampChance(sizzleSection == null
+                ? DEFAULT_SIZZLE_CHANCE
+                : sizzleSection.getDouble("chance", DEFAULT_SIZZLE_CHANCE));
+        sizzleVolume = (float) Math.max(0.0D, sizzleSection == null ? 0.5D : sizzleSection.getDouble("volume", 0.5D));
+        sizzlePitch = (float) Math.max(0.0D, sizzleSection == null ? 1.0D : sizzleSection.getDouble("pitch", 1.0D));
     }
 
     private void ensureTaskRunning() {
@@ -117,7 +191,7 @@ public class SkilletManager {
             return existing;
         }
 
-        SkilletData created = new SkilletData(normalized);
+        SkilletData created = new SkilletData(normalized, defaultCookingTime);
         SkilletData previous = skillets.putIfAbsent(normalized, created);
         if (previous != null) {
             return previous;
@@ -272,8 +346,125 @@ public class SkilletManager {
         return true;
     }
 
+    public ItemStack getStoredItemSnapshot(Location location) {
+        Location normalized = ManagerSupport.normalize(location);
+        if (normalized == null) {
+            return null;
+        }
+        SkilletData skillet = skillets.get(normalized);
+        if (skillet == null || !skillet.hasItem()) {
+            return null;
+        }
+        return skillet.storedItem.clone();
+    }
+
+    public boolean canAcceptHopperInput(Location location, ItemStack item) {
+        Location normalized = ManagerSupport.normalize(location);
+        if (normalized == null || !isSkilletBlock(normalized) || !isValidHopperInput(item)) {
+            return false;
+        }
+
+        SkilletData skillet = skillets.get(normalized);
+        if (skillet == null || !skillet.hasItem()) {
+            return true;
+        }
+
+        CookingRecipe<?> incomingRecipe = findCampfireRecipe(item);
+        CookingRecipe<?> storedRecipe = skillet.currentRecipe;
+        if (storedRecipe == null) {
+            storedRecipe = findCampfireRecipe(skillet.storedItem);
+        }
+        if (!canStackWithStored(skillet.storedItem, item, storedRecipe, incomingRecipe)) {
+            return false;
+        }
+
+        return skillet.storedItem.getAmount() < skillet.storedItem.getMaxStackSize();
+    }
+
+    public ItemStack insertHopperInput(Location location, ItemStack item) {
+        Location normalized = ManagerSupport.normalize(location);
+        if (normalized == null || item == null) {
+            return item == null ? null : item.clone();
+        }
+        if (!isSkilletBlock(normalized) || !isValidHopperInput(item)) {
+            return item.clone();
+        }
+
+        SkilletData skillet = getOrLoadSkillet(normalized);
+        ensurePlacedSkilletState(skillet);
+        CookingRecipe<?> incomingRecipe = findCampfireRecipe(item);
+        ItemStack pending = item.clone();
+
+        if (skillet.hasItem()) {
+            CookingRecipe<?> storedRecipe = skillet.currentRecipe;
+            if (storedRecipe == null) {
+                storedRecipe = findCampfireRecipe(skillet.storedItem);
+                skillet.currentRecipe = storedRecipe;
+            }
+            if (!canStackWithStored(skillet.storedItem, pending, storedRecipe, incomingRecipe)) {
+                return pending;
+            }
+
+            int freeSpace = Math.max(0, skillet.storedItem.getMaxStackSize() - skillet.storedItem.getAmount());
+            int toMove = Math.min(freeSpace, pending.getAmount());
+            if (toMove <= 0) {
+                return pending;
+            }
+
+            debug("hopper input: stacking onto skillet, move=" + toMove + ", storedBefore="
+                    + formatItem(skillet.storedItem) + ", input=" + formatItem(pending)
+                    + ", location=" + formatLocation(normalized));
+            skillet.storedItem.setAmount(skillet.storedItem.getAmount() + toMove);
+            createVisual(normalized, skillet);
+            saveSkillet(normalized, skillet);
+            return remainingAfterMove(pending, toMove);
+        }
+
+        int toMove = Math.min(pending.getAmount(), pending.getMaxStackSize());
+        if (toMove <= 0) {
+            return pending;
+        }
+
+        ItemStack toPlace = pending.clone();
+        toPlace.setAmount(toMove);
+        skillet.storedItem = toPlace;
+        skillet.currentRecipe = incomingRecipe;
+        skillet.cookingDuration = getAdjustedCookingTime(incomingRecipe.getCookingTime(), skillet.fireAspectLevel);
+        skillet.cookingProgress = 0;
+        skillet.ownerId = null;
+        skillet.ownerName = null;
+        debug("hopper input: stored=" + formatItem(toPlace) + ", recipe=" + incomingRecipe.getKey()
+                + ", duration=" + skillet.cookingDuration + ", fireAspect=" + skillet.fireAspectLevel
+                + ", location=" + formatLocation(normalized));
+
+        createVisual(normalized, skillet);
+        saveSkillet(normalized, skillet);
+        return remainingAfterMove(pending, toMove);
+    }
+
     public boolean canCook(ItemStack item) {
         return findCampfireRecipe(item) != null;
+    }
+
+    private boolean isValidHopperInput(ItemStack item) {
+        return item != null
+                && !item.getType().isAir()
+                && !isTool(item)
+                && !isSkilletItem(item)
+                && findCampfireRecipe(item) != null;
+    }
+
+    private ItemStack remainingAfterMove(ItemStack source, int moved) {
+        if (source == null || source.getType().isAir()) {
+            return null;
+        }
+        int remaining = source.getAmount() - moved;
+        if (remaining <= 0) {
+            return null;
+        }
+        ItemStack result = source.clone();
+        result.setAmount(remaining);
+        return result;
     }
 
     public String findRecipeId(ItemStack item) {
@@ -322,6 +513,11 @@ public class SkilletManager {
                 || CustomBlockUtils.hasId(location, Constants.BLOCK_SKILLET);
     }
 
+    private boolean isSkilletBlock(ImmutableBlockState state) {
+        return CustomBlockUtils.hasBehavior(state, SkilletBlockBehavior.class)
+                || Constants.BLOCK_SKILLET.equals(CustomBlockUtils.getId(state));
+    }
+
     public void breakSkillet(Location blockLocation, Location dropLocation) {
         breakSkillet(blockLocation, dropLocation, true);
     }
@@ -344,7 +540,12 @@ public class SkilletManager {
                 }
             }
         }
-        removeStoredData(normalized);
+        // 只有确实有煎锅(内存中)或有持久化数据时才清理,避免每次破坏普通方块都白白获取一次全局写锁
+        // + CEWorld 脏标记(普通方块该位置既无煎锅也无存储数据,清理是纯无用功)。
+        LegacyBlockStorageManager storage = plugin.getLegacyBlockStorageManager();
+        if (skillet != null || (storage != null && storage.hasBlockData(normalized))) {
+            removeStoredData(normalized);
+        }
         TrayManager trayManager = plugin.getTrayManager();
         if (trayManager != null) {
             trayManager.removeTrayIfAutoPlaced(normalized);
@@ -425,7 +626,7 @@ public class SkilletManager {
             return;
         }
 
-        SkilletData skillet = new SkilletData(location);
+        SkilletData skillet = new SkilletData(location, defaultCookingTime);
 
         if (data.get("storedItem") instanceof ItemStack storedItem) {
             skillet.storedItem = storedItem.clone();
@@ -529,6 +730,11 @@ public class SkilletManager {
             }
         }
         return result;
+    }
+
+    /** 是否存在任何被跟踪的煎锅(廉价判断,不分配位置列表)。 */
+    public boolean hasTrackedSkillets() {
+        return !skillets.isEmpty();
     }
 
     public void reloadRecipeCache() {
@@ -635,16 +841,17 @@ public class SkilletManager {
     }
 
     private int getAdjustedCookingTime(int baseTime, int fireAspectLevel) {
-        int cookingTime = baseTime > 0 ? baseTime : Constants.DEFAULT_COOKING_TIME_SKILLET;
+        int cookingTime = baseTime > 0 ? baseTime : defaultCookingTime;
         int cookingSeconds = cookingTime / 20;
-        float cookingTimeReduction = Constants.SKILLET_COOKING_TIME_REDUCTION;
+        double cookingTimeReduction = cookTimeMultiplier;
 
         if (fireAspectLevel > 0) {
-            cookingTimeReduction -= fireAspectLevel * Constants.SKILLET_FIRE_ASPECT_BONUS;
+            cookingTimeReduction -= fireAspectLevel * fireAspectBonus;
         }
+        cookingTimeReduction = Math.max(0.0D, cookingTimeReduction);
 
         int result = (int) (cookingSeconds * cookingTimeReduction) * 20;
-        return Math.max(MIN_COOK_TIME, Math.min(result, cookingTime));
+        return Math.min(cookingTime, Math.max(minCookingTime, result));
     }
 
     private void tick() {
@@ -710,7 +917,7 @@ public class SkilletManager {
         World world = location.getWorld();
         if (world == null) return;
         if (!world.isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4)) return;
-        if (!isSkilletBlock(location)) {
+        if (!isSkilletBlock(CustomBlockUtils.getState(location.getBlock()))) {
             debug(() -> "tick remove: skillet carrier block is gone at " + formatLocation(location));
             cleanupVisual(skillet);
             removeStoredData(location);
@@ -729,6 +936,13 @@ public class SkilletManager {
 
         ensureVisualsExist(location, skillet);
 
+        // 没有匹配配方的煎锅永远不可能烹饪,直接冷却并返回,省去每 tick 的热源探测
+        // (热源判定常常要做 CraftEngine 自定义方块状态查找)。
+        if (skillet.currentRecipe == null) {
+            skillet.cookingProgress = Math.max(0, skillet.cookingProgress - coolingDecrement);
+            return;
+        }
+
         boolean hasHeat = hasHeatSource(location);
         if (!Objects.equals(skillet.lastHeatState, hasHeat)) {
             debug(() -> "heat state: hasHeat=" + hasHeat + ", progress=" + skillet.cookingProgress
@@ -739,18 +953,19 @@ public class SkilletManager {
         }
         skillet.lastHeatState = hasHeat;
 
-        if (!hasHeat || skillet.currentRecipe == null) {
-            skillet.cookingProgress = Math.max(0, skillet.cookingProgress - 2);
+        if (!hasHeat) {
+            skillet.cookingProgress = Math.max(0, skillet.cookingProgress - coolingDecrement);
             return;
         }
 
         skillet.cookingProgress++;
 
-        if (Math.random() < Constants.SKILLET_PARTICLE_CHANCE) {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        if (smokeEnabled && random.nextDouble() < smokeChance) {
             spawnCookingParticles(location);
         }
-        if (Math.random() < Constants.SKILLET_SIZZLE_CHANCE) {
-            SoundUtils.play(world, location, getSizzleSound(location), Sound.BLOCK_CAMPFIRE_CRACKLE, 0.5f, 1.0f);
+        if (sizzleEnabled && random.nextDouble() < sizzleChance) {
+            SoundUtils.play(world, location, getSizzleSound(location), Sound.BLOCK_CAMPFIRE_CRACKLE, sizzleVolume, sizzlePitch);
         }
         if (skillet.cookingProgress >= skillet.cookingDuration) {
             debug(() -> "tick finish: progress reached duration for " + formatItem(skillet.storedItem)
@@ -874,8 +1089,16 @@ public class SkilletManager {
     }
 
     private void spawnCookingParticles(Location location) {
-        Location particleLocation = location.clone().add(0.5, 0.2, 0.5);
-        location.getWorld().spawnParticle(Particle.SMOKE, particleLocation, 2, 0.1, 0.1, 0.1, 0.02);
+        Location particleLocation = location.clone().add(0.5, smokeYOffset, 0.5);
+        location.getWorld().spawnParticle(
+                smokeParticle,
+                particleLocation,
+                smokeCount,
+                smokeOffsetX,
+                smokeOffsetY,
+                smokeOffsetZ,
+                smokeSpeed
+        );
     }
 
     private void createVisual(Location location, SkilletData skillet) {
@@ -885,20 +1108,29 @@ public class SkilletManager {
             return;
         }
 
-        ItemStack visualItem = skillet.storedItem.clone();
-        visualItem.setAmount(1);
+        CuttingBoardDisplayConfig displayConfig = plugin.getSkilletDisplayConfig();
+        CuttingBoardDisplayConfig.DisplayOverride displayOverride = displayConfig.getOverride(skillet.storedItem);
+        ItemStack visualItem = displayConfig.resolveDisplayItem(skillet.storedItem, displayOverride);
+        if (visualItem == null || visualItem.getType().isAir()) {
+            debug("spawn display: skipped unresolved display item for " + formatItem(skillet.storedItem)
+                    + " at " + formatLocation(location));
+            cleanupVisual(skillet);
+            return;
+        }
         BlockFace facing = CustomBlockUtils.getFacing(location.getBlock());
         boolean itemChanged = skillet.displayedItem == null || !skillet.displayedItem.isSimilar(visualItem);
         boolean facingChanged = skillet.displayedFacing != facing;
-        if (itemChanged || facingChanged) {
+        boolean overrideChanged = !displayOverride.equals(skillet.displayedOverride);
+        int displayCount = getModelCount(skillet.storedItem);
+        if (itemChanged || facingChanged || overrideChanged || skillet.displayEntityIds.size() != displayCount) {
             cleanupVisual(skillet);
             skillet.displayedItem = visualItem;
             skillet.displayedFacing = facing;
+            skillet.displayedOverride = displayOverride;
+            skillet.lastVisualStoredItem = skillet.storedItem == null ? null : skillet.storedItem.clone();
         }
 
-        int displayCount = getModelCount(skillet.storedItem);
         Random random = new Random(getVisualSeed(skillet.storedItem));
-        float yRotation = DisplayTransformUtils.skilletYaw(facing);
         debug("spawn display: target " + displayCount + " displays for " + formatItem(skillet.storedItem)
                 + " at " + formatLocation(location));
 
@@ -911,24 +1143,50 @@ public class SkilletManager {
         }
 
         for (int i = skillet.displayEntityIds.size(); i < displayCount; i++) {
-            double spread = plugin.getSkilletDisplaySpread();
+            double spread = displayConfig.getItemSpread();
             double offsetX = displayCount == 1 ? 0 : (random.nextDouble() - 0.5D) * spread;
             double offsetZ = displayCount == 1 ? 0 : (random.nextDouble() - 0.5D) * spread;
-            double offsetY = plugin.getSkilletDisplayYOffset() + ((i + 1) * 0.03D);
+            double offsetY = (i + 1) * 0.03D;
+            Vector3f configuredOffset = displayOverride.offset();
+            if (configuredOffset != null) {
+                offsetX += configuredOffset.x();
+                offsetY += configuredOffset.y();
+                offsetZ += configuredOffset.z();
+            }
 
             ItemStack stackForDisplay = visualItem.clone();
+
+            boolean isBlockItem = switch (displayOverride.style()) {
+                case BLOCK -> true;
+                case ITEM -> false;
+                default -> ItemUtils.shouldUseBlockStyleDisplay(stackForDisplay);
+            };
+            float xRotation = isBlockItem ? 0.0F : 90.0F;
+            float yRotation = DisplayTransformUtils.skilletYaw(facing);
+            float zRotation = 0.0F;
+            if (displayOverride.rotationDegrees() != null) {
+                xRotation = displayOverride.rotationDegrees().x();
+                yRotation = displayOverride.rotationDegrees().y();
+                zRotation = displayOverride.rotationDegrees().z();
+            }
 
             Quaternionf leftRotation = new Quaternionf();
             leftRotation.rotationYXZ(
                     (float) Math.toRadians(yRotation),
-                    (float) Math.toRadians(90.0f),
-                    0.0f
+                    (float) Math.toRadians(xRotation),
+                    (float) Math.toRadians(zRotation)
             );
 
+            Vector3f translation = displayOverride.translation() == null
+                    ? new Vector3f(0.0F, 0.0F, 0.0F)
+                    : new Vector3f(displayOverride.translation());
+            Vector3f scale = displayOverride.scale() == null
+                    ? new Vector3f(plugin.getSkilletDisplayScale(), plugin.getSkilletDisplayScale(), plugin.getSkilletDisplayScale())
+                    : new Vector3f(displayOverride.scale());
             Transformation transformation = new Transformation(
-                    new Vector3f(0.0f, 0.0f, 0.0f),
+                    translation,
                     leftRotation,
-                    new Vector3f(plugin.getSkilletDisplayScale(), plugin.getSkilletDisplayScale(), plugin.getSkilletDisplayScale()),
+                    scale,
                     new Quaternionf()
             );
 
@@ -1002,6 +1260,7 @@ public class SkilletManager {
         if (skillet.displayEntityIds.isEmpty()) {
             skillet.displayedItem = null;
             skillet.displayedFacing = null;
+            skillet.displayedOverride = null;
             return;
         }
 
@@ -1010,6 +1269,7 @@ public class SkilletManager {
             skillet.displayEntityIds.clear();
             skillet.displayedItem = null;
             skillet.displayedFacing = null;
+            skillet.displayedOverride = null;
             return;
         }
 
@@ -1019,6 +1279,7 @@ public class SkilletManager {
         skillet.displayEntityIds.clear();
         skillet.displayedItem = null;
         skillet.displayedFacing = null;
+        skillet.displayedOverride = null;
     }
 
     private void ensureVisualsExist(Location location, SkilletData skillet) {
@@ -1027,9 +1288,37 @@ public class SkilletManager {
         }
 
         int expectedCount = getModelCount(skillet.storedItem);
+        // 廉价前置判断:显示实体数量正确、且 storedItem 自上次构建以来未变化时直接返回,跳过下面昂贵的
+        // facing/override/resolveDisplayItem 解析。storedItem 变化(放入/烹饪)与配置变化都会各自走重建路径
+        // (createVisual / refreshVisualsAfterConfigReload),而方块朝向放置后不会改变。数量不符(视觉丢失等)
+        // 会让此判断不成立,从而走慢路径重建,作为兜底。
+        if (skillet.displayEntityIds.size() == expectedCount
+                && skillet.lastVisualStoredItem != null
+                && skillet.lastVisualStoredItem.isSimilar(skillet.storedItem)) {
+            return;
+        }
+
         BlockFace facing = CustomBlockUtils.getFacing(location.getBlock());
-        if (skillet.displayEntityIds.size() != expectedCount || skillet.displayedFacing != facing) {
+        CuttingBoardDisplayConfig.DisplayOverride displayOverride = plugin.getSkilletDisplayConfig().getOverride(skillet.storedItem);
+        ItemStack visualItem = plugin.getSkilletDisplayConfig().resolveDisplayItem(skillet.storedItem, displayOverride);
+        boolean itemChanged = visualItem != null && (skillet.displayedItem == null || !skillet.displayedItem.isSimilar(visualItem));
+        if (skillet.displayEntityIds.size() != expectedCount
+                || skillet.displayedFacing != facing
+                || !displayOverride.equals(skillet.displayedOverride)
+                || itemChanged) {
             createVisual(location, skillet);
+        }
+    }
+
+    private void refreshVisualsAfterConfigReload() {
+        if (skillets.isEmpty()) {
+            return;
+        }
+        for (SkilletData skillet : skillets.values()) {
+            if (skillet != null && skillet.hasItem()) {
+                cleanupVisual(skillet);
+                createVisual(skillet.location, skillet);
+            }
         }
     }
 

@@ -20,15 +20,45 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class StrawDropListener implements Listener {
 
     private final FarmersDelightPlugin plugin;
 
+    // 缓存“自定义物品 id -> 是否算小刀（按 id 或标签判定）”，避免每次破坏方块都重新分配
+    // ItemUtils.getCustomItemTags(...) 的 Set 并做嵌套 stream 扫描。
+    // 仅缓存自定义物品（customId != null）的判定；vanilla 短路逻辑不入缓存。
+    // 用 ConcurrentHashMap 是因为 onBlockBreak 在 Folia 下可能由不同 region 线程触发。
+    private final Map<String, Boolean> knifeCache = new ConcurrentHashMap<>();
+
+    // 失效依据：FarmersDelightPlugin 在 onEnable 只 new 出一个 StrawDropListener 实例，
+    // /fd reload（reloadAll / reloadMainConfigOnly）只调用 loadConfigs() 在“同一实例”上
+    // 把 knifeItemIds / knifeTagIds 重新赋值为全新的不可变 Set，并不会重建本监听器。
+    // 因此实例字段缓存不会随 reload 自动失效。而本文件不允许改动 FarmersDelightPlugin，
+    // 无法在重载路径里显式调用清空方法，于是改用“引用身份快照”来检测重载：
+    // loadConfigs() 每次都生成全新的 Set 对象（toUnmodifiableSet / Set.of），且这些 Set 不可变、
+    // 只会被整体替换而不会原地修改，故只要任一引用发生变化即说明 knife 配置已重载，需清空缓存。
+    private volatile Set<String> cachedKnifeItemIds;
+    private volatile Set<String> cachedKnifeTagIds;
+
     public StrawDropListener(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
+    }
+
+    // 若 plugin 当前的 knife 配置 Set 与缓存构建时捕获的引用不同（即发生过 /fd reload），
+    // 则清空缓存并刷新快照，保证 reload 后返回的是新结果。
+    private void invalidateKnifeCacheIfConfigReloaded() {
+        Set<String> currentItemIds = plugin.getKnifeItemIds();
+        Set<String> currentTagIds = plugin.getKnifeTagIds();
+        if (currentItemIds != cachedKnifeItemIds || currentTagIds != cachedKnifeTagIds) {
+            knifeCache.clear();
+            cachedKnifeItemIds = currentItemIds;
+            cachedKnifeTagIds = currentTagIds;
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -56,17 +86,34 @@ public class StrawDropListener implements Listener {
         if (item == null || item.getType() == Material.AIR) return false;
 
         String customItemId = ItemUtils.getCustomItemId(item);
+
+        // vanilla（customId == null）保持原有短路逻辑，不进缓存。
+        if (customItemId == null) {
+            return false;
+        }
+
+        // 在读取缓存前先检测是否发生过 /fd reload，必要时清空过期结果。
+        invalidateKnifeCacheIfConfigReloaded();
+
+        Boolean cached = knifeCache.get(customItemId);
+        if (cached != null) {
+            return cached;
+        }
+
+        boolean result = computeIsKnife(customItemId);
+        knifeCache.put(customItemId, result);
+        return result;
+    }
+
+    // 实际判定：先按 id 命中 knife 集合，否则走标签兜底。仅在缓存未命中时调用一次。
+    private boolean computeIsKnife(String customItemId) {
         if (plugin.isKnifeItemId(customItemId)) {
             return true;
         }
 
-        if (customItemId != null) {
-            Set<Key> itemTags = ItemUtils.getCustomItemTags(Key.of(customItemId));
-            return itemTags.stream().anyMatch(tag ->
-                    plugin.getKnifeTagIds().stream().anyMatch(knifeTag -> tag.toString().equalsIgnoreCase(knifeTag)));
-        }
-
-        return false;
+        Set<Key> itemTags = ItemUtils.getCustomItemTags(Key.of(customItemId));
+        return itemTags.stream().anyMatch(tag ->
+                plugin.getKnifeTagIds().stream().anyMatch(knifeTag -> tag.toString().equalsIgnoreCase(knifeTag)));
     }
     private StrawDropConfig.StrawDropRule getStrawDropRule(Block block) {
         StrawDropConfig config = plugin.getStrawDropConfig();
@@ -98,7 +145,7 @@ public class StrawDropListener implements Listener {
             return config.getRule("mature_rice");
         }
 
-        return config.getRule(type.name().toLowerCase());
+        return config.getRule(type.name().toLowerCase(java.util.Locale.ROOT));
     }
 
     private boolean isMatureRicePanicles(Block block) {
@@ -145,10 +192,13 @@ public class StrawDropListener implements Listener {
         ItemStack drop = ItemUtils.createItem(dropKey);
         if (drop != null) {
             int minAmount = rule.getMinAmount();
-            int maxAmount = rule.getMaxAmount();
+            int maxAmount = Math.max(minAmount, rule.getMaxAmount());
             int amount = minAmount + ThreadLocalRandom.current().nextInt(maxAmount - minAmount + 1);
+            if (amount <= 0) {
+                return;
+            }
             drop.setAmount(amount);
-            
+
             block.getWorld().dropItemNaturally(block.getLocation().add(0.5, 0.5, 0.5), drop);
         }
     }

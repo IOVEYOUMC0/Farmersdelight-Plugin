@@ -6,35 +6,22 @@ import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.DisplayTransformUtils;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import net.momirealms.craftengine.core.world.BlockPos;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.block.BlockFace;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.inventory.CookingRecipe;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.Recipe;
 
-import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Legacy skillet state model kept for recipe cache helpers and old saved-state compatibility.
- * Runtime skillet logic is owned by com.huidu.farmersdelight.manager.SkilletManager.
+ * 遗留的煎锅状态模型，保留它是为了配方缓存辅助方法以及与旧存档状态的兼容性。
+ * 运行时的煎锅逻辑由 com.huidu.farmersdelight.manager.SkilletManager 负责。
  */
 @Deprecated(forRemoval = false)
 public class SkilletBlockEntity {
-
-    private static final int MAX_CACHE_SIZE = 100;
-    private static final LinkedHashMap<Material, CookingRecipe<?>> recipeCache = new LinkedHashMap<>(16, 0.75f, true) {
-        @Override
-        protected boolean removeEldestEntry(Map.Entry<Material, CookingRecipe<?>> eldest) {
-            return size() > MAX_CACHE_SIZE;
-        }
-    };
 
     private static final int NO_DISPLAY = -1;
     
@@ -43,7 +30,7 @@ public class SkilletBlockEntity {
     private ItemStack storedItem;
     private ItemStack cookedItem;
     private final AtomicInteger cookingProgress = new AtomicInteger(0);
-    private final AtomicInteger cookingDuration = new AtomicInteger(SkilletBlockBehavior.DEFAULT_COOKING_TIME);
+    private final AtomicInteger cookingDuration = new AtomicInteger(getConfiguredDefaultCookingTime());
     private volatile CookingRecipe<?> currentRecipe;
     private volatile int fireAspectLevel = 0;
     private final Object cookingLock = new Object();
@@ -102,29 +89,59 @@ public class SkilletBlockEntity {
         return storedItem.clone();
     }
 
-    public void setStoredItem(ItemStack storedItem) {
-        this.storedItem = cloneOrNull(storedItem);
-        this.currentRecipe = findCampfireRecipe(this.storedItem);
-        if (this.currentRecipe != null) {
-            int baseTime = this.currentRecipe.getCookingTime();
-            this.cookingDuration.set(getSkilletCookingTime(baseTime, fireAspectLevel));
-        } else {
-            this.cookingDuration.set(SkilletBlockBehavior.DEFAULT_COOKING_TIME);
-        }
-        this.cookingProgress.set(0);
-    }
+    // 已删除遗留方法 setStoredItem(ItemStack)：本类从不被实例化（src 内无 new SkilletBlockEntity(...)
+    // 调用），该方法是不可达死代码，且是已删除的 findCampfireRecipe 的唯一调用方。
+    // 运行时煎锅逻辑由 SkilletManager 负责。
 
     public static int getSkilletCookingTime(int originalCookingTime, int fireAspectLevel) {
-        int cookingTime = originalCookingTime > 0 ? originalCookingTime : Constants.DEFAULT_COOKING_TIME_SKILLET;
+        int cookingTime = originalCookingTime > 0 ? originalCookingTime : getConfiguredDefaultCookingTime();
         int cookingSeconds = cookingTime / 20;
-        float cookingTimeReduction = Constants.SKILLET_COOKING_TIME_REDUCTION;
+        double cookingTimeReduction = getConfiguredCookingTimeMultiplier();
         if (fireAspectLevel > 0) {
-            cookingTimeReduction -= fireAspectLevel * Constants.SKILLET_FIRE_ASPECT_BONUS;
+            cookingTimeReduction -= fireAspectLevel * getConfiguredFireAspectBonus();
         }
+        cookingTimeReduction = Math.max(0.0D, cookingTimeReduction);
         
         int result = (int) (cookingSeconds * cookingTimeReduction) * 20;
-        
-        return Math.max(SkilletBlockBehavior.MINIMUM_COOKING_TIME, Math.min(result, originalCookingTime));
+        return Math.min(cookingTime, Math.max(getConfiguredMinimumCookingTime(), result));
+    }
+
+    private static int getConfiguredDefaultCookingTime() {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        return plugin == null
+                ? Constants.DEFAULT_COOKING_TIME_SKILLET
+                : Math.max(1, plugin.getConfigInt(Constants.DEFAULT_COOKING_TIME_SKILLET,
+                "skillet.cooking.default-cook-time",
+                "skillet.default-cook-time"));
+    }
+
+    private static int getConfiguredMinimumCookingTime() {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        return plugin == null
+                ? SkilletBlockBehavior.MINIMUM_COOKING_TIME
+                : Math.max(1, plugin.getConfigInt(SkilletBlockBehavior.MINIMUM_COOKING_TIME,
+                "skillet.cooking.min-cook-time",
+                "skillet.min-cook-time"));
+    }
+
+    private static double getConfiguredCookingTimeMultiplier() {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        double value = plugin == null
+                ? Constants.SKILLET_COOKING_TIME_REDUCTION
+                : plugin.getConfigDouble(Constants.SKILLET_COOKING_TIME_REDUCTION,
+                "skillet.cooking.cook-time-multiplier",
+                "skillet.cooking-time-reduction");
+        return Math.max(0.0D, Math.min(1.0D, value));
+    }
+
+    private static double getConfiguredFireAspectBonus() {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        double value = plugin == null
+                ? Constants.SKILLET_FIRE_ASPECT_BONUS
+                : plugin.getConfigDouble(Constants.SKILLET_FIRE_ASPECT_BONUS,
+                "skillet.cooking.fire-aspect-bonus",
+                "skillet.fire-aspect-bonus");
+        return Math.max(0.0D, Math.min(1.0D, value));
     }
 
     public ItemStack getCookedItem() {
@@ -214,43 +231,18 @@ public class SkilletBlockEntity {
         currentRecipe = null;
     }
 
-    public static CookingRecipe<?> findCampfireRecipe(ItemStack input) {
-        if (input == null || input.getType().isAir()) return null;
+    // 已删除遗留方法 findCampfireRecipe(ItemStack) 及其 per-Material LinkedHashMap 缓存：
+    // 运行时由 SkilletManager.findCampfireRecipe（委托给 CampfireRecipeCache）负责查找，
+    // 本类的版本已无任何活调用方。
 
-        Material inputType = input.getType();
-        
-        synchronized (recipeCache) {
-            CookingRecipe<?> cached = recipeCache.get(inputType);
-            if (cached != null) {
-                var ingredient = cached.getInputChoice();
-                if (ingredient != null && (ingredient.test(input) || ingredient.test(new ItemStack(inputType)))) {
-                    return cached;
-                }
-            }
-        }
-
-        Iterator<Recipe> recipeIterator = Bukkit.recipeIterator();
-        while (recipeIterator.hasNext()) {
-            Recipe recipe = recipeIterator.next();
-            if (recipe instanceof CookingRecipe<?> cookingRecipe) {
-                var ingredient = cookingRecipe.getInputChoice();
-                if (ingredient != null && (ingredient.test(input) || ingredient.test(new ItemStack(inputType)))) {
-                    synchronized (recipeCache) {
-                        recipeCache.put(inputType, cookingRecipe);
-                    }
-                    return cookingRecipe;
-                }
-            }
-        }
-        return null;
-    }
-
+    /**
+     * 保留此空实现是为了兼容重载/禁用流程（FarmersDelightPlugin 仍会调用它）。
+     * 由于配方缓存已迁移到 SkilletManager，这里不再需要清理任何状态。
+     */
     public static void clearRecipeCache() {
-        synchronized (recipeCache) {
-            recipeCache.clear();
-        }
+        // 无操作：缓存已迁移至 SkilletManager 的 CampfireRecipeCache。
     }
-    
+
     public void updateDisplayEntity(org.bukkit.World world, BlockPosKey posKey, BlockFace facing) {
         removeDisplayEntity();
         if (storedItem == null || storedItem.getType().isAir()) return;

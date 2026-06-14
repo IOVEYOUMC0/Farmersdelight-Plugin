@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
@@ -30,7 +31,17 @@ import java.util.regex.Pattern;
 public final class ItemUtils {
 
     private static final Map<Key, List<ItemStack>> vanillaTagCache = new ConcurrentHashMap<>();
+    // 解析后的 Bukkit item tag 在服务器整个生命周期内保持不变；将其缓存，使得每次匹配时的 tag
+    // 检查不必每次调用都重新执行 NamespacedKey.fromString + Bukkit.getTag。
+    private static final Map<Key, Optional<Tag<Material>>> vanillaItemTagResolveCache = new ConcurrentHashMap<>();
     private static final List<Material> ITEM_MATERIALS = new ArrayList<>();
+
+    // 缓存的 CraftEngine TranslationManager 反射句柄（只解析一次，每次 translate 时复用）。
+    private static volatile Method ceTranslationInstanceMethod;
+    private static volatile Method cePlainTranslationMethod;
+    private static volatile Method ceMiniMessageTranslationMethod;
+    private static volatile boolean ceTranslationUnavailable;
+    private static volatile boolean cePlainTranslationMissing;
 
     private static final PlainTextComponentSerializer PLAIN_TEXT = PlainTextComponentSerializer.plainText();
     private static final Pattern L10N_PATTERN = Pattern.compile("<(?:l10n|i18n)[:;]([^>]+)>");
@@ -48,7 +59,7 @@ public final class ItemUtils {
     }
 
     /**
-     * Returns the custom item id, or null when the stack is not a CE custom item.
+     * 返回自定义物品 id；当该物品堆不是 CE 自定义物品时返回 null。
      */
     public static String getCustomItemId(ItemStack item) {
         if (item == null) return null;
@@ -80,10 +91,10 @@ public final class ItemUtils {
     }
 
     /**
-     * Creates an item stack from a namespaced item id.
+     * 根据带命名空间的物品 id 创建一个物品堆。
      *
-     * @param itemId item id in the form namespace:item_name
-     * @return the created stack, or null when the id cannot be resolved
+     * @param itemId 形如 namespace:item_name 的物品 id
+     * @return 创建出的物品堆；当该 id 无法解析时返回 null
      */
     public static ItemStack createItem(String itemId) {
         if (isEmptyItemId(itemId)) return null;
@@ -224,7 +235,7 @@ public final class ItemUtils {
             return humanizeKey(customItemId.substring(customItemId.indexOf(':') + 1));
         }
 
-        String materialName = item.getType().name().toLowerCase();
+        String materialName = item.getType().name().toLowerCase(java.util.Locale.ROOT);
         String translated = translate("item.minecraft." + materialName, locale);
         if (!translated.equals("item.minecraft." + materialName)) {
             return translated;
@@ -242,24 +253,38 @@ public final class ItemUtils {
             return Component.text(I18n.get("gui.recipe.unknown", player));
         }
 
+        String locale = playerLocale(player);
+        Component nameMeta = null;
         ItemMeta meta = item.getItemMeta();
         if (meta != null && meta.hasItemName() && meta.itemName() != null) {
-            Component resolved = resolveSpecialDisplayComponent(meta.itemName(), item, playerLocale(player));
-            if (resolved != null) {
-                return resolved;
-            }
-            return meta.itemName();
-        }
-        if (meta != null && meta.displayName() != null) {
-            Component resolved = resolveSpecialDisplayComponent(meta.displayName(), item, playerLocale(player));
-            if (resolved != null) {
-                return resolved;
-            }
-            return meta.displayName();
+            nameMeta = meta.itemName();
+        } else if (meta != null && meta.displayName() != null) {
+            nameMeta = meta.displayName();
         }
 
-        if (getCustomItemId(item) == null && item.getType().isItem()) {
-            return Component.translatable(item.getType().getItemTranslationKey());
+        // 原版物品（没有自定义 id，或是带 minecraft 命名空间的 CraftEngine 包装物品）应当通过其
+        // 客户端翻译键来渲染，这样玩家自身的语言环境就能将其本地化。CraftEngine 可能会把该翻译键
+        // 作为字面名称烘焙到物品上（一个未在服务端解析的 <l10n:...>）；原样返回它会在配方 GUI 中
+        // 显示出原始的 "item.minecraft.cod"。
+        String customId = getCustomItemId(item);
+        boolean vanillaItem = (customId == null || customId.startsWith("minecraft:")) && item.getType().isItem();
+        String vanillaKey = vanillaItem ? item.getType().getItemTranslationKey() : null;
+
+        if (nameMeta != null) {
+            Component resolved = resolveSpecialDisplayComponent(nameMeta, item, locale);
+            if (resolved != null) {
+                return resolved;
+            }
+            // 仅当烘焙的名称恰好就是该物品自身的翻译键时才覆盖；真正的自定义名称
+            //（例如经铁砧重命名的物品）则保持原样不动。
+            if (vanillaKey != null && PLAIN_TEXT.serialize(nameMeta).trim().equals(vanillaKey)) {
+                return Component.translatable(vanillaKey);
+            }
+            return nameMeta;
+        }
+
+        if (vanillaItem) {
+            return Component.translatable(vanillaKey);
         }
 
         return Component.text(getDisplayName(item, player));
@@ -330,10 +355,18 @@ public final class ItemUtils {
     }
 
     private static String translateViaCraftEngine(String key, String locale) {
+        if (ceTranslationUnavailable) {
+            return null;
+        }
         try {
-            Class<?> translationManagerClass = Class.forName(
-                    "net.momirealms.craftengine.core.plugin.locale.TranslationManager");
-            Object manager = translationManagerClass.getMethod("instance").invoke(null);
+            Method instanceMethod = ceTranslationInstanceMethod;
+            if (instanceMethod == null) {
+                Class<?> translationManagerClass = Class.forName(
+                        "net.momirealms.craftengine.core.plugin.locale.TranslationManager");
+                instanceMethod = translationManagerClass.getMethod("instance");
+                ceTranslationInstanceMethod = instanceMethod;
+            }
+            Object manager = instanceMethod.invoke(null);
             if (manager == null) {
                 return null;
             }
@@ -342,22 +375,38 @@ public final class ItemUtils {
                     ? Locale.forLanguageTag(locale.replace('_', '-'))
                     : null;
 
-            try {
-                Method plainTranslation = manager.getClass().getMethod(
-                        "plainTranslation", String.class, Locale.class, String[].class);
-                Object result = plainTranslation.invoke(manager, key, loc, new String[0]);
-                if (result instanceof String text && !text.equals(key)) {
-                    return text;
+            if (!cePlainTranslationMissing) {
+                Method plainTranslation = cePlainTranslationMethod;
+                if (plainTranslation == null) {
+                    try {
+                        plainTranslation = manager.getClass().getMethod(
+                                "plainTranslation", String.class, Locale.class, String[].class);
+                        cePlainTranslationMethod = plainTranslation;
+                    } catch (NoSuchMethodException ignored) {
+                        cePlainTranslationMissing = true;
+                    }
                 }
-            } catch (NoSuchMethodException ignored) {
+                if (plainTranslation != null) {
+                    Object result = plainTranslation.invoke(manager, key, loc, new String[0]);
+                    if (result instanceof String text && !text.equals(key)) {
+                        return text;
+                    }
+                }
             }
 
-            Method miniMessageTranslation = manager.getClass().getMethod(
-                    "miniMessageTranslation", String.class, Locale.class);
+            Method miniMessageTranslation = ceMiniMessageTranslationMethod;
+            if (miniMessageTranslation == null) {
+                miniMessageTranslation = manager.getClass().getMethod(
+                        "miniMessageTranslation", String.class, Locale.class);
+                ceMiniMessageTranslationMethod = miniMessageTranslation;
+            }
             Object result = miniMessageTranslation.invoke(manager, key, loc);
             if (result instanceof String text && !text.equals(key)) {
                 return stripMiniMessageTags(text);
             }
+        } catch (ClassNotFoundException e) {
+            // CraftEngine 翻译 API 不存在；停止在每次调用时重试 forName。
+            ceTranslationUnavailable = true;
         } catch (ReflectiveOperationException | LinkageError ignored) {
         }
         return null;
@@ -529,7 +578,7 @@ public final class ItemUtils {
             return false;
         }
 
-        Key itemKey = Key.of("minecraft:" + item.getType().name().toLowerCase());
+        Key itemKey = Key.of("minecraft:" + item.getType().name().toLowerCase(java.util.Locale.ROOT));
         if (excludedItems.contains(itemKey)) {
             return false;
         }
@@ -550,8 +599,10 @@ public final class ItemUtils {
         }
         String normalized = itemId.trim();
         String customId = getCustomItemId(item);
-        if (customId != null && customId.equalsIgnoreCase(normalized)) {
-            return true;
+        if (customId != null) {
+            // CraftEngine 自定义物品仅通过其自定义 id 来标识，绝不会通过其
+            // 基础原版材质来标识，因此它无法匹配基础材质的原版 id。
+            return customId.equalsIgnoreCase(normalized);
         }
         String vanillaId = getVanillaMaterialItemId(item);
         return vanillaId != null && vanillaId.equalsIgnoreCase(normalized);
@@ -588,6 +639,21 @@ public final class ItemUtils {
             }
         }
         return Set.copyOf(tags);
+    }
+
+    public static List<String> getAllItemTagIds(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return List.of();
+        }
+        java.util.LinkedHashSet<String> tags = new java.util.LinkedHashSet<>(getItemTagIds(item));
+        for (Tag<Material> tag : Bukkit.getTags("items", Material.class)) {
+            if (tag.isTagged(item.getType())) {
+                tags.add(tag.getKey().toString());
+            }
+        }
+        List<String> sorted = new ArrayList<>(tags);
+        sorted.sort(String::compareTo);
+        return sorted;
     }
 
     public static boolean matchesCustomOrVanillaTag(ItemStack item, String tagId) {
@@ -629,15 +695,21 @@ public final class ItemUtils {
     }
 
     private static boolean isVanillaMaterialInTag(Material material, Key tagKey) {
+        Tag<Material> tag = vanillaItemTagResolveCache
+                .computeIfAbsent(tagKey, ItemUtils::resolveVanillaItemTag)
+                .orElse(null);
+        return tag != null && tag.isTagged(material);
+    }
+
+    private static Optional<Tag<Material>> resolveVanillaItemTag(Key tagKey) {
         NamespacedKey namespacedKey = NamespacedKey.fromString(tagKey.toString());
         if (namespacedKey == null) {
-            return false;
+            return Optional.empty();
         }
         try {
-            Tag<Material> tag = Bukkit.getTag("items", namespacedKey, Material.class);
-            return tag != null && tag.isTagged(material);
+            return Optional.ofNullable(Bukkit.getTag("items", namespacedKey, Material.class));
         } catch (IllegalArgumentException ignored) {
-            return false;
+            return Optional.empty();
         }
     }
 
@@ -649,7 +721,7 @@ public final class ItemUtils {
         if (customId != null) {
             return customId;
         }
-        return "minecraft:" + item.getType().name().toLowerCase();
+        return "minecraft:" + item.getType().name().toLowerCase(java.util.Locale.ROOT);
     }
 
     public static ItemStack cloneOrNull(ItemStack item) {

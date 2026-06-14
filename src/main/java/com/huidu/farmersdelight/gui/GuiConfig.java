@@ -2,7 +2,7 @@ package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.ItemUtils;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import com.huidu.farmersdelight.util.Text;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -16,10 +16,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class GuiConfig {
-
-    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacyAmpersand();
 
     private final String title;
     private final String titleLayoutOffset;
@@ -116,7 +115,7 @@ public class GuiConfig {
     }
 
     public static GuiConfig fromConfig(ConfigurationSection section) {
-        String title = section.getString("title", "GUI");
+        String title = section.getString("title", "界面");
         String titleLayoutOffset = section.getString("title-layout.craftengine.offset", "");
         String titleLayoutIcon = section.getString("title-layout.craftengine.icon", "");
         boolean fillersEnabled = section.getBoolean("fillers-enabled", true);
@@ -143,6 +142,7 @@ public class GuiConfig {
                 }
             }
         }
+        inheritBackgroundVisualOptions(items);
 
         List<GuiItem> progressItems = new ArrayList<>();
         List<Map<?, ?>> progressItemsList = section.getMapList("progress-items");
@@ -159,6 +159,17 @@ public class GuiConfig {
         warnUnknownLayoutCharacters(section.getCurrentPath(), rows, layout, legend);
         return new GuiConfig(title, titleLayoutOffset, titleLayoutIcon, fillersEnabled, rows, layout, legend, items,
                 progressItems);
+    }
+
+    static void inheritBackgroundVisualOptions(Map<String, GuiItem> items) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        GuiItem background = items.get("background");
+        GuiItem decoration = items.get("decoration");
+        if (background != null && decoration != null) {
+            items.put("decoration", decoration.withMissingVisualOptionsFrom(background));
+        }
     }
 
     private static void warnUnknownLayoutCharacters(
@@ -221,13 +232,12 @@ public class GuiConfig {
         legend.put('B', "buffer");
         legend.put('O', "output");
         legend.put('R', "recipe");
-        legend.put('X', "decoration");
+        legend.put('X', "background");
         legend.put(' ', "background");
 
         Map<String, GuiItem> items = new HashMap<>();
         items.put("background", new GuiItem(Material.GRAY_STAINED_GLASS_PANE, null, " ", List.of()));
-        items.put("decoration", new GuiItem(Material.BROWN_STAINED_GLASS_PANE, null, " ", List.of()));
-        items.put("recipe", new GuiItem(Material.KNOWLEDGE_BOOK, null, "View Recipes", List.of("Click to view all cooking pot recipes")));
+        items.put("recipe", new GuiItem(Material.KNOWLEDGE_BOOK, null, "查看配方", List.of("点击查看所有烹饪锅配方")));
 
         return new GuiConfig(
                 "<white><offset><icon>",
@@ -416,6 +426,7 @@ public class GuiConfig {
         private final List<String> lore;
         private final String nameKey;
         private final List<String> loreKeys;
+        private final List<String> commands;
         private volatile ItemStack cachedNoPlaceholders;
         private volatile ItemStack cachedCustomBase;
         private volatile Boolean cachedCustomBaseIsReal;
@@ -435,6 +446,12 @@ public class GuiConfig {
 
         public GuiItem(Material material, Key customItemId, Integer customModelData, String itemModel,
                        boolean hideTooltip, String name, List<String> lore, String nameKey, List<String> loreKeys) {
+            this(material, customItemId, customModelData, itemModel, hideTooltip, name, lore, nameKey, loreKeys, List.of());
+        }
+
+        public GuiItem(Material material, Key customItemId, Integer customModelData, String itemModel,
+                       boolean hideTooltip, String name, List<String> lore, String nameKey, List<String> loreKeys,
+                       List<String> commands) {
             this.material = material;
             this.customItemId = customItemId;
             this.customModelData = customModelData;
@@ -448,6 +465,17 @@ public class GuiConfig {
             } else {
                 this.loreKeys = List.of();
             }
+            if (commands != null && !commands.isEmpty()) {
+                List<String> normalizedCommands = new ArrayList<>();
+                for (String command : commands) {
+                    if (command != null && !command.isBlank()) {
+                        normalizedCommands.add(command.trim());
+                    }
+                }
+                this.commands = List.copyOf(normalizedCommands);
+            } else {
+                this.commands = List.of();
+            }
         }
 
         public static GuiItem fromConfig(ConfigurationSection section) {
@@ -455,7 +483,7 @@ public class GuiConfig {
             Material material = null;
             if (materialName != null && !materialName.isEmpty()) {
                 try {
-                    material = Registry.MATERIAL.get(NamespacedKey.minecraft(materialName.toLowerCase()));
+                    material = Registry.MATERIAL.get(NamespacedKey.minecraft(materialName.toLowerCase(java.util.Locale.ROOT)));
                 } catch (Exception e) {
                     material = Material.GRAY_STAINED_GLASS_PANE;
                 }
@@ -490,9 +518,10 @@ public class GuiConfig {
             }
             boolean hideTooltip = section.getBoolean("hide-tooltip",
                     section.getBoolean("hide_tooltip", section.getBoolean("hideTooltip", false)));
+            List<String> commands = readCommands(section);
 
             return new GuiItem(material, customItemId, customModelData, itemModel, hideTooltip,
-                    name, lore, nameKey, loreKeys);
+                    name, lore, nameKey, loreKeys, commands);
         }
 
         public static GuiItem fromMap(Map<?, ?> map) {
@@ -504,7 +533,7 @@ public class GuiConfig {
             Object materialValue = map.get("material");
             if (materialValue != null) {
                 try {
-                    material = Registry.MATERIAL.get(NamespacedKey.minecraft(materialValue.toString().toLowerCase()));
+                    material = Registry.MATERIAL.get(NamespacedKey.minecraft(materialValue.toString().toLowerCase(java.util.Locale.ROOT)));
                 } catch (Exception ignored) {
                     material = Material.GRAY_STAINED_GLASS_PANE;
                 }
@@ -552,6 +581,7 @@ public class GuiConfig {
             boolean hideTooltip = parseBoolean(map.containsKey("hide-tooltip")
                     ? map.get("hide-tooltip")
                     : (map.containsKey("hide_tooltip") ? map.get("hide_tooltip") : map.get("hideTooltip")));
+            List<String> commands = readCommands(map);
             List<String> lore = new ArrayList<>();
             Object loreValue = map.get("lore");
             if (loreValue instanceof List<?> loreList) {
@@ -572,7 +602,27 @@ public class GuiConfig {
             }
 
             return new GuiItem(material, customItemId, customModelData, itemModel, hideTooltip,
-                    name, lore, nameKey, loreKeys);
+                    name, lore, nameKey, loreKeys, commands);
+        }
+
+        private GuiItem withMissingVisualOptionsFrom(GuiItem fallback) {
+            if (fallback == null) {
+                return this;
+            }
+            Integer resolvedCustomModelData = this.customModelData != null ? this.customModelData : fallback.customModelData;
+            String resolvedItemModel = hasText(this.itemModel) ? this.itemModel : fallback.itemModel;
+            boolean resolvedHideTooltip = this.hideTooltip || fallback.hideTooltip;
+            if (Objects.equals(resolvedCustomModelData, this.customModelData)
+                    && Objects.equals(resolvedItemModel, this.itemModel)
+                    && resolvedHideTooltip == this.hideTooltip) {
+                return this;
+            }
+            return new GuiItem(material, customItemId, resolvedCustomModelData, resolvedItemModel, resolvedHideTooltip,
+                    name, lore, nameKey, loreKeys, commands);
+        }
+
+        private static boolean hasText(String value) {
+            return value != null && !value.isBlank();
         }
 
         public Material getMaterial() {
@@ -599,8 +649,17 @@ public class GuiConfig {
             return lore;
         }
 
+        public List<String> getCommands() {
+            return commands;
+        }
+
+        public boolean hasCommands() {
+            return commands != null && !commands.isEmpty();
+        }
+
         public ItemStack createItem() {
-            return createItem(new HashMap<>());
+            // 用不可变空 map，避免每次（每个槽位、每次重绘）都分配一个用不到的 HashMap。
+            return createItem(Map.of());
         }
 
         public ItemStack createItem(Map<String, String> placeholders) {
@@ -623,7 +682,7 @@ public class GuiConfig {
 
             if (!builtFromCustomItem && (name != null || nameKey != null)) {
                 String processedName = applyPlaceholders(resolveText(name, nameKey), placeholders);
-                meta.displayName(LEGACY.deserialize(processedName));
+                meta.displayName(Text.name(processedName));
             }
 
             if ((lore != null && !lore.isEmpty()) || !loreKeys.isEmpty()) {
@@ -633,11 +692,11 @@ public class GuiConfig {
                 }
                 if (lore != null) {
                     for (String line : lore) {
-                        processedLore.add(LEGACY.deserialize(applyPlaceholders(line, placeholders)));
+                        processedLore.add(Text.lore(applyPlaceholders(line, placeholders)));
                     }
                 }
                 for (String key : loreKeys) {
-                    processedLore.add(LEGACY.deserialize(applyPlaceholders(resolveText(null, key), placeholders)));
+                    processedLore.add(Text.lore(applyPlaceholders(resolveText(null, key), placeholders)));
                 }
                 meta.lore(processedLore);
             }
@@ -700,22 +759,14 @@ public class GuiConfig {
             if (key == null) {
                 return;
             }
-            try {
-                Method setter = meta.getClass().getMethod("setItemModel", NamespacedKey.class);
-                setter.invoke(meta, key);
-            } catch (ReflectiveOperationException ignored) {
-            }
+            meta.setItemModel(key);
         }
 
         private void applyHideTooltip(ItemMeta meta, boolean hideTooltip) {
             if (!hideTooltip) {
                 return;
             }
-            try {
-                Method setter = meta.getClass().getMethod("setHideTooltip", boolean.class);
-                setter.invoke(meta, true);
-            } catch (ReflectiveOperationException ignored) {
-            }
+            meta.setHideTooltip(true);
         }
 
         private static NamespacedKey parseNamespacedKey(String value) {
@@ -735,6 +786,38 @@ public class GuiConfig {
 
         private static boolean parseBoolean(Object value) {
             return value != null && Boolean.parseBoolean(value.toString());
+        }
+
+        private static List<String> readCommands(ConfigurationSection section) {
+            List<String> commands = new ArrayList<>();
+            appendCommandValue(commands, section.get("command"));
+            appendCommandValue(commands, section.get("commands"));
+            appendCommandValue(commands, section.get("cmd"));
+            return commands;
+        }
+
+        private static List<String> readCommands(Map<?, ?> map) {
+            List<String> commands = new ArrayList<>();
+            appendCommandValue(commands, map.get("command"));
+            appendCommandValue(commands, map.get("commands"));
+            appendCommandValue(commands, map.get("cmd"));
+            return commands;
+        }
+
+        private static void appendCommandValue(List<String> commands, Object value) {
+            if (value == null) {
+                return;
+            }
+            if (value instanceof Iterable<?> iterable) {
+                for (Object entry : iterable) {
+                    appendCommandValue(commands, entry);
+                }
+                return;
+            }
+            String command = value.toString().trim();
+            if (!command.isEmpty()) {
+                commands.add(command);
+            }
         }
 
         private String resolveText(String fallback, String key) {
@@ -766,4 +849,3 @@ public class GuiConfig {
         }
     }
 }
-

@@ -1,43 +1,4 @@
 ﻿items:
-  farmersdelight:sandy_shrub:
-    data:
-      item-name: <l10n:block.farmersdelight.sandy_shrub>
-    texture: farmersdelight:block/sandy_shrub
-    behavior:
-      type: block_item
-      block:
-        settings:
-          template:
-            - default:hardness/none
-            - default:sound/grass
-        overrides:
-          item: farmersdelight:sandy_shrub
-          push-reaction: destroy
-        behavior:
-          - type: liquid_flowable_block
-          - type: bush_block
-            bottom-block-tags:
-              - minecraft:sand
-        state:
-          auto-state: higher_tripwire
-          models:
-            - path: farmersdelight:block/sandy_shrub
-        loot:
-          pools:
-            - rolls: 1
-              entries:
-                - type: alternatives
-                  children:
-                    - type: item
-                      item: farmersdelight:sandy_shrub
-                      conditions:
-                        - type: enchantment
-                          predicate: minecraft:silk_touch>=1
-                    - type: item
-                      item: minecraft:beetroot_seeds
-                      conditions:
-                        - type: random
-                          chance: 0.01
   farmersdelight:wild_cabbages:
     data:
       item-name: <l10n:block.farmersdelight.wild_cabbages>
@@ -58,7 +19,10 @@
           - type: liquid_flowable_block
           - type: bush_block
             bottom-block-tags:
+              - minecraft:dirt
               - minecraft:sand
+          - type: farmersdelight:wild_plant
+            is-bone-meal-target: true
         state:
           auto-state: sugar_cane
           models:
@@ -111,7 +75,11 @@
           - type: bush_block
             bottom-block-tags:
               - minecraft:dirt
+              - minecraft:sand
+            bottom-blocks:
               - minecraft:grass_block
+          - type: farmersdelight:wild_plant
+            is-bone-meal-target: true
         state:
           auto-state: sugar_cane
           models:
@@ -156,7 +124,11 @@
           - type: bush_block
             bottom-block-tags:
               - minecraft:dirt
+              - minecraft:sand
+            bottom-blocks:
               - minecraft:grass_block
+          - type: farmersdelight:wild_plant
+            is-bone-meal-target: true
         state:
           auto-state: sugar_cane
           models:
