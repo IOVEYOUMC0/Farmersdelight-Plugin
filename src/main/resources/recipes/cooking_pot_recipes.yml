@@ -1,29 +1,29 @@
 # ========================================
-# 炖锅配方配置
+# Cooking pot recipe configuration
 # ========================================
 #
-# 格式：
+# Format:
 #   <recipe_id>:
-#     ingredients:           # 原料列表，最多 6 项
-#       - <item_id_or_tag>   # 标签需以 # 开头
-#                            # 标签排除写法："#namespace:tag,!namespace:item,!#namespace:other_tag"
-#                            # 同一槽位的可选项写法："item_a|item_b|#namespace:tag"
-#     container: <item_id>   # 可选，例如碗或玻璃瓶
+#     ingredients:           # ingredient list, up to 6 entries
+#       - <item_id_or_tag>   # tags must start with #
+#                            # tag exclusion: "#namespace:tag,!namespace:item,!#namespace:other_tag"
+#                            # alternatives for the same slot: "item_a|item_b|#namespace:tag"
+#     container: <item_id>   # optional, e.g. a bowl or glass bottle
 #     result: <item_id>
-#     result-count: <count>  # 可选，默认为 1
-#     experience: <number>   # 可选，默认为 0
-#     cook-time: <ticks>     # 可选；默认值与上下限见 config.yml 中的 cooking-pot.cooking
-#     category: <type>       # 可选：meals、drinks、misc
-#     priority: <number>     # 可选；当配方重叠时，优先级更高者生效
+#     result-count: <count>  # optional, default 1
+#     experience: <number>   # optional, default 0
+#     cook-time: <ticks>     # optional; default and bounds are in cooking-pot.cooking in config.yml
+#     category: <type>       # optional: meals, drinks, misc
+#     priority: <number>     # optional; when recipes overlap, the higher priority wins
 #
-# 自定义炖锅配方：
-#   使用 custom_cooking_pot_recipes.<id>，其中 <id> 需与 CraftEngine 方块行为中的
-#   behavior.custom.id 相匹配。配方主体与上文相同，
-#   但自定义炖锅在其 input-slots 允许时可使用超过 6 种原料。
-#   自定义炖锅仍可使用默认的 cooking_pot_recipes。自定义分组中的配方
-#   会被优先检查，且具有相同 id 的自定义配方会在配方 GUI 中
-#   覆盖默认配方。
-# 示例：
+# Custom cooking pot recipes:
+#   Use custom_cooking_pot_recipes.<id>, where <id> must match
+#   behavior.custom.id in the CraftEngine block behavior. The recipe body is the same as above,
+#   but a custom pot may use more than 6 ingredients when its input-slots allow it.
+#   Custom pots can still use the default cooking_pot_recipes. Recipes in a custom group
+#   are checked first, and a custom recipe with the same id overrides
+#   the default recipe in the recipe GUI.
+# Example:
 # custom_cooking_pot_recipes:
 #   custom:
 #     large_stew:
@@ -35,7 +35,7 @@
 
 cooking_pot_recipes:
   # ========================================
-  # 主菜
+  # Main dishes
   # ========================================
   
   beef_stew:
@@ -153,7 +153,7 @@ cooking_pot_recipes:
     category: meals
   
   # ========================================
-  # 米饭类菜肴
+  # Rice dishes
   # ========================================
   
   cooked_rice:
@@ -190,7 +190,7 @@ cooking_pot_recipes:
     category: meals
   
   # ========================================
-  # 面条与意面
+  # Noodles and pasta
   # ========================================
   
   vegetable_noodles:
@@ -253,7 +253,7 @@ cooking_pot_recipes:
     category: meals
   
   # ========================================
-  # 酱料
+  # Sauces
   # ========================================
   
   tomato_sauce:
@@ -266,7 +266,7 @@ cooking_pot_recipes:
     category: misc
   
   # ========================================
-  # 饮品
+  # Drinks
   # ========================================
   
   hot_cocoa:
@@ -305,9 +305,9 @@ cooking_pot_recipes:
     category: drinks
   
   # ========================================
-  # 其他
+  # Other
   # ========================================
-  
+
   dumplings:
     ingredients:
       - "farmersdelight:wheat_dough"

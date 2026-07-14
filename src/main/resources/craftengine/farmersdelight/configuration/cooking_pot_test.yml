@@ -1,0 +1,97 @@
+# ============================================================================
+# Test: custom cooking pot variant `farmersdelight:large_pot`
+# ============================================================================
+#
+# This file is shipped with everything commented out so it has no effect by
+# default. Uncomment the two sections below + the two matching commented
+# entries in gui.yml (`cooking-pot-guis.large_pot` and
+# `recipe-detail-cooking-pot-guis.large_pot`) to register a fully self-
+# contained custom cooking pot.
+#
+# Purpose: exercise the per-variant pack/unpack path end to end —
+#   * `data-key: farmersdelight:large_pot` isolates the packed NBT key, so
+#     a packed large_pot doesn't clash with the default cooking_pot's data.
+#   * `custom.id: large_pot` links the block behavior to gui.yml's per-id
+#     GUI map (both `cooking-pot-guis` and `recipe-detail-cooking-pot-guis`).
+#   * `custom.input-slots: 6` doubles the default 3 ingredient slots,
+#     exercising the layout-override path.
+#
+# To test (after uncommenting all 4 sections):
+#   1. /ce reload   or   restart the server.
+#   2. /ce give @s farmersdelight:large_pot   (creative-place the test pot).
+#   3. Drop some ingredients in, close, break the pot. The packed item should
+#      drop with the meal lore + bar + hidden Durability line (just like the
+#      default pot). Re-place it: contents restored.
+
+#items:
+#  farmersdelight:large_pot:
+#    data:
+#      item-name: <!i><white>Large Cooking Pot
+#    model: farmersdelight:block/cooking_pot   # reuses the default mesh — no new textures needed
+#    behavior:
+#      type: ground_block_item
+#      block: farmersdelight:large_pot
+
+#blocks:
+#  farmersdelight:large_pot:
+#    settings:
+#      hardness: 1
+#      resistance: 1
+#      push-reaction: block
+#      tags:
+#      - minecraft:mineable/pickaxe
+#      sounds:
+#        break: minecraft:block.lantern.break
+#        fall: minecraft:block.lantern.fall
+#        hit: minecraft:block.lantern.hit
+#        place: minecraft:block.lantern.place
+#        step: minecraft:block.lantern.step
+#    behavior:
+#    - type: farmersdelight:cooking_pot
+#      data-key: farmersdelight:large_pot
+#      custom:
+#        id: large_pot
+#        input-slots: 6
+#        output-slots: 2
+#      boil-sound: farmersdelight:block.cooking_pot.boil
+#      soup-boil-sound: farmersdelight:block.cooking_pot.boil_soup
+#      sound-chance: 0.1
+#      sound-volume: 0.5
+#      sound-pitch-min: 0.9
+#      sound-pitch-max: 1.1
+#    loot:
+#      template: default:loot_table/self
+#    states:
+#      properties:
+#        facing:
+#          type: 4-direction
+#          default: north
+#      appearances:
+#        east:
+#          auto-state: cactus
+#          model:
+#            path: farmersdelight:block/cooking_pot
+#            y: 90
+#        north:
+#          auto-state: cactus
+#          model:
+#            path: farmersdelight:block/cooking_pot
+#        south:
+#          auto-state: cactus
+#          model:
+#            path: farmersdelight:block/cooking_pot
+#            y: 180
+#        west:
+#          auto-state: cactus
+#          model:
+#            path: farmersdelight:block/cooking_pot
+#            y: 270
+#      variants:
+#        facing=east:
+#          appearance: east
+#        facing=north:
+#          appearance: north
+#        facing=south:
+#          appearance: south
+#        facing=west:
+#          appearance: west

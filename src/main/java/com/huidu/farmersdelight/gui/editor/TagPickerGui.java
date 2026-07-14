@@ -32,9 +32,9 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 /**
- * 用于选择标签（tag）配料的两页选择器。第一页列出源物品所属的每一个标签；左键点击
- * 直接使用该标签，右键点击则打开第二页，第二页列出该标签下的成员物品，供玩家
- * 切换排除项。布局和文本来自 gui.yml 中的 recipe-tag-picker-gui 部分。
+ * A two-page picker for selecting a tag ingredient. The first page lists every tag the source item belongs to; left-click
+ * uses that tag directly, right-click opens the second page, which lists the tag's member items for the player to
+ * toggle exclusions. Layout and text come from the recipe-tag-picker-gui section of gui.yml.
  */
 public final class TagPickerGui implements EditorGui {
 

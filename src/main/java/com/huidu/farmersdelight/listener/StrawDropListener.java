@@ -4,7 +4,6 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.block.behavior.TallCropBlockBehavior;
 import com.huidu.farmersdelight.config.StrawDropConfig;
-import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
@@ -29,19 +28,19 @@ public class StrawDropListener implements Listener {
 
     private final FarmersDelightPlugin plugin;
 
-    // 缓存“自定义物品 id -> 是否算小刀（按 id 或标签判定）”，避免每次破坏方块都重新分配
-    // ItemUtils.getCustomItemTags(...) 的 Set 并做嵌套 stream 扫描。
-    // 仅缓存自定义物品（customId != null）的判定；vanilla 短路逻辑不入缓存。
-    // 用 ConcurrentHashMap 是因为 onBlockBreak 在 Folia 下可能由不同 region 线程触发。
+    // Caches "custom item id -> is knife (by id or tag)" to avoid reallocating the
+    // ItemUtils.getCustomItemTags(...) Set and running a nested stream scan on every block break.
+    // Only custom items (customId != null) are cached; the vanilla short-circuit isn't cached.
+    // ConcurrentHashMap because onBlockBreak may be triggered by different region threads on Folia.
     private final Map<String, Boolean> knifeCache = new ConcurrentHashMap<>();
 
-    // 失效依据：FarmersDelightPlugin 在 onEnable 只 new 出一个 StrawDropListener 实例，
-    // /fd reload（reloadAll / reloadMainConfigOnly）只调用 loadConfigs() 在“同一实例”上
-    // 把 knifeItemIds / knifeTagIds 重新赋值为全新的不可变 Set，并不会重建本监听器。
-    // 因此实例字段缓存不会随 reload 自动失效。而本文件不允许改动 FarmersDelightPlugin，
-    // 无法在重载路径里显式调用清空方法，于是改用“引用身份快照”来检测重载：
-    // loadConfigs() 每次都生成全新的 Set 对象（toUnmodifiableSet / Set.of），且这些 Set 不可变、
-    // 只会被整体替换而不会原地修改，故只要任一引用发生变化即说明 knife 配置已重载，需清空缓存。
+    // Invalidation rationale: FarmersDelightPlugin only news up one StrawDropListener in onEnable, and
+    // /fd reload (reloadAll / reloadMainConfigOnly) only calls loadConfigs() on the same instance to
+    // reassign knifeItemIds / knifeTagIds to brand-new immutable Sets, without rebuilding this listener.
+    // So the instance-field cache isn't auto-invalidated on reload. Since this file may not modify FarmersDelightPlugin,
+    // there's no way to explicitly call a clear method in the reload path, so a "reference-identity snapshot" detects reloads:
+    // loadConfigs() always produces fresh Set objects (toUnmodifiableSet / Set.of), and those Sets are immutable,
+    // replaced wholesale rather than mutated in place, so any reference change means the knife config reloaded and the cache must be cleared.
     private volatile Set<String> cachedKnifeItemIds;
     private volatile Set<String> cachedKnifeTagIds;
 
@@ -49,8 +48,8 @@ public class StrawDropListener implements Listener {
         this.plugin = plugin;
     }
 
-    // 若 plugin 当前的 knife 配置 Set 与缓存构建时捕获的引用不同（即发生过 /fd reload），
-    // 则清空缓存并刷新快照，保证 reload 后返回的是新结果。
+    // If the plugin's current knife config Sets differ from the references captured when the cache was built (i.e. a /fd reload happened),
+    // clear the cache and refresh the snapshot so post-reload results are returned.
     private void invalidateKnifeCacheIfConfigReloaded() {
         Set<String> currentItemIds = plugin.getKnifeItemIds();
         Set<String> currentTagIds = plugin.getKnifeTagIds();
@@ -87,12 +86,12 @@ public class StrawDropListener implements Listener {
 
         String customItemId = ItemUtils.getCustomItemId(item);
 
-        // vanilla（customId == null）保持原有短路逻辑，不进缓存。
+        // Vanilla items (customId == null) short-circuit immediately and don't enter the cache.
         if (customItemId == null) {
             return false;
         }
 
-        // 在读取缓存前先检测是否发生过 /fd reload，必要时清空过期结果。
+        // Detect whether a /fd reload happened before reading the cache, clearing stale results if needed.
         invalidateKnifeCacheIfConfigReloaded();
 
         Boolean cached = knifeCache.get(customItemId);
@@ -105,7 +104,7 @@ public class StrawDropListener implements Listener {
         return result;
     }
 
-    // 实际判定：先按 id 命中 knife 集合，否则走标签兜底。仅在缓存未命中时调用一次。
+    // Actual check: match the knife id set first, otherwise fall back to tags. Called only once on a cache miss.
     private boolean computeIsKnife(String customItemId) {
         if (plugin.isKnifeItemId(customItemId)) {
             return true;
@@ -154,7 +153,7 @@ public class StrawDropListener implements Listener {
             return false;
         }
 
-        if (!Constants.BLOCK_RICE.equals(CustomBlockUtils.getId(state))) {
+        if (!CustomBlockUtils.hasBehavior(state, TallCropBlockBehavior.class)) {
             return false;
         }
 
@@ -179,7 +178,7 @@ public class StrawDropListener implements Listener {
             return behavior.isLowerHalf(lowerState) && behavior.isLowerMature(lowerState);
         }
         Integer lowerAge = CustomBlockUtils.getPropertyInt(lowerState, "age");
-        return Constants.BLOCK_RICE.equals(CustomBlockUtils.getId(lowerState))
+        return CustomBlockUtils.hasBehavior(lowerState, TallCropBlockBehavior.class)
                 && lowerAge != null
                 && lowerAge >= 4;
     }

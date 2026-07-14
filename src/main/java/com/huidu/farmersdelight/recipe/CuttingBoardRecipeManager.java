@@ -14,10 +14,28 @@ import java.util.*;
 public class CuttingBoardRecipeManager {
 
     private final FarmersDelightPlugin plugin;
-    // 在重载时整体重建；通过 volatile 写操作整体发布，使得 Folia 区域/实体线程上的读取方
-    // 永远不会观察到一个被清空了一半的 map。发布之后绝不可原地修改。
+    // Rebuilt as a whole on reload; published as a whole via volatile writes so readers on Folia
+    // region/entity threads never observe a half-cleared map. Never mutate in place after publishing.
     private volatile Map<String, CuttingBoardRecipe> recipes = Map.of();
     private volatile List<CuttingBoardRecipe> sortedRecipes = List.of();
+    // Input index for matchRecipe — narrows the candidate set without changing match order. Splits recipes
+    // into two buckets at load time:
+    //   - byInputItemId: Item-typed recipes keyed by their input's literal item id (e.g. "minecraft:carrot")
+    //   - tagInputRecipeIds: every Tag-typed recipe's id (these always need a full matchesTaggedItem check
+    //     because vanilla tags aren't surfaced through ItemUtils.getItemTagIds, so we can't index them)
+    // Query gathers candidates = byInputItemId[input.ids] ∪ tagInputRecipeIds, then iterates sortedRecipes
+    // filtered by that set — sortedRecipes order (priority + id) preserved exactly.
+    private volatile Map<String, Set<String>> byInputItemId = Map.of();
+    private volatile Set<String> tagInputRecipeIds = Set.of();
+    // Recipes registered at runtime by addons via the public API; kept separate so they survive a
+    // /fd reload (which rebuilds the file-backed map) and merged into the published map in loadRecipes().
+    private final Map<String, CuttingBoardRecipe> externalRecipes = new java.util.concurrent.ConcurrentHashMap<>();
+    // External (un)register republishing is coalesced to the next tick (one loadRecipes() per batch).
+    private volatile boolean externalRepublishScheduled = false;
+    // Caches CraftEngine's vanillaItemIdsByTag result per tag so matchesTaggedItem doesn't re-stream
+    // the full vanilla tag membership on every cutting click (mirrors CookingPotRecipeManager).
+    // Cleared in loadRecipes(). Concurrent: read on Folia region/entity threads.
+    private final Map<Key, Set<String>> vanillaItemIdsByTagCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     public CuttingBoardRecipeManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -27,6 +45,9 @@ public class CuttingBoardRecipeManager {
         Map<String, CuttingBoardRecipe> newRecipes = new LinkedHashMap<>();
         RecipeFileLoader.loadRecipeSections(plugin, "recipes/cutting_board_recipes.yml", "cutting_board_recipes", "cutting board",
                 (recipeId, section) -> newRecipes.put(recipeId, parseRecipe(recipeId, section)));
+
+        // Merge addon-registered recipes last so they survive reloads (and override file ids on clash).
+        newRecipes.putAll(externalRecipes);
 
         List<CuttingBoardRecipe> newSorted;
         if (newRecipes.isEmpty()) {
@@ -38,8 +59,49 @@ public class CuttingBoardRecipeManager {
             newSorted = Collections.unmodifiableList(sorted);
         }
 
+        Map<String, Set<String>> newByItemId = new HashMap<>();
+        Set<String> newTagInputRecipeIds = new HashSet<>();
+        for (CuttingBoardRecipe recipe : newSorted) {
+            RecipeIngredient ingredient = recipe.getInput();
+            if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
+                String key = itemIngredient.key().toString().toLowerCase(Locale.ROOT);
+                newByItemId.computeIfAbsent(key, k -> new HashSet<>()).add(recipe.getId());
+            } else if (ingredient instanceof RecipeIngredient.Tag) {
+                // Tag-typed: can't index by tag because vanilla tags aren't surfaced via getItemTagIds.
+                // Keep them all in tagInputRecipeIds so candidate set always includes them.
+                newTagInputRecipeIds.add(recipe.getId());
+            }
+        }
+        Map<String, Set<String>> frozenByItemId = new HashMap<>(newByItemId.size());
+        for (Map.Entry<String, Set<String>> e : newByItemId.entrySet()) {
+            frozenByItemId.put(e.getKey(), Set.copyOf(e.getValue()));
+        }
+
         this.recipes = newRecipes;
         this.sortedRecipes = newSorted;
+        this.byInputItemId = Map.copyOf(frozenByItemId);
+        this.tagInputRecipeIds = Set.copyOf(newTagInputRecipeIds);
+        vanillaItemIdsByTagCache.clear();
+        // Invalidate the recipe-list GUI display cache: this republish path (incl. addon register/
+        // unregister) bypasses RecipeViewGui.clearConfigCache.
+        com.huidu.farmersdelight.gui.RecipeViewGui.clearRecipeDisplayCache();
+    }
+
+    private Set<String> getVanillaItemIdsByTag(Key tagKey) {
+        if (tagKey == null) {
+            return Set.of();
+        }
+        return vanillaItemIdsByTagCache.computeIfAbsent(tagKey, key -> {
+            var craftEngine = plugin.getCraftEngine();
+            if (craftEngine == null || craftEngine.itemManager() == null) {
+                return Set.of();
+            }
+            Set<String> itemIds = new HashSet<>();
+            for (var itemId : craftEngine.itemManager().vanillaItemIdsByTag(key)) {
+                itemIds.add(itemId.toString());
+            }
+            return itemIds.isEmpty() ? Set.of() : Collections.unmodifiableSet(itemIds);
+        });
     }
 
     private CuttingBoardRecipe parseRecipe(String id, ConfigurationSection section) {
@@ -54,8 +116,8 @@ public class CuttingBoardRecipeManager {
             throw new IllegalArgumentException("Invalid input ingredient: " + inputStr);
         }
 
-        // 支持标量形式的 'tool:' 或复数形式的 'tools:' 列表（或两者同时存在）。'tools' 优先；
-        // 'tool' 作为兜底。只要求两者中至少存在一个。
+        // Support a scalar 'tool:' or a plural 'tools:' list (or both). 'tools' takes precedence;
+        // 'tool' is the fallback. Only requires at least one of the two.
         String toolStr = section.getString("tool");
         List<String> toolStrings = section.getStringList("tools");
         if (toolStrings.isEmpty() && toolStr != null && !toolStr.isBlank()) {
@@ -74,13 +136,17 @@ public class CuttingBoardRecipeManager {
         
         List<Map<?, ?>> resultsList = section.getMapList("results");
         for (Map<?, ?> resultMap : resultsList) {
-            String itemId = resultMap.get("item") != null ? resultMap.get("item").toString() : null;
-            if (itemId == null) continue;
-            
+            // Cache each .get(...) once — Map.get is O(1) but allocates an entry traversal under
+            // contention and the resultsList loop runs per-recipe on every config (re)load.
+            Object itemValue = resultMap.get("item");
+            if (itemValue == null) continue;
+            String itemId = itemValue.toString();
+
             int count = 1;
-            if (resultMap.get("count") != null) {
+            Object countValue = resultMap.get("count");
+            if (countValue != null) {
                 try {
-                    count = Integer.parseInt(resultMap.get("count").toString());
+                    count = Integer.parseInt(countValue.toString());
                 } catch (NumberFormatException e) {
                     if (plugin.isDebugEnabled()) {
                         plugin.getLogger().fine(I18n.formatConsole("recipe.invalid_count", "error", e.getMessage()));
@@ -88,11 +154,12 @@ public class CuttingBoardRecipeManager {
                 }
             }
             count = Math.max(1, count);
-            
+
             double chance = 1.0d;
-            if (resultMap.get("chance") != null) {
+            Object chanceValue = resultMap.get("chance");
+            if (chanceValue != null) {
                 try {
-                    chance = Math.max(0.0d, Math.min(1.0d, Double.parseDouble(resultMap.get("chance").toString())));
+                    chance = Math.max(0.0d, Math.min(1.0d, Double.parseDouble(chanceValue.toString())));
                 } catch (NumberFormatException e) {
                     if (plugin.isDebugEnabled()) {
                         plugin.getLogger().fine(I18n.formatConsole("recipe.invalid_chance", "error", e.getMessage()));
@@ -172,11 +239,15 @@ public class CuttingBoardRecipeManager {
 
     public CuttingBoardRecipe matchRecipe(ItemStack input, ItemStack tool) {
         String toolId = ItemUtils.getCustomItemId(tool);
-        // ToolContext 只取决于工具本身，与具体配方无关；在循环外构建一次，避免每个配方都重复
-        // 做 CraftEngine 标签/ID 查找和集合分配（切割是逐次点击的热路径）。
+        // ToolContext depends only on the tool itself, not on any recipe; build it once outside the loop to avoid
+        // repeating CraftEngine tag/ID lookups and set allocations per recipe (cutting is a per-click hot path).
         ToolContext toolContext = ToolContext.from(plugin, tool, toolId);
 
+        Set<String> candidates = candidateRecipeIds(input);
         for (CuttingBoardRecipe recipe : sortedRecipes) {
+            if (candidates != null && !candidates.contains(recipe.getId())) {
+                continue;
+            }
             if (matchesInput(recipe, input) && matchesTool(recipe, toolContext)) {
                 return recipe;
             }
@@ -187,10 +258,39 @@ public class CuttingBoardRecipeManager {
 
     public boolean hasAnyRecipeFor(ItemStack input) {
         if (input == null || input.getType().isAir()) return false;
+        Set<String> candidates = candidateRecipeIds(input);
         for (CuttingBoardRecipe recipe : sortedRecipes) {
+            if (candidates != null && !candidates.contains(recipe.getId())) {
+                continue;
+            }
             if (matchesInput(recipe, input)) return true;
         }
         return false;
+    }
+
+    /** Candidate recipe ids whose declared input could match input: Item-typed recipes whose
+     *  literal key matches one of the input's item ids, plus EVERY Tag-typed recipe (their tag may resolve
+     *  to a vanilla item tag that isn't surfaced via getItemTagIds, so we don't try to filter them).
+     *  Returns null when the index is empty / input is air — caller iterates sortedRecipes unfiltered. */
+    private Set<String> candidateRecipeIds(ItemStack input) {
+        Map<String, Set<String>> byId = this.byInputItemId;
+        Set<String> tagIds = this.tagInputRecipeIds;
+        if ((byId.isEmpty() && tagIds.isEmpty()) || input == null || input.getType().isAir()) {
+            return null;
+        }
+        Set<String> result = null;
+        for (String itemId : ItemUtils.getItemIds(input)) {
+            Set<String> bucket = byId.get(itemId.toLowerCase(Locale.ROOT));
+            if (bucket == null || bucket.isEmpty()) continue;
+            if (result == null) result = new HashSet<>(bucket);
+            else result.addAll(bucket);
+        }
+        if (!tagIds.isEmpty()) {
+            if (result == null) result = new HashSet<>(tagIds);
+            else result.addAll(tagIds);
+        }
+        // No bucket hit and no tag-typed recipes: empty Set (not null) → matchRecipe loop early-skips every recipe.
+        return result == null ? Set.of() : result;
     }
 
     private boolean matchesInput(CuttingBoardRecipe recipe, ItemStack input) {
@@ -281,15 +381,13 @@ public class CuttingBoardRecipeManager {
             return excludedTags.stream().map(Key::toString).noneMatch(itemTags::contains);
         }
 
-        boolean matchesBase = vanillaId != null && (plugin.getCraftEngine().itemManager().vanillaItemIdsByTag(tagKey).stream()
-                .anyMatch(k -> k.toString().equals(vanillaId))
+        boolean matchesBase = vanillaId != null && (getVanillaItemIdsByTag(tagKey).contains(vanillaId)
                 || ItemUtils.matchesVanillaItemTag(item, tagKey, excludedItems, excludedTags));
         if (!matchesBase) {
             return false;
         }
-        return excludedTags.stream().noneMatch(excludedTag -> vanillaId != null &&
-                plugin.getCraftEngine().itemManager().vanillaItemIdsByTag(excludedTag).stream()
-                        .anyMatch(k -> k.toString().equals(vanillaId)));
+        return excludedTags.stream().noneMatch(excludedTag ->
+                vanillaId != null && getVanillaItemIdsByTag(excludedTag).contains(vanillaId));
     }
 
     public Map<String, CuttingBoardRecipe> getRecipes() {
@@ -310,6 +408,64 @@ public class CuttingBoardRecipeManager {
 
     public void reload() {
         loadRecipes();
+    }
+
+    /**
+     * Registers (or replaces) an addon-supplied cutting-board recipe at runtime and republishes. Retained
+     * across /fd reload. inputSpec/toolSpec use the recipe-file syntax ("ns:id" or
+     * "#ns:tag"); each result stack carries its own amount and is dropped with 100% chance.
+     */
+    public void registerExternalRecipe(String id, String inputSpec, String toolSpec,
+                                       List<ItemStack> results, String sound) {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("Recipe id is required");
+        }
+        if (inputSpec == null || inputSpec.isBlank()) {
+            throw new IllegalArgumentException("Recipe must have an input");
+        }
+        if (toolSpec == null || toolSpec.isBlank()) {
+            throw new IllegalArgumentException("Recipe must have a tool");
+        }
+        RecipeIngredient input = parseIngredient(inputSpec);
+        ItemStack inputDisplay = createDisplayItem(input);
+        if (inputDisplay == null) {
+            throw new IllegalArgumentException("Invalid input ingredient: " + inputSpec);
+        }
+        List<CuttingBoardRecipe.ResultEntry> entries = new ArrayList<>();
+        if (results != null) {
+            for (ItemStack result : results) {
+                if (result != null && !result.getType().isAir()) {
+                    entries.add(new CuttingBoardRecipe.ResultEntry(result.clone(), 1.0d));
+                }
+            }
+        }
+        if (entries.isEmpty()) {
+            throw new IllegalArgumentException("Recipe must have at least one valid result");
+        }
+        List<CuttingBoardRecipe.ToolRequirement> tools = List.of(parseTool(toolSpec));
+        CuttingBoardRecipe recipe = new CuttingBoardRecipe(id, input, inputDisplay, tools, entries,
+                normalizeSound(sound), 0);
+        externalRecipes.put(id, recipe);
+        scheduleExternalRepublish();
+    }
+
+    /** Removes a previously registered addon recipe and republishes. */
+    public void unregisterExternalRecipe(String id) {
+        if (id != null && externalRecipes.remove(id) != null) {
+            scheduleExternalRepublish();
+        }
+    }
+
+    /** Coalesces external-recipe republishing to the next tick (one loadRecipes() per batch). */
+    private void scheduleExternalRepublish() {
+        if (externalRepublishScheduled) {
+            return;
+        }
+        externalRepublishScheduled = true;
+        plugin.scheduler().runLater(() -> {
+            externalRepublishScheduled = false;
+            loadRecipes();
+        }, 1L);
     }
 
     private record ToolContext(

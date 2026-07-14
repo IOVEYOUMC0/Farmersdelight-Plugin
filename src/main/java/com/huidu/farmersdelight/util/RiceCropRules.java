@@ -77,26 +77,6 @@ public final class RiceCropRules {
         return false;
     }
 
-    @SuppressWarnings("unlikely-arg-type")
-    public static boolean isSameCropBlock(Block block, Key cropId) {
-        if (block == null || cropId == null) {
-            return false;
-        }
-
-        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
-        if (state == null || state.isEmpty()) {
-            return false;
-        }
-
-        try {
-            return state.owner().keyOptional()
-                    .map(cropId::equals)
-                    .orElse(false);
-        } catch (Exception ignored) {
-            return false;
-        }
-    }
-
     public static Block getWaterSourceBlock(Block plantingBlock, Block blockBelow, Key cropId) {
         if (isSourceWater(plantingBlock)) {
             return plantingBlock;
@@ -140,10 +120,10 @@ public final class RiceCropRules {
             return false;
         }
 
-        // 放置之后，CE 可能使用载体方块（carrier block）来表示已种植的水稻，
-        // 而不是字面意义上的 WATER 方块。种植时的水检查仍保留在
-        // canPlantRiceAt(...) 中，但一旦水稻已成功种植，则遵循参考
-        // 插件的支撑规则：只要其下方土壤有效，下半部分就保持有效。
+        // After placement, CE may use a carrier block to represent planted rice
+        // instead of a literal WATER block. The water check at planting time stays in
+        // canPlantRiceAt(...), but once rice is planted, follow the reference plugin's
+        // support rule: the lower half stays valid as long as the soil below is valid.
         return isValidSoil(block.getRelative(BlockFace.DOWN), cropId);
     }
 }

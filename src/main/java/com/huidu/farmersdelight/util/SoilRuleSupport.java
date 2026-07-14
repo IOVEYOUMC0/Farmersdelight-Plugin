@@ -16,8 +16,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class SoilRuleSupport {
 
-    // 解析后的 Bukkit 方块标签在服务器整个生命周期内保持不变；将其缓存，使作物
-    // 生长/放置的热点路径无需每次调用都重新执行 NamespacedKey.fromString + Bukkit.getTag。
+    // Resolved Bukkit block tags stay constant for the server's lifetime; cache them so the crop
+    // grow/place hot path skips rerunning NamespacedKey.fromString + Bukkit.getTag per call.
     private static final Map<Key, Optional<Tag<Material>>> blockTagResolveCache = new ConcurrentHashMap<>();
 
     private SoilRuleSupport() {

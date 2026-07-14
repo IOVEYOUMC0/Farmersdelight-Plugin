@@ -1,13 +1,14 @@
 package com.huidu.farmersdelight.debug;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.util.DebugToolExtension;
+import com.huidu.farmersdelight.api.util.DebugToolRegistry;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.manager.SkilletManager;
 import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.manager.TickManager;
-import com.huidu.farmersdelight.storage.LegacyBlockStorageManager;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
@@ -64,7 +65,7 @@ public final class DebugToolsCommand {
 
     public void execute(CommandSender sender, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("<red>This command can only be used by players.</red>");
+            sender.sendMessage("This command can only be used by players.");
             return;
         }
         if (args.length < 2) {
@@ -94,7 +95,9 @@ public final class DebugToolsCommand {
             if ("status".equals(action) || "stats".equals(action) || "undo".equals(action)) {
                 return List.of();
             }
-            return complete(TARGETS, args[2]);
+            List<String> targets = new ArrayList<>(TARGETS);
+            targets.addAll(DebugToolRegistry.registeredNames());
+            return complete(targets, args[2]);
         }
         return List.of();
     }
@@ -122,6 +125,27 @@ public final class DebugToolsCommand {
         long requestedTotalLong = (long) count * layers;
         int total = requestedTotalLong > maxPlaceCount ? maxPlaceCount : (int) requestedTotalLong;
         Location origin = ManagerSupport.normalize(player.getLocation());
+
+        // Unknown built-in target → consult the addon extension registry. Extensions place their own
+        // blocks (e.g. BAC kegs) and join FD's undo batch via the supplied UndoSink so a subsequent
+        // /fd debugtools undo also reverts their placements.
+        if (!isBuiltInTarget(target)) {
+            DebugToolExtension extension = DebugToolRegistry.find(target);
+            if (extension != null) {
+                DebugToolExtension.UndoSink sink = loc -> {
+                    UndoEntry entry = captureUndo(loc);
+                    if (entry != null) {
+                        rememberUndo(java.util.List.of(entry));
+                    }
+                };
+                int placed = extension.place(player, origin, count, spacing, layers, sink);
+                player.sendMessage(MINI_MESSAGE.deserialize(
+                        "<green>Debug placed " + placed + "/" + total + " " + extension.name() + " blocks.</green>"
+                                + " <gray>requested=" + requestedCount + ", layers=" + layers + "</gray>"));
+                return;
+            }
+        }
+
         int grid = Math.max(1, (int) Math.ceil(Math.sqrt(count)));
 
         int placed = 0;
@@ -172,6 +196,18 @@ public final class DebugToolsCommand {
         if (isStoveTarget(target)) {
             activated += activateStoves(player.getWorld());
         }
+        // Route to extension when target isn't a built-in. "all" also triggers every registered
+        // extension so a single command can activate cross-plugin debug state in one shot.
+        if (!isBuiltInTarget(target)) {
+            DebugToolExtension extension = DebugToolRegistry.find(target);
+            if (extension != null) {
+                activated += extension.activate(player);
+            }
+        } else if ("all".equals(target)) {
+            for (DebugToolExtension extension : DebugToolRegistry.all()) {
+                activated += extension.activate(player);
+            }
+        }
 
         player.sendMessage(MINI_MESSAGE.deserialize("<green>Debug scanned and filled " + activated + " placed blocks.</green>"));
     }
@@ -183,6 +219,24 @@ public final class DebugToolsCommand {
             return;
         }
         sendPerformanceSnapshot(player, tickManager.getPerformanceSnapshot(), 0, "status");
+        appendProxyDisplayStats(player);
+        // Append each registered extension's status lines so addons (e.g. BAC kegs) report their own counters.
+        for (DebugToolExtension extension : DebugToolRegistry.all()) {
+            List<String> lines = extension.status(player);
+            if (lines == null || lines.isEmpty()) continue;
+            for (String line : lines) {
+                player.sendMessage(MINI_MESSAGE.deserialize(
+                        "<gray>[" + extension.name() + "] " + line + "</gray>"));
+            }
+        }
+    }
+
+    private void appendProxyDisplayStats(Player player) {
+        com.huidu.farmersdelight.visual.ItemDisplayManager mgr = plugin.getItemDisplayManager();
+        if (!(mgr instanceof com.huidu.farmersdelight.visual.ProxyItemDisplayManager proxy)) return;
+        for (String line : proxy.debugStats()) {
+            player.sendMessage(MINI_MESSAGE.deserialize("<gray>[proxy-display] " + line + "</gray>"));
+        }
     }
 
     private void profile(Player player, String[] args) {
@@ -201,6 +255,7 @@ public final class DebugToolsCommand {
         int durationTicks = clamp(requestedTicks, 20, MAX_PROFILE_TICKS);
         Location anchor = ManagerSupport.normalize(player.getLocation());
         tickManager.resetPerformanceStats();
+        resetProxyDisplayStats();
         player.sendMessage(MINI_MESSAGE.deserialize("<green>Debug profile started.</green> <gray>duration="
                 + durationTicks + " ticks, currentWorldPots=" + countCookingPots(player.getWorld()) + "</gray>"));
 
@@ -212,7 +267,15 @@ public final class DebugToolsCommand {
             TickManager.PerformanceSnapshot snapshot = tickManager.getPerformanceSnapshot();
             tickManager.setPerformanceStatsEnabled(false);
             sendPerformanceSnapshot(player, snapshot, durationTicks, "profile");
+            appendProxyDisplayStats(player);
         }, durationTicks);
+    }
+
+    private void resetProxyDisplayStats() {
+        com.huidu.farmersdelight.visual.ItemDisplayManager mgr = plugin.getItemDisplayManager();
+        if (mgr instanceof com.huidu.farmersdelight.visual.ProxyItemDisplayManager proxy) {
+            proxy.resetDebugStats();
+        }
     }
 
     private void undo(Player player) {
@@ -315,28 +378,6 @@ public final class DebugToolsCommand {
             markCookingPotActive(world, entry.getKey());
             activated++;
         }
-
-        for (Map.Entry<String, Map<String, Object>> entry : getLegacyBlockData(world).entrySet()) {
-            Map<String, Object> data = entry.getValue();
-            if (!"cooking_pot".equals(String.valueOf(data.get("_blockType")))) {
-                continue;
-            }
-            Location location = parseLocation(world, data);
-            if (location == null || !isPlacedCustomBlock(location, Constants.BLOCK_COOKING_POT)) {
-                continue;
-            }
-            if (!hasHeatSourceBelow(location)) {
-                continue;
-            }
-            CookingPotBlockEntity entity = CookingPotBlockBehavior.getOrCreateBlockEntity(location);
-            BlockPosKey posKey = new BlockPosKey(location);
-            if (!entity.hasStoredContents()) {
-                applyCookingPotDebugState(entity, location);
-                saveCookingPotData(location, entity, posKey);
-            }
-            markCookingPotActive(world, posKey);
-            activated++;
-        }
         return activated;
     }
 
@@ -357,22 +398,6 @@ public final class DebugToolsCommand {
             activateSkillet(location);
             activated++;
         }
-
-        for (Map.Entry<String, Map<String, Object>> entry : getLegacyBlockData(world).entrySet()) {
-            Map<String, Object> data = entry.getValue();
-            if (!"skillet".equals(String.valueOf(data.get("_blockType")))) {
-                continue;
-            }
-            Location location = parseLocation(world, data);
-            if (location == null || !isPlacedCustomBlock(location, Constants.BLOCK_SKILLET)) {
-                continue;
-            }
-            if (!hasHeatSourceBelow(location)) {
-                continue;
-            }
-            activateSkillet(location);
-            activated++;
-        }
         return activated;
     }
 
@@ -383,13 +408,8 @@ public final class DebugToolsCommand {
         }
 
         int activated = 0;
-        for (Map.Entry<String, Map<String, Object>> entry : getLegacyBlockData(world).entrySet()) {
-            Map<String, Object> data = entry.getValue();
-            if (!"stove".equals(String.valueOf(data.get("_blockType")))) {
-                continue;
-            }
-            Location location = parseLocation(world, data);
-            if (location == null || !isPlacedCustomBlock(location, Constants.BLOCK_STOVE)) {
+        for (Location location : manager.getTrackedLocations(world)) {
+            if (!isPlacedCustomBlock(location, Constants.BLOCK_STOVE)) {
                 continue;
             }
             if (!isStoveLit(location)) {
@@ -500,6 +520,15 @@ public final class DebugToolsCommand {
         StoveManager stoveManager = plugin.getStoveManager();
         if (stoveManager != null && stoveManager.isStoveStateBlock(location)) {
             stoveManager.breakStove(location, dropLocation, false);
+        }
+
+        // Addon extensions release their own block-entity state for this location (e.g. BAC keg) so
+        // an undone placement doesn't leak ghost NBT or in-memory entries.
+        for (DebugToolExtension extension : DebugToolRegistry.all()) {
+            try {
+                extension.cleanupBeforeUndo(location);
+            } catch (Throwable ignored) {
+            }
         }
     }
 
@@ -612,16 +641,6 @@ public final class DebugToolsCommand {
             return;
         }
         CookingPotBlockBehavior.saveBlockEntityData(location.getWorld(), posKey);
-
-        LegacyBlockStorageManager storage = plugin.getLegacyBlockStorageManager();
-        if (storage != null) {
-            storage.removeBlockData(posKey.toLocation(location.getWorld()));
-        }
-    }
-
-    private Map<String, Map<String, Object>> getLegacyBlockData(World world) {
-        LegacyBlockStorageManager storage = plugin.getLegacyBlockStorageManager();
-        return storage == null ? Map.of() : storage.getAllBlockDataInWorld(world);
     }
 
     private void activateSkillet(Location location) {
@@ -841,6 +860,11 @@ public final class DebugToolsCommand {
         return location != null && CustomBlockUtils.hasId(location, blockId);
     }
 
+    private boolean isBuiltInTarget(String target) {
+        return isCookingPotTarget(target) || isSkilletTarget(target)
+                || isStoveTarget(target) || isBlockedStoveTarget(target);
+    }
+
     private boolean isCookingPotTarget(String target) {
         return "cooking_pot".equals(target) || "pot".equals(target) || "all".equals(target);
     }
@@ -876,19 +900,6 @@ public final class DebugToolsCommand {
         ItemStack item = template.clone();
         item.setAmount(Math.max(1, Math.min(amount, item.getMaxStackSize())));
         return item;
-    }
-
-    private Location parseLocation(World world, Map<String, Object> data) {
-        if (world == null || data == null) {
-            return null;
-        }
-        Object x = data.get("_x");
-        Object y = data.get("_y");
-        Object z = data.get("_z");
-        if (!(x instanceof Number nx) || !(y instanceof Number ny) || !(z instanceof Number nz)) {
-            return null;
-        }
-        return new Location(world, nx.intValue(), ny.intValue(), nz.intValue());
     }
 
     private List<String> complete(List<String> options, String partial) {

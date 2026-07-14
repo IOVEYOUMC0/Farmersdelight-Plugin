@@ -3,6 +3,8 @@ templates:
     material: honey_bottle
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
+      components:
+        minecraft:max_stack_size: 16
       food:
         nutrition: 0
         saturation: 0
@@ -16,6 +18,9 @@ templates:
   farmersdelight:soup_template:
     material: cooked_beef
     model: ${__NAMESPACE__}:item/${__ID__}
+    data:
+      components:
+        minecraft:max_stack_size: 16
     settings:
       consume-replacement: "minecraft:bowl"
   farmersdelight:pie_template:
@@ -44,24 +49,24 @@ items:
     material: paper
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
-      item-name: <!i><l10n:item.farmersdelight.straw>
+      item-name: <!i><lang:item.farmersdelight.straw>
   farmersdelight:canvas:
     material: paper
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
-      item-name: <!i><l10n:item.farmersdelight.canvas>
+      item-name: <!i><lang:item.farmersdelight.canvas>
   farmersdelight:tree_bark:
     material: paper
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
-      item-name: <!i><l10n:item.farmersdelight.tree_bark>
+      item-name: <!i><lang:item.farmersdelight.tree_bark>
     settings:
       compost_probability: 0.3
       fuel_time: 80
   farmersdelight:apple_cider:
     template: farmersdelight:drink_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.apple_cider>
+      item-name: <!i><lang:item.farmersdelight.apple_cider>
       lore:
         - content:
           - '<!i><blue><lang:effect.minecraft.absorption> (01:00)</blue>'
@@ -79,7 +84,7 @@ items:
   farmersdelight:melon_juice:
     template: farmersdelight:drink_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.melon_juice>
+      item-name: <!i><lang:item.farmersdelight.melon_juice>
       lore: '<!i><blue><l10n:farmersdelight.tooltip.melon_juice.effect></blue>'
     events:
       - on: consume
@@ -92,7 +97,7 @@ items:
   farmersdelight:hot_cocoa:
     template: farmersdelight:drink_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.hot_cocoa>
+      item-name: <!i><lang:item.farmersdelight.hot_cocoa>
       lore: '<!i><blue><l10n:farmersdelight.tooltip.hot_cocoa.effect></blue>'
     events:
       - on: consume 
@@ -116,14 +121,11 @@ items:
   farmersdelight:milk_bottle:
     template: farmersdelight:drink_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.milk_bottle>
+      item-name: <!i><lang:item.farmersdelight.milk_bottle>
       lore: '<!i><blue><l10n:farmersdelight.tooltip.milk_bottle.effect></blue>'
-    events:
-      - on: consume
-        functions:
-          - type: remove_potion_effect
-            all: true
     settings:
+      tags:
+        - farmersdelight:milk
       craft-remainder:
         type: recipe_based
         terms:
@@ -140,7 +142,7 @@ items:
   farmersdelight:cabbage:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.cabbage>
+      item-name: <!i><lang:item.farmersdelight.cabbage>
       food:
         nutrition: 2
         saturation: 1
@@ -151,7 +153,7 @@ items:
   farmersdelight:tomato:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.tomato>
+      item-name: <!i><lang:item.farmersdelight.tomato>
       food:
         nutrition: 1
         saturation: 0.5
@@ -159,7 +161,7 @@ items:
   farmersdelight:onion:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.onion>
+      item-name: <!i><lang:item.farmersdelight.onion>
       food:
         nutrition: 2
         saturation: 1
@@ -170,37 +172,68 @@ items:
   farmersdelight:rice_panicle:
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
-      item-name: <!i><l10n:item.farmersdelight.rice_panicle>
+      item-name: <!i><lang:item.farmersdelight.rice_panicle>
   farmersdelight:rice:
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
-      item-name: <!i><l10n:item.farmersdelight.rice>
+      item-name: <!i><lang:item.farmersdelight.rice>
     behavior:
       type: liquid_collision_block_item
       block: farmersdelight:rice
   farmersdelight:cabbage_seeds:
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
-      item-name: <!i><l10n:item.farmersdelight.cabbage_seeds>
+      item-name: <!i><lang:item.farmersdelight.cabbage_seeds>
     behavior:
       type: block_item
       block: farmersdelight:cabbages
   farmersdelight:tomato_seeds:
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
-      item-name: <!i><l10n:item.farmersdelight.tomato_seeds>
+      item-name: <!i><lang:item.farmersdelight.tomato_seeds>
     behavior:
       type: block_item
-      block: farmersdelight:tomatoes
+      block: farmersdelight:budding_tomatoes
+  farmersdelight:organic_compost:
+    model: ${__NAMESPACE__}:item/${__ID__}
+    data:
+      item-name: <!i><lang:block.farmersdelight.organic_compost>
+    behavior:
+      type: block_item
+      block: farmersdelight:organic_compost
+  farmersdelight:rich_soil:
+    model: ${__NAMESPACE__}:item/${__ID__}
+    data:
+      item-name: <!i><lang:block.farmersdelight.rich_soil>
+    behavior:
+      type: block_item
+      block: farmersdelight:rich_soil
+  farmersdelight:rich_soil_farmland:
+    model: ${__NAMESPACE__}:item/${__ID__}
+    data:
+      item-name: <!i><lang:block.farmersdelight.rich_soil_farmland>
+    behavior:
+      type: block_item
+      block: farmersdelight:rich_soil_farmland
   farmersdelight:rotten_tomato:
     material: snowball
     model: ${__NAMESPACE__}:item/${__ID__}
+    settings:
+      projectile:
+        item: farmersdelight:rotten_tomato
+        translation: 0,0,0
+        rotation: 1,1,1,1
+        display_transform: NONE
+        scale: 0.1
+        sounds:
+          hit_entity: farmersdelight:entity.rotten_tomato.hit
+          hit_block: farmersdelight:entity.rotten_tomato.hit
     data:
-      item-name: <!i><l10n:item.farmersdelight.rotten_tomato>
+      item-name: <!i><lang:item.farmersdelight.rotten_tomato>
   farmersdelight:fried_egg:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.fried_egg>
+      item-name: <!i><lang:item.farmersdelight.fried_egg>
       food:
         nutrition: 4
         saturation: 3
@@ -208,7 +241,7 @@ items:
   farmersdelight:tomato_sauce:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.tomato_sauce>
+      item-name: <!i><lang:item.farmersdelight.tomato_sauce>
       food:
         nutrition: 4
         saturation: 3
@@ -216,7 +249,7 @@ items:
   farmersdelight:wheat_dough:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.wheat_dough>
+      item-name: <!i><lang:item.farmersdelight.wheat_dough>
       food:
         nutrition: 2
         saturation: 1
@@ -235,7 +268,7 @@ items:
   farmersdelight:raw_pasta:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.raw_pasta>
+      item-name: <!i><lang:item.farmersdelight.raw_pasta>
       food:
         nutrition: 2
         saturation: 1
@@ -254,7 +287,7 @@ items:
   farmersdelight:pumpkin_slice:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.pumpkin_slice>
+      item-name: <!i><lang:item.farmersdelight.pumpkin_slice>
       food:
         nutrition: 3
         saturation: 1
@@ -262,7 +295,7 @@ items:
   farmersdelight:cabbage_leaf:
     template: farmersdelight:food_cut_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.cabbage_leaf>
+      item-name: <!i><lang:item.farmersdelight.cabbage_leaf>
       food:
         nutrition: 1
         saturation: 1
@@ -273,7 +306,7 @@ items:
   farmersdelight:minced_beef:
     template: farmersdelight:food_cut_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.minced_beef>
+      item-name: <!i><lang:item.farmersdelight.minced_beef>
       food:
         nutrition: 2
         saturation: 1
@@ -284,7 +317,7 @@ items:
   farmersdelight:beef_patty:
     template: farmersdelight:food_cut_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.beef_patty>
+      item-name: <!i><lang:item.farmersdelight.beef_patty>
       food:
         nutrition: 4
         saturation: 7
@@ -292,7 +325,7 @@ items:
   farmersdelight:chicken_cuts:
     template: farmersdelight:food_cut_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.chicken_cuts>
+      item-name: <!i><lang:item.farmersdelight.chicken_cuts>
       food:
         nutrition: 1
         saturation: 1
@@ -314,7 +347,7 @@ items:
   farmersdelight:cooked_chicken_cuts:
     template: farmersdelight:food_cut_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.cooked_chicken_cuts>
+      item-name: <!i><lang:item.farmersdelight.cooked_chicken_cuts>
       food:
         nutrition: 3
         saturation: 3
@@ -322,7 +355,7 @@ items:
   farmersdelight:bacon:
     template: farmersdelight:food_cut_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.bacon>
+      item-name: <!i><lang:item.farmersdelight.bacon>
       food:
         nutrition: 2
         saturation: 1
@@ -333,7 +366,7 @@ items:
   farmersdelight:cooked_bacon:
     template: farmersdelight:food_cut_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.cooked_bacon>
+      item-name: <!i><lang:item.farmersdelight.cooked_bacon>
       food:
         nutrition: 4
         saturation: 6.5
@@ -341,7 +374,7 @@ items:
   farmersdelight:cod_slice:
     template: farmersdelight:food_cut_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.cod_slice>
+      item-name: <!i><lang:item.farmersdelight.cod_slice>
       food:
         nutrition: 1
         saturation: 0.5
@@ -352,7 +385,7 @@ items:
   farmersdelight:cooked_cod_slice:
     template: farmersdelight:food_cut_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.cooked_cod_slice>
+      item-name: <!i><lang:item.farmersdelight.cooked_cod_slice>
       food:
         nutrition: 3
         saturation: 3
@@ -360,7 +393,7 @@ items:
   farmersdelight:salmon_slice:
     template: farmersdelight:food_cut_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.salmon_slice>
+      item-name: <!i><lang:item.farmersdelight.salmon_slice>
       food:
         nutrition: 1
         saturation: 1
@@ -371,7 +404,7 @@ items:
   farmersdelight:cooked_salmon_slice:
     template: farmersdelight:food_cut_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.cooked_salmon_slice>
+      item-name: <!i><lang:item.farmersdelight.cooked_salmon_slice>
       food:
         nutrition: 3
         saturation: 5
@@ -379,7 +412,7 @@ items:
   farmersdelight:mutton_chops:
     template: farmersdelight:food_cut_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.mutton_chops>
+      item-name: <!i><lang:item.farmersdelight.mutton_chops>
       food:
         nutrition: 1
         saturation: 1
@@ -390,7 +423,7 @@ items:
   farmersdelight:cooked_mutton_chops:
     template: farmersdelight:food_cut_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.cooked_mutton_chops>
+      item-name: <!i><lang:item.farmersdelight.cooked_mutton_chops>
       food:
         nutrition: 3
         saturation: 5
@@ -398,7 +431,7 @@ items:
   farmersdelight:ham:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.ham>
+      item-name: <!i><lang:item.farmersdelight.ham>
       food:
         nutrition: 5
         saturation: 3
@@ -408,7 +441,7 @@ items:
   farmersdelight:smoked_ham:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.smoked_ham>
+      item-name: <!i><lang:item.farmersdelight.smoked_ham>
       food:
         nutrition: 10
         saturation: 16
@@ -418,7 +451,7 @@ items:
   farmersdelight:pie_crust:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.pie_crust>
+      item-name: <!i><lang:item.farmersdelight.pie_crust>
       food:
         nutrition: 2
         saturation: 1
@@ -426,19 +459,22 @@ items:
   farmersdelight:apple_pie:
     template: farmersdelight:pie_template
     data:
-      item-name: <!i><l10n:block.farmersdelight.apple_pie>
+      item-name: <!i><lang:block.farmersdelight.apple_pie>
+      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
   farmersdelight:sweet_berry_cheesecake:
     template: farmersdelight:pie_template
     data:
-      item-name: <!i><l10n:block.farmersdelight.sweet_berry_cheesecake>
+      item-name: <!i><lang:block.farmersdelight.sweet_berry_cheesecake>
+      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
   farmersdelight:chocolate_pie:
     template: farmersdelight:pie_template
     data:
-      item-name: <!i><l10n:block.farmersdelight.chocolate_pie>
+      item-name: <!i><lang:block.farmersdelight.chocolate_pie>
+      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
   farmersdelight:cake_slice:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.cake_slice>
+      item-name: <!i><lang:item.farmersdelight.cake_slice>
       food:
         nutrition: 2
         saturation: 1
@@ -454,23 +490,30 @@ items:
   farmersdelight:apple_pie_slice:
     template: farmersdelight:pie_slice_template
     data:
-      item-name: <!i><l10n:block.farmersdelight.apple_pie_slice>
+      item-name: <!i><lang:block.farmersdelight.apple_pie_slice>
   farmersdelight:sweet_berry_cheesecake_slice:
     template: farmersdelight:pie_slice_template
     data:
-      item-name: <!i><l10n:block.farmersdelight.sweet_berry_cheesecake_slice>
+      item-name: <!i><lang:block.farmersdelight.sweet_berry_cheesecake_slice>
   farmersdelight:chocolate_pie_slice:
     template: farmersdelight:pie_slice_template
     data:
-      item-name: <!i><l10n:block.farmersdelight.chocolate_pie_slice>
+      item-name: <!i><lang:block.farmersdelight.chocolate_pie_slice>
+  minecraft:pumpkin_pie:
+    material: pumpkin_pie
+    data:
+      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable_sneaking></dark_gray>'
+    behavior:
+      type: ground_block_item
+      block: farmersdelight:pumpkin_pie
   farmersdelight:pumpkin_pie_slice:
     template: farmersdelight:pie_slice_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.pumpkin_pie_slice>
+      item-name: <!i><lang:block.farmersdelight.pumpkin_pie_slice>
   farmersdelight:sweet_berry_cookie:
     template: farmersdelight:food_cut_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.sweet_berry_cookie>
+      item-name: <!i><lang:item.farmersdelight.sweet_berry_cookie>
       food:
         nutrition: 2
         saturation: 1
@@ -478,7 +521,7 @@ items:
   farmersdelight:honey_cookie:
     template: farmersdelight:food_cut_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.honey_cookie>
+      item-name: <!i><lang:item.farmersdelight.honey_cookie>
       food:
         nutrition: 2
         saturation: 1
@@ -486,7 +529,7 @@ items:
   farmersdelight:melon_popsicle:
     template: farmersdelight:food_cut_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.melon_popsicle>
+      item-name: <!i><lang:item.farmersdelight.melon_popsicle>
       food:
         nutrition: 3
         saturation: 1
@@ -496,7 +539,7 @@ items:
   farmersdelight:glow_berry_custard:
     template: farmersdelight:drink_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.glow_berry_custard>
+      item-name: <!i><lang:item.farmersdelight.glow_berry_custard>
       lore: '<!i><blue><lang:effect.minecraft.glowing> (00:05)</blue>'
       food:
         nutrition: 7
@@ -513,7 +556,7 @@ items:
   farmersdelight:fruit_salad:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.fruit_salad>
+      item-name: <!i><lang:item.farmersdelight.fruit_salad>
       lore: '<!i><blue><lang:effect.minecraft.regeneration> (00:05)</blue>'
       food:
         nutrition: 6
@@ -530,7 +573,7 @@ items:
   farmersdelight:mixed_salad:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.mixed_salad>
+      item-name: <!i><lang:item.farmersdelight.mixed_salad>
       lore: '<!i><blue><lang:effect.minecraft.regeneration> (00:05)</blue>'
       food:
         nutrition: 6
@@ -547,7 +590,7 @@ items:
   farmersdelight:nether_salad:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.nether_salad>
+      item-name: <!i><lang:item.farmersdelight.nether_salad>
       food:
         nutrition: 5
         saturation: 4
@@ -566,7 +609,7 @@ items:
   farmersdelight:barbecue_stick:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.barbecue_stick>
+      item-name: <!i><lang:item.farmersdelight.barbecue_stick>
       food:
         nutrition: 8
         saturation: 15
@@ -576,7 +619,7 @@ items:
   farmersdelight:egg_sandwich:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.egg_sandwich>
+      item-name: <!i><lang:item.farmersdelight.egg_sandwich>
       food:
         nutrition: 8
         saturation: 13
@@ -584,7 +627,7 @@ items:
   farmersdelight:chicken_sandwich:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.chicken_sandwich>
+      item-name: <!i><lang:item.farmersdelight.chicken_sandwich>
       food:
         nutrition: 10
         saturation: 14
@@ -592,7 +635,7 @@ items:
   farmersdelight:hamburger:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.hamburger>
+      item-name: <!i><lang:item.farmersdelight.hamburger>
       food:
         nutrition: 11
         saturation: 17
@@ -600,7 +643,7 @@ items:
   farmersdelight:bacon_sandwich:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.bacon_sandwich>
+      item-name: <!i><lang:item.farmersdelight.bacon_sandwich>
       food:
         nutrition: 10
         saturation: 16
@@ -608,7 +651,7 @@ items:
   farmersdelight:mutton_wrap:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.mutton_wrap>
+      item-name: <!i><lang:item.farmersdelight.mutton_wrap>
       food:
         nutrition: 10
         saturation: 16
@@ -616,7 +659,7 @@ items:
   farmersdelight:dumplings:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.dumplings>
+      item-name: <!i><lang:item.farmersdelight.dumplings>
       food:
         nutrition: 8
         saturation: 13
@@ -624,7 +667,7 @@ items:
   farmersdelight:stuffed_potato:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.stuffed_potato>
+      item-name: <!i><lang:item.farmersdelight.stuffed_potato>
       food:
         nutrition: 10
         saturation: 14
@@ -632,7 +675,7 @@ items:
   farmersdelight:cabbage_rolls:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.cabbage_rolls>
+      item-name: <!i><lang:item.farmersdelight.cabbage_rolls>
       food:
         nutrition: 5
         saturation: 5
@@ -640,7 +683,7 @@ items:
   farmersdelight:salmon_roll:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.salmon_roll>
+      item-name: <!i><lang:item.farmersdelight.salmon_roll>
       food:
         nutrition: 7
         saturation: 9
@@ -648,7 +691,7 @@ items:
   farmersdelight:cod_roll:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.cod_roll>
+      item-name: <!i><lang:item.farmersdelight.cod_roll>
       food:
         nutrition: 7
         saturation: 9
@@ -656,7 +699,7 @@ items:
   farmersdelight:kelp_roll:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.kelp_roll>
+      item-name: <!i><lang:item.farmersdelight.kelp_roll>
       food:
         nutrition: 12
         saturation: 12
@@ -664,7 +707,7 @@ items:
   farmersdelight:kelp_roll_slice:
     template: farmersdelight:food_cut_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.kelp_roll_slice>
+      item-name: <!i><lang:item.farmersdelight.kelp_roll_slice>
       food:
         nutrition: 6
         saturation: 6
@@ -672,7 +715,7 @@ items:
   farmersdelight:cooked_rice:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.cooked_rice>
+      item-name: <!i><lang:item.farmersdelight.cooked_rice>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (00:30)</blue>'
       food:
         nutrition: 6
@@ -693,7 +736,7 @@ items:
   farmersdelight:bone_broth:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.bone_broth>
+      item-name: <!i><lang:item.farmersdelight.bone_broth>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (01:00)</blue>'
       food:
         nutrition: 8
@@ -702,7 +745,7 @@ items:
   farmersdelight:beef_stew:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.beef_stew>
+      item-name: <!i><lang:item.farmersdelight.beef_stew>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
@@ -711,7 +754,7 @@ items:
   farmersdelight:chicken_soup:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.chicken_soup>
+      item-name: <!i><lang:item.farmersdelight.chicken_soup>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
@@ -720,7 +763,7 @@ items:
   farmersdelight:vegetable_soup:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.vegetable_soup>
+      item-name: <!i><lang:item.farmersdelight.vegetable_soup>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
@@ -729,7 +772,7 @@ items:
   farmersdelight:onion_soup:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.onion_soup>
+      item-name: <!i><lang:item.farmersdelight.onion_soup>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
@@ -738,7 +781,7 @@ items:
   farmersdelight:fish_stew:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.fish_stew>
+      item-name: <!i><lang:item.farmersdelight.fish_stew>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
@@ -747,7 +790,7 @@ items:
   farmersdelight:fried_rice:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.fried_rice>
+      item-name: <!i><lang:item.farmersdelight.fried_rice>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
@@ -756,7 +799,7 @@ items:
   farmersdelight:pumpkin_soup:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.pumpkin_soup>
+      item-name: <!i><lang:item.farmersdelight.pumpkin_soup>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
@@ -765,7 +808,7 @@ items:
   farmersdelight:baked_cod_stew:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.baked_cod_stew>
+      item-name: <!i><lang:item.farmersdelight.baked_cod_stew>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
@@ -774,7 +817,7 @@ items:
   farmersdelight:noodle_soup:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.noodle_soup>
+      item-name: <!i><lang:item.farmersdelight.noodle_soup>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
@@ -783,7 +826,9 @@ items:
   farmersdelight:bacon_and_eggs:
     template: farmersdelight:food_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.bacon_and_eggs>
+      components:
+        minecraft:max_stack_size: 16
+      item-name: <!i><lang:item.farmersdelight.bacon_and_eggs>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (01:00)</blue>'
       food:
         nutrition: 10
@@ -792,7 +837,7 @@ items:
   farmersdelight:pasta_with_meatballs:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.pasta_with_meatballs>
+      item-name: <!i><lang:item.farmersdelight.pasta_with_meatballs>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
@@ -801,7 +846,7 @@ items:
   farmersdelight:pasta_with_mutton_chop:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.pasta_with_mutton_chop>
+      item-name: <!i><lang:item.farmersdelight.pasta_with_mutton_chop>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
@@ -810,7 +855,7 @@ items:
   farmersdelight:mushroom_rice:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.mushroom_rice>
+      item-name: <!i><lang:item.farmersdelight.mushroom_rice>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
@@ -819,7 +864,7 @@ items:
   farmersdelight:roasted_mutton_chops:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.roasted_mutton_chops>
+      item-name: <!i><lang:item.farmersdelight.roasted_mutton_chops>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
@@ -828,7 +873,7 @@ items:
   farmersdelight:vegetable_noodles:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.vegetable_noodles>
+      item-name: <!i><lang:item.farmersdelight.vegetable_noodles>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
@@ -837,7 +882,7 @@ items:
   farmersdelight:steak_and_potatoes:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.steak_and_potatoes>
+      item-name: <!i><lang:item.farmersdelight.steak_and_potatoes>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 14
@@ -846,7 +891,7 @@ items:
   farmersdelight:ratatouille:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.ratatouille>
+      item-name: <!i><lang:item.farmersdelight.ratatouille>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (01:00)</blue>'
       food:
         nutrition: 10
@@ -855,7 +900,7 @@ items:
   farmersdelight:squid_ink_pasta:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.squid_ink_pasta>
+      item-name: <!i><lang:item.farmersdelight.squid_ink_pasta>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
@@ -864,7 +909,7 @@ items:
   farmersdelight:grilled_salmon:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.grilled_salmon>
+      item-name: <!i><lang:item.farmersdelight.grilled_salmon>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 14
@@ -873,12 +918,14 @@ items:
   farmersdelight:roast_chicken_block:
     template: farmersdelight:pie_template
     data:
-      item-name: <!i><l10n:block.farmersdelight.roast_chicken_block>
-      lore: '<!i><green><l10n:farmersdelight.tooltip.requires_bowl_when_placed></green>'
+      components:
+        minecraft:max_stack_size: 1
+      item-name: <!i><lang:block.farmersdelight.roast_chicken_block>
+      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
   farmersdelight:roast_chicken:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.roast_chicken>
+      item-name: <!i><lang:item.farmersdelight.roast_chicken>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
@@ -887,12 +934,14 @@ items:
   farmersdelight:stuffed_pumpkin_block:
     template: farmersdelight:pie_template
     data:
-      item-name: <!i><l10n:block.farmersdelight.stuffed_pumpkin_block>
-      lore: '<!i><green><l10n:farmersdelight.tooltip.requires_bowl_when_placed></green>'
+      components:
+        minecraft:max_stack_size: 1
+      item-name: <!i><lang:block.farmersdelight.stuffed_pumpkin_block>
+      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
   farmersdelight:stuffed_pumpkin:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.stuffed_pumpkin>
+      item-name: <!i><lang:item.farmersdelight.stuffed_pumpkin>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
@@ -901,12 +950,14 @@ items:
   farmersdelight:honey_glazed_ham_block:
     template: farmersdelight:pie_template
     data:
-      item-name: <!i><l10n:block.farmersdelight.honey_glazed_ham_block>
-      lore: '<!i><green><l10n:farmersdelight.tooltip.requires_bowl_when_placed></green>'
+      components:
+        minecraft:max_stack_size: 1
+      item-name: <!i><lang:block.farmersdelight.honey_glazed_ham_block>
+      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
   farmersdelight:honey_glazed_ham:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.honey_glazed_ham>
+      item-name: <!i><lang:item.farmersdelight.honey_glazed_ham>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
@@ -915,12 +966,14 @@ items:
   farmersdelight:shepherds_pie_block:
     template: farmersdelight:pie_template
     data:
-      item-name: <!i><l10n:block.farmersdelight.shepherds_pie_block>
-      lore: '<!i><green><l10n:farmersdelight.tooltip.requires_bowl_when_placed></green>'
+      components:
+        minecraft:max_stack_size: 1
+      item-name: <!i><lang:block.farmersdelight.shepherds_pie_block>
+      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
   farmersdelight:shepherds_pie:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.shepherds_pie>
+      item-name: <!i><lang:item.farmersdelight.shepherds_pie>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
@@ -929,12 +982,14 @@ items:
   farmersdelight:gleaming_salad_block:
     template: farmersdelight:pie_template
     data:
-      item-name: <!i><l10n:block.farmersdelight.gleaming_salad_block>
-      lore: '<!i><green><l10n:farmersdelight.tooltip.requires_bowl_when_placed></green>'
+      components:
+        minecraft:max_stack_size: 1
+      item-name: <!i><lang:block.farmersdelight.gleaming_salad_block>
+      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
   farmersdelight:gleaming_salad:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.gleaming_salad>
+      item-name: <!i><lang:item.farmersdelight.gleaming_salad>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
@@ -944,11 +999,14 @@ items:
     template: farmersdelight:pie_template
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
-      item-name: <!i><l10n:block.farmersdelight.rice_roll_medley_block>
+      components:
+        minecraft:max_stack_size: 1
+      item-name: <!i><lang:block.farmersdelight.rice_roll_medley_block>
+      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
   farmersdelight:dog_food:
     template: farmersdelight:soup_template
     data:
-      item-name: <!i><l10n:item.farmersdelight.dog_food>
+      item-name: <!i><lang:item.farmersdelight.dog_food>
       lore:
         - '<!i><gray><l10n:farmersdelight.tooltip.dog_food.when_feeding></gray>'
         - '<!i><blue>  <lang:effect.minecraft.speed> (05:00)</blue>'
@@ -965,7 +1023,9 @@ items:
     material: wheat
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
-      item-name: <!i><l10n:item.farmersdelight.horse_feed>
+      components:
+        minecraft:max_stack_size: 16
+      item-name: <!i><lang:item.farmersdelight.horse_feed>
       lore:
         - '<!i><gray><l10n:farmersdelight.tooltip.horse_feed.when_feeding></gray>'
         - '<!i><blue>  <lang:effect.minecraft.speed> <lang:potion.potency.1> (05:00)</blue>'

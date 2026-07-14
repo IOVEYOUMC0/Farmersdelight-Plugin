@@ -4,7 +4,7 @@ main: com.huidu.farmersdelight.FarmersDelightPlugin
 api-version: '1.21'
 folia-supported: true
 depend: [CraftEngine]
-softdepend: [AuraSkills, UltimateAdvancementAPI]
+softdepend: [AuraSkills, UltimateAdvancementAPI, PlaceholderAPI, WorldGuard, GriefPrevention, Lands, Towny, Residence, PlotSquared, Factions, HuskClaims, HuskTowns, BentoBox, SuperiorSkyblock2, IridiumSkyblock, GriefDefender, Kingdoms, CrashClaim, RedProtect, Landlord, uSkyBlock, XClaim, UltimateClaims, UltimateClans, PreciousStones, Dominion, FabledSkyBlock, NoBuildPlus, Protect]
 authors:
   - HuiDu_OwO
 description: CraftEngine 的农夫乐事（Farmer's Delight）扩展

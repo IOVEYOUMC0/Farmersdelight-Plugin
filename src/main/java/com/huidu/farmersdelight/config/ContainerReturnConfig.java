@@ -4,12 +4,12 @@ import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ContainerReturnConfig {
 
-    private final Map<String, ItemStack> containerReturnMap = new HashMap<>();
+    private final Map<String, ItemStack> containerReturnMap = new ConcurrentHashMap<>();
 
     public void loadDefaults() {
         addReturnItem("farmersdelight:milk_bottle", "minecraft:glass_bottle");

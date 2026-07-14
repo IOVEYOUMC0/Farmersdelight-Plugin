@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
 import com.huidu.farmersdelight.util.SoilRuleSupport.SoilRules;
@@ -28,9 +29,9 @@ import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * 静态野生植物（卷心菜/洋葱/番茄）的骨粉传播逻辑，移植自该模组的
- * WildCropBlock：成功判定通过后，将一个副本散布到附近合法土壤上方的空气中，散布数量受周围
- * 已有相同植物数量的上限限制。放置/存活逻辑仍由 bush_block 处理；永远不进行随机刻更新。
+ * Bone meal spread logic for static wild plants (cabbage/onion/tomato), ported from the mod's
+ * WildCropBlock: on success, scatters a copy into the air above nearby valid soil, with spread count
+ * capped by the number of identical plants already around. Placement/survival stays in bush_block; never does random tick updates.
  */
 public class WildPlantBlockBehavior extends BlockBehavior {
 
@@ -48,7 +49,7 @@ public class WildPlantBlockBehavior extends BlockBehavior {
         this.soilRules = soilRules;
     }
 
-    // 放置、碰撞和寻路逻辑仍由 bush_block 处理；这些抽象钩子保持为可通过的空实现。
+    // Placement, collision, and pathfinding stay in bush_block; these abstract hooks remain pass-through no-ops.
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
         return true;
@@ -80,7 +81,7 @@ public class WildPlantBlockBehavior extends BlockBehavior {
         World world = player.getWorld();
         Block origin = world.getBlockAt(pos.x(), pos.y(), pos.z());
 
-        // 原版在合法目标上会消耗骨粉；而传播本身仅在成功判定通过时才发生。
+        // Vanilla consumes bone meal on a valid target; the spread itself only happens on a successful roll.
         if (ThreadLocalRandom.current().nextDouble() < successChance) {
             spread(world, origin, state);
         }
@@ -91,8 +92,8 @@ public class WildPlantBlockBehavior extends BlockBehavior {
         return InteractionResult.SUCCESS_AND_CANCEL;
     }
 
-    // 忠实移植 WildCropBlock.performBonemeal：若 9x3x9 区域内已有 spreadLimit 个相同植物则中止，
-    // 否则随机游走到一个目标位置，并在泥土/沙子上方的空气中放置一个副本。
+    // Faithful port of WildCropBlock.performBonemeal: aborts if the 9x3x9 area already has spreadLimit identical plants,
+    // otherwise random-walks to a target position and places a copy in the air above dirt/sand.
     private void spread(World world, Block origin, ImmutableBlockState state) {
         String selfId = block().id().toString();
         int remaining = spreadLimit;
@@ -131,7 +132,7 @@ public class WildPlantBlockBehavior extends BlockBehavior {
             return false;
         }
         Block below = target.getRelative(BlockFace.DOWN);
-        // 仅在该植物实际能存活的位置传播：若设置了自身的土壤规则则使用该规则，否则使用泥土/沙子。
+        // Only spread where the plant can actually survive: use its own soil rules if configured, otherwise dirt/sand.
         if (soilRules.isConfigured()) {
             return SoilRuleSupport.matches(below, soilRules);
         }
@@ -149,37 +150,12 @@ public class WildPlantBlockBehavior extends BlockBehavior {
         @Override
         public WildPlantBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
-            boolean isBoneMealTarget = getBoolean(arguments, "is-bone-meal-target", true);
-            double successChance = getDouble(arguments, "bone-meal-success-chance", 0.8);
-            int spreadLimit = Math.max(1, getInt(arguments, "spread-limit", 10));
+            boolean isBoneMealTarget = BehaviorArgParser.getBoolean(arguments, "is-bone-meal-target", true);
+            double successChance = BehaviorArgParser.getDouble(arguments, "bone-meal-success-chance", 0.8);
+            int spreadLimit = Math.max(1, BehaviorArgParser.getInt(arguments, "spread-limit", 10));
             SoilRules soilRules = SoilRuleSupport.parseSoilRules(arguments);
             return new WildPlantBlockBehavior(block, isBoneMealTarget, successChance, spreadLimit, soilRules);
         }
     };
 
-    private static boolean getBoolean(Map<String, Object> arguments, String key, boolean defaultValue) {
-        Object value = arguments.get(key);
-        if (value instanceof Boolean b) return b;
-        return value != null ? Boolean.parseBoolean(value.toString()) : defaultValue;
-    }
-
-    private static int getInt(Map<String, Object> arguments, String key, int defaultValue) {
-        Object value = arguments.get(key);
-        if (value instanceof Number n) return n.intValue();
-        try {
-            return value != null ? Integer.parseInt(value.toString()) : defaultValue;
-        } catch (NumberFormatException ignored) {
-            return defaultValue;
-        }
-    }
-
-    private static double getDouble(Map<String, Object> arguments, String key, double defaultValue) {
-        Object value = arguments.get(key);
-        if (value instanceof Number n) return n.doubleValue();
-        try {
-            return value != null ? Double.parseDouble(value.toString()) : defaultValue;
-        } catch (NumberFormatException ignored) {
-            return defaultValue;
-        }
-    }
 }

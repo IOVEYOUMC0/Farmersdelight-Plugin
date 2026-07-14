@@ -1,0 +1,194 @@
+package com.huidu.farmersdelight.block.behavior;
+
+import com.huidu.farmersdelight.util.BlockPosKey;
+import org.bukkit.Material;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Concurrency invariants on CookingPotBlockEntity that protect against the three failure modes
+ * a multi-player setup can produce. Each test runs a deterministic burst against
+ * takeOutputSlotPortionForDelivery and setInventorySlot — both guarded by
+ * inventoryLock — and asserts the no-duplication invariant.
+ *
+ * <ol>
+ *   <li><b>Multi-viewer race on the same output slot</b> — 8 viewer threads burst-click the meal slot
+ *       at the same instant; the sum of items each receives must equal the starting stack. No
+ *       duplication, no over-delivery.</li>
+ *   <li><b>Oversubscribed concurrent requests are capped at stock</b> — 8 viewers each shift-click
+ *       for 16 from a 64 stack; sum still 64.</li>
+ *   <li><b>Take from a slot a peer just cleared</b> — the block-break dup vector that
+ *       closeOpenGuisAt guards against. Take must see the cleared slot and return null, never
+ *       a phantom item.</li>
+ *   <li><b>Interleaved stock/clear under a take stream never out-delivers stock</b> — stronger version
+ *       of (3); proves the lock serialises every transition.</li>
+ * </ol>
+ *
+ * <p>Bukkit is NOT bootstrapped — new ItemStack(Material.STONE, n) would lazy-trigger
+ * Material.asItemType which needs the server registry. We sidestep it with StubStack,
+ * a minimal subclass that uses ItemStack's protected no-arg constructor (skipping the
+ * craftDelegate init) and overrides every method this test path touches.
+ */
+class CookingPotConcurrencyTest {
+
+    private static final int OUTPUT_SLOT = 8;  // CookingPotLayout.DEFAULT's single output slot.
+
+    @Test
+    void concurrentTakesNeverOverDeliver_eightViewersOneAtATime() throws Exception {
+        CookingPotBlockEntity be = freshPot();
+        seedOutput(be, 64);
+
+        int viewers = 8;
+        int takesPerViewer = 8;  // 8 viewers × 8 takes × 1 each = 64 → exactly drains the stack.
+        AtomicInteger taken = new AtomicInteger(0);
+        runConcurrently(viewers, () -> {
+            for (int i = 0; i < takesPerViewer; i++) {
+                CookingPotBlockEntity.TakenMeal meal = be.takeOutputSlotPortionForDelivery(OUTPUT_SLOT, 1);
+                if (meal != null && meal.item() != null) {
+                    taken.addAndGet(meal.item().getAmount());
+                }
+            }
+        });
+
+        assertEquals(64, taken.get(),
+                "8 viewers × 8 takes × 1 should sum to the original 64 — never higher (dup) or lower (lost).");
+        CookingPotBlockEntity.TakenMeal residual = be.takeOutputSlotPortionForDelivery(OUTPUT_SLOT, 1);
+        assertNull(residual, "Output slot must be empty after exactly 64 single-item takes.");
+    }
+
+    @Test
+    void oversubscribedConcurrentTakesAreCappedByStock() throws Exception {
+        CookingPotBlockEntity be = freshPot();
+        seedOutput(be, 64);
+
+        int viewers = 8;
+        int requestedPerTake = 16;  // 8 × 16 = 128 requested, but stock is only 64.
+        AtomicInteger taken = new AtomicInteger(0);
+        runConcurrently(viewers, () -> {
+            CookingPotBlockEntity.TakenMeal meal = be.takeOutputSlotPortionForDelivery(OUTPUT_SLOT, requestedPerTake);
+            if (meal != null && meal.item() != null) {
+                taken.addAndGet(meal.item().getAmount());
+            }
+        });
+
+        assertEquals(64, taken.get(),
+                "Oversubscribed take requests must total exactly the stock — clamped by inventoryLock.");
+    }
+
+    @Test
+    void takeFromClearedSlotReturnsNull_simulatingBlockBreakRace() {
+        CookingPotBlockEntity be = freshPot();
+        seedOutput(be, 32);
+        // closeOpenGuisAt(world,x,y,z) tears the BE state down ahead of the actual block break to
+        // prevent a click from racing in after; we simulate the clear here and assert a stray click
+        // can't manufacture an item.
+        be.setInventorySlot(OUTPUT_SLOT, null);
+        assertNull(be.takeOutputSlotPortionForDelivery(OUTPUT_SLOT, 1),
+                "Take from a cleared slot must return null — the dup the closeOpenGuisAt comment warns about.");
+    }
+
+    @Test
+    void interleavedClearsAndTakesNeverDuplicateAcrossClears() throws Exception {
+        CookingPotBlockEntity be = freshPot();
+
+        int rounds = 32;
+        int stackPerRound = 16;
+        AtomicInteger stocked = new AtomicInteger(0);
+        AtomicInteger taken = new AtomicInteger(0);
+
+        Thread stocker = new Thread(() -> {
+            for (int i = 0; i < rounds; i++) {
+                be.setInventorySlot(OUTPUT_SLOT, new StubStack(stackPerRound));
+                stocked.addAndGet(stackPerRound);
+                Thread.yield();
+                be.setInventorySlot(OUTPUT_SLOT, null);
+                Thread.yield();
+            }
+        }, "stocker");
+
+        List<Thread> viewers = new ArrayList<>();
+        for (int v = 0; v < 4; v++) {
+            viewers.add(new Thread(() -> {
+                for (int i = 0; i < rounds * stackPerRound; i++) {
+                    CookingPotBlockEntity.TakenMeal meal = be.takeOutputSlotPortionForDelivery(OUTPUT_SLOT, 1);
+                    if (meal != null && meal.item() != null) {
+                        taken.addAndGet(meal.item().getAmount());
+                    }
+                }
+            }, "viewer-" + v));
+        }
+
+        stocker.start();
+        for (Thread v : viewers) v.start();
+        stocker.join();
+        for (Thread v : viewers) v.join();
+
+        assertTrue(taken.get() <= stocked.get(),
+                "Total taken (" + taken.get() + ") must never exceed total stocked (" + stocked.get()
+                        + ") — anything higher is a dup.");
+    }
+
+    // ----- helpers -----
+
+    private static CookingPotBlockEntity freshPot() {
+        // null World keeps syncWorldlyContainer() a no-op so we don't drag CE's block manager into the test.
+        return new CookingPotBlockEntity(new BlockPosKey(0, 0, 0), null, CookingPotLayout.DEFAULT, null);
+    }
+
+    private static void seedOutput(CookingPotBlockEntity be, int amount) {
+        be.setInventorySlot(OUTPUT_SLOT, new StubStack(amount));
+        assertNotNull(be.getMealDisplayItem(), "Stub stack must land in the output slot before the race starts.");
+    }
+
+    private static void runConcurrently(int threads, Runnable body) throws InterruptedException {
+        CyclicBarrier start = new CyclicBarrier(threads);
+        List<Thread> workers = new ArrayList<>();
+        for (int i = 0; i < threads; i++) {
+            workers.add(new Thread(() -> {
+                try {
+                    start.await();
+                } catch (Exception ignored) {
+                }
+                body.run();
+            }, "worker-" + i));
+        }
+        for (Thread t : workers) t.start();
+        for (Thread t : workers) t.join();
+    }
+
+    /**
+     * Test-only ItemStack subclass — invokes ItemStack's protected no-arg constructor
+     * (skipping Material.asItemType which needs a live Bukkit registry) and overrides every
+     * method CookingPotBlockEntity's take path actually calls. clone() returns a fresh
+     * StubStack so the BE's splitItemFromSlot can set independent amounts on the clone
+     * and the source.
+     */
+    static final class StubStack extends ItemStack {
+        private int amount;
+
+        StubStack(int amount) {
+            super();  // skips Material lookup
+            this.amount = amount;
+        }
+
+        @Override public int getAmount() { return amount; }
+        @Override public void setAmount(int n) { this.amount = n; }
+        @Override public Material getType() { return Material.STONE; }
+        @Override public boolean hasItemMeta() { return false; }
+        @Override public ItemMeta getItemMeta() { return null; }
+        @Override public ItemStack clone() { return new StubStack(amount); }
+        @Override public int getMaxStackSize() { return 64; }
+        @Override public boolean isSimilar(ItemStack other) { return other instanceof StubStack; }
+    }
+}

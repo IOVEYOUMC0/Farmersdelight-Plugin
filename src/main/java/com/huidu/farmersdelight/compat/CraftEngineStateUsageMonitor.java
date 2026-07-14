@@ -33,7 +33,8 @@ public final class CraftEngineStateUsageMonitor {
                     "used", usage.used(),
                     "total", usage.total(),
                     "free", usage.free(),
-                    "fd_states", usage.farmersDelightStates()));
+                    "fd_states", usage.farmersDelightStates(),
+                    "addon_states", usage.addonStates()));
 
             if (usage.free() == 0) {
                 plugin.getLogger().warning(I18n.formatConsole("craftengine_state.exhausted"));
@@ -61,30 +62,46 @@ public final class CraftEngineStateUsageMonitor {
             cachedOwners.put(entry.getValue(), entry.getKey());
         }
 
+        // Namespace prefixes of registered addons (e.g. "brewinandchewin:"), counted alongside FD's own.
+        java.util.Set<String> addonPrefixes = new java.util.HashSet<>();
+        for (String ns : com.huidu.farmersdelight.api.FarmersDelightApi.get().addonBlockNamespaces()) {
+            addonPrefixes.add(ns + ":");
+        }
+
         int used = 0;
         int farmersDelightStates = 0;
+        int addonStates = 0;
         for (int i = 0; i < total; i++) {
             ImmutableBlockState state = blockManager.getImmutableBlockStateUnsafe(i + vanillaOffset);
+            String owner = null;
             if (state != null && !state.isEmpty()) {
-                used++;
-                if (state.toString().startsWith(FARMERS_DELIGHT_NAMESPACE)) {
-                    farmersDelightStates++;
-                }
+                owner = state.toString();
+            } else {
+                owner = cachedOwners.get(i);
+            }
+            if (owner == null) {
                 continue;
             }
-
-            String cachedOwner = cachedOwners.get(i);
-            if (cachedOwner != null) {
-                used++;
-                if (cachedOwner.startsWith(FARMERS_DELIGHT_NAMESPACE)) {
-                    farmersDelightStates++;
-                }
+            used++;
+            if (owner.startsWith(FARMERS_DELIGHT_NAMESPACE)) {
+                farmersDelightStates++;
+            } else if (matchesAddon(owner, addonPrefixes)) {
+                addonStates++;
             }
         }
 
-        return new Usage(total, used, Math.max(0, total - used), farmersDelightStates);
+        return new Usage(total, used, Math.max(0, total - used), farmersDelightStates, addonStates);
     }
 
-    private record Usage(int total, int used, int free, int farmersDelightStates) {
+    private static boolean matchesAddon(String owner, java.util.Set<String> addonPrefixes) {
+        for (String prefix : addonPrefixes) {
+            if (owner.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private record Usage(int total, int used, int free, int farmersDelightStates, int addonStates) {
     }
 }

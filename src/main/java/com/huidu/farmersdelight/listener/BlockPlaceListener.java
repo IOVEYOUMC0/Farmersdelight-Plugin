@@ -16,8 +16,10 @@ import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockAttemptPlaceEvent;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockPlaceEvent;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
+import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import net.momirealms.craftengine.core.item.Item;
+import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.item.component.DataComponentKeys;
 import net.momirealms.craftengine.libraries.nbt.CompoundTag;
 import org.bukkit.Location;
@@ -39,14 +41,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class BlockPlaceListener implements Listener {
 
-    private static final Set<String> FEAST_BLOCKS = Set.of(
-            Constants.BLOCK_ROAST_CHICKEN,
-            Constants.BLOCK_STUFFED_PUMPKIN,
-            Constants.BLOCK_HONEY_GLAZED_HAM,
-            Constants.BLOCK_SHEPHERDS_PIE,
-            Constants.BLOCK_GLEAMING_SALAD,
-            Constants.BLOCK_RICE_ROLL_MEDLEY
-    );
+    private static final Key FEAST_BLOCKS_TAG = Key.of("farmersdelight:feast_blocks");
     private static final Map<Material, String> VANILLA_CROP_CRITERIA = Map.ofEntries(
             Map.entry(Material.WHEAT, "wheat"),
             Map.entry(Material.BEETROOTS, "beetroot"),
@@ -68,7 +63,7 @@ public class BlockPlaceListener implements Listener {
     );
     private static final Map<PlacedItemKey, ItemStack> pendingPlacedItems = new ConcurrentHashMap<>();
     private static PluginTask cleanupTask;
-    // cleanupTask 由每个玩家所在的 region 线程启动，并由调度器线程清除。
+    // cleanupTask is started by each player's region thread and cleared by the scheduler thread.
     private static final Object cleanupTaskLock = new Object();
 
     public static void cleanup() {
@@ -159,40 +154,53 @@ public class BlockPlaceListener implements Listener {
     }
 
     private boolean canMushroomColonySurvive(CustomBlockAttemptPlaceEvent event) {
+        // Cache the location-derived block coordinates locally so the two world.getBlockAt() calls
+        // and any per-event reads only touch the immutable Location once instead of round-tripping
+        // through event.location() (which clones internally).
         World world = event.player().getWorld();
-        Block blockBelow = world.getBlockAt(
-                event.location().getBlockX(), event.location().getBlockY() - 1, event.location().getBlockZ()
-        );
+        int bx = event.location().getBlockX();
+        int by = event.location().getBlockY();
+        int bz = event.location().getBlockZ();
+        Block blockBelow = world.getBlockAt(bx, by - 1, bz);
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (isAlwaysValidMushroomSupport(plugin, blockBelow)) {
+        if (isAlwaysValidMushroomSupport(blockBelow)) {
             return true;
         }
-        Block targetBlock = world.getBlockAt(
-                event.location().getBlockX(), event.location().getBlockY(), event.location().getBlockZ()
-        );
         if (!plugin.getConfigBoolean(true,
                 "mushroom-colonies.placement.allow-solid-supports-below-max-light")) {
             return false;
         }
         int maxLight = Math.max(0, Math.min(15, plugin.getConfigInt(12,
                 "mushroom-colonies.placement.max-light")));
+        Block targetBlock = world.getBlockAt(bx, by, bz);
         return targetBlock.getLightLevel() <= maxLight && blockBelow.getType().isSolid();
     }
 
-    private boolean isAlwaysValidMushroomSupport(FarmersDelightPlugin plugin, Block blockBelow) {
-        Set<String> configuredSupports = normalizeMushroomSupports(plugin.getConfig().getStringList(
-                "mushroom-colonies.placement.always-valid-supports"));
-        if (configuredSupports.isEmpty()) {
-            configuredSupports = DEFAULT_MUSHROOM_ALWAYS_VALID_SUPPORTS;
+    // Per-config snapshot of the normalized whitelist — built once at plugin enable / reload via
+    // reloadMushroomSupportCache(), then read lock-free per place event. Replaces the prior
+    // "rebuild a Set on every CustomBlockAttemptPlaceEvent" path that allocated a CHM + walked
+    // plugin.getConfig().getStringList() for each placement.
+    private static volatile Set<String> cachedMushroomSupports = DEFAULT_MUSHROOM_ALWAYS_VALID_SUPPORTS;
+
+    public static void reloadMushroomSupportCache(FarmersDelightPlugin plugin) {
+        if (plugin == null) {
+            cachedMushroomSupports = DEFAULT_MUSHROOM_ALWAYS_VALID_SUPPORTS;
+            return;
         }
-        return configuredSupports.contains(toMinecraftBlockId(blockBelow.getType()));
+        Set<String> normalized = normalizeMushroomSupports(plugin.getConfig().getStringList(
+                "mushroom-colonies.placement.always-valid-supports"));
+        cachedMushroomSupports = normalized.isEmpty() ? DEFAULT_MUSHROOM_ALWAYS_VALID_SUPPORTS : normalized;
     }
 
-    private Set<String> normalizeMushroomSupports(Iterable<String> configuredSupports) {
-        Set<String> normalized = ConcurrentHashMap.newKeySet();
+    private boolean isAlwaysValidMushroomSupport(Block blockBelow) {
+        return cachedMushroomSupports.contains(toMinecraftBlockId(blockBelow.getType()));
+    }
+
+    private static Set<String> normalizeMushroomSupports(Iterable<String> configuredSupports) {
         if (configuredSupports == null) {
-            return normalized;
+            return Set.of();
         }
+        Set<String> normalized = new java.util.HashSet<>();
         for (String support : configuredSupports) {
             String value = support == null ? "" : support.trim().toLowerCase(Locale.ROOT);
             if (value.isEmpty()) {
@@ -203,7 +211,9 @@ public class BlockPlaceListener implements Listener {
             }
             normalized.add(value);
         }
-        return normalized;
+        // Snapshot to an immutable set so the volatile field publication is safe and reads after
+        // the swap can't see mid-construction state.
+        return normalized.isEmpty() ? Set.of() : Set.copyOf(normalized);
     }
 
     private String toMinecraftBlockId(Material material) {
@@ -218,7 +228,7 @@ public class BlockPlaceListener implements Listener {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         AdvancementManager am = plugin.getAdvancementManager();
 
-        if (isCookingPotPlacement(customBlockId, blockLocation)) {
+        if (isCookingPotPlacement(blockLocation)) {
             CookingPotBlockBehavior.markRecentlyPlaced(blockLocation);
             CookingPotBlockEntity entity = CookingPotBlockBehavior.getOrCreateBlockEntity(blockLocation);
             restoreCookingPotDataFromPlacedItem(entity, blockLocation.getWorld(), placedItem);
@@ -230,19 +240,25 @@ public class BlockPlaceListener implements Listener {
             }
         }
 
-        if (customBlockId.equals(Constants.BLOCK_CUTTING_BOARD)) {
+        ImmutableBlockState state = CustomBlockUtils.getState(blockLocation);
+
+        if (CustomBlockUtils.hasBehavior(state, CuttingBoardBlockBehavior.class)) {
             ensureCuttingBoardRuntimeEntity(blockLocation);
         }
 
-        if (customBlockId.equals(Constants.BLOCK_SKILLET)) {
+        if (CustomBlockUtils.hasBehavior(state, com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior.class)) {
             plugin.getSkilletManager().recordPlacedSkillet(blockLocation, placedItem);
             if (am != null) {
                 am.award(player, "place_skillet");
             }
         }
 
-        if (am != null && FEAST_BLOCKS.contains(customBlockId.toLowerCase(java.util.Locale.ROOT))) {
+        if (am != null && state != null && state.settings().tags().contains(FEAST_BLOCKS_TAG)) {
             am.award(player, "place_feast");
+        }
+
+        if (am != null && CustomBlockUtils.hasBehavior(state, com.huidu.farmersdelight.block.behavior.OrganicCompostBlockBehavior.class)) {
+            am.award(player, "place_organic_compost");
         }
 
         awardPlantAllCropsCriterion(player, getCustomCropCriterion(customBlockId));
@@ -263,10 +279,7 @@ public class BlockPlaceListener implements Listener {
         );
     }
 
-    private boolean isCookingPotPlacement(String customBlockId, org.bukkit.Location blockLocation) {
-        if (Constants.BLOCK_COOKING_POT.equals(customBlockId)) {
-            return true;
-        }
+    private boolean isCookingPotPlacement(org.bukkit.Location blockLocation) {
         return CookingPotBlockBehavior.getBlockBehavior(blockLocation) != null;
     }
 
@@ -308,8 +321,7 @@ public class BlockPlaceListener implements Listener {
 
         AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
         if (am != null) {
-            // 原版的 placed_block 无法识别 CraftEngine 的自定义作物 ID，因此插件
-            // 沿用原始的 criterion 名称，并手动推进这些进度。
+            // Vanilla placed_block can't recognize CraftEngine custom crop IDs, so advance manually.
             am.awardCriteria(player, "plant_all_crops", criterion);
         }
     }

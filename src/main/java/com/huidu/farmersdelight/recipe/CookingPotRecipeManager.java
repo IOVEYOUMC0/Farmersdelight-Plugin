@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.recipe;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.api.recipe.IngredientMatching;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.core.util.Key;
@@ -16,10 +17,10 @@ import java.util.concurrent.ConcurrentHashMap;
 public class CookingPotRecipeManager {
 
     private final FarmersDelightPlugin plugin;
-    // 这些查找结构会在 /fd reload 时重建。它们以整体、全新构建的、发布后不可变的 map 形式，
-    // 通过单次 volatile 写入进行发布，从而保证并发读取者（cooking-pot 的 tick / GUI，它们在 Folia
-    // 的 region 线程上运行，而 reload 在 global 线程上运行）永远不会观察到一个被清空一半的 map。
-    // 发布之后绝不要对它们进行原地修改。
+    // These lookup structures are rebuilt on /fd reload. They are published as whole, freshly built,
+    // post-publish-immutable maps via a single volatile write, so concurrent readers (cooking-pot
+    // tick / GUI, which run on Folia region threads while reload runs on the global thread) never
+    // observe a half-cleared map. Never mutate them in place after publishing.
     private volatile Map<String, CookingPotRecipe> recipes = Map.of();
     private volatile Map<String, Map<String, CookingPotRecipe>> customRecipes = Map.of();
     private volatile Map<String, Set<String>> ingredientToRecipes = Map.of();
@@ -28,22 +29,37 @@ public class CookingPotRecipeManager {
     private volatile Map<String, List<CookingPotRecipe>> sortedCustomRecipes = Map.of();
     private volatile Map<String, List<CookingPotRecipe>> sortedCustomOnlyRecipes = Map.of();
     private final Map<Key, Set<String>> vanillaItemIdsByTagCache = new ConcurrentHashMap<>();
-    private final Map<String, CookingPotRecipe> recipeCache = new LinkedHashMap<>(MAX_CACHE_SIZE + 1, 0.75f, true) {
-        @Override
-        protected boolean removeEldestEntry(Map.Entry<String, CookingPotRecipe> eldest) {
-            return size() > MAX_CACHE_SIZE;
-        }
-    };
+    // LRU access-order LinkedHashMap mutates internal state on get(), so concurrent reads from
+    // multiple region threads (Folia) would corrupt the doubly-linked list. Wrap in synchronizedMap;
+    // callers MUST synchronize externally when iterating (currently no iteration happens).
+    private final Map<String, CookingPotRecipe> recipeCache = java.util.Collections.synchronizedMap(
+            new LinkedHashMap<>(MAX_CACHE_SIZE + 1, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, CookingPotRecipe> eldest) {
+                    return size() > MAX_CACHE_SIZE;
+                }
+            });
     private static final int MAX_CACHE_SIZE = 100;
+    // Bumped inside the same synchronized(recipeCache) block that clears the cache on every (re)publish.
+    // matchRecipe snapshots it before reading the volatile maps and only stores a computed match if it is
+    // still current, so a match computed against pre-reload maps can't repopulate the just-cleared cache.
+    // volatile so the unsynchronized snapshot read is ordered before the volatile map reads and is visible.
+    private volatile long recipeGeneration = 0;
     private volatile Set<String> validContainerKeys = Set.of();
+    // Recipes registered at runtime by addons via the public API. Kept separate so they survive a
+    // /fd reload (which rebuilds the file-backed maps); merged into the published maps in loadRecipes().
+    private final Map<String, CookingPotRecipe> externalRecipes = new ConcurrentHashMap<>();
+    // Republishing after an external (un)register is coalesced to the next tick, so registering a batch
+    // of addon recipes triggers a single loadRecipes() instead of one full file reload per recipe.
+    private volatile boolean externalRepublishScheduled = false;
 
     public CookingPotRecipeManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
     }
 
     public void loadRecipes() {
-        // 先将所有内容构建到全新的本地集合中，然后（在下方）原子地发布，从而保证读取者
-        // 永远不会看到一个被清空一半的 map。不要对正在使用的字段进行原地 clear()/重新填充。
+        // Build everything into fresh local collections first, then publish atomically (below), so readers
+        // never see a half-cleared map. Do not clear()/refill the live fields in place.
         Map<String, CookingPotRecipe> newRecipes = new LinkedHashMap<>();
         Map<String, Map<String, CookingPotRecipe>> newCustomRecipes = new HashMap<>();
         Map<String, Set<String>> newIngredientToRecipes = new HashMap<>();
@@ -61,6 +77,13 @@ public class CookingPotRecipeManager {
                 });
         loadCustomRecipes(config, newCustomRecipes, newCustomIngredientToRecipes, newValidContainerKeys);
 
+        // Merge addon-registered recipes last so they survive reloads (and override file ids on clash).
+        for (CookingPotRecipe recipe : externalRecipes.values()) {
+            newRecipes.put(recipe.getId(), recipe);
+            indexDefaultRecipe(newIngredientToRecipes, recipe.getId(), recipe);
+            indexContainer(newValidContainerKeys, recipe);
+        }
+
         List<CookingPotRecipe> newSortedRecipes = sortedRecipeList(newRecipes);
         Map<String, List<CookingPotRecipe>> newSortedCustomRecipes = new HashMap<>();
         Map<String, List<CookingPotRecipe>> newSortedCustomOnlyRecipes = new HashMap<>();
@@ -71,7 +94,7 @@ public class CookingPotRecipeManager {
             newSortedCustomRecipes.put(entry.getKey(), sortedRecipeList(merged));
         }
 
-        // 发布全新构建的结构（每个都是单次 volatile 写入）。
+        // Publish the freshly built structures (each a single volatile write).
         this.recipes = newRecipes;
         this.customRecipes = newCustomRecipes;
         this.ingredientToRecipes = newIngredientToRecipes;
@@ -84,7 +107,11 @@ public class CookingPotRecipeManager {
         vanillaItemIdsByTagCache.clear();
         synchronized (recipeCache) {
             recipeCache.clear();
+            recipeGeneration++;
         }
+        // Invalidate the recipe-list GUI display cache: this republish path (incl. addon register/
+        // unregister) bypasses RecipeViewGui.clearConfigCache.
+        com.huidu.farmersdelight.gui.RecipeViewGui.clearRecipeDisplayCache();
     }
 
     private void loadCustomRecipes(YamlConfiguration config,
@@ -294,6 +321,9 @@ public class CookingPotRecipeManager {
 
         String normalizedGroupId = normalizeRecipeGroupId(customRecipeGroupId);
         String cacheKey = buildCacheKey(nonEmptyInputs, container, normalizedGroupId);
+        // Snapshot the publish generation BEFORE reading the volatile maps below. Two volatile reads keep
+        // program order, so this pairs the match we are about to compute with the map version it saw.
+        long generationAtStart = recipeGeneration;
         CookingPotRecipe cached;
         synchronized (recipeCache) {
             cached = recipeCache.get(cacheKey);
@@ -313,7 +343,11 @@ public class CookingPotRecipeManager {
 
         if (result != null) {
             synchronized (recipeCache) {
-                recipeCache.put(cacheKey, result);
+                // Skip caching if a (re)publish cleared the cache and bumped the generation while we were
+                // matching: this result may be against now-stale maps and would poison the fresh cache.
+                if (recipeGeneration == generationAtStart) {
+                    recipeCache.put(cacheKey, result);
+                }
             }
         }
 
@@ -355,11 +389,25 @@ public class CookingPotRecipeManager {
         if (orderedRecipes == null || orderedRecipes.isEmpty()) {
             return null;
         }
+        // Prefer a recipe that consumes exactly the filled slots; only when none does, allow a lenient match
+        // (extra slots of an ingredient the recipe already uses), so exact recipes are never shadowed.
+        CookingPotRecipe exact = matchPass(orderedRecipes, candidateRecipeIds, container, nonEmptyInputs, true);
+        if (exact != null) {
+            return exact;
+        }
+        return matchPass(orderedRecipes, candidateRecipeIds, container, nonEmptyInputs, false);
+    }
+
+    private CookingPotRecipe matchPass(List<CookingPotRecipe> orderedRecipes, Set<String> candidateRecipeIds,
+                                       ItemStack container, List<ItemStack> nonEmptyInputs, boolean exactSlots) {
         for (CookingPotRecipe recipe : orderedRecipes) {
             if (candidateRecipeIds != null && !candidateRecipeIds.contains(recipe.getId())) {
                 continue;
             }
-            if (matchesContainer(recipe, container) && matchRecipe(recipe, nonEmptyInputs)) {
+            // matchRecipePrefiltered skips the per-call ArrayList alloc that matchRecipe's defensive
+            // filter does — caller (matchRecipe public) has already stripped nulls/airs into the list,
+            // and matchPass runs this in a tight loop over every recipe in orderedRecipes.
+            if (matchesContainer(recipe, container) && matchRecipePrefiltered(recipe, nonEmptyInputs, exactSlots)) {
                 return recipe;
             }
         }
@@ -385,32 +433,28 @@ public class CookingPotRecipeManager {
     }
 
     private boolean matchesContainer(CookingPotRecipe recipe, ItemStack container) {
-        if (!recipe.needsContainer()) {
-            return true;
-        }
-        if (container == null || container.getType().isAir()) {
-            return true;
-        }
-        ItemStack required = recipe.getContainer();
-        if (required == null || required.getType().isAir()) {
-            return true;
-        }
-        String requiredCustomId = ItemUtils.getCustomItemId(required);
-        String providedCustomId = ItemUtils.getCustomItemId(container);
-        if (requiredCustomId != null || providedCustomId != null) {
-            return requiredCustomId != null && requiredCustomId.equals(providedCustomId);
-        }
-        return required.isSimilar(container);
+        // The C slot is a batch-output channel, not a cook gate: cooking proceeds regardless of what's in it
+        // (empty, wrong, right). The downstream storeCookedResult / tryMovePendingToOutput only count slots
+        // that hold the recipe's required container before moving pending->output, so a wrong/missing
+        // container just keeps the result in the pending slot until the player swaps in the right one
+        // (no dedicated container slot — it comes from the player's hand at extraction time).
+        return true;
     }
 
     private Set<String> findCandidateRecipes(List<ItemStack> inputs, Map<String, Set<String>> recipeIndex) {
         if (recipeIndex == null || recipeIndex.isEmpty()) {
             return null;
         }
+        // Copy-on-write to avoid the per-call HashSet allocations the old version did even when only
+        // one source set per item / per call needed merging — see the recipe-matching audit notes.
+        // candidates / recipesForItem start as shared references to an unmodified index entry; we
+        // allocate a real HashSet copy only when a second source forces a union or intersection.
         Set<String> candidates = null;
-        
+        boolean candidatesShared = false;
+
         for (ItemStack item : inputs) {
             Set<String> recipesForItem = null;
+            boolean recipesForItemShared = false;
 
             for (String itemId : ItemUtils.getItemIds(item)) {
                 Set<String> indexed = recipeIndex.get(itemId);
@@ -418,8 +462,13 @@ public class CookingPotRecipeManager {
                     continue;
                 }
                 if (recipesForItem == null) {
-                    recipesForItem = new HashSet<>(indexed);
+                    recipesForItem = indexed;
+                    recipesForItemShared = true;
                 } else {
+                    if (recipesForItemShared) {
+                        recipesForItem = new HashSet<>(recipesForItem);
+                        recipesForItemShared = false;
+                    }
                     recipesForItem.addAll(indexed);
                 }
             }
@@ -429,53 +478,57 @@ public class CookingPotRecipeManager {
                     continue;
                 }
                 if (recipesForItem == null) {
-                    recipesForItem = new HashSet<>(indexed);
+                    recipesForItem = indexed;
+                    recipesForItemShared = true;
                 } else {
+                    if (recipesForItemShared) {
+                        recipesForItem = new HashSet<>(recipesForItem);
+                        recipesForItemShared = false;
+                    }
                     recipesForItem.addAll(indexed);
                 }
             }
-            
+
             if (recipesForItem != null) {
                 if (candidates == null) {
-                    candidates = new HashSet<>(recipesForItem);
+                    candidates = recipesForItem;
+                    candidatesShared = recipesForItemShared;
                 } else {
+                    if (candidatesShared) {
+                        candidates = new HashSet<>(candidates);
+                        candidatesShared = false;
+                    }
                     candidates.retainAll(recipesForItem);
                 }
             }
         }
-        
+
         return candidates;
     }
 
     private boolean matchRecipe(CookingPotRecipe recipe, List<ItemStack> inputs) {
-        List<RecipeIngredient> requiredIngredients = recipe.getIngredients();
+        // Lenient acceptance: an exact-slot match also satisfies this, so canCraft uses it.
+        return matchRecipe(recipe, inputs, false);
+    }
 
-        List<ItemStack> availableInputs = new ArrayList<>();
+    private boolean matchRecipe(CookingPotRecipe recipe, List<ItemStack> inputs, boolean exactSlots) {
+        List<ItemStack> nonEmpty = new ArrayList<>();
         for (ItemStack input : inputs) {
             if (input != null && !input.getType().isAir()) {
-                availableInputs.add(input.clone());
+                nonEmpty.add(input);
             }
         }
+        return matchRecipePrefiltered(recipe, nonEmpty, exactSlots);
+    }
 
-        for (RecipeIngredient ingredient : requiredIngredients) {
-            boolean found = false;
-            for (int i = 0; i < availableInputs.size(); i++) {
-                ItemStack available = availableInputs.get(i);
-                if (available != null && available.getAmount() > 0 && matchIngredient(available, ingredient)) {
-                    available.setAmount(available.getAmount() - 1);
-                    if (available.getAmount() <= 0) {
-                        availableInputs.set(i, null);
-                    }
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                return false;
-            }
-        }
-
-        return true;
+    /** Internal variant for callers that have already filtered out nulls/airs (e.g. the matchPass
+     *  loop, which only ever sees the nonEmptyInputs list built once at the top of
+     *  matchRecipe(List, ItemStack, String)). Skips the per-call ArrayList allocation the
+     *  public matchRecipe does for safety. */
+    private boolean matchRecipePrefiltered(CookingPotRecipe recipe, List<ItemStack> nonEmptyInputs, boolean exactSlots) {
+        return IngredientMatching.matchesIngredients(
+                recipe.getIngredients(), nonEmptyInputs, exactSlots,
+                this::matchIngredient, ItemStack::getAmount);
     }
 
     public boolean canCraft(CookingPotRecipe recipe, List<ItemStack> inputs, ItemStack container) {
@@ -608,6 +661,53 @@ public class CookingPotRecipeManager {
 
     public void reload() {
         loadRecipes();
+    }
+
+    /**
+     * Registers (or replaces) an addon-supplied cooking pot recipe at runtime and republishes the recipe
+     * maps. The recipe is retained across /fd reload. Ingredient specs use the same syntax as the
+     * recipe files ("ns:id", "#ns:tag", "a|b" choices); result carries its own amount.
+     */
+    public void registerExternalRecipe(String id, List<String> ingredientSpecs, ItemStack container,
+                                       ItemStack result, float experience, int cookTime, String category) {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("Recipe id is required");
+        }
+        if (ingredientSpecs == null || ingredientSpecs.isEmpty()) {
+            throw new IllegalArgumentException("Recipe must have at least one ingredient");
+        }
+        if (result == null || result.getType().isAir()) {
+            throw new IllegalArgumentException("Recipe must have a result");
+        }
+        List<RecipeIngredient> ingredients = new ArrayList<>();
+        for (String spec : ingredientSpecs) {
+            ingredients.add(parseIngredient(spec));
+        }
+        boolean needsContainer = container != null && !container.getType().isAir();
+        CookingPotRecipe recipe = new CookingPotRecipe(id, ingredients, needsContainer ? container : null,
+                needsContainer, result, Math.max(0f, experience), Math.max(1, cookTime),
+                category == null ? "misc" : category, 0);
+        externalRecipes.put(id, recipe);
+        scheduleExternalRepublish();
+    }
+
+    /** Removes a previously registered addon recipe and republishes. */
+    public void unregisterExternalRecipe(String id) {
+        if (id != null && externalRecipes.remove(id) != null) {
+            scheduleExternalRepublish();
+        }
+    }
+
+    /** Coalesces external-recipe republishing to the next tick (one loadRecipes() per batch). */
+    private void scheduleExternalRepublish() {
+        if (externalRepublishScheduled) {
+            return;
+        }
+        externalRepublishScheduled = true;
+        plugin.scheduler().runLater(() -> {
+            externalRepublishScheduled = false;
+            loadRecipes();
+        }, 1L);
     }
     
     public void clearCache() {

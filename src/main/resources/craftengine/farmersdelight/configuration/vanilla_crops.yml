@@ -1,0 +1,576 @@
+items:
+  minecraft:wheat_seeds:
+    behavior:
+      type: farmersdelight:conditional_block_planting
+      rules:
+        - target: farmersdelight:rich_soil_farmland
+          block: farmersdelight:wheat
+  minecraft:beetroot_seeds:
+    behavior:
+      type: farmersdelight:conditional_block_planting
+      rules:
+        - target: farmersdelight:rich_soil_farmland
+          block: farmersdelight:beetroots
+  minecraft:carrot:
+    behavior:
+      type: farmersdelight:conditional_block_planting
+      rules:
+        - target: farmersdelight:rich_soil_farmland
+          block: farmersdelight:carrots
+  minecraft:potato:
+    behavior:
+      type: farmersdelight:conditional_block_planting
+      rules:
+        - target: farmersdelight:rich_soil_farmland
+          block: farmersdelight:potatoes
+  minecraft:melon_seeds:
+    behavior:
+      type: farmersdelight:conditional_block_planting
+      rules:
+        - target: farmersdelight:rich_soil_farmland
+          block: farmersdelight:melon_stem
+  minecraft:pumpkin_seeds:
+    behavior:
+      type: farmersdelight:conditional_block_planting
+      rules:
+        - target: farmersdelight:rich_soil_farmland
+          block: farmersdelight:pumpkin_stem
+
+blocks:
+  farmersdelight:wheat:
+    settings:
+      template:
+        - default:hardness/none
+        - default:sound/grass
+      overrides:
+        item: minecraft:wheat_seeds
+        push-reaction: destroy
+        is-randomly-ticking: true
+      tags:
+        - minecraft:bee_growables
+        - minecraft:crops
+        - minecraft:maintains_farmland
+    behaviors:
+      - type: liquid_flowable_block
+      - type: crop_block
+        grow-speed: 1.0
+        light-requirement: 9
+        is-bone-meal-target: true
+        bone_meal_age_bonus:
+          type: uniform
+          min: 1
+          max: 3
+      - type: bush_block
+        bottom-blocks:
+          - minecraft:farmland
+          - farmersdelight:rich_soil_farmland
+    states:
+      properties:
+        age:
+          type: int
+          default: 0
+          range: 0~7
+      appearances:
+        age=0:
+          state: wheat[age=0]
+        age=1:
+          state: wheat[age=1]
+        age=2:
+          state: wheat[age=2]
+        age=3:
+          state: wheat[age=3]
+        age=4:
+          state: wheat[age=4]
+        age=5:
+          state: wheat[age=5]
+        age=6:
+          state: wheat[age=6]
+        age=7:
+          state: wheat[age=7]
+      variants:
+        age=0:
+          appearance: age=0
+        age=1:
+          appearance: age=1
+        age=2:
+          appearance: age=2
+        age=3:
+          appearance: age=3
+        age=4:
+          appearance: age=4
+        age=5:
+          appearance: age=5
+        age=6:
+          appearance: age=6
+        age=7:
+          appearance: age=7
+    loot:
+      template: default:loot_table/seed_crop
+      arguments:
+        crop_item: minecraft:wheat
+        crop_seed: minecraft:wheat_seeds
+        ripe_age: 7
+
+  farmersdelight:beetroots:
+    settings:
+      template:
+        - default:hardness/none
+        - default:sound/grass
+      overrides:
+        item: minecraft:beetroot_seeds
+        push-reaction: destroy
+        is-randomly-ticking: true
+      tags:
+        - minecraft:bee_growables
+        - minecraft:crops
+        - minecraft:maintains_farmland
+    behaviors:
+      - type: liquid_flowable_block
+      - type: crop_block
+        grow-speed: 1.0
+        light-requirement: 9
+        is-bone-meal-target: true
+        bone_meal_age_bonus:
+          type: uniform
+          min: 1
+          max: 3
+      - type: bush_block
+        bottom-blocks:
+          - minecraft:farmland
+          - farmersdelight:rich_soil_farmland
+    states:
+      properties:
+        age:
+          type: int
+          default: 0
+          range: 0~3
+      appearances:
+        age=0:
+          state: beetroots[age=0]
+        age=1:
+          state: beetroots[age=1]
+        age=2:
+          state: beetroots[age=2]
+        age=3:
+          state: beetroots[age=3]
+      variants:
+        age=0:
+          appearance: age=0
+        age=1:
+          appearance: age=1
+        age=2:
+          appearance: age=2
+        age=3:
+          appearance: age=3
+    loot:
+      template: default:loot_table/seed_crop
+      arguments:
+        crop_item: minecraft:beetroot
+        crop_seed: minecraft:beetroot_seeds
+        ripe_age: 3
+
+  farmersdelight:carrots:
+    settings:
+      template:
+        - default:hardness/none
+        - default:sound/grass
+      overrides:
+        item: minecraft:carrot
+        push-reaction: destroy
+        is-randomly-ticking: true
+      tags:
+        - minecraft:bee_growables
+        - minecraft:crops
+        - minecraft:maintains_farmland
+    behaviors:
+      - type: liquid_flowable_block
+      - type: crop_block
+        grow-speed: 1.0
+        light-requirement: 9
+        is-bone-meal-target: true
+        bone_meal_age_bonus:
+          type: uniform
+          min: 1
+          max: 3
+      - type: bush_block
+        bottom-blocks:
+          - minecraft:farmland
+          - farmersdelight:rich_soil_farmland
+    states:
+      properties:
+        age:
+          type: int
+          default: 0
+          range: 0~7
+      appearances:
+        age=0:
+          state: carrots[age=0]
+        age=1:
+          state: carrots[age=1]
+        age=2:
+          state: carrots[age=2]
+        age=3:
+          state: carrots[age=3]
+        age=4:
+          state: carrots[age=4]
+        age=5:
+          state: carrots[age=5]
+        age=6:
+          state: carrots[age=6]
+        age=7:
+          state: carrots[age=7]
+      variants:
+        age=0:
+          appearance: age=0
+        age=1:
+          appearance: age=1
+        age=2:
+          appearance: age=2
+        age=3:
+          appearance: age=3
+        age=4:
+          appearance: age=4
+        age=5:
+          appearance: age=5
+        age=6:
+          appearance: age=6
+        age=7:
+          appearance: age=7
+    loot:
+      template: default:loot_table/crop
+      arguments:
+        crop_item: minecraft:carrot
+        extra_crop_count: 3
+        ripe_age: 7
+
+  farmersdelight:potatoes:
+    settings:
+      template:
+        - default:hardness/none
+        - default:sound/grass
+      overrides:
+        item: minecraft:potato
+        push-reaction: destroy
+        is-randomly-ticking: true
+      tags:
+        - minecraft:bee_growables
+        - minecraft:crops
+        - minecraft:maintains_farmland
+    behaviors:
+      - type: liquid_flowable_block
+      - type: crop_block
+        grow-speed: 1.0
+        light-requirement: 9
+        is-bone-meal-target: true
+        bone_meal_age_bonus:
+          type: uniform
+          min: 1
+          max: 3
+      - type: bush_block
+        bottom-blocks:
+          - minecraft:farmland
+          - farmersdelight:rich_soil_farmland
+    states:
+      properties:
+        age:
+          type: int
+          default: 0
+          range: 0~7
+      appearances:
+        age=0:
+          state: potatoes[age=0]
+        age=1:
+          state: potatoes[age=1]
+        age=2:
+          state: potatoes[age=2]
+        age=3:
+          state: potatoes[age=3]
+        age=4:
+          state: potatoes[age=4]
+        age=5:
+          state: potatoes[age=5]
+        age=6:
+          state: potatoes[age=6]
+        age=7:
+          state: potatoes[age=7]
+      variants:
+        age=0:
+          appearance: age=0
+        age=1:
+          appearance: age=1
+        age=2:
+          appearance: age=2
+        age=3:
+          appearance: age=3
+        age=4:
+          appearance: age=4
+        age=5:
+          appearance: age=5
+        age=6:
+          appearance: age=6
+        age=7:
+          appearance: age=7
+    loot:
+      template: default:loot_table/crop
+      arguments:
+        crop_item: minecraft:potato
+        extra_crop_count: 3
+        ripe_age: 7
+
+  farmersdelight:melon_stem:
+    settings:
+      template:
+        - default:hardness/none
+        - default:sound/stem_crop
+      overrides:
+        item: minecraft:melon_seeds
+        push-reaction: destroy
+        is-randomly-ticking: true
+      tags:
+        - minecraft:bee_growables
+        - minecraft:crops
+        - minecraft:maintains_farmland
+    behaviors:
+      - type: liquid_flowable_block
+      - type: stem_block
+        fruit: minecraft:melon
+        attached_stem: farmersdelight:attached_melon_stem
+        fruit_bottom_blocks:
+          - minecraft:farmland
+          - minecraft:dirt
+          - farmersdelight:rich_soil_farmland
+      - type: bush_block
+        bottom-blocks:
+          - minecraft:farmland
+          - farmersdelight:rich_soil_farmland
+    states:
+      properties:
+        age:
+          type: int
+          default: 0
+          range: 0~7
+      appearances:
+        age=0:
+          state: melon_stem[age=0]
+        age=1:
+          state: melon_stem[age=1]
+        age=2:
+          state: melon_stem[age=2]
+        age=3:
+          state: melon_stem[age=3]
+        age=4:
+          state: melon_stem[age=4]
+        age=5:
+          state: melon_stem[age=5]
+        age=6:
+          state: melon_stem[age=6]
+        age=7:
+          state: melon_stem[age=7]
+      variants:
+        age=0:
+          appearance: age=0
+        age=1:
+          appearance: age=1
+        age=2:
+          appearance: age=2
+        age=3:
+          appearance: age=3
+        age=4:
+          appearance: age=4
+        age=5:
+          appearance: age=5
+        age=6:
+          appearance: age=6
+        age=7:
+          appearance: age=7
+    loot:
+      pools:
+        - rolls: 1
+          entries:
+            - type: item
+              item: minecraft:melon_seeds
+              functions:
+                - type: apply_bonus
+                  enchantment: minecraft:fortune
+                  formula:
+                    type: binomial_with_bonus_count
+                    extra: 3
+                    probability: 0.5714286
+
+  farmersdelight:attached_melon_stem:
+    settings:
+      template:
+        - default:hardness/none
+        - default:sound/stem_crop
+      overrides:
+        item: minecraft:melon_seeds
+        push-reaction: destroy
+      tags:
+        - minecraft:maintains_farmland
+    behaviors:
+      - type: liquid_flowable_block
+      - type: attached_stem_block
+        fruit: minecraft:melon
+        stem: farmersdelight:melon_stem
+      - type: bush_block
+        bottom-blocks:
+          - minecraft:farmland
+          - farmersdelight:rich_soil_farmland
+    states:
+      properties:
+        facing:
+          type: horizontal_direction
+          default: north
+      appearances:
+        facing=north:
+          state: attached_melon_stem[facing=north]
+        facing=east:
+          state: attached_melon_stem[facing=east]
+        facing=south:
+          state: attached_melon_stem[facing=south]
+        facing=west:
+          state: attached_melon_stem[facing=west]
+      variants:
+        facing=north:
+          appearance: facing=north
+        facing=east:
+          appearance: facing=east
+        facing=south:
+          appearance: facing=south
+        facing=west:
+          appearance: facing=west
+    loot:
+      pools:
+        - rolls: 1
+          entries:
+            - type: item
+              item: minecraft:melon_seeds
+
+  farmersdelight:pumpkin_stem:
+    settings:
+      template:
+        - default:hardness/none
+        - default:sound/stem_crop
+      overrides:
+        item: minecraft:pumpkin_seeds
+        push-reaction: destroy
+        is-randomly-ticking: true
+      tags:
+        - minecraft:bee_growables
+        - minecraft:crops
+        - minecraft:maintains_farmland
+    behaviors:
+      - type: liquid_flowable_block
+      - type: stem_block
+        fruit: minecraft:pumpkin
+        attached_stem: farmersdelight:attached_pumpkin_stem
+        fruit_bottom_blocks:
+          - minecraft:farmland
+          - minecraft:dirt
+          - farmersdelight:rich_soil_farmland
+      - type: bush_block
+        bottom-blocks:
+          - minecraft:farmland
+          - farmersdelight:rich_soil_farmland
+    states:
+      properties:
+        age:
+          type: int
+          default: 0
+          range: 0~7
+      appearances:
+        age=0:
+          state: pumpkin_stem[age=0]
+        age=1:
+          state: pumpkin_stem[age=1]
+        age=2:
+          state: pumpkin_stem[age=2]
+        age=3:
+          state: pumpkin_stem[age=3]
+        age=4:
+          state: pumpkin_stem[age=4]
+        age=5:
+          state: pumpkin_stem[age=5]
+        age=6:
+          state: pumpkin_stem[age=6]
+        age=7:
+          state: pumpkin_stem[age=7]
+      variants:
+        age=0:
+          appearance: age=0
+        age=1:
+          appearance: age=1
+        age=2:
+          appearance: age=2
+        age=3:
+          appearance: age=3
+        age=4:
+          appearance: age=4
+        age=5:
+          appearance: age=5
+        age=6:
+          appearance: age=6
+        age=7:
+          appearance: age=7
+    loot:
+      pools:
+        - rolls: 1
+          entries:
+            - type: item
+              item: minecraft:pumpkin_seeds
+              functions:
+                - type: apply_bonus
+                  enchantment: minecraft:fortune
+                  formula:
+                    type: binomial_with_bonus_count
+                    extra: 3
+                    probability: 0.5714286
+
+  farmersdelight:attached_pumpkin_stem:
+    settings:
+      template:
+        - default:hardness/none
+        - default:sound/stem_crop
+      overrides:
+        item: minecraft:pumpkin_seeds
+        push-reaction: destroy
+      tags:
+        - minecraft:maintains_farmland
+    behaviors:
+      - type: liquid_flowable_block
+      - type: attached_stem_block
+        fruit: minecraft:pumpkin
+        stem: farmersdelight:pumpkin_stem
+      - type: bush_block
+        bottom-blocks:
+          - minecraft:farmland
+          - farmersdelight:rich_soil_farmland
+    states:
+      properties:
+        facing:
+          type: horizontal_direction
+          default: north
+      appearances:
+        facing=north:
+          state: attached_pumpkin_stem[facing=north]
+        facing=east:
+          state: attached_pumpkin_stem[facing=east]
+        facing=south:
+          state: attached_pumpkin_stem[facing=south]
+        facing=west:
+          state: attached_pumpkin_stem[facing=west]
+      variants:
+        facing=north:
+          appearance: facing=north
+        facing=east:
+          appearance: facing=east
+        facing=south:
+          appearance: facing=south
+        facing=west:
+          appearance: facing=west
+    loot:
+      pools:
+        - rolls: 1
+          entries:
+            - type: item
+              item: minecraft:pumpkin_seeds

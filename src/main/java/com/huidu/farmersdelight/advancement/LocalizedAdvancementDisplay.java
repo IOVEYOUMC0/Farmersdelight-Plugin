@@ -8,9 +8,13 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * 进度（advancement）展示对象，其标题/描述使用资源包的翻译键（translation key），而非在
- * 服务端固化的字符串，因此每个客户端都会以自己的语言渲染它们。这里只重写了（非 NMS 的）
- * Component 取值方法；打过补丁的 UltimateAdvancementAPI 会读取它们用于 GUI、toast 和聊天栏。
+ * Advancement display whose title/description use resource-pack translation keys rather than
+ * server-side fixed strings, so each client renders them in its own language. Only the (non-NMS)
+ * Component getters are overridden here; the patched UltimateAdvancementAPI reads them for the GUI, toast, and chat.
+ *
+ * BaseComponent / TranslatableComponent are Bungee Chat API and deprecated upstream; UAA's
+ * AdvancementDisplay.getChatTitle/Description signatures lock us into BaseComponent[] return
+ * types, so deprecation is suppressed at each use site.
  */
 public class LocalizedAdvancementDisplay extends AdvancementDisplay {
 
@@ -27,25 +31,28 @@ public class LocalizedAdvancementDisplay extends AdvancementDisplay {
         this.frame = frame;
     }
 
-    // 没有 @Override：打过补丁的 UAA 才新增了这个方法，但我们是针对官方原版 API jar 编译的。
-    // 在运行时，打过补丁的 UAA 会调用它以启用 Component（按客户端区分）的渲染方式。
+    // No @Override: the patched UAA adds this method, but we compile against the official upstream API jar.
+    // At runtime, the patched UAA calls it to enable per-client Component rendering.
     public boolean usesComponentDisplay() {
         return true;
     }
 
     @Override
     @NotNull
+    @SuppressWarnings("deprecation")
     public BaseComponent[] getChatTitle() {
         return new BaseComponent[]{colored(titleKey)};
     }
 
     @Override
     @NotNull
+    @SuppressWarnings("deprecation")
     public BaseComponent[] getChatDescription() {
         return new BaseComponent[]{colored(descriptionKey)};
     }
 
-    // 与官方原版 UAA 保持一致：它会用 frame.getColor() 给标题/描述上色；不带颜色的 Component 会渲染成白色。
+    // Matches upstream UAA: it colors the title/description with frame.getColor(); an uncolored Component renders white.
+    @SuppressWarnings("deprecation")
     private TranslatableComponent colored(String key) {
         TranslatableComponent component = new TranslatableComponent(key);
         component.setColor(frame.getColor());

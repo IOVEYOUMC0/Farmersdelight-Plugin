@@ -14,14 +14,18 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class FoodEatListener implements Listener {
 
     private final FarmersDelightPlugin plugin;
-    private final Map<String, Integer> comfortFoodDurations = new HashMap<>();
-    private final Map<String, Integer> nourishmentFoodDurations = new HashMap<>();
+    private final Map<String, Integer> comfortFoodDurations = new ConcurrentHashMap<>();
+    private final Map<String, Integer> nourishmentFoodDurations = new ConcurrentHashMap<>();
+    // Addon-registered food → effect mappings (via the API). Survive /fd reload (config reload only clears
+    // the config-loaded maps above) and apply regardless of the comfort/nourishment-foods enabled flags.
+    private final Map<String, Integer> externalComfortFoods = new ConcurrentHashMap<>();
+    private final Map<String, Integer> externalNourishmentFoods = new ConcurrentHashMap<>();
     private boolean comfortFoodsEnabled;
     private boolean nourishmentFoodsEnabled;
 
@@ -43,19 +47,18 @@ public class FoodEatListener implements Listener {
                 comfortFoodDurations.put(foodId, duration);
             }
         } else {
-            // 兼容旧版插件配置结构：
+            // Compatible with the legacy plugin config structure:
             // comfort-foods-enabled: false
             // comfort-foods:
             //   item_id:
             //     duration: 300
             comfortFoodsEnabled = plugin.getConfig().getBoolean("comfort-foods-enabled", comfortFoodsEnabled);
-            ConfigurationSection legacyComfortSection = plugin.getConfig().getConfigurationSection("comfort-foods");
-            if (legacyComfortSection != null) {
-                for (String foodId : legacyComfortSection.getKeys(false)) {
+            if (comfortSection != null) {
+                for (String foodId : comfortSection.getKeys(false)) {
                     if ("enabled".equalsIgnoreCase(foodId) || "foods".equalsIgnoreCase(foodId)) {
                         continue;
                     }
-                    int duration = legacyComfortSection.getInt(foodId + ".duration", Constants.DEFAULT_COMFORT_DURATION);
+                    int duration = comfortSection.getInt(foodId + ".duration", Constants.DEFAULT_COMFORT_DURATION);
                     comfortFoodDurations.put(foodId, duration);
                 }
             }
@@ -99,17 +102,53 @@ public class FoodEatListener implements Listener {
 
         AdvancementManager advancementManager = FarmersDelightPlugin.getInstance().getAdvancementManager();
 
-        // 每吃下一种不同的 FD 菜肴就完成一个 master_chef 子任务；非菜肴的 id 会被忽略。
+        // Each distinct FD dish eaten completes one master_chef criterion; non-dish ids are ignored.
         if (advancementManager != null && itemId.startsWith("farmersdelight:")) {
             advancementManager.awardCriteria(player, "master_chef", itemId.substring("farmersdelight:".length()));
         }
 
-        if (comfortFoodsEnabled && comfortFoodDurations.containsKey(itemId)) {
-            EffectManager.applyComfort(player, comfortFoodDurations.get(itemId));
+        Integer comfortDuration = externalComfortFoods.get(itemId);
+        if (comfortDuration == null && comfortFoodsEnabled) {
+            comfortDuration = comfortFoodDurations.get(itemId);
+        }
+        if (comfortDuration != null) {
+            EffectManager.applyComfort(player, comfortDuration);
         }
 
-        if (nourishmentFoodsEnabled && nourishmentFoodDurations.containsKey(itemId)) {
-            EffectManager.applyNourishment(player, nourishmentFoodDurations.get(itemId));
+        Integer nourishmentDuration = externalNourishmentFoods.get(itemId);
+        if (nourishmentDuration == null && nourishmentFoodsEnabled) {
+            nourishmentDuration = nourishmentFoodDurations.get(itemId);
+        }
+        if (nourishmentDuration != null) {
+            EffectManager.applyNourishment(player, nourishmentDuration);
+        }
+    }
+
+    /** Registers (or replaces) an addon food → comfort-effect mapping. Survives /fd reload. */
+    public void registerComfortFood(String itemId, int durationSeconds) {
+        if (itemId != null && durationSeconds > 0) {
+            externalComfortFoods.put(itemId, durationSeconds);
+        }
+    }
+
+    /** Registers (or replaces) an addon food → nourishment-effect mapping. Survives /fd reload. */
+    public void registerNourishmentFood(String itemId, int durationSeconds) {
+        if (itemId != null && durationSeconds > 0) {
+            externalNourishmentFoods.put(itemId, durationSeconds);
+        }
+    }
+
+    /** Removes an addon comfort-food mapping registered via registerComfortFood. */
+    public void unregisterComfortFood(String itemId) {
+        if (itemId != null) {
+            externalComfortFoods.remove(itemId);
+        }
+    }
+
+    /** Removes an addon nourishment-food mapping registered via registerNourishmentFood. */
+    public void unregisterNourishmentFood(String itemId) {
+        if (itemId != null) {
+            externalNourishmentFoods.remove(itemId);
         }
     }
 

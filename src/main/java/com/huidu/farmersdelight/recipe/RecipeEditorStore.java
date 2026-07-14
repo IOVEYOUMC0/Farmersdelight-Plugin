@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.recipe;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.Constants;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
@@ -17,12 +18,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 将编辑后的配方写回 recipes/*.yml 文件并重新加载它们。
+ * Writes edited recipes back to the recipes/*.yml files and reloads them.
  *
- * <p>保存操作是同步的：它们由管理员操作（一个 GUI 按钮）触发，文件很小，而且
- * FarmersDelightPlugin#reloadRecipeFiles() 无论如何都必须在主线程/区域线程上运行。
- * 文件本身以原子方式写入（临时文件 + 移动），因此写入过程中崩溃不会
- * 损坏配方文件。
+ * Saves are synchronous: they are triggered by an admin action (a GUI button), the files are small, and
+ * FarmersDelightPlugin#reloadRecipeFiles() must run on the main/region thread anyway.
+ * The files themselves are written atomically (temp file + move), so a crash mid-write does not
+ * corrupt the recipe files.
  */
 public final class RecipeEditorStore {
 
@@ -40,8 +41,8 @@ public final class RecipeEditorStore {
     }
 
     /**
-     * @param customGroupId 为 null 或空白时写入默认的 cooking-pot 配方组，否则写入
-     *                      自定义大锅配方组 id。
+     * @param customGroupId when null or blank, writes to the default cooking-pot recipe group; otherwise
+     *                      writes to the custom cooking-pot recipe group id.
      */
     public boolean saveCookingPotRecipe(CookingPotRecipe recipe, String customGroupId) {
         String path = cookingPotPath(recipe.getId(), customGroupId);
@@ -156,7 +157,7 @@ public final class RecipeEditorStore {
             plugin.reloadRecipeFiles();
             return true;
         } catch (Exception e) {
-            plugin.getLogger().warning("Failed to save recipe file " + relativePath + ": " + e.getMessage());
+            I18n.logWarning("recipe_save_failed", "file", relativePath, "error", e.getMessage());
             return false;
         }
     }

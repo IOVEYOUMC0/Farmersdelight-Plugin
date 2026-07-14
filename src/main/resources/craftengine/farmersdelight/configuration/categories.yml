@@ -8,6 +8,7 @@
       - '#farmersdelight:food'
       - '#farmersdelight:weapon'
       - '#farmersdelight:gui'
+      - '#farmersdelight:item_display'
   farmersdelight:block:
     name: <!i><l10n:farmersdelight.category.block>
     hidden: true
@@ -39,7 +40,12 @@
       - farmersdelight:half_tatami_mat
       - farmersdelight:canvas_rug
       - farmersdelight:straw_bale
+      - farmersdelight:rich_soil
+      - farmersdelight:rich_soil_farmland
+      - farmersdelight:organic_compost
+      - farmersdelight:safety_net
       - farmersdelight:oak_cabinet
+      - farmersdelight:spruce_cabinet
       - farmersdelight:birch_cabinet
       - farmersdelight:jungle_cabinet
       - farmersdelight:acacia_cabinet
@@ -197,3 +203,65 @@
       - farmersdelight:19
       - farmersdelight:20
       - farmersdelight:cooking_time
+      - farmersdelight:cooking_pot_can_cooked_enabled
+      - farmersdelight:cooking_pot_can_cooked_disenabled
+      - farmersdelight:recipe_book
+      - farmersdelight:slot
+  farmersdelight:item_display:
+    name: <!i><l10n:farmersdelight.category.item_display>
+    hidden: true
+    icon: farmersdelight:apple_pie_slice0
+    list:
+      - farmersdelight:apple_pie_slice0
+      - farmersdelight:apple_pie_slice1
+      - farmersdelight:apple_pie_slice2
+      - farmersdelight:apple_pie_slice3
+      - farmersdelight:sweet_berry_cheesecake_slice0
+      - farmersdelight:sweet_berry_cheesecake_slice1
+      - farmersdelight:sweet_berry_cheesecake_slice2
+      - farmersdelight:sweet_berry_cheesecake_slice3
+      - farmersdelight:chocolate_pie_slice0
+      - farmersdelight:chocolate_pie_slice1
+      - farmersdelight:chocolate_pie_slice2
+      - farmersdelight:chocolate_pie_slice3
+      - farmersdelight:pumpkin_pie_slice0
+      - farmersdelight:pumpkin_pie_slice1
+      - farmersdelight:pumpkin_pie_slice2
+      - farmersdelight:pumpkin_pie_slice3
+      - farmersdelight:roast_chicken_block_stage0
+      - farmersdelight:roast_chicken_block_stage1
+      - farmersdelight:roast_chicken_block_stage2
+      - farmersdelight:roast_chicken_block_stage3
+      - farmersdelight:roast_chicken_block_leftovers
+      - farmersdelight:stuffed_pumpkin_block_stage0
+      - farmersdelight:stuffed_pumpkin_block_stage1
+      - farmersdelight:stuffed_pumpkin_block_stage2
+      - farmersdelight:stuffed_pumpkin_block_stage3
+      - farmersdelight:honey_glazed_ham_block_stage0
+      - farmersdelight:honey_glazed_ham_block_stage1
+      - farmersdelight:honey_glazed_ham_block_stage2
+      - farmersdelight:honey_glazed_ham_block_stage3
+      - farmersdelight:honey_glazed_ham_block_leftovers
+      - farmersdelight:shepherds_pie_block_stage0
+      - farmersdelight:shepherds_pie_block_stage1
+      - farmersdelight:shepherds_pie_block_stage2
+      - farmersdelight:shepherds_pie_block_stage3
+      - farmersdelight:shepherds_pie_block_leftovers
+      - farmersdelight:gleaming_salad_block_stage0
+      - farmersdelight:gleaming_salad_block_stage1
+      - farmersdelight:gleaming_salad_block_stage2
+      - farmersdelight:gleaming_salad_block_stage3
+      - farmersdelight:gleaming_salad_block_leftovers
+      - farmersdelight:rice_roll_medley_block_stage0
+      - farmersdelight:rice_roll_medley_block_stage1
+      - farmersdelight:rice_roll_medley_block_stage2
+      - farmersdelight:rice_roll_medley_block_stage3
+      - farmersdelight:rice_roll_medley_block_stage4
+      - farmersdelight:rice_roll_medley_block_stage5
+      - farmersdelight:rice_roll_medley_block_stage6
+      - farmersdelight:rice_roll_medley_block_stage7
+      - farmersdelight:rice_roll_medley_block_leftovers
+      - farmersdelight:cooking_pot_handle
+      - farmersdelight:canvas_rug_elements
+      - farmersdelight:full_tatami_mat_elements
+      - farmersdelight:half_tatami_mat_elements

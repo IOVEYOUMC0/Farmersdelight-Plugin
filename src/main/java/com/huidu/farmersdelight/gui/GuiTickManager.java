@@ -15,7 +15,6 @@ public class GuiTickManager {
     private static GuiTickManager instance;
     private final FarmersDelightPlugin plugin;
     private final ConcurrentHashMap<Consumer<Void>, Player> playerTickCallbacks = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Consumer<Void>, Boolean> globalTickCallbacks = new ConcurrentHashMap<>();
     private final Set<Consumer<Void>> scheduledCallbacks = ConcurrentHashMap.newKeySet();
     private PluginTask globalTickTask;
     private volatile boolean running = false;
@@ -46,16 +45,6 @@ public class GuiTickManager {
         running = true;
 
         globalTickTask = plugin.scheduler().runRepeating(() -> {
-            globalTickCallbacks.forEach((callback, ignored) -> {
-                try {
-                    callback.accept(null);
-                } catch (Exception e) {
-                    if (plugin.isDebugEnabled()) {
-                        plugin.getLogger().warning(I18n.formatConsole("gui_runtime.tick_callback_failed",
-                                "error", e.getMessage()));
-                    }
-                }
-            });
             playerTickCallbacks.forEach((callback, player) -> {
                 if (player == null || !scheduledCallbacks.add(callback)) {
                     return;
@@ -74,7 +63,7 @@ public class GuiTickManager {
                         } finally {
                             scheduledCallbacks.remove(callback);
                         }
-                    });
+                    }, () -> scheduledCallbacks.remove(callback));
                 } catch (RuntimeException e) {
                     scheduledCallbacks.remove(callback);
                     playerTickCallbacks.remove(callback);
@@ -90,20 +79,11 @@ public class GuiTickManager {
             globalTickTask = null;
         }
         playerTickCallbacks.clear();
-        globalTickCallbacks.clear();
         scheduledCallbacks.clear();
     }
 
-    public void registerCallback(Consumer<Void> callback) {
-        globalTickCallbacks.put(callback, Boolean.TRUE);
-        if (!running && getActiveCallbackCount() > 0) {
-            start();
-        }
-    }
-
-    public void registerCallback(Player player, Consumer<Void> callback) {
+    public synchronized void registerCallback(Player player, Consumer<Void> callback) {
         if (player == null) {
-            registerCallback(callback);
             return;
         }
         playerTickCallbacks.put(callback, player);
@@ -112,21 +92,16 @@ public class GuiTickManager {
         }
     }
 
-    public void unregisterCallback(Consumer<Void> callback) {
+    public synchronized void unregisterCallback(Consumer<Void> callback) {
         playerTickCallbacks.remove(callback);
-        globalTickCallbacks.remove(callback);
         scheduledCallbacks.remove(callback);
         if (getActiveCallbackCount() == 0) {
             stop();
         }
     }
 
-    public boolean isRunning() {
-        return running;
-    }
-
     public int getActiveCallbackCount() {
-        return playerTickCallbacks.size() + globalTickCallbacks.size();
+        return playerTickCallbacks.size();
     }
 }
 

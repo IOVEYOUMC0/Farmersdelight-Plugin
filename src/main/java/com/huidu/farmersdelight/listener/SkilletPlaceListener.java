@@ -3,7 +3,7 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.util.ItemUtils;
-import com.huidu.farmersdelight.util.WorldGuardCompat;
+import com.huidu.farmersdelight.util.ProtectionCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
@@ -49,7 +49,7 @@ public class SkilletPlaceListener implements Listener {
         if (!canReplace(targetBlock)) {
             return;
         }
-        if (!WorldGuardCompat.canBuild(player, targetBlock)) {
+        if (!ProtectionCompat.canBuild(player, targetBlock, ProtectionCompat.Feature.SKILLET)) {
             return;
         }
 

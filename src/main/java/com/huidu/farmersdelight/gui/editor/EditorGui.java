@@ -6,12 +6,12 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.InventoryHolder;
 
 /**
- * 所有配方编辑器 GUI（以及它们的选择器子 GUI）的共享契约。GUI 实例本身就是它自己的
- * InventoryHolder，因此 RecipeEditorListener 可以通过检查顶部物品栏的 holder
- * 将原始物品栏事件路由到它。
+ * Shared contract for all recipe editor GUIs (and their picker sub-GUIs). The GUI instance is its own
+ * InventoryHolder, so RecipeEditorListener can route raw inventory events to it by checking
+ * the top inventory's holder.
  *
- * <p>编辑器 GUI 从不移动真实物品：每一个 InventoryClickEvent 都会被取消，并且槽位
- * 内容始终只会以编程方式设置为副本，因此玩家的物品栏永远不会被消耗或丢失（即“点击时复制”模型）。
+ * Editor GUIs never move real items: every InventoryClickEvent is cancelled, and slot
+ * contents are only ever set programmatically to copies, so the player's inventory is never consumed or lost (a "copy on click" model).
  */
 public interface EditorGui extends InventoryHolder {
 

@@ -11,8 +11,8 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
 /**
- * 单个 Bukkit 监听器，将物品栏事件路由到拥有当前打开的顶部物品栏的 EditorGui。
- * 仅延迟注册一次（参照 RecipeViewGui 的分发器模式）。
+ * A single Bukkit listener that routes inventory events to the EditorGui owning the currently open top inventory.
+ * Registered lazily only once (following RecipeViewGui's dispatcher pattern).
  */
 public final class RecipeEditorListener implements Listener {
 
@@ -34,7 +34,7 @@ public final class RecipeEditorListener implements Listener {
         }
     }
 
-    /** 重置状态，以便软重新启用时重新注册一个新的监听器。 */
+    /** Reset state so a new listener is re-registered on soft re-enable. */
     public static void reset() {
         registered = false;
     }

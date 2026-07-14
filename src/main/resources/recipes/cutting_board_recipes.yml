@@ -1,23 +1,23 @@
 ﻿# ========================================
-# 切菜板配方配置
+# Cutting board recipe configuration
 # ========================================
 #
-# 格式：
+# Format:
 #   <recipe_id>:
-#     input: <item_id_or_tag>    # 标签需在前面加 # 前缀
-#     tool: <item_or_tag>        # 标签示例：#farmersdelight:knives, #minecraft:axes
-#                                # 物品示例：minecraft:shears
-#                                # 工具排除："#farmersdelight:knives,!namespace:item,!#namespace:tag"
-#     results:                   # 输出物品列表
+#     input: <item_id_or_tag>    # tags must be prefixed with #
+#     tool: <item_or_tag>        # tag examples: #farmersdelight:knives, #minecraft:axes
+#                                # item example: minecraft:shears
+#                                # tool exclusion: "#farmersdelight:knives,!namespace:item,!#namespace:tag"
+#     results:                   # output item list
 #       - item: <item_id>
-#         count: <amount>        # 可选，默认为 1
-#         chance: <0.0-1.0>      # 可选，默认为 1.0
-#     sound: <sound_id>          # 可选，默认为 entity.sheep.shear
-#     priority: <number>         # 可选；当配方重叠时优先级更高者胜出
+#         count: <amount>        # optional, default 1
+#         chance: <0.0-1.0>      # optional, default 1.0
+#     sound: <sound_id>          # optional, default entity.sheep.shear
+#     priority: <number>         # optional; when recipes overlap, the higher priority wins
 
 cutting_board_recipes:
   # ========================================
-  # 基础加工
+  # Basic processing
   # ========================================
 
   rice_panicle:
@@ -71,7 +71,7 @@ cutting_board_recipes:
         chance: 0.1
 
   # ========================================
-  # 肉类切块
+  # Meat cutting
   # ========================================
   
   porkchop:
@@ -181,7 +181,7 @@ cutting_board_recipes:
       - item: "minecraft:bone"
   
   # ========================================
-  # 蔬菜
+  # Vegetables
   # ========================================
   
   cabbage:
@@ -192,7 +192,7 @@ cutting_board_recipes:
         count: 2
   
   # ========================================
-  # 蛋糕与派的切片
+  # Cake and pie slices
   # ========================================
   
   cake:
@@ -224,7 +224,7 @@ cutting_board_recipes:
         count: 4
   
   # ========================================
-  # 卷物切片
+  # Roll slices
   # ========================================
   
   kelp_roll:
@@ -235,7 +235,7 @@ cutting_board_recipes:
         count: 3
   
   # ========================================
-  # 用斧头剥除木头树皮
+  # Strip tree bark with an axe
   # ========================================
   
   oak_log:
@@ -671,9 +671,9 @@ cutting_board_recipes:
     sound: "minecraft:item.axe.strip"
   
   # ========================================
-  # 其他
+  # Other
   # ========================================
-  
+
   pumpkin:
     input: "minecraft:pumpkin"
     tool: "#farmersdelight:knives"
@@ -792,7 +792,7 @@ cutting_board_recipes:
         chance: 0.1
   
   # ========================================
-  # 花卉
+  # Flowers
   # ========================================
   
   dandelion:

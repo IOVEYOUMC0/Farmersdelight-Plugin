@@ -3,12 +3,13 @@ package com.huidu.farmersdelight.block.behavior;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.manager.SkilletManager;
+import com.huidu.farmersdelight.util.BehaviorArgParser;
+import com.huidu.farmersdelight.util.CookingDebugLog;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
-import com.huidu.farmersdelight.util.InteractionDebouncer;
-import com.huidu.farmersdelight.util.WorldGuardCompat;
+import com.huidu.farmersdelight.util.ProtectionCompat;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
@@ -47,9 +48,6 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock, 
     public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
     }
 
-    public static final int DEFAULT_COOKING_TIME = 600;
-    public static final int MINIMUM_COOKING_TIME = 60;
-
     private final String addFoodSound;
     private final String sizzleSound;
     private int controllerId;
@@ -58,8 +56,8 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock, 
         @Override
         public SkilletBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
-            String addFoodSound = getArgumentString(arguments, "add-food-sound", Constants.SOUND_SKILLET_ADD_FOOD);
-            String sizzleSound = getArgumentString(arguments, "sizzle-sound", Constants.SOUND_SKILLET_SIZZLE);
+            String addFoodSound = BehaviorArgParser.getArgumentString(arguments, "add-food-sound", Constants.SOUND_SKILLET_ADD_FOOD);
+            String sizzleSound = BehaviorArgParser.getArgumentString(arguments, "sizzle-sound", Constants.SOUND_SKILLET_SIZZLE);
             return new SkilletBlockBehavior(block, addFoodSound, sizzleSound);
         }
     };
@@ -99,21 +97,6 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock, 
         return CustomBlockUtils.getBehavior(state, SkilletBlockBehavior.class);
     }
 
-    private static String getArgumentString(Map<String, Object> arguments, String key, String defaultValue) {
-        if (arguments == null) {
-            return defaultValue;
-        }
-        Object value = arguments.get(key);
-        if (value == null) {
-            return defaultValue;
-        }
-        String text = String.valueOf(value).trim();
-        if (text.isEmpty()) {
-            return defaultValue;
-        }
-        return text;
-    }
-
     @Override
     public InteractionResult useOnBlock(UseOnContext context, ImmutableBlockState state) {
         if (context.getPlayer() == null) {
@@ -138,7 +121,8 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock, 
         if (plugin.isDebugEnabled("skillet")) {
             logDebug(player, block, mainHand, manager.findRecipeId(mainHand));
         }
-        if (!WorldGuardCompat.canUse(player, block) || !WorldGuardCompat.canBuild(player, block)) {
+        if (!ProtectionCompat.canUse(player, block, ProtectionCompat.Feature.SKILLET)
+                || !ProtectionCompat.canBuild(player, block, ProtectionCompat.Feature.SKILLET)) {
             return InteractionResult.PASS;
         }
 
@@ -151,11 +135,6 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock, 
             return InteractionResult.FAIL;
         }
 
-        // 这个 CraftEngine 行为和 SkilletInteractListener 都可能接收到同一次
-        // 右键点击；共享一个防抖令牌，使 handleInteract 对 skillet 最多只改动一次。
-        if (!InteractionDebouncer.tryAcquire(player.getUniqueId(), block.getLocation())) {
-            return InteractionResult.SUCCESS_AND_CANCEL;
-        }
         if (manager.handleInteract(player, block, mainHand, EquipmentSlot.HAND)) {
             player.updateInventory();
             return InteractionResult.SUCCESS_AND_CANCEL;
@@ -166,7 +145,7 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock, 
 
     @Override
     public void tick(Object thisBlock, Object[] args) {
-        // 由 SkilletManager 管理。
+        // Managed by SkilletManager.
     }
 
     @Override
@@ -194,7 +173,9 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock, 
             return;
         }
         Location location = new Location(world, pos.x(), pos.y(), pos.z());
-        manager.saveWorldData(world);
+        // breakSkillet already persists/dirties exactly the broken location; the previous
+        // saveWorldData(world) re-dirtied every skillet in the world (O(N) block-entity lookups) on
+        // each single break, and on Folia reached chunks owned by other region threads.
         manager.breakSkillet(location, location.clone().add(0.5, 0.5, 0.5), false);
     }
 
@@ -263,35 +244,17 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock, 
     }
 
     private void logDebug(Player player, Block clickedBlock, ItemStack item, String recipeId) {
-        String resolvedItemId = resolveItemId(item);
+        String resolvedItemId = CookingDebugLog.resolveItemId(item);
         Material material = Material.AIR;
         if (item != null) {
             material = item.getType();
         }
         Bukkit.getLogger().info(I18n.formatConsole("debug.ce_header"));
-        logDebugField("debug.label_behavior", "farmersdelight:skillet");
-        logDebugField("debug.label_player", player.getName());
-        logDebugField("debug.label_clicked_block", clickedBlock.getType());
-        logDebugField("debug.label_item", material);
-        logDebugField("debug.label_item_id", resolvedItemId);
-        logDebugField("debug.label_recipe_found", recipeId);
-    }
-
-    private void logDebugField(String labelKey, Object value) {
-        Bukkit.getLogger().info(I18n.formatConsole("debug.field",
-                "label", I18n.formatConsole(labelKey),
-                "value", value));
-    }
-
-    private String resolveItemId(ItemStack item) {
-        if (item == null || item.getType().isAir()) {
-            return "minecraft:air";
-        }
-
-        String customItemId = ItemUtils.getCustomItemId(item);
-        if (customItemId != null) {
-            return customItemId;
-        }
-        return "minecraft:" + item.getType().name().toLowerCase(java.util.Locale.ROOT);
+        CookingDebugLog.logField("debug.label_behavior", "farmersdelight:skillet");
+        CookingDebugLog.logField("debug.label_player", player.getName());
+        CookingDebugLog.logField("debug.label_clicked_block", clickedBlock.getType());
+        CookingDebugLog.logField("debug.label_item", material);
+        CookingDebugLog.logField("debug.label_item_id", resolvedItemId);
+        CookingDebugLog.logField("debug.label_recipe_found", recipeId);
     }
 }

@@ -18,6 +18,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class KnifeDropHandler implements Listener {
@@ -33,9 +34,13 @@ public class KnifeDropHandler implements Listener {
     );
 
     private final FarmersDelightPlugin plugin;
-    private final Map<String, KnifeDropRule> dropRules = new HashMap<>();
-    private List<String> dropToolTags = new ArrayList<>();
-    private List<String> dropToolItems = new ArrayList<>();
+    // onEntityDeath reads these on arbitrary Folia region threads (a mob can die anywhere) while /fd reload
+    // rebuilds them on the command thread. dropRules is a ConcurrentHashMap (runtime register/unregister
+    // mutate it) republished by an atomic volatile swap in loadConfig so a reader never sees a transiently
+    // empty map; the tool lists are volatile freshly-built lists (safe publication, benign default window).
+    private volatile Map<String, KnifeDropRule> dropRules = new ConcurrentHashMap<>();
+    private volatile List<String> dropToolTags = new ArrayList<>();
+    private volatile List<String> dropToolItems = new ArrayList<>();
 
     public KnifeDropHandler(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -46,8 +51,8 @@ public class KnifeDropHandler implements Listener {
     }
 
     public void loadConfig(boolean logSummary) {
-        dropRules.clear();
-        loadDefaultDropRules();
+        Map<String, KnifeDropRule> newRules = new ConcurrentHashMap<>();
+        loadDefaultDropRules(newRules);
 
         ConfigurationSection dropsSection = getFirstConfiguredSection(DROP_RULE_PATHS);
         if (dropsSection == null) {
@@ -65,11 +70,14 @@ public class KnifeDropHandler implements Listener {
                 List<String> toolItems = loadRuleToolItems(entitySection);
                 List<String> toolTags = loadRuleToolTags(entitySection);
 
-                dropRules.put(entityType.toLowerCase(java.util.Locale.ROOT), new KnifeDropRule(
+                newRules.put(entityType.toLowerCase(java.util.Locale.ROOT), new KnifeDropRule(
                         entityType, normalItem, burningItem, baseChance, lootingMultiplier, toolItems, toolTags
                 ));
             }
         }
+        // Publish the fully-built rule map in one volatile write, so a concurrent onEntityDeath reader sees
+        // the complete old map or the complete new map, never a mid-rebuild state.
+        this.dropRules = newRules;
 
         dropToolTags = new ArrayList<>(List.of(Constants.TAG_KNIVES));
         dropToolItems = new ArrayList<>(DEFAULT_DROP_TOOL_ITEMS);
@@ -87,7 +95,7 @@ public class KnifeDropHandler implements Listener {
         }
 
         if (logSummary) {
-            I18n.logInfo("knife.loaded_rules", "count", dropRules.size());
+            I18n.logInfo("knife.loaded_rules", "count", newRules.size());
             I18n.logInfo("knife.loaded_matchers", "tags", dropToolTags.size(), "items", dropToolItems.size());
         }
     }
@@ -163,21 +171,22 @@ public class KnifeDropHandler implements Listener {
         return null;
     }
 
-    private void loadDefaultDropRules() {
-        putDefaultDrop("pig", "farmersdelight:ham", "farmersdelight:smoked_ham", 0.5D, 0.1D);
-        putDefaultDrop("hoglin", "farmersdelight:ham", "farmersdelight:smoked_ham", 0.5D, 0.1D);
+    private void loadDefaultDropRules(Map<String, KnifeDropRule> target) {
+        putDefaultDrop(target, "pig", "farmersdelight:ham", "farmersdelight:smoked_ham", 0.5D, 0.1D);
+        putDefaultDrop(target, "hoglin", "farmersdelight:ham", "farmersdelight:smoked_ham", 0.5D, 0.1D);
         for (String entityType : List.of("cow", "mooshroom", "donkey", "horse", "mule", "llama", "trader_llama")) {
-            putDefaultDrop(entityType, "minecraft:leather", null, 1.0D, 0.0D);
+            putDefaultDrop(target, entityType, "minecraft:leather", null, 1.0D, 0.0D);
         }
-        putDefaultDrop("chicken", "minecraft:feather", null, 1.0D, 0.0D);
-        putDefaultDrop("spider", "minecraft:string", null, 1.0D, 0.0D);
-        putDefaultDrop("cave_spider", "minecraft:string", null, 1.0D, 0.0D);
-        putDefaultDrop("rabbit", "minecraft:rabbit_hide", null, 1.0D, 0.0D);
-        putDefaultDrop("shulker", "minecraft:shulker_shell", null, 1.0D, 0.0D);
+        putDefaultDrop(target, "chicken", "minecraft:feather", null, 1.0D, 0.0D);
+        putDefaultDrop(target, "spider", "minecraft:string", null, 1.0D, 0.0D);
+        putDefaultDrop(target, "cave_spider", "minecraft:string", null, 1.0D, 0.0D);
+        putDefaultDrop(target, "rabbit", "minecraft:rabbit_hide", null, 1.0D, 0.0D);
+        putDefaultDrop(target, "shulker", "minecraft:shulker_shell", null, 1.0D, 0.0D);
     }
 
-    private void putDefaultDrop(String entityType, String normalItem, String burningItem, double chance, double lootingMultiplier) {
-        dropRules.put(entityType, new KnifeDropRule(entityType, normalItem, burningItem, chance, lootingMultiplier));
+    private void putDefaultDrop(Map<String, KnifeDropRule> target, String entityType, String normalItem,
+                                String burningItem, double chance, double lootingMultiplier) {
+        target.put(entityType, new KnifeDropRule(entityType, normalItem, burningItem, chance, lootingMultiplier));
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -221,7 +230,7 @@ public class KnifeDropHandler implements Listener {
         if (dropItem != null) {
             entity.getWorld().dropItemNaturally(entity.getLocation(), dropItem);
 
-            // 当确实掉落 ham 物品时，触发与 ham 相关的进度（advancement）。
+            // When a ham item actually drops, trigger the ham-related advancement.
             if (isHamItem(itemId)) {
                 AdvancementManager advancementManager = FarmersDelightPlugin.getInstance().getAdvancementManager();
                 if (advancementManager != null) {
@@ -238,7 +247,7 @@ public class KnifeDropHandler implements Listener {
         }
     }
 
-    // 检查所配置的掉落物是否为 ham 的某个变体。
+    // Checks whether the configured drop is a ham variant.
     private boolean isHamItem(String itemId) {
         if (itemId == null) return false;
         String id = itemId.toLowerCase(java.util.Locale.ROOT);

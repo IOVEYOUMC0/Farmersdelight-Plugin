@@ -1,109 +1,118 @@
-# FarmersDelight 配置
-# 常用选项排在前面。GUI 布局、按钮和贴图请编辑 gui.yml。
-# 物品 ID 支持 CraftEngine 物品和原版物品，例如 farmersdelight:flint_knife、minecraft:bowl。
-# 可选物品输出可写成 ""、none、null、empty、air、minecraft:air 来清空。
+# FarmersDelight configuration
+# Common options come first. Edit gui.yml for GUI layout, buttons and textures.
+# Item IDs support CraftEngine items and vanilla items, e.g. farmersdelight:flint_knife, minecraft:bowl.
+# Optional item outputs can be set to "", none, null, empty, air, minecraft:air to clear them.
 
-# 服务端日志和控制台文本语言。
-# 留空会跟随 JVM/系统语言；可填 zh_cn、en_us 强制指定。
-# 影响插件日志、控制台文本和无玩家上下文的文本；玩家 GUI/消息仍优先使用玩家客户端语言。
+# Server log and console text language.
+# Leave empty to follow the JVM/system language; set zh_cn or en_us to force it.
+# Affects plugin logs, console text and text with no player context; player GUI/messages still prefer the player client language.
 language: ''
 
-# 调试日志。默认关闭，正常服务器不需要开启。
-# enabled=true 只是调试总开关；categories 留空不会输出分类调试日志。
-# 建议只在排查问题时开启并指定分类，例如 cooking_pot、stove、skillet、tray。
-# 如果需要临时输出全部分类，可在 categories 写 all 或 *。
+# Debug logging. Off by default, not needed on a normal server.
+# enabled=true is only the master switch; an empty categories outputs no per-category debug logs.
+# Recommended only when troubleshooting, with specific categories such as cooking_pot, stove, skillet, tray.
+# To temporarily output all categories, set categories to all or *.
 debug:
   enabled: false
   categories: []
 
-# 进度系统。关闭后不会同步内置进度数据包。
+# Vanilla loot table injection. The plugin ships a built-in datapack (`farmersdelight_loot`)
+# that overrides vanilla chest / mob drop / grass loot tables to inject FarmersDelight items
+# via CraftEngine's `craftengine:item` loot pool entry type. The datapack is copied into each
+# world's `datapacks/` folder on first enable and requires a server restart (or /reload) to
+# take effect. Once installed, admin edits to the datapack files survive plugin updates
+# (already-present datapack folders are not overwritten). Set to false to skip the install
+# (useful if you want to author your own loot tables manually or use another loot plugin).
+loot-injection:
+  install-datapack: true
+
+# Advancement system. When disabled, the built-in advancement datapack is not synced.
 advancements:
   enabled: true
 
-# CraftEngine 资源自动补齐。
-# 首次启动始终会整包释放内置 CraftEngine 资源到 CraftEngine/resources/farmersdelight。
-# auto-completion=true 时，之后每次启动还会自动补回被删除/缺失的资源文件。
-# 如果你手动删除了某些内置配置且不希望被重新加回，设为 false 即可（首次释放不受影响）。
+# CraftEngine resource auto-completion.
+# First startup always extracts the full built-in CraftEngine resources to CraftEngine/resources/farmersdelight.
+# When auto-completion=true, every later startup also restores deleted/missing resource files.
+# Set to false if you manually deleted some built-in configs and do not want them re-added (first extraction is unaffected).
 craftengine-resources:
   auto-completion: true
 
-# 旧版文件存储兼容层。新数据优先写入 CraftEngine 方块实体；这里主要用于迁移/兜底保存。
-storage:
-  # 旧版存储自动保存间隔，单位秒。
-  auto-save-interval: 300
-
-# 全局性能预算。方块自身 tick 预算写在对应方块配置里；这里保留跨功能的维护任务。
+# Global performance budget. Per-block tick budgets live in each block's config; this keeps cross-feature maintenance tasks.
 performance:
-  # 控制台性能提醒。只输出日志，不会阻止方块工作。
+  # Console performance warnings. Logs only, never blocks blocks from working.
   warnings-enabled: true
   warning-cooldown-seconds: 600
 
-  # 活跃插件方块数量超过该值时输出提醒；只影响提示上限，不影响实际 tick 队列容量。
+  # Warn when active plugin block count exceeds this value; only affects the warning threshold, not the actual tick queue capacity.
   active-block-warning-threshold: 1000
   cooking-pot-total-warning-threshold: 1000
   cooking-pot-density-warning-threshold: 64
 
-  # CraftEngine 服务端方块状态剩余数量低于该值时输出提醒；设为 0 只在完全耗尽时提醒。
+  # Warn when CraftEngine server block states remaining drop below this value; set to 0 to warn only when fully exhausted.
   craftengine-free-state-warning-threshold: 32
 
-  # 代理 ItemDisplay 可见性同步间隔和每批处理数量。影响煎锅/炉灶食物显示的远近可见性维护。
+  # Proxy ItemDisplay visibility sync interval and per-batch count. Affects near/far visibility maintenance of skillet/stove food displays.
   proxy-item-display-view-distance: 64.0
   proxy-item-display-sync-interval-ticks: 20
   proxy-item-display-sync-batch-size: 256
 
-  # 宠物食物手持吸引每 tick 最多处理多少个玩家/实体关系。
+  # Max player/entity relationships processed per tick for pet food tempting.
   pet-tempt-tick-budget: 128
 
-  # 插件启动时，每 tick 最多补加载多少个已加载区块里的插件方块数据。
-  # 调大可缩短启动后恢复时间，调小可减轻启动瞬间压力。
+  # Max plugin block data entries reloaded per tick from already-loaded chunks during plugin startup.
+  # Increase to shorten post-startup recovery time, decrease to ease startup-instant load.
   startup-chunk-loads-per-tick: 16
 
-# 漏斗与插件方块的原版容器桥接总开关。
-# enabled=false 时完全关闭插件方块的漏斗容器桥接，避免漏斗吞物品、重复创建容器或写入异常。
-# 默认开启；如遇漏斗兼容问题可先关闭总开关排查。
-# 具体方块是否允许漏斗交互，请在 cooking-pot / cutting-board / skillet 对应配置中设置。
+# Master switch for the vanilla container bridge between hoppers and plugin blocks.
+# When enabled=false, the hopper container bridge for plugin blocks is fully disabled, avoiding hoppers eating items, duplicate container creation or write errors.
+# On by default; if you hit hopper compatibility issues, turn off the master switch first to troubleshoot.
+# Whether each block allows hopper interaction is set in the cooking-pot / cutting-board / skillet sections.
 hopper-interactions:
   enabled: true
 
-# 砧板交互与砧板上物品展示。
+# Cutting board interaction and item display on the board.
 cutting-board:
-  # true = 当 hopper-interactions.enabled 开启时，砧板允许漏斗输入/输出。
+  # true = when hopper-interactions.enabled is on, the cutting board allows hopper input/output.
   hopper-interactions: true
 
-  # 砧板交互模式：
-  # stacking = 启用 64 堆叠，关闭副手交互
-  # offhand  = 启用副手交互，关闭 64 堆叠
+  # Cutting board interaction mode:
+  # stacking = enable 64 stacking, disable offhand interaction
+  # offhand  = enable offhand interaction, disable 64 stacking
   interaction-mode: stacking
 
+  # true = only items with a cutting recipe or tools can be placed on the board, all others rejected; false = any item allowed (default).
+  # Detection matches cutting/tool logic, compatible with vanilla and CraftEngine custom items.
+  recipe-only-placement: false
+
   sounds:
-    # 空手取回砧板上物品时的提示音量和音高。
+    # Volume and pitch when retrieving a board item by hand.
     retrieve-volume: 0.25
     retrieve-pitch: 0.5
 
-  # 砧板上物品展示实体的全局默认偏移，格式 x,y,z。
-  # x/z 控制水平位置，y 控制离砧板表面的高度。
-  # 替换砧板模型后，如果所有物品整体偏左/偏右/陷进模型，可调整该项。
-  # 单个物品的特殊位置优先使用 display-overrides。
+  # Global default offset for item display entities on the board, format x,y,z.
+  # x/z control horizontal position, y controls height above the board surface.
+  # After replacing the board model, adjust this if all items sit too far left/right or sink into the model.
+  # Special positions for individual items should use display-overrides.
   default-display-offset: 0,-0.03,0
-  # 也可以按需设置全局默认 transformation。rotation 会覆盖自动朝向，通常只在整体模型方向需要重做时使用。
+  # You can also set a global default transformation as needed. rotation overrides the automatic facing, usually only used when the whole model orientation needs redoing.
   # default-display-translation: 0,0,0
   # default-display-rotation: 90,180,0
   # default-display-scale: 0.6
 
-  # 多个物品堆在砧板上时的随机散开范围。
-  # 0.15 表示 x/z 最大约 ±0.075 方块，接近原模组表现。
-  # 觉得食物太散就调小，例如 0.08；想看出堆叠层次就调大，例如 0.20。
+  # Random spread range when multiple items stack on the board.
+  # 0.15 means x/z up to about +/-0.075 block, close to the original mod's look.
+  # Decrease if food looks too scattered, e.g. 0.08; increase to show stacking layers, e.g. 0.20.
   display-item-spread: 0.1
 
-  # 针对某个物品单独覆盖砧板展示。
-  # key 写“存放在砧板上的物品 ID”，可以是 minecraft:* 或 CraftEngine 物品 ID。
-  # display-item: 用另一个物品作为展示模型，适合原物品模型在 ItemDisplay 里显示不正确时使用。
-  # style: auto 自动判断；item 强制平面物品；block 强制方块/立体物品。
-  # position: 在全局 default-display-offset 基础上继续偏移，格式 x,y,z。
-  # translation: ItemDisplay transformation 内部平移。通常保持默认，模型自身轴心不对时再调整。
-  # rotation: 直接覆盖展示旋转角度，格式 x,y,z，单位度。
-  # scale: 直接覆盖缩放，格式 x,y,z；也可以写单个数字，如 0.55。
-  # 示例：
+  # Override the board display for a specific item.
+  # key is the item ID stored on the board, which can be minecraft:* or a CraftEngine item ID.
+  # display-item: use another item as the display model, good when the original model renders incorrectly in an ItemDisplay.
+  # style: auto detects automatically; item forces a flat item; block forces a block/3D item.
+  # position: extra offset on top of the global default-display-offset, format x,y,z.
+  # translation: internal translation of the ItemDisplay transformation. Usually leave default, adjust only when the model's own pivot is off.
+  # rotation: directly override the display rotation angles, format x,y,z in degrees.
+  # scale: directly override the scale, format x,y,z; can also be a single number such as 0.55.
+  # Example:
   # display-overrides:
   #   farmersdelight:tomato:
   #     display-item: farmersdelight:tomato_display
@@ -127,14 +136,153 @@ cutting-board:
       style: block
     farmersdelight:tray:
       style: block
-  # 按物品标签批量覆盖展示。key 可以不写 #，也可以在 display-overrides 中用带引号的 "#namespace:tag"。
+    # 3D blocks whose item icon is 2D (item/generated parent in the vanilla model) — placed on the board
+    # they read as flat sprites instead of awkward floating meshes. Unknown ids are ignored silently
+    # (CuttingBoardDisplayConfig validates only the namespace:id format, never material existence), so
+    # listing newer-version items stays safe on older servers — e.g. pale_oak_sapling on 1.21.1.
+    minecraft:torch:
+      style: item
+    minecraft:soul_torch:
+      style: item
+    minecraft:redstone_torch:
+      style: item
+    minecraft:lantern:
+      style: item
+    minecraft:soul_lantern:
+      style: item
+    minecraft:end_rod:
+      style: item
+    minecraft:lightning_rod:
+      style: item
+    minecraft:chain:
+      style: item
+    minecraft:hopper:
+      style: item
+    minecraft:cauldron:
+      style: item
+    minecraft:brewing_stand:
+      style: item
+    minecraft:campfire:
+      style: item
+    minecraft:soul_campfire:
+      style: item
+    minecraft:cake:
+      style: item
+    minecraft:conduit:
+      style: item
+    minecraft:end_portal_frame:
+      style: item
+    minecraft:flower_pot:
+      style: item
+    minecraft:ladder:
+      style: item
+    minecraft:scaffolding:
+      style: item
+    minecraft:tripwire_hook:
+      style: item
+    minecraft:cobweb:
+      style: item
+    minecraft:lily_pad:
+      style: item
+    minecraft:vine:
+      style: item
+    minecraft:weeping_vines:
+      style: item
+    minecraft:twisting_vines:
+      style: item
+    minecraft:hanging_roots:
+      style: item
+    minecraft:nether_wart:
+      style: item
+    minecraft:nether_sprouts:
+      style: item
+    minecraft:crimson_roots:
+      style: item
+    minecraft:warped_roots:
+      style: item
+    minecraft:crimson_fungus:
+      style: item
+    minecraft:warped_fungus:
+      style: item
+    minecraft:dead_bush:
+      style: item
+    minecraft:short_grass:
+      style: item
+    minecraft:tall_grass:
+      style: item
+    minecraft:fern:
+      style: item
+    minecraft:large_fern:
+      style: item
+    minecraft:sugar_cane:
+      style: item
+    minecraft:kelp:
+      style: item
+    minecraft:sea_pickle:
+      style: item
+    minecraft:azalea:
+      style: item
+    minecraft:flowering_azalea:
+      style: item
+    minecraft:pink_petals:
+      style: item
+    minecraft:glow_lichen:
+      style: item
+    minecraft:sculk_vein:
+      style: item
+    minecraft:oak_sapling:
+      style: item
+    minecraft:spruce_sapling:
+      style: item
+    minecraft:birch_sapling:
+      style: item
+    minecraft:jungle_sapling:
+      style: item
+    minecraft:acacia_sapling:
+      style: item
+    minecraft:dark_oak_sapling:
+      style: item
+    minecraft:cherry_sapling:
+      style: item
+    minecraft:pale_oak_sapling:
+      style: item
+    minecraft:mangrove_propagule:
+      style: item
+    minecraft:bamboo_sapling:
+      style: item
+    minecraft:firefly_bush:
+      style: item
+  # Batch-override displays by item tag. key may omit #, or use a quoted "#namespace:tag" in display-overrides.
+  display-tag-overrides:
+    # Vanilla item tags that cover whole families of 3D-block-with-2D-item entries — saves listing every
+    # wood/colour variant individually. Unknown tags are ignored at lookup, so versions that lack a tag
+    # just won't apply the override.
+    minecraft:doors:
+      style: item
+    minecraft:beds:
+      style: item
+      rotation: -90,-90,0
+      position: 0,0.05,0
+    minecraft:banners:
+      style: item
+    minecraft:signs:
+      style: item
+    minecraft:hanging_signs:
+      style: item
+    minecraft:rails:
+      style: item
+    minecraft:small_flowers:
+      style: item
+    minecraft:tall_flowers:
+      style: item
+  # Example:
   # display-tag-overrides:
   #   minecraft:logs:
   #     style: block
   #     scale: 0.55
 
-# 小刀识别。建议同时保留标签和具体物品，标签用于 CE 资源侧扩展，具体物品用于兜底。
-# 这里仍表示“哪些物品算小刀”，会影响砧板/小刀配方等小刀语义。
+# Knife detection. Recommended to keep both tags and explicit items: tags for CE resource-side extension, explicit items as a fallback.
+# This still defines which items count as knives, affecting board/knife-recipe knife semantics.
 knife-config:
   tags:
     - farmersdelight:knives
@@ -145,9 +293,9 @@ knife-config:
     - farmersdelight:diamond_knife
     - farmersdelight:netherite_knife
 
-# 生物额外掉落的默认触发工具。只影响下面的 mob-extra-drops，不会把这些物品当作小刀。
-# items 可写任意 minecraft:* 或 CraftEngine 物品 ID；tags 可写原版/CraftEngine 物品标签。
-# 例如想让铁剑也触发生物额外掉落，可在 items 下添加 minecraft:iron_sword。
+# Default trigger tools for mob extra drops. Only affects mob-extra-drops below, does not treat these items as knives.
+# items can be any minecraft:* or CraftEngine item ID; tags can be vanilla/CraftEngine item tags.
+# For example, to let an iron sword also trigger mob extra drops, add minecraft:iron_sword under items.
 mob-extra-drop-tools:
   tags:
     - farmersdelight:knives
@@ -158,10 +306,10 @@ mob-extra-drop-tools:
     - farmersdelight:diamond_knife
     - farmersdelight:netherite_knife
 
-# 使用 mob-extra-drop-tools 中配置的工具击杀成年生物时的额外掉落。
-# normal 是普通掉落，burning 是目标燃烧时的掉落，chance 是基础概率，looting-multiplier 是每级抢夺增加概率。
-# 每条规则可选 tool-item / tool-items / tool-tags 覆盖触发工具；不写则使用 mob-extra-drop-tools。
-# 示例：tool-item: minecraft:iron_sword 表示只有铁剑击杀该生物时触发这一条。
+# Extra drops when killing an adult mob with a tool configured in mob-extra-drop-tools.
+# normal is the regular drop, burning is the drop when the target is on fire, chance is the base probability, looting-multiplier is the added probability per looting level.
+# Each rule may use tool-item / tool-items / tool-tags to override the trigger tools; otherwise mob-extra-drop-tools is used.
+# Example: tool-item: minecraft:iron_sword means this rule triggers only when an iron sword kills the mob.
 mob-extra-drops:
   pig:
     normal: farmersdelight:ham
@@ -234,95 +382,112 @@ mob-extra-drops:
     chance: 1.0
     looting-multiplier: 0.0
 
-# 厨锅配置。自定义厨锅槽位和 GUI 请在 CraftEngine 方块 behavior 与 gui.yml 中配置。
+# Cooking pot configuration. Configure custom pot slots and GUI in the CraftEngine block behavior and gui.yml.
 cooking-pot:
   cooking:
-    # 单个配方没有写 cooking_time / cooking-time / cook-time 时使用的默认烹饪时间。
+    # Default cook time used when a recipe has no cooking_time / cooking-time / cook-time.
     default-cook-time: 200
-    # 所有厨锅配方烹饪时间的安全上下限，防止误写成 0 或极大值。
+    # Safe lower/upper bounds for all pot recipe cook times, to prevent accidental 0 or huge values.
     min-cook-time: 20
     max-cook-time: 6000
 
-  # 每 4 tick 最多处理多少个活跃厨锅。调大响应更快，调小压测时更稳。
+  # Max active cooking pots processed every 4 ticks. Increase for faster response, decrease for stability under stress tests.
   tick-budget: 512
 
-  # true = 当 hopper-interactions.enabled 开启时，厨锅允许漏斗输入/输出。
+  # true = when hopper-interactions.enabled is on, the pot allows hopper input/output.
   hopper-interactions: true
 
-  # true = 打包锅内物品到掉落的厨锅物品；false = 掉落空锅并把锅内物品散落出来。
+  # true = pack pot contents into the dropped pot item; false = drop an empty pot and scatter the contents.
   pack-contents-on-break: true
 
-  # 玩家从厨锅输出槽/待取出成品中拿走烹饪成品时，如何结算配方 experience。
-  # vanilla = 掉落原版经验球；auraskills = 只给 AuraSkills 经验；both = 两者都有；none = 不给经验奖励。
-  # base experience 仍由 recipes/cooking_pot_recipes.yml 里的每个配方 experience 字段决定。
+  # How recipe experience is settled when a player takes a finished dish from the pot output slot / pending result.
+  # vanilla = drop vanilla experience orbs; auraskills = only grant AuraSkills experience; both = both; none = no experience reward.
+  # Base experience is still decided by each recipe's experience field in recipes/cooking_pot_recipes.yml.
   experience-reward:
     mode: vanilla
 
-    # mode 为 auraskills 或 both 时生效。技能 ID 可写 farming、auraskills/farming，或 namespace/custom_skill。
-    # multiplier 会用“配方 experience × 倍率”作为 AuraSkills 经验；如果写 amount，则改为每次取出固定给 amount。
-    # raw=false 走 AuraSkills 自身倍率/修饰；raw=true 直接添加原始经验。
+    # Applies when mode is auraskills or both. Skill ID can be farming, auraskills/farming, or namespace/custom_skill.
+    # multiplier uses "recipe experience x multiplier" as AuraSkills experience; if amount is set, instead gives a fixed amount per pickup.
+    # raw=false goes through AuraSkills' own multipliers/modifiers; raw=true adds raw experience directly.
     auraskills:
       skill: farming
       multiplier: 1.0
       raw: false
 
-  # 厨锅烹饪中的悬浮 TextDisplay。
+  # Floating TextDisplay during pot cooking.
   progress-display:
-    # false = 完全关闭厨锅烹饪进度 TextDisplay。大量厨锅压测或服务器性能优先时建议关闭。
+    # false = fully disable the pot cooking progress TextDisplay. Recommended off when stress-testing many pots or prioritizing server performance.
     enabled: true
 
-    # false 只显示进度/状态；true 会额外显示正在烹饪的配方名。
+    # false shows only progress/status; true also shows the name of the recipe being cooked.
     show-recipe-name: false
 
-    # TextDisplay 相对厨锅方块底部的高度。
-    # 更换高锅或矮锅模型后，如果文字压进锅里或漂得太高，可调整该项。
+    # TextDisplay height relative to the bottom of the pot block.
+    # After swapping to a tall or short pot model, adjust this if the text sinks into the pot or floats too high.
     y-offset: 1.2
 
-    # TextDisplay 缩放。只影响悬浮进度文字，不影响 GUI。
+    # TextDisplay scale. Only affects the floating progress text, not the GUI.
     scale: 0.5
 
-    # 玩家距离厨锅多少格以内才可能看到进度文字。
-    # Paper 下还会要求玩家看向厨锅；Folia 下为了避免跨区显示控制，默认直接可见。
+    # How many blocks away a player can possibly see the progress text.
+    # On Paper, the player must also look at the pot; on Folia, to avoid cross-region display control, it is visible directly by default.
     visibility-distance: 10.0
 
-    # 玩家视线与厨锅方向的点积阈值。越接近 1，要求看得越准。
-    # 0.95 约等于必须明显看向厨锅；觉得提示太难触发可降到 0.90。
+    # Dot product threshold between the player's line of sight and the pot direction. Closer to 1 requires more precise aiming.
+    # 0.95 roughly means the player must clearly look at the pot; lower to 0.90 if the hint is too hard to trigger.
     look-dot-threshold: 0.95
 
-    # 悬浮进度文字的刷新间隔。只影响 TextDisplay 更新频率，不会放慢厨锅真实烹饪时间。
+    # Refresh interval of the floating progress text. Only affects TextDisplay update frequency, never slows the pot's real cook time.
     update-interval-ticks: 8
 
-    # 活跃厨锅数量超过该值时自动关闭悬浮 TextDisplay，0 = 不按数量自动关闭。
+    # Auto-disable the floating TextDisplay when active pot count exceeds this value; 0 = do not auto-disable by count.
     disable-above-active-pots: 512
 
-  # 厨锅打开时自动放置的托盘家具，用于承载 CE 显示效果。
+  # Tray furniture auto-placed when the pot opens, used to carry the CE display effect.
   tray:
-    # true = 打开/同步厨锅时自动确保下方托盘存在；false = 不自动生成托盘，厨锅内容显示可能不完整。
+    # true = ensure a tray exists below when opening/syncing the pot; false = no auto tray, pot contents display may be incomplete.
     enabled: true
 
-    # CraftEngine 托盘方块/家具 ID。资源侧改名后该项也需要同步修改。
+    # CraftEngine tray block/furniture ID. Must be updated here too if renamed on the resource side.
     tray-block-id: farmersdelight:tray
 
-    # 托盘相对厨锅方块坐标的偏移，通常不用改。
+    # Tray offset relative to the pot block coordinates, usually no need to change.
     x-offset: 0.5
     y-offset: -1.0
     z-offset: 0.5
 
-    # true = 只有支撑方块不是完整方块时才自动放托盘，用于避免覆盖普通实体方块。
-    # CraftEngine 自定义热源会绕过该限制；用于支持炉灶这类模型方块。
+    # true = only auto-place the tray when the support block is not a full block, to avoid covering normal solid blocks.
+    # CraftEngine custom heat sources bypass this limit; used to support model blocks like the stove.
     require-non-full-support: true
-    # 托盘批量同步间隔和每批处理数量。sync-batch-size 也限制支撑方块变化/压测批量激活触发的紧急托盘同步。
-    # TPS 紧张时可调大间隔或调小 batch。
+    # Tray batch sync interval and per-batch count. sync-batch-size also limits the urgent tray sync triggered by support block changes / stress-test batch activation.
+    # Increase the interval or decrease the batch when TPS is tight.
     sync-interval-ticks: 100
     sync-batch-size: 32
-    # Paper 下额外扫描已标记托盘的间隔，用于找回/清理重启或区块重载后的自动托盘。
-    # 默认 1200 tick = 60 秒；设为 0 表示每轮托盘同步都扫描，排查托盘问题时可临时使用。
-    # Folia 下为避免跨区域实体扫描，不会执行全世界托盘扫描。
+    # On Paper, an extra interval for scanning marked trays, used to recover/clean up auto trays after restart or chunk reload.
+    # Default 1200 ticks = 60 seconds; set to 0 to scan every tray sync round, useful temporarily when troubleshooting trays.
+    # On Folia, to avoid cross-region entity scanning, no world-wide tray scan is performed.
     marked-tray-scan-interval-ticks: 1200
-    # 托盘标记键。已放置世界不建议随意修改；修改后旧托盘无法被识别为自动托盘。
+    # Tray marker key. Not recommended to change for an already-placed world; old trays cannot be recognized as auto trays after changing it.
     marker-key: auto_tray_marker
 
-  # 厨锅世界粒子效果。
+  # Player-installed bail handle decoration. Toggled via shift + empty-hand right-click on a cooking
+  # pot. Mirrors the tray configuration shape: change the handle furniture ID here if you renamed it
+  # on the resource pack side, or to swap in a custom handle variant.
+  handle:
+    # CraftEngine handle furniture ID. Must be updated here too if renamed on the resource side.
+    handle-block-id: farmersdelight:cooking_pot_handle
+    # Handle marker key. Not recommended to change for an already-placed world; old handles cannot be
+    # recognized as auto handles after changing it.
+    marker-key: auto_pot_handle
+    # Handle anchor offset relative to the pot block, mirroring the tray block. Defaults centre the
+    # handle horizontally over the pot; the CE handle definition's element {position: 0, 0.5, 0}
+    # then puts the visible bail at the pot's mid-height where its arc extends up over the rim.
+    # Tweak when you swap in a custom handle furniture model with a different anchor.
+    x-offset: 0.5
+    y-offset: 0.0
+    z-offset: 0.5
+
+  # Cooking pot world particle effects.
   effects:
     bubble:
       enabled: true
@@ -354,18 +519,18 @@ cooking-pot:
         offset-z: 0.0
         speed: 0.02
 
-  # 厨锅配方消耗容器类物品后的返还表。
-  # 键是被厨锅消耗的容器物品 ID，值是烹饪后返还到容器槽/玩家背包的物品 ID。
-  # 例如 milk_bottle 被厨锅消耗后返还 glass_bottle。值写 "" 可禁用某一项返还。
+  # Return table after the pot consumes container-type items.
+  # Key is the container item ID consumed by the pot, value is the item ID returned to the container slot / player inventory after cooking.
+  # For example, milk_bottle returns glass_bottle after being consumed. Set a value to "" to disable that return.
   container-returns:
     farmersdelight:milk_bottle: minecraft:glass_bottle
 
-# 热源判定。厨锅和煎锅都会用到，煎锅的漏斗导热可单独关闭。
+# Heat source detection. Used by both the pot and the skillet; the skillet's hopper heat conduction can be disabled separately.
 heat-sources:
-  # CraftEngine 自定义方块标签。CE 方块配置里给方块加上该 tag 后会被视为热源。
+  # CraftEngine custom block tags. A block with this tag in its CE block config is treated as a heat source.
   tags:
     - farmersdelight:heat_sources
-  # 原版方块 ID。
+  # Vanilla block IDs.
   vanilla-blocks:
     - minecraft:magma_block
     - minecraft:lava_cauldron
@@ -373,59 +538,59 @@ heat-sources:
     - minecraft:fire
     - minecraft:soul_fire
 
-  # 原版方块标签。minecraft:campfires 会只接受已点燃的营火。
+  # Vanilla block tags. minecraft:campfires accepts only lit campfires.
   vanilla-tags:
     - minecraft:campfires
 
-  # CraftEngine 自定义方块 ID，可带状态条件。
-  # 写法示例: namespace:block 或 namespace:block[key:value,key2:value2]
+  # CraftEngine custom block IDs, with optional state conditions.
+  # Format example: namespace:block or namespace:block[key:value,key2:value2]
   custom-blocks:
     - farmersdelight:stove[fire:true]
 
-  # 原版导热方块。厨锅可隔着这些方块找热源。
+  # Vanilla heat-conducting blocks. The pot can find a heat source through these blocks.
   conductors:
     - minecraft:hopper
 
-  # CraftEngine 导热方块标签。
+  # CraftEngine heat-conducting block tags.
   conductor-tags: []
 
-# 蘑菇殖民地方块放置规则。生长速度、年龄和掉落仍在 CraftEngine mushrooms.yml 中配置。
+# Mushroom colony block placement rules. Growth speed, age and drops are still configured in CraftEngine mushrooms.yml.
 mushroom-colonies:
   placement:
-    # 这些支撑方块不受光照限制，始终允许放置蘑菇殖民地。
+    # These support blocks ignore the light limit and always allow mushroom colony placement.
     always-valid-supports:
       - minecraft:mycelium
       - minecraft:podzol
       - minecraft:crimson_nylium
       - minecraft:warped_nylium
       - minecraft:mushroom_stem
-    # true = 其它完整实体方块在低光照下也允许放置。
+    # true = other full solid blocks also allow placement under low light.
     allow-solid-supports-below-max-light: true
-    # 当上方不是 always-valid-supports 时，目标位置光照不高于该值才允许放置。
+    # When the block above is not in always-valid-supports, placement is allowed only if the target light is at or below this value.
     max-light: 12
 
-# 煎锅配置。
+# Skillet configuration.
 skillet:
-  # true = 当 hopper-interactions.enabled 开启时，煎锅允许漏斗输入食材；成品仍按原模组行为直接弹出，不提供漏斗输出槽。
+  # true = when hopper-interactions.enabled is on, the skillet allows hopper ingredient input; results still pop out directly per the original mod behavior, with no hopper output slot.
   hopper-interactions: true
 
-  # 每 4 tick 最多处理多少个活跃煎锅。
+  # Max active skillets processed every 4 ticks.
   tick-budget: 512
 
   cooking:
-    # 当原版营火配方没有 cooking time 时使用的默认烹饪时间。
+    # Default cook time used when a vanilla campfire recipe has no cooking time.
     default-cook-time: 600
-    # 煎锅会把营火配方时间乘以下方倍率；该项限制最快不能低于多少 tick。
+    # The skillet multiplies the campfire recipe time by the multiplier below; this caps how low (in ticks) it can go.
     min-cook-time: 60
-    # 煎锅烹饪时间倍率。0.2 表示约为原版营火时间的 20%。
+    # Skillet cook time multiplier. 0.2 means about 20% of the vanilla campfire time.
     cook-time-multiplier: 0.2
-    # 放置带火焰附加的煎锅时，每级火焰附加从 cook-time-multiplier 中额外减去的倍率。
+    # When placing a skillet with Fire Aspect, the extra multiplier subtracted from cook-time-multiplier per Fire Aspect level.
     fire-aspect-bonus: 0.05
-    # 煎锅失去热源时，每次 tick 回退多少烹饪进度；设为 0 表示不回退。
+    # How much cooking progress reverts per tick when the skillet loses its heat source; set to 0 for no revert.
     cooling-decrement: 2
 
   heat:
-    # 原模组煎锅不通过漏斗传导热量，默认关闭。
+    # The original mod's skillet does not conduct heat through hoppers, off by default.
     allow-conductors: false
 
   effects:
@@ -446,37 +611,40 @@ skillet:
       pitch: 1.0
 
   display:
-    # 煎锅中食物展示的缩放。换模型后如果食物太大或太小，优先调整该项。
+    # Scale of food displayed in the skillet. After swapping the model, adjust this first if food is too big or too small.
     scale: 0.5
-    # 支持与砧板相同的 position/translation/rotation/scale/display-overrides/display-tag-overrides。
-    # rotation 会覆盖自动朝向；单个物品或标签微调时优先写在 overrides 中。
+    # Supports the same position/translation/rotation/scale/display-overrides/display-tag-overrides as the cutting board.
+    # rotation overrides the automatic facing; for per-item or per-tag tweaks, prefer writing them in overrides.
     # rotation: 90,0,0
-    # 食物展示实体的基础高度，原模组约 0.1。
-    # 如果食物陷进煎锅，略微调高；如果漂浮明显，略微调低。
+    # Base height of the food display entity, about 0.1 in the original mod.
+    # If food sinks into the skillet, raise it slightly; if it floats noticeably, lower it slightly.
     y-offset: 0.1
-    # 多个食物在煎锅上的随机散开范围。
-    # 原模组约 0.15，即最大约 ±0.075 方块。
-    # 如果 x/z 水平散开过大，优先调小这个值。
+    # Random spread range of multiple foods on the skillet.
+    # About 0.15 in the original mod, i.e. up to about +/-0.075 block.
+    # If the x/z horizontal spread is too large, lower this value first.
     item-spread: 0.15
     # display-overrides: {}
     # display-tag-overrides: {}
 
-# 炉灶配置。
+# Stove configuration.
 stove:
-  # 每 4 tick 最多处理多少个活跃炉灶。
+  # Max active stoves processed every 4 ticks.
   tick-budget: 512
 
   cooking:
-    # 当原版营火配方没有 cooking time 时使用的默认烹饪时间。
+    # Default cook time used when a vanilla campfire recipe has no cooking time.
     default-cook-time: 600
-    # 炉灶熄火时，每次 tick 回退多少烹饪进度；设为 0 表示不回退。
+    # How much cooking progress reverts per tick when the stove goes out; set to 0 for no revert.
     cooling-decrement: 2
 
   effects:
     smoke:
       enabled: true
       type: SMOKE
-      chance: 0.20
+      # Emitted every dispatch (every 4 ticks) per lit stove when a player is near. Now that stoves
+      # emit uniformly (no chunk stagger), these chances are the true per-stove rate — previously a
+      # broken stagger meant only ~1/4 of stoves emitted, so the shipped values were ~4× higher.
+      chance: 0.05
       count: 1
       y-offset: 0.0
       offset-x: 0.0
@@ -485,20 +653,23 @@ stove:
       speed: 0.02
     crackle:
       enabled: true
-      chance: 0.05
+      chance: 0.0125
       volume: 1.0
       pitch: 1.0
+    fire:
+      enabled: true
+      chance: 0.125
 
   display:
-    # 炉灶上食物展示的缩放。
+    # Scale of food displayed on the stove.
     scale: 0.375
-    # 支持与砧板相同的 position/translation/rotation/scale/display-overrides/display-tag-overrides。
-    # position 会叠加到各槽位偏移上；rotation 会覆盖自动朝向。
+    # Supports the same position/translation/rotation/scale/display-overrides/display-tag-overrides as the cutting board.
+    # position is added to each slot offset; rotation overrides the automatic facing.
     # rotation: 90,0,0
-    # 炉灶 6 个食物展示槽位的默认偏移，格式 x,y,z。
-    # 坐标以 north 朝向为基准：x 左右，y 高度，z 前后；插件会按炉灶朝向自动旋转。
-    # 换用其它炉灶模型后，如果食物不在烤面上，通常只需要调整该项。
-    # 槽位顺序为前排右/中/左，后排右/中/左（以 north 基准观察）。
+    # Default offsets of the stove's 6 food display slots, format x,y,z.
+    # Coordinates are based on north facing: x left/right, y height, z front/back; the plugin auto-rotates by stove facing.
+    # After switching to another stove model, you usually only need to adjust this if food is not on the cooking surface.
+    # Slot order is front row right/center/left, back row right/center/left (viewed from north).
     slot-offsets:
       - "0.3,1.02,0.2"
       - "0.0,1.02,0.2"
@@ -509,7 +680,7 @@ stove:
     # display-overrides: {}
     # display-tag-overrides: {}
 
-# 使用小刀破坏草、成熟小麦、成熟水稻时额外掉落草秆。
+# Extra straw drops when breaking grass, mature wheat or mature rice with a knife.
 straw-drops:
   short_grass:
     drop: farmersdelight:straw
@@ -528,9 +699,9 @@ straw-drops:
     min-amount: 1
     max-amount: 2
 
-# 宠物食物。玩家右键对应实体时给予效果，可继续按同格式添加更多食物。
-# 每个键都是物品 ID，支持 CraftEngine 物品和原版物品。
-# 食物仅用于“手持吸引”而不用于右键消耗时，可把 restore-health 设为 false、effects 写 []，并按需保留或关闭 sound/particles。
+# Pet foods. Grant effects when a player right-clicks the matching entity; add more foods in the same format.
+# Each key is an item ID, supporting CraftEngine items and vanilla items.
+# For a food used only for hand-tempting and not right-click consumption, set restore-health to false, effects to [], and keep or disable sound/particles as needed.
 pet-foods:
   farmersdelight:dog_food:
     entities:
@@ -555,12 +726,12 @@ pet-foods:
     particle-type: END_ROD
     particle-count: 5
   farmersdelight:horse_feed:
-    # Bukkit EntityType 名称。可按同格式加入 LLAMA、CAMEL 等实体；写错会在日志中跳过。
+    # Bukkit EntityType names. Add entities like LLAMA, CAMEL in the same format; invalid ones are skipped with a log entry.
     entities:
       - HORSE
       - DONKEY
       - MULE
-    # true = 右键喂食时要求目标已经被驯服；false = 未驯服实体也能触发右键食物效果。
+    # true = require the target to be tamed when right-click feeding; false = untamed entities can also trigger the right-click food effect.
     require-tamed: false
     restore-health: true
     effects:
@@ -580,34 +751,84 @@ pet-foods:
     particles: true
     particle-type: HEART
     particle-count: 4
-    # 手持该食物时吸引上方 entities 中的实体靠近。
+    # While holding this food, tempt entities in the entities list above to approach.
     tempt:
-      # false = 该食物不参与手持吸引，只保留右键喂食效果。
+      # false = this food does not participate in hand-tempting, keeping only the right-click feeding effect.
       enabled: true
-      # 吸引搜索半径，单位方块。
+      # Tempt search radius, in blocks.
       range: 10.0
-      # Pathfinder 移动速度倍率，太高会显得实体移动不自然。
+      # Pathfinder move speed multiplier; too high makes entity movement look unnatural.
       move-speed: 1.25
-      # 吸引任务间隔，单位 tick。10 tick = 0.5 秒；调大可降低开销但响应会慢一些。
+      # Tempt task interval, in ticks. 10 ticks = 0.5 seconds; increase to lower overhead but response gets slower.
       tick-interval: 10
-      # true = 已驯服且主人为喂食玩家的马不会被自己的马食继续拉扯。
+      # true = a tamed horse owned by the feeding player is not further pulled by its own horse feed.
       ignore-owned-tamed: true
 
-# 舒适效果。原版模组已弃用 Comfort（改用 Nourishment），故默认关闭、列表留空。
-# 机制代码保留：需要可把 enabled 设为 true 并在 foods 下自行添加食物。
+# Recipe discovery: when enabled, recipes start LOCKED in the recipe books (FarmersDelight's own cooking-pot /
+# cutting-board viewer AND the addon recipe book) and are revealed per-player as they unlock them. Locking only
+# affects the books' display -- it never blocks actual crafting at a station. Off by default (books behave as before).
+recipe-discovery:
+  enabled: false
+  # How locked recipes appear in a book: 'placeholder' shows a locked icon; 'hidden' omits them until unlocked.
+  locked-display: placeholder
+  # Item id used for the 'placeholder' locked icon.
+  locked-icon: BARRIER
+  # Auto-unlock a recipe when the player obtains its result item or one of its exact (non-tag) ingredients.
+  unlock-on-obtain: true
+  # Send the player a chat message when a recipe unlocks.
+  notify: true
+
+# Buff display — render per-player active-buff state. Addons (e.g. Brewin' And Chewin') push their
+# buffs into this via the BuffBossbar API; FD renders them on the channels below.
+# Set enabled: false to suppress every buff display globally regardless of per-addon toggles.
+bossbar:
+  enabled: true
+  # Display channels. List any combination — add/remove to route around another plugin that already
+  # occupies a channel, so FD's buffs don't crowd/overwrite it. Options:
+  #   bossbar    = one boss bar per active buff (laid out via layout-mode below). Stacks with other bars.
+  #   actionbar  = all active buffs joined on the action bar line (above the hotbar); auto-refreshed so
+  #                it never fades. Last writer wins, so avoid it if another plugin owns the action bar.
+  #   tab_footer = active buffs listed in the player-list (TAB) footer; only the footer is touched.
+  channels:
+    - bossbar
+  # Separator placed between buffs on the action bar (actionbar channel only).
+  actionbar-separator: "   "
+  # stacked = every active buff gets its own bossbar simultaneously (vanilla style; up to ~4 simultaneous is fine).
+  # rotating = exactly one bossbar visible at a time, cycles to the next active buff every rotation-interval-ticks.
+  layout-mode: stacked
+  # Ticks between switches in rotating mode. Lower bound 20 (1 second). Ignored in stacked mode.
+  rotation-interval-ticks: 80
+  # Per-buff visual. color ∈ {PINK, BLUE, RED, GREEN, YELLOW, PURPLE, WHITE};
+  # overlay ∈ {PROGRESS, NOTCHED_6, NOTCHED_10, NOTCHED_12, NOTCHED_20}. Case-insensitive,
+  # hyphen/underscore tolerant. Addons (e.g. BrewinAndChewin) configure their own buff styles in
+  # their own config.yml; this section only covers FD's two built-in buffs.
+  styles:
+    nourishment: {color: GREEN, overlay: PROGRESS}
+    comfort:     {color: BLUE,  overlay: PROGRESS}
+
+# Buff persistence. Comfort / Nourishment remaining time is mirrored into player PDC on quit and
+# restored on join, so the buff survives relog / restart (and rides whole-PDC sync plugins like
+# HuskSync / MySQLPlayerDataBridge across a proxy network). Because those sync plugins apply the
+# synced PDC a moment AFTER join, the restore is retried once this many ticks later — gap-filling,
+# so it never overwrites a buff gained since join. Set to 0 to skip the retry (single-server only).
+buff-persistence:
+  restore-retry-delay-ticks: 40
+
+# Comfort effect. The original mod deprecated Comfort (replaced by Nourishment), so it is off by default with an empty list.
+# The mechanic code is kept: set enabled to true and add foods under foods if needed.
 comfort-foods:
   enabled: false
-  # 舒适效果每隔多少 tick 回复半颗心；设为 0 可关闭舒适回血，只保留消息/状态。
+  # How many ticks between each half-heart of comfort healing; set to 0 to disable comfort healing and keep only message/status.
   heal-interval-ticks: 80
-  # 效果剩余多少 tick 时发送即将结束提醒；设为 0 可关闭提醒。
+  # Send an about-to-end reminder when this many ticks of the effect remain; set to 0 to disable the reminder.
   fade-warning-ticks: 200
   foods: {}
 
-# 营养效果。吃下列表食物给玩家 Nourishment（清零疲劳值、防止掉饿）。
-# 时长（秒）按原版模组分档：cooked_rice=30；汤底/培根蛋等=60；炖菜/意面等=180；浓汤/盛宴等=300。
+# Nourishment effect. Eating listed foods grants the player Nourishment (resets exhaustion, prevents hunger loss).
+# Duration (seconds) follows the original mod's tiers: cooked_rice=30; broths/bacon and eggs etc.=60; stews/pasta etc.=180; rich soups/feasts etc.=300.
 nourishment-foods:
   enabled: true
-  # 效果剩余多少 tick 时发送即将结束提醒；设为 0 可关闭提醒。
+  # Send an about-to-end reminder when this many ticks of the effect remain; set to 0 to disable the reminder.
   fade-warning-ticks: 200
   foods:
     farmersdelight:cooked_rice:

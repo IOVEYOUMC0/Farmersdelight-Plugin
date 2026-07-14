@@ -6,12 +6,14 @@ import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
+import com.huidu.farmersdelight.util.ProtectionCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.block.behavior.BonemealableBlock;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.util.Key;
@@ -20,6 +22,8 @@ import net.momirealms.craftengine.core.world.context.UseOnContext;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -29,14 +33,12 @@ import org.bukkit.inventory.meta.Damageable;
 
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class MushroomColonyBehavior extends BlockBehavior {
+public class MushroomColonyBehavior extends BlockBehavior implements BonemealableBlock {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
@@ -181,6 +183,10 @@ public class MushroomColonyBehavior extends BlockBehavior {
         BlockPos pos = context.getClickedPos();
         World world = player.getWorld();
         Block block = world.getBlockAt(pos.x(), pos.y(), pos.z());
+        if (!ProtectionCompat.canUse(player, block, ProtectionCompat.Feature.MUSHROOM_COLONY)
+                || !ProtectionCompat.canBuild(player, block, ProtectionCompat.Feature.MUSHROOM_COLONY)) {
+            return InteractionResult.PASS;
+        }
         Location loc = block.getLocation().add(0.5, 0.5, 0.5);
 
         if (shearsHarvest) {
@@ -188,17 +194,32 @@ public class MushroomColonyBehavior extends BlockBehavior {
             ImmutableBlockState nextState = state.with(ageProperty, Math.max(0, currentAge - 1));
             CraftEngineBlocks.place(block.getLocation(), nextState, false);
             world.playSound(loc, Sound.ENTITY_SHEEP_SHEAR, 1.0f, 1.0f);
+            spawnHarvestParticles(world, loc, 3, 0.1, 0.001);
         } else {
             mushroomDrop.setAmount(currentAge);
             ImmutableBlockState resetState = state.with(ageProperty, 0);
             CraftEngineBlocks.place(block.getLocation(), resetState, false);
-            world.playSound(loc, Sound.BLOCK_GROWING_PLANT_CROP, 1.0f, 1.0f);
+            // Mirrors original MushroomColonyBlock: knife harvest plays the block's break sound
+            // (colony copies vanilla mushroom = SoundType.GRASS) rather than a crop-growth sound.
+            world.playSound(loc, Sound.BLOCK_GRASS_BREAK, 1.0f, 1.0f);
+            spawnHarvestParticles(world, loc, 10, 0.2, 0.1);
         }
 
         world.dropItemNaturally(loc, mushroomDrop);
         player.swingMainHand();
         damageHeldTool(player, mainHand);
         return InteractionResult.SUCCESS_AND_CANCEL;
+    }
+
+    /**
+     * Block-crack particle burst on harvest, mirroring original MushroomColonyBlock (3 particles for a
+     * shears trim, 10 for a knife strip). The colony's own block is a CraftEngine visual proxy, so the
+     * particle texture is taken from the matching vanilla mushroom block for a mushroom-colored burst.
+     */
+    private void spawnHarvestParticles(World world, Location loc, int count, double offset, double speed) {
+        Material particleMaterial = mushroomItemId != null && mushroomItemId.contains("red")
+                ? Material.RED_MUSHROOM_BLOCK : Material.BROWN_MUSHROOM_BLOCK;
+        world.spawnParticle(Particle.BLOCK, loc, count, offset, offset, offset, speed, particleMaterial.createBlockData());
     }
 
     private void damageHeldTool(Player player, ItemStack item) {
@@ -208,8 +229,8 @@ public class MushroomColonyBehavior extends BlockBehavior {
         if (!(item.getItemMeta() instanceof Damageable damageable) || damageable.isUnbreakable()) {
             return;
         }
-        // 使用物品的有效最大损伤值（自定义物品携带自定义的 max_damage 组件），
-        // 并在达到最大值时真正消耗掉该工具，而不是让损伤值无限制地超过耐久度继续增长。
+        // Use the item's effective max damage (custom items carry a custom max_damage component),
+        // and actually consume the tool when reached instead of letting damage grow past durability.
         int maxDamage = damageable.hasMaxDamage() ? damageable.getMaxDamage() : item.getType().getMaxDurability();
         if (maxDamage <= 0) {
             return;
@@ -291,6 +312,48 @@ public class MushroomColonyBehavior extends BlockBehavior {
     private boolean matchesLegacyKnifeItem(ItemStack item) {
         String customId = ItemUtils.getCustomItemId(item);
         return FarmersDelightPlugin.getInstance().isKnifeItemId(customId);
+    }
+
+    @Override
+    public boolean isValidBonemealTarget(Object thisBlock, Object[] args) {
+        if (args.length < 3) return false;
+        ImmutableBlockState state = BlockStateUtils.getOptionalCustomBlockState(args[2]).orElse(null);
+        if (state == null || state.isEmpty()) return false;
+        return getAge(state) < maxAge;
+    }
+
+    @Override
+    public boolean isBonemealSuccess(Object thisBlock, Object[] args) {
+        if (args.length >= 3) {
+            World world = CraftEngineAdapter.toWorld(args[0]);
+            BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
+            if (world != null && pos != null) {
+                world.spawnParticle(Particle.HAPPY_VILLAGER,
+                        pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5,
+                        15, 0.25, 0.25, 0.25);
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public void performBonemeal(Object thisBlock, Object[] args) {
+        if (args.length < 4) return;
+        ImmutableBlockState state = BlockStateUtils.getOptionalCustomBlockState(args[3]).orElse(null);
+        if (state == null || state.isEmpty()) return;
+
+        int currentAge = getAge(state);
+        if (currentAge >= maxAge) return;
+
+        World world = CraftEngineAdapter.toWorld(args[0]);
+        BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
+        if (world == null || pos == null) return;
+
+        int increase = ThreadLocalRandom.current().nextInt(1, 3);
+        int newAge = Math.min(maxAge, currentAge + increase);
+        ImmutableBlockState newState = state.with(ageProperty, newAge);
+        Block block = world.getBlockAt(pos.x(), pos.y(), pos.z());
+        CraftEngineBlocks.place(block.getLocation(), newState, false);
     }
 
     @Override

@@ -2,8 +2,8 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.CraftEngineAdapter;
-import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.RiceCropRules;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
@@ -19,9 +19,12 @@ import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.item.Item;
+import net.momirealms.craftengine.core.plugin.config.ConfigConstants;
 import net.momirealms.craftengine.core.plugin.context.ContextHolder;
 import net.momirealms.craftengine.core.plugin.context.EventTrigger;
 import net.momirealms.craftengine.core.plugin.context.PlayerOptionalContext;
+import net.momirealms.craftengine.core.plugin.context.SimpleContext;
+import net.momirealms.craftengine.core.plugin.context.number.NumberProvider;
 import net.momirealms.craftengine.core.plugin.context.parameter.DirectContextParameters;
 import net.momirealms.craftengine.core.util.Cancellable;
 import net.momirealms.craftengine.core.util.Key;
@@ -38,7 +41,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -62,9 +64,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
     private final float growSpeed;
     private final int minGrowLight;
     private final boolean isBoneMealTarget;
-    private final boolean randomBoneMealGrowth;
-    private final int boneMealMin;
-    private final int boneMealMax;
+    private final NumberProvider boneMealAgeBonus;
     private final int maxAgeLower;
     private final int maxAgeUpper;
     private final Object halfLowerValue;
@@ -81,8 +81,8 @@ public class TallCropBlockBehavior extends BlockBehavior {
 
     private TallCropBlockBehavior(BlockDefinition block, Property<Integer> ageProperty,
                                    Property<?> halfProperty, Property<Boolean> supportingProperty,
-                                   float growSpeed, int minGrowLight, boolean isBoneMealTarget, boolean randomBoneMealGrowth,
-                                   int boneMealMin, int boneMealMax,
+                                   float growSpeed, int minGrowLight, boolean isBoneMealTarget,
+                                   NumberProvider boneMealAgeBonus,
                                     int maxAgeLower, int maxAgeUpper, Object halfLowerValue, Object halfUpperValue,
                                     boolean requiresWater, boolean resetOnHarvest, Key upperBlockId,
                                     Set<Key> harvestToolTags, Set<String> harvestToolItems,
@@ -94,9 +94,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
         this.growSpeed = growSpeed;
         this.minGrowLight = minGrowLight;
         this.isBoneMealTarget = isBoneMealTarget;
-        this.randomBoneMealGrowth = randomBoneMealGrowth;
-        this.boneMealMin = boneMealMin;
-        this.boneMealMax = boneMealMax;
+        this.boneMealAgeBonus = boneMealAgeBonus;
         this.maxAgeLower = maxAgeLower;
         this.maxAgeUpper = maxAgeUpper;
         this.halfLowerValue = halfLowerValue;
@@ -114,50 +112,48 @@ public class TallCropBlockBehavior extends BlockBehavior {
         @Override
         public TallCropBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
-            String agePropertyName = getString(arguments, "age-property", "age");
+            String agePropertyName = BehaviorArgParser.getString(arguments, "age-property", "age");
             Property<Integer> ageProperty = (Property<Integer>) block.getProperty(agePropertyName);
             if (ageProperty == null) {
                 ageProperty = (Property<Integer>) block.getProperty("age");
             }
             
-            String halfPropertyName = getString(arguments, "half-property", "half");
+            String halfPropertyName = BehaviorArgParser.getString(arguments, "half-property", "half");
             Property<?> halfProperty = block.getProperty(halfPropertyName);
             
-            String supportingPropertyName = getString(arguments, "supporting-property", "supporting");
+            String supportingPropertyName = BehaviorArgParser.getString(arguments, "supporting-property", "supporting");
             Property<Boolean> supportingProperty = (Property<Boolean>) block.getProperty(supportingPropertyName);
 
-            float growSpeed = getFloat(arguments, "grow-speed", 0.25f);
-            int minGrowLight = getInt(arguments, "light-requirement", 9);
-            boolean isBoneMealTarget = getBoolean(arguments, "is-bone-meal-target", true);
-            boolean randomBoneMealGrowth = getBoolean(arguments, "random-bone-meal-growth", false);
-            int boneMealMin = getInt(arguments, "bone-meal-min", 1);
-            int boneMealMax = getInt(arguments, "bone-meal-max", randomBoneMealGrowth ? 4 : 2);
-            if (boneMealMin < 1) boneMealMin = 1;
-            if (boneMealMax < boneMealMin) boneMealMax = boneMealMin;
+            float growSpeed = BehaviorArgParser.getFloat(arguments, "grow-speed", 0.25f);
+            int minGrowLight = BehaviorArgParser.getInt(arguments, "light-requirement", 9);
+            boolean isBoneMealTarget = BehaviorArgParser.getBoolean(arguments, "is-bone-meal-target", true);
+            NumberProvider boneMealAgeBonus = section != null
+                    ? section.getNumber(new String[]{"bone_meal_age_bonus", "bone-meal-age-bonus"}, ConfigConstants.CONSTANT_ONE)
+                    : ConfigConstants.CONSTANT_ONE;
             
-            int maxAgeLower = hasArgument(arguments, "max-age-lower")
-                    ? getInt(arguments, "max-age-lower", 4)
+            int maxAgeLower = BehaviorArgParser.hasArgument(arguments, "max-age-lower")
+                    ? BehaviorArgParser.getInt(arguments, "max-age-lower", 4)
                     : inferMaxIntegerValue(ageProperty, 4);
-            int maxAgeUpper = hasArgument(arguments, "max-age-upper")
-                    ? getInt(arguments, "max-age-upper", 3)
+            int maxAgeUpper = BehaviorArgParser.hasArgument(arguments, "max-age-upper")
+                    ? BehaviorArgParser.getInt(arguments, "max-age-upper", 3)
                     : Math.max(0, maxAgeLower - 1);
             
-            Object halfLowerValue = hasArgument(arguments, "half-lower-value")
+            Object halfLowerValue = BehaviorArgParser.hasArgument(arguments, "half-lower-value")
                     ? getRawPropertyValue(arguments.get("half-lower-value"), halfProperty, inferLowerHalfValue(halfProperty))
                     : inferLowerHalfValue(halfProperty);
-            Object halfUpperValue = hasArgument(arguments, "half-upper-value")
+            Object halfUpperValue = BehaviorArgParser.hasArgument(arguments, "half-upper-value")
                     ? getRawPropertyValue(arguments.get("half-upper-value"), halfProperty, inferUpperHalfValue(halfProperty))
                     : inferUpperHalfValue(halfProperty);
             
-            boolean requiresWater = getBoolean(arguments, "requires-water", false);
-            boolean resetOnHarvest = getBoolean(arguments, "reset-on-harvest", true);
+            boolean requiresWater = BehaviorArgParser.getBoolean(arguments, "requires-water", false);
+            boolean resetOnHarvest = BehaviorArgParser.getBoolean(arguments, "reset-on-harvest", true);
             Set<Key> harvestToolTags = SoilRuleSupport.parseKeys(arguments, "harvest-tool-tags");
             Set<String> harvestToolItems = parseConfiguredItemIds(arguments, "harvest-tool-items");
             SoilRules soilRules = SoilRuleSupport.parseSoilRules(arguments);
             Set<Key> extraPlantingItems = parseConfiguredKeys(arguments,
                     "extra-planting-items", "extra_planting_items", "extraPlantingItems");
             
-            String upperBlockStr = getString(arguments, "upper-block", "");
+            String upperBlockStr = BehaviorArgParser.getString(arguments, "upper-block", "");
             Key upperBlockId = upperBlockStr.isEmpty() ? null : Key.of(upperBlockStr);
 
             TallCropBlockBehavior behavior = new TallCropBlockBehavior(
@@ -168,9 +164,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
                     growSpeed,
                     minGrowLight,
                     isBoneMealTarget,
-                    randomBoneMealGrowth,
-                    boneMealMin,
-                    boneMealMax,
+                    boneMealAgeBonus,
                     maxAgeLower,
                     maxAgeUpper,
                     halfLowerValue,
@@ -346,17 +340,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
 
                     ImmutableBlockState lowerState = CraftEngineBlocks.getCustomBlockState(lowerBlock);
                     if (lowerState != null && !lowerState.isEmpty()) {
-                        ImmutableBlockState resetState = lowerState;
-                        if (ageProperty != null) {
-                            resetState = resetState.with(ageProperty, Math.max(0, maxAgeLower - 1));
-                        }
-                        if (halfProperty != null) {
-                            resetState = withRaw(resetState, halfProperty, halfLowerValue);
-                        }
-                        if (supportingProperty != null) {
-                            resetState = resetState.with(supportingProperty, false);
-                        }
-                        CraftEngineBlocks.place(lowerBlock.getLocation(), resetState, false);
+                        CraftEngineBlocks.place(lowerBlock.getLocation(), buildLowerResetState(lowerState), false);
                     }
                 }
             }
@@ -377,12 +361,14 @@ public class TallCropBlockBehavior extends BlockBehavior {
             return applyBoneMealToExistingUpperHalf(pos, world);
         }
 
-        int ageBonus = randomBoneMealGrowth
-                ? boneMealMin + ThreadLocalRandom.current().nextInt(boneMealMax - boneMealMin + 1)
-                : boneMealMin;
+        int ageBonus = Math.max(1, computeBoneMealAgeBonus());
         int newAge = currentAge + ageBonus;
         playBonemealEffect(world, pos.x(), pos.y(), pos.z());
         return applyBoneMealToLowerHalf(pos, world, state, newAge);
+    }
+
+    private int computeBoneMealAgeBonus() {
+        return boneMealAgeBonus.getInt(SimpleContext.of(ContextHolder.empty()));
     }
 
     @Override
@@ -418,6 +404,10 @@ public class TallCropBlockBehavior extends BlockBehavior {
         ImmutableBlockState lowerState = CraftEngineBlocks.getCustomBlockState(lowerBlock);
         if (lowerState == null || lowerState.isEmpty() || isUpperHalf(lowerState)) return;
 
+        CraftEngineBlocks.place(lowerBlock.getLocation(), buildLowerResetState(lowerState), false);
+    }
+
+    private ImmutableBlockState buildLowerResetState(ImmutableBlockState lowerState) {
         ImmutableBlockState resetState = lowerState;
         if (ageProperty != null) {
             resetState = resetState.with(ageProperty, Math.max(0, maxAgeLower - 1));
@@ -428,7 +418,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
         if (supportingProperty != null) {
             resetState = resetState.with(supportingProperty, false);
         }
-        CraftEngineBlocks.place(lowerBlock.getLocation(), resetState, false);
+        return resetState;
     }
 
     private boolean applyBoneMealToUpperHalf(BlockPos pos, World world, ImmutableBlockState state, int currentAge) {
@@ -436,7 +426,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
             return false;
         }
 
-        int ageBonus = boneMealMin + ThreadLocalRandom.current().nextInt(Math.max(1, boneMealMax - boneMealMin + 1));
+        int ageBonus = Math.max(1, computeBoneMealAgeBonus());
         int newAge = Math.min(currentAge + ageBonus, maxAgeUpper);
         playBonemealEffect(world, pos.x(), pos.y(), pos.z());
 
@@ -460,7 +450,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
             return false;
         }
 
-        int ageBonus = boneMealMin + ThreadLocalRandom.current().nextInt(Math.max(1, boneMealMax - boneMealMin + 1));
+        int ageBonus = Math.max(1, computeBoneMealAgeBonus());
         int newUpperAge = Math.min(upperAge + ageBonus, maxAgeUpper);
         playBonemealEffect(world, pos.x(), pos.y() + 1, pos.z());
 
@@ -476,10 +466,10 @@ public class TallCropBlockBehavior extends BlockBehavior {
             placeMatureLowerHalf(bukkitBlock, state);
             Block upperBlock = world.getBlockAt(pos.x(), pos.y() + 1, pos.z());
             if (upperBlock.getType().isAir()) {
-                // 匹配预期的水稻生长过渡：将下半部分推入其 supporting 阶段的
-                // 第一次骨粉操作只会在 age 为 0 时生成一个全新的上半部分，
-                // 而不会立即把溢出的生长量带入稻穗（panicles）
-                // 之中。
+                // Match expected rice growth transition: the first bone meal
+                // that pushes the lower half into its supporting stage only
+                // spawns a fresh upper half at age 0, without immediately
+                // carrying overflow growth into the panicles.
                 placeUpperHalfWithAge(upperBlock, 0);
             }
             return true;
@@ -696,61 +686,6 @@ public class TallCropBlockBehavior extends BlockBehavior {
             }
         }
         
-    }
-
-    private static String getString(Map<String, Object> arguments, String key, String defaultValue) {
-        Object value = arguments != null ? arguments.get(key) : null;
-        if (value != null) {
-            return String.valueOf(value);
-        }
-        return defaultValue;
-    }
-
-    private static boolean hasArgument(Map<String, Object> arguments, String key) {
-        if (arguments == null || !arguments.containsKey(key)) {
-            return false;
-        }
-        Object value = arguments.get(key);
-        return value != null && !String.valueOf(value).trim().isEmpty();
-    }
-
-    private static int getInt(Map<String, Object> arguments, String key, int defaultValue) {
-        Object value = arguments != null ? arguments.get(key) : null;
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
-        if (value instanceof String stringValue) {
-            try {
-                return Integer.parseInt(stringValue);
-            } catch (NumberFormatException ignored) {
-            }
-        }
-        return defaultValue;
-    }
-
-    private static float getFloat(Map<String, Object> arguments, String key, float defaultValue) {
-        Object value = arguments != null ? arguments.get(key) : null;
-        if (value instanceof Number number) {
-            return number.floatValue();
-        }
-        if (value instanceof String stringValue) {
-            try {
-                return Float.parseFloat(stringValue);
-            } catch (NumberFormatException ignored) {
-            }
-        }
-        return defaultValue;
-    }
-
-    private static boolean getBoolean(Map<String, Object> arguments, String key, boolean defaultValue) {
-        Object value = arguments != null ? arguments.get(key) : null;
-        if (value instanceof Boolean booleanValue) {
-            return booleanValue;
-        }
-        if (value instanceof String stringValue) {
-            return Boolean.parseBoolean(stringValue);
-        }
-        return defaultValue;
     }
 
     private static Set<String> parseConfiguredItemIds(Map<String, Object> arguments, String key) {
