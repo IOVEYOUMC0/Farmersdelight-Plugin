@@ -3,13 +3,13 @@ package com.huidu.farmersdelight.gui.editor;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.gui.GuiConfig;
 import com.huidu.farmersdelight.gui.RecipeViewGuiConfig;
-import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.recipe.RecipeSerializer;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.Text;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.momirealms.craftengine.core.util.Key;
@@ -29,10 +29,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 用于编辑单个 cooking-pot 配方的游戏内编辑器。布局、槽位位置和按钮文本来自
- * gui.yml 中的 recipe-editor-gui（或针对每个自定义锅的 recipe-editor-cooking-pot-guis.<id>）部分；
- * 聊天反馈来自 gui.editor.* 语言键。原料容量会
- * 根据解析后的布局自适应，因此自定义（大型）锅可以暴露更多的原料槽位。
+ * In-game editor for editing a single cooking-pot recipe. Layout, slot positions, and button text come from
+ * the recipe-editor-gui section of gui.yml (or recipe-editor-cooking-pot-guis.<id> per custom pot);
+ * chat feedback comes from the gui.editor.* language keys. Ingredient capacity adapts
+ * to the parsed layout, so custom (large) pots can expose more ingredient slots.
  */
 public final class CookingPotEditorGui implements EditorGui {
 
@@ -95,9 +95,10 @@ public final class CookingPotEditorGui implements EditorGui {
             ingredients[i] = recipeIngredients.get(i);
         }
         if (recipeIngredients.size() > ingredients.length) {
-            player.sendMessage(I18n.getComponent("gui.editor.feedback.too_many_ingredients", player,
-                    Map.of("shown", String.valueOf(ingredients.length),
-                            "total", String.valueOf(recipeIngredients.size()))));
+            player.sendMessage(Component.translatable("gui.editor.feedback.too_many_ingredients",
+                    Component.text(recipeIngredients.size()),
+                    Component.text(ingredients.length))
+                    .color(NamedTextColor.YELLOW));
         }
         this.container = recipe.getContainer() == null ? null : recipe.getContainer().clone();
         this.result = recipe.getResult() == null ? null : recipe.getResult().clone();
@@ -317,11 +318,13 @@ public final class CookingPotEditorGui implements EditorGui {
             }
         }
         if (ingredientList.isEmpty()) {
-            player.sendMessage(I18n.getComponent("gui.editor.feedback.no_ingredients", player));
+            player.sendMessage(Component.translatable("gui.editor.feedback.no_ingredients")
+                    .color(NamedTextColor.RED));
             return;
         }
         if (result == null || result.getType().isAir()) {
-            player.sendMessage(I18n.getComponent("gui.editor.feedback.no_result", player));
+            player.sendMessage(Component.translatable("gui.editor.feedback.no_result")
+                    .color(NamedTextColor.RED));
             return;
         }
         ItemStack savedResult = result.clone();
@@ -332,10 +335,13 @@ public final class CookingPotEditorGui implements EditorGui {
                 experience, cookTime, category, priority);
 
         if (plugin.getRecipeEditorStore().saveCookingPotRecipe(recipe, customGroupId)) {
-            player.sendMessage(I18n.getComponent("gui.editor.feedback.saved", player, Map.of("recipe_id", recipeId)));
+            player.sendMessage(Component.translatable("gui.editor.feedback.saved",
+                    Component.text(recipeId).color(NamedTextColor.WHITE))
+                    .color(NamedTextColor.GREEN));
             close();
         } else {
-            player.sendMessage(I18n.getComponent("gui.editor.feedback.save_failed", player));
+            player.sendMessage(Component.translatable("gui.editor.feedback.save_failed")
+                    .color(NamedTextColor.RED));
         }
     }
 
@@ -352,9 +358,12 @@ public final class CookingPotEditorGui implements EditorGui {
 
     private void performDelete() {
         if (plugin.getRecipeEditorStore().deleteCookingPotRecipe(recipeId, customGroupId)) {
-            player.sendMessage(I18n.getComponent("gui.editor.feedback.deleted", player, Map.of("recipe_id", recipeId)));
+            player.sendMessage(Component.translatable("gui.editor.feedback.deleted",
+                    Component.text(recipeId).color(NamedTextColor.WHITE))
+                    .color(NamedTextColor.GREEN));
         } else {
-            player.sendMessage(I18n.getComponent("gui.editor.feedback.delete_failed", player));
+            player.sendMessage(Component.translatable("gui.editor.feedback.delete_failed")
+                    .color(NamedTextColor.RED));
         }
         player.closeInventory();
     }
@@ -382,12 +391,14 @@ public final class CookingPotEditorGui implements EditorGui {
     private void openTagPicker(int idx, ItemStack source) {
         RecipeViewGuiConfig.BaseConfig pickerConfig = plugin.getRecipeEditorGuiConfig().getTagPickerConfig();
         if (pickerConfig == null) {
-            player.sendMessage(I18n.getComponent("gui.editor.feedback.advanced_coming", player));
+            player.sendMessage(Component.translatable("gui.editor.feedback.advanced_coming")
+                    .color(NamedTextColor.YELLOW));
             return;
         }
         List<String> tags = ItemUtils.getAllItemTagIds(source);
         if (tags.isEmpty()) {
-            player.sendMessage(I18n.getComponent("gui.editor.feedback.no_tags", player));
+            player.sendMessage(Component.translatable("gui.editor.feedback.no_tags")
+                    .color(NamedTextColor.RED));
             return;
         }
         closed = true;
@@ -402,7 +413,8 @@ public final class CookingPotEditorGui implements EditorGui {
     private void openChoiceBuilder(int idx) {
         RecipeViewGuiConfig.BaseConfig choiceConfig = plugin.getRecipeEditorGuiConfig().getChoiceBuilderConfig();
         if (choiceConfig == null) {
-            player.sendMessage(I18n.getComponent("gui.editor.feedback.advanced_coming", player));
+            player.sendMessage(Component.translatable("gui.editor.feedback.advanced_coming")
+                    .color(NamedTextColor.YELLOW));
             return;
         }
         closed = true;

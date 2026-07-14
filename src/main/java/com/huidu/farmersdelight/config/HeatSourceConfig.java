@@ -93,8 +93,8 @@ public class HeatSourceConfig {
         try {
             NamespacedKey key = NamespacedKey.minecraft(blockId.replace("minecraft:", "").toLowerCase(java.util.Locale.ROOT));
             Material material = Registry.MATERIAL.get(key);
-            // 对于格式正确但未知的 id，Registry.get 返回 null（而不是抛出异常），因此拼写错误的
-            // block id 否则会在没有任何诊断信息的情况下向集合中添加一个 null。
+            // For well-formed but unknown ids, Registry.get returns null (rather than throwing), so a misspelled
+            // block id would otherwise add a null to the set with no diagnostics.
             if (material == null) {
                 if (LOGGER != null) {
                     LOGGER.warning(I18n.formatConsole("heat_source.invalid_vanilla_block", "id", blockId));
@@ -111,9 +111,12 @@ public class HeatSourceConfig {
 
     public void addVanillaTag(String tagId) {
         vanillaTags.add(tagId);
-        if (tagId.contains("campfires") || tagId.contains("fire")) {
-            // 篝火只有在点燃时才算作热源，因此它们通过下面的 vanillaLitBlocks 进行特殊处理，
-            // 而不是使用通用的标签匹配（后者会忽略点燃状态）。
+        String normalizedTag = (tagId.startsWith("#") ? tagId.substring(1) : tagId).toLowerCase(java.util.Locale.ROOT);
+        if (normalizedTag.equals("minecraft:campfires") || normalizedTag.equals("campfires")) {
+            // Campfires only count as heat sources when lit, so they are handled specially via vanillaLitBlocks below,
+            // rather than generic tag matching (which would ignore the lit state). Match the exact tag id — the old
+            // substring `contains("fire")` misrouted any tag whose id merely contained "fire"
+            // (e.g. minecraft:soul_fire_base_blocks) into campfire-only handling.
             vanillaLitBlocks.add(Material.CAMPFIRE);
             vanillaLitBlocks.add(Material.SOUL_CAMPFIRE);
             return;

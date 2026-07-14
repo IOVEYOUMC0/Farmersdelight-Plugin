@@ -2,21 +2,31 @@ package com.huidu.farmersdelight.util;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.EnumMap;
+import java.util.Map;
 
 public final class WorldGuardCompat {
     private static final String WORLD_GUARD_PLUGIN = "WorldGuard";
+    /** Master gate. /rg flag <region> farmersdelight-use deny blocks ALL FarmersDelight custom
+     *  interactions in a region regardless of the per-feature flags below. Default ALLOW = no change. */
+    private static final String MASTER_FLAG_NAME = "farmersdelight-use";
 
+    // Per-station protection features live on the ProtectionCompat facade; this class maps each to its
+    // WorldGuard StateFlag (feature.flagName()) and defaults every flag to ALLOW (unset = no change).
     private static volatile Boolean available;
     private static volatile Object buildFlag;
     private static volatile Object useFlag;
-    // 反射句柄只解析一次并复用，因此每次交互的 canUse/canBuild 查询都
-    // 不会重复执行 Class.forName + getMethod 以及完整的 getMethods() 扫描。
+    // Registered StateFlag instances resolved once in registerFlags() during onLoad. null when
+    // WorldGuard is absent / registration failed → the query layer treats a null flag as ALLOW.
+    private static volatile Object masterFlag;
+    private static volatile Map<ProtectionCompat.Feature, Object> featureFlags = Map.of();
+    // Reflection handles are resolved once and reused, so per-interaction canUse/canBuild queries
+    // don't repeat Class.forName + getMethod and the full getMethods() scan.
     private static volatile Object cachedRegionContainer;
     private static volatile Method createQueryMethod;
     private static volatile Method adaptLocationMethod;
@@ -26,24 +36,103 @@ public final class WorldGuardCompat {
     private WorldGuardCompat() {
     }
 
-    public static boolean canBuild(Player player, Block block) {
-        return block == null || canBuild(player, block.getLocation());
+    /**
+     * Register FarmersDelight's custom region flags with WorldGuard (master + one per ProtectionCompat.Feature).
+     * MUST be called during the plugin load phase (onLoad) — WorldGuard locks its FlagRegistry the
+     * moment it enables, so a late registration throws. No-op when WorldGuard is not installed. If
+     * another plugin already registered a flag by the same name, the existing StateFlag is reused (WG
+     * persists flag values on regions even across restarts, so reusing keeps admin settings intact).
+     */
+    public static void registerFlags() {
+        try {
+            if (Bukkit.getPluginManager().getPlugin(WORLD_GUARD_PLUGIN) == null) {
+                return;
+            }
+            Class<?> worldGuardClass = Class.forName("com.sk89q.worldguard.WorldGuard");
+            Object worldGuard = worldGuardClass.getMethod("getInstance").invoke(null);
+            Object registry = worldGuardClass.getMethod("getFlagRegistry").invoke(worldGuard);
+            Class<?> stateFlagClass = Class.forName("com.sk89q.worldguard.protection.flags.StateFlag");
+            Method register = findMethod(registry.getClass(), "register", 1);
+            Method get = findMethod(registry.getClass(), "get", 1);
+            if (register == null) {
+                return;
+            }
+            masterFlag = registerStateFlag(registry, stateFlagClass, register, get, MASTER_FLAG_NAME);
+            EnumMap<ProtectionCompat.Feature, Object> resolved = new EnumMap<>(ProtectionCompat.Feature.class);
+            for (ProtectionCompat.Feature feature : ProtectionCompat.Feature.values()) {
+                Object flag = registerStateFlag(registry, stateFlagClass, register, get, feature.flagName());
+                if (flag != null) {
+                    resolved.put(feature, flag);
+                }
+            }
+            featureFlags = resolved.isEmpty() ? Map.of() : Map.copyOf(resolved);
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+            masterFlag = null;
+            featureFlags = Map.of();
+        }
     }
 
-    public static boolean canBuild(Player player, Location location) {
-        return query(player, location, true);
+    /** Register one StateFlag by name; on FlagConflictException reuse the existing StateFlag. Returns
+     *  the flag instance, or null if it could not be created/reused. */
+    private static Object registerStateFlag(Object registry, Class<?> stateFlagClass, Method register,
+                                            Method get, String name) {
+        try {
+            Object flag = stateFlagClass.getConstructor(String.class, boolean.class).newInstance(name, true);
+            try {
+                register.invoke(registry, flag);
+                return flag;
+            } catch (ReflectiveOperationException conflict) {
+                Object existing = get != null ? get.invoke(registry, name) : null;
+                return stateFlagClass.isInstance(existing) ? existing : null;
+            }
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+            return null;
+        }
     }
 
-    public static boolean canUse(Player player, Block block) {
-        return block == null || canUse(player, block.getLocation());
+    // ── ProtectionCompat.Feature-aware overloads: WG BUILD/USE flag AND master flag AND the feature's own flag. ──
+    public static boolean canBuild(Player player, Location location, ProtectionCompat.Feature feature) {
+        return testFlagState(player, location, buildFlagOrNull()) && customAllows(player, location, feature);
     }
 
-    public static boolean canUse(Player player, Location location) {
-        return query(player, location, false);
+    public static boolean canUse(Player player, Location location, ProtectionCompat.Feature feature) {
+        return testFlagState(player, location, useFlagOrNull()) && customAllows(player, location, feature);
     }
 
-    private static boolean query(Player player, Location location, boolean build) {
-        if (player == null || location == null || location.getWorld() == null || !isAvailable()) {
+    private static Object buildFlagOrNull() {
+        try {
+            return buildFlag();
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+            return null;
+        }
+    }
+
+    private static Object useFlagOrNull() {
+        try {
+            return useFlag();
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+            return null;
+        }
+    }
+
+    /** Custom flag gate: master flag AND (if a feature is given) the feature's own flag. Each is ALLOW
+     *  when unregistered / WG absent / unset, so a fresh server with no flags set sees no change. */
+    private static boolean customAllows(Player player, Location location, ProtectionCompat.Feature feature) {
+        Object master = masterFlag;
+        if (master != null && !testFlagState(player, location, master)) {
+            return false;
+        }
+        if (feature == null) {
+            return true;
+        }
+        Object flag = featureFlags.get(feature);
+        return flag == null || testFlagState(player, location, flag);
+    }
+
+    /** Query one WorldGuard StateFlag at a location for a player. Returns true (allow) on any failure,
+     *  when WG is absent, or when the flag is null — protection never fails closed on our account. */
+    private static boolean testFlagState(Player player, Location location, Object flag) {
+        if (player == null || location == null || location.getWorld() == null || flag == null || !isAvailable()) {
             return true;
         }
 
@@ -60,8 +149,7 @@ public final class WorldGuardCompat {
             Object query = createQuery.invoke(container);
             Object adaptedLocation = adaptLocation(location);
             Object localPlayer = adaptPlayer(player);
-            Object flag = build ? buildFlag() : useFlag();
-            if (query == null || adaptedLocation == null || localPlayer == null || flag == null) {
+            if (query == null || adaptedLocation == null || localPlayer == null) {
                 return true;
             }
 

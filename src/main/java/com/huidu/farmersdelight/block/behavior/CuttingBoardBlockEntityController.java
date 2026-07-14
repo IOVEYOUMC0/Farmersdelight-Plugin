@@ -4,6 +4,7 @@ import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
 import net.momirealms.craftengine.bukkit.util.ItemStackUtils;
+import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.bukkit.world.BukkitContainer;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.block.entity.BlockEntityController;
@@ -70,7 +71,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
         if (this.item == null || this.item.isEmpty()) return;
 
         CompoundTag data = new CompoundTag();
-        Tag itemTag = ItemStackUtils.saveBukkitItemAsTag(asBukkitStack(this.item));
+        Tag itemTag = ItemUtils.saveBukkitItemAsTag(asBukkitStack(this.item));
         if (itemTag != null) {
             data.put(STORED_ITEM, itemTag);
         }
@@ -116,7 +117,15 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
         Tag itemTag = data.get(STORED_ITEM);
         if (itemTag == null) return true;
 
-        ItemStack storedItem = ItemStackUtils.parseBukkitItem(itemTag, Config.itemDataFixerUpperFallbackVersion());
+        ItemStack storedItem;
+        try {
+            storedItem = ItemStackUtils.parseBukkitItem(itemTag, Config.itemDataFixerUpperFallbackVersion());
+        } catch (RuntimeException e) {
+            // Corrupt/version-skewed stored item: drop it (return true so it isn't retried forever) and warn.
+            com.huidu.farmersdelight.FarmersDelightPlugin.getInstance().getLogger()
+                    .warning("Skipping unreadable cutting board item at " + posKey + ": " + e.getMessage());
+            return true;
+        }
         if (storedItem == null || storedItem.getType().isAir()) return true;
 
         CuttingBoardBlockEntity entity = new CuttingBoardBlockEntity(posKey, world);
@@ -327,8 +336,8 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
         if (entity == null || !entity.hasItem()) {
             return true;
         }
-        // 当砧板上已存放物品后，仅在开启堆叠模式、物品相互匹配
-        // 且数量低于堆叠上限时，才允许继续放入物品。
+        // Once the board holds an item, allow more only when stacking is enabled,
+        // the items match, and the amount is below the stack limit.
         com.huidu.farmersdelight.FarmersDelightPlugin plugin = com.huidu.farmersdelight.FarmersDelightPlugin.getInstance();
         ItemStack stored = entity.getStoredItem();
         ItemStack incoming = asBukkitStack(item);

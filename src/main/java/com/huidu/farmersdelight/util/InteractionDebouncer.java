@@ -46,7 +46,6 @@ public final class InteractionDebouncer {
                 acquired[0] = true;
                 return now;
             }
-            acquired[0] = false;
             return oldValue;
         });
 

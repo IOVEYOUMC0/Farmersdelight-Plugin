@@ -1,7 +1,7 @@
 items:
   farmersdelight:rope:
     data:
-      item-name: <!i><l10n:block.farmersdelight.rope>
+      item-name: <!i><lang:block.farmersdelight.rope>
     model: farmersdelight:item/rope
     behavior:
       type: block_item
@@ -9,16 +9,13 @@ items:
 blocks:
   farmersdelight:rope:
     settings:
-      hardness: 0.4
-      resistance: 0.15
-      burnable: true
-      burn-chance: 60
-      fire-spread-chance: 30
+      hardness: 0.2
+      resistance: 0.2
       tags:
         - minecraft:mineable/shears
         - minecraft:sword_efficient
         - minecraft:climbable
-        - minecraft:fall_damge_resetting
+        - minecraft:fall_damage_resetting
       sounds:
         break: minecraft:block.wool.break
         fall: minecraft:block.wool.fall

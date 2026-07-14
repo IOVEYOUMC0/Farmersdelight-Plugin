@@ -3,20 +3,25 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.bukkit.entity.projectile.BukkitProjectileManager;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.entity.Raider;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.CraftItemEvent;
 import org.bukkit.event.inventory.SmithItemEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Set;
@@ -57,8 +62,25 @@ public class AchievementListener implements Listener {
         if (Constants.ITEM_ROTTEN_TOMATO.equals(customItemId)) {
             AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
             if (am != null) {
-                am.award(player, "rotten_tomato_throw");
+                am.award(player, "hit_raider_with_rotten_tomato");
             }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+        if (event.getHand() != EquipmentSlot.HAND) return;
+
+        Block clicked = event.getClickedBlock();
+        if (clicked == null) return;
+
+        String customBlockId = CustomBlockUtils.getId(clicked);
+        if (!Constants.BLOCK_TOMATO_CROP_ON_ROPE.equals(customBlockId)) return;
+
+        AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
+        if (am != null) {
+            am.award(event.getPlayer(), "harvest_ropelogged_tomato");
         }
     }
 
@@ -66,8 +88,8 @@ public class AchievementListener implements Listener {
     public void onEntityPickupItem(EntityPickupItemEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
 
-        // 只有刚刚拾取的物品才会改变这些进度，因此避免在每次拾取时扫描整个
-        // 背包。
+        // Only the just-picked-up item can change these advancements, so avoid
+        // scanning the whole inventory on every pickup.
         String pickedId = ItemUtils.getCustomItemId(event.getItem().getItemStack());
         if (pickedId == null) {
             return;
@@ -81,9 +103,15 @@ public class AchievementListener implements Listener {
         }
         if (Constants.BLOCK_BROWN_MUSHROOM_COLONY.equals(pickedId)
                 || Constants.BLOCK_RED_MUSHROOM_COLONY.equals(pickedId)) {
-            // 需要同时拥有两种颜色，因此仍需进行一次扫描——但仅在确实拾取到
-            // 相关物品时才执行。
+            // Both colors are required, so a scan is still needed, but only
+            // when a relevant item is actually picked up.
             checkMushroomColonyAdvancement(player);
+        }
+        if (Constants.ITEM_ORGANIC_COMPOST.equals(pickedId)) {
+            am.award(player, "get_organic_compost");
+        }
+        if (Constants.ITEM_RICH_SOIL.equals(pickedId)) {
+            am.award(player, "get_rich_soil");
         }
     }
 
@@ -104,6 +132,8 @@ public class AchievementListener implements Listener {
         if (am != null) {
             am.forgetPlayer(event.getPlayer().getUniqueId());
         }
+        FarmersDelightPlugin.getInstance().getAddonAdvancementRegistry()
+                .forgetPlayer(event.getPlayer().getUniqueId());
     }
 
     private void handleCraftedItem(Player player, ItemStack result) {
@@ -120,7 +150,7 @@ public class AchievementListener implements Listener {
         }
 
         if (customItemId.equals(Constants.ITEM_NETHERITE_KNIFE)) {
-            am.award(player, "netherite_knife");
+            am.award(player, "obtain_netherite_knife");
         }
 
         if (FD_SEED_IDS.contains(customItemId)) {
@@ -130,6 +160,10 @@ public class AchievementListener implements Listener {
         if (customItemId.equals(Constants.ITEM_SMOKED_HAM) ||
                 customItemId.equals(Constants.ITEM_HAM)) {
             am.award(player, "get_ham");
+        }
+
+        if (customItemId.equals(Constants.ITEM_ORGANIC_COMPOST)) {
+            am.award(player, "get_organic_compost");
         }
     }
 

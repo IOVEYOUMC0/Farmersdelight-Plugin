@@ -14,7 +14,7 @@ import java.util.logging.Logger;
 public class PetFoodConfig {
 
     private static Logger LOGGER;
-    private final Map<String, PetFoodDefinition> petFoods = new HashMap<>();
+    private final Map<String, PetFoodDefinition> petFoods = new java.util.concurrent.ConcurrentHashMap<>();
 
     public static void setLogger(Logger logger) {
         LOGGER = logger;
@@ -147,13 +147,12 @@ public class PetFoodConfig {
         }
 
         String normalized = typeName.trim().toLowerCase(Locale.ROOT).replace(' ', '_');
-        PotionEffectType effectType = Registry.EFFECT.get(NamespacedKey.minecraft(normalized));
+        PotionEffectType effectType = lookupEffect(normalized);
         if (effectType != null) {
             return effectType;
         }
 
-        String dottedNormalized = normalized.replace('_', '.');
-        effectType = Registry.EFFECT.get(NamespacedKey.minecraft(dottedNormalized));
+        effectType = lookupEffect(normalized.replace('_', '.'));
         if (effectType != null) {
             return effectType;
         }
@@ -164,6 +163,11 @@ public class PetFoodConfig {
         return null;
     }
 
+    private static PotionEffectType lookupEffect(String key) {
+        NamespacedKey namespacedKey = safeKey(key);
+        return namespacedKey == null ? null : Registry.EFFECT.get(namespacedKey);
+    }
+
     private Sound resolveSound(String soundName) {
         if (soundName == null || soundName.isBlank()) {
             return null;
@@ -171,7 +175,8 @@ public class PetFoodConfig {
 
         String trimmed = soundName.trim();
         String registryKey = trimmed.toLowerCase(Locale.ROOT).replace('_', '.');
-        Sound registeredSound = Registry.SOUNDS.get(NamespacedKey.minecraft(registryKey));
+        NamespacedKey key = safeKey(registryKey);
+        Sound registeredSound = key == null ? null : Registry.SOUNDS.get(key);
         if (registeredSound != null) {
             return registeredSound;
         }
@@ -180,6 +185,19 @@ public class PetFoodConfig {
             LOGGER.fine("Invalid sound: " + soundName);
         }
         return null;
+    }
+
+    /** Builds a NamespacedKey without throwing on admin-supplied ids. An id carrying an explicit namespace
+     *  (a colon, e.g. "minecraft:speed" or "myserver:custom.eat") is parsed via fromString; a bare id keeps
+     *  the minecraft namespace. NamespacedKey.minecraft rejects a colon by throwing IllegalArgumentException,
+     *  which would otherwise abort the whole config load, so anything malformed returns null and the caller
+     *  falls through to its "unknown id" handling. */
+    private static NamespacedKey safeKey(String raw) {
+        try {
+            return raw.indexOf(':') >= 0 ? NamespacedKey.fromString(raw) : NamespacedKey.minecraft(raw);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private int getInt(Object value, int defaultValue) {

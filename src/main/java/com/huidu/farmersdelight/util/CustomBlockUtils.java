@@ -215,11 +215,6 @@ public final class CustomBlockUtils {
                 && hasBehavior(location.getBlock(), behaviorClass);
     }
 
-    public static boolean idContains(Block block, String fragment) {
-        String blockId = getId(block);
-        return blockId != null && blockId.contains(normalizeId(fragment));
-    }
-
     public static String normalizeId(String rawId) {
         if (rawId == null) {
             return null;
@@ -265,15 +260,39 @@ public final class CustomBlockUtils {
             return null;
         }
 
-        for (Property<?> property : state.getProperties()) {
-            if ("facing".equalsIgnoreCase(property.name())) {
-                Object value = state.get(property);
-                if (value != null) {
-                    return parseFacing(value.toString());
-                }
+        Object value = getPropertyValue(state, "facing");
+        if (value == null) {
+            return null;
+        }
+        // CE's direction-typed properties carry the engine's Direction enum; mapping it directly
+        // skips the toString + string switch on per-tick callers.
+        if (value instanceof net.momirealms.craftengine.core.util.Direction direction) {
+            return switch (direction) {
+                case SOUTH -> BlockFace.SOUTH;
+                case EAST -> BlockFace.EAST;
+                case WEST -> BlockFace.WEST;
+                default -> BlockFace.NORTH;
+            };
+        }
+        return parseFacing(value.toString());
+    }
+
+    /**
+     * Property value by name: exact-name lookup first (CE's sorted-map get, no allocation), falling
+     * back to the case-insensitive property scan for oddly-cased config names. No Property reference
+     * is cached, so a CE reload swapping property instances cannot leave a stale handle behind.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static Object getPropertyValue(ImmutableBlockState state, String propertyName) {
+        Property property = state.getProperty(propertyName);
+        if (property != null) {
+            return state.getNullable(property);
+        }
+        for (Property<?> candidate : state.getProperties()) {
+            if (candidate.name().equalsIgnoreCase(propertyName)) {
+                return state.get(candidate);
             }
         }
-
         return null;
     }
 
@@ -288,30 +307,20 @@ public final class CustomBlockUtils {
 
     public static String getPropertyString(ImmutableBlockState state, String propertyName) {
         if (state == null || state.isEmpty()) return null;
-        for (Property<?> property : state.getProperties()) {
-            if (property.name().equalsIgnoreCase(propertyName)) {
-                Object value = state.get(property);
-                return value != null ? value.toString() : null;
-            }
-        }
-        return null;
+        Object value = getPropertyValue(state, propertyName);
+        return value != null ? value.toString() : null;
     }
 
     public static Integer getPropertyInt(ImmutableBlockState state, String propertyName) {
         if (state == null || state.isEmpty()) return null;
-        for (Property<?> property : state.getProperties()) {
-            if (property.name().equalsIgnoreCase(propertyName)) {
-                Object value = state.get(property);
-                if (value instanceof Number num) {
-                    return num.intValue();
-                }
-                if (value instanceof String str) {
-                    try {
-                        return Integer.parseInt(str);
-                    } catch (NumberFormatException ignored) {
-                    }
-                }
-                return null;
+        Object value = getPropertyValue(state, propertyName);
+        if (value instanceof Number num) {
+            return num.intValue();
+        }
+        if (value instanceof String str) {
+            try {
+                return Integer.parseInt(str);
+            } catch (NumberFormatException ignored) {
             }
         }
         return null;

@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.block.behavior;
 
 import net.momirealms.craftengine.bukkit.util.ItemStackUtils;
+import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.core.plugin.config.Config;
 import net.momirealms.craftengine.libraries.nbt.CompoundTag;
 import net.momirealms.craftengine.libraries.nbt.NumericTag;
@@ -31,7 +32,7 @@ final class SimpleBlockEntityData {
                 if (itemStack.getType().isAir()) {
                     continue;
                 }
-                Tag itemTag = ItemStackUtils.saveBukkitItemAsTag(itemStack);
+                Tag itemTag = ItemUtils.saveBukkitItemAsTag(itemStack);
                 if (itemTag != null) {
                     tag.put(key, itemTag);
                 }
@@ -67,7 +68,15 @@ final class SimpleBlockEntityData {
                 continue;
             }
             if (itemKeySet.contains(key)) {
-                ItemStack item = ItemStackUtils.parseBukkitItem(value, Config.itemDataFixerUpperFallbackVersion());
+                ItemStack item;
+                try {
+                    item = ItemStackUtils.parseBukkitItem(value, Config.itemDataFixerUpperFallbackVersion());
+                } catch (RuntimeException e) {
+                    // Corrupt/version-skewed item: skip this key rather than aborting the whole load.
+                    com.huidu.farmersdelight.FarmersDelightPlugin.getInstance().getLogger()
+                            .warning("Skipping unreadable block-entity item '" + key + "': " + e.getMessage());
+                    continue;
+                }
                 if (item != null && !item.getType().isAir()) {
                     data.put(key, item);
                 }
@@ -77,9 +86,9 @@ final class SimpleBlockEntityData {
             if (text == null) {
                 continue;
             }
-            // 保留原始类型：仅 NumericTag 才转换为 Integer。此前，只要某个值的文本恰好能被解析为
-            // int，就会被强制转换为 Integer，从而破坏诸如全数字的所有者名称这类字符串字段（消费方会
-            // 用 `instanceof String` 来检测该值的类型）。
+            // Preserve original type: only convert NumericTag to Integer. Previously, any value whose
+            // text happened to parse as int was forced to Integer, breaking string fields like all-numeric
+            // owner names (consumers use `instanceof String` to detect the value's type).
             if (value instanceof NumericTag) {
                 Integer integer = parseInteger(text);
                 data.put(key, integer != null ? integer : text);

@@ -1,0 +1,172 @@
+vanilla_loots:
+  farmersdelight:onion_from_zombie:
+    type: entity
+    target: minecraft:zombie
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: table_bonus
+              enchantment: minecraft:looting
+              chances:
+                - 0.02
+                - 0.03
+                - 0.04
+                - 0.05
+          entries:
+            - type: item
+              item: farmersdelight:onion
+
+  farmersdelight:onion_from_husk:
+    type: entity
+    target: minecraft:husk
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: table_bonus
+              enchantment: minecraft:looting
+              chances:
+                - 0.02
+                - 0.03
+                - 0.04
+                - 0.05
+          entries:
+            - type: item
+              item: farmersdelight:onion
+
+  farmersdelight:onion_from_zombie_villager:
+    type: entity
+    target: minecraft:zombie_villager
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: table_bonus
+              enchantment: minecraft:looting
+              chances:
+                - 0.02
+                - 0.03
+                - 0.04
+                - 0.05
+          entries:
+            - type: item
+              item: farmersdelight:onion
+
+  farmersdelight:onion_from_pillager:
+    type: entity
+    target: minecraft:pillager
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: table_bonus
+              enchantment: minecraft:looting
+              chances:
+                - 0.02
+                - 0.03
+                - 0.04
+                - 0.05
+          entries:
+            - type: item
+              item: farmersdelight:onion
+
+  farmersdelight:onion_from_evoker:
+    type: entity
+    target: minecraft:evoker
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: table_bonus
+              enchantment: minecraft:looting
+              chances:
+                - 0.02
+                - 0.03
+                - 0.04
+                - 0.05
+          entries:
+            - type: item
+              item: farmersdelight:onion
+
+  farmersdelight:onion_from_vindicator:
+    type: entity
+    target: minecraft:vindicator
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: table_bonus
+              enchantment: minecraft:looting
+              chances:
+                - 0.02
+                - 0.03
+                - 0.04
+                - 0.05
+          entries:
+            - type: item
+              item: farmersdelight:onion
+
+  farmersdelight:straw_from_short_grass:
+    type: block
+    target: minecraft:short_grass
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: match_item
+              items:
+                - farmersdelight:flint_knife
+                - farmersdelight:iron_knife
+                - farmersdelight:diamond_knife
+                - farmersdelight:golden_knife
+                - farmersdelight:netherite_knife
+            - type: random
+              value: 0.2
+          entries:
+            - type: item
+              item: farmersdelight:straw
+
+  farmersdelight:straw_from_tall_grass:
+    type: block
+    target: minecraft:tall_grass
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: match_item
+              items:
+                - farmersdelight:flint_knife
+                - farmersdelight:iron_knife
+                - farmersdelight:diamond_knife
+                - farmersdelight:golden_knife
+                - farmersdelight:netherite_knife
+            - type: random
+              value: 0.2
+          entries:
+            - type: item
+              item: farmersdelight:straw
+
+  farmersdelight:straw_from_mature_wheat:
+    type: block
+    target: minecraft:wheat[age=7]
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: match_item
+              items:
+                - farmersdelight:flint_knife
+                - farmersdelight:iron_knife
+                - farmersdelight:diamond_knife
+                - farmersdelight:golden_knife
+                - farmersdelight:netherite_knife
+          entries:
+            - type: item
+              item: farmersdelight:straw

@@ -41,28 +41,12 @@ public record CookingPotLayout(
         return contains(inputSlots, slot);
     }
 
-    public boolean isPendingOutputSlot(int slot) {
-        return contains(pendingOutputSlots, slot);
-    }
-
     public boolean isOutputSlot(int slot) {
         return contains(outputSlots, slot);
     }
 
     public boolean isContainerSlot(int slot) {
         return contains(containerSlots, slot);
-    }
-
-    public int firstPendingOutputSlot() {
-        return pendingOutputSlots.length == 0 ? -1 : pendingOutputSlots[0];
-    }
-
-    public int firstOutputSlot() {
-        return outputSlots.length == 0 ? -1 : outputSlots[0];
-    }
-
-    public int firstContainerSlot() {
-        return containerSlots.length == 0 ? -1 : containerSlots[0];
     }
 
     public boolean isDefault() {

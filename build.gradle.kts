@@ -20,20 +20,32 @@ repositories {
     maven("https://repo.papermc.io/repository/maven-public/")
     mavenLocal()
     maven("https://repo.momirealms.net/releases/")
+    maven("https://repo.extendedclip.com/content/repositories/placeholderapi/")
 }
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
     compileOnly("org.jetbrains:annotations:26.1.0")
-    compileOnly("net.momirealms:craft-engine-core:26.5.3")
-    compileOnly("net.momirealms:craft-engine-bukkit:26.5.3")
-    compileOnly("net.momirealms:craft-engine-bukkit-proxy:26.5.3")
+    compileOnly("net.momirealms:craft-engine-core:26.7")
+    compileOnly("net.momirealms:craft-engine-bukkit:26.7")
+    compileOnly("net.momirealms:craft-engine-bukkit-proxy:26.7")
+    compileOnly("me.clip:placeholderapi:2.11.6")
+    // AntiGriefLib: unified protection facade over 24+ land/claim plugins (MIT). Bundled by shadowJar (not
+    // relocated — Bukkit plugin classloaders are isolated, so the package cannot clash with another plugin's).
+    // isTransitive=false skips its compile-only annotations. Its per-plugin providers load only when the
+    // matching land plugin is present, so bundling it adds no runtime coupling to absent plugins.
+    implementation("net.momirealms:antigrieflib:1.0.11") { isTransitive = false }
+    // bStats metrics (Maven Central). Bundled by shadowJar un-relocated, same as antigrieflib above:
+    // Bukkit plugin classloaders are isolated so org.bstats cannot clash with another plugin's copy, and
+    // relocating triggers shadow 8.1.7's ASM remap bug. bStats' own relocation self-check is disabled at
+    // runtime via System.setProperty("bstats.relocatecheck", "false") before Metrics is constructed.
+    implementation("org.bstats:bstats-bukkit:3.1.0")
     // UltimateAdvancementAPI: separate server plugin; vendored only for offline compile against its API.
     compileOnly(files("libs/UltimateAdvancementAPI-Plugin-2.8.0-folia.jar"))
     testImplementation("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
-    testImplementation("net.momirealms:craft-engine-core:26.5.3")
-    testImplementation("net.momirealms:craft-engine-bukkit:26.5.3")
-    testImplementation("net.momirealms:craft-engine-bukkit-proxy:26.5.3")
+    testImplementation("net.momirealms:craft-engine-core:26.7")
+    testImplementation("net.momirealms:craft-engine-bukkit:26.7")
+    testImplementation("net.momirealms:craft-engine-bukkit-proxy:26.7")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
@@ -65,9 +77,6 @@ tasks.test {
 tasks.processResources {
     filteringCharset = "UTF-8"
     filesMatching("plugin.yml") {
-        expand("version" to version)
-    }
-    filesMatching("paper-plugin.yml") {
         expand("version" to version)
     }
 }
@@ -172,8 +181,9 @@ fun registerObfuscationTask(
             public static final ** *;
         }
     """.trimIndent())
+        // Public addon-facing API (events + extension facade for addons like Brewin' And Chewin').
         keep("""
-        public class com.huidu.farmersdelight.api.event.** {
+        public class com.huidu.farmersdelight.api.** {
             public protected *;
         }
     """.trimIndent())
@@ -182,6 +192,11 @@ fun registerObfuscationTask(
             public void execute(org.bukkit.command.CommandSender, java.lang.String, java.lang.String[]);
             public java.util.List tabComplete(org.bukkit.command.CommandSender, java.lang.String[]);
         }
+    """.trimIndent())
+        // Bundled bStats (un-relocated, stays at org.bstats): keep it intact so ProGuard's repackage +
+        // string adaptation can't break its runtime server-software detection or relocation self-check.
+        keep("""
+        class org.bstats.** { *; }
     """.trimIndent())
         keepattributes("SourceFile,LineNumberTable,RuntimeVisibleAnnotations,RuntimeInvisibleAnnotations,AnnotationDefault,Signature,InnerClasses,EnclosingMethod,Record,PermittedSubclasses,StackMap,StackMapTable")
 
@@ -211,6 +226,19 @@ tasks.register("buildObfuscated") {
     group = "build"
     description = "Builds the strongly obfuscated universal plugin jar."
     dependsOn(obfuscateJar)
+}
+
+// api-only jar: just com.huidu.farmersdelight.api.** — for addons to compile against (compileOnly) WITHOUT
+// shipping FD's closed-source internals. Addons reference only api.**, so this is all they need; the real
+// FD plugin provides the implementation at runtime. Output: build/libs/<base>-<version>-api.jar.
+tasks.register<Jar>("apiJar") {
+    group = "build"
+    description = "Builds an api-only jar (com.huidu.farmersdelight.api.**) for addon development."
+    dependsOn(tasks.classes)
+    archiveClassifier.set("api")
+    from(sourceSets.main.get().output) {
+        include("com/huidu/farmersdelight/api/**")
+    }
 }
 
 tasks.build {

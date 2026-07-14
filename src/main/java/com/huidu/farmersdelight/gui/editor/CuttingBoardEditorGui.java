@@ -3,7 +3,6 @@ package com.huidu.farmersdelight.gui.editor;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.gui.GuiConfig;
 import com.huidu.farmersdelight.gui.RecipeViewGuiConfig;
-import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.recipe.RecipeSerializer;
@@ -11,6 +10,7 @@ import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.Text;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.momirealms.craftengine.core.util.Key;
@@ -31,9 +31,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 用于编辑单条 cutting-board 配方（输入、工具、带权重的产物、优先级）的游戏内编辑器。布局
- * 和按钮文本来自 gui.yml 中的 recipe-cutting-board-editor-gui 部分；聊天栏
- * 反馈来自 gui.editor.* 语言键。
+ * In-game editor for editing a single cutting-board recipe (input, tools, weighted results, priority). Layout
+ * and button text come from the recipe-cutting-board-editor-gui section of gui.yml; chat
+ * feedback comes from the gui.editor.* language keys.
  */
 public final class CuttingBoardEditorGui implements EditorGui {
 
@@ -95,9 +95,10 @@ public final class CuttingBoardEditorGui implements EditorGui {
             resultChances[i] = entry.getChance();
         }
         if (recipeResults.size() > resultItems.length) {
-            player.sendMessage(I18n.getComponent("gui.editor.feedback.too_many_results", player,
-                    Map.of("shown", String.valueOf(resultItems.length),
-                            "total", String.valueOf(recipeResults.size()))));
+            player.sendMessage(Component.translatable("gui.editor.feedback.too_many_results",
+                    Component.text(recipeResults.size()),
+                    Component.text(resultItems.length))
+                    .color(NamedTextColor.YELLOW));
         }
         this.priority = recipe.getPriority();
         if (recipe.getSound() != null && !recipe.getSound().isBlank()) {
@@ -296,7 +297,8 @@ public final class CuttingBoardEditorGui implements EditorGui {
 
     private void save() {
         if (input == null) {
-            player.sendMessage(I18n.getComponent("gui.editor.feedback.no_input", player));
+            player.sendMessage(Component.translatable("gui.editor.feedback.no_input")
+                    .color(NamedTextColor.RED));
             return;
         }
         List<CuttingBoardRecipe.ResultEntry> results = new ArrayList<>();
@@ -307,7 +309,8 @@ public final class CuttingBoardEditorGui implements EditorGui {
             }
         }
         if (results.isEmpty()) {
-            player.sendMessage(I18n.getComponent("gui.editor.feedback.no_result", player));
+            player.sendMessage(Component.translatable("gui.editor.feedback.no_result")
+                    .color(NamedTextColor.RED));
             return;
         }
         List<CuttingBoardRecipe.ToolRequirement> toolList = new ArrayList<>();
@@ -322,10 +325,13 @@ public final class CuttingBoardEditorGui implements EditorGui {
 
         CuttingBoardRecipe recipe = new CuttingBoardRecipe(recipeId, input, null, toolList, results, sound, priority);
         if (plugin.getRecipeEditorStore().saveCuttingBoardRecipe(recipe)) {
-            player.sendMessage(I18n.getComponent("gui.editor.feedback.saved", player, Map.of("recipe_id", recipeId)));
+            player.sendMessage(Component.translatable("gui.editor.feedback.saved",
+                    Component.text(recipeId).color(NamedTextColor.WHITE))
+                    .color(NamedTextColor.GREEN));
             close();
         } else {
-            player.sendMessage(I18n.getComponent("gui.editor.feedback.save_failed", player));
+            player.sendMessage(Component.translatable("gui.editor.feedback.save_failed")
+                    .color(NamedTextColor.RED));
         }
     }
 
@@ -342,9 +348,12 @@ public final class CuttingBoardEditorGui implements EditorGui {
 
     private void performDelete() {
         if (plugin.getRecipeEditorStore().deleteCuttingBoardRecipe(recipeId)) {
-            player.sendMessage(I18n.getComponent("gui.editor.feedback.deleted", player, Map.of("recipe_id", recipeId)));
+            player.sendMessage(Component.translatable("gui.editor.feedback.deleted",
+                    Component.text(recipeId).color(NamedTextColor.WHITE))
+                    .color(NamedTextColor.GREEN));
         } else {
-            player.sendMessage(I18n.getComponent("gui.editor.feedback.delete_failed", player));
+            player.sendMessage(Component.translatable("gui.editor.feedback.delete_failed")
+                    .color(NamedTextColor.RED));
         }
         player.closeInventory();
     }
@@ -352,12 +361,14 @@ public final class CuttingBoardEditorGui implements EditorGui {
     private void openTagPicker(ItemStack source) {
         RecipeViewGuiConfig.BaseConfig pickerConfig = plugin.getRecipeEditorGuiConfig().getTagPickerConfig();
         if (pickerConfig == null) {
-            player.sendMessage(I18n.getComponent("gui.editor.feedback.advanced_coming", player));
+            player.sendMessage(Component.translatable("gui.editor.feedback.advanced_coming")
+                    .color(NamedTextColor.YELLOW));
             return;
         }
         List<String> tags = ItemUtils.getAllItemTagIds(source);
         if (tags.isEmpty()) {
-            player.sendMessage(I18n.getComponent("gui.editor.feedback.no_tags", player));
+            player.sendMessage(Component.translatable("gui.editor.feedback.no_tags")
+                    .color(NamedTextColor.RED));
             return;
         }
         closed = true;

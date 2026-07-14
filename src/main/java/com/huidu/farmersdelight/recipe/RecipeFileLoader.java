@@ -5,6 +5,7 @@ import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -32,21 +33,23 @@ final class RecipeFileLoader {
             try {
                 plugin.saveResource(relativePath, false);
             } catch (IllegalArgumentException e) {
-                plugin.getLogger().warning("Failed to save bundled recipe file " + relativePath + ": " + e.getMessage());
+                I18n.logWarning("recipe_bundled_save_failed", "file", relativePath, "error", e.getMessage());
                 return new YamlConfiguration();
             }
         }
 
-        // 显式以 UTF-8 读取（与 config.yml / 语言文件一致），而不是使用已弃用的、
-        // 采用平台默认字符集的 loadConfiguration(File)，这样在默认字符集不是 UTF-8 的服务器
-        // （在 Windows 上很常见）上，非 ASCII 的配方内容才不会被损坏。
-        try (Reader reader = new InputStreamReader(Files.newInputStream(recipesFile.toPath()), StandardCharsets.UTF_8)) {
+        // Read explicitly as UTF-8 (consistent with config.yml / language files), rather than the deprecated
+        // loadConfiguration(File) that uses the platform default charset, so non-ASCII recipe content is not
+        // corrupted on servers whose default charset is not UTF-8 (common on Windows).
+        // Buffer the stream: yaml.load() issues many small read() calls; without buffering each call
+        // crosses into the OS/file-system layer (and on reload paths this runs on the main thread).
+        try (Reader reader = new BufferedReader(
+                new InputStreamReader(Files.newInputStream(recipesFile.toPath()), StandardCharsets.UTF_8), 8192)) {
             YamlConfiguration yaml = new YamlConfiguration();
             yaml.load(reader);
             return yaml;
         } catch (Exception e) {
-            plugin.getLogger().warning("Failed to load recipe file " + relativePath
-                    + " as UTF-8 YAML; skipping it. " + e.getMessage());
+            I18n.logWarning("recipe_load_failed", "file", relativePath, "error", e.getMessage());
             return new YamlConfiguration();
         }
     }

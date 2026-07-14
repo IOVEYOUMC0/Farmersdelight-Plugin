@@ -17,8 +17,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 遗留的煎锅状态模型，保留它是为了配方缓存辅助方法以及与旧存档状态的兼容性。
- * 运行时的煎锅逻辑由 com.huidu.farmersdelight.manager.SkilletManager 负责。
+ * Legacy skillet state model, kept for the recipe-cache helper methods and compatibility with old saved state.
+ * Runtime skillet logic is handled by com.huidu.farmersdelight.manager.SkilletManager.
  */
 @Deprecated(forRemoval = false)
 public class SkilletBlockEntity {
@@ -89,9 +89,9 @@ public class SkilletBlockEntity {
         return storedItem.clone();
     }
 
-    // 已删除遗留方法 setStoredItem(ItemStack)：本类从不被实例化（src 内无 new SkilletBlockEntity(...)
-    // 调用），该方法是不可达死代码，且是已删除的 findCampfireRecipe 的唯一调用方。
-    // 运行时煎锅逻辑由 SkilletManager 负责。
+    // Removed legacy method setStoredItem(ItemStack): this class is never instantiated (no new SkilletBlockEntity(...)
+    // call in src), so the method was unreachable dead code and the only caller of the removed findCampfireRecipe.
+    // Runtime skillet logic is handled by SkilletManager.
 
     public static int getSkilletCookingTime(int originalCookingTime, int fireAspectLevel) {
         int cookingTime = originalCookingTime > 0 ? originalCookingTime : getConfiguredDefaultCookingTime();
@@ -118,8 +118,8 @@ public class SkilletBlockEntity {
     private static int getConfiguredMinimumCookingTime() {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         return plugin == null
-                ? SkilletBlockBehavior.MINIMUM_COOKING_TIME
-                : Math.max(1, plugin.getConfigInt(SkilletBlockBehavior.MINIMUM_COOKING_TIME,
+                ? Constants.MINIMUM_COOKING_TIME_SKILLET
+                : Math.max(1, plugin.getConfigInt(Constants.MINIMUM_COOKING_TIME_SKILLET,
                 "skillet.cooking.min-cook-time",
                 "skillet.min-cook-time"));
     }
@@ -231,16 +231,16 @@ public class SkilletBlockEntity {
         currentRecipe = null;
     }
 
-    // 已删除遗留方法 findCampfireRecipe(ItemStack) 及其 per-Material LinkedHashMap 缓存：
-    // 运行时由 SkilletManager.findCampfireRecipe（委托给 CampfireRecipeCache）负责查找，
-    // 本类的版本已无任何活调用方。
+    // Removed legacy method findCampfireRecipe(ItemStack) and its per-Material LinkedHashMap cache:
+    // lookups are handled at runtime by SkilletManager.findCampfireRecipe (delegating to CampfireRecipeCache),
+    // and this class's version no longer has any live callers.
 
     /**
-     * 保留此空实现是为了兼容重载/禁用流程（FarmersDelightPlugin 仍会调用它）。
-     * 由于配方缓存已迁移到 SkilletManager，这里不再需要清理任何状态。
+     * This empty implementation is kept for compatibility with the reload/disable flow (FarmersDelightPlugin still calls it).
+     * Since the recipe cache moved to SkilletManager, no state needs clearing here anymore.
      */
     public static void clearRecipeCache() {
-        // 无操作：缓存已迁移至 SkilletManager 的 CampfireRecipeCache。
+        // No-op: the cache moved to SkilletManager's CampfireRecipeCache.
     }
 
     public void updateDisplayEntity(org.bukkit.World world, BlockPosKey posKey, BlockFace facing) {

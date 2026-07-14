@@ -6,6 +6,9 @@ bin/
 out/
 *.class
 *.jar
+# Vendored compile-only dependency (custom Folia build of UltimateAdvancementAPI, not on any
+# public Maven repo). Tracked so a fresh checkout / CI can compile.
+!/libs/*.jar
 
 .idea/
 *.iml

@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.RiceCropRules;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
 import com.huidu.farmersdelight.util.SoilRuleSupport.SoilRules;
@@ -81,7 +82,7 @@ public class WildRiceBlockBehavior extends BlockBehavior {
             Property<?> halfProperty = block.getProperty("half");
             Object lowerHalfValue = inferHalfValue(halfProperty, "lower");
             Object upperHalfValue = inferHalfValue(halfProperty, "upper");
-            boolean requiresWater = getBoolean(arguments, "requires-water", true);
+            boolean requiresWater = BehaviorArgParser.getBooleanStrict(arguments, "requires-water", true);
             SoilRules soilRules = SoilRuleSupport.parseSoilRules(arguments);
             WildRiceBlockBehavior behavior = new WildRiceBlockBehavior(
                     block,
@@ -112,10 +113,6 @@ public class WildRiceBlockBehavior extends BlockBehavior {
             return null;
         }
         return getBehavior(state.owner().value().id());
-    }
-
-    public boolean requiresWater() {
-        return requiresWater;
     }
 
     public boolean canPlantAt(Block waterBlock) {
@@ -210,12 +207,5 @@ public class WildRiceBlockBehavior extends BlockBehavior {
         return fallback;
     }
 
-    private static boolean getBoolean(Map<String, Object> arguments, String key, boolean fallback) {
-        Object value = arguments.get(key);
-        if (value instanceof Boolean booleanValue) {
-            return booleanValue;
-        }
-        return fallback;
-    }
 }
 

@@ -6,6 +6,7 @@ import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
 import net.momirealms.craftengine.bukkit.util.ItemStackUtils;
+import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.bukkit.world.BukkitContainer;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.block.entity.BlockEntityController;
@@ -34,15 +35,16 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 炼药锅（cooking pot）的 CraftEngine 容器/漏斗桥接器。权威库存存放于
- * CookingPotBlockEntity；该控制器维护一份影子副本，通过
- * refreshFromEntity/writeToEntity 配合脏槽位（dirty-slot）跟踪进行同步对账。
+ * CraftEngine container/hopper bridge for the cooking pot. The authoritative inventory lives in
+ * CookingPotBlockEntity; this controller keeps a shadow copy, reconciled via
+ * refreshFromEntity/writeToEntity with dirty-slot tracking.
  *
- * <p>getItem(int) 必须返回实时的影子 Item，这样原版漏斗的原地
- * 合并（getItem(slot).grow(n) 后接 setChanged()，而不调用 setItem）
- * 才能被捕获；若返回脱离的副本则会丢弃每一个被合并的物品。任何修改者都必须 markDirty(int)
- * 被改动的槽位并调用 setChanged()，或者作为某个以 setChanged() 结尾的更大操作的
- * 一部分；否则下一次 refreshFromEntity 会将其还原。
+ * getItem(int) must return the live shadow Item so vanilla hopper in-place
+ * merges (getItem(slot).grow(n) followed by setChanged(), without calling
+ * setItem) are captured; returning a detached copy would drop every merged item. Any
+ * mutator must markDirty(int) the changed slot and call setChanged(), or be
+ * part of a larger operation that ends in setChanged(); otherwise the next
+ * refreshFromEntity reverts it.
  */
 public final class CookingPotBlockEntityController extends BlockEntityController implements BukkitContainer, WorldlyContainer, InventoryHolder {
 
@@ -68,8 +70,8 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     private int maxStackSize = 99;
     private boolean allSlotsDirty;
     private CompoundTag pendingLoadData;
-    // 在该控制器的生命周期内方块坐标是固定的；缓存该 key，使 getItem/contents
-    // （在容器扫描时按槽位调用）不必在每次访问时重新分配它。
+    // The block pos is fixed for this controller's lifetime; cache the key so getItem/contents
+    // (called per slot during container scans) need not reallocate it on every access.
     private BlockPosKey cachedPosKey;
 
     public CookingPotBlockEntityController(BlockEntity blockEntity, CookingPotBlockBehavior behavior) {
@@ -125,7 +127,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         data.putInt(COOKING_DURATION, entity.getCookingDuration());
         ItemStack mealContainer = entity.getMealContainer();
         if (mealContainer != null && !mealContainer.getType().isAir()) {
-            Tag mealContainerTag = ItemStackUtils.saveBukkitItemAsTag(mealContainer);
+            Tag mealContainerTag = ItemUtils.saveBukkitItemAsTag(mealContainer);
             if (mealContainerTag != null) {
                 data.put(MEAL_CONTAINER, mealContainerTag);
             }
@@ -167,9 +169,17 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         }
 
         int dataVersion = data.getInt(DATA_VERSION, Config.itemDataFixerUpperFallbackVersion());
-        ItemStack[] items = ItemStackUtils.parseBukkitItems(Optional.ofNullable(data.getList(ITEMS)).orElseGet(ListTag::new),
-                entity.getInventorySize(),
-                dataVersion);
+        ItemStack[] items;
+        try {
+            items = ItemStackUtils.parseBukkitItems(Optional.ofNullable(data.getList(ITEMS)).orElseGet(ListTag::new),
+                    entity.getInventorySize(),
+                    dataVersion);
+        } catch (RuntimeException e) {
+            // Corrupt/version-skewed inventory: load empty rather than aborting the whole block-entity load.
+            com.huidu.farmersdelight.FarmersDelightPlugin.getInstance().getLogger()
+                    .warning("Skipping unreadable cooking pot inventory: " + e.getMessage());
+            items = new ItemStack[entity.getInventorySize()];
+        }
         for (int i = 0; i < entity.getInventorySize(); i++) {
             entity.setInventorySlot(i, items[i]);
             entity.setSlotExperience(i, 0.0D);
@@ -187,7 +197,13 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         entity.setCookingDuration(data.getInt(COOKING_DURATION, 200));
         Tag mealContainerTag = data.get(MEAL_CONTAINER);
         if (mealContainerTag != null) {
-            entity.setMealContainer(ItemStackUtils.parseBukkitItem(mealContainerTag, dataVersion));
+            try {
+                entity.setMealContainer(ItemStackUtils.parseBukkitItem(mealContainerTag, dataVersion));
+            } catch (RuntimeException e) {
+                com.huidu.farmersdelight.FarmersDelightPlugin.getInstance().getLogger()
+                        .warning("Skipping unreadable cooking pot meal container: " + e.getMessage());
+                entity.setMealContainer(null);
+            }
         } else {
             entity.setMealContainer(null);
         }
@@ -273,7 +289,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         data.putInt(COOKING_PROGRESS, this.cookingProgress);
         data.putInt(COOKING_DURATION, this.cookingDuration);
         if (this.mealContainer != null && !this.mealContainer.getType().isAir()) {
-            Tag mealContainerTag = ItemStackUtils.saveBukkitItemAsTag(this.mealContainer);
+            Tag mealContainerTag = ItemUtils.saveBukkitItemAsTag(this.mealContainer);
             if (mealContainerTag != null) {
                 data.put(MEAL_CONTAINER, mealContainerTag);
             }
@@ -295,7 +311,11 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         boolean writeAll = this.allSlotsDirty || !hasDirtySlots();
         synchronized (entity.getLock()) {
             for (int i = 0; i < this.items.length; i++) {
-                if (!writeAll && !this.dirtySlots[i]) {
+                // A hopper merge grows getItem(i) in place without marking it dirty. Skip a non-dirty slot
+                // only when the shadow still matches the entity; if it differs (an in-place grow), persist
+                // it, otherwise refreshFromEntity below would overwrite the merged amount with the stale value.
+                if (!writeAll && !this.dirtySlots[i]
+                        && itemStacksEqual(asBukkitStack(this.items[i]), entity.getInventorySlot(i))) {
                     continue;
                 }
                 entity.setInventorySlot(i, asBukkitStack(this.items[i]));
@@ -326,6 +346,15 @@ public final class CookingPotBlockEntityController extends BlockEntityController
 
     private ItemStack asBukkitStack(Item item) {
         return item == null || item.isEmpty() ? null : ItemStackUtils.getBukkitStack(item.minecraftItem());
+    }
+
+    private static boolean itemStacksEqual(ItemStack a, ItemStack b) {
+        boolean aEmpty = a == null || a.getType().isAir();
+        boolean bEmpty = b == null || b.getType().isAir();
+        if (aEmpty || bEmpty) {
+            return aEmpty && bEmpty;
+        }
+        return a.equals(b);
     }
 
     public ItemStack insertStackThroughFace(ItemStack stack, Direction direction) {
@@ -428,8 +457,8 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         if (!isValidSlot(slot)) {
             return Item.empty();
         }
-        // 实时影子，不做每次调用的刷新：重新拉取会在 setChanged() 持久化之前覆盖掉漏斗的原地 grow
-        // （导致物品丢失）。影子通过 getContainer + 炼药锅的 tick 保持最新。
+        // Live shadow, no per-call refresh: re-pulling would overwrite a hopper's in-place grow
+        // before setChanged() persists it (losing items). The shadow stays current via getContainer + the cooking pot tick.
         return this.items[slot];
     }
 
@@ -471,7 +500,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
 
         this.items[slot] = Item.empty();
         this.slotExperience[slot] = 0.0D;
-        // 持久化此次移除，使 refreshFromEntity 不会从 entity 把它还原回来。
+        // Persist this removal so refreshFromEntity won't restore it from the entity.
         markDirty(slot);
         this.setChanged();
         return item;
@@ -513,7 +542,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
 
     @Override
     public List<Item> contents() {
-        // 参见 getItem：影子由 getContainer / 炼药锅的 tick 保持最新，因此无需每次调用都刷新。
+        // See getItem: the shadow is kept current by getContainer / the cooking pot tick, so no per-call refresh is needed.
         return Arrays.asList(this.items);
     }
 

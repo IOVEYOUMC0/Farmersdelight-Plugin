@@ -11,6 +11,8 @@ public final class BehaviorArgParser {
     private BehaviorArgParser() {
     }
 
+    /** Lenient: any non-null value is coerced via String.valueOf; only null yields the fallback.
+     *  Use when the YAML value can legally be a non-String type (e.g. an integer that should print as text). */
     public static String getString(Map<String, Object> arguments, String key, String defaultValue) {
         Object value = arguments != null ? arguments.get(key) : null;
         if (value != null) {
@@ -19,6 +21,15 @@ public final class BehaviorArgParser {
         return defaultValue;
     }
 
+    /** Strict: only an actual non-empty String value passes through; anything else (null, wrong type,
+     *  empty string) returns the fallback. Use to reject malformed configs early instead of silently coercing. */
+    public static String getStringStrict(Map<String, Object> arguments, String key, String fallback) {
+        Object value = arguments != null ? arguments.get(key) : null;
+        return value instanceof String s && !s.isEmpty() ? s : fallback;
+    }
+
+    /** Lenient: a non-null Boolean passes through, a String is parsed via Boolean#parseBoolean,
+     *  everything else falls back. */
     public static boolean getBoolean(Map<String, Object> arguments, String key, boolean defaultValue) {
         Object value = arguments != null ? arguments.get(key) : null;
         if (value instanceof Boolean booleanValue) {
@@ -28,6 +39,13 @@ public final class BehaviorArgParser {
             return Boolean.parseBoolean(stringValue);
         }
         return defaultValue;
+    }
+
+    /** Strict: only an actual Boolean value passes through; quoted strings ("true"/"false") and any
+     *  other type return the fallback. Use to reject malformed configs early. */
+    public static boolean getBooleanStrict(Map<String, Object> arguments, String key, boolean fallback) {
+        Object value = arguments != null ? arguments.get(key) : null;
+        return value instanceof Boolean b ? b : fallback;
     }
 
     public static int getInt(Map<String, Object> arguments, String key, int defaultValue) {
@@ -52,6 +70,20 @@ public final class BehaviorArgParser {
         if (value instanceof String stringValue) {
             try {
                 return Float.parseFloat(stringValue);
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return defaultValue;
+    }
+
+    public static double getDouble(Map<String, Object> arguments, String key, double defaultValue) {
+        Object value = arguments != null ? arguments.get(key) : null;
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value instanceof String stringValue) {
+            try {
+                return Double.parseDouble(stringValue);
             } catch (NumberFormatException ignored) {
             }
         }

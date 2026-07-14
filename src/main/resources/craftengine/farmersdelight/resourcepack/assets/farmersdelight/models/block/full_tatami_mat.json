@@ -33,6 +33,5 @@
 				"down": {"uv": [0, 0, 16, 16], "rotation": 270, "texture": "#even"}
 			}
 		}
-	],
-	"display": {}
+	]
 }

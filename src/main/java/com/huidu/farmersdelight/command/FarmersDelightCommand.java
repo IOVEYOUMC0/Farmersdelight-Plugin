@@ -2,9 +2,12 @@ package com.huidu.farmersdelight.command;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.BuildFlags;
+import com.huidu.farmersdelight.api.buff.CustomBuff;
+import com.huidu.farmersdelight.api.buff.CustomBuffRegistry;
 import com.huidu.farmersdelight.gui.RecipeViewGui;
 import com.huidu.farmersdelight.i18n.I18n;
 import net.kyori.adventure.text.minimessage.MiniMessage;
+import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -94,6 +97,14 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
                 (sender, args) -> List.of()
         ));
         register(new SubCommand(
+                "buff",
+                List.of("effect"),
+                "farmersdelight.admin",
+                "command.help_buff",
+                this::executeBuff,
+                this::completeBuff
+        ));
+        register(new SubCommand(
                 "help",
                 List.of("?"),
                 null,
@@ -133,6 +144,14 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
         if (args.length >= 2 && normalize(args[1]).equals("edit")) {
             executeRecipeEdit(player, args);
             return;
+        }
+
+        if (args.length >= 2) {
+            String sub = normalize(args[1]);
+            if (sub.equals("book") || sub.equals("addon") || sub.equals("addons") || sub.equals("recipebook")) {
+                com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.openMenu(player, null);
+                return;
+            }
         }
 
         RecipeViewGui gui = new RecipeViewGui(plugin, player);
@@ -215,6 +234,12 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
             }
         }
 
+        // Notify addons so they reload in sync. "all" already fires this inside reloadAll().
+        if (!target.equals("all")) {
+            org.bukkit.Bukkit.getPluginManager().callEvent(
+                    new com.huidu.farmersdelight.api.event.FarmersDelightReloadEvent(target));
+        }
+
         sender.sendMessage(I18n.getComponent("general.config_reloaded"));
         if (sender instanceof Player player) {
             sender.sendMessage(I18n.getComponent("general.hot_reload_warning", player));
@@ -224,19 +249,220 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
     }
 
     private void executeCleanup(CommandSender sender, String label, String[] args) {
-        int removed = 0;
-
+        int displays = 0;
         var displayManager = plugin.getItemDisplayManager();
         if (displayManager != null) {
-            removed += displayManager.cleanup();
+            // Orphan-only: remove just the proxy displays no live block still owns, keeping legitimate
+            // in-use visuals (a stove/skillet/cutting board/cooking pot that's still there). The old
+            // full wipe removed valid displays too — and the stove ones did not re-appear.
+            displays = displayManager.cleanupOrphans(plugin.collectLiveDisplayIds());
         }
 
+        int trays = 0;
         var trayManager = plugin.getTrayManager();
         if (trayManager != null) {
-            removed += trayManager.cleanupInvalidAutoTrays();
+            trays = trayManager.cleanupInvalidAutoTrays();
         }
 
-        sender.sendMessage(I18n.getComponent("command.cleanup_done", Map.of("count", String.valueOf(removed))));
+        // Same hook style as FarmersDelightReloadEvent — addons (BAC etc.) clean their own orphan
+        // state in step and report counts back via event.addRemoved().
+        com.huidu.farmersdelight.api.event.FarmersDelightCleanupEvent cleanupEvent =
+                new com.huidu.farmersdelight.api.event.FarmersDelightCleanupEvent();
+        org.bukkit.Bukkit.getPluginManager().callEvent(cleanupEvent);
+        int addon = cleanupEvent.getRemoved();
+
+        sender.sendMessage(I18n.getComponent("command.cleanup_done", Map.of(
+                "displays", String.valueOf(displays),
+                "trays", String.valueOf(trays),
+                "addon", String.valueOf(addon),
+                "count", String.valueOf(displays + trays + addon))));
+    }
+
+    // /fd buff give <buffId> [level] [seconds] [player]  — grant a registered custom buff
+    // /fd buff clear [buffId|all] [player]                — remove one / all (all reuses the milk-wipe path)
+    private void executeBuff(CommandSender sender, String label, String[] args) {
+        if (args.length < 2) {
+            sendBuffUsage(sender);
+            return;
+        }
+        switch (normalize(args[1])) {
+            case "give", "add", "grant" -> executeBuffGive(sender, args);
+            case "clear", "remove" -> executeBuffClear(sender, args);
+            default -> sendBuffUsage(sender);
+        }
+    }
+
+    private void executeBuffGive(CommandSender sender, String[] args) {
+        if (args.length < 3) {
+            sendBuffUsage(sender);
+            return;
+        }
+        CustomBuff buff = resolveBuff(args[2]);
+        if (buff == null) {
+            sender.sendMessage(I18n.getComponent("command.buff_unknown",
+                    Map.of("buff", args[2], "buffs", buffIdList())));
+            return;
+        }
+        int level = args.length >= 4 ? parsePositiveInt(args[3], 1) : 1;
+        int seconds = args.length >= 5 ? parsePositiveInt(args[4], 30) : 30;
+        Player target = resolveTarget(sender, args, 5);
+        if (target == null) {
+            return;
+        }
+        if (!CustomBuffRegistry.apply(target, buff.id(), level, seconds)) {
+            sender.sendMessage(I18n.getComponent("command.buff_not_grantable", Map.of("buff", buff.id())));
+            return;
+        }
+        sender.sendMessage(I18n.getComponent("command.buff_given", Map.of(
+                "buff", buff.id(),
+                "level", String.valueOf(level),
+                "seconds", String.valueOf(seconds),
+                "player", target.getName())));
+    }
+
+    private void executeBuffClear(CommandSender sender, String[] args) {
+        CustomBuff one = null;
+        int playerIndex = 3;
+        if (args.length >= 3 && !normalize(args[2]).equals("all")) {
+            one = resolveBuff(args[2]);
+            if (one == null) {
+                // Not a buff id — accept `/fd buff clear <player>` (clear all for that player).
+                if (Bukkit.getPlayerExact(args[2]) != null) {
+                    playerIndex = 2;
+                } else {
+                    sender.sendMessage(I18n.getComponent("command.buff_unknown",
+                            Map.of("buff", args[2], "buffs", buffIdList())));
+                    return;
+                }
+            }
+        }
+        Player target = resolveTarget(sender, args, playerIndex);
+        if (target == null) {
+            return;
+        }
+        if (one == null) {
+            int removed = CustomBuffRegistry.clearAll(target);
+            sender.sendMessage(I18n.getComponent("command.buff_cleared_all", Map.of(
+                    "count", String.valueOf(removed), "player", target.getName())));
+        } else {
+            if (one.isActive(target)) {
+                one.remove(target);
+            }
+            sender.sendMessage(I18n.getComponent("command.buff_cleared_one", Map.of(
+                    "buff", one.id(), "player", target.getName())));
+        }
+    }
+
+    /** Resolves a buff token to a registered buff: exact namespaced id first, then the short suffix
+     *  (e.g. comfort → farmersdelight:comfort, tipsy → brewinandchewin:tipsy). */
+    private CustomBuff resolveBuff(String token) {
+        if (token == null) {
+            return null;
+        }
+        String normalized = token.toLowerCase(Locale.ROOT);
+        CustomBuff exact = CustomBuffRegistry.byId(normalized);
+        if (exact != null) {
+            return exact;
+        }
+        for (CustomBuff buff : CustomBuffRegistry.all()) {
+            if (shortId(buff.id()).equals(normalized)) {
+                return buff;
+            }
+        }
+        return null;
+    }
+
+    /** Target = the named online player when given, else the sender when it's a player. Sends the right
+     *  error (offline / player-only) and returns null when unresolved. */
+    private Player resolveTarget(CommandSender sender, String[] args, int index) {
+        if (args.length > index) {
+            Player player = Bukkit.getPlayerExact(args[index]);
+            if (player == null) {
+                sender.sendMessage(I18n.getComponent("command.buff_player_not_found",
+                        Map.of("player", args[index])));
+            }
+            return player;
+        }
+        if (sender instanceof Player self) {
+            return self;
+        }
+        sender.sendMessage(I18n.getComponent("command.player_only"));
+        return null;
+    }
+
+    private static String shortId(String id) {
+        int colon = id.indexOf(':');
+        return colon >= 0 ? id.substring(colon + 1) : id;
+    }
+
+    private String buffIdList() {
+        List<String> ids = new ArrayList<>();
+        for (CustomBuff buff : CustomBuffRegistry.all()) {
+            ids.add(shortId(buff.id()));
+        }
+        return String.join(", ", ids);
+    }
+
+    private int parsePositiveInt(String value, int fallback) {
+        try {
+            int parsed = Integer.parseInt(value);
+            return parsed > 0 ? parsed : fallback;
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    private void sendBuffUsage(CommandSender sender) {
+        sender.sendMessage(MINI_MESSAGE.deserialize(I18n.get("command.buff_usage")));
+    }
+
+    private List<String> completeBuff(CommandSender sender, String[] args) {
+        if (args.length == 2) {
+            return prefixFilter(normalize(args[1]), List.of("give", "clear"));
+        }
+        String mode = normalize(args[1]);
+        if (mode.equals("give") || mode.equals("add") || mode.equals("grant")) {
+            if (args.length == 3) {
+                return prefixFilter(normalize(args[2]), buffSuffixes());
+            }
+            if (args.length == 4) {
+                return prefixFilter(normalize(args[3]), List.of("1", "2", "3"));
+            }
+            if (args.length == 5) {
+                return prefixFilter(normalize(args[4]), List.of("30", "60", "120", "300"));
+            }
+            if (args.length == 6) {
+                return prefixFilter(normalize(args[5]), onlinePlayerNames());
+            }
+        } else if (mode.equals("clear") || mode.equals("remove")) {
+            if (args.length == 3) {
+                List<String> options = new ArrayList<>();
+                options.add("all");
+                options.addAll(buffSuffixes());
+                options.addAll(onlinePlayerNames());
+                return prefixFilter(normalize(args[2]), options);
+            }
+            if (args.length == 4) {
+                return prefixFilter(normalize(args[3]), onlinePlayerNames());
+            }
+        }
+        return List.of();
+    }
+
+    private List<String> buffSuffixes() {
+        List<String> ids = new ArrayList<>();
+        for (CustomBuff buff : CustomBuffRegistry.all()) {
+            ids.add(shortId(buff.id()));
+        }
+        return ids;
+    }
+
+    private List<String> onlinePlayerNames() {
+        List<String> names = new ArrayList<>();
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            names.add(online.getName());
+        }
+        return names;
     }
 
     private void executeDebugTools(CommandSender sender, String label, String[] args) {
@@ -259,10 +485,6 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
                     "<yellow>/fd " + command.name() + "</yellow> <gray>-</gray> " + resolveHelpText(command)
             ));
         }
-    }
-
-    private void sendDebugUsage(CommandSender sender) {
-        sender.sendMessage(MINI_MESSAGE.deserialize("<yellow>/fd debugtools <place|activate|status|profile|undo> ...</yellow>"));
     }
 
     @Override
@@ -294,7 +516,7 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
         boolean admin = sender.hasPermission("farmersdelight.admin");
         if (args.length == 2) {
             String partial = normalize(args[1]);
-            List<String> base = new ArrayList<>(List.of("cooking_pot", "cutting_board"));
+            List<String> base = new ArrayList<>(List.of("cooking_pot", "cutting_board", "book"));
             if (admin) {
                 base.add("edit");
             }

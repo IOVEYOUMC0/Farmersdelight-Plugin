@@ -10,31 +10,29 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 插件向玩家展示的所有内容的中央文本渲染器：GUI 物品名称、GUI 物品 lore、
- * 聊天消息以及动作栏。
+ * Central text renderer for everything the plugin shows players: GUI item names, GUI item lore,
+ * chat messages, and action bars.
  *
- * <p>单个字符串可以自由混用 <b>MiniMessage</b> 标签（<green>、<#ff8800>、
- * <gradient:..>、<bold>……）以及传统的 &/§ 颜色代码（包括
- * &#rrggbb 和 Bukkit 的 §x§r§r.. 十六进制）。传统代码会被转换为 MiniMessage，
- * 整个字符串由 MiniMessage 解析一次，因此旧配置仍可正常工作，新的 MiniMessage
- * 配置也能渲染。</p>
+ * A single string may freely mix MiniMessage tags (<green>, <#ff8800>,
+ * <gradient:..>, <bold>, ...) and legacy &/§ color codes (including
+ * &#rrggbb and Bukkit's §x§r§r.. hex). Legacy codes are converted to MiniMessage,
+ * and the whole string is parsed once by MiniMessage, so old configs still work and new MiniMessage
+ * configs render too.
  *
- * <p>name(String) 和 lore(String) 还额外修复了 NBT 驱动文本长期存在的两个
- * 视觉问题：</p>
- * <ul>
- *   <li><b>斜体</b> &mdash; 自定义物品名称和 lore 默认以斜体渲染。这些辅助方法
- *       会禁用斜体，除非文本明确要求斜体。</li>
- *   <li><b>暗紫色 lore</b> &mdash; 没有颜色的 lore 行会回退到原版的
- *       dark_purple 默认值。lore(String) 提供 gray（而
- *       name(String) 提供 white），仅在文本自身未设置颜色时生效。</li>
- * </ul>
+ * name(String) and lore(String) also fix two long-standing visual issues
+ * with NBT-driven text:
+ * (1) Italics &mdash; custom item names and lore render italic by default. These helpers
+ * disable italics unless the text explicitly requests it.
+ * (2) Dark-purple lore &mdash; uncolored lore lines fall back to the vanilla
+ * dark_purple default. lore(String) supplies gray (and
+ * name(String) supplies white), only when the text sets no color itself.
  */
 public final class Text {
 
     private static final MiniMessage MINI = MiniMessage.miniMessage();
     private static final PlainTextComponentSerializer PLAIN = PlainTextComponentSerializer.plainText();
 
-    // 以传统颜色代码字符（0-9、a-f）作为索引。
+    // Indexed by legacy color code character (0-9, a-f).
     private static final String[] COLOR_TAGS = {
             "black", "dark_blue", "dark_green", "dark_aqua", "dark_red", "dark_purple",
             "gold", "gray", "dark_gray", "blue", "green", "aqua", "red", "light_purple",
@@ -45,8 +43,8 @@ public final class Text {
     }
 
     /**
-     * 将 MiniMessage + 传统颜色代码解析为 Component。永不抛出异常：格式错误的输入会回退
-     * 到纯（无样式）文本，因此一行错误的配置永远不会破坏 GUI 渲染或消息。
+     * Parses MiniMessage + legacy color codes into a Component. Never throws: malformed input falls
+     * back to plain (unstyled) text, so one bad config line never breaks GUI rendering or messages.
      */
     public static Component deserialize(String raw) {
         if (raw == null || raw.isEmpty()) {
@@ -61,8 +59,8 @@ public final class Text {
     }
 
     /**
-     * 渲染物品显示名称：解析后的文本，强制关闭斜体，当文本自身未设置颜色时
-     * 默认为白色。
+     * Renders an item display name: parsed text, italics forced off, defaulting to white
+     * when the text sets no color itself.
      */
     public static Component name(String raw) {
         return deserialize(raw)
@@ -71,8 +69,8 @@ public final class Text {
     }
 
     /**
-     * 渲染物品 lore 行：解析后的文本，强制关闭斜体，当文本自身未设置颜色时
-     * 默认为灰色（绝不会是原版暗紫色 lore 默认值）。
+     * Renders an item lore line: parsed text, italics forced off, defaulting to gray
+     * when the text sets no color itself (never the vanilla dark-purple lore default).
      */
     public static Component lore(String raw) {
         return deserialize(raw)
@@ -80,7 +78,7 @@ public final class Text {
                 .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE);
     }
 
-    /** 用于整块 lore 的便捷方法。 */
+    /** Convenience method for a whole block of lore. */
     public static List<Component> loreLines(List<String> rawLines) {
         List<Component> lines = new ArrayList<>();
         if (rawLines != null) {
@@ -91,17 +89,12 @@ public final class Text {
         return lines;
     }
 
-    /** 渲染物品栏/菜单标题（MiniMessage + 传统代码，不做斜体/颜色默认处理）。 */
+    /** Renders an inventory/menu title (MiniMessage + legacy codes, no italic/color defaulting). */
     public static Component title(String raw) {
         return deserialize(raw);
     }
 
-    /** 对已构建的 Component 强制关闭斜体，除非它显式设置了斜体。 */
-    public static Component noItalic(Component component) {
-        return component.decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE);
-    }
-
-    /** 去除所有格式并返回纯文本（用于控制台输出和比较）。 */
+    /** Strips all formatting and returns plain text (for console output and comparisons). */
     public static String plain(String raw) {
         if (raw == null || raw.isEmpty()) {
             return "";
@@ -110,15 +103,15 @@ public final class Text {
     }
 
     /**
-     * 将传统的 &/§ 颜色代码（包括 &#rrggbb 和 Bukkit 的
-     * §x§r§r§g§g§b§b 十六进制）转换为 MiniMessage 标签，同时保持任何已有的 MiniMessage 标签和
-     * 所有其他文本不变。设为包级私有以便直接进行单元测试。
+     * Converts legacy &/§ color codes (including &#rrggbb and Bukkit's
+     * §x§r§r§g§g§b§b hex) into MiniMessage tags, leaving any existing MiniMessage tags and
+     * all other text unchanged. Package-private for direct unit testing.
      */
     static String legacyToMiniMessage(String input) {
         if (input == null || input.isEmpty()) {
             return "";
         }
-        // 快速路径：没有需要转换的内容。
+        // Fast path: nothing to convert.
         if (input.indexOf('&') < 0 && input.indexOf('§') < 0) {
             return input;
         }
@@ -131,14 +124,14 @@ public final class Text {
             if ((c == '&' || c == '§') && i + 1 < length) {
                 char code = input.charAt(i + 1);
 
-                // &#rrggbb 十六进制。
+                // &#rrggbb hex.
                 if (code == '#' && isHex(input, i + 2, 6)) {
                     out.append("<#").append(input, i + 2, i + 8).append('>');
                     i += 8;
                     continue;
                 }
 
-                // Bukkit "&x&r&r&g&g&b&b" / "§x§r§r.." 展开的十六进制。
+                // Bukkit "&x&r&r&g&g&b&b" / "§x§r§r.." expanded hex.
                 if ((code == 'x' || code == 'X') && isBukkitHex(input, i)) {
                     out.append("<#");
                     for (int k = 0; k < 6; k++) {
@@ -192,9 +185,9 @@ public final class Text {
     }
 
     /**
-     * 检查从 i 开始的 Bukkit 展开十六进制序列，其中 s.charAt(i) 是
-     * 颜色字符，s.charAt(i + 1) 是 x/X：随后跟着六个
-     * <colourChar><hexDigit> 对（总共 14 个字符）。
+     * Checks for a Bukkit expanded-hex sequence starting at i, where s.charAt(i) is
+     * the color character and s.charAt(i + 1) is x/X: followed by six
+     * <colourChar><hexDigit> pairs (14 characters total).
      */
     private static boolean isBukkitHex(String s, int i) {
         if (i + 14 > s.length()) {

@@ -1,14 +1,14 @@
 ﻿items:
   farmersdelight:brown_mushroom_colony:
     data:
-      item-name: <!i><l10n:block.farmersdelight.brown_mushroom_colony>
+      item-name: <!i><lang:block.farmersdelight.brown_mushroom_colony>
     model: farmersdelight:item/brown_mushroom_colony
     behavior:
       type: block_item
       block: farmersdelight:brown_mushroom_colony
   farmersdelight:red_mushroom_colony:
     data:
-      item-name: <!i><l10n:block.farmersdelight.red_mushroom_colony>
+      item-name: <!i><lang:block.farmersdelight.red_mushroom_colony>
     model: farmersdelight:item/red_mushroom_colony
     behavior:
       type: block_item
@@ -24,18 +24,18 @@ blocks:
         is-randomly-ticking: true
     behaviors:
       - type: bush_block
-        bottom-blocks:
-          - minecraft:mycelium
-          - minecraft:mushroom_stem
-          - minecraft:podzol
+        bottom-block-tags:
+          - minecraft:mushroom_grow_block
       - type: farmersdelight:mushroom_colony
         mushroom-type: "minecraft:brown_mushroom"
         light-requirement: 0
+        grow-on-blocks:
+          - farmersdelight:rich_soil
     states:
       properties:
         age:
           type: int
-          default: 0
+          default: 3
           range: 0~3
       appearances:
         age=0:
@@ -79,8 +79,8 @@ blocks:
                             - type: match_block_property
                               properties:
                                 age: 3
-                            - type: enchantment
-                              predicate: minecraft:silk_touch>=1
+                            - type: match_item
+                              item: minecraft:shears
                         - type: item
                           item: minecraft:brown_mushroom
                           count: 5
@@ -115,18 +115,18 @@ blocks:
         is-randomly-ticking: true
     behaviors:
       - type: bush_block
-        bottom-blocks:
-          - minecraft:mycelium
-          - minecraft:mushroom_stem
-          - minecraft:podzol
+        bottom-block-tags:
+          - minecraft:mushroom_grow_block
       - type: farmersdelight:mushroom_colony
         mushroom-type: "minecraft:red_mushroom"
         light-requirement: 0
+        grow-on-blocks:
+          - farmersdelight:rich_soil
     states:
       properties:
         age:
           type: int
-          default: 0
+          default: 3
           range: 0~3
       appearances:
         age=0:
@@ -170,8 +170,8 @@ blocks:
                             - type: match_block_property
                               properties:
                                 age: 3
-                            - type: enchantment
-                              predicate: minecraft:silk_touch>=1
+                            - type: match_item
+                              item: minecraft:shears
                         - type: item
                           item: minecraft:red_mushroom
                           count: 5

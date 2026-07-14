@@ -9,15 +9,12 @@ import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntity;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntityController;
 import com.huidu.farmersdelight.block.behavior.SkilletBlockEntityController;
 import com.huidu.farmersdelight.block.behavior.StoveBlockEntityController;
-import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.manager.TrayManager;
-import com.huidu.farmersdelight.storage.LegacyBlockStorageManager;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.world.CEWorld;
-import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.chunk.CEChunk;
 import org.bukkit.Chunk;
 import org.bukkit.World;
@@ -34,7 +31,10 @@ public class ChunkLoadListener implements Listener {
     private static final int DEFAULT_STARTUP_CHUNK_LOADS_PER_TICK = 16;
 
     private final FarmersDelightPlugin plugin;
-    private PluginTask startupLoadTask;
+    // Written on enable/disable (main thread) and read + self-nulled inside the repeating task body
+    // (global-region thread). volatile gives the needed happens-before so disable's cancel isn't
+    // missed and the body never sees a stale handle. R-CONC-002.
+    private volatile PluginTask startupLoadTask;
 
     public ChunkLoadListener(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -100,69 +100,13 @@ public class ChunkLoadListener implements Listener {
     private void loadBlockEntitiesInChunk(World world, int chunkX, int chunkZ) {
         loadCraftEngineBlockEntitiesInChunk(world, chunkX, chunkZ);
 
-        LegacyBlockStorageManager storage = plugin.getLegacyBlockStorageManager();
-        if (storage != null) {
-            Map<String, Map<String, Object>> blockData = storage.loadBlockDataInChunk(world, chunkX, chunkZ);
-            for (Map<String, Object> data : blockData.values()) {
-                String blockType = null;
-                if (data.get("_blockType") instanceof String s) {
-                    blockType = s;
-                }
-                int x = 0;
-                if (data.get("_x") instanceof Number n) {
-                    x = n.intValue();
-                }
-                int y = 0;
-                if (data.get("_y") instanceof Number n) {
-                    y = n.intValue();
-                }
-                int z = 0;
-                if (data.get("_z") instanceof Number n) {
-                    z = n.intValue();
-                }
-                if (blockType == null) {
-                    continue;
-                }
-
-                BlockPos pos = new BlockPos(x, y, z);
-                switch (blockType) {
-                    case "cooking_pot" -> {
-                        BlockPosKey posKey = new BlockPosKey(pos);
-                        // 仅在确认 CE 方块存在并完成迁移后，才删除旧的 legacy 数据条目。
-                        if (CookingPotBlockBehavior.isCookingPotBlock(world, posKey)) {
-                            CookingPotBlockBehavior.migrateLegacyBlockData(world, posKey, data);
-                            storage.removeBlockData(posKey.toLocation(world));
-                        }
-                    }
-                    case "cutting_board" -> {
-                        BlockPosKey posKey = new BlockPosKey(pos);
-                        if (CuttingBoardBlockBehavior.isCuttingBoardBlock(world, posKey)) {
-                            CuttingBoardBlockBehavior.migrateLegacyBlockData(world, posKey, data);
-                            storage.removeBlockData(posKey.toLocation(world));
-                        }
-                    }
-                    case "skillet" -> {
-                        BlockPosKey posKey = new BlockPosKey(pos);
-                        plugin.getSkilletManager().loadSkillet(world, posKey, data);
-                        storage.removeBlockData(posKey.toLocation(world));
-                    }
-                    case "stove" -> {
-                        BlockPosKey posKey = new BlockPosKey(pos);
-                        plugin.getStoveManager().loadStove(world, posKey, data);
-                        storage.removeBlockData(posKey.toLocation(world));
-                    }
-                    default -> plugin.getLogger().warning(I18n.formatConsole("chunk_load.unknown_block_type",
-                            "type", blockType,
-                            "x", x,
-                            "y", y,
-                            "z", z));
-                }
-            }
-        }
-
         TrayManager trayManager = plugin.getTrayManager();
         if (trayManager != null) {
             trayManager.cleanupInvalidAutoTraysInChunk(world, chunkX, chunkZ);
+        }
+        var handleManager = plugin.getHandleManager();
+        if (handleManager != null) {
+            handleManager.sweepOrphansInChunk(world, chunkX, chunkZ);
         }
     }
 
@@ -196,16 +140,16 @@ public class ChunkLoadListener implements Listener {
         int maxX = minX + 15;
         int maxZ = minZ + 15;
 
-        // 厨锅 / 砧板改用按区块索引,只查正在卸载的那个区块,避免对整世界做线性扫描。
+        // Cooking pots / cutting boards use a per-chunk index, scanning only the unloading chunk instead of the whole world.
         saveCookingPotEntities(world, chunkX, chunkZ);
         saveCuttingBoardEntities(world, chunkX, chunkZ);
-        // skillet / stove 仍按原坐标范围处理(超出本次范围)。
+        // Skillet / stove still handled by coordinate range (outside this scope).
         plugin.getSkilletManager().saveAndUnloadChunk(world, minX, maxX, minZ, maxZ);
         plugin.getStoveManager().saveAndUnloadChunk(world, minX, maxX, minZ, maxZ);
     }
 
     private void cleanupBlockEntitiesInChunk(World world, Chunk chunk) {
-        // 厨锅 / 砧板改用按区块索引,只查正在卸载的那个区块,避免对整世界做线性扫描。
+        // Cooking pots / cutting boards use a per-chunk index, scanning only the unloading chunk instead of the whole world.
         cleanupCookingPotEntities(world, chunk.getX(), chunk.getZ());
         cleanupCuttingBoardEntities(world, chunk.getX(), chunk.getZ());
     }
@@ -234,10 +178,10 @@ public class ChunkLoadListener implements Listener {
         Map<BlockPosKey, CookingPotBlockEntity> entities =
                 CookingPotBlockBehavior.getBlockEntitiesInChunk(world, chunkX, chunkZ);
         if (entities.isEmpty()) return;
-
-        // 先快照位置再移除,避免在遍历过程中改动权威 map / 索引。
-        List<BlockPosKey> toRemove = new ArrayList<>(entities.keySet());
-        for (BlockPosKey posKey : toRemove) {
+        // getBlockEntitiesInChunk already returns a fresh HashMap snapshot (see its impl), and
+        // removeBlockEntity mutates the authoritative chunkIndex/worldBlockEntities, not `entities`.
+        // The old outer `new ArrayList<>(entities.keySet())` was a redundant double-snapshot.
+        for (BlockPosKey posKey : entities.keySet()) {
             CookingPotBlockBehavior.removeBlockEntity(world, posKey, false);
         }
     }
@@ -246,10 +190,7 @@ public class ChunkLoadListener implements Listener {
         Map<BlockPosKey, CuttingBoardBlockEntity> entities =
                 CuttingBoardBlockBehavior.getBlockEntitiesInChunk(world, chunkX, chunkZ);
         if (entities.isEmpty()) return;
-
-        // 先快照位置再移除,避免在遍历过程中改动权威 map / 索引。
-        List<BlockPosKey> toRemove = new ArrayList<>(entities.keySet());
-        for (BlockPosKey posKey : toRemove) {
+        for (BlockPosKey posKey : entities.keySet()) {
             CuttingBoardBlockBehavior.removeBlockEntity(world, posKey, false);
         }
     }

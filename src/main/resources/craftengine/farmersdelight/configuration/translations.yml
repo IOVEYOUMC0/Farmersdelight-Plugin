@@ -1,13 +1,14 @@
 ﻿translations:
   en:
-    # 工作站方块
+    # Workstation blocks
     block.farmersdelight.basket: "Basket"
+    block.farmersdelight.cabinet: "Cabinet"
     block.farmersdelight.cooking_pot: "Cooking Pot"
     block.farmersdelight.cutting_board: "Cutting Board"
     block.farmersdelight.skillet: "Skillet"
     block.farmersdelight.stove: "Stove"
 
-    # 存储与橱柜方块
+    # Storage and cabinet blocks
     block.farmersdelight.acacia_cabinet: "Acacia Cabinet"
     block.farmersdelight.bamboo_cabinet: "Bamboo Cabinet"
     block.farmersdelight.beetroot_crate: "Beetroot Crate"
@@ -31,10 +32,17 @@
     block.farmersdelight.tomato_crate: "Tomato Crate"
     block.farmersdelight.warped_cabinet: "Warped Cabinet"
 
-    # 装饰方块
+    # Decorative blocks
     block.farmersdelight.apple_pie: "Apple Pie"
     block.farmersdelight.apple_pie_slice: "Slice of Apple Pie"
+    block.farmersdelight.pumpkin_pie: "Pumpkin Pie"
+    block.farmersdelight.pumpkin_pie_slice: "Slice of Pumpkin Pie"
     block.farmersdelight.canvas_rug: "Canvas Rug"
+    block.farmersdelight.safety_net: "Safety Net"
+    block.farmersdelight.tomato_crop_on_rope: "Tomato Vine"
+    block.farmersdelight.organic_compost: "Organic Compost"
+    block.farmersdelight.rich_soil: "Rich Soil"
+    block.farmersdelight.rich_soil_farmland: "Rich Soil Farmland"
     block.farmersdelight.chocolate_pie: "Chocolate Pie"
     block.farmersdelight.chocolate_pie_slice: "Slice of Chocolate Pie"
     block.farmersdelight.full_tatami_mat: "Full Tatami Mat"
@@ -50,7 +58,7 @@
     block.farmersdelight.tatami: "Tatami Block"
     block.farmersdelight.tray: "Tray"
 
-    # 野生植物方块
+    # Wild plant blocks
     block.farmersdelight.brown_mushroom_colony: "Brown Mushroom Colony"
     block.farmersdelight.red_mushroom_colony: "Red Mushroom Colony"
     block.farmersdelight.wild_cabbages: "Wild Cabbage"
@@ -58,7 +66,7 @@
     block.farmersdelight.wild_rice: "Wild Rice"
     block.farmersdelight.wild_tomatoes: "Tomato Shrub"
 
-    # 基础食材
+    # Basic ingredients
     item.farmersdelight.beef_patty: "Beef Patty"
     item.farmersdelight.cabbage: "Cabbage"
     item.farmersdelight.cabbage_leaf: "Cabbage Leaf"
@@ -80,7 +88,7 @@
     item.farmersdelight.wheat_dough: "Wheat Dough"
     item.farmersdelight.rope: "Rope"
 
-    # 饮品与点心
+    # Drinks and snacks
     item.farmersdelight.apple_cider: "Apple Cider"
     item.farmersdelight.fried_egg: "Fried Egg"
     item.farmersdelight.fruit_salad: "Fruit Salad"
@@ -92,7 +100,7 @@
     item.farmersdelight.milk_bottle: "Milk Bottle"
     item.farmersdelight.sweet_berry_cookie: "Sweet Berry Cookie"
 
-    # 生肉与生鱼
+    # Raw meat and raw fish
     item.farmersdelight.bacon: "Raw Bacon"
     item.farmersdelight.chicken_cuts: "Raw Chicken Cuts"
     item.farmersdelight.cod_slice: "Raw Cod Slice"
@@ -100,7 +108,7 @@
     item.farmersdelight.mutton_chops: "Raw Mutton Chops"
     item.farmersdelight.salmon_slice: "Raw Salmon Slice"
 
-    # 熟肉与熟鱼
+    # Cooked meat and cooked fish
     item.farmersdelight.cooked_bacon: "Cooked Bacon"
     item.farmersdelight.cooked_chicken_cuts: "Cooked Chicken Cuts"
     item.farmersdelight.cooked_cod_slice: "Cooked Cod Slice"
@@ -108,14 +116,14 @@
     item.farmersdelight.cooked_salmon_slice: "Cooked Salmon Slice"
     item.farmersdelight.smoked_ham: "Smoked Ham"
 
-    # 刀具
+    # Knives
     item.farmersdelight.diamond_knife: "Diamond Knife"
     item.farmersdelight.flint_knife: "Flint Knife"
     item.farmersdelight.golden_knife: "Golden Knife"
     item.farmersdelight.iron_knife: "Iron Knife"
     item.farmersdelight.netherite_knife: "Netherite Knife"
 
-    # 餐点与拼盘
+    # Meals and platters
     item.farmersdelight.apple_pie_slice: "Slice of Apple Pie"
     item.farmersdelight.bacon_and_eggs: "Bacon and Eggs"
     item.farmersdelight.bacon_sandwich: "Bacon Sandwich"
@@ -128,7 +136,6 @@
     item.farmersdelight.chicken_sandwich: "Chicken Sandwich"
     item.farmersdelight.chicken_soup: "Chicken Soup"
     item.farmersdelight.chocolate_pie_slice: "Slice of Chocolate Pie"
-    item.farmersdelight.pumpkin_pie_slice: "Slice of Pumpkin Pie"
     item.farmersdelight.cod_roll: "Cod Roll"
     item.farmersdelight.cooked_rice: "Cooked Rice"
     item.farmersdelight.dumplings: "Dumplings"
@@ -163,19 +170,23 @@
     item.farmersdelight.vegetable_noodles: "Vegetable Noodles"
     item.farmersdelight.vegetable_soup: "Vegetable Soup"
 
-    # 动物饲料
+    # Animal feed
     item.farmersdelight.dog_food: "Dog Food"
     item.farmersdelight.horse_feed: "Horse Feed"
 
-    # 分类
+    # Categories
     farmersdelight.category.block: "Blocks"
     farmersdelight.category.food: "Foods"
     farmersdelight.category.gui: "GUI"
     farmersdelight.category.item: "Items"
+    farmersdelight.category.item_display: "Item Displays"
     farmersdelight.category.root: "Farmer's Delight"
     farmersdelight.category.weapon: "Weapons"
 
-    # GUI 标签
+    # GUI labels
+    farmersdelight.gui.cancooked.enabled: "Showing cookable only"
+    farmersdelight.gui.cancooked.disenabled: "Showing all recipes"
+    farmersdelight.gui.recipe_book: "Recipe Book"
     farmersdelight.gui.cooking_time: "Cooking Time"
     farmersdelight.gui.heated: "Heated"
     farmersdelight.gui.not_heated: "Not Heated"
@@ -201,10 +212,11 @@
     farmersdelight.gui.progress.90: "Cooking Progress: 90%"
     farmersdelight.gui.progress.95: "Cooking Progress: 95%"
 
-    # 效果
+    # Effects
     effect.farmersdelight.nourishment: "Nourishment"
+    effect.farmersdelight.comfort: "Comfort"
 
-    # 工具提示
+    # Tooltips
     farmersdelight.tooltip.dog_food.when_feeding: "When fed to a tamed Wolf:"
     farmersdelight.tooltip.effect_not_implemented: "Effect not implemented yet"
     farmersdelight.tooltip.horse_feed.when_feeding: "When fed to a tamed mount:"
@@ -213,17 +225,24 @@
     farmersdelight.tooltip.milk_bottle.effect: "Removes all potion effects"
     farmersdelight.tooltip.no_collision: "This block does not have collision yet."
     farmersdelight.tooltip.no_connected_texture: "This block does not support connected textures yet."
-    farmersdelight.tooltip.requires_bowl_when_placed: "Requires a bowl after being placed"
+    farmersdelight.tooltip.placeable: "Placeable"
+    farmersdelight.tooltip.placeable_sneaking: "Placeable when sneaking"
+
+    buff.farmersdelight.nourishment: "Nourishment [%s]"
+    buff.farmersdelight.comfort: "Comfort [%s]"
+
+    farmersdelight.tooltip.cooking_pot.servings: "%s servings"
 
   zh_cn:
-    # 工作站方块
+    # Workstation blocks
     block.farmersdelight.basket: "篮子"
+    block.farmersdelight.cabinet: "橱柜"
     block.farmersdelight.cooking_pot: "厨锅"
     block.farmersdelight.cutting_board: "砧板"
     block.farmersdelight.skillet: "煎锅"
     block.farmersdelight.stove: "炉灶"
 
-    # 存储与橱柜方块
+    # Storage and cabinet blocks
     block.farmersdelight.acacia_cabinet: "金合欢木橱柜"
     block.farmersdelight.bamboo_cabinet: "竹橱柜"
     block.farmersdelight.beetroot_crate: "箱装甜菜根"
@@ -240,22 +259,29 @@
     block.farmersdelight.potato_crate: "箱装马铃薯"
     block.farmersdelight.pale_oak_cabinet: "苍白橡木厨柜"
     block.farmersdelight.rice_bag: "袋装稻米"
-    block.farmersdelight.rice_bale: "稻米块"
+    block.farmersdelight.rice_bale: "稻穗捆"
     block.farmersdelight.rope: "绳子"
     block.farmersdelight.spruce_cabinet: "云杉木橱柜"
-    block.farmersdelight.straw_bale: "稻草"
+    block.farmersdelight.straw_bale: "草捆"
     block.farmersdelight.tomato_crate: "箱装番茄"
     block.farmersdelight.warped_cabinet: "诡异木橱柜"
 
-    # 装饰方块
+    # Decorative blocks
     block.farmersdelight.apple_pie: "苹果派"
     block.farmersdelight.apple_pie_slice: "苹果派切片"
+    block.farmersdelight.pumpkin_pie: "南瓜派"
+    block.farmersdelight.pumpkin_pie_slice: "南瓜派切片"
     block.farmersdelight.canvas_rug: "粗布毯"
+    block.farmersdelight.safety_net: "安全网"
+    block.farmersdelight.tomato_crop_on_rope: "番茄爬藤"
+    block.farmersdelight.organic_compost: "有机堆肥"
+    block.farmersdelight.rich_soil: "沃土"
+    block.farmersdelight.rich_soil_farmland: "沃土耕地"
     block.farmersdelight.chocolate_pie: "巧克力派"
     block.farmersdelight.chocolate_pie_slice: "巧克力派切片"
     block.farmersdelight.full_tatami_mat: "长榻榻米垫"
     block.farmersdelight.half_tatami_mat: "短榻榻米垫"
-    block.farmersdelight.gleaming_salad_block: "闪耀沙拉"
+    block.farmersdelight.gleaming_salad_block: "闪亮沙拉"
     block.farmersdelight.honey_glazed_ham_block: "蜜汁火腿"
     block.farmersdelight.rice_roll_medley_block: "寿司拼盘"
     block.farmersdelight.roast_chicken_block: "烤鸡"
@@ -266,7 +292,7 @@
     block.farmersdelight.tatami: "榻榻米方块"
     block.farmersdelight.tray: "托盘"
 
-    # 野生植物方块
+    # Wild plant blocks
     block.farmersdelight.brown_mushroom_colony: "棕色蘑菇菌落"
     block.farmersdelight.red_mushroom_colony: "红色蘑菇菌落"
     block.farmersdelight.wild_cabbages: "野生卷心菜"
@@ -274,7 +300,7 @@
     block.farmersdelight.wild_rice: "野生稻米"
     block.farmersdelight.wild_tomatoes: "番茄灌木"
 
-    # 基础食材
+    # Basic ingredients
     item.farmersdelight.beef_patty: "牛肉饼"
     item.farmersdelight.cabbage: "卷心菜"
     item.farmersdelight.cabbage_leaf: "卷心菜叶"
@@ -296,9 +322,9 @@
     item.farmersdelight.wheat_dough: "面团"
     item.farmersdelight.rope: "绳子"
 
-    # 饮品与点心
+    # Drinks and snacks
     item.farmersdelight.apple_cider: "苹果酒"
-    item.farmersdelight.fried_egg: "煎鸡蛋"
+    item.farmersdelight.fried_egg: "煎蛋"
     item.farmersdelight.fruit_salad: "水果沙拉"
     item.farmersdelight.glow_berry_custard: "发光浆果蛋奶沙司"
     item.farmersdelight.honey_cookie: "蜂蜜曲奇"
@@ -308,7 +334,7 @@
     item.farmersdelight.milk_bottle: "奶瓶"
     item.farmersdelight.sweet_berry_cookie: "甜浆果曲奇"
 
-    # 生肉与生鱼
+    # Raw meat and raw fish
     item.farmersdelight.bacon: "生培根"
     item.farmersdelight.chicken_cuts: "生鸡肉丁"
     item.farmersdelight.cod_slice: "生鳕鱼片"
@@ -316,7 +342,7 @@
     item.farmersdelight.mutton_chops: "生羊排"
     item.farmersdelight.salmon_slice: "生鲑鱼片"
 
-    # 熟肉与熟鱼
+    # Cooked meat and cooked fish
     item.farmersdelight.cooked_bacon: "熟培根"
     item.farmersdelight.cooked_chicken_cuts: "熟鸡肉丁"
     item.farmersdelight.cooked_cod_slice: "熟鳕鱼片"
@@ -324,16 +350,16 @@
     item.farmersdelight.cooked_salmon_slice: "熟鲑鱼片"
     item.farmersdelight.smoked_ham: "烟熏火腿"
 
-    # 刀具
+    # Knives
     item.farmersdelight.diamond_knife: "钻石刀"
     item.farmersdelight.flint_knife: "燧石刀"
     item.farmersdelight.golden_knife: "金刀"
     item.farmersdelight.iron_knife: "铁刀"
     item.farmersdelight.netherite_knife: "下界合金刀"
 
-    # 餐点与拼盘
+    # Meals and platters
     item.farmersdelight.apple_pie_slice: "苹果派切片"
-    item.farmersdelight.bacon_and_eggs: "培根鸡蛋"
+    item.farmersdelight.bacon_and_eggs: "培根蛋"
     item.farmersdelight.bacon_sandwich: "培根三明治"
     item.farmersdelight.baked_cod_stew: "烘焙鳕鱼炖"
     item.farmersdelight.barbecue_stick: "烧烤串"
@@ -344,17 +370,16 @@
     item.farmersdelight.chicken_sandwich: "鸡肉三明治"
     item.farmersdelight.chicken_soup: "鸡肉汤"
     item.farmersdelight.chocolate_pie_slice: "巧克力派切片"
-    item.farmersdelight.pumpkin_pie_slice: "南瓜派切片"
     item.farmersdelight.cod_roll: "鳕鱼寿司"
     item.farmersdelight.cooked_rice: "米饭"
     item.farmersdelight.dumplings: "饺子"
-    item.farmersdelight.egg_sandwich: "鸡蛋三明治"
+    item.farmersdelight.egg_sandwich: "夹蛋三明治"
     item.farmersdelight.fish_stew: "鱼肉炖"
     item.farmersdelight.fried_rice: "炒饭"
     item.farmersdelight.grilled_salmon: "香烤鲑鱼"
     item.farmersdelight.hamburger: "汉堡包"
     item.farmersdelight.honey_glazed_ham: "盘装蜜汁火腿"
-    item.farmersdelight.gleaming_salad: "碗装闪耀沙拉"
+    item.farmersdelight.gleaming_salad: "碗装闪亮沙拉"
     item.farmersdelight.kelp_roll: "海带寿司卷"
     item.farmersdelight.kelp_roll_slice: "海带寿司"
     item.farmersdelight.mixed_salad: "混合沙拉"
@@ -372,26 +397,27 @@
     item.farmersdelight.salmon_roll: "鲑鱼寿司"
     item.farmersdelight.shepherds_pie: "盘装牧羊人派"
     item.farmersdelight.squid_ink_pasta: "鱿鱼墨面"
-    item.farmersdelight.steak_and_potatoes: "牛排配土豆"
+    item.farmersdelight.steak_and_potatoes: "牛排配马铃薯"
     item.farmersdelight.stuffed_potato: "填馅马铃薯"
     item.farmersdelight.stuffed_pumpkin: "碗装填馅南瓜"
     item.farmersdelight.sweet_berry_cheesecake_slice: "甜浆果芝士派切片"
     item.farmersdelight.vegetable_noodles: "蔬菜面"
     item.farmersdelight.vegetable_soup: "蔬菜汤"
 
-    # 动物饲料
+    # Animal feed
     item.farmersdelight.dog_food: "狗粮"
     item.farmersdelight.horse_feed: "马食"
 
-    # 分类
+    # Categories
     farmersdelight.category.block: "方块"
     farmersdelight.category.food: "食物"
     farmersdelight.category.gui: "界面"
     farmersdelight.category.item: "物品"
+    farmersdelight.category.item_display: "物品展示实体"
     farmersdelight.category.root: "农夫乐事"
     farmersdelight.category.weapon: "武器"
 
-    # GUI 标签
+    # GUI labels
     farmersdelight.gui.cooking_time: "烹饪时长"
     farmersdelight.gui.heated: "热源活跃"
     farmersdelight.gui.not_heated: "无热源"
@@ -420,10 +446,11 @@
     farmersdelight.gui.cancooked.disenabled: "显示所有配方"
     farmersdelight.gui.recipe_book: "配方书"
 
-    # 效果
+    # Effects
     effect.farmersdelight.nourishment: "滋养"
+    effect.farmersdelight.comfort: "舒适"
 
-    # 工具提示
+    # Tooltips
     farmersdelight.tooltip.dog_food.when_feeding: "喂给已驯服的狗时："
     farmersdelight.tooltip.effect_not_implemented: "效果暂未实现"
     farmersdelight.tooltip.horse_feed.when_feeding: "喂给已驯服的马时："
@@ -432,4 +459,245 @@
     farmersdelight.tooltip.milk_bottle.effect: "清除全部药水效果"
     farmersdelight.tooltip.no_collision: "该方块暂未实现物理碰撞效果"
     farmersdelight.tooltip.no_connected_texture: "该方块暂未实现纹理连接效果"
-    farmersdelight.tooltip.requires_bowl_when_placed: "放置后需要碗以食用它"
+    farmersdelight.tooltip.placeable: "可放置"
+    farmersdelight.tooltip.placeable_sneaking: "潜行可放置"
+
+    buff.farmersdelight.nourishment: "滋养 [%s]"
+    buff.farmersdelight.comfort: "舒适 [%s]"
+
+    farmersdelight.tooltip.cooking_pot.servings: "%s 份"
+
+  ko_kr:
+    # Workstation blocks
+    block.farmersdelight.basket: "바구니"
+    block.farmersdelight.cabinet: "식료품 선반"
+    block.farmersdelight.cooking_pot: "조리용 냄비"
+    block.farmersdelight.cutting_board: "도마"
+    block.farmersdelight.skillet: "프라이팬"
+    block.farmersdelight.stove: "난로"
+
+    # Storage and cabinet blocks
+    block.farmersdelight.acacia_cabinet: "아카시아나무 식료품 선반"
+    block.farmersdelight.bamboo_cabinet: "대나무 식료품 선반"
+    block.farmersdelight.beetroot_crate: "비트 상자"
+    block.farmersdelight.birch_cabinet: "자작나무 식료품 선반"
+    block.farmersdelight.cabbage_crate: "양배추 상자"
+    block.farmersdelight.carrot_crate: "당근 상자"
+    block.farmersdelight.cherry_cabinet: "벚나무 식료품 선반"
+    block.farmersdelight.crimson_cabinet: "진홍빛 식료품 선반"
+    block.farmersdelight.dark_oak_cabinet: "짙은 참나무 식료품 선반"
+    block.farmersdelight.jungle_cabinet: "정글나무 식료품 선반"
+    block.farmersdelight.mangrove_cabinet: "맹그로브나무 식료품 선반"
+    block.farmersdelight.oak_cabinet: "참나무 식료품 선반"
+    block.farmersdelight.onion_crate: "양파 상자"
+    block.farmersdelight.potato_crate: "감자 상자"
+    block.farmersdelight.pale_oak_cabinet: "옅은 참나무 식료품 선반"
+    block.farmersdelight.rice_bag: "쌀 자루"
+    block.farmersdelight.rice_bale: "볏짚 더미"
+    block.farmersdelight.rope: "밧줄"
+    block.farmersdelight.spruce_cabinet: "가문비나무 식료품 선반"
+    block.farmersdelight.straw_bale: "지푸라기 묶음"
+    block.farmersdelight.tomato_crate: "토마토 상자"
+    block.farmersdelight.warped_cabinet: "뒤틀린 식료품 선반"
+
+    # Decorative blocks
+    block.farmersdelight.apple_pie: "사과 파이"
+    block.farmersdelight.apple_pie_slice: "사과 파이 조각"
+    block.farmersdelight.pumpkin_pie: "호박 파이"
+    block.farmersdelight.pumpkin_pie_slice: "호박 파이 조각"
+    block.farmersdelight.canvas_rug: "천 깔개"
+    block.farmersdelight.safety_net: "안전 망"
+    block.farmersdelight.tomato_crop_on_rope: "줄에 매달린 토마토 덩굴"
+    block.farmersdelight.organic_compost: "유기농 퇴비"
+    block.farmersdelight.rich_soil: "기름진 흙"
+    block.farmersdelight.rich_soil_farmland: "기름진 경작지"
+    block.farmersdelight.chocolate_pie: "초콜릿 파이"
+    block.farmersdelight.chocolate_pie_slice: "초콜릿 파이 조각"
+    block.farmersdelight.full_tatami_mat: "다다미 매트"
+    block.farmersdelight.half_tatami_mat: "다다미 반 매트"
+    block.farmersdelight.gleaming_salad_block: "빛나는 샐러드"
+    block.farmersdelight.honey_glazed_ham_block: "꿀 바른 햄"
+    block.farmersdelight.rice_roll_medley_block: "모듬 초밥"
+    block.farmersdelight.roast_chicken_block: "로스트 치킨"
+    block.farmersdelight.shepherds_pie_block: "셰퍼드 파이"
+    block.farmersdelight.stuffed_pumpkin_block: "속 채운 호박"
+    block.farmersdelight.sweet_berry_cheesecake: "달콤한 열매 치즈케이크"
+    block.farmersdelight.sweet_berry_cheesecake_slice: "달콤한 열매 치즈케이크 조각"
+    block.farmersdelight.tatami: "다다미 블록"
+    block.farmersdelight.tray: "받침"
+
+    # Wild plant blocks
+    block.farmersdelight.brown_mushroom_colony: "갈색 버섯 군집"
+    block.farmersdelight.red_mushroom_colony: "빨간색 버섯 군집"
+    block.farmersdelight.wild_cabbages: "야생 양배추"
+    block.farmersdelight.wild_onions: "야생 양파"
+    block.farmersdelight.wild_rice: "야생 벼"
+    block.farmersdelight.wild_tomatoes: "야생 토마토"
+
+    # Basic ingredients
+    item.farmersdelight.beef_patty: "소고기 패티"
+    item.farmersdelight.cabbage: "양배추"
+    item.farmersdelight.cabbage_leaf: "양배추 잎"
+    item.farmersdelight.cabbage_seeds: "양배추 씨앗"
+    item.farmersdelight.canvas: "질긴 천"
+    item.farmersdelight.tree_bark: "나무 껍질"
+    item.farmersdelight.minced_beef: "다진 소고기"
+    item.farmersdelight.onion: "양파"
+    item.farmersdelight.pie_crust: "파이 껍질"
+    item.farmersdelight.pumpkin_slice: "호박 조각"
+    item.farmersdelight.raw_pasta: "파스타 면"
+    item.farmersdelight.rice: "쌀"
+    item.farmersdelight.rice_panicle: "벼"
+    item.farmersdelight.rotten_tomato: "썩은 토마토"
+    item.farmersdelight.straw: "지푸라기"
+    item.farmersdelight.tomato: "토마토"
+    item.farmersdelight.tomato_sauce: "토마토 소스"
+    item.farmersdelight.tomato_seeds: "토마토 씨앗"
+    item.farmersdelight.wheat_dough: "밀가루 반죽"
+    item.farmersdelight.rope: "밧줄"
+
+    # Drinks and snacks
+    item.farmersdelight.apple_cider: "사과주"
+    item.farmersdelight.fried_egg: "계란 프라이"
+    item.farmersdelight.fruit_salad: "과일 샐러드"
+    item.farmersdelight.glow_berry_custard: "발광 열매 커스터드"
+    item.farmersdelight.honey_cookie: "꿀 쿠키"
+    item.farmersdelight.hot_cocoa: "핫 코코아"
+    item.farmersdelight.melon_juice: "수박 주스"
+    item.farmersdelight.melon_popsicle: "수박바"
+    item.farmersdelight.milk_bottle: "우유 병"
+    item.farmersdelight.sweet_berry_cookie: "달콤한 열매 쿠키"
+
+    # Raw meat and raw fish
+    item.farmersdelight.bacon: "베이컨"
+    item.farmersdelight.chicken_cuts: "익히지 않은 닭고기 살점"
+    item.farmersdelight.cod_slice: "익히지 않은 대구 살점"
+    item.farmersdelight.ham: "햄"
+    item.farmersdelight.mutton_chops: "익히지 않은 양고기 살점"
+    item.farmersdelight.salmon_slice: "익히지 않은 연어 살점"
+
+    # Cooked meat and cooked fish
+    item.farmersdelight.cooked_bacon: "구운 베이컨"
+    item.farmersdelight.cooked_chicken_cuts: "익힌 닭고기 살점"
+    item.farmersdelight.cooked_cod_slice: "익힌 대구 살점"
+    item.farmersdelight.cooked_mutton_chops: "익힌 양고기 살점"
+    item.farmersdelight.cooked_salmon_slice: "익힌 연어 살점"
+    item.farmersdelight.smoked_ham: "훈제 햄"
+
+    # Knives
+    item.farmersdelight.diamond_knife: "다이아몬드 식칼"
+    item.farmersdelight.flint_knife: "부싯돌 식칼"
+    item.farmersdelight.golden_knife: "금 식칼"
+    item.farmersdelight.iron_knife: "철 식칼"
+    item.farmersdelight.netherite_knife: "네더라이트 식칼"
+
+    # Meals and platters
+    item.farmersdelight.apple_pie_slice: "사과 파이 조각"
+    item.farmersdelight.bacon_and_eggs: "베이컨과 계란 프라이"
+    item.farmersdelight.bacon_sandwich: "베이컨 샌드위치"
+    item.farmersdelight.baked_cod_stew: "구운 대구 스튜"
+    item.farmersdelight.barbecue_stick: "바비큐 꼬치"
+    item.farmersdelight.beef_stew: "소고기 스튜"
+    item.farmersdelight.bone_broth: "사골국"
+    item.farmersdelight.cabbage_rolls: "양배추 쌈"
+    item.farmersdelight.cake_slice: "케이크 조각"
+    item.farmersdelight.chicken_sandwich: "닭고기 샌드위치"
+    item.farmersdelight.chicken_soup: "닭고기 수프"
+    item.farmersdelight.chocolate_pie_slice: "초콜릿 파이 조각"
+    item.farmersdelight.cod_roll: "대구 초밥"
+    item.farmersdelight.cooked_rice: "밥"
+    item.farmersdelight.dumplings: "만두"
+    item.farmersdelight.egg_sandwich: "달걀 샌드위치"
+    item.farmersdelight.fish_stew: "생선 스튜"
+    item.farmersdelight.fried_rice: "볶음밥"
+    item.farmersdelight.grilled_salmon: "구운 연어요리"
+    item.farmersdelight.hamburger: "햄버거"
+    item.farmersdelight.honey_glazed_ham: "그릇에 담긴 꿀 바른 햄"
+    item.farmersdelight.gleaming_salad: "그릇에 담긴 빛나는 샐러드"
+    item.farmersdelight.kelp_roll: "김밥"
+    item.farmersdelight.kelp_roll_slice: "김밥 조각"
+    item.farmersdelight.mixed_salad: "샐러드"
+    item.farmersdelight.mushroom_rice: "버섯 볶음밥"
+    item.farmersdelight.mutton_wrap: "케밥"
+    item.farmersdelight.nether_salad: "네더 샐러드"
+    item.farmersdelight.noodle_soup: "우동"
+    item.farmersdelight.onion_soup: "양파 수프"
+    item.farmersdelight.pasta_with_meatballs: "미트볼 파스타"
+    item.farmersdelight.pasta_with_mutton_chop: "양고기 파스타"
+    item.farmersdelight.pumpkin_soup: "호박 수프"
+    item.farmersdelight.ratatouille: "라따뚜이"
+    item.farmersdelight.roast_chicken: "그릇에 담긴 로스트 치킨"
+    item.farmersdelight.roasted_mutton_chops: "구운 양고기 요리"
+    item.farmersdelight.salmon_roll: "연어 초밥"
+    item.farmersdelight.shepherds_pie: "그릇에 담긴 셰퍼드 파이"
+    item.farmersdelight.squid_ink_pasta: "오징어 먹물 파스타"
+    item.farmersdelight.steak_and_potatoes: "스테이크와 감자"
+    item.farmersdelight.stuffed_potato: "속 채운 감자"
+    item.farmersdelight.stuffed_pumpkin: "그릇에 담긴 속 채운 호박"
+    item.farmersdelight.sweet_berry_cheesecake_slice: "달콤한 열매 치즈케이크 조각"
+    item.farmersdelight.vegetable_noodles: "잡채"
+    item.farmersdelight.vegetable_soup: "야채 수프"
+
+    # Animal feed
+    item.farmersdelight.dog_food: "개밥"
+    item.farmersdelight.horse_feed: "말먹이"
+
+    # Categories
+    farmersdelight.category.block: "블록"
+    farmersdelight.category.food: "음식"
+    farmersdelight.category.gui: "GUI"
+    farmersdelight.category.item: "아이템"
+    farmersdelight.category.item_display: "장식품"
+    farmersdelight.category.root: "전체"
+    farmersdelight.category.weapon: "무기"
+
+    # GUI labels
+    farmersdelight.gui.cancooked.enabled: "조리 가능한 항목만 표시"
+    farmersdelight.gui.cancooked.disenabled: "모든 레시피 표시"
+    farmersdelight.gui.recipe_book: "레시피 책"
+    farmersdelight.gui.cooking_time: "조리 시간"
+    farmersdelight.gui.heated: "가열됨"
+    farmersdelight.gui.not_heated: "가열되지 않음"
+    farmersdelight.gui.progress.0: "조리 진행도: 0%"
+    farmersdelight.gui.progress.10: "조리 진행도: 10%"
+    farmersdelight.gui.progress.100: "조리 진행도: 100%"
+    farmersdelight.gui.progress.15: "조리 진행도: 15%"
+    farmersdelight.gui.progress.20: "조리 진행도: 20%"
+    farmersdelight.gui.progress.25: "조리 진행도: 25%"
+    farmersdelight.gui.progress.30: "조리 진행도: 30%"
+    farmersdelight.gui.progress.35: "조리 진행도: 35%"
+    farmersdelight.gui.progress.40: "조리 진행도: 40%"
+    farmersdelight.gui.progress.45: "조리 진행도: 45%"
+    farmersdelight.gui.progress.5: "조리 진행도: 5%"
+    farmersdelight.gui.progress.50: "조리 진행도: 50%"
+    farmersdelight.gui.progress.55: "조리 진행도: 55%"
+    farmersdelight.gui.progress.60: "조리 진행도: 60%"
+    farmersdelight.gui.progress.65: "조리 진행도: 65%"
+    farmersdelight.gui.progress.70: "조리 진행도: 70%"
+    farmersdelight.gui.progress.75: "조리 진행도: 75%"
+    farmersdelight.gui.progress.80: "조리 진행도: 80%"
+    farmersdelight.gui.progress.85: "조리 진행도: 85%"
+    farmersdelight.gui.progress.90: "조리 진행도: 90%"
+    farmersdelight.gui.progress.95: "조리 진행도: 95%"
+
+    # Effects
+    effect.farmersdelight.nourishment: "배부름"
+    effect.farmersdelight.comfort: "편안함"
+
+    # Tooltips
+    farmersdelight.tooltip.dog_food.when_feeding: "늑대에게 먹였을 때:"
+    farmersdelight.tooltip.effect_not_implemented: "효과가 아직 구현되지 않았습니다"
+    farmersdelight.tooltip.horse_feed.when_feeding: "말에게 먹였을 때:"
+    farmersdelight.tooltip.hot_cocoa.effect: "해로운 효과를 1개 제거합니다"
+    farmersdelight.tooltip.melon_juice.effect: "소량의 체력을 즉시 회복합니다"
+    farmersdelight.tooltip.milk_bottle.effect: "효과를 1개 제거합니다"
+    farmersdelight.tooltip.no_collision: "이 블록은 아직 충돌 박스가 없습니다."
+    farmersdelight.tooltip.no_connected_texture: "이 블록은 아직 연결된 텍스처를 지원하지 않습니다."
+    farmersdelight.tooltip.placeable: "놓을 수 있음"
+    farmersdelight.tooltip.placeable_sneaking: "쉬프트 누르고 놓을 수 있음"
+
+    buff.farmersdelight.nourishment: "배부름 [%s]"
+    buff.farmersdelight.comfort: "편안함 [%s]"
+
+    farmersdelight.tooltip.cooking_pot.servings: "%s인분"
+

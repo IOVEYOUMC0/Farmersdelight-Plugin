@@ -293,14 +293,16 @@ public class RecipeViewGuiConfig {
         private final int cookingPotSlot;
         private final int cuttingBoardSlot;
         private final int backSlot;
+        private final int recipeBookSlot;
 
         public MainMenuConfig(String title, int rows, List<String> layout,
                               Map<Character, String> legend, Map<String, GuiConfig.GuiItem> items,
-                              int cookingPotSlot, int cuttingBoardSlot, int backSlot) {
+                              int cookingPotSlot, int cuttingBoardSlot, int backSlot, int recipeBookSlot) {
             super(title, rows, layout, legend, items);
             this.cookingPotSlot = cookingPotSlot;
             this.cuttingBoardSlot = cuttingBoardSlot;
             this.backSlot = backSlot;
+            this.recipeBookSlot = recipeBookSlot;
         }
 
         public int getCookingPotSlot() {
@@ -313,6 +315,11 @@ public class RecipeViewGuiConfig {
 
         public int getBackSlot() {
             return backSlot;
+        }
+
+        /** Slot of the addon recipe-book button (-1 = not configured); only shown when addon types exist. */
+        public int getRecipeBookSlot() {
+            return recipeBookSlot;
         }
 
         public static MainMenuConfig fromConfig(ConfigurationSection section) {
@@ -328,15 +335,17 @@ public class RecipeViewGuiConfig {
             int cookingPotSlot = base.getFirstSlotByType("cooking_pot");
             int cuttingBoardSlot = base.getFirstSlotByType("cutting_board");
             int backSlot = base.getFirstSlotByType("back");
+            int recipeBookSlot = base.getFirstSlotByType("recipe_book");
 
             return new MainMenuConfig(base.title, base.rows, base.layout, base.legend,
-                    base.items, cookingPotSlot, cuttingBoardSlot, backSlot);
+                    base.items, cookingPotSlot, cuttingBoardSlot, backSlot, recipeBookSlot);
         }
 
         private static MainMenuConfig createDefault() {
             Map<Character, String> legend = new HashMap<>();
             legend.put('C', "cooking_pot");
             legend.put('D', "cutting_board");
+            legend.put('R', "recipe_book");
             legend.put('B', "back");
             legend.put('X', "background");
 
@@ -344,10 +353,11 @@ public class RecipeViewGuiConfig {
             items.put("background", new GuiConfig.GuiItem(Material.GRAY_STAINED_GLASS_PANE, null, " ", List.of()));
             items.put("cooking_pot", new GuiConfig.GuiItem(Material.CAULDRON, null, "Cooking Pot Recipes", List.of("Click to view cooking pot recipes")));
             items.put("cutting_board", new GuiConfig.GuiItem(Material.BAMBOO_MOSAIC, null, "Cutting Board Recipes", List.of("Click to view cutting board recipes")));
+            items.put("recipe_book", new GuiConfig.GuiItem(Material.KNOWLEDGE_BOOK, null, "Addon Recipes", List.of("Click to view addon recipes")));
             items.put("back", new GuiConfig.GuiItem(Material.BARRIER, null, "Close", List.of()));
 
-            List<String> layout = List.of("XXXXBXXXX", "XXCXXXDXX", "XXXXXXXXX");
-            return new MainMenuConfig("Recipe Viewer", 3, layout, legend, items, 11, 15, 4);
+            List<String> layout = List.of("XXXXBXXXX", "XXCXRXDXX", "XXXXXXXXX");
+            return new MainMenuConfig("Recipe Viewer", 3, layout, legend, items, 11, 15, 4, 13);
         }
     }
 
@@ -522,7 +532,7 @@ public class RecipeViewGuiConfig {
             return arrowSlot;
         }
 
-        // 进度条槽位（layout 中 "progress" 类型的首个槽位），解析时缓存，避免每次 GUI tick 重新扫描布局。
+        // Progress bar slot (first "progress" slot in the layout), cached at parse time to avoid rescanning the layout each GUI tick.
         public int getProgressSlot() {
             return progressSlot;
         }
@@ -605,7 +615,7 @@ public class RecipeViewGuiConfig {
             );
 
             List<Integer> ingredientSlots = List.of(19, 20, 21, 28, 29, 30);
-            // progress 槽位对应 layout 中 'G'（第 3 行第 6 列 = 23），与 getFirstSlotByType("progress") 一致。
+            // The progress slot maps to 'G' in the layout (row 3, col 6 = 23), matching getFirstSlotByType("progress").
             return new RecipeDetailConfig("Recipe Details", 6, layout, legend, items,
                     ingredientSlots, -1, List.of(43), 43, 41, -1, 14, 23, 0, -1, -1, 7);
         }
@@ -632,7 +642,7 @@ public class RecipeViewGuiConfig {
             );
 
             List<Integer> resultSlots = List.of(32, 33, 41, 42);
-            // 切菜板布局没有 progress 类型，progressSlot 为 -1，与 getFirstSlotByType("progress") 一致。
+            // The cutting board layout has no progress type, so progressSlot is -1, matching getFirstSlotByType("progress").
             return new RecipeDetailConfig("Recipe Details", 6, layout, legend, items,
                     List.of(), 28, resultSlots, 32, -1, 30, -1, -1, 0, -1, -1, -1);
         }

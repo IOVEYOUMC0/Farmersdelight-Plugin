@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.util.BehaviorArgParser;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -56,12 +57,12 @@ public class UpperHalfLootRelayBehavior extends BlockBehavior {
                 @Override
                 public UpperHalfLootRelayBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
                     Map<String, Object> arguments = section != null ? section.values() : Map.of();
-                    String lowerHalfDirectionName = getString(arguments, "lower-half-direction", "DOWN");
-                    boolean requireMatchingLowerHalf = getBoolean(arguments, "require-matching-lower-half", true);
-                    boolean requireMatchingBlock = getBoolean(arguments, "require-matching-block", true);
-                    String halfPropertyName = getString(arguments, "half-property", "half");
-                    String lowerHalfValue = getString(arguments, "half-lower-value", "lower");
-                    String upperHalfValue = getString(arguments, "half-upper-value", "upper");
+                    String lowerHalfDirectionName = BehaviorArgParser.getStringStrict(arguments, "lower-half-direction", "DOWN");
+                    boolean requireMatchingLowerHalf = BehaviorArgParser.getBooleanStrict(arguments, "require-matching-lower-half", true);
+                    boolean requireMatchingBlock = BehaviorArgParser.getBooleanStrict(arguments, "require-matching-block", true);
+                    String halfPropertyName = BehaviorArgParser.getStringStrict(arguments, "half-property", "half");
+                    String lowerHalfValue = BehaviorArgParser.getStringStrict(arguments, "half-lower-value", "lower");
+                    String upperHalfValue = BehaviorArgParser.getStringStrict(arguments, "half-upper-value", "upper");
                     BlockFace lowerHalfDirection = parseDirection(lowerHalfDirectionName);
                     return new UpperHalfLootRelayBehavior(
                             block,
@@ -147,20 +148,5 @@ public class UpperHalfLootRelayBehavior extends BlockBehavior {
         }
     }
 
-    private static String getString(Map<String, Object> arguments, String key, String fallback) {
-        Object value = arguments.get(key);
-        if (value instanceof String stringValue && !stringValue.isEmpty()) {
-            return stringValue;
-        }
-        return fallback;
-    }
-
-    private static boolean getBoolean(Map<String, Object> arguments, String key, boolean fallback) {
-        Object value = arguments.get(key);
-        if (value instanceof Boolean booleanValue) {
-            return booleanValue;
-        }
-        return fallback;
-    }
 }
 

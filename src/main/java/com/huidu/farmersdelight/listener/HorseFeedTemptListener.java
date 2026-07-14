@@ -5,7 +5,6 @@ import com.huidu.farmersdelight.config.PetFoodConfig;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
-import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.entity.*;
@@ -16,7 +15,6 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -30,19 +28,19 @@ public class HorseFeedTemptListener implements Listener {
     private static final int DEFAULT_TICK_BUDGET = 128;
 
     private final FarmersDelightPlugin plugin;
-    private final Set<UUID> activeTempters = ConcurrentHashMap.newKeySet();
     private final Set<UUID> scheduledTempterTicks = ConcurrentHashMap.newKeySet();
     private final Map<UUID, Player> activeTempterPlayers = new ConcurrentHashMap<>();
     private final Map<UUID, PetFoodConfig.PetFoodDefinition> activeTemptDefinitions = new ConcurrentHashMap<>();
-    private final Map<String, PetFoodConfig.PetFoodDefinition> temptFoods = new HashMap<>();
+    private final Map<String, PetFoodConfig.PetFoodDefinition> temptFoods = new ConcurrentHashMap<>();
     private boolean enabled;
     private long tickInterval;
     private int tickBudget;
     private int tickCursor;
-    private PluginTask task;
-    // activeTempterPlayers 的结构变更代数。tickTemptGoals 据此缓存可索引快照,成员不变(常态)时
-    // 不再每周期 List.copyOf。代数由多线程(各 region 线程)修改,用 AtomicLong;快照缓存只在单线程的
-    // tickTemptGoals 中读写,故为普通字段。
+    private volatile PluginTask task;
+    // Structural-change generation of activeTempterPlayers. tickTemptGoals caches an indexable snapshot from it,
+    // skipping a per-cycle List.copyOf when membership is unchanged (the common case). The generation is mutated by
+    // multiple threads (region threads), hence AtomicLong; the snapshot cache is read/written only in the single-threaded
+    // tickTemptGoals, hence a plain field.
     private final java.util.concurrent.atomic.AtomicLong tempterGeneration = new java.util.concurrent.atomic.AtomicLong();
     private java.util.List<Map.Entry<UUID, Player>> cachedTempterSnapshot = java.util.List.of();
     private long cachedTempterSnapshotGeneration = -1L;
@@ -126,18 +124,17 @@ public class HorseFeedTemptListener implements Listener {
         }
     }
 
-    // 以下三个方法集中维护 activeTempters / activeTempterPlayers / activeTemptDefinitions 三个并行集合,
-    // 既避免散落各处的三处一致改动出错,也是 tickTemptGoals 快照缓存的唯一代数变更点。
+    // The following three methods centrally maintain the parallel collections activeTempterPlayers /
+    // activeTemptDefinitions, both avoiding scattered consistency errors and being the sole generation-change point for the
+    // tickTemptGoals snapshot cache.
     private void addTempter(UUID playerId, Player player, PetFoodConfig.PetFoodDefinition definition) {
-        activeTempters.add(playerId);
         activeTempterPlayers.put(playerId, player);
         activeTemptDefinitions.put(playerId, definition);
         tempterGeneration.incrementAndGet();
     }
 
     private void removeTempter(UUID playerId) {
-        boolean changed = activeTempters.remove(playerId);
-        changed |= activeTempterPlayers.remove(playerId) != null;
+        boolean changed = activeTempterPlayers.remove(playerId) != null;
         changed |= activeTemptDefinitions.remove(playerId) != null;
         if (changed) {
             tempterGeneration.incrementAndGet();
@@ -145,8 +142,7 @@ public class HorseFeedTemptListener implements Listener {
     }
 
     private void clearTempters() {
-        boolean had = !activeTempters.isEmpty() || !activeTempterPlayers.isEmpty() || !activeTemptDefinitions.isEmpty();
-        activeTempters.clear();
+        boolean had = !activeTempterPlayers.isEmpty() || !activeTemptDefinitions.isEmpty();
         activeTempterPlayers.clear();
         activeTemptDefinitions.clear();
         if (had) {
@@ -175,7 +171,7 @@ public class HorseFeedTemptListener implements Listener {
         if (!enabled) return;
         if (activeTempterPlayers.isEmpty()) return;
 
-        // 仅在成员发生结构变更(代数改变)时才重建可索引快照,常态下复用缓存,避免每周期 List.copyOf。
+        // Rebuild the indexable snapshot only on structural membership change (generation change); otherwise reuse the cache to avoid a per-cycle List.copyOf.
         long generation = tempterGeneration.get();
         if (cachedTempterSnapshotGeneration != generation) {
             cachedTempterSnapshot = java.util.List.copyOf(activeTempterPlayers.entrySet());
@@ -185,33 +181,50 @@ public class HorseFeedTemptListener implements Listener {
         int size = snapshot.size();
         int budget = Math.min(tickBudget, size);
         int start = tickCursor >= size ? 0 : tickCursor;
+        // Resolve once per pass: on Paper/Spigot the repeating task is already on the main thread, so
+        // we can call tickTemptPlayer directly and skip the per-tempter runForEntity task allocation
+        // (which on Folia is needed for region-thread safety, on Paper is just overhead).
+        boolean folia = plugin.scheduler().isFolia();
 
         for (int processed = 0; processed < budget; processed++) {
             Map.Entry<UUID, Player> entry = snapshot.get((start + processed) % size);
             UUID playerId = entry.getKey();
             Player player = entry.getValue();
-            if (player == null || !scheduledTempterTicks.add(playerId)) {
+            if (player == null) {
                 continue;
             }
 
-            try {
-                plugin.scheduler().runForEntity(player, () -> {
-                    try {
-                        tickTemptPlayer(playerId, player);
-                    } finally {
+            if (folia) {
+                if (!scheduledTempterTicks.add(playerId)) {
+                    continue;
+                }
+                try {
+                    plugin.scheduler().runForEntity(player, () -> {
+                        try {
+                            tickTemptPlayer(playerId, player);
+                        } finally {
+                            scheduledTempterTicks.remove(playerId);
+                        }
+                    }, () -> {
+                        // When the player is retired the finally block does not run, so the guard must be
+                        // cleared in the retired callback; otherwise scheduledTempterTicks holds the UUID
+                        // forever and the tempt feature stays permanently disabled for that player.
                         scheduledTempterTicks.remove(playerId);
-                    }
-                });
-            } catch (RuntimeException e) {
-                scheduledTempterTicks.remove(playerId);
-                removeTempter(playerId);
+                    });
+                } catch (RuntimeException e) {
+                    scheduledTempterTicks.remove(playerId);
+                    removeTempter(playerId);
+                }
+            } else {
+                // Paper/Spigot: already on the main thread — call directly, no task allocation.
+                try {
+                    tickTemptPlayer(playerId, player);
+                } catch (RuntimeException e) {
+                    removeTempter(playerId);
+                }
             }
         }
         tickCursor = size == 0 ? 0 : (start + Math.max(1, budget)) % size;
-    }
-
-    private boolean isHoldingTemptFood(Player player) {
-        return getHeldTemptFood(player).isPresent();
     }
 
     private Optional<PetFoodConfig.PetFoodDefinition> getHeldTemptFood(Player player) {
@@ -244,20 +257,36 @@ public class HorseFeedTemptListener implements Listener {
             return;
         }
 
-        // player.getLocation() 已经返回一个全新的副本，且计划任务只会读取它，因此
-        // 共享单个快照是安全的——无需为每个附近的生物分别克隆。
+        // player.getLocation() already returns a fresh copy and the scheduled task only reads it, so
+        // sharing a single snapshot is safe; no need to clone per nearby mob.
         Location targetLocation = player.getLocation();
+        Set<EntityType> wantedTypes = definition.entities;
         for (Entity nearby : player.getNearbyEntities(definition.temptRange, definition.temptRange, definition.temptRange)) {
-            if (nearby instanceof Mob mob) {
+            // Filter by configured tempt EntityType set BEFORE region-scheduling. Without this gate, every
+            // Mob in the temptRange box (sheep / cows / random hostiles next to a horse-feeding player)
+            // incurred a runForEntity dispatch that the per-mob tryMoveToLocation would then drop on the
+            // type check — wasting a Folia region task per irrelevant mob per tick.
+            if (nearby instanceof Mob mob && wantedTypes.contains(mob.getType())) {
                 scheduleMobTempt(mob, playerId, targetLocation, definition);
             }
         }
     }
 
     private void scheduleMobTempt(Mob mob, UUID playerId, Location targetLocation, PetFoodConfig.PetFoodDefinition definition) {
-        try {
-            plugin.scheduler().runForEntity(mob, () -> tryMoveToLocation(mob, playerId, targetLocation, definition));
-        } catch (RuntimeException ignored) {
+        if (plugin.scheduler().isFolia()) {
+            try {
+                plugin.scheduler().runForEntity(mob, () -> tryMoveToLocation(mob, playerId, targetLocation, definition));
+            } catch (RuntimeException ignored) {
+            }
+        } else {
+            // Paper/Spigot: already on the main thread (tickTemptPlayer was called directly), so invoke
+            // the move directly. Saves one BukkitTask allocation per nearby mob per tempter pass — in a
+            // large animal farm (100+ horses next to a feeding player) this avoids 100+ task allocations
+            // per tick interval.
+            try {
+                tryMoveToLocation(mob, playerId, targetLocation, definition);
+            } catch (RuntimeException ignored) {
+            }
         }
     }
 
@@ -265,7 +294,7 @@ public class HorseFeedTemptListener implements Listener {
         if (mob == null || !mob.isValid() || mob.isDead() || targetLocation == null || targetLocation.getWorld() == null) {
             return;
         }
-        if (!definition.entities.contains(mob.getType()) || !targetLocation.getWorld().equals(mob.getWorld())) {
+        if (!targetLocation.getWorld().equals(mob.getWorld())) {
             return;
         }
         if (mob.getLocation().distanceSquared(targetLocation) > definition.temptRangeSquared) {

@@ -1,15 +1,15 @@
-# FarmersDelight GUI 配置
-# 界面布局、按钮、标题和贴图在此文件中配置。
-# 每个 GUI 的 layout 用字符表示槽位，legend 把字符映射到槽位类型。
-# items 下的每个按钮都可以使用 material（原版材质）或 item（CraftEngine 物品）。
-# 可选字段：name、lore、name-key、lore-keys、custom-model-data、item-model/item_model、hide-tooltip/hide_tooltip。
+# FarmersDelight GUI configuration
+# Interface layout, buttons, titles and textures are configured in this file.
+# Each GUI's layout uses characters for slots, and legend maps characters to slot types.
+# Each button under items can use material (vanilla material) or item (CraftEngine item).
+# Optional fields: name, lore, name-key, lore-keys, custom-model-data, item-model/item_model, hide-tooltip/hide_tooltip.
 
 cooking-pot-gui:
-  title: "<white><offset><icon><shift:-1600>烹饪锅"
+  title: "<white><offset><icon><shift:-1600><lang:gui.cooking_pot.title>"
   fillers-enabled: true
   title-layout:
     craftengine:
-      offset: "<shift:-8>"
+      offset: "<shift:-5>"
       icon: "<image:farmersdelight:cooking_pot_gui>"
   rows: 3
 
@@ -40,14 +40,14 @@ cooking-pot-gui:
       item: farmersdelight:cooking_pot_not_heated
     progress:
       item: farmersdelight:cooking_time
-      name: "烹饪时长"
+      name: "<yellow><lang:gui.cooking_pot.progress_name>"
       lore:
-        - "剩余: {time} 秒"
+        - "<gray><lang:'gui.cooking_pot.progress_lore':'<white>{time}'>"
     recipe:
       item: farmersdelight:recipe_book
-      name: "查看烹饪配方"
+      name: "<gold><lang:gui.cooking_pot.view_recipes>"
       lore:
-        - "点击此处查看配方"
+        - "<gray><lang:gui.cooking_pot.view_recipes_lore>"
 
   progress-items:
     - item: farmersdelight:0
@@ -72,14 +72,15 @@ cooking-pot-gui:
     - item: farmersdelight:19
     - item: farmersdelight:20
 
-# 自定义厨锅 GUI。键名对应 CE 方块行为里的 behavior.custom.id。
-# 不写对应 id 时自动使用上面的 cooking-pot-gui。
+# Custom cooking pot GUIs. Key names match behavior.custom.id in the CE block behavior.
+# When an id has no entry, the cooking-pot-gui above is used automatically.
 cooking-pot-guis: {}
 
-# 例：
+# Example: GUI for the `large_pot` test variant (paired with
+# craftengine/farmersdelight/configuration/cooking_pot_test.yml — uncomment all 4 sections together).
 # cooking-pot-guis:
-#   custom:
-#     title: "<white><offset><icon><shift:-1600>自定义厨锅"
+#   large_pot:
+#     title: "<white><offset><icon><shift:-1600><lang:gui.cooking_pot.title>"
 #     fillers-enabled: true
 #     title-layout:
 #       craftengine:
@@ -113,14 +114,14 @@ cooking-pot-guis: {}
 #         item: farmersdelight:cooking_pot_not_heated
 #       progress:
 #         item: farmersdelight:cooking_time
-#         name: "烹饪时长"
+#         name: "<yellow><lang:gui.cooking_pot.progress_name>"
 #         lore:
-#           - "剩余: {time} 秒"
+#           - "<gray><lang:'gui.cooking_pot.progress_lore':'<white>{time}'>"
 #       recipe:
 #         material: KNOWLEDGE_BOOK
-#         name: "查看烹饪配方"
+#         name: "<gold><lang:gui.cooking_pot.view_recipes>"
 #         lore:
-#           - "点击此处查看配方"
+#           - "<gray><lang:gui.cooking_pot.view_recipes_lore>"
 #     progress-items:
 #       - item: farmersdelight:0
 #       - item: farmersdelight:1
@@ -132,15 +133,16 @@ recipe-view-gui:
   max-preview-ingredients: 4
 
   main-menu:
-    title: "<white>农夫乐事"
+    title: "<white><lang:gui.recipe.title>"
     rows: 3
     layout:
       - "XXXXXXXXX"
-      - "XXCXXXDXX"
+      - "XXCXRXDXX"
       - "XXXXBXXXX"
     legend:
       C: cooking_pot
       D: cutting_board
+      R: recipe_book
       B: back
       X: background
     items:
@@ -151,20 +153,26 @@ recipe-view-gui:
         name: " "
       cooking_pot:
         material: CAULDRON
-        name: "烹饪锅配方"
+        name: "<gold><lang:gui.recipe.cooking_pot>"
         lore:
-          - "点击此处查看配方"
+          - "<gray><lang:gui.recipe.cooking_pot_lore>"
       cutting_board:
         material: BAMBOO_MOSAIC
-        name: "砧板配方"
+        name: "<yellow><lang:gui.recipe.cutting_board>"
         lore:
-          - "点击此处查看配方"
+          - "<gray><lang:gui.recipe.cutting_board_lore>"
+      # Addon recipes button — only shown when an addon (e.g. Brewin' And Chewin') registers a recipe type.
+      recipe_book:
+        material: KNOWLEDGE_BOOK
+        name: "<aqua><lang:gui.recipe.recipe_book>"
+        lore:
+          - "<gray><lang:gui.recipe.recipe_book_lore>"
       back:
         material: BARRIER
-        name: "关闭页面"
+        name: "<red><lang:gui.recipe.close>"
 
   recipe-list:
-    title: "<white><offset><icon><shift:-1600>配方列表 <gray>{page}/{total}</gray>"
+    title: "<white><offset><icon><shift:-1600><lang:gui.recipe.list_title> <gray>{page}/{total}</gray>"
     rows: 6
     title-layout:
       craftengine:
@@ -193,29 +201,29 @@ recipe-view-gui:
       prev_page:
         material: ARROW
         item_model: "air"
-        name: "上一页"
+        name: "<green><lang:gui.recipe.prev_page>"
       next_page:
         material: ARROW
         item_model: "air"
-        name: "下一页"
+        name: "<green><lang:gui.recipe.next_page>"
       back:
         material: BARRIER
-        name: "返回"
+        name: "<gray><lang:gui.recipe.back>"
       info:
         material: BOOK
-        name: "配方查看"
+        name: "<dark_gray><lang:gui.recipe.title>"
         lore:
-          - "页数: {page}/{total}"
+          - "<lang:'gui.recipe.page':'{page}':'{total}'>"
       filter:
         material: COMPASS
-        name: "筛选可烹饪配方"
+        name: "<gray><lang:gui.recipe.filter>"
       filter-on:
         item: farmersdelight:cooking_pot_can_cooked_enabled
       filter-off:
         item: farmersdelight:cooking_pot_can_cooked_disenabled
 
   recipe-detail-cooking-pot:
-    title: "<white><offset><icon><shift:-1600>配方详细"
+    title: "<white><offset><icon><shift:-1600><lang:gui.recipe.detail_title>"
     rows: 6
     title-layout:
       craftengine:
@@ -245,51 +253,52 @@ recipe-view-gui:
         name: " "
       arrow:
         item: farmersdelight:cooking_time
-        name: "烹饪过程"
+        name: "<yellow><lang:gui.recipe.arrow_name>"
         lore:
-          - "&7烹饪时间: &b{cook_time}"
-          - "&7经验: &a{experience}"
+          - "<gray><lang:'gui.recipe.cook_time_line':'<aqua>{cook_time}'>"
+          - "<gray><lang:'gui.recipe.experience_line':'<green>{experience}'>"
       back:
         material: ARROW
         item_model: "air"
-        name: "返回"
-      # 配方详情页的填入按钮。
-      # 普通点击：每个配方材料最多填入 1 个匹配物品。
-      # Shift 点击：循环匹配材料，尽量填满厨锅输入槽。
-      # 完全没有可匹配材料时不会移动锅内物品，按钮显示 fill-missing。
-      # 锅内原物品无法安全退回玩家背包时不会执行填入，按钮显示 fill-inventory-full。
+        name: "<gray><lang:gui.recipe.back>"
+      # Fill button on the recipe detail page.
+      # Normal click: fill at most 1 matching item per recipe ingredient.
+      # Shift click: cycle through matching ingredients, filling the pot input slots as much as possible.
+      # When there is no matching ingredient at all, pot contents are not moved and the button shows fill-missing.
+      # When the original pot contents cannot be safely returned to the player inventory, no fill is performed and the button shows fill-inventory-full.
       fill:
         material: HOPPER
-        name: "填入材料"
+        name: "<green><lang:gui.recipe.fill>"
         lore:
-          - "&e从背包移动匹配的材料。"
-          - "&7Shift 点击填满可匹配材料。"
+          - "<yellow><lang:gui.recipe.fill_hint>"
+          - "<gray><lang:gui.recipe.fill_hint_shift>"
       fill-success:
         material: HOPPER
-        name: "填入材料"
+        name: "<green><lang:gui.recipe.fill>"
         lore:
-          - "&a已把匹配材料填入厨锅。"
+          - "<green><lang:gui.recipe.fill_success>"
       fill-missing:
         material: HOPPER
-        name: "填入材料"
+        name: "<green><lang:gui.recipe.fill>"
         lore:
-          - "&c背包内没有可匹配该配方的材料。"
-          - "&7Shift 点击填满可匹配材料。"
+          - "<red><lang:gui.recipe.fill_missing>"
+          - "<gray><lang:gui.recipe.fill_hint_shift>"
       fill-inventory-full:
         material: BARRIER
-        name: "填入材料"
+        name: "<green><lang:gui.recipe.fill>"
         lore:
-          - "&c背包空间不足，无法安全移动锅内物品。"
+          - "<red><lang:gui.recipe.fill_inventory_full>"
 
   # Custom cooking pot recipe detail GUIs. Key must match behavior.custom.id.
   # If a custom pot has no matching entry here, the plugin falls back to
   # recipe-detail-cooking-pot and logs a console warning once per custom id.
   recipe-detail-cooking-pot-guis: {}
 
-  # Example:
+  # Example: recipe-detail GUI for the `large_pot` test variant (paired with
+  # craftengine/farmersdelight/configuration/cooking_pot_test.yml — uncomment all 4 sections together).
   # recipe-detail-cooking-pot-guis:
-  #   custom:
-  #     title: "<white><offset><icon><shift:-1600>Custom Pot Recipe"
+  #   large_pot:
+  #     title: "<white><offset><icon><shift:-1600><lang:gui.recipe.detail_title>"
   #     rows: 6
   #     title-layout:
   #       craftengine:
@@ -318,13 +327,13 @@ recipe-view-gui:
   #         name: " "
   #       back:
   #         material: ARROW
-  #         name: "Back"
+  #         name: "<gray><lang:gui.recipe.back>"
   #       fill:
   #         material: HOPPER
-  #         name: "Fill Ingredients"
+  #         name: "<green><lang:gui.recipe.fill>"
 
   recipe-detail-cutting-board:
-    title: "<white><offset><icon><shift:-1600>配方详细"
+    title: "<white><offset><icon><shift:-1600><lang:gui.recipe.detail_title>"
     rows: 6
     title-layout:
       craftengine:
@@ -352,14 +361,101 @@ recipe-view-gui:
       back:
         material: ARROW
         item_model: "air"
-        name: "返回"
+        name: "<gray><lang:gui.recipe.back>"
 
-# 厨锅配方编辑器界面。/fd recipe edit pot <id> [组] 打开。
-# 槽位文本与材质均在此配置,代码不写死。动态数值用占位符:
+# Addon recipe book: the generic book that shows recipes registered by addons (e.g. Brewin' And Chewin'
+# kegs), opened via /fd recipe book or the recipe-menu button. When only one addon type is registered it
+# opens straight to that type's list. The list page size follows the number of `recipe` slots.
+# Layout slot types: category (menu, one per addon type), recipe (list), ingredient + result (detail),
+# prev_page, next_page, fill, back, background. List/detail titles come from the recipe type itself.
+recipe-book-gui:
+  menu:
+    title: "<white><lang:gui.recipe.book_title>"
+    rows: 6
+    layout:
+      - "XXXXXXXXX"
+      - "XCCCCCCCX"
+      - "XCCCCCCCX"
+      - "XCCCCCCCX"
+      - "XCCCCCCCX"
+      - "XXXXBXXXX"
+    legend:
+      C: category
+      B: back
+      X: background
+    items:
+      background:
+        material: GRAY_STAINED_GLASS_PANE
+        item_model: "air"
+        hide-tooltip: true
+        name: " "
+      back:
+        material: BARRIER
+        name: "<red><lang:gui.recipe.close>"
+  list:
+    rows: 6
+    layout:
+      - "RRRRRRRRR"
+      - "RRRRRRRRR"
+      - "RRRRRRRRR"
+      - "RRRRRRRRR"
+      - "RRRRRRRRR"
+      - "PXXXBXXXN"
+    legend:
+      R: recipe
+      P: prev_page
+      N: next_page
+      B: back
+      X: background
+    items:
+      background:
+        material: GRAY_STAINED_GLASS_PANE
+        item_model: "air"
+        hide-tooltip: true
+        name: " "
+      prev_page:
+        material: ARROW
+        name: "<green><lang:gui.recipe.prev_page>"
+      next_page:
+        material: ARROW
+        name: "<green><lang:gui.recipe.next_page>"
+      back:
+        material: BARRIER
+        name: "<gray><lang:gui.recipe.back>"
+  detail:
+    rows: 6
+    layout:
+      - "XXXXXXXXX"
+      - "XIIIIIIRX"
+      - "XXXXXXXXX"
+      - "XXXXXXXXX"
+      - "XXXXXXXXX"
+      - "XXXXBXXFX"
+    legend:
+      I: ingredient
+      R: result
+      F: fill
+      B: back
+      X: background
+    items:
+      background:
+        material: GRAY_STAINED_GLASS_PANE
+        item_model: "air"
+        hide-tooltip: true
+        name: " "
+      fill:
+        material: HOPPER
+        name: "<green><lang:gui.recipe.fill>"
+      back:
+        material: ARROW
+        name: "<gray><lang:gui.recipe.back>"
+
+# Cooking pot recipe editor GUI. Opened with /fd recipe edit pot <id> [group].
+# Slot text and materials are configured here, not hardcoded. Dynamic values use placeholders:
 # info: {recipe_id} {type}; result-count: {count}; cook-time: {cook_time} {seconds};
 # experience: {experience}; priority: {priority}; category: {category}
 recipe-editor-gui:
-  title: "<white>厨锅配方编辑器"
+  title: "<white><lang:gui.editor.cooking_pot.title>"
   rows: 6
   layout:
     - "####i####"
@@ -390,81 +486,81 @@ recipe-editor-gui:
       name: " "
     info:
       material: KNOWLEDGE_BOOK
-      name: "&a厨锅配方: &f{recipe_id}"
+      name: "<green><lang:'gui.editor.cooking_pot.info':'<white>{recipe_id}'>"
       lore:
-        - "&7类型: &f{type}"
-        - "&7点击背包物品 → 复制到光标。"
-        - "&7光标有物点槽位 → 放入;空光标点已填槽 → 取回(清空)。"
-        - "&7数值槽: 左键 +,右键 -。"
-        - "&7原料槽 Shift 点击: 标签/或选/排除(后续支持)。"
-        - "&7背包物品不会被消耗。"
+        - "<gray><lang:'gui.editor.info.type':'<white>{type}'>"
+        - "<gray><lang:gui.editor.help.copy_to_cursor>"
+        - "<gray><lang:gui.editor.help.put_take>"
+        - "<gray><lang:gui.editor.help.number_slot>"
+        - "<gray><lang:gui.editor.help.advanced_click>"
+        - "<gray><lang:gui.editor.help.no_consume>"
     ingredient:
       material: GRAY_STAINED_GLASS_PANE
-      name: "&7原料 &8(空)"
+      name: "<gray><lang:gui.editor.ingredient_empty>"
       lore:
-        - "&7从光标放入一个物品作为原料。"
+        - "<gray><lang:gui.editor.ingredient_hint>"
     container:
       material: GRAY_STAINED_GLASS_PANE
-      name: "&b容器 &8(可选)"
+      name: "<aqua><lang:gui.editor.container_optional>"
       lore:
-        - "&7随成品返还的碗/瓶等。"
+        - "<gray><lang:gui.editor.container_hint>"
     result:
       material: GRAY_STAINED_GLASS_PANE
-      name: "&a成品 &8(空)"
+      name: "<green><lang:gui.editor.result_empty>"
       lore:
-        - "&7本配方产出的物品。"
+        - "<gray><lang:gui.editor.result_hint>"
     result-count:
       material: PAPER
-      name: "&e成品数量: &f{count}"
+      name: "<yellow><lang:'gui.editor.result_count':'<white>{count}'>"
       lore:
-        - "&7左键 &f+1 &7/ 右键 &f-1"
+        - "<gray><lang:gui.editor.hint_pm1>"
     cook-time:
       material: CLOCK
-      name: "&e烹饪时间: &f{cook_time} &7tick ({seconds}s)"
+      name: "<yellow><lang:'gui.editor.cook_time_label':'<white>{cook_time}':'{seconds}'>"
       lore:
-        - "&7左键 &f+20 &7(Shift &f+100&7)"
-        - "&7右键 &f-20 &7(Shift &f-100&7)"
+        - "<gray><lang:gui.editor.hint_cook_time_plus>"
+        - "<gray><lang:gui.editor.hint_cook_time_minus>"
     experience:
       material: EXPERIENCE_BOTTLE
-      name: "&e经验: &f{experience}"
+      name: "<yellow><lang:'gui.editor.experience_label':'<white>{experience}'>"
       lore:
-        - "&7左键 &f+0.1 &7(Shift &f+1.0&7)"
-        - "&7右键 &f-0.1 &7(Shift &f-1.0&7)"
+        - "<gray><lang:gui.editor.hint_exp_plus>"
+        - "<gray><lang:gui.editor.hint_exp_minus>"
     priority:
       material: COMPARATOR
-      name: "&e优先级: &f{priority}"
+      name: "<yellow><lang:'gui.editor.priority_label':'<white>{priority}'>"
       lore:
-        - "&7左键 &f+1 &7/ 右键 &f-1"
+        - "<gray><lang:gui.editor.hint_pm1>"
     category:
       material: BOOK
-      name: "&e分类: &f{category}"
+      name: "<yellow><lang:'gui.editor.category_label':'<white>{category}'>"
       lore:
-        - "&7点击切换分类。"
+        - "<gray><lang:gui.editor.category_hint>"
     save:
       material: LIME_CONCRETE
-      name: "&a保存"
+      name: "<green><lang:gui.editor.button.save>"
       lore:
-        - "&7写入配方文件并重载。"
+        - "<gray><lang:gui.editor.button.save_hint>"
     cancel:
       material: BARRIER
-      name: "&c取消"
+      name: "<red><lang:gui.editor.button.cancel>"
       lore:
-        - "&7放弃修改并关闭。"
+        - "<gray><lang:gui.editor.button.cancel_hint>"
     delete:
       material: LAVA_BUCKET
-      name: "&4删除配方"
+      name: "<dark_red><lang:gui.editor.button.delete>"
       lore:
-        - "&7从配方文件中移除该配方。"
+        - "<gray><lang:gui.editor.button.delete_hint>"
 
-# 自定义厨锅(大锅)编辑器界面覆盖。键名必须等于 behavior.custom.id。
-# 缺省时回退到 recipe-editor-gui,并在控制台告警一次。
-# 自定义锅可在此把 ingredient 槽扩展到更多个,以容纳更多原料。
+# Custom cooking pot (large pot) editor GUI overrides. Key names must equal behavior.custom.id.
+# When missing, falls back to recipe-editor-gui and warns once in the console.
+# Custom pots can extend the ingredient slots to more entries here, to hold more ingredients.
 recipe-editor-cooking-pot-guis: {}
 
-# 删除配方确认页。点击编辑器的删除按钮时打开。
+# Delete recipe confirmation page. Opened when clicking the editor's delete button.
 # info: {recipe_id}
 recipe-editor-confirm-delete-gui:
-  title: "<white>确认删除"
+  title: "<white><lang:gui.editor.confirm.title>"
   rows: 3
   layout:
     - "####i####"
@@ -483,25 +579,25 @@ recipe-editor-confirm-delete-gui:
       name: " "
     info:
       material: PAPER
-      name: "&c删除配方: &f{recipe_id} ?"
+      name: "<red><lang:'gui.editor.confirm.info':'<white>{recipe_id}'>"
       lore:
-        - "&7此操作不可撤销。"
-        - "&7点击左侧确认,或右侧取消。"
+        - "<gray><lang:gui.editor.confirm.warning>"
+        - "<gray><lang:gui.editor.confirm.hint>"
     confirm:
       material: RED_CONCRETE
-      name: "&4确认删除"
+      name: "<dark_red><lang:gui.editor.confirm.button_confirm>"
       lore:
-        - "&c从配方文件中永久删除该配方。"
+        - "<red><lang:gui.editor.confirm.button_confirm_lore>"
     cancel:
       material: LIME_CONCRETE
-      name: "&a取消"
+      name: "<green><lang:gui.editor.button.cancel>"
       lore:
-        - "&7返回编辑器,不删除。"
+        - "<gray><lang:gui.editor.confirm.cancel_lore>"
 
-# 砧板配方编辑器界面。/fd recipe edit board <id> 打开。
+# Cutting board recipe editor GUI. Opened with /fd recipe edit board <id>.
 # info: {recipe_id}; result-count: {count}; result-chance: {chance}; priority: {priority}
 recipe-cutting-board-editor-gui:
-  title: "<white>砧板配方编辑器"
+  title: "<white><lang:gui.editor.cutting_board.title>"
   rows: 6
   layout:
     - "####i####"
@@ -530,58 +626,58 @@ recipe-cutting-board-editor-gui:
       name: " "
     info:
       material: KNOWLEDGE_BOOK
-      name: "&a砧板配方: &f{recipe_id}"
+      name: "<green><lang:'gui.editor.cutting_board.info':'<white>{recipe_id}'>"
       lore:
-        - "&7点击背包物品 → 复制到光标,点槽位放入。"
-        - "&7N=输入物 T=工具 R=产物。"
-        - "&7左键产物=选中(可调数量/概率),右键=清空。"
-        - "&7工具全空时使用默认刀具标签。"
-        - "&7背包物品不会被消耗。"
+        - "<gray><lang:gui.editor.cutting_board.help.copy_put>"
+        - "<gray><lang:gui.editor.cutting_board.help.legend>"
+        - "<gray><lang:gui.editor.cutting_board.help.result_click>"
+        - "<gray><lang:gui.editor.cutting_board.help.empty_tool>"
+        - "<gray><lang:gui.editor.help.no_consume>"
     input:
       material: GRAY_STAINED_GLASS_PANE
-      name: "&7输入物 &8(空)"
+      name: "<gray><lang:gui.editor.cutting_board.input_empty>"
       lore:
-        - "&7被切割处理的物品。"
+        - "<gray><lang:gui.editor.cutting_board.input_hint>"
     tool:
       material: GRAY_STAINED_GLASS_PANE
-      name: "&b工具 &8(空)"
+      name: "<aqua><lang:gui.editor.cutting_board.tool_empty>"
       lore:
-        - "&7放入一个工具物品。"
-        - "&7全部留空 = 使用默认刀具标签。"
+        - "<gray><lang:gui.editor.cutting_board.tool_hint>"
+        - "<gray><lang:gui.editor.cutting_board.tool_hint_default>"
     result:
       material: GRAY_STAINED_GLASS_PANE
-      name: "&a产物 &8(空)"
+      name: "<green><lang:gui.editor.cutting_board.result_empty>"
       lore:
-        - "&7左键放入/选中,右键清空。"
+        - "<gray><lang:gui.editor.cutting_board.result_hint>"
     result-count:
       material: PAPER
-      name: "&e所选产物数量: &f{count}"
+      name: "<yellow><lang:'gui.editor.cutting_board.result_count':'<white>{count}'>"
       lore:
-        - "&7左键 &f+1 &7/ 右键 &f-1"
-        - "&7先左键选中一个产物槽。"
+        - "<gray><lang:gui.editor.hint_pm1>"
+        - "<gray><lang:gui.editor.cutting_board.result_count_hint>"
     result-chance:
       material: GOLD_NUGGET
-      name: "&e所选产物概率: &f{chance}"
+      name: "<yellow><lang:'gui.editor.cutting_board.result_chance':'<white>{chance}'>"
       lore:
-        - "&7左键 &f+0.05 &7/ 右键 &f-0.05"
-        - "&7先左键选中一个产物槽。"
+        - "<gray><lang:gui.editor.cutting_board.hint_chance_pm>"
+        - "<gray><lang:gui.editor.cutting_board.result_count_hint>"
     priority:
       material: COMPARATOR
-      name: "&e优先级: &f{priority}"
+      name: "<yellow><lang:'gui.editor.priority_label':'<white>{priority}'>"
       lore:
-        - "&7左键 &f+1 &7/ 右键 &f-1"
+        - "<gray><lang:gui.editor.hint_pm1>"
     save:
       material: LIME_CONCRETE
-      name: "&a保存"
+      name: "<green><lang:gui.editor.button.save>"
       lore:
-        - "&7写入配方文件并重载。"
+        - "<gray><lang:gui.editor.button.save_hint>"
     cancel:
       material: BARRIER
-      name: "&c取消"
+      name: "<red><lang:gui.editor.button.cancel>"
       lore:
-        - "&7放弃修改并关闭。"
+        - "<gray><lang:gui.editor.button.cancel_hint>"
     delete:
       material: LAVA_BUCKET
-      name: "&4删除配方"
+      name: "<dark_red><lang:gui.editor.button.delete>"
       lore:
-        - "&7从配方文件中移除该配方。"
+        - "<gray><lang:gui.editor.button.delete_hint>"

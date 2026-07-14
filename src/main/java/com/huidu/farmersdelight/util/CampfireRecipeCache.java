@@ -1,14 +1,19 @@
 package com.huidu.farmersdelight.util;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.inventory.CampfireRecipe;
 import org.bukkit.inventory.CookingRecipe;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.Recipe;
+import org.bukkit.inventory.RecipeChoice;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -17,9 +22,14 @@ import java.util.function.Supplier;
 public final class CampfireRecipeCache {
     private final String debugName;
     private final Consumer<Supplier<String>> debug;
-    private final AtomicReference<List<CampfireRecipe>> cache = new AtomicReference<>(List.of());
-    // 记录是否已构建过缓存，与“缓存是否为空”分开：当服务器本身没有任何营火配方时，
-    // 缓存为空但仍算已构建，避免每次查找都重新遍历整个配方表。
+    // Material bucket: per accepted input material the recipes whose RecipeChoice already accepts it.
+    // Per-find() lookup hits this bucket instead of iterating all N campfire recipes (vanilla ~50, +addons).
+    // Built once per rebuild() by probing each recipe's RecipeChoice against every Material — O(N×M) at
+    // load (rare), O(1) at query.
+    private final AtomicReference<Map<Material, List<CampfireRecipe>>> byMaterial =
+            new AtomicReference<>(Map.of());
+    // Tracks whether the cache has been built, separate from "is the cache empty": when the server
+    // has no campfire recipes, the cache is empty but still counts as built, avoiding a full recipe-table rescan per lookup.
     private final AtomicBoolean built = new AtomicBoolean(false);
 
     public CampfireRecipeCache(String debugName, Consumer<Supplier<String>> debug) {
@@ -33,14 +43,24 @@ public final class CampfireRecipeCache {
             return null;
         }
 
-        for (CampfireRecipe cookingRecipe : getRecipes()) {
+        if (!built.get()) {
+            rebuild();
+        }
+        // Fast path: walk only the recipes registered for this material. Empty list when no recipe accepts it
+        // (the common "is this cookable" probe for non-food items).
+        List<CampfireRecipe> bucket = byMaterial.get().get(recipeInput.getType());
+        if (bucket == null) {
+            debug.accept(() -> "Campfire recipe miss: input=" + ManagerSupport.formatItem(recipeInput));
+            return null;
+        }
+        for (CampfireRecipe cookingRecipe : bucket) {
             if (matches(cookingRecipe, recipeInput)) {
-                debug.accept(() -> "Campfire recipe match: input=" + formatItem(recipeInput) + ", recipe=" + cookingRecipe.getKey());
+                debug.accept(() -> "Campfire recipe match: input=" + ManagerSupport.formatItem(recipeInput) + ", recipe=" + cookingRecipe.getKey());
                 return cookingRecipe;
             }
         }
 
-        debug.accept(() -> "Campfire recipe miss: input=" + formatItem(recipeInput));
+        debug.accept(() -> "Campfire recipe miss: input=" + ManagerSupport.formatItem(recipeInput));
         return null;
     }
 
@@ -53,18 +73,51 @@ public final class CampfireRecipeCache {
                 recipes.add(campfireRecipe);
             }
         }
-        cache.set(List.copyOf(recipes));
+        byMaterial.set(buildMaterialBucket(recipes));
         built.set(true);
         debug.accept(() -> "Loaded " + recipes.size() + " cached campfire recipes for " + debugName);
     }
 
-    private List<CampfireRecipe> getRecipes() {
-        if (built.get()) {
-            return cache.get();
+    /** Buckets each recipe under the base Material of every item its RecipeChoice accepts. Reading the
+     *  choice's materials directly is what lets custom-item recipes index: CraftEngine registers them with an
+     *  ExactChoice carrying the full custom item (with data components), which a plain new ItemStack(material)
+     *  probe is never isSimilar to — so a probe-based bucket dropped every custom recipe and only vanilla
+     *  (MaterialChoice) items cooked. Item materials only — non-item Materials can't be cooked. */
+    private static Map<Material, List<CampfireRecipe>> buildMaterialBucket(List<CampfireRecipe> recipes) {
+        if (recipes.isEmpty()) {
+            return Map.of();
         }
+        Map<Material, List<CampfireRecipe>> raw = new EnumMap<>(Material.class);
+        for (CampfireRecipe recipe : recipes) {
+            RecipeChoice choice = recipe.getInputChoice();
+            if (choice instanceof RecipeChoice.MaterialChoice materialChoice) {
+                for (Material material : materialChoice.getChoices()) {
+                    addToBucket(raw, material, recipe);
+                }
+            } else if (choice instanceof RecipeChoice.ExactChoice exactChoice) {
+                // ExactChoice targets a specific ItemStack (custom items / data-component matches). Index by
+                // its base Material; matches() then disambiguates by the full stack (multiple custom foods can
+                // share one base material and land in the same bucket).
+                for (ItemStack stack : exactChoice.getChoices()) {
+                    if (stack != null) {
+                        addToBucket(raw, stack.getType(), recipe);
+                    }
+                }
+            }
+        }
+        // Freeze the lists so concurrent find() readers never see a half-built list.
+        Map<Material, List<CampfireRecipe>> frozen = new HashMap<>(raw.size());
+        for (Map.Entry<Material, List<CampfireRecipe>> e : raw.entrySet()) {
+            frozen.put(e.getKey(), List.copyOf(e.getValue()));
+        }
+        return Map.copyOf(frozen);
+    }
 
-        rebuild();
-        return cache.get();
+    private static void addToBucket(Map<Material, List<CampfireRecipe>> raw, Material material, CampfireRecipe recipe) {
+        if (material == null || material.isLegacy() || !material.isItem()) {
+            return;
+        }
+        raw.computeIfAbsent(material, m -> new ArrayList<>()).add(recipe);
     }
 
     private boolean matches(CampfireRecipe recipe, ItemStack input) {
@@ -91,13 +144,6 @@ public final class CampfireRecipeCache {
         ItemStack normalized = item.clone();
         normalized.setAmount(1);
         return normalized;
-    }
-
-    private String formatItem(ItemStack item) {
-        if (item == null || item.getType().isAir()) {
-            return "air";
-        }
-        return item.getType() + "x" + item.getAmount();
     }
 }
 

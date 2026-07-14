@@ -1,0 +1,46 @@
+{
+  "render_type": "minecraft:cutout",
+  "parent": "block/block",
+  "textures": {
+    "handle": "farmersdelight:block/cooking_pot_handle",
+    "particle": "farmersdelight:block/cooking_pot_handle"
+  },
+  "elements": [
+    {
+      "name": "hoop",
+      "from": [1, 8, 8],
+      "to": [15, 16, 8],
+      "faces": {
+        "north": {"uv": [1, 8, 15, 16], "texture": "#handle"},
+        "south": {"uv": [1, 8, 15, 16], "texture": "#handle"}
+      }
+    },
+    {
+      "name": "handle_east",
+      "from": [15, 8, 7],
+      "to": [15, 16, 9],
+      "faces": {
+        "east": {"uv": [2, 0, 0, 8], "texture": "#handle"},
+        "west": {"uv": [0, 0, 2, 8], "texture": "#handle"}
+      }
+    },
+    {
+      "name": "handle_west",
+      "from": [1, 8, 7],
+      "to": [1, 16, 9],
+      "faces": {
+        "east": {"uv": [2, 0, 0, 8], "texture": "#handle"},
+        "west": {"uv": [0, 0, 2, 8], "texture": "#handle"}
+      }
+    },
+    {
+      "name": "handle_up",
+      "from": [1, 15.999, 7],
+      "to": [15, 15.999, 9],
+      "faces": {
+        "up": {"uv": [2, 0, 16, 2], "texture": "#handle"},
+        "down": {"uv": [2, 0, 16, 2], "texture": "#handle"}
+      }
+    }
+  ]
+}

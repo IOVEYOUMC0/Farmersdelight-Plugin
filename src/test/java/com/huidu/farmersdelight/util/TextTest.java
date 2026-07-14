@@ -16,8 +16,8 @@ class TextTest {
 
     private static final PlainTextComponentSerializer PLAIN = PlainTextComponentSerializer.plainText();
 
-    // MiniMessage 可能将带样式的文本作为根节点返回，也可能将其包裹在一个空的根节点中；因此断言时
-    // 检查第一个非空文本叶子节点的有效（继承后）样式，这样无论哪种情况测试都成立。
+    // MiniMessage may return styled text as the root node, or wrap it in an empty root node; so assertions
+    // check the effective (inherited) style of the first non-empty text leaf, making the test hold either way.
     private static TextColor effectiveColor(Component component) {
         return effectiveColor(component, null);
     }
@@ -57,7 +57,7 @@ class TextTest {
         return here;
     }
 
-    // ---- 旧版（legacy）-> MiniMessage 转换 ----
+    // ---- legacy -> MiniMessage conversion ----
 
     @Test
     void convertsBasicColorCodes() {
@@ -101,12 +101,12 @@ class TextTest {
     @Test
     void leavesPlainTextAndLooseAmpersandsUntouched() {
         assertEquals("No codes here", Text.legacyToMiniMessage("No codes here"));
-        // '&' 后面如果没有跟有效的代码字符，则保持原样不变。
+        // A '&' not followed by a valid code character is left unchanged.
         assertEquals("Tom & Jerry", Text.legacyToMiniMessage("Tom & Jerry"));
         assertEquals("AT&T", Text.legacyToMiniMessage("AT&T"));
-        // 'z' 和 'g' 不是有效的旧版（legacy）代码。
+        // 'z' and 'g' are not valid legacy codes.
         assertEquals("&z&g", Text.legacyToMiniMessage("&z&g"));
-        // 不完整的十六进制序列会原样保留（位数不够）。
+        // Incomplete hex sequences are kept as-is (too few digits).
         assertEquals("&#ff88", Text.legacyToMiniMessage("&#ff88"));
     }
 
@@ -114,11 +114,11 @@ class TextTest {
     void leavesExistingMiniMessageTagsUntouched() {
         assertEquals("<gradient:gold:yellow>Hi</gradient>",
                 Text.legacyToMiniMessage("<gradient:gold:yellow>Hi</gradient>"));
-        // 同一字符串中混用旧版（legacy）+ MiniMessage。
+        // Mixed legacy + MiniMessage in the same string.
         assertEquals("<gray>Hi <green>MM", Text.legacyToMiniMessage("&7Hi <green>MM"));
     }
 
-    // ---- 反序列化（deserialize） ----
+    // ---- deserialize ----
 
     @Test
     void deserializeParsesLegacyAndMiniMessage() {
@@ -139,7 +139,7 @@ class TextTest {
         assertDoesNotThrow(() -> assertNotNull(Text.deserialize("<#zzzzzz>")));
     }
 
-    // ---- name()：默认白色 + 关闭斜体 ----
+    // ---- name(): defaults to white + disables italic ----
 
     @Test
     void nameDefaultsToWhiteAndDisablesItalic() {
@@ -162,7 +162,7 @@ class TextTest {
         assertEquals(TextDecoration.State.TRUE, effectiveItalic(name));
     }
 
-    // ---- lore()：默认灰色（绝不使用暗紫色 dark purple）+ 关闭斜体 ----
+    // ---- lore(): defaults to gray (never dark purple) + disables italic ----
 
     @Test
     void loreDefaultsToGrayAndDisablesItalic() {

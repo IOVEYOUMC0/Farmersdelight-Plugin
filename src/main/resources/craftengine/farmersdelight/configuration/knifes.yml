@@ -3,7 +3,7 @@
     material: wooden_sword
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
-      item-name: <!i><l10n:item.farmersdelight.flint_knife>
+      item-name: <!i><lang:item.farmersdelight.flint_knife>
       max-damage: 131
       hide-tooltip:
         - attribute_modifiers
@@ -26,7 +26,7 @@
     material: iron_sword
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
-      item-name: <!i><l10n:item.farmersdelight.iron_knife>
+      item-name: <!i><lang:item.farmersdelight.iron_knife>
       hide-tooltip:
         - attribute_modifiers
       attribute-modifiers:
@@ -48,7 +48,7 @@
     material: golden_sword
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
-      item-name: <!i><l10n:item.farmersdelight.golden_knife>
+      item-name: <!i><lang:item.farmersdelight.golden_knife>
       hide-tooltip:
         - attribute_modifiers
       attribute-modifiers:
@@ -70,7 +70,7 @@
     material: diamond_sword
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
-      item-name: <!i><l10n:item.farmersdelight.diamond_knife>
+      item-name: <!i><lang:item.farmersdelight.diamond_knife>
       hide-tooltip:
         - attribute_modifiers
       attribute-modifiers:
@@ -92,7 +92,7 @@
     material: netherite_sword
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
-      item-name: <!i><l10n:item.farmersdelight.netherite_knife>
+      item-name: <!i><lang:item.farmersdelight.netherite_knife>
       hide-tooltip:
         - attribute_modifiers
       attribute-modifiers:

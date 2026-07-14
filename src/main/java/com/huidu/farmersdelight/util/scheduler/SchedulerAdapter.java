@@ -37,6 +37,19 @@ public final class SchedulerAdapter {
         return folia;
     }
 
+    /**
+     * Whether the current thread owns location's region. Always true on Paper (single main
+     * thread). On Folia, callers that must touch a block/block-entity synchronously (rather than via
+     * runAt) should gate on this so a cross-region access does not throw. Reflection failure returns
+     * true (do not block) so the guard degrades to pre-existing behavior if the API is absent.
+     */
+    public boolean isOwnedByCurrentRegion(Location location) {
+        if (!folia || location == null || location.getWorld() == null) {
+            return true;
+        }
+        return FoliaReflect.isOwnedByCurrentRegion(location);
+    }
+
     public void run(Runnable task) {
         if (folia) {
             FoliaReflect.globalExecute(plugin, task);
@@ -71,6 +84,21 @@ public final class SchedulerAdapter {
             return;
         }
         FoliaReflect.entityRun(plugin, entity, task);
+    }
+
+    /**
+     * Like runForEntity(Entity, Runnable) but with a retired callback invoked if the
+     * entity is removed before the task runs (Folia). Without it, a task queued for an entity that is
+     * retired mid-flight is silently dropped and any bookkeeping the task's finally block would do
+     * (e.g. clearing an "already scheduled" guard set) never happens, leaking that entry forever. On
+     * Paper the task always runs, so retired is not needed there.
+     */
+    public void runForEntity(Entity entity, Runnable task, Runnable retired) {
+        if (!folia || entity == null) {
+            run(task);
+            return;
+        }
+        FoliaReflect.entityRun(plugin, entity, task, retired);
     }
 
     public PluginTask runLater(Runnable task, long delayTicks) {
@@ -189,8 +217,8 @@ public final class SchedulerAdapter {
     private static final class FoliaReflect {
         private static final Object GLOBAL_SCHEDULER = invokeStatic(Bukkit.class, "getGlobalRegionScheduler");
         private static final Object REGION_SCHEDULER = invokeStatic(Bukkit.class, "getRegionScheduler");
-        // 解析出的 scheduler Method 对于每个 (class, name, arity) 组合都是稳定的；将其缓存，
-        // 这样 Folia 上的每次调度都无需再次遍历 class/interface 层级结构。
+        // The resolved scheduler Method is stable per (class, name, arity) combination; cache it
+        // so each schedule on Folia avoids re-walking the class/interface hierarchy.
         private static final Map<String, Method> METHOD_CACHE = new ConcurrentHashMap<>();
 
         private FoliaReflect() {
@@ -250,6 +278,21 @@ public final class SchedulerAdapter {
         private static void entityRun(FarmersDelightPlugin plugin, Entity entity, Runnable task) {
             Object scheduler = invoke(entity, "getScheduler");
             invoke(scheduler, "run", plugin, task, null);
+        }
+
+        private static void entityRun(FarmersDelightPlugin plugin, Entity entity, Runnable task, Runnable retired) {
+            Object scheduler = invoke(entity, "getScheduler");
+            invoke(scheduler, "run", plugin, task, retired);
+        }
+
+        private static boolean isOwnedByCurrentRegion(Location location) {
+            try {
+                Method method = Bukkit.class.getMethod("isOwnedByCurrentRegion", Location.class);
+                Object result = method.invoke(null, location);
+                return !(result instanceof Boolean) || (Boolean) result;
+            } catch (ReflectiveOperationException e) {
+                return true;
+            }
         }
 
         private static PluginTask entityRunLater(FarmersDelightPlugin plugin, Entity entity, Runnable task, long delayTicks) {

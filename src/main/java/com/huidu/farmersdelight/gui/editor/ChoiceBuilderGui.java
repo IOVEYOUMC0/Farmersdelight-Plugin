@@ -28,9 +28,9 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 /**
- * 用于构建“choice”类型材料（a|b|c）的纯 GUI 构建器。每个填入物品的槽位即为一个选项。点击
- * 确认时：0 个选项会清空该材料，1 个选项会生成普通物品，2 个及以上会生成 choice。布局和
- * 文本来自 gui.yml 中的 recipe-choice-builder-gui 部分。
+ * A pure-GUI builder for "choice" type ingredients (a|b|c). Each filled item slot is one option. On confirm:
+ * 0 options clears the ingredient, 1 option produces a plain item, 2 or more produce a choice. Layout and
+ * text come from the recipe-choice-builder-gui section of gui.yml.
  */
 public final class ChoiceBuilderGui implements EditorGui {
 

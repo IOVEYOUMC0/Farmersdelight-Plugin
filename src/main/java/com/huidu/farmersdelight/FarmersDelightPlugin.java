@@ -1,13 +1,16 @@
 package com.huidu.farmersdelight;
 
+import com.huidu.farmersdelight.advancement.AddonAdvancementRegistry;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.block.behavior.*;
+import com.huidu.farmersdelight.item.behavior.ConditionalBlockPlantingItemBehavior;
 import com.huidu.farmersdelight.listener.*;
 import com.huidu.farmersdelight.command.FarmersDelightCommand;
 import com.huidu.farmersdelight.config.ContainerReturnConfig;
 import com.huidu.farmersdelight.config.CookingPotExperienceRewardConfig;
 import com.huidu.farmersdelight.config.CuttingBoardDisplayConfig;
 import com.huidu.farmersdelight.config.HeatSourceConfig;
+import com.huidu.farmersdelight.config.RugConfig;
 import com.huidu.farmersdelight.config.PetFoodConfig;
 import com.huidu.farmersdelight.config.StrawDropConfig;
 import com.huidu.farmersdelight.compat.AuraSkillsHook;
@@ -20,17 +23,20 @@ import com.huidu.farmersdelight.gui.RecipeViewGui;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.loot.KnifeDropHandler;
 import com.huidu.farmersdelight.BuildFlags;
+import com.huidu.farmersdelight.manager.BuffBossbarManager;
+import com.huidu.farmersdelight.manager.HandleManager;
 import com.huidu.farmersdelight.manager.SkilletManager;
 import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.manager.TrayManager;
 import com.huidu.farmersdelight.recipe.CookingPotRecipeManager;
+import com.huidu.farmersdelight.recipe.RecipeDiscoveryManager;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipeManager;
-import com.huidu.farmersdelight.storage.LegacyBlockStorageManager;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.InteractionDebouncer;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.ProtectionCompat;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import com.huidu.farmersdelight.util.scheduler.SchedulerAdapter;
 import com.huidu.farmersdelight.visual.ProxyItemDisplayManager;
@@ -39,10 +45,6 @@ import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import net.momirealms.craftengine.bukkit.api.event.CraftEngineReloadEvent;
 import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
 import net.momirealms.craftengine.bukkit.world.BukkitWorldManager;
-import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
-import net.momirealms.craftengine.core.block.behavior.BlockBehaviors;
-import net.momirealms.craftengine.core.registry.BuiltInRegistries;
-import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.CEWorld;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -60,26 +62,11 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
-import java.nio.charset.CodingErrorAction;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystemAlreadyExistsException;
-import java.nio.file.FileSystems;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
 import java.util.logging.Level;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
@@ -87,34 +74,6 @@ import java.util.stream.Stream;
 
 public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
-    private static final String CRAFTENGINE_RESOURCE_ROOT = "craftengine/farmersdelight";
-    private static final Path CRAFTENGINE_RESOURCE_TARGET = Path.of("CraftEngine", "resources", "farmersdelight");
-    private static final String[][] CONFIG_KEY_MIGRATIONS = {
-            {"knife-drops", "mob-extra-drops"},
-            {"entity-extra-drops", "mob-extra-drops"},
-            {"knife-drop-tools", "mob-extra-drop-tools"},
-            {"entity-extra-drop-tools", "mob-extra-drop-tools"}
-    };
-
-    private static final List<String> ADVANCEMENT_RESOURCES = List.of(
-            "advancements/pack.mcmeta",
-            "advancements/data/farmersdelight/advancement/main/root.json",
-            "advancements/data/farmersdelight/advancement/main/craft_knife.json",
-            "advancements/data/farmersdelight/advancement/main/place_campfire.json",
-            "advancements/data/farmersdelight/advancement/main/use_skillet.json",
-            "advancements/data/farmersdelight/advancement/main/get_fd_seed.json",
-            "advancements/data/farmersdelight/advancement/main/obtain_netherite_knife.json",
-            "advancements/data/farmersdelight/advancement/main/hit_raider_with_rotten_tomato.json",
-            "advancements/data/farmersdelight/advancement/main/harvest_straw.json",
-            "advancements/data/farmersdelight/advancement/main/place_cooking_pot.json",
-            "advancements/data/farmersdelight/advancement/main/place_skillet.json",
-            "advancements/data/farmersdelight/advancement/main/place_feast.json",
-            "advancements/data/farmersdelight/advancement/main/use_cutting_board.json",
-            "advancements/data/farmersdelight/advancement/main/plant_rice.json",
-            "advancements/data/farmersdelight/advancement/main/plant_all_crops.json",
-            "advancements/data/farmersdelight/advancement/main/get_ham.json",
-            "advancements/data/farmersdelight/advancement/main/master_chef.json"
-    );
 
     private static volatile FarmersDelightPlugin instance;
     private static volatile boolean enabled = false;
@@ -129,9 +88,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private String pendingDatapackSyncRetryReason;
 
     private SchedulerAdapter scheduler;
-    private LegacyBlockStorageManager legacyBlockStorageManager;
     private TickManager tickManager;
     private TrayManager trayManager;
+    private HandleManager handleManager;
+    private BuffBossbarManager buffBossbarManager;
     private StoveManager stoveManager;
     private SkilletManager skilletManager;
     private ItemDisplayManager itemDisplayManager;
@@ -148,24 +108,32 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private HorseFeedTemptListener horseFeedTemptListener;
     private AchievementListener achievementListener;
     private EffectListener effectListener;
-    // 懒加载，可能被多个 region 线程并发访问（厨锅取出成品时奖励经验），用 volatile + 双重检查加锁，
-    // 与 recipeEditorStore 的写法保持一致。
+    private final com.huidu.farmersdelight.config.ConfigBootstrap configBootstrap = new com.huidu.farmersdelight.config.ConfigBootstrap(this);
+
+    // Lazy-loaded, may be accessed concurrently by multiple region threads (awarding XP when collecting cooking pot results); uses volatile + double-checked locking,
+    // consistent with recipeEditorStore.
     private volatile AuraSkillsHook auraSkillsHook;
 
-    // volatile：在 reload 时被重新赋值，并由区域线程读取。
+    // volatile: reassigned on reload and read by region threads.
     private volatile HeatSourceConfig heatSourceConfig;
+    // volatile: rebuilt on reload, read by region threads in RugListener (block-physics/break events).
+    private volatile RugConfig rugConfig;
     private GuiConfig cookingPotGuiConfig;
     private Map<String, GuiConfig> customCookingPotGuiConfigs = Map.of();
     private volatile RecipeEditorGuiConfig recipeEditorGuiConfig;
     private YamlConfiguration guiConfig;
-    private StrawDropConfig strawDropConfig;
-    private PetFoodConfig petFoodConfig;
+    private volatile StrawDropConfig strawDropConfig;
+    private volatile PetFoodConfig petFoodConfig;
     private volatile ContainerReturnConfig containerReturnConfig;
     private volatile CuttingBoardDisplayConfig cuttingBoardDisplayConfig;
     private volatile CuttingBoardDisplayConfig skilletDisplayConfig;
     private volatile CuttingBoardDisplayConfig stoveDisplayConfig;
     private volatile CookingPotExperienceRewardConfig cookingPotExperienceRewardConfig;
     private AdvancementManager advancementManager;
+    // Addon-defined advancement tabs. Definitions persist across /fd reload; the registry survives the FD-tab
+    // dispose/rebuild cycle, so it is created once and kept for the plugin's whole life.
+    private AddonAdvancementRegistry addonAdvancementRegistry;
+    private RecipeDiscoveryManager recipeDiscoveryManager;
     private boolean advancementsEnabled;
     private boolean debugEnabled;
     private boolean showRecipeNameInProgressDisplay;
@@ -204,8 +172,12 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     private boolean areCraftEngineItemsReady() {
+        // Probe whether CraftEngine has finished its item-load pass, not a single item id. CE parses items in a
+        // deferred pass after its onEnable (only listeners are registered there), so isPluginEnabled would flip
+        // true too early; and keying on one specific item breaks the moment that item is deleted or the pack's
+        // namespace is changed. isAnyCustomItemLoaded checks the registry itself, surviving both.
         try {
-            return ItemUtils.isCustomItemLoaded(Key.of(Constants.ITEM_RICE_PANICLE));
+            return ItemUtils.isAnyCustomItemLoaded();
         } catch (Exception ignored) {
             return false;
         }
@@ -215,13 +187,17 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         I18n.logInfo(logKey);
         cookingPotRecipeManager.loadRecipes();
         cuttingBoardRecipeManager.loadRecipes();
+        // Recipe set changed: drop the discovery obtain-trigger index so it rebuilds against the new recipes.
+        if (recipeDiscoveryManager != null) {
+            recipeDiscoveryManager.invalidateIndex();
+        }
     }
 
     private void loadRecipeManagersWhenReady(String logKey) {
         if (areCraftEngineItemsReady()) {
             loadRecipeManagers(logKey);
         }
-        // 否则：静默延迟处理；CraftEngineReloadEvent 会在 CE 物品加载完成后重试一次。
+        // Otherwise: silently defer; CraftEngineReloadEvent retries once after CE items finish loading.
     }
 
     public boolean isAdvancementsEnabled() {
@@ -237,20 +213,53 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             advancementManager.dispose();
         }
         advancementManager = null;
+        if (addonAdvancementRegistry != null) {
+            addonAdvancementRegistry.onSystemDown();
+        }
         queueAdvancementDatapackRemoval(I18n.formatConsole("plugin.datapack_reason_remove_disabled_advancements"));
     }
 
-    // 仅在 CraftEngine 物品加载完成后才构建/刷新进度，否则 icon() 会回退到
-    // 原版 Material 图标，而不是使用 CE 物品。
+    // Only build/refresh advancements after CraftEngine items finish loading, otherwise icon() falls back to
+    // vanilla Material icons instead of CE items.
     private void refreshAdvancementSystemWhenReady(boolean reloading) {
         if (!advancementsEnabled || !getServer().getPluginManager().isPluginEnabled("UltimateAdvancementAPI")) {
             disableAdvancementSystem();
             return;
         }
         if (!areCraftEngineItemsReady()) {
-            return; // CraftEngineReloadEvent 会在 CE 物品加载完成后重试此操作。
+            return; // CraftEngineReloadEvent retries this after CE items finish loading.
         }
         refreshAdvancementSystem(reloading);
+    }
+
+    /** Runs warmUp(String) only once CE items are loaded; otherwise defers to the CE-reload path. */
+    private void warmUpWhenReady(String reason) {
+        if (areCraftEngineItemsReady()) {
+            warmUp(reason);
+        }
+    }
+
+    /**
+     * Pre-builds FarmersDelight's CraftEngine item stacks and primes the GUI / behavior caches so the first
+     * in-game interaction does not pay CraftEngine's one-time global item-build inits (ASM proxies, MiniMessage
+     * setup) or a burst of cold item builds. Pure computation — no world/entity/region access — so it is safe on
+     * whichever (global) thread this runs. Best-effort: any failure is logged and never blocks enable/reload.
+     * Ends by firing com.huidu.farmersdelight.api.event.FarmersDelightWarmupEvent so addons warm their own.
+     */
+    private void warmUp(String reason) {
+        try {
+            long start = System.nanoTime();
+            int items = com.huidu.farmersdelight.util.ItemUtils.warmItems("farmersdelight");
+            com.huidu.farmersdelight.block.behavior.TomatoVineBlockBehavior.warmAll();
+            CookingPotGui.warm(this);
+            long ms = (System.nanoTime() - start) / 1_000_000L;
+            I18n.logInfo("plugin.warmup_done", "items", items, "ms", ms);
+        } catch (Throwable t) {
+            getLogger().log(java.util.logging.Level.WARNING, I18n.formatConsole("plugin.warmup_failed"), t);
+        }
+        // Addons prime their own caches now that FD's are warm (see FarmersDelightWarmupEvent).
+        org.bukkit.Bukkit.getPluginManager().callEvent(
+                new com.huidu.farmersdelight.api.event.FarmersDelightWarmupEvent(reason));
     }
 
     private void refreshAdvancementSystem(boolean reloading) {
@@ -267,7 +276,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 advancementManager.reload();
             }
         } catch (Throwable t) {
-            // 运行时缺少 UltimateAdvancementAPI 或版本不兼容 —— 在不启用进度系统的情况下运行。
+            // UltimateAdvancementAPI missing at runtime or version incompatible -- run without the advancement system.
             advancementManager = null;
             I18n.logWarning("advancement.award_failed", "id", "init", "error", String.valueOf(t.getMessage()));
             return;
@@ -278,29 +287,70 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             getServer().getPluginManager().registerEvents(achievementListener, this);
         }
 
-        // 移除所有旧版进度数据包，避免其原版进度树与 UAA 标签页重复。
+        // Remove any legacy advancement datapacks to avoid their vanilla advancement tree duplicating the UAA tab.
         queueAdvancementDatapackRemoval(I18n.formatConsole("plugin.datapack_reason_remove_legacy_advancements"));
+
+        // FD's own tab is up: (re)build any addon-registered tabs now that UAA + CraftEngine items are ready.
+        getAddonAdvancementRegistry().onSystemReady();
+
+        // A rebuild (/ce reload) recreates the UAA tab, which drops it from online clients. Re-show FD's own
+        // tab to online players (no-op on first load — no one is online yet). Addon tabs re-sync in onSystemReady.
+        advancementManager.resyncOnlinePlayers();
     }
 
     @Override
     public void onLoad() {
         instance = this;
-        ensureConfigDefaults();
+        configBootstrap.ensureConfigDefaults();
         I18n.init(this);
-        releaseBundledCraftEngineResourcesOnce();
-        registerBlockBehaviors();
+        new com.huidu.farmersdelight.resource.ResourceInstaller(this, getFile()).installCraftEngineResourcesOnce();
+        com.huidu.farmersdelight.registry.BehaviorRegistrar.registerBlockBehaviors(getLogger());
+        com.huidu.farmersdelight.registry.BehaviorRegistrar.registerItemBehaviors();
+        com.huidu.farmersdelight.registry.BehaviorRegistrar.registerFunctions();
+        // Register the WorldGuard custom region flag here (onLoad): WG locks its FlagRegistry once it
+        // enables, so this must run during the load phase. No-op if WorldGuard is absent.
+        ProtectionCompat.registerFlags();
     }
+
+    /** JVM-lifetime guard against /reload + hot disable. System properties survive plugin classloader
+     *  recreation, so re-enabling within the same JVM session can be detected and refused. */
+    private static final String RELOAD_GUARD_PROPERTY = "farmersdelight.enabled.in.this.jvm";
+    private boolean enabledSuccessfully = false;
+
+    // bStats plugin id from https://bstats.org (register the plugin there, then paste its numeric id here).
+    // TODO: replace the placeholder with FarmersDelight's real bStats id before publishing.
+    private static final int BSTATS_PLUGIN_ID = 32571;
 
     @Override
     public void onEnable() {
+        if (System.getProperty(RELOAD_GUARD_PROPERTY) != null) {
+            getLogger().severe(" ");
+            getLogger().severe(" ");
+            getLogger().severe("==================================================================");
+            getLogger().severe(" PLEASE DO NOT /reload OR HOT-DISABLE FarmersDelight.");
+            getLogger().severe(" ");
+            getLogger().severe(" This plugin hooks deep into CraftEngine block behaviors, the");
+            getLogger().severe(" scheduler, and per-chunk block-entity state. Re-enabling at");
+            getLogger().severe(" runtime leaves stale tasks/listeners/lambdas bound to the old");
+            getLogger().severe(" classloader, which crash randomly with NoClassDefFoundError.");
+            getLogger().severe(" ");
+            getLogger().severe(" To apply config changes: /stop then start the server again.");
+            getLogger().severe("==================================================================");
+            getLogger().severe(" ");
+            getLogger().severe(" ");
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+        System.setProperty(RELOAD_GUARD_PROPERTY, "1");
+
         enabled = true;
 
         if (BuildFlags.DEBUG_TOOLS) {
             I18n.logWarning("plugin.debug_tools_build");
         }
 
-        ensureConfigDefaults();
-        migrateConfigKeys();
+        configBootstrap.ensureConfigDefaults();
+        configBootstrap.migrateConfigKeys();
         I18n.init(this);
 
         scheduler = new SchedulerAdapter(this);
@@ -308,7 +358,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             I18n.logInfo("plugin.folia_scheduler");
         }
 
-        legacyBlockStorageManager = createLegacyBlockStorageManager();
+        // Build the protection facade over all installed land plugins (softdepends are enabled by now);
+        // WorldGuard flags were already registered in onLoad. Non-WG land plugins gate via AntiGriefLib.
+        ProtectionCompat.init(this);
 
         loadConfigs();
         logStartupSummary();
@@ -323,11 +375,28 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
         loadRecipeManagersWhenReady("plugin.loading_recipes");
 
+        recipeDiscoveryManager = new RecipeDiscoveryManager(this);
+        recipeDiscoveryManager.load();
+        getServer().getPluginManager().registerEvents(new RecipeDiscoveryListener(this), this);
+        // Periodic flush so unlocks survive a crash (no-op while unchanged, ~5 min). File write runs async,
+        // off the Folia global region thread.
+        scheduler().runRepeating(() -> {
+            if (recipeDiscoveryManager != null) {
+                scheduler().runAsync(() -> {
+                    RecipeDiscoveryManager manager = recipeDiscoveryManager;
+                    if (manager != null) {
+                        manager.save();
+                    }
+                });
+            }
+        }, 6000L, 6000L);
+
         blockBreakListener = new BlockBreakListener();
         getServer().getPluginManager().registerEvents(blockBreakListener, this);
 
         blockPlaceListener = new BlockPlaceListener();
         getServer().getPluginManager().registerEvents(blockPlaceListener, this);
+        BlockPlaceListener.reloadMushroomSupportCache(this);
         getServer().getPluginManager().registerEvents(new SkilletPlaceListener(), this);
         getServer().getPluginManager().registerEvents(new SkilletAttackSoundListener(), this);
         getServer().getPluginManager().registerEvents(new CuttingBoardInteractListener(), this);
@@ -338,7 +407,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(new RicePlantListener(this), this);
         getServer().getPluginManager().registerEvents(new UpperHalfLootRelayListener(), this);
 
-        // 在食用 FD 菜肴时授予 master_chef 条件，并在配置启用时应用 comfort/nourishment 效果。
+        // Awards master_chef criteria when eating FD dishes, and applies comfort/nourishment effects when enabled in config.
         foodEatListener = new FoodEatListener(this);
         getServer().getPluginManager().registerEvents(foodEatListener, this);
 
@@ -348,9 +417,12 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(horseFeedTemptListener, this);
         horseFeedTemptListener.start();
         effectListener = new EffectListener(this);
+        getServer().getPluginManager().registerEvents(effectListener, this);
         effectListener.start();
 
         getServer().getPluginManager().registerEvents(this, this);
+        getServer().getPluginManager().registerEvents(
+                new com.huidu.farmersdelight.api.util.PluginManagerGuard(getName()), this);
 
         tickManager = new TickManager(this);
         tickManager.start();
@@ -365,16 +437,38 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         stoveManager = new StoveManager(this);
         skilletManager = new SkilletManager(this);
         trayManager = new TrayManager(this);
-        getServer().getPluginManager().registerEvents(new StoveInteractListener(), this);
+        handleManager = new HandleManager(this);
+        buffBossbarManager = new BuffBossbarManager(this);
+        buffBossbarManager.applyConfig(getConfig().getConfigurationSection("bossbar"));
+        com.huidu.farmersdelight.effect.EffectManager.applyBossbarStyles(
+                getConfig().getConfigurationSection("bossbar.styles"));
+        getServer().getPluginManager().registerEvents(buffBossbarManager, this);
+        buffBossbarManager.start();
+        for (org.bukkit.World world : getServer().getWorlds()) {
+            handleManager.trackWorld(world);
+        }
         getServer().getPluginManager().registerEvents(new AutoTrayFurnitureListener(this), this);
 
         getServer().getPluginManager().registerEvents(new RopeBlockListener(this), this);
+        getServer().getPluginManager().registerEvents(new TatamiBreakListener(), this);
+        getServer().getPluginManager().registerEvents(new RugListener(this), this);
+        getServer().getPluginManager().registerEvents(new RichSoilHoeListener(this), this);
+        getServer().getPluginManager().registerEvents(new MushroomOnRichSoilListener(), this);
+        getServer().getPluginManager().registerEvents(new CropInteractProtectionListener(), this);
 
         chunkLoadListener = new ChunkLoadListener(this);
         getServer().getPluginManager().registerEvents(chunkLoadListener, this);
         chunkLoadListener.loadAlreadyLoadedChunks();
 
+        com.huidu.farmersdelight.loot.LootDatapackInstaller lootInstaller =
+                new com.huidu.farmersdelight.loot.LootDatapackInstaller(this);
+        lootInstaller.installToAllWorlds();
+        getServer().getPluginManager().registerEvents(lootInstaller, this);
+
         refreshAdvancementSystemWhenReady(false);
+        // Warm CE item/GUI/behavior caches now IF CE is already up (FD enabled after CraftEngine). When CE
+        // loads after FD, onCraftEngineReload runs the warmup instead — the readiness gate makes them exclusive.
+        warmUpWhenReady("enable");
 
         scheduler.run(() -> startupSyncCompleted = true);
 
@@ -394,7 +488,32 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
         CraftEngineStateUsageMonitor.logRealStateUsage(this, "startup");
 
+        // PlaceholderAPI bridge — registers iff PAPI is loaded so HUD plugins (BetterHud, MythicHud,
+        // etc.) can read every CustomBuffRegistry entry per player. Soft-dep, no-op when absent.
+        if (getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {
+            try {
+                new com.huidu.farmersdelight.compatibility.PlaceholderApiHook(this).register();
+                I18n.logInfo("papi_bridge_registered");
+            } catch (Throwable t) {
+                I18n.logWarning("papi_bridge_failed", "error", t.getMessage());
+            }
+        }
+
+        // bStats metrics: anonymous server/plugin stats. Opt out globally via plugins/bStats/config.yml.
+        // bStats is bundled un-relocated (stays at org.bstats); Bukkit plugin classloaders are isolated so
+        // the package cannot clash with another plugin's copy. Disable bStats' relocation self-check, which
+        // would otherwise throw because the package still starts with org.bstats.
+        if (BSTATS_PLUGIN_ID > 0) {
+            try {
+                System.setProperty("bstats.relocatecheck", "false");
+                new org.bstats.bukkit.Metrics(this, BSTATS_PLUGIN_ID);
+            } catch (Throwable t) {
+                getLogger().warning("Failed to start bStats metrics: " + t.getMessage());
+            }
+        }
+
         I18n.logInfo("plugin.enabled");
+        enabledSuccessfully = true;
     }
 
     @Override
@@ -402,10 +521,41 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         enabled = false;
         boolean folia = scheduler != null && scheduler.isFolia();
 
+        // Runtime disable warning: CraftEngine + per-chunk block-entity state still hold references
+        // to FD listeners, scheduler tasks, and block behaviors. Once this classloader closes, any
+        // late-bound lambda / event delivery into FD throws NoClassDefFoundError. We can't unwind
+        // CE's registrations, so do the best-effort cleanup below and tell the admin to restart.
+        // Re-enabling FD in the same JVM is refused by onEnable's reload-guard system property, so
+        // the worst case is "FD blocks misbehave until /stop", not double-registration chaos.
+        if (enabledSuccessfully && !getServer().isStopping()) {
+            getLogger().severe(" ");
+            getLogger().severe("==================================================================");
+            getLogger().severe(" FarmersDelight was disabled at runtime (e.g. via /reload or a");
+            getLogger().severe(" plugin manager). CraftEngine still holds references to FD block");
+            getLogger().severe(" behaviors and block entities, so further interactions may log");
+            getLogger().severe(" NoClassDefFoundError. Restart the server (/stop) at your earliest");
+            getLogger().severe(" convenience. Re-enabling FD in this JVM is refused.");
+            getLogger().severe("==================================================================");
+            getLogger().severe(" ");
+        }
+
+        // MUST be first: stop event delivery before tearing down listeners' state. Vanilla code
+        // (piston ticks, neighbour updates, scheduled chunk tasks) keeps firing during onDisable,
+        // and PaperPluginClassLoader is already draining — late-bound lambda metafactory calls
+        // from listener code will hit NoClassDefFoundError. Pulling listeners off the bus first
+        // makes the rest of the shutdown order independent of vanilla event timing.
+        runDisableStep("plugin.disable_step_unregister_listeners", () -> HandlerList.unregisterAll((org.bukkit.plugin.Plugin) this));
+
         runDisableStep("plugin.disable_step_stop_tick_manager", () -> {
             if (tickManager != null) {
                 tickManager.stop();
                 tickManager = null;
+            }
+        });
+
+        runDisableStep("plugin.disable_step_save_recipe_discovery", () -> {
+            if (recipeDiscoveryManager != null) {
+                recipeDiscoveryManager.save();
             }
         });
 
@@ -425,9 +575,12 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         runDisableStep("plugin.disable_step_close_cooking_pot_guis", CookingPotGui::cleanupAll);
         runDisableStep("plugin.disable_step_close_recipe_view_guis", () -> {
             RecipeViewGui.cleanupAll();
-            // 编辑器监听器会在下方通过 HandlerList 取消注册；重置其标志位，以便软重启
-            // 重新注册一个全新的监听器。
+            // The editor listener is unregistered below via HandlerList; reset its flag so a soft restart
+            // re-registers a fresh listener.
             com.huidu.farmersdelight.gui.editor.RecipeEditorListener.reset();
+            // Same for RecipeBookListener: reset its flag, otherwise after a soft restart click/drag events
+            // are no longer cancelled and items can be duped.
+            com.huidu.farmersdelight.gui.recipebook.RecipeBookListener.reset();
         });
         runDisableStep("plugin.disable_step_save_block_data", this::saveAllBlockData);
 
@@ -445,6 +598,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 trayManager.cleanupAll();
                 trayManager = null;
             }
+            if (handleManager != null) {
+                handleManager.cleanupAll();
+                handleManager = null;
+            }
         });
 
         runDisableStep("plugin.disable_step_cleanup_stoves", () -> {
@@ -461,16 +618,17 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             }
         });
 
+        runDisableStep("plugin.disable_step_cleanup_bossbars", () -> {
+            if (buffBossbarManager != null) {
+                buffBossbarManager.stop();
+                buffBossbarManager = null;
+            }
+        });
+
         runDisableStep("plugin.disable_step_cleanup_item_displays", () -> {
             if (itemDisplayManager != null) {
                 itemDisplayManager.cleanup();
                 itemDisplayManager = null;
-            }
-        });
-
-        runDisableStep("plugin.disable_step_shutdown_legacy_block_storage", () -> {
-            if (legacyBlockStorageManager != null) {
-                legacyBlockStorageManager.shutdown();
             }
         });
 
@@ -499,8 +657,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             }
         });
 
-        runDisableStep("plugin.disable_step_unregister_listeners", () -> HandlerList.unregisterAll((org.bukkit.plugin.Plugin) this));
-
         runDisableStep("plugin.disable_step_shutdown_scheduler", () -> {
             if (scheduler != null) {
                 scheduler.shutdown();
@@ -517,11 +673,11 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         auraSkillsHook = null;
 
         heatSourceConfig = null;
+        rugConfig = null;
         cookingPotGuiConfig = null;
         cookingPotExperienceRewardConfig = null;
         strawDropConfig = null;
 
-        legacyBlockStorageManager = null;
         if (advancementManager != null) {
             advancementManager.dispose();
         }
@@ -597,15 +753,15 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         SkilletBlockBehavior.cleanupWorld(worldId);
         StoveCookingBlockBehavior.cleanupWorld(worldId);
 
-        if (legacyBlockStorageManager != null) {
-            legacyBlockStorageManager.cleanupWorld(worldId);
-        }
         if (trayManager != null) {
             trayManager.cleanupWorld(worldId);
         }
+        if (handleManager != null) {
+            handleManager.cleanupWorld(worldId);
+        }
         if (itemDisplayManager != null) {
-            // 移除已卸载世界的所有代理显示实体，避免残留条目一直留在 displays 映射中，
-            // 直到某个可能永远不会触发的区块卸载事件才被清理。
+            // Remove all proxy display entities for the unloaded world, so stale entries don't linger in the displays map
+            // until a chunk unload event that may never fire.
             itemDisplayManager.cleanupWorld(worldId);
         }
     }
@@ -631,6 +787,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     @org.bukkit.event.EventHandler
     public void onWorldLoad(WorldLoadEvent event) {
+        if (handleManager != null) {
+            handleManager.trackWorld(event.getWorld());
+        }
         if (!startupSyncCompleted) {
             return;
         }
@@ -638,7 +797,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         if (primaryWorld == null || !primaryWorld.getUID().equals(event.getWorld().getUID())) {
             return;
         }
-        // 进度通过数据包发送；不进行按世界的数据包同步。
+        // Advancements are sent via datapack; no per-world datapack sync.
     }
 
     private void queueDatapackReload(String reason) {
@@ -693,7 +852,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         scheduler.runAsync(() -> {
             boolean updated = false;
             try {
-                updated = syncAdvancementDatapack(datapackRoot, worldName);
+                updated = new com.huidu.farmersdelight.advancement.AdvancementDatapackInstaller(this)
+                        .sync(datapackRoot, worldName);
             } finally {
                 datapackSyncQueued = false;
             }
@@ -732,7 +892,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         scheduler.runAsync(() -> {
             boolean removed = false;
             try {
-                removed = removeAdvancementDatapack(datapackRoot);
+                removed = new com.huidu.farmersdelight.advancement.AdvancementDatapackInstaller(this)
+                        .remove(datapackRoot);
             } finally {
                 datapackRemovalQueued = false;
             }
@@ -758,8 +919,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             I18n.logInfo("plugin.craftengine_reload");
             refreshAfterCraftEngineReload();
             loadRecipeManagersWhenReady("plugin.refreshing_recipes_after_ce");
-            // CE 物品现已加载：（重新）构建进度，使图标使用 CE 物品。
+            // CE items are now loaded: (re)build advancements so icons use CE items.
             refreshAdvancementSystemWhenReady(true);
+            // Rebuild the item/GUI/behavior caches CE reload just invalidated so the next interaction is cheap.
+            warmUpWhenReady("reload");
             CraftEngineStateUsageMonitor.logRealStateUsage(this, I18n.formatConsole("plugin.craftengine_reload_reason"));
         }, 1L);
     }
@@ -769,9 +932,13 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     private void refreshAfterCraftEngineReload() {
+        com.huidu.farmersdelight.util.ItemUtils.clearItemCache();
+        com.huidu.farmersdelight.util.SoundUtils.clearCache();
         RecipeViewGui.clearConfigCache();
+        com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.clearConfigCache();
         StoveCookingBlockBehavior.clearRecipeCache();
         clearLegacySkilletRecipeCache();
+        BlockPlaceListener.reloadMushroomSupportCache(this);
 
         if (stoveManager != null) {
             stoveManager.reloadConfig();
@@ -794,22 +961,34 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         reloadAll();
     }
 
-    public void reloadAll() {
-        ensureConfigDefaults();
+    /** Shared reload body for reloadAll / reloadMainConfigOnly: config defaults, cache clears,
+     * and every manager reload. The only differences the callers layer on are whether language files reload
+     * (reloadLanguages) and whether recipe reload + the reload event follow. */
+    private void reloadCommon(boolean reloadLanguages) {
+        configBootstrap.ensureConfigDefaults();
         reloadConfig();
-        migrateConfigKeys();
+        configBootstrap.migrateConfigKeys();
         boolean previousAdvancementsEnabled = advancementsEnabled;
         loadConfigs();
-        I18n.reload();
+        if (reloadLanguages) {
+            I18n.reload();
+        }
+        com.huidu.farmersdelight.util.ItemUtils.clearItemCache();
+        com.huidu.farmersdelight.util.SoundUtils.clearCache();
         RecipeViewGui.clearConfigCache();
+        com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.clearConfigCache();
         StoveCookingBlockBehavior.clearRecipeCache();
         clearLegacySkilletRecipeCache();
+        BlockPlaceListener.reloadMushroomSupportCache(this);
 
         if (knifeDropHandler != null) {
             knifeDropHandler.loadConfig(false);
         }
         if (trayManager != null) {
             trayManager.reload();
+        }
+        if (handleManager != null) {
+            handleManager.reload();
         }
         if (stoveManager != null) {
             stoveManager.reloadConfig();
@@ -826,8 +1005,16 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             skilletManager.reloadConfig();
             skilletManager.reloadRecipeCache();
         }
+        if (buffBossbarManager != null) {
+            buffBossbarManager.applyConfig(getConfig().getConfigurationSection("bossbar"));
+        com.huidu.farmersdelight.effect.EffectManager.applyBossbarStyles(
+                getConfig().getConfigurationSection("bossbar.styles"));
+        }
         if (foodEatListener != null) {
             foodEatListener.reload();
+        }
+        if (recipeDiscoveryManager != null) {
+            recipeDiscoveryManager.reloadConfig();
         }
         if (horseFeedTemptListener != null) {
             horseFeedTemptListener.reload();
@@ -835,56 +1022,24 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         if (previousAdvancementsEnabled != advancementsEnabled) {
             refreshAdvancementSystem(true);
         }
+    }
+
+    public void reloadAll() {
+        reloadCommon(true);
         reloadRecipesWhenReady("plugin.reloading_recipes");
 
+        org.bukkit.Bukkit.getPluginManager().callEvent(
+                new com.huidu.farmersdelight.api.event.FarmersDelightReloadEvent("reloadAll"));
         I18n.logInfo("plugin.configuration_reloaded");
     }
 
     public void reloadMainConfigOnly() {
-        ensureConfigDefaults();
-        reloadConfig();
-        migrateConfigKeys();
-        boolean previousAdvancementsEnabled = advancementsEnabled;
-        loadConfigs();
-        RecipeViewGui.clearConfigCache();
-        StoveCookingBlockBehavior.clearRecipeCache();
-        clearLegacySkilletRecipeCache();
-
-        if (knifeDropHandler != null) {
-            knifeDropHandler.loadConfig(false);
-        }
-        if (trayManager != null) {
-            trayManager.reload();
-        }
-        if (stoveManager != null) {
-            stoveManager.reloadConfig();
-            stoveManager.reloadRecipeCache();
-        }
-        if (tickManager != null) {
-            tickManager.reloadConfig();
-        }
-        if (itemDisplayManager instanceof ProxyItemDisplayManager proxyItemDisplayManager) {
-            proxyItemDisplayManager.reload();
-        }
-        CuttingBoardBlockBehavior.refreshDisplayEntities();
-        if (skilletManager != null) {
-            skilletManager.reloadConfig();
-            skilletManager.reloadRecipeCache();
-        }
-        if (foodEatListener != null) {
-            foodEatListener.reload();
-        }
-        if (horseFeedTemptListener != null) {
-            horseFeedTemptListener.reload();
-        }
-        if (previousAdvancementsEnabled != advancementsEnabled) {
-            refreshAdvancementSystem(true);
-        }
+        reloadCommon(false);
         I18n.logInfo("plugin.main_configuration_reloaded");
     }
 
     public void reloadGuiConfig() {
-        ensureConfigDefaults();
+        configBootstrap.ensureConfigDefaults();
         guiConfig = loadGuiConfig();
         ConfigurationSection cookingPotSection = guiConfig.getConfigurationSection("cooking-pot-gui");
         cookingPotGuiConfig = cookingPotSection != null
@@ -893,6 +1048,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         customCookingPotGuiConfigs = loadCustomCookingPotGuiConfigs(guiConfig);
         recipeEditorGuiConfig = RecipeEditorGuiConfig.fromConfig(guiConfig);
         RecipeViewGui.clearConfigCache();
+        com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.clearConfigCache();
         CookingPotGui.closeAllOpenGuis();
         RecipeViewGui.closeAllOpenGuis();
         I18n.logInfo("plugin.gui_configuration_reloaded", "file", "gui.yml");
@@ -900,9 +1056,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     public void reloadLanguageFiles() {
         I18n.reload();
-        // GUI 物品名称/lore 来源于语言文件并被缓存，因此需使这些缓存失效，
-        // 并关闭已打开的 GUI，以强制用新语言重新构建。
+        // GUI item names/lore come from language files and are cached, so invalidate those caches
+        // and close open GUIs to force a rebuild in the new language.
         RecipeViewGui.clearConfigCache();
+        com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.clearConfigCache();
         CookingPotGui.closeAllOpenGuis();
         RecipeViewGui.closeAllOpenGuis();
         I18n.logInfo("plugin.language_files_reloaded");
@@ -924,16 +1081,19 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         debugEnabled = getConfig().getBoolean("debug", false)
                 || getConfig().getBoolean("debug.enabled", false);
         debugCategories = getConfig().getStringList("debug.categories").stream()
+                .filter(Objects::nonNull)
                 .map(String::trim)
-                .map(String::toLowerCase)
+                .map(s -> s.toLowerCase(Locale.ROOT))
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toUnmodifiableSet());
         knifeItemIds = getConfig().getStringList("knife-config.items").stream()
+                .filter(Objects::nonNull)
                 .map(String::trim)
                 .map(s -> s.toLowerCase(Locale.ROOT))
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toUnmodifiableSet());
         knifeTagIds = getConfig().getStringList("knife-config.tags").stream()
+                .filter(Objects::nonNull)
                 .map(String::trim)
                 .map(s -> s.startsWith("#") ? s.substring(1) : s)
                 .map(s -> s.toLowerCase(Locale.ROOT))
@@ -944,12 +1104,29 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
 
         ConfigurationSection heatSourceSection = getConfig().getConfigurationSection("heat-sources");
-        heatSourceConfig = new HeatSourceConfig();
+        // R-CONC-002 safe publication: populate a local instance fully, then assign the volatile field
+        // once. Region-thread readers (cooking-pot / skillet heat checks) must never observe a half-filled
+        // config while /fd reload mutates it — assign-once gives them a happens-before edge to full state.
+        HeatSourceConfig newHeatSourceConfig = new HeatSourceConfig();
         HeatSourceConfig.setLogger(getLogger());
-        heatSourceConfig.loadDefaults();
+        newHeatSourceConfig.loadDefaults();
         if (heatSourceSection != null) {
-            heatSourceConfig.loadFromConfig(heatSourceSection);
+            newHeatSourceConfig.loadFromConfig(heatSourceSection);
         }
+        heatSourceConfig = newHeatSourceConfig;
+
+        // Rug underlying-block config lives beside the other FarmersDelight CraftEngine data
+        // (plugins/CraftEngine/resources/farmersdelight/rugs.yml), not in this plugin's config.yml, so
+        // admins tune all rug config in one place. Same R-CONC-002 safe-publication as heatSourceConfig:
+        // RugListener reads it from region-thread block events.
+        RugConfig newRugConfig = new RugConfig();
+        RugConfig.setLogger(getLogger());
+        newRugConfig.loadDefaults();
+        ConfigurationSection rugSection = loadRugConfigSection();
+        if (rugSection != null) {
+            newRugConfig.loadFromConfig(rugSection);
+        }
+        rugConfig = newRugConfig;
 
         guiConfig = loadGuiConfig();
         ConfigurationSection cookingPotSection = guiConfig.getConfigurationSection("cooking-pot-gui");
@@ -959,25 +1136,31 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         customCookingPotGuiConfigs = loadCustomCookingPotGuiConfigs(guiConfig);
         recipeEditorGuiConfig = RecipeEditorGuiConfig.fromConfig(guiConfig);
 
+        // R-CONC-002 safe publication (same as heatSourceConfig above): each is read from region-thread
+        // events (grass-break straw / pet-feed / cooking-pot container) and rebuilt on /fd reload from the
+        // global thread — populate a local, then assign the field once so readers never see partial state.
         ConfigurationSection strawDropSection = getConfig().getConfigurationSection("straw-drops");
-        strawDropConfig = new StrawDropConfig();
-        strawDropConfig.loadDefaults();
+        StrawDropConfig newStrawDropConfig = new StrawDropConfig();
+        newStrawDropConfig.loadDefaults();
         if (strawDropSection != null) {
-            strawDropConfig.loadFromConfig(strawDropSection);
+            newStrawDropConfig.loadFromConfig(strawDropSection);
         }
+        strawDropConfig = newStrawDropConfig;
 
         ConfigurationSection petFoodSection = getConfig().getConfigurationSection("pet-foods");
-        petFoodConfig = new PetFoodConfig();
+        PetFoodConfig newPetFoodConfig = new PetFoodConfig();
         if (petFoodSection != null) {
-            petFoodConfig.loadFromConfig(petFoodSection);
+            newPetFoodConfig.loadFromConfig(petFoodSection);
         }
+        petFoodConfig = newPetFoodConfig;
 
         ConfigurationSection containerReturnSection = getFirstConfigSection("cooking-pot.container-returns", "container-returns");
-        containerReturnConfig = new ContainerReturnConfig();
-        containerReturnConfig.loadDefaults();
+        ContainerReturnConfig newContainerReturnConfig = new ContainerReturnConfig();
+        newContainerReturnConfig.loadDefaults();
         if (containerReturnSection != null) {
-            containerReturnConfig.loadFromConfig(containerReturnSection);
+            newContainerReturnConfig.loadFromConfig(containerReturnSection);
         }
+        containerReturnConfig = newContainerReturnConfig;
 
         CuttingBoardDisplayConfig newCuttingBoardDisplayConfig = new CuttingBoardDisplayConfig();
         newCuttingBoardDisplayConfig.loadFromConfig(getConfig().getConfigurationSection("cutting-board"));
@@ -1120,6 +1303,11 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return cuttingBoardInteractionMode;
     }
 
+    /** When true, only items with a cutting-board recipe (or tools) may be placed on the board. */
+    public boolean isCuttingBoardRecipeOnlyPlacement() {
+        return getConfig().getBoolean("cutting-board.recipe-only-placement", false);
+    }
+
     public boolean isCookingPotHopperInteractionsEnabled() {
         return hopperInteractionsEnabled && cookingPotHopperInteractionsEnabled;
     }
@@ -1214,428 +1402,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return knifeTagIds;
     }
 
-    private void ensureConfigDefaults() {
-        Path dataFolder = getDataFolder().toPath();
-        Path configPath = dataFolder.resolve("config.yml");
-        Path guiPath = dataFolder.resolve("gui.yml");
-        try {
-            Files.createDirectories(dataFolder);
-            if (Files.notExists(configPath)) {
-                writeBundledConfig(configPath);
-            }
-            writeBundledResourceIfMissing("gui.yml", guiPath);
-
-            if (shouldRestoreConfig(configPath)) {
-                backupBrokenConfig(configPath);
-                writeBundledConfig(configPath);
-                getLogger().warning("Restored unreadable config file from bundled defaults: config.yml");
-            }
-            if (shouldRestoreConfig(guiPath)) {
-                backupBrokenConfig(guiPath);
-                writeBundledResource("gui.yml", guiPath, true);
-                getLogger().warning("Restored unreadable config file from bundled defaults: gui.yml");
-            }
-        } catch (IOException e) {
-            getLogger().warning("Failed to prepare bundled config files: " + e.getMessage());
-        }
-    }
-
-    private void migrateConfigKeys() {
-        boolean changed = false;
-        for (String[] migration : CONFIG_KEY_MIGRATIONS) {
-            changed |= migrateConfigSection(migration[0], migration[1]);
-        }
-        if (changed) {
-            saveConfig();
-            reloadConfig();
-        }
-    }
-
-    private boolean migrateConfigSection(String oldPath, String newPath) {
-        if (getConfig().isSet(newPath) || !getConfig().isSet(oldPath)) {
-            return false;
-        }
-        ConfigurationSection oldSection = getConfig().getConfigurationSection(oldPath);
-        if (oldSection != null) {
-            ConfigurationSection newSection = getConfig().createSection(newPath);
-            copyConfigSection(oldSection, newSection);
-        } else {
-            getConfig().set(newPath, getConfig().get(oldPath));
-        }
-        getConfig().set(oldPath, null);
-        getLogger().info("Migrated config key '" + oldPath + "' to '" + newPath + "'.");
-        return true;
-    }
-
-    private void copyConfigSection(ConfigurationSection source, ConfigurationSection target) {
-        for (String key : source.getKeys(false)) {
-            ConfigurationSection child = source.getConfigurationSection(key);
-            if (child != null) {
-                copyConfigSection(child, target.createSection(key));
-            } else {
-                target.set(key, source.get(key));
-            }
-        }
-    }
-
-    private boolean shouldRestoreConfig(Path configPath) {
-        if (!isYamlReadable(configPath)) {
-            return true;
-        }
-        try {
-            return Files.readString(configPath, StandardCharsets.UTF_8).indexOf('\uFFFD') >= 0;
-        } catch (IOException e) {
-            return true;
-        }
-    }
-
-    private boolean isYamlReadable(Path configPath) {
-        try {
-            org.bukkit.configuration.file.YamlConfiguration yaml = new org.bukkit.configuration.file.YamlConfiguration();
-            try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(configPath), StandardCharsets.UTF_8)) {
-                yaml.load(reader);
-            }
-            return true;
-        } catch (Exception ignored) {
-            return false;
-        }
-    }
-
-    private void backupBrokenConfig(Path configPath) throws IOException {
-        String fileName = configPath.getFileName().toString();
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
-        String backupName = fileName + "." + timestamp + ".bak";
-        Files.copy(configPath, configPath.resolveSibling(backupName), StandardCopyOption.REPLACE_EXISTING);
-    }
-
-    private void writeBundledConfig(Path configPath) throws IOException {
-        writeBundledResource("config.yml", configPath, true);
-    }
-
-    private void writeBundledResourceIfMissing(String resourcePath, Path targetPath) throws IOException {
-        if (Files.notExists(targetPath)) {
-            writeBundledResource(resourcePath, targetPath, false);
-        }
-    }
-
-    private void writeBundledResource(String resourcePath, Path targetPath, boolean replace) throws IOException {
-        try (InputStream inputStream = getResource(resourcePath)) {
-            if (inputStream == null) {
-                throw new IOException("Bundled " + resourcePath + " was not found in the plugin jar.");
-            }
-            String content = decodeUtf8Resource(inputStream.readAllBytes(), resourcePath);
-            if (isYamlResource(resourcePath) && !isYamlContentReadable(content)) {
-                throw new IOException("Bundled " + resourcePath + " is not valid YAML.");
-            }
-            writeStringAtomically(targetPath, content, replace);
-        }
-    }
-
-    private String decodeUtf8Resource(byte[] bytes, String resourcePath) throws IOException {
-        try {
-            return StandardCharsets.UTF_8.newDecoder()
-                    .onMalformedInput(CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(CodingErrorAction.REPORT)
-                    .decode(ByteBuffer.wrap(bytes))
-                    .toString();
-        } catch (CharacterCodingException e) {
-            throw new IOException("Bundled " + resourcePath + " is not valid UTF-8.", e);
-        }
-    }
-
-    private boolean isYamlResource(String resourcePath) {
-        return resourcePath != null
-                && (resourcePath.equals("config.yml") || resourcePath.equals("gui.yml"));
-    }
-
-    private boolean isYamlContentReadable(String content) {
-        try {
-            YamlConfiguration yaml = new YamlConfiguration();
-            yaml.loadFromString(content);
-            return true;
-        } catch (Exception ignored) {
-            return false;
-        }
-    }
-
-    private void writeStringAtomically(Path targetPath, String content, boolean replace) throws IOException {
-        Path parent = targetPath.getParent();
-        if (parent != null) {
-            Files.createDirectories(parent);
-        }
-        if (!replace && Files.exists(targetPath)) {
-            throw new IOException("Target already exists: " + targetPath);
-        }
-
-        Path tempFile = parent == null
-                ? Files.createTempFile(targetPath.getFileName().toString(), ".tmp")
-                : Files.createTempFile(parent, targetPath.getFileName().toString(), ".tmp");
-        boolean moved = false;
-        try {
-            Files.writeString(tempFile, content, StandardCharsets.UTF_8,
-                    StandardOpenOption.WRITE,
-                    StandardOpenOption.TRUNCATE_EXISTING);
-            try {
-                if (replace) {
-                    Files.move(tempFile, targetPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-                } else {
-                    Files.move(tempFile, targetPath, StandardCopyOption.ATOMIC_MOVE);
-                }
-            } catch (AtomicMoveNotSupportedException ignored) {
-                if (replace) {
-                    Files.move(tempFile, targetPath, StandardCopyOption.REPLACE_EXISTING);
-                } else {
-                    Files.move(tempFile, targetPath);
-                }
-            }
-            moved = true;
-        } finally {
-            if (!moved) {
-                Files.deleteIfExists(tempFile);
-            }
-        }
-    }
-
-    private void releaseBundledCraftEngineResourcesOnce() {
-        Path pluginsFolder = getDataFolder().toPath().getParent();
-        if (pluginsFolder == null) {
-            I18n.logWarning("plugin.craftengine_resources_release_failed",
-                    "error", "Unable to resolve the plugins folder.");
-            return;
-        }
-
-        Path targetRoot = pluginsFolder.resolve(CRAFTENGINE_RESOURCE_TARGET);
-        try {
-            int copiedFiles;
-            if (Files.exists(targetRoot)) {
-                // 首次释放是无条件进行的；该开关仅控制在后续启动时是否重新补全缺失的文件。
-                if (!getConfig().getBoolean("craftengine-resources.auto-completion", true)) {
-                    return;
-                }
-                copiedFiles = copyMissingBundledResourceFiles(CRAFTENGINE_RESOURCE_ROOT, targetRoot);
-            } else {
-                copiedFiles = copyBundledResourceDirectory(CRAFTENGINE_RESOURCE_ROOT, targetRoot);
-            }
-            if (copiedFiles > 0) {
-                I18n.logInfo("plugin.craftengine_resources_released",
-                        "path", targetRoot,
-                        "count", copiedFiles);
-            }
-        } catch (IOException e) {
-            I18n.logWarning("plugin.craftengine_resources_release_failed", "error", e.getMessage());
-        }
-    }
-
-    private int copyMissingBundledResourceFiles(String resourceRoot, Path targetRoot) throws IOException {
-        List<String> resourcePaths = listBundledResourceFiles(resourceRoot);
-        if (resourcePaths.isEmpty()) {
-            throw new IOException("No bundled CraftEngine resources found at " + resourceRoot);
-        }
-
-        int copiedFiles = 0;
-        Files.createDirectories(targetRoot);
-        for (String resourcePath : resourcePaths) {
-            String relativePath = resourcePath.substring(resourceRoot.length() + 1);
-            Path targetPath = resolveSafeChild(targetRoot, relativePath);
-            if (Files.exists(targetPath)) {
-                continue;
-            }
-
-            Files.createDirectories(Objects.requireNonNull(targetPath.getParent(), "targetPath parent"));
-            Path tempFile = Files.createTempFile(targetPath.getParent(), "fd-ce-resource-", ".tmp");
-            boolean moved = false;
-            try (InputStream inputStream = getResource(resourcePath)) {
-                if (inputStream == null) {
-                    throw new IOException("Bundled " + resourcePath + " was not found in the plugin jar.");
-                }
-                Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
-                try {
-                    Files.move(tempFile, targetPath, StandardCopyOption.ATOMIC_MOVE);
-                } catch (AtomicMoveNotSupportedException ignored) {
-                    Files.move(tempFile, targetPath);
-                }
-                moved = true;
-                copiedFiles++;
-            } finally {
-                if (!moved) {
-                    Files.deleteIfExists(tempFile);
-                }
-            }
-        }
-        return copiedFiles;
-    }
-
-    private int copyBundledResourceDirectory(String resourceRoot, Path targetRoot) throws IOException {
-        List<String> resourcePaths = listBundledResourceFiles(resourceRoot);
-        if (resourcePaths.isEmpty()) {
-            throw new IOException("No bundled CraftEngine resources found at " + resourceRoot);
-        }
-
-        Path parent = Objects.requireNonNull(targetRoot.getParent(), "targetRoot parent");
-        Files.createDirectories(parent);
-        Path tempRoot = Files.createTempDirectory(parent, targetRoot.getFileName() + "-");
-        boolean moved = false;
-
-        try {
-            int copiedFiles = 0;
-            for (String resourcePath : resourcePaths) {
-                String relativePath = resourcePath.substring(resourceRoot.length() + 1);
-                Path targetPath = resolveSafeChild(tempRoot, relativePath);
-                Files.createDirectories(Objects.requireNonNull(targetPath.getParent(), "targetPath parent"));
-                try (InputStream inputStream = getResource(resourcePath)) {
-                    if (inputStream == null) {
-                        throw new IOException("Bundled " + resourcePath + " was not found in the plugin jar.");
-                    }
-                    Files.copy(inputStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
-                    copiedFiles++;
-                }
-            }
-
-            try {
-                Files.move(tempRoot, targetRoot, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException ignored) {
-                Files.move(tempRoot, targetRoot);
-            }
-            moved = true;
-            return copiedFiles;
-        } finally {
-            if (!moved) {
-                deleteTreeQuietly(tempRoot);
-            }
-        }
-    }
-
-    private Path resolveSafeChild(Path root, String relativePath) throws IOException {
-        Path normalizedRoot = root.normalize();
-        Path targetPath = normalizedRoot.resolve(relativePath).normalize();
-        if (!targetPath.startsWith(normalizedRoot)) {
-            throw new IOException("Invalid bundled resource path: " + relativePath);
-        }
-        return targetPath;
-    }
-
-    private List<String> listBundledResourceFiles(String resourceRoot) throws IOException {
-        // 主要策略：直接扫描插件 jar 的条目。jar 中不保证一定存在目录条目 ——
-        // 经 ProGuard 混淆的 Folia jar（obfuscateFoliaJar）会删除它们 ——
-        // 因此 getClassLoader().getResource(<directory>) 会返回 null，下方基于 URL 的遍历
-        // 也找不到任何内容（"No bundled CraftEngine resources found"）。按前缀读取文件条目
-        // 不受缺失目录条目以及各平台类加载器差异的影响。
-        List<String> fromJar = listJarFileResourceFiles(resourceRoot);
-        if (fromJar != null) {
-            return fromJar;
-        }
-
-        // 针对解压目录/IDE/测试运行场景的回退方案，此时插件未被打包为 jar 文件。
-        URL resourceUrl = getClass().getClassLoader().getResource(resourceRoot);
-        if (resourceUrl == null) {
-            return List.of();
-        }
-
-        try {
-            URI resourceUri = resourceUrl.toURI();
-            if ("file".equals(resourceUrl.getProtocol())) {
-                return listFileResourceFiles(resourceRoot, Path.of(resourceUri));
-            }
-            if ("jar".equals(resourceUrl.getProtocol())) {
-                return listJarResourceFiles(resourceRoot, resourceUri);
-            }
-            throw new IOException("Unsupported bundled resource protocol: " + resourceUrl.getProtocol());
-        } catch (URISyntaxException e) {
-            throw new IOException("Invalid bundled resource URI for " + resourceRoot, e);
-        }
-    }
-
-    /**
-     * 通过扫描插件 jar 的条目，列出 resourceRoot 下的内置资源文件。
-     * 当插件不是从可读的 jar 文件运行时（例如解压的 IDE/测试运行），返回 null
-     * （而非空列表），以便调用方回退到基于类加载器的发现方式。
-     */
-    private List<String> listJarFileResourceFiles(String resourceRoot) throws IOException {
-        File pluginJar = getFile();
-        if (pluginJar == null || !pluginJar.isFile()) {
-            return null;
-        }
-
-        String prefix = resourceRoot.endsWith("/") ? resourceRoot : resourceRoot + "/";
-        List<String> resourcePaths = new ArrayList<>();
-        try (JarFile jarFile = new JarFile(pluginJar)) {
-            Enumeration<JarEntry> entries = jarFile.entries();
-            while (entries.hasMoreElements()) {
-                JarEntry entry = entries.nextElement();
-                if (entry.isDirectory()) {
-                    continue;
-                }
-                String name = entry.getName();
-                if (name.startsWith(prefix)) {
-                    resourcePaths.add(name);
-                }
-            }
-        }
-        resourcePaths.sort(Comparator.naturalOrder());
-        return resourcePaths;
-    }
-
-    private List<String> listFileResourceFiles(String resourceRoot, Path rootPath) throws IOException {
-        try (Stream<Path> stream = Files.walk(rootPath)) {
-            return stream
-                    .filter(Files::isRegularFile)
-                    .map(rootPath::relativize)
-                    .map(path -> resourceRoot + "/" + path.toString().replace('\\', '/'))
-                    .sorted()
-                    .toList();
-        }
-    }
-
-    private List<String> listJarResourceFiles(String resourceRoot, URI resourceUri) throws IOException {
-        String uriText = resourceUri.toString();
-        int separatorIndex = uriText.indexOf("!/");
-        if (separatorIndex < 0) {
-            throw new IOException("Invalid jar resource URI: " + resourceUri);
-        }
-
-        URI jarUri = URI.create(uriText.substring(0, separatorIndex));
-        FileSystem fileSystem = null;
-        boolean closeFileSystem = false;
-
-        try {
-            try {
-                fileSystem = FileSystems.newFileSystem(jarUri, Map.of());
-                closeFileSystem = true;
-            } catch (FileSystemAlreadyExistsException ignored) {
-                fileSystem = FileSystems.getFileSystem(jarUri);
-            }
-
-            Path rootPath = fileSystem.getPath("/" + resourceRoot);
-            try (Stream<Path> stream = Files.walk(rootPath)) {
-                return stream
-                        .filter(Files::isRegularFile)
-                        .map(rootPath::relativize)
-                        .map(path -> resourceRoot + "/" + path.toString().replace('\\', '/'))
-                        .sorted()
-                        .toList();
-            }
-        } finally {
-            if (closeFileSystem && fileSystem != null) {
-                fileSystem.close();
-            }
-        }
-    }
-
-    private void deleteTreeQuietly(Path root) {
-        if (root == null || !Files.exists(root)) {
-            return;
-        }
-        try (Stream<Path> stream = Files.walk(root)) {
-            for (Path path : stream.sorted((left, right) -> right.getNameCount() - left.getNameCount()).toList()) {
-                try {
-                    Files.deleteIfExists(path);
-                } catch (IOException ignored) {
-                }
-            }
-        } catch (IOException ignored) {
-        }
-    }
-
     private YamlConfiguration loadGuiConfig() {
         Path guiPath = getDataFolder().toPath().resolve("gui.yml");
         YamlConfiguration yaml = new YamlConfiguration();
@@ -1653,30 +1419,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return yaml;
     }
 
-    private void registerBlockBehaviors() {
-        registerBehavior(Constants.BEHAVIOR_COOKING_POT, CookingPotBlockBehavior.FACTORY);
-        registerBehavior(Constants.BEHAVIOR_CUTTING_BOARD, CuttingBoardBlockBehavior.FACTORY);
-        registerBehavior(Constants.BEHAVIOR_SKILLET, SkilletBlockBehavior.FACTORY);
-        registerBehavior(Constants.BEHAVIOR_STOVE, StoveCookingBlockBehavior.FACTORY);
-        registerBehavior(Constants.BEHAVIOR_TALL_CROP, TallCropBlockBehavior.FACTORY);
-        // 暂时搁置的开发中功能（tatami 配对）—— 在完成之前不注册该 behavior。
-        // registerBehavior(Constants.BEHAVIOR_TATAMI, TatamiPairingBehavior.FACTORY);
-        registerBehavior(Constants.BEHAVIOR_UPPER_HALF_LOOT_RELAY, UpperHalfLootRelayBehavior.FACTORY);
-        registerBehavior(Constants.BEHAVIOR_WILD_RICE, WildRiceBlockBehavior.FACTORY);
-        registerBehavior(Constants.BEHAVIOR_ROPE, RopeBlockBehavior.FACTORY);
-        registerBehavior(Constants.BEHAVIOR_MUSHROOM_COLONY, MushroomColonyBehavior.FACTORY);
-        registerBehavior(Constants.BEHAVIOR_WILD_PLANT, WildPlantBlockBehavior.FACTORY);
-
-        getLogger().info(I18n.formatConsole("plugin.registered_block_behaviors"));
-    }
-
-    private void registerBehavior(String key, BlockBehaviorFactory<?> factory) {
-        Key keyObj = Key.of(key);
-        if (BuiltInRegistries.BLOCK_BEHAVIOR_TYPE.getValue(keyObj) == null) {
-            BlockBehaviors.register(keyObj, factory);
-        }
-    }
-
     public BukkitCraftEngine getCraftEngine() {
         return BukkitCraftEngine.instance();
     }
@@ -1686,15 +1428,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             throw new IllegalStateException("Scheduler is not available");
         }
         return scheduler;
-    }
-
-    private LegacyBlockStorageManager createLegacyBlockStorageManager() {
-        Path legacyStoragePath = getDataFolder().toPath().resolve("block_storage.yml");
-        if (Files.notExists(legacyStoragePath)) {
-            return null;
-        }
-        I18n.logInfo("plugin.legacy_storage_found");
-        return new LegacyBlockStorageManager(this);
     }
 
     public boolean isDebugEnabled() {
@@ -1713,10 +1446,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return debugCategories.contains("*")
                 || debugCategories.contains("all")
                 || debugCategories.contains(normalized);
-    }
-
-    public LegacyBlockStorageManager getLegacyBlockStorageManager() {
-        return legacyBlockStorageManager;
     }
 
     public KnifeDropHandler getKnifeDrops() {
@@ -1761,6 +1490,32 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return heatSourceConfig;
     }
 
+    /** Never null: falls back to a defaults-only config if loadConfigs() hasn't run yet. */
+    public RugConfig getRugConfig() {
+        RugConfig config = rugConfig;
+        if (config == null) {
+            config = new RugConfig();
+            config.loadDefaults();
+            rugConfig = config;
+        }
+        return config;
+    }
+
+    /**
+     * Loads rugs.yml from FarmersDelight's CraftEngine resource folder
+     * (plugins/CraftEngine/resources/farmersdelight/rugs.yml) — it sits at the pack root, a
+     * sibling of configuration/, so CraftEngine (which only scans configuration/) never
+     * tries to parse it, yet admins find it right beside the other rug definitions. Returns null if the
+     * file is absent (first startup before the bundled release, or deleted) — callers keep the defaults.
+     */
+    private ConfigurationSection loadRugConfigSection() {
+        Path pluginsFolder = getDataFolder().toPath().getParent();
+        if (pluginsFolder == null) return null;
+        File rugsFile = pluginsFolder.resolve(com.huidu.farmersdelight.resource.ResourceInstaller.CRAFTENGINE_RESOURCE_TARGET).resolve("rugs.yml").toFile();
+        if (!rugsFile.isFile()) return null;
+        return YamlConfiguration.loadConfiguration(rugsFile);
+    }
+
     public GuiConfig getCookingPotGuiConfig() {
         if (cookingPotGuiConfig == null) {
             cookingPotGuiConfig = GuiConfig.createDefault();
@@ -1790,6 +1545,13 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             guiConfig = loadGuiConfig();
         }
         return guiConfig.getConfigurationSection("recipe-view-gui");
+    }
+
+    public ConfigurationSection getRecipeBookGuiSection() {
+        if (guiConfig == null) {
+            guiConfig = loadGuiConfig();
+        }
+        return guiConfig.getConfigurationSection("recipe-book-gui");
     }
 
     private Map<String, GuiConfig> loadCustomCookingPotGuiConfigs(YamlConfiguration config) {
@@ -1859,6 +1621,14 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return trayManager;
     }
 
+    public HandleManager getHandleManager() {
+        return handleManager;
+    }
+
+    public BuffBossbarManager getBuffBossbarManager() {
+        return buffBossbarManager;
+    }
+
     public StoveManager getStoveManager() {
         return stoveManager;
     }
@@ -1867,16 +1637,45 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return skilletManager;
     }
 
+    /** Gathers every proxy display id still referenced by a live block owner (stove / skillet / cutting
+     *  board / cooking-pot text). /fd cleanup removes only displays NOT in this set — orphans —
+     *  so legitimate, in-use visuals are never touched. */
+    public java.util.Set<Integer> collectLiveDisplayIds() {
+        java.util.Set<Integer> liveIds = new java.util.HashSet<>();
+        if (stoveManager != null) {
+            stoveManager.collectLiveDisplayIds(liveIds);
+        }
+        if (skilletManager != null) {
+            skilletManager.collectLiveDisplayIds(liveIds);
+        }
+        com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior.collectLiveDisplayIds(liveIds);
+        com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior.collectLiveDisplayIds(liveIds);
+        return liveIds;
+    }
+
     public AdvancementManager getAdvancementManager() {
         return advancementManager;
     }
 
-    public ItemDisplayManager getItemDisplayManager() {
-        return itemDisplayManager;
+    /** Lazily-created registry of addon advancement tabs (see FarmersDelightAdvancements). Never null;
+     * synchronized so concurrent first calls create only one instance. */
+    public synchronized AddonAdvancementRegistry getAddonAdvancementRegistry() {
+        if (addonAdvancementRegistry == null) {
+            addonAdvancementRegistry = new AddonAdvancementRegistry(this);
+        }
+        return addonAdvancementRegistry;
     }
 
-    public ItemDisplayManager getProxyItemDisplayManager() {
-        return getItemDisplayManager();
+    public FoodEatListener getFoodEatListener() {
+        return foodEatListener;
+    }
+
+    public RecipeDiscoveryManager getRecipeDiscoveryManager() {
+        return recipeDiscoveryManager;
+    }
+
+    public ItemDisplayManager getItemDisplayManager() {
+        return itemDisplayManager;
     }
 
     public float getSkilletDisplayScale() {
@@ -1971,7 +1770,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     private String getConfiguredPrimaryLevelName() {
-        // 已缓存：最多只读取一次 server.properties。
+        // Cached: reads server.properties at most once.
         if (primaryLevelNameResolved) {
             return cachedPrimaryLevelName;
         }
@@ -2002,154 +1801,4 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
     }
 
-    private boolean syncAdvancementDatapack(Path datapackRoot, String worldName) {
-        if (datapackRoot == null || worldName == null || worldName.isBlank()) {
-            return false;
-        }
-
-        boolean updated = pruneObsoleteAdvancementFiles(datapackRoot);
-
-        for (String resourcePath : ADVANCEMENT_RESOURCES) {
-            Path target = mapAdvancementResourceTarget(datapackRoot, resourcePath);
-            try {
-                updated |= copyResourceIfChanged(resourcePath, target);
-            } catch (IOException e) {
-                I18n.logWarning("plugin.advancement_resource_sync_failed",
-                        "resource", resourcePath,
-                        "world", worldName,
-                        "error", e.getMessage());
-            }
-        }
-
-        return updated;
-    }
-
-    private boolean removeAdvancementDatapack(Path datapackRoot) {
-        if (datapackRoot == null || !Files.exists(datapackRoot)) {
-            return false;
-        }
-
-        boolean removed = false;
-        removed |= deleteIfExists(datapackRoot.resolve("pack.mcmeta"));
-        removed |= deleteTree(datapackRoot.resolve(Path.of("data", "farmersdelight")));
-
-        pruneEmptyDirectories(datapackRoot.resolve("data"), datapackRoot);
-        deleteEmptyDirectory(datapackRoot);
-        return removed;
-    }
-
-    private boolean deleteIfExists(Path path) {
-        try {
-            return Files.deleteIfExists(path);
-        } catch (IOException e) {
-            I18n.logWarning("plugin.advancement_file_delete_failed", "path", path, "error", e.getMessage());
-            return false;
-        }
-    }
-
-    private boolean deleteTree(Path root) {
-        if (!Files.exists(root)) {
-            return false;
-        }
-        boolean removed = false;
-        try (Stream<Path> stream = Files.walk(root)) {
-            for (Path path : stream.sorted((left, right) -> right.getNameCount() - left.getNameCount()).toList()) {
-                removed |= deleteIfExists(path);
-            }
-        } catch (IOException e) {
-            I18n.logWarning("plugin.advancement_directory_delete_failed", "path", root, "error", e.getMessage());
-        }
-        return removed;
-    }
-
-    private void pruneEmptyDirectories(Path start, Path boundary) {
-        Path current = start;
-        while (current != null && !current.equals(boundary)) {
-            if (!deleteEmptyDirectory(current)) {
-                return;
-            }
-            current = current.getParent();
-        }
-    }
-
-    private boolean deleteEmptyDirectory(Path directory) {
-        if (!Files.isDirectory(directory)) {
-            return false;
-        }
-        try (Stream<Path> entries = Files.list(directory)) {
-            if (entries.findAny().isPresent()) {
-                return false;
-            }
-            Files.deleteIfExists(directory);
-            return true;
-        } catch (IOException e) {
-            return false;
-        }
-    }
-
-    private boolean pruneObsoleteAdvancementFiles(Path datapackRoot) {
-        Set<Path> expectedFiles = ADVANCEMENT_RESOURCES.stream()
-                .filter(path -> path.startsWith("advancements/data/farmersdelight/advancement/main/"))
-                .map(path -> mapAdvancementResourceTarget(datapackRoot, path).normalize())
-                .collect(Collectors.toSet());
-
-        boolean updated = false;
-        for (Path mainDir : List.of(
-                datapackRoot.resolve(Path.of("data", "farmersdelight", "advancements", "main")),
-                datapackRoot.resolve(Path.of("data", "farmersdelight", "advancement", "main"))
-        )) {
-            if (!Files.isDirectory(mainDir)) {
-                continue;
-            }
-            try (Stream<Path> stream = Files.list(mainDir)) {
-                for (Path file : stream.toList()) {
-                    if (!Files.isRegularFile(file)) {
-                        continue;
-                    }
-                    Path normalized = file.normalize();
-                    if (!expectedFiles.contains(normalized)) {
-                        Files.deleteIfExists(normalized);
-                        updated = true;
-                    }
-                }
-            } catch (IOException e) {
-                I18n.logWarning("plugin.advancement_prune_failed", "path", mainDir, "error", e.getMessage());
-            }
-        }
-        return updated;
-    }
-
-    private Path mapAdvancementResourceTarget(Path datapackRoot, String resourcePath) {
-        String relativePath = resourcePath.substring("advancements/".length());
-        return datapackRoot.resolve(relativePath);
-    }
-
-    private boolean copyResourceIfChanged(String resourcePath, Path target) throws IOException {
-        try (InputStream input = getResource(resourcePath)) {
-            if (input == null) {
-                I18n.logWarning("plugin.advancement_resource_missing", "resource", resourcePath);
-                return false;
-            }
-
-            byte[] newBytes = input.readAllBytes();
-            if (Files.exists(target)) {
-                byte[] existingBytes = Files.readAllBytes(target);
-                if (java.util.Arrays.equals(existingBytes, newBytes)) {
-                    return false;
-                }
-            }
-
-            Files.createDirectories(Objects.requireNonNull(target.getParent()));
-            Path tempFile = Files.createTempFile(target.getParent(), "fd-adv", ".tmp");
-            try {
-                Files.write(tempFile, newBytes);
-                Files.move(tempFile, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (IOException atomicMoveFailure) {
-                Files.move(tempFile, target, StandardCopyOption.REPLACE_EXISTING);
-            } finally {
-                Files.deleteIfExists(tempFile);
-            }
-            return true;
-        }
-    }
 }

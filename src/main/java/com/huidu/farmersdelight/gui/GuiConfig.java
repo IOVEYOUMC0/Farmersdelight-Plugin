@@ -237,7 +237,7 @@ public class GuiConfig {
 
         Map<String, GuiItem> items = new HashMap<>();
         items.put("background", new GuiItem(Material.GRAY_STAINED_GLASS_PANE, null, " ", List.of()));
-        items.put("recipe", new GuiItem(Material.KNOWLEDGE_BOOK, null, "查看配方", List.of("点击查看所有烹饪锅配方")));
+        items.put("recipe", new GuiItem(Material.KNOWLEDGE_BOOK, null, "View Recipes", List.of("Click to view all cooking pot recipes")));
 
         return new GuiConfig(
                 "<white><offset><icon>",
@@ -658,7 +658,7 @@ public class GuiConfig {
         }
 
         public ItemStack createItem() {
-            // 用不可变空 map，避免每次（每个槽位、每次重绘）都分配一个用不到的 HashMap。
+            // Use an immutable empty map to avoid allocating an unused HashMap every time (per slot, per redraw).
             return createItem(Map.of());
         }
 
@@ -669,7 +669,6 @@ public class GuiConfig {
             }
 
             ItemStack item = resolveBaseItem();
-            boolean builtFromCustomItem = (customItemId != null && cachedCustomBaseIsReal != null && cachedCustomBaseIsReal);
 
             org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
             if (meta == null) {
@@ -680,16 +679,16 @@ public class GuiConfig {
             applyItemModel(meta, itemModel);
             applyHideTooltip(meta, hideTooltip);
 
-            if (!builtFromCustomItem && (name != null || nameKey != null)) {
+            // Prefer the configured name/lore; fall back to the base item's own (e.g. a CraftEngine custom
+            // item's built-in name/lore) only when the config omits them. A configured name/lore therefore
+            // overrides the custom item's.
+            if (name != null || nameKey != null) {
                 String processedName = applyPlaceholders(resolveText(name, nameKey), placeholders);
                 meta.displayName(Text.name(processedName));
             }
 
             if ((lore != null && !lore.isEmpty()) || !loreKeys.isEmpty()) {
                 List<net.kyori.adventure.text.Component> processedLore = new ArrayList<>();
-                if (builtFromCustomItem && meta.lore() != null) {
-                    processedLore.addAll(meta.lore());
-                }
                 if (lore != null) {
                     for (String line : lore) {
                         processedLore.add(Text.lore(applyPlaceholders(line, placeholders)));

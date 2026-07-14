@@ -1,0 +1,5 @@
+# Force LF for text config and data files so programmatic edits and
+# cross-platform checkouts don't churn CRLF <-> LF (see read-me R-PROC-001).
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.json  text eol=lf

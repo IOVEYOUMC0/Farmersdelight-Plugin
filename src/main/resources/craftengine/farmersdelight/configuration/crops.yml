@@ -10,15 +10,22 @@ blocks:
         is-randomly-ticking: true
       tags:
         - minecraft:bee_growables
+        - minecraft:crops
+        - minecraft:maintains_farmland
     behaviors:
       - type: liquid_flowable_block
       - type: crop_block
         grow-speed: 0.25
         light-requirement: 9
         is-bone-meal-target: true
+        bone_meal_age_bonus:
+          type: uniform
+          min: 1
+          max: 3
       - type: bush_block
         bottom-blocks:
           - minecraft:farmland
+          - farmersdelight:rich_soil_farmland
     states:
       properties:
         age:
@@ -115,6 +122,8 @@ blocks:
         is-randomly-ticking: true
       tags:
         - minecraft:bee_growables
+        - minecraft:crops
+        - minecraft:maintains_farmland
     behaviors:
       - type: farmersdelight:tall_crop
         extra_planting_items:
@@ -122,9 +131,10 @@ blocks:
         grow-speed: 0.25
         light-requirement: 6
         is-bone-meal-target: true
-        bone-meal-min: 1
-        bone-meal-max: 4
-        random-bone-meal-growth: true
+        bone_meal_age_bonus:
+          type: uniform
+          min: 1
+          max: 4
         requires-water: true
         harvest-tool-tags:
           - "#farmersdelight:knives"
@@ -233,15 +243,24 @@ blocks:
         item: farmersdelight:cabbage_seeds
         push-reaction: destroy
         is-randomly-ticking: true
+      tags:
+        - minecraft:bee_growables
+        - minecraft:crops
+        - minecraft:maintains_farmland
     behaviors:
       - type: liquid_flowable_block
       - type: crop_block
         grow-speed: 0.25
         light-requirement: 9
         is-bone-meal-target: true
+        bone_meal_age_bonus:
+          type: uniform
+          min: 1
+          max: 3
       - type: bush_block
         bottom-blocks:
           - minecraft:farmland
+          - farmersdelight:rich_soil_farmland
     states:
       properties:
         age:
@@ -344,7 +363,7 @@ blocks:
                             type: binomial_with_bonus_count
                             extra: 5
                             probability: 0.5714286
-  farmersdelight:tomatoes:
+  farmersdelight:budding_tomatoes:
     settings:
       template:
         - default:hardness/none
@@ -355,21 +374,29 @@ blocks:
         is-randomly-ticking: true
       tags:
         - minecraft:bee_growables
+        - minecraft:crops
+        - minecraft:maintains_farmland
     behaviors:
       - type: liquid_flowable_block
       - type: crop_block
         grow-speed: 0.25
         light-requirement: 9
-        is-bone-meal-target: true
+        is-bone-meal-target: false
+        bone-meal-age-bonus: 0
       - type: bush_block
         bottom-blocks:
           - minecraft:farmland
+          - farmersdelight:rich_soil_farmland
+      - type: farmersdelight:tomato_vine
+        budding-block: farmersdelight:budding_tomatoes
+        tomatoes-block: farmersdelight:tomatoes
+        crop-on-rope-block: farmersdelight:tomato_crop_on_rope
     states:
       properties:
         age:
           type: int
           default: 0
-          range: 0~7
+          range: 0~3
       appearances:
         age=0:
           auto-state: lower_tripwire
@@ -383,16 +410,62 @@ blocks:
         age=3:
           auto-state: higher_tripwire
           model: farmersdelight:block/budding_tomatoes_stage3
-        age=4:
+      variants:
+        age=0:
+          appearance: age=0
+        age=1:
+          appearance: age=1
+        age=2:
+          appearance: age=2
+        age=3:
+          appearance: age=3
+  farmersdelight:tomatoes:
+    settings:
+      template:
+        - default:hardness/none
+        - default:sound/grass
+      overrides:
+        item: farmersdelight:tomato_seeds
+        push-reaction: destroy
+        is-randomly-ticking: true
+      tags:
+        - minecraft:crops
+        - minecraft:maintains_farmland
+    behaviors:
+      - type: liquid_flowable_block
+      - type: crop_block
+        grow-speed: 0.25
+        light-requirement: 9
+        is-bone-meal-target: true
+        bone_meal_age_bonus:
+          type: uniform
+          min: 1
+          max: 2
+      - type: bush_block
+        bottom-blocks:
+          - minecraft:farmland
+          - farmersdelight:rich_soil_farmland
+      - type: farmersdelight:tomato_vine
+        budding-block: farmersdelight:budding_tomatoes
+        tomatoes-block: farmersdelight:tomatoes
+        crop-on-rope-block: farmersdelight:tomato_crop_on_rope
+    states:
+      properties:
+        age:
+          type: int
+          default: 0
+          range: 0~3
+      appearances:
+        age=0:
           auto-state: sugar_cane
           model: farmersdelight:block/tomatoes_stage0
-        age=5:
+        age=1:
           auto-state: sugar_cane
           model: farmersdelight:block/tomatoes_stage1
-        age=6:
+        age=2:
           auto-state: sugar_cane
           model: farmersdelight:block/tomatoes_stage2
-        age=7:
+        age=3:
           auto-state: sugar_cane
           model: farmersdelight:block/tomatoes_stage3
       variants:
@@ -404,20 +477,12 @@ blocks:
           appearance: age=2
         age=3:
           appearance: age=3
-        age=4:
-          appearance: age=4
-        age=5:
-          appearance: age=5
-        age=6:
-          appearance: age=6
-        age=7:
-          appearance: age=7
     events:
       - on: right_click
         conditions:
           - type: match_block_property
             properties:
-              age: 7
+              age: 3
         functions:
           - type: drop_loot
             x: <arg:block.block_x> + 0.5
@@ -429,34 +494,136 @@ blocks:
                   entries:
                     - type: item
                       item: farmersdelight:tomato
-                      functions:
-                        - type: set_count
-                          count:
-                            type: uniform
-                            min: 1
-                            max: 3
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:rotten_tomato
                       functions:
                         - type: set_count
                           count:
                             type: uniform
                             min: 1
                             max: 2
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:rotten_tomato
+                      count: 1
                       conditions:
                         - type: random
-                          chance: 0.0001
+                          chance: 0.05
           - type: update_block_property
             properties:
-              age: 4
+              age: 0
           - type: swing_hand
+          - type: play_sound
+            sound: farmersdelight:block.tomato_bush.pick_tomatoes
       - on: break
+        functions:
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  conditions:
+                    - type: match_block_property
+                      properties:
+                        age: 3
+                  entries:
+                    - type: item
+                      item: farmersdelight:tomato
+                      functions:
+                        - type: set_count
+                          count:
+                            type: uniform
+                            min: 1
+                            max: 2
+                        - type: apply_bonus
+                          enchantment: minecraft:fortune
+                          formula:
+                            type: binomial_with_bonus_count
+                            extra: 5
+                            probability: 0.5714286
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: farmersdelight:tomato_seeds
+                      count: 1
+                - rolls: 1
+                  conditions:
+                    - type: match_block_property
+                      properties:
+                        age: 3
+                    - type: random
+                      chance: 0.05
+                  entries:
+                    - type: item
+                      item: farmersdelight:rotten_tomato
+                      count: 1
+  farmersdelight:tomato_crop_on_rope:
+    settings:
+      template:
+        - default:hardness/none
+        - default:sound/grass
+      overrides:
+        item: farmersdelight:tomato_seeds
+        push-reaction: destroy
+        is-randomly-ticking: true
+      tags:
+        - minecraft:crops
+        - minecraft:climbable
+    behaviors:
+      - type: crop_block
+        grow-speed: 0.25
+        light-requirement: 9
+        is-bone-meal-target: true
+        bone_meal_age_bonus:
+          type: uniform
+          min: 1
+          max: 2
+      - type: bush_block
+        bottom-blocks:
+          - farmersdelight:tomatoes
+        stackable: true
+        max-height: 3
+        delay: 1
+      - type: farmersdelight:tomato_vine
+        budding-block: farmersdelight:budding_tomatoes
+        tomatoes-block: farmersdelight:tomatoes
+        crop-on-rope-block: farmersdelight:tomato_crop_on_rope
+        mature-age: 0
+    states:
+      properties:
+        age:
+          type: int
+          default: 0
+          range: 0~3
+      appearances:
+        age=0:
+          auto-state: twisting_vines
+          model: farmersdelight:block/tomatoes_vine_stage0
+        age=1:
+          auto-state: twisting_vines
+          model: farmersdelight:block/tomatoes_vine_stage1
+        age=2:
+          auto-state: twisting_vines
+          model: farmersdelight:block/tomatoes_vine_stage2
+        age=3:
+          auto-state: twisting_vines
+          model: farmersdelight:block/tomatoes_vine_stage3
+      variants:
+        age=0:
+          appearance: age=0
+        age=1:
+          appearance: age=1
+        age=2:
+          appearance: age=2
+        age=3:
+          appearance: age=3
+    events:
+      - on: right_click
         conditions:
           - type: match_block_property
             properties:
-              age: 7
+              age: 3
         functions:
           - type: drop_loot
             x: <arg:block.block_x> + 0.5
@@ -466,28 +633,40 @@ blocks:
               pools:
                 - rolls: 1
                   entries:
-                    - type: alternatives
-                      children:
-                        - type: item
-                          item: farmersdelight:tomato_seeds
-                          functions:
-                          - type: set_count
-                            count:
-                              type: uniform
-                              min: 1
-                              max: 3
-                        - type: item
-                          item: farmersdelight:tomato
-                          functions:
-                            - type: set_count
-                              count:
-                                type: uniform
-                                min: 1
-                                max: 3
+                    - type: item
+                      item: farmersdelight:tomato
+                      functions:
+                        - type: set_count
+                          count:
+                            type: uniform
+                            min: 1
+                            max: 2
                 - rolls: 1
-                  conditions:
-                    - type: enchantment
-                      predicate: minecraft:fortune>=1
+                  entries:
+                    - type: item
+                      item: farmersdelight:rotten_tomato
+                      conditions:
+                        - type: random
+                          chance: 0.05
+          - type: update_block_property
+            properties:
+              age: 0
+          - type: swing_hand
+          - type: play_sound
+            sound: farmersdelight:block.tomato_bush.pick_tomatoes
+      - on: break
+        conditions:
+          - type: match_block_property
+            properties:
+              age: 3
+        functions:
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
                   entries:
                     - type: item
                       item: farmersdelight:tomato
@@ -496,21 +675,7 @@ blocks:
                           count:
                             type: uniform
                             min: 1
-                            max: 3
-                        - type: apply_bonus
-                          enchantment: minecraft:fortune
-                          formula:
-                            type: binomial_with_bonus_count
-                            extra: 5
-                            probability: 0.5714286
-                    - type: item
-                      item: farmersdelight:tomato_seeds
-                      functions:
-                        - type: set_count
-                          count:
-                            type: uniform
-                            min: 1
-                            max: 3
+                            max: 2
                         - type: apply_bonus
                           enchantment: minecraft:fortune
                           formula:
@@ -518,15 +683,10 @@ blocks:
                             extra: 5
                             probability: 0.5714286
                 - rolls: 1
+                  conditions:
+                    - type: random
+                      chance: 0.05
                   entries:
                     - type: item
                       item: farmersdelight:rotten_tomato
-                      functions:
-                        - type: set_count
-                          count:
-                            type: uniform
-                            min: 0
-                            max: 1
-                      conditions:
-                        - type: random
-                          chance: 0.0001
+                      count: 1

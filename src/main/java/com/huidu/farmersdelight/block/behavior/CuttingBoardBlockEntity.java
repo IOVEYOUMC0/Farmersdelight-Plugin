@@ -36,6 +36,11 @@ public class CuttingBoardBlockEntity {
     private int displayedCount;
     private CuttingBoardDisplayConfig.DisplayOverride displayedOverride;
 
+    /** Adds this cutting board's live proxy display ids to out (for orphan-only /fd cleanup). */
+    void collectDisplayIds(java.util.Set<Integer> out) {
+        out.addAll(displayEntityIds);
+    }
+
     public CuttingBoardBlockEntity(BlockPosKey posKey, World world) {
         this.posKey = posKey;
         this.world = world;
@@ -68,20 +73,16 @@ public class CuttingBoardBlockEntity {
         return itemCarved;
     }
 
-    public void setItem(ItemStack item, World world, BlockPosKey posKey, BlockFace facing) {
-        setItem(item, world, posKey, facing, false);
-    }
-
     public void setItem(ItemStack item, World world, BlockPosKey posKey, BlockFace facing, boolean itemCarved) {
         setStoredItem(item, world, posKey, facing, itemCarved);
     }
 
-    /** 普通切菜板存放物品时使用平放的物品姿态。 */
+    /** A normal cutting board uses the flat pose when storing an item. */
     public void setStoredItem(ItemStack item, World world, BlockPosKey posKey, BlockFace facing) {
         setStoredItem(item, world, posKey, facing, CuttingBoardStoredItemPose.FLAT);
     }
 
-    /** Controller 同步时使用此重载方法，以保留手动插入的工具姿态。 */
+    /** Controller sync uses this overload to preserve the manually inserted tool pose. */
     public void setStoredItem(ItemStack item, World world, BlockPosKey posKey, BlockFace facing, boolean itemCarved) {
         setStoredItem(item, world, posKey, facing, CuttingBoardStoredItemPose.fromCarved(itemCarved));
     }
@@ -111,6 +112,18 @@ public class CuttingBoardBlockEntity {
     }
 
     private void updateDisplayEntity(World world, BlockPosKey posKey, BlockFace facing) {
+        try {
+            updateDisplayEntityInternal(world, posKey, facing);
+        } catch (Throwable t) {
+            // The item is already stored by the time the display is (re)built; a cosmetic display failure must
+            // not propagate into setStoredItem, or the cutting board's place-then-consume flow would leave the
+            // player's hand item unconsumed (a duplication) with no display.
+            FarmersDelightPlugin.getInstance().getLogger().log(java.util.logging.Level.WARNING,
+                    "Cutting board display update failed at " + posKey + " (item still stored)", t);
+        }
+    }
+
+    private void updateDisplayEntityInternal(World world, BlockPosKey posKey, BlockFace facing) {
         if (storedItem == null || world == null) {
             removeDisplayEntity();
             return;
@@ -228,8 +241,12 @@ public class CuttingBoardBlockEntity {
             yRotation += 180.0f;
         }
         if (displayOverride.rotationDegrees() != null) {
+            // The configured rotation is the item's LOCAL pose; the board's facing yaw still applies on
+            // top so the item turns with the board (X/Z are pitch/roll — facing-independent — so they
+            // replace outright, but Y composes: yRotation already holds the facing yaw + carved flip).
+            // Previously Y was overwritten, which pinned the item to one absolute yaw regardless of facing.
             xRotation = displayOverride.rotationDegrees().x();
-            yRotation = displayOverride.rotationDegrees().y();
+            yRotation += displayOverride.rotationDegrees().y();
             zRotation = displayOverride.rotationDegrees().z();
         }
 
@@ -294,26 +311,6 @@ public class CuttingBoardBlockEntity {
         seed = 31L * seed + (item == null ? 0 : item.getType().ordinal());
         seed = 31L * seed + (item != null && item.hasItemMeta() ? item.getItemMeta().hashCode() : 0);
         return seed;
-    }
-
-    @SuppressWarnings("unused")
-    private boolean isCarvedTool(ItemStack item) {
-        if (item == null || item.getType().isAir()) {
-            return false;
-        }
-
-        Material type = item.getType();
-        if (type.name().endsWith("_PICKAXE") || type.name().endsWith("_HOE") || type.name().endsWith("_AXE")) {
-            return true;
-        }
-        if (type == Material.TRIDENT) {
-            return true;
-        }
-        if (type.name().contains("KNIFE")) {
-            return true;
-        }
-        String customItemId = ItemUtils.getCustomItemId(item);
-        return customItemId != null && customItemId.contains("knife");
     }
 
     private float getCarvedToolZRotation(ItemStack item) {

@@ -8,7 +8,6 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
 
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -19,8 +18,11 @@ public final class CuttingBoardDisplayConfig {
     private static final float DEFAULT_ITEM_SPREAD = 0.15F;
     private static final Vector3f ZERO_OFFSET = new Vector3f(0.0F, 0.0F, 0.0F);
 
-    private final Map<String, DisplayOverride> itemOverrides = new HashMap<>();
-    private final Map<String, DisplayOverride> tagOverrides = new LinkedHashMap<>();
+    private final Map<String, DisplayOverride> itemOverrides = new java.util.concurrent.ConcurrentHashMap<>();
+    // tagOverrides keeps LinkedHashMap for definition-order iteration (first-match override semantics);
+    // mutations only happen on reload from the main thread, reads from event handlers — wrap with
+    // synchronized to make those reload-vs-read transitions atomic without losing ordering.
+    private final Map<String, DisplayOverride> tagOverrides = java.util.Collections.synchronizedMap(new LinkedHashMap<>());
     private final DisplayOverride fallbackDefaults;
     private final float fallbackItemSpread;
     private DisplayOverride defaultOverride;
@@ -116,7 +118,7 @@ public final class CuttingBoardDisplayConfig {
         return resolveDisplayItem(storedItem, getOverride(storedItem));
     }
 
-    /** 复用已解析的 override 的变体，以避免重复调用 getOverride 两次。 */
+    /** Variant that reuses an already-resolved override, to avoid calling getOverride twice. */
     public ItemStack resolveDisplayItem(ItemStack storedItem, DisplayOverride override) {
         if (storedItem == null || storedItem.getType().isAir()) {
             return null;

@@ -75,7 +75,7 @@ class RecipeSerializerTest {
                 Key.of("ns:tag"),
                 Set.of(Key.of("ns:b"), Key.of("ns:a")),
                 Set.of());
-        // 同一模型的两次序列化结果必须逐字节相同，与 set 的迭代顺序无关。
+        // Two serializations of the same model must be byte-identical, regardless of set iteration order.
         assertEquals(RecipeSerializer.serializeIngredient(tag), RecipeSerializer.serializeIngredient(tag));
     }
 }

@@ -173,21 +173,21 @@ items:
 images:
   farmersdelight:cooking_pot_gui:
     file: farmersdelight:gui/cooking_pot.png
-    height: 85
-    ascent: 13
-    font: minecraft:custom
+    height: 75
+    ascent: 11
+    font: farmersdelight:custom
   farmersdelight:recipelist:
     file: farmersdelight:gui/recipelist.png
     height: 108
     ascent: -4
-    font: minecraft:custom
+    font: farmersdelight:custom
   farmersdelight:cooking_pot_menu:
     file: farmersdelight:gui/cooking_pot_menu.png
     height: 108
     ascent: -4
-    font: minecraft:custom
+    font: farmersdelight:custom
   farmersdelight:cutting_board_menu:
     file: farmersdelight:gui/cutting_board_menu.png
     height: 108
     ascent: -4
-    font: minecraft:custom
+    font: farmersdelight:custom

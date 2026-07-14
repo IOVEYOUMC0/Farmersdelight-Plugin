@@ -15,18 +15,19 @@ import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.inventory.ItemStack;
+import org.bukkit.entity.Player;
 
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReentrantLock;
 
 public class TickManager {
 
@@ -42,9 +43,13 @@ public class TickManager {
             0.05D, 0.0D, 0.025D, 0.0D, 0.02D);
     
     private final Set<ActiveBlock> activeBlocks = ConcurrentHashMap.newKeySet();
-    private final ReentrantLock pendingLock = new ReentrantLock();
-    private final Set<ActiveBlock> pendingAdditions = new HashSet<>();
-    private final Set<ActiveBlock> pendingRemovals = new HashSet<>();
+    // Lock-free mark queue: producers are event-driven (GUI clicks, block interactions, chunk loads)
+    // and the single consumer is tick(). FIFO drain reproduces the old add/remove set cancellation —
+    // the last operation for a block within a drain window wins.
+    private final ConcurrentLinkedQueue<PendingChange> pendingChanges = new ConcurrentLinkedQueue<>();
+
+    private record PendingChange(ActiveBlock block, boolean add) {
+    }
     private final Map<ActiveBlock, Long> lastProcessedTicks = new ConcurrentHashMap<>();
     private final Map<ActiveBlock, Long> progressDisplayLastUpdateTicks = new ConcurrentHashMap<>();
     private final Set<ActiveBlock> scheduledActiveBlocks = ConcurrentHashMap.newKeySet();
@@ -71,14 +76,35 @@ public class TickManager {
     private volatile boolean performanceStatsEnabled;
 
     private static final int TICK_INTERVAL = 4;
+    // Squared player-proximity radius for gating cooking-pot particle/sound broadcasts. 32 blocks =
+    // vanilla particle/sound range upper bound (matches StoveManager's effect viewer distance).
+    private static final double EFFECT_VIEWER_DISTANCE_SQUARED = 32.0D * 32.0D;
+    // Reusable per-thread recipient list for targeted particle/sound sends (per-thread for Folia's
+    // concurrent per-region cooking-pot ticks; refilled per pot and consumed synchronously).
+    private static final ThreadLocal<List<Player>> NEARBY_VIEWER_SCRATCH = ThreadLocal.withInitial(ArrayList::new);
+    // R-PERF-007 (b): per-chunk hard cap on cooking-pot particle+sound packets emitted per dispatch,
+    // mirroring StoveManager/SkilletManager. Cooking pot is the densest heat block, so a packed pocket
+    // must not steamroll the packet queue in one Bukkit tick. Reset once per bukkit tick across the pass.
+    // The context also caches the chunk's tracked-player list so pots sharing a chunk pay one
+    // getPlayersSeeingChunk lookup that tick (mirrors StoveManager.chunkFx). World-keyed so identical
+    // chunk coordinates in different worlds never collide.
+    private int cookingPotChunkEffectBudgetLimit = 50;
+    private final Map<UUID, Map<Long, CookingPotFxContext>> chunkFx = new ConcurrentHashMap<>();
+    private volatile long effectBudgetResetTick = -1L;
+
+    private static final class CookingPotFxContext {
+        final AtomicInteger budget = new AtomicInteger();
+        volatile List<Player> seeing;
+    }
     private static final int DEFAULT_ACTIVE_BLOCK_WARNING_THRESHOLD = 1000;
     private static final int CLEANUP_INTERVAL = 6000;
     private static final int DEFAULT_COOKING_POT_TICK_BUDGET = 512;
-    // 单次处理累加的最大补偿 tick 数。设得足够大,使被 tick 预算饿到(活跃方块数远超预算)的厨锅不会
-    // 丢失真实经过的烹饪时间。这里不会造成“重载瞬间烹饪一大批”:tickCookingPot 用 Math.min(duration, ...)
-    // 把进度封顶在配方时长,且每次处理最多 finishCooking 一次(单个 if、非循环),无论补偿值多大都只产出一批;
-    // 同时 previousTick 在(重新)激活时被重置、且每次被选中处理都会刷新,因此补偿值永远不包含未加载时段。
-    // 上限仍保留一个合理边界,避免冷却分支 elapsedTicks*2 处的 int 溢出。
+    // Max catch-up ticks applied in a single processing pass. Large enough that cooking pots starved by the tick budget
+    // (active blocks far exceeding the budget) don't lose real elapsed cooking time. This does not "cook a huge batch on reload":
+    // tickCookingPot uses Math.min(duration, ...) to cap progress at the recipe duration, and finishes cooking at most once per
+    // pass (a single if, not a loop), producing only one batch regardless of catch-up size; previousTick is also reset on
+    // (re)activation and refreshed every time the pot is selected, so catch-up never includes unloaded time.
+    // The cap still keeps a sane bound to avoid int overflow at elapsedTicks*2 in the cooldown branch.
     private static final int MAX_ELAPSED_TICKS = 72_000;
     public TickManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -86,6 +112,7 @@ public class TickManager {
     }
 
     public void reloadConfig() {
+        SOUND_RESOLUTION_CACHE.clear();
         ConfigurationSection effectSection = plugin.getFirstConfigSection("cooking-pot.effects", "cooking-pot-effects");
         ConfigurationSection bubbleSection = effectSection != null ? effectSection.getConfigurationSection("bubble") : null;
         ConfigurationSection steamSection = effectSection != null ? effectSection.getConfigurationSection("steam") : null;
@@ -138,20 +165,14 @@ public class TickManager {
             cleanupTask = null;
         }
         
-        pendingLock.lock();
-        try {
-            activeBlocks.clear();
-            activeBlockSnapshot = List.of();
-            activeCookingPotCount = 0;
-            pendingAdditions.clear();
-            pendingRemovals.clear();
-            lastProcessedTicks.clear();
-            progressDisplayLastUpdateTicks.clear();
-            scheduledActiveBlocks.clear();
-        } finally {
-            pendingLock.unlock();
-        }
-        
+        activeBlocks.clear();
+        activeBlockSnapshot = List.of();
+        activeCookingPotCount = 0;
+        pendingChanges.clear();
+        lastProcessedTicks.clear();
+        progressDisplayLastUpdateTicks.clear();
+        scheduledActiveBlocks.clear();
+
         I18n.logInfo("tick.stopped");
     }
     
@@ -217,8 +238,8 @@ public class TickManager {
     }
 
     private void pruneOldPerformanceWarnings() {
-        // warning-times 映射以 world/chunk 为键，否则会无限增长；移除
-        // 已超过冷却时间的条目（同一键的后续告警会重新添加它）。
+        // The warning-times map is keyed by world/chunk and would grow unbounded otherwise; remove
+        // entries past the cooldown (a later warning for the same key re-adds it).
         long cutoff = System.currentTimeMillis() - performanceWarningCooldownMillis;
         performanceWarningTimes.entrySet().removeIf(entry -> entry.getValue() < cutoff);
     }
@@ -301,70 +322,46 @@ public class TickManager {
         return false;
     }
     
-    public void registerActiveBlock(World world, BlockPosKey posKey, BlockType type) {
-        if (world == null || posKey == null || type == null) return;
-        ActiveBlock block = new ActiveBlock(world.getUID(), world, posKey, type);
-        pendingLock.lock();
-        try {
-            pendingAdditions.add(block);
-            pendingRemovals.remove(block);
-        } finally {
-            pendingLock.unlock();
-        }
-    }
-    
-    public void unregisterActiveBlock(World world, BlockPosKey posKey, BlockType type) {
-        if (world == null || posKey == null || type == null) return;
-        ActiveBlock block = new ActiveBlock(world.getUID(), world, posKey, type);
-        pendingLock.lock();
-        try {
-            pendingRemovals.add(block);
-            pendingAdditions.remove(block);
-        } finally {
-            pendingLock.unlock();
-        }
-    }
-    
     public void markActive(World world, BlockPosKey posKey, BlockType type) {
-        registerActiveBlock(world, posKey, type);
+        if (world == null || posKey == null || type == null) return;
+        pendingChanges.add(new PendingChange(new ActiveBlock(world.getUID(), world, posKey, type), true));
+    }
+
+    public void markInactive(World world, BlockPosKey posKey, BlockType type) {
+        if (world == null || posKey == null || type == null) return;
+        pendingChanges.add(new PendingChange(new ActiveBlock(world.getUID(), world, posKey, type), false));
     }
 
     private void tick() {
         if (!running) return;
-        long startedNanos = System.nanoTime();
+        // Idle fast path: nothing active, nothing queued, stats off — skip the pass entirely.
+        // CLQ.isEmpty is a single head-node probe.
+        if (activeBlockSnapshot.isEmpty() && pendingChanges.isEmpty() && !performanceStatsEnabled) {
+            return;
+        }
+        boolean stats = performanceStatsEnabled;
+        long startedNanos = stats ? System.nanoTime() : 0L;
         int size = 0;
         int processed = 0;
         try {
             long currentTick = advanceCurrentTick();
 
-            pendingLock.lock();
             boolean changed = false;
-            try {
-                if (!pendingAdditions.isEmpty()) {
-                    activeBlocks.addAll(pendingAdditions);
-                    changed = true;
-                    for (ActiveBlock activeBlock : pendingAdditions) {
-                        lastProcessedTicks.putIfAbsent(activeBlock, currentTick);
-                    }
-                    pendingAdditions.clear();
+            PendingChange change;
+            while ((change = pendingChanges.poll()) != null) {
+                if (change.add()) {
+                    changed |= activeBlocks.add(change.block());
+                    lastProcessedTicks.putIfAbsent(change.block(), currentTick);
+                } else {
+                    changed |= activeBlocks.remove(change.block());
+                    lastProcessedTicks.remove(change.block());
+                    progressDisplayLastUpdateTicks.remove(change.block());
+                    scheduledActiveBlocks.remove(change.block());
                 }
-
-                if (!pendingRemovals.isEmpty()) {
-                    activeBlocks.removeAll(pendingRemovals);
-                    changed = true;
-                    for (ActiveBlock activeBlock : pendingRemovals) {
-                        lastProcessedTicks.remove(activeBlock);
-                        progressDisplayLastUpdateTicks.remove(activeBlock);
-                        scheduledActiveBlocks.remove(activeBlock);
-                    }
-                    pendingRemovals.clear();
-                }
-                if (changed) {
-                    activeBlockSnapshot = List.copyOf(activeBlocks);
-                    activeCookingPotCount = countActiveBlocks(activeBlockSnapshot, BlockType.COOKING_POT);
-                }
-            } finally {
-                pendingLock.unlock();
+            }
+            if (changed) {
+                activeBlockSnapshot = List.copyOf(activeBlocks);
+                activeCookingPotCount = countActiveBlocks(activeBlockSnapshot, BlockType.COOKING_POT);
             }
 
             List<ActiveBlock> snapshot = activeBlockSnapshot;
@@ -407,7 +404,9 @@ public class TickManager {
 
             activeBlockCursor = size == 0 ? 0 : (start + Math.max(1, processed)) % size;
         } finally {
-            recordPerformanceSample(System.nanoTime() - startedNanos, size, processed);
+            if (stats) {
+                recordPerformanceSample(System.nanoTime() - startedNanos, size, processed);
+            }
         }
     }
 
@@ -458,14 +457,15 @@ public class TickManager {
     }
 
     public PerformanceSnapshot getPerformanceSnapshot() {
-        int pendingAdditionsSize;
-        int pendingRemovalsSize;
-        pendingLock.lock();
-        try {
-            pendingAdditionsSize = pendingAdditions.size();
-            pendingRemovalsSize = pendingRemovals.size();
-        } finally {
-            pendingLock.unlock();
+        // Weakly-consistent walk of the mark queue (diagnostics only); duplicates count as queued ops.
+        int pendingAdditionsSize = 0;
+        int pendingRemovalsSize = 0;
+        for (PendingChange change : pendingChanges) {
+            if (change.add()) {
+                pendingAdditionsSize++;
+            } else {
+                pendingRemovalsSize++;
+            }
         }
         return new PerformanceSnapshot(
                 performanceSamples.get(),
@@ -573,6 +573,10 @@ public class TickManager {
         
         if (!CookingPotBlockBehavior.hasCookingPotBehavior(world, posKey)) {
             unregisterCookingPotBlock(activeBlock, world, posKey);
+            // The block is no longer a cooking pot (replaced by a different block that bypassed the CE break
+            // callbacks); retire its floating progress display + recipe-name cache instead of leaving them to
+            // linger until the periodic sweep.
+            CookingPotBlockBehavior.removeProgressDisplay(world, posKey);
             return;
         }
         
@@ -583,8 +587,8 @@ public class TickManager {
             return;
         }
 
-        // 在锅的 tick 中保持 buffer -> output 的推进，以匹配旧插件的行为，
-        // 而不是仅依赖 GUI 刷新或手动拾取输出。
+        // Keep advancing buffer -> output during the pot tick to match the old plugin's behavior,
+        // rather than relying only on GUI refresh or manual output pickup.
         entity.tryMovePendingToOutput();
 
         if (!entity.hasStoredContents()) {
@@ -595,17 +599,18 @@ public class TickManager {
 
         Block blockBelow = world.getBlockAt(posKey.x(), posKey.y() - 1, posKey.z());
         boolean hasHeat = plugin.getHeatSourceConfig().isHeatSource(blockBelow);
-        
-        if (!hasHeat) {
+
+        // Only fetch the block two below when the block below is actually a conductor — the previous
+        // order fetched blockTwoBelow unconditionally on !hasHeat, wasting a getBlockAt whenever the
+        // block below wasn't a conductor (the common case: solid stone, dirt, etc.).
+        if (!hasHeat && plugin.getHeatSourceConfig().isConductor(blockBelow)) {
             Block blockTwoBelow = world.getBlockAt(posKey.x(), posKey.y() - 2, posKey.z());
-            if (plugin.getHeatSourceConfig().isConductor(blockBelow)) {
-                hasHeat = plugin.getHeatSourceConfig().isHeatSource(blockTwoBelow);
-            }
+            hasHeat = plugin.getHeatSourceConfig().isHeatSource(blockTwoBelow);
         }
 
         entity.setHasHeatSource(hasHeat);
-        // 从已获取的 block state 解析 behavior，而不是每个 tick 都在 emitCookingPotEffects 内部
-        // 重新读取该方块（及其 CE 自定义状态）。
+        // Resolve the behavior from the already-fetched block state, instead of re-reading the block
+        // (and its CE custom state) inside emitCookingPotEffects every tick.
         CookingPotBlockBehavior behavior = CustomBlockUtils.getBehavior(state, CookingPotBlockBehavior.class);
         emitCookingPotEffects(world, posKey, entity, hasHeat, behavior);
 
@@ -634,9 +639,9 @@ public class TickManager {
                     return;
                 }
                 if (entity.finishCooking(world, blockLoc)) {
-                    // 烹饪成功后保持锅处于活跃状态，使剩余的
-                    // 食材可以立即开始下一批，以匹配
-                    // 旧插件的行为。
+                    // Keep the pot active after a successful cook so remaining
+                    // ingredients can immediately start the next batch, to match
+                    // the old plugin's behavior.
                     recipe = entity.getCurrentRecipe();
                 }
             }
@@ -649,6 +654,11 @@ public class TickManager {
                 progressDisplayLastUpdateTicks.remove(activeBlock);
                 CookingPotBlockBehavior.removeProgressDisplay(world, posKey);
             } else if (shouldUpdateCookingPotProgressDisplay(activeBlock)) {
+                // Populate the recipe-name cache the progress display reads, but only when the
+                // show-recipe-name option is enabled so it stays empty (and allocation-free) otherwise.
+                if (plugin.isShowRecipeNameInProgressDisplay()) {
+                    CookingPotBlockBehavior.setCookingRecipeItem(world, posKey, recipe.getResult());
+                }
                 CookingPotBlockBehavior.updateProgressDisplay(world, posKey, entity.getProgressPercent());
             }
         } else {
@@ -659,7 +669,7 @@ public class TickManager {
 
     private void unregisterCookingPotBlock(ActiveBlock activeBlock, World world, BlockPosKey posKey) {
         progressDisplayLastUpdateTicks.remove(activeBlock);
-        unregisterActiveBlock(world, posKey, BlockType.COOKING_POT);
+        markInactive(world, posKey, BlockType.COOKING_POT);
     }
 
     private boolean shouldSuppressCookingPotProgressDisplay() {
@@ -690,7 +700,7 @@ public class TickManager {
 
         boolean hasActivity = entity.hasInput()
                 || entity.hasPendingOutput()
-                || entity.getMealDisplayItem() != null
+                || entity.hasMealDisplayItem()  // was getMealDisplayItem() != null — that path clones.
                 || entity.getCookingProgress() > 0
                 || entity.getCurrentRecipe() != null;
         if (!hasActivity) {
@@ -704,13 +714,60 @@ public class TickManager {
         }
         center.add(0.5, 0.9, 0.5);
 
+        // Cooking pot is the densest heat block (warn threshold 1000 / 64-per-chunk). Skip the
+        // per-tick particle + sound broadcast entirely when no player is close enough to see/hear —
+        // world.spawnParticle/playSound otherwise scan the full online-player list server-side even
+        // for an unattended farm. Cooking progress runs earlier in tickCookingPot, so gating only the
+        // effects here is correctness-safe (R-PERF-003). The collected list is both the gate and the
+        // recipient set for the targeted sends below, so we avoid world.spawnParticle/playSound
+        // re-walking the whole world player list per call (R-PERF-006).
+        // R-PERF-007 (b): per-chunk per-dispatch packet budget + shared tracked-player lookup. No stagger
+        // — a period-N dispatch never rotates a getCurrentTick()-based one (#022) — so only the hard cap
+        // is used. Both the budget and the chunk's seeing-players list are cached per chunk and reset
+        // once per bukkit tick, so a pocket of pots in one chunk pays getPlayersSeeingChunk exactly once.
+        int chunkX = posKey.x() >> 4;
+        int chunkZ = posKey.z() >> 4;
+        long effectChunkKey = ((long) chunkX << 32) | (chunkZ & 0xffffffffL);
+        long currentBukkitTick = getCurrentTick();
+        if (currentBukkitTick != effectBudgetResetTick) {
+            chunkFx.clear();
+            effectBudgetResetTick = currentBukkitTick;
+        }
+        CookingPotFxContext fx = chunkFx.computeIfAbsent(world.getUID(), w -> new ConcurrentHashMap<>())
+                .computeIfAbsent(effectChunkKey, k -> new CookingPotFxContext());
+        List<Player> seeing = fx.seeing;
+        if (seeing == null) {
+            seeing = world.isChunkLoaded(chunkX, chunkZ)
+                    ? List.copyOf(world.getChunkAt(chunkX, chunkZ).getPlayersSeeingChunk())
+                    : List.of();
+            fx.seeing = seeing;
+        }
+        // Per-pot distance filter of the shared chunk list — both the "any player near?" gate and the
+        // recipient set for the targeted sends below (R-PERF-006, mirrors StoveManager).
+        List<Player> nearbyViewers = NEARBY_VIEWER_SCRATCH.get();
+        nearbyViewers.clear();
+        for (int i = 0; i < seeing.size(); i++) {
+            Player p = seeing.get(i);
+            if (p.getWorld() == world && p.getLocation().distanceSquared(center) <= EFFECT_VIEWER_DISTANCE_SQUARED) {
+                nearbyViewers.add(p);
+            }
+        }
+        if (nearbyViewers.isEmpty()) {
+            return;
+        }
+        AtomicInteger chunkBudget = fx.budget;
+        if (chunkBudget.get() >= cookingPotChunkEffectBudgetLimit) {
+            return;
+        }
+
         EffectSpec bubble = bubbleEffect;
-        if (bubble.enabled() && random.nextFloat() < bubble.chance()) {
+        if (bubble.enabled() && random.nextFloat() < bubble.chance() && chunkBudget.get() < cookingPotChunkEffectBudgetLimit) {
+            chunkBudget.incrementAndGet();
             double x = center.getX() + (random.nextDouble() * 0.6D - 0.3D);
             double y = center.getY() + bubble.yOffset();
             double z = center.getZ() + (random.nextDouble() * 0.6D - 0.3D);
-            world.spawnParticle(
-                    bubble.particle(),
+            ManagerSupport.spawnParticleFor(
+                    nearbyViewers, bubble.particle(),
                     x, y, z,
                     bubble.count(),
                     bubble.offsetX(),
@@ -721,37 +778,37 @@ public class TickManager {
         }
 
         EffectSpec steam = steamEffect;
-        if (steam.enabled() && random.nextFloat() < steam.chance()) {
+        if (steam.enabled() && random.nextFloat() < steam.chance() && chunkBudget.get() < cookingPotChunkEffectBudgetLimit) {
+            chunkBudget.incrementAndGet();
             double x = center.getX() + (random.nextDouble() * 0.4D - 0.2D);
             double y = center.getY() + steam.yOffset();
             double z = center.getZ() + (random.nextDouble() * 0.4D - 0.2D);
-            for (int i = 0; i < steam.count(); i++) {
-                world.spawnParticle(
-                        steam.particle(),
-                        x, y, z,
-                        0,
-                        steam.offsetX(),
-                        steam.offsetY() + (random.nextDouble() * 0.01D),
-                        steam.offsetZ(),
-                        steam.speed()
-                );
-            }
+            // One packet with count=N — vanilla randomizes per-particle within the (offsetX, offsetY,
+            // offsetZ) box client-side, so we don't need the old per-iteration spawnParticle loop.
+            ManagerSupport.spawnParticleFor(
+                    nearbyViewers, steam.particle(),
+                    x, y, z,
+                    steam.count(),
+                    steam.offsetX(),
+                    steam.offsetY(),
+                    steam.offsetZ(),
+                    steam.speed()
+            );
 
             EffectSpec secondary = secondarySteamEffect;
-            if (secondary.enabled()) {
-                for (int i = 0; i < secondary.count(); i++) {
-                    world.spawnParticle(
-                            secondary.particle(),
-                            x,
-                            y + secondary.yOffset(),
-                            z,
-                            0,
-                            secondary.offsetX(),
-                            secondary.offsetY() + (random.nextDouble() * 0.01D),
-                            secondary.offsetZ(),
-                            secondary.speed()
-                    );
-                }
+            if (secondary.enabled() && chunkBudget.get() < cookingPotChunkEffectBudgetLimit) {
+                chunkBudget.incrementAndGet();
+                ManagerSupport.spawnParticleFor(
+                        nearbyViewers, secondary.particle(),
+                        x,
+                        y + secondary.yOffset(),
+                        z,
+                        secondary.count(),
+                        secondary.offsetX(),
+                        secondary.offsetY(),
+                        secondary.offsetZ(),
+                        secondary.speed()
+                );
             }
         }
 
@@ -759,8 +816,9 @@ public class TickManager {
         if (behavior != null && behavior.getSoundChance() != null) {
             soundChance = behavior.getSoundChance().floatValue();
         }
-        if (random.nextFloat() < soundChance) {
-            boolean soupReady = entity.hasPendingOutput() || entity.getMealDisplayItem() != null;
+        if (random.nextFloat() < soundChance && chunkBudget.get() < cookingPotChunkEffectBudgetLimit) {
+            chunkBudget.incrementAndGet();
+            boolean soupReady = entity.hasPendingOutput() || entity.hasMealDisplayItem();
             String configuredSound;
             if (soupReady) {
                 String soupBoilSound = null;
@@ -795,7 +853,7 @@ public class TickManager {
             if (pitchMin < pitchMax) {
                 pitch = pitchMin + random.nextFloat() * (pitchMax - pitchMin);
             }
-            playConfiguredSound(world, center, boilSound, volume, pitch);
+            playConfiguredSound(nearbyViewers, center, boilSound, volume, pitch);
         }
     }
 
@@ -852,7 +910,27 @@ public class TickManager {
         }
     }
 
+    // Memo of sound resolution keyed on (configured, defaultSound). The vanilla sound registry is frozen
+    // at bootstrap, so a given key always resolves the same way; this replaces a per-cooking-pot-per-tick
+    // NamespacedKey.fromString + Registry.SOUNDS.get (a measurable hot cost in a many-pot scenario) with
+    // one map lookup. Cleared on reload for pattern uniformity; the cap guards unbounded config strings.
+    private static final Map<String, ResolvedSound> SOUND_RESOLUTION_CACHE = new ConcurrentHashMap<>();
+    private static final int SOUND_RESOLUTION_CACHE_MAX = 512;
+
     private ResolvedSound resolveSound(String configured, Sound defaultSound) {
+        String cacheKey = (configured == null ? "" : configured) + ' ' + defaultSound;
+        ResolvedSound cached = SOUND_RESOLUTION_CACHE.get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+        ResolvedSound resolved = resolveSoundUncached(configured, defaultSound);
+        if (SOUND_RESOLUTION_CACHE.size() < SOUND_RESOLUTION_CACHE_MAX) {
+            SOUND_RESOLUTION_CACHE.put(cacheKey, resolved);
+        }
+        return resolved;
+    }
+
+    private ResolvedSound resolveSoundUncached(String configured, Sound defaultSound) {
         if (configured == null || configured.isBlank()) {
             return ResolvedSound.fromBukkit(defaultSound);
         }
@@ -882,13 +960,17 @@ public class TickManager {
         return ResolvedSound.fromBukkit(defaultSound);
     }
 
-    private void playConfiguredSound(World world, Location location, ResolvedSound sound, float volume, float pitch) {
+    private void playConfiguredSound(List<Player> viewers, Location location, ResolvedSound sound, float volume, float pitch) {
         if (sound.bukkitSound() != null) {
-            world.playSound(location, sound.bukkitSound(), volume, pitch);
+            for (int i = 0; i < viewers.size(); i++) {
+                viewers.get(i).playSound(location, sound.bukkitSound(), volume, pitch);
+            }
             return;
         }
         if (sound.soundKey() != null && !sound.soundKey().isBlank()) {
-            world.playSound(location, sound.soundKey(), SoundCategory.BLOCKS, volume, pitch);
+            for (int i = 0; i < viewers.size(); i++) {
+                viewers.get(i).playSound(location, sound.soundKey(), SoundCategory.BLOCKS, volume, pitch);
+            }
         }
     }
 
@@ -936,8 +1018,6 @@ public class TickManager {
     }
 
     public enum BlockType {
-        SKILLET,
-        STOVE,
         COOKING_POT
     }
     

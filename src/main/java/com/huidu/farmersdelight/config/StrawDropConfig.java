@@ -3,12 +3,12 @@ package com.huidu.farmersdelight.config;
 import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.configuration.ConfigurationSection;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class StrawDropConfig {
 
-    private final Map<String, StrawDropRule> rules = new HashMap<>();
+    private final Map<String, StrawDropRule> rules = new ConcurrentHashMap<>();
 
     public void loadDefaults() {
         addRule("short_grass", "farmersdelight:straw", 1, 2);
