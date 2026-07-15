@@ -27,6 +27,8 @@ public final class Constants {
     public static final String BLOCK_CUTTING_BOARD = "farmersdelight:cutting_board";
     public static final String BLOCK_RICE = "farmersdelight:rice";
     public static final String BLOCK_WILD_RICE = "farmersdelight:wild_rice";
+    public static final String BLOCK_BROWN_MUSHROOM = "farmersdelight:brown_mushroom";
+    public static final String BLOCK_RED_MUSHROOM = "farmersdelight:red_mushroom";
     public static final String BLOCK_BROWN_MUSHROOM_COLONY = "farmersdelight:brown_mushroom_colony";
     public static final String BLOCK_RED_MUSHROOM_COLONY = "farmersdelight:red_mushroom_colony";
     public static final String BLOCK_ONIONS = "farmersdelight:onions";

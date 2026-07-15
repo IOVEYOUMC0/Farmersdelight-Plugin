@@ -25,11 +25,15 @@ public final class SoundUtils {
     }
 
     public static void play(World world, Location location, String soundKey, Sound fallback, float volume, float pitch) {
+        play(world, location, soundKey, fallback, SoundCategory.BLOCKS, volume, pitch);
+    }
+
+    public static void play(World world, Location location, String soundKey, Sound fallback, SoundCategory category, float volume, float pitch) {
         if (world == null || location == null) {
             return;
         }
         if (soundKey == null || soundKey.isBlank()) {
-            world.playSound(location, fallback, volume, pitch);
+            world.playSound(location, fallback, category, volume, pitch);
             return;
         }
 
@@ -41,9 +45,9 @@ public final class SoundUtils {
             }
         }
         if (resolved instanceof Sound sound) {
-            world.playSound(location, sound, volume, pitch);
+            world.playSound(location, sound, category, volume, pitch);
         } else {
-            world.playSound(location, (String) resolved, SoundCategory.BLOCKS, volume, pitch);
+            world.playSound(location, (String) resolved, category, volume, pitch);
         }
     }
 

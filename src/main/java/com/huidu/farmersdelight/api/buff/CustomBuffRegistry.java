@@ -143,6 +143,26 @@ public final class CustomBuffRegistry {
     }
 
     /**
+     * The registered buffs currently active on player (both priorities). Used by the milk-bottle
+     * cleanser to weigh custom buffs alongside vanilla effects when picking one to remove.
+     */
+    public static java.util.List<CustomBuff> activeBuffs(Player player) {
+        java.util.List<CustomBuff> active = new java.util.ArrayList<>();
+        if (player == null) {
+            return active;
+        }
+        for (CustomBuff buff : ENTRIES) {
+            try {
+                if (buff.isActive(player)) {
+                    active.add(buff);
+                }
+            } catch (RuntimeException ignored) {
+            }
+        }
+        return active;
+    }
+
+    /**
      * Remove exactly one active buff from player, preferring non-low-priority entries.
      * Returns the removed buff (or null when nothing was active). Mirrors the original
      * farmersdelight:milk_bottle semantics modulated by BAC's

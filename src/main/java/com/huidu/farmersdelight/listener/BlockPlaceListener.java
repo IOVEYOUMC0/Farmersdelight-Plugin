@@ -12,6 +12,7 @@ import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.VanillaAdvancements;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockAttemptPlaceEvent;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockPlaceEvent;
@@ -319,9 +320,11 @@ public class BlockPlaceListener implements Listener {
             return;
         }
 
+        // Vanilla placed_block can't recognize CraftEngine custom crop IDs, so advance manually: FD's own
+        // "plant all crops" criterion plus the vanilla "A Seedy Place" advancement (idempotent).
+        VanillaAdvancements.grantPlantSeed(player);
         AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
         if (am != null) {
-            // Vanilla placed_block can't recognize CraftEngine custom crop IDs, so advance manually.
             am.awardCriteria(player, "plant_all_crops", criterion);
         }
     }

@@ -1,7 +1,9 @@
 package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.util.BehaviorArgParser;
+import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CraftEngineAdapter;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
@@ -95,6 +97,15 @@ public class RichSoilBlockBehavior extends BlockBehavior {
             return replaceWithColony(target, brownMushroomColonyId);
         }
         if (target.getType() == Material.RED_MUSHROOM) {
+            return replaceWithColony(target, redMushroomColonyId);
+        }
+        // A vanilla mushroom cannot survive on the rich-soil series (CraftEngine block tags are client-only),
+        // so a mushroom planted here is our look-alike custom block instead. Convert it the same way, mirroring
+        // the mod where the rich soil turns the mushroom sitting above it into a colony on its own random tick.
+        if (CustomBlockUtils.hasId(target, Constants.BLOCK_BROWN_MUSHROOM)) {
+            return replaceWithColony(target, brownMushroomColonyId);
+        }
+        if (CustomBlockUtils.hasId(target, Constants.BLOCK_RED_MUSHROOM)) {
             return replaceWithColony(target, redMushroomColonyId);
         }
         return false;

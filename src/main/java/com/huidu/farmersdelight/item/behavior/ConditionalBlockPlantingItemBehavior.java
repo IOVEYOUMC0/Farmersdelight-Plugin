@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.item.behavior;
 
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ProtectionCompat;
+import com.huidu.farmersdelight.util.VanillaAdvancements;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.block.BukkitBlockManager;
 import net.momirealms.craftengine.core.block.BlockDefinition;
@@ -112,6 +113,11 @@ public final class ConditionalBlockPlantingItemBehavior extends ItemBehavior {
                 item.shrink(1);
             }
             player.swingHand(context.getHand());
+        }
+        // The crop was placed via CraftEngineBlocks.place, bypassing vanilla's placed_block trigger, so award
+        // the vanilla "A Seedy Place" advancement manually.
+        if (bukkitPlayer != null) {
+            VanillaAdvancements.grantPlantSeed(bukkitPlayer);
         }
         return InteractionResult.SUCCESS;
     }
