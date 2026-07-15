@@ -62,7 +62,7 @@ public class TatamiBreakListener implements Listener {
             return false;
         }
         return state.owner().keyOptional()
-                .map(Object::toString)
+                .map(k -> k.location().toString())
                 .filter(TATAMI_BLOCK_ID::equals)
                 .isPresent();
     }

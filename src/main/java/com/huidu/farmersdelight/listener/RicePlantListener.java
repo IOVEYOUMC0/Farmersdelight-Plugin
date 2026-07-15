@@ -7,6 +7,7 @@ import com.huidu.farmersdelight.block.behavior.TallCropBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.WildRiceBlockBehavior;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.util.VanillaAdvancements;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.RiceCropRules;
@@ -178,6 +179,7 @@ public class RicePlantListener implements Listener {
             advancementManager.award(player, "plant_rice");
             advancementManager.awardCriteria(player, "plant_all_crops", "rice");
         }
+        VanillaAdvancements.grantPlantSeed(player);
 
         event.setUseItemInHand(Event.Result.DENY);
         event.setUseInteractedBlock(Event.Result.DENY);
@@ -201,6 +203,7 @@ public class RicePlantListener implements Listener {
             }
 
             playPlacementFeedback(player, hand, plantLocation);
+            VanillaAdvancements.grantPlantSeed(player);
             event.setUseItemInHand(Event.Result.DENY);
             event.setUseInteractedBlock(Event.Result.DENY);
             event.setCancelled(true);

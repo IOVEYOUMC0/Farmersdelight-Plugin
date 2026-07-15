@@ -13,7 +13,71 @@
     behavior:
       type: block_item
       block: farmersdelight:red_mushroom_colony
+  minecraft:brown_mushroom:
+    behavior:
+      type: farmersdelight:conditional_block_planting
+      rules:
+        - target: farmersdelight:rich_soil
+          block: farmersdelight:brown_mushroom
+        - target: farmersdelight:organic_compost
+          block: farmersdelight:brown_mushroom
+  minecraft:red_mushroom:
+    behavior:
+      type: farmersdelight:conditional_block_planting
+      rules:
+        - target: farmersdelight:rich_soil
+          block: farmersdelight:red_mushroom
+        - target: farmersdelight:organic_compost
+          block: farmersdelight:red_mushroom
 blocks:
+  farmersdelight:brown_mushroom:
+    settings:
+      template:
+        - default:hardness/none
+      overrides:
+        item: minecraft:brown_mushroom
+        push-reaction: destroy
+    behaviors:
+      - type: bush_block
+        bottom-block-tags:
+          - minecraft:mushroom_grow_block
+        bottom-blocks:
+          - farmersdelight:rich_soil
+          - farmersdelight:organic_compost
+    state:
+      state: brown_mushroom
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: survives_explosion
+          entries:
+            - type: item
+              item: minecraft:brown_mushroom
+  farmersdelight:red_mushroom:
+    settings:
+      template:
+        - default:hardness/none
+      overrides:
+        item: minecraft:red_mushroom
+        push-reaction: destroy
+    behaviors:
+      - type: bush_block
+        bottom-block-tags:
+          - minecraft:mushroom_grow_block
+        bottom-blocks:
+          - farmersdelight:rich_soil
+          - farmersdelight:organic_compost
+    state:
+      state: red_mushroom
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: survives_explosion
+          entries:
+            - type: item
+              item: minecraft:red_mushroom
   farmersdelight:brown_mushroom_colony:
     settings:
       template:
@@ -26,11 +90,15 @@ blocks:
       - type: bush_block
         bottom-block-tags:
           - minecraft:mushroom_grow_block
+        bottom-blocks:
+          - farmersdelight:rich_soil
+          - farmersdelight:organic_compost
       - type: farmersdelight:mushroom_colony
         mushroom-type: "minecraft:brown_mushroom"
         light-requirement: 0
         grow-on-blocks:
           - farmersdelight:rich_soil
+          - farmersdelight:organic_compost
     states:
       properties:
         age:
@@ -117,11 +185,15 @@ blocks:
       - type: bush_block
         bottom-block-tags:
           - minecraft:mushroom_grow_block
+        bottom-blocks:
+          - farmersdelight:rich_soil
+          - farmersdelight:organic_compost
       - type: farmersdelight:mushroom_colony
         mushroom-type: "minecraft:red_mushroom"
         light-requirement: 0
         grow-on-blocks:
           - farmersdelight:rich_soil
+          - farmersdelight:organic_compost
     states:
       properties:
         age:

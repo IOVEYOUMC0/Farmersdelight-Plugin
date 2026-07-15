@@ -46,6 +46,11 @@ public class TrayManager {
     private final NamespacedKey trayOwnerXKey;
     private final NamespacedKey trayOwnerYKey;
     private final NamespacedKey trayOwnerZKey;
+    // Marks a tray the PLAYER placed by hand (stamped from FurniturePlaceEvent). Manual trays are never
+    // auto-managed: the cooking pot/skillet never reclaim, absorb, or remove them, and /fd cleanup leaves
+    // them alone. The auto tray is placed programmatically (no FurniturePlaceEvent) so it never gets this.
+    private static final String MANUAL_TRAY_SCOREBOARD_TAG = "farmersdelight:manual_tray";
+    private final NamespacedKey manualTrayMarkerKey;
     private String trayFurnitureId;
     private double xOffset;
     private double yOffset;
@@ -71,6 +76,7 @@ public class TrayManager {
         this.trayOwnerXKey = new NamespacedKey(plugin, "auto_tray_owner_x");
         this.trayOwnerYKey = new NamespacedKey(plugin, "auto_tray_owner_y");
         this.trayOwnerZKey = new NamespacedKey(plugin, "auto_tray_owner_z");
+        this.manualTrayMarkerKey = new NamespacedKey(plugin, "manual_tray");
         loadConfig();
         start();
         scheduleStartupCleanup();
@@ -256,9 +262,16 @@ public class TrayManager {
         }
 
         if (!existingTrayEntities.isEmpty()) {
-            // A tray furniture already exists at the auto-tray position but is unmarked: its PDC markers were
-            // lost when CraftEngine rebuilt the display entity on restart/chunk reload.
-            // Reclaim it (re-mark + track) so break-removal and break-protection logic can recognize it again.
+            for (ItemDisplay existing : existingTrayEntities) {
+                if (isManualTray(existing)) {
+                    // A player placed this tray; never reclaim/own it. Its presence already satisfies the pot's
+                    // tray visual, so don't stack an auto tray on top either — just leave it alone.
+                    return;
+                }
+            }
+            // An unmarked tray furniture already exists at the auto-tray position (auto PDC markers lost when
+            // CraftEngine rebuilt the display entity on restart/chunk reload). Reclaim it (re-mark + track) so
+            // break-removal and break-protection logic can recognize it again.
             ItemDisplay reclaimed = existingTrayEntities.get(0);
             markTrayEntity(reclaimed, world, potPos);
             removeDuplicateAutoTrays(world, trayPos, existingTrayEntities, reclaimed, "reclaim unmarked tray");
@@ -729,8 +742,36 @@ public class TrayManager {
         return isAutoPlacedTrayEntity(entity);
     }
 
+    /** Marks a player-placed tray so it is never treated as an auto tray. CraftEngine fires FurniturePlaceEvent
+     * only for player placement (the auto tray is placed programmatically and does not), cleanly distinguishing
+     * the two. No-op for non-tray furniture. */
+    public void markManualTrayFurniture(BukkitFurniture furniture) {
+        if (furniture == null || !furniture.id().toString().equals(trayFurnitureId)) {
+            return;
+        }
+        Entity entity = furniture.bukkitEntity();
+        if (entity == null || !entity.isValid()) {
+            return;
+        }
+        entity.getPersistentDataContainer().set(manualTrayMarkerKey, PersistentDataType.BYTE, (byte) 1);
+        entity.addScoreboardTag(MANUAL_TRAY_SCOREBOARD_TAG);
+    }
+
+    /** True when the tray was placed by a player, so it must never be auto-reclaimed, absorbed, or removed. */
+    private boolean isManualTray(Entity entity) {
+        if (entity == null) {
+            return false;
+        }
+        return entity.getPersistentDataContainer().has(manualTrayMarkerKey, PersistentDataType.BYTE)
+                || entity.getScoreboardTags().contains(MANUAL_TRAY_SCOREBOARD_TAG);
+    }
+
     private boolean isAutoPlacedTrayEntity(Entity entity) {
         if (entity == null || !entity.isValid()) {
+            return false;
+        }
+        // A player-placed tray is never an auto tray, even if it sits at the auto-tray position.
+        if (isManualTray(entity)) {
             return false;
         }
         if (entity.getPersistentDataContainer().has(trayMarkerKey, PersistentDataType.BYTE)
@@ -881,6 +922,10 @@ public class TrayManager {
                     || "offset changed".equals(reason);
             Set<UUID> removedEntities = new HashSet<>();
             for (BukkitFurniture furniture : findTrayFurnitures(world, location)) {
+                if (isManualTray(furniture.bukkitEntity())) {
+                    // Never remove a player-placed tray, even at the exact auto-tray position.
+                    continue;
+                }
                 if (!isAutoPlacedTray(furniture)) {
                     // Owner-specific cleanup still reclaims old, unmarked tray furniture at the exact auto-tray position.
                     // The global cleanup path only scans marked trays.
@@ -895,6 +940,9 @@ public class TrayManager {
             }
 
             for (ItemDisplay entity : findTrayItemDisplays(world, location)) {
+                if (isManualTray(entity)) {
+                    continue;
+                }
                 if (!isAutoPlacedTrayEntity(entity) && !allowUnmarkedExactTray) {
                     continue;
                 }

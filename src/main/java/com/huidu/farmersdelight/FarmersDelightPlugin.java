@@ -453,7 +453,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(new TatamiBreakListener(), this);
         getServer().getPluginManager().registerEvents(new RugListener(this), this);
         getServer().getPluginManager().registerEvents(new RichSoilHoeListener(this), this);
-        getServer().getPluginManager().registerEvents(new MushroomOnRichSoilListener(), this);
         getServer().getPluginManager().registerEvents(new CropInteractProtectionListener(), this);
 
         chunkLoadListener = new ChunkLoadListener(this);

@@ -255,7 +255,12 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
             // Orphan-only: remove just the proxy displays no live block still owns, keeping legitimate
             // in-use visuals (a stove/skillet/cutting board/cooking pot that's still there). The old
             // full wipe removed valid displays too — and the stove ones did not re-appear.
-            displays = displayManager.cleanupOrphans(plugin.collectLiveDisplayIds());
+            java.util.Set<Integer> liveIds = plugin.collectLiveDisplayIds();
+            // Let addons mark their own packet-display handles as live (e.g. the items shown on a coaster)
+            // so the orphan sweep doesn't wipe them.
+            org.bukkit.Bukkit.getPluginManager().callEvent(
+                    new com.huidu.farmersdelight.api.event.FarmersDelightCollectLiveDisplaysEvent(liveIds));
+            displays = displayManager.cleanupOrphans(liveIds);
         }
 
         int trays = 0;
@@ -303,9 +308,20 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
                     Map.of("buff", args[2], "buffs", buffIdList())));
             return;
         }
-        int level = args.length >= 4 ? parsePositiveInt(args[3], 1) : 1;
-        int seconds = args.length >= 5 ? parsePositiveInt(args[4], 30) : 30;
-        Player target = resolveTarget(sender, args, 5);
+        // level and seconds are optional and identified by TYPE, not position: leading numeric tokens are the
+        // level then the seconds, and the first non-numeric token is the player name. So every form works —
+        // `/fd buff give <buff>`, `/fd buff give <buff> <player>`, `/fd buff give <buff> <level> <player>`,
+        // `/fd buff give <buff> <level> <seconds> <player>` — without forcing a duration/level to target someone.
+        int argIndex = 3;
+        int level = 1;
+        int seconds = 30;
+        if (argIndex < args.length && isInteger(args[argIndex])) {
+            level = parsePositiveInt(args[argIndex++], 1);
+        }
+        if (argIndex < args.length && isInteger(args[argIndex])) {
+            seconds = parsePositiveInt(args[argIndex++], 30);
+        }
+        Player target = resolveTarget(sender, args, argIndex);
         if (target == null) {
             return;
         }
@@ -403,6 +419,19 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
         return String.join(", ", ids);
     }
 
+    /** True when the token is all digits — i.e. a level/seconds argument rather than a player name. */
+    private static boolean isInteger(String value) {
+        if (value == null || value.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (!Character.isDigit(value.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private int parsePositiveInt(String value, int fallback) {
         try {
             int parsed = Integer.parseInt(value);
@@ -426,10 +455,16 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
                 return prefixFilter(normalize(args[2]), buffSuffixes());
             }
             if (args.length == 4) {
-                return prefixFilter(normalize(args[3]), List.of("1", "2", "3"));
+                // Next token is either the level or the player (type-based parsing) — suggest both.
+                List<String> options = new ArrayList<>(List.of("1", "2", "3"));
+                options.addAll(onlinePlayerNames());
+                return prefixFilter(normalize(args[3]), options);
             }
             if (args.length == 5) {
-                return prefixFilter(normalize(args[4]), List.of("30", "60", "120", "300"));
+                // Either the seconds or the player (when a level was given).
+                List<String> options = new ArrayList<>(List.of("30", "60", "120", "300"));
+                options.addAll(onlinePlayerNames());
+                return prefixFilter(normalize(args[4]), options);
             }
             if (args.length == 6) {
                 return prefixFilter(normalize(args[5]), onlinePlayerNames());

@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.effect;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.buff.CustomBuff;
 import com.huidu.farmersdelight.api.buff.CustomBuffRegistry;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
@@ -15,12 +16,17 @@ import org.bukkit.event.player.PlayerItemConsumeEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Tracks online players that currently have custom food effects.
@@ -236,7 +242,38 @@ public class EffectListener implements Listener {
             return;
         }
         if (ItemUtils.hasCustomItemTag(item, MILK_TAG)) {
-            CustomBuffRegistry.clearOne(event.getPlayer());
+            milkBottleCleanse(event.getPlayer());
+        }
+    }
+
+    /**
+     * The milk-bottle cleanser: removes exactly ONE effect at random, mirroring the mod's MilkBottleItem
+     * (which picks uniformly from the drinker's milk-curable effects). The candidate pool is every active
+     * vanilla potion effect plus every active non-low-priority custom buff — each an equal-weight candidate.
+     * Low-priority custom buffs (BAC's booze, tagged brewinandchewin:low_priority/milk_bottle) form a fallback
+     * pool used only when nothing else is curable, so a milk bottle sobers you up only as a last resort.
+     */
+    private void milkBottleCleanse(Player player) {
+        if (player == null) {
+            return;
+        }
+        List<Runnable> primary = new ArrayList<>();
+        List<Runnable> fallback = new ArrayList<>();
+        for (PotionEffect effect : player.getActivePotionEffects()) {
+            PotionEffectType type = effect.getType();
+            primary.add(() -> player.removePotionEffect(type));
+        }
+        for (CustomBuff buff : CustomBuffRegistry.activeBuffs(player)) {
+            (buff.isLowPriority() ? fallback : primary).add(() -> buff.remove(player));
+        }
+        List<Runnable> pool = primary.isEmpty() ? fallback : primary;
+        if (!pool.isEmpty()) {
+            try {
+                pool.get(ThreadLocalRandom.current().nextInt(pool.size())).run();
+            } catch (RuntimeException ignored) {
+                // A misbehaving addon buff's remove() shouldn't escape the consume event; per-buff
+                // isolation matching CustomBuffRegistry.clearAll/clearOne.
+            }
         }
     }
 }

@@ -299,7 +299,7 @@ public class TatamiPairingBehavior extends BlockBehavior {
         }
 
         return state.owner().keyOptional()
-                .map(Object::toString)
+                .map(k -> k.location().toString())
                 .filter(tatamiBlockId::equals)
                 .isPresent();
     }

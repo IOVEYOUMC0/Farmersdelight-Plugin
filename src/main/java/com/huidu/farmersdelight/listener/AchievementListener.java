@@ -101,11 +101,13 @@ public class AchievementListener implements Listener {
         if (FD_SEED_IDS.contains(pickedId) && !am.hasAdvancement(player, "get_fd_seed")) {
             am.award(player, "get_fd_seed");
         }
-        if (Constants.BLOCK_BROWN_MUSHROOM_COLONY.equals(pickedId)
-                || Constants.BLOCK_RED_MUSHROOM_COLONY.equals(pickedId)) {
-            // Both colors are required, so a scan is still needed, but only
-            // when a relevant item is actually picked up.
-            checkMushroomColonyAdvancement(player);
+        if ((Constants.BLOCK_BROWN_MUSHROOM_COLONY.equals(pickedId)
+                || Constants.BLOCK_RED_MUSHROOM_COLONY.equals(pickedId))
+                && !am.hasAdvancement(player, "get_mushroom_colony")) {
+            // Obtaining EITHER colour completes it (the mod's requirement is an OR of the two). Award off the
+            // picked item id directly — EntityPickupItemEvent fires before the item enters the inventory, so an
+            // inventory scan here wouldn't see the just-picked colony yet.
+            am.award(player, "get_mushroom_colony");
         }
         if (Constants.ITEM_ORGANIC_COMPOST.equals(pickedId)) {
             am.award(player, "get_organic_compost");
@@ -165,6 +167,11 @@ public class AchievementListener implements Listener {
         if (customItemId.equals(Constants.ITEM_ORGANIC_COMPOST)) {
             am.award(player, "get_organic_compost");
         }
+
+        if (customItemId.equals(Constants.BLOCK_BROWN_MUSHROOM_COLONY)
+                || customItemId.equals(Constants.BLOCK_RED_MUSHROOM_COLONY)) {
+            am.award(player, "get_mushroom_colony");
+        }
     }
 
     private void checkSeedAdvancement(Player player) {
@@ -188,16 +195,11 @@ public class AchievementListener implements Listener {
             return;
         }
 
-        boolean hasBrown = false;
-        boolean hasRed = false;
+        // Either colour completes it (mirrors the mod's OR requirement), so award as soon as one is held.
         for (ItemStack item : player.getInventory().getContents()) {
             String customItemId = ItemUtils.getCustomItemId(item);
-            if (Constants.BLOCK_BROWN_MUSHROOM_COLONY.equals(customItemId)) {
-                hasBrown = true;
-            } else if (Constants.BLOCK_RED_MUSHROOM_COLONY.equals(customItemId)) {
-                hasRed = true;
-            }
-            if (hasBrown && hasRed) {
+            if (Constants.BLOCK_BROWN_MUSHROOM_COLONY.equals(customItemId)
+                    || Constants.BLOCK_RED_MUSHROOM_COLONY.equals(customItemId)) {
                 am.award(player, "get_mushroom_colony");
                 return;
             }
