@@ -112,7 +112,11 @@ public final class RecipeBookListener implements Listener {
 
     @EventHandler
     public void onClose(InventoryCloseEvent event) {
-        if (event.getInventory().getHolder() instanceof RecipeEditorView
+        InventoryHolder holder = event.getInventory().getHolder();
+        if (holder instanceof RecipeBookGui book) {
+            // Release the progress-bar tick callback (ignored on a navigation close; see RecipeBookGui.onClose).
+            book.onClose(event.getInventory());
+        } else if (holder instanceof RecipeEditorView
                 && event.getPlayer() instanceof Player player) {
             // Discard any template copy left on the cursor (it was never a real item).
             player.setItemOnCursor(null);

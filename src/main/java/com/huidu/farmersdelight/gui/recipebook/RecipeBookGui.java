@@ -9,7 +9,9 @@ import com.huidu.farmersdelight.api.recipe.RecipeType;
 import com.huidu.farmersdelight.api.recipe.ViewableRecipe;
 import com.huidu.farmersdelight.gui.GuiConfig;
 import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.gui.GuiTickManager;
 import com.huidu.farmersdelight.recipe.RecipeDiscoveryManager;
+import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.Text;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -65,6 +67,17 @@ public final class RecipeBookGui implements InventoryHolder {
     private record ViewState(View view, RecipeType type, String recipeId, int page) {
     }
 
+    // Animated cook/ferment progress bar (chevron frames farmersdelight:0..20), drawn into every detail slot
+    // with the "progress" role — mirrors FarmersDelight's own recipe view. The tick callback is registered
+    // lazily when a progress detail first opens and runs on the viewer's region thread (via
+    // GuiTickManager.runForEntity, the same thread as click handling, so the per-gui state below needs no
+    // synchronization). It is unregistered when the actually-open inventory closes (see onClose).
+    private static final int PROGRESS_FRAMES = 20;
+    private static final ItemStack[] progressFrameCache = new ItemStack[PROGRESS_FRAMES + 1];
+    private List<Integer> progressSlots = List.of();
+    private int progressFrame;
+    private java.util.function.Consumer<Void> tickCallback;
+
     public static void openMenu(Player player, RecipeFiller filler) {
         RecipeBookListener.ensureRegistered();
         RecipeBookGui gui = new RecipeBookGui();
@@ -97,7 +110,8 @@ public final class RecipeBookGui implements InventoryHolder {
 
     // Roles whose slots are filled dynamically/conditionally by the GUI (not static chrome).
     private static final Set<String> DYNAMIC_ROLES = Set.of(
-            "category", "recipe", "ingredient", "result", "prev_page", "next_page", "fill", "filter", "switch");
+            "category", "recipe", "ingredient", "result", "prev_page", "next_page", "fill", "filter", "switch",
+            "progress");
 
     /** A page's renderable spec — backed either by the shared RecipeBookGuiConfig.ViewConfig or by a
      * type's own RecipeBookLayout. Lets list/detail/click logic stay layout-source-agnostic. */
@@ -183,6 +197,7 @@ public final class RecipeBookGui implements InventoryHolder {
     /** Drops the cached config so the next open re-reads gui.yml (called on /fd reload gui). */
     public static void clearConfigCache() {
         cachedConfig = null;
+        java.util.Arrays.fill(progressFrameCache, null);
     }
 
     private static RecipeBookGuiConfig config() {
@@ -218,6 +233,7 @@ public final class RecipeBookGui implements InventoryHolder {
         view = View.MENU;
         type = null;
         recipeId = null;
+        progressSlots = List.of();
         RecipeBookGuiConfig.ViewConfig cfg = config().menu();
         inventory = Bukkit.createInventory(this, cfg.size(), Text.title(cfg.title()));
         cfg.renderChrome(inventory);
@@ -267,6 +283,7 @@ public final class RecipeBookGui implements InventoryHolder {
         view = View.LIST;
         type = target;
         recipeId = null;
+        progressSlots = List.of();
         RenderSpec spec = listSpec(target);
         List<Integer> recipeSlots = spec.slotsByType("recipe");
         int pageSize = Math.max(1, recipeSlots.size());
@@ -347,6 +364,96 @@ public final class RecipeBookGui implements InventoryHolder {
                 placeButton(spec, "fill");
             }
         }
+        // Animated progress bar: any slot with the "progress" role cycles the chevron frames while this detail
+        // is open, matching FarmersDelight's own recipe view.
+        progressSlots = spec.slotsByType("progress");
+        if (!progressSlots.isEmpty()) {
+            progressFrame = 0;
+            renderProgress();
+            startProgressAnimation(viewer);
+        }
+    }
+
+    /** Redraws the current progress frame into every "progress" slot of the open detail. */
+    private void renderProgress() {
+        if (inventory == null) {
+            return;
+        }
+        ItemStack frame = progressFrameItem(progressFrame);
+        for (int slot : progressSlots) {
+            if (slot >= 0 && slot < inventory.getSize()) {
+                inventory.setItem(slot, frame.clone());
+            }
+        }
+    }
+
+    /** Advances the progress bar one frame per GUI tick while a progress detail is open (no-op otherwise, so a
+     * still-registered callback idles harmlessly after navigating to the list/menu). */
+    private void onProgressTick() {
+        if (view != View.DETAIL || progressSlots.isEmpty()) {
+            return;
+        }
+        progressFrame = (progressFrame + 1) % (PROGRESS_FRAMES + 1);
+        renderProgress();
+    }
+
+    private void startProgressAnimation(Player player) {
+        if (tickCallback != null || player == null) {
+            return;
+        }
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin == null) {
+            return;
+        }
+        tickCallback = ignored -> onProgressTick();
+        GuiTickManager.getInstance(plugin).registerCallback(player, tickCallback);
+    }
+
+    /** Stops the animation when the open inventory truly closes. A navigation between pages reopens a fresh
+     * inventory under the same holder; its close event carries the OLD inventory while this.inventory is
+     * already the new one, so that stale close is ignored and the animation survives the page change. */
+    void onClose(Inventory closed) {
+        if (closed == null || closed == inventory) {
+            stopProgressAnimation();
+        }
+    }
+
+    private void stopProgressAnimation() {
+        if (tickCallback == null) {
+            return;
+        }
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin != null) {
+            GuiTickManager.getInstance(plugin).unregisterCallback(tickCallback);
+        }
+        tickCallback = null;
+    }
+
+    private static ItemStack progressFrameItem(int frame) {
+        int safe = Math.max(0, Math.min(PROGRESS_FRAMES, frame));
+        ItemStack cached = progressFrameCache[safe];
+        if (cached != null) {
+            return cached;
+        }
+        ItemStack item = ItemUtils.createItem("farmersdelight:" + safe);
+        boolean resolved = item != null && !item.getType().isAir();
+        if (item == null || item.getType().isAir()) {
+            // The CraftEngine frame item isn't loaded yet (e.g. mid CE reload): use a transient fallback but
+            // DON'T cache it (see below), so a later tick retries once the items resolve — the cache is
+            // otherwise only cleared on /fd reload gui.
+            item = new ItemStack(Material.LIGHT_GRAY_STAINED_GLASS_PANE);
+        }
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.displayName(Component.text(" "));
+            meta.lore(List.of());
+            meta.setHideTooltip(true);
+            item.setItemMeta(meta);
+        }
+        if (resolved) {
+            progressFrameCache[safe] = item;
+        }
+        return item;
     }
 
     private void placeButton(RenderSpec spec, String role) {
