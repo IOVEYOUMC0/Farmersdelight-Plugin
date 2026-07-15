@@ -1079,6 +1079,14 @@ recipes:
     result:
       id: farmersdelight:fried_egg
       count: 1
+  farmersdelight:fried_egg_campfire:
+    type: campfire_cooking
+    experience: 0.35
+    time: 100
+    ingredient: "#minecraft:eggs"
+    result:
+      id: farmersdelight:fried_egg
+      count: 1
   farmersdelight:wheat_dough:
     type: shapeless
     category: misc

@@ -3,11 +3,11 @@ package com.huidu.farmersdelight.effect;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.buff.BuffBossbar;
 import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.util.CompatAttributes;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import org.bukkit.GameRule;
 import org.bukkit.NamespacedKey;
-import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Player;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
@@ -474,7 +474,7 @@ public final class EffectManager {
             return;
         }
 
-        var maxHealthAttr = player.getAttribute(Attribute.MAX_HEALTH);
+        var maxHealthAttr = player.getAttribute(CompatAttributes.MAX_HEALTH);
         if (maxHealthAttr == null) {
             return;
         }
@@ -500,7 +500,7 @@ public final class EffectManager {
             return;
         }
 
-        var maxHealthAttr = player.getAttribute(Attribute.MAX_HEALTH);
+        var maxHealthAttr = player.getAttribute(CompatAttributes.MAX_HEALTH);
         if (maxHealthAttr == null) {
             return;
         }

@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.util.CompatItemMeta;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.Text;
 import net.momirealms.craftengine.core.util.Key;
@@ -758,7 +759,7 @@ public class GuiConfig {
             if (key == null) {
                 return;
             }
-            meta.setItemModel(key);
+            CompatItemMeta.setItemModel(meta, key);
         }
 
         private void applyHideTooltip(ItemMeta meta, boolean hideTooltip) {

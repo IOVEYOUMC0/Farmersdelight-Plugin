@@ -91,7 +91,13 @@ public final class CustomBlockUtils {
     }
 
     public static CEWorld getCEWorld(World world) {
-        return world == null ? null : BukkitWorldManager.instance().getWorld(world.getUID());
+        if (world == null) {
+            return null;
+        }
+        // BukkitWorldManager.instance() is null when CraftEngine is not loaded (not yet initialized, or
+        // disabled at runtime). Callers treat a null CEWorld as "skip", so return null instead of throwing.
+        BukkitWorldManager worldManager = BukkitWorldManager.instance();
+        return worldManager == null ? null : worldManager.getWorld(world.getUID());
     }
 
     public static World getBukkitWorld(BlockEntity blockEntity) {

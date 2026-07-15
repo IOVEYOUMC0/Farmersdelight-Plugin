@@ -279,6 +279,15 @@ public final class RecipeBookGui implements InventoryHolder {
                 && !discovery.isUnlocked(viewer.getUniqueId(), target.id(), recipe.id());
     }
 
+    // Substitutes the {page}/{total} placeholders in a list title with the current page and page count, so an
+    // addon's list title can show a page counter like FarmersDelight's own recipe list. A title without the
+    // placeholders is returned unchanged.
+    private static Component withPageInfo(Component title, int page, int total) {
+        return title
+                .replaceText(b -> b.matchLiteral("{page}").replacement(Integer.toString(page)))
+                .replaceText(b -> b.matchLiteral("{total}").replacement(Integer.toString(total)));
+    }
+
     void drawList(RecipeType target, int targetPage) {
         view = View.LIST;
         type = target;
@@ -290,7 +299,7 @@ public final class RecipeBookGui implements InventoryHolder {
         List<ViewableRecipe> recipes = visibleRecipes(target);
         int pages = Math.max(1, (recipes.size() + pageSize - 1) / pageSize);
         page = Math.max(0, Math.min(targetPage, pages - 1));
-        inventory = Bukkit.createInventory(this, spec.size(), spec.title());
+        inventory = Bukkit.createInventory(this, spec.size(), withPageInfo(spec.title(), page + 1, pages));
         spec.renderChrome(inventory);
         int start = page * pageSize;
         RecipeDiscoveryManager discovery = discovery();

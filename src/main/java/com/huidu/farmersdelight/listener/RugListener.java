@@ -235,9 +235,9 @@ public final class RugListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onUnderlyingPhysics(BlockPhysicsEvent event) {
-        // Three cheap gates protect the hot path: ① empty-map check skips everything when no rugs
-        // exist, ② material check, ③ O(1) map lookup. posKey is only allocated once a tracked
-        // underlying block actually updates, which is rare.
+        // Cheap gates protect the hot path: ① empty-map check skips everything when no rugs exist,
+        // ② carpet-material check, ③ O(1) map lookup. The posKey is allocated for every carpet-material
+        // physics event (tracked or not), because the key must be built to perform the lookup.
         if (cellToRug.isEmpty()) return;
         Block block = event.getBlock();
         if (!config().isUnderlyingMaterial(block.getType())) return;

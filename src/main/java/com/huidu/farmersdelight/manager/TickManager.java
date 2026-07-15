@@ -570,8 +570,11 @@ public class TickManager {
             CookingPotBlockBehavior.removeBlockEntity(world, posKey);
             return;
         }
-        
-        if (!CookingPotBlockBehavior.hasCookingPotBehavior(world, posKey)) {
+
+        // Resolve the behavior once from the already-fetched state; a null result also answers "no longer a
+        // cooking pot", so this replaces a second getBlockAt + CE custom-state fetch per pot per tick.
+        CookingPotBlockBehavior behavior = CustomBlockUtils.getBehavior(state, CookingPotBlockBehavior.class);
+        if (behavior == null) {
             unregisterCookingPotBlock(activeBlock, world, posKey);
             // The block is no longer a cooking pot (replaced by a different block that bypassed the CE break
             // callbacks); retire its floating progress display + recipe-name cache instead of leaving them to
@@ -609,9 +612,6 @@ public class TickManager {
         }
 
         entity.setHasHeatSource(hasHeat);
-        // Resolve the behavior from the already-fetched block state, instead of re-reading the block
-        // (and its CE custom state) inside emitCookingPotEffects every tick.
-        CookingPotBlockBehavior behavior = CustomBlockUtils.getBehavior(state, CookingPotBlockBehavior.class);
         emitCookingPotEffects(world, posKey, entity, hasHeat, behavior);
 
         boolean canCook = hasHeat && entity.canCook();
