@@ -82,7 +82,7 @@ public class BlockPlaceListener implements Listener {
         Player player = event.getPlayer();
 
         StoveManager stoveManager = FarmersDelightPlugin.getInstance().getStoveManager();
-        stoveManager.invalidateBlockedAboveCache(event.getBlock().getLocation().clone().add(0, -1, 0));
+        stoveManager.invalidateBlockedAboveCache(event.getBlock().getLocation().add(0, -1, 0));
         syncTraysAroundSupportChange(event.getBlock().getLocation());
 
         String customBlockId = getCustomBlockId(event);

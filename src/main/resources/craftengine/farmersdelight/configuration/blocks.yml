@@ -1565,15 +1565,36 @@ block-state-mappings:
   farmland[moisture=6]: farmland[moisture=0]
 recipes:
   farmersdelight:organic_compost:
-    type: shaped
+    type: shapeless
     category: misc
-    pattern:
-    - DDD
-    - DRD
-    - DDD
+    group: organic_compost
     ingredients:
-      D: minecraft:dirt
-      R: minecraft:rotten_flesh
+      - minecraft:dirt
+      - farmersdelight:straw
+      - farmersdelight:straw
+      - minecraft:rotten_flesh
+      - minecraft:rotten_flesh
+      - minecraft:bone_meal
+      - minecraft:bone_meal
+      - minecraft:bone_meal
+      - minecraft:bone_meal
+    result:
+      id: farmersdelight:organic_compost
+      count: 1
+  farmersdelight:organic_compost_tree_bark:
+    type: shapeless
+    category: misc
+    group: organic_compost
+    ingredients:
+      - minecraft:dirt
+      - farmersdelight:straw
+      - farmersdelight:straw
+      - minecraft:bone_meal
+      - minecraft:bone_meal
+      - farmersdelight:tree_bark
+      - farmersdelight:tree_bark
+      - farmersdelight:tree_bark
+      - farmersdelight:tree_bark
     result:
       id: farmersdelight:organic_compost
       count: 1

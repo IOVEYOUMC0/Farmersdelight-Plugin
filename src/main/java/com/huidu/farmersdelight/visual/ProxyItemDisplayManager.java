@@ -614,6 +614,23 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
             return;
         }
 
+        // Cheap squared-distance pre-filter (syncPlayer iterates every display on join/teleport/respawn):
+        // a same-world display beyond view distance that the player is not currently viewing needs no work,
+        // so skip the isPlayerTrackingDisplayChunk chunk lookup (getChunkAt / getPlayersSeeingChunk) for it.
+        // dx/dy/dz are only valid same-world; a current viewer or a cross-world display falls through so a
+        // now-far or now-cross-world stale viewer is still cleaned up below.
+        Location displayLocation = display.location();
+        World displayWorld = displayLocation.getWorld();
+        if (displayWorld != null && Objects.equals(player.getWorld(), displayWorld)
+                && !display.viewers.contains(playerId)) {
+            double dx = player.getX() - displayLocation.getX();
+            double dy = player.getY() - displayLocation.getY();
+            double dz = player.getZ() - displayLocation.getZ();
+            if (dx * dx + dy * dy + dz * dz > viewDistanceSquared) {
+                return;
+            }
+        }
+
         // This is the per-player path (join/teleport/respawn/world-change on Paper, and every Folia
         // sync). Unlike the periodic syncAll path — whose candidate set already comes from
         // getPlayersSeeingChunk — this path would otherwise show a display to anyone within the flat 64

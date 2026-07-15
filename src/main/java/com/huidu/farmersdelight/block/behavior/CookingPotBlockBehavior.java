@@ -77,9 +77,11 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
     // proxy entityId. The proxy manager handles chunk-tracked viewer selection, distance filter, and
     // text diff internally, so per-pot visibility / throttle caches are gone.
     private static final Map<UUID, Map<BlockPosKey, Integer>> worldProgressDisplays = new ConcurrentHashMap<>();
-    // cookingRecipeItems is per-world-keyed (via DisplayStateKey) so two pots at the same x,y,z in
-    // different worlds don't share recipe-name state.
-    private static final Map<DisplayStateKey, ItemStack> cookingRecipeItems = new ConcurrentHashMap<>();
+    // Resolved recipe display name per pot, computed once when the recipe item is set (getDisplayName runs a
+    // getItemMeta clone + translation chain) so the progress-display tick doesn't re-derive an unchanging
+    // name every interval. Per-world-keyed (via DisplayStateKey) so two pots at the same x,y,z in different
+    // worlds don't share state; the text is viewer-independent, so one cached string serves all viewers.
+    private static final Map<DisplayStateKey, String> cookingRecipeNames = new ConcurrentHashMap<>();
     // World-scoped (via DisplayStateKey) so a pot placed at some x,y,z does not suppress the first interaction
     // with a different pot at the identical x,y,z in another world. BlockPosKey omits the world by design.
     private static final Map<DisplayStateKey, Long> recentPlacements = new ConcurrentHashMap<>();
@@ -406,7 +408,7 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
                 if (removeDisplayEntities && visualManager != null) {
                     visualManager.destroyDisplay(entry.getValue());
                 }
-                cookingRecipeItems.remove(new DisplayStateKey(worldId, entry.getKey()));
+                cookingRecipeNames.remove(new DisplayStateKey(worldId, entry.getKey()));
             }
             displays.clear();
         }
@@ -434,7 +436,7 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
             displays.clear();
         }
         worldProgressDisplays.clear();
-        cookingRecipeItems.clear();
+        cookingRecipeNames.clear();
         recentPlacements.clear();
     }
 
@@ -486,9 +488,8 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         DisplayStateKey stateKey = stateKey(world, posKey);
         String text;
         if (plugin.isShowRecipeNameInProgressDisplay()) {
-            ItemStack recipeItem = cookingRecipeItems.get(stateKey);
-            if (recipeItem != null) {
-                String recipeName = com.huidu.farmersdelight.util.ItemUtils.getDisplayName(recipeItem);
+            String recipeName = cookingRecipeNames.get(stateKey);
+            if (recipeName != null) {
                 text = recipeName + " " + progressPercent + "%";
             } else {
                 text = progressPercent + "%";
@@ -540,11 +541,11 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         }
         DisplayStateKey stateKey = stateKey(world, posKey);
         if (recipeItem != null && !recipeItem.getType().isAir()) {
-            // Clone: the caller passes the recipe's shared result stack; store a private copy so a later
-            // mutation of that stack elsewhere can't corrupt the cached display item.
-            cookingRecipeItems.put(stateKey, recipeItem.clone());
+            // Resolve the display name once here — it doesn't change while this recipe cooks, so the
+            // progress-display tick just reads it back instead of re-deriving it every interval.
+            cookingRecipeNames.put(stateKey, com.huidu.farmersdelight.util.ItemUtils.getDisplayName(recipeItem));
         } else {
-            cookingRecipeItems.remove(stateKey);
+            cookingRecipeNames.remove(stateKey);
         }
     }
 
@@ -560,7 +561,7 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
                 visualManager.destroyDisplay(entityId);
             }
         }
-        cookingRecipeItems.remove(stateKey(world, posKey));
+        cookingRecipeNames.remove(stateKey(world, posKey));
     }
 
     public static void saveAllData() {

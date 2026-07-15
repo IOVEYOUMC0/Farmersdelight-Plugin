@@ -40,6 +40,16 @@ public class CookingPotRecipeManager {
                 }
             });
     private static final int MAX_CACHE_SIZE = 100;
+    // Negative-result cache: input+container multisets known to match nothing, so an unchanged incomplete
+    // pot (mid-fill, hopper-fed, or junk) does not re-scan every recipe each tick. Bounded LRU like
+    // recipeCache, only touched under the recipeCache monitor, cleared + generation-bumped alongside it.
+    private final Set<String> recipeMisses = java.util.Collections.newSetFromMap(
+            new LinkedHashMap<String, Boolean>(MAX_CACHE_SIZE + 1, 0.75f, false) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
+                    return size() > MAX_CACHE_SIZE;
+                }
+            });
     // Bumped inside the same synchronized(recipeCache) block that clears the cache on every (re)publish.
     // matchRecipe snapshots it before reading the volatile maps and only stores a computed match if it is
     // still current, so a match computed against pre-reload maps can't repopulate the just-cleared cache.
@@ -107,6 +117,7 @@ public class CookingPotRecipeManager {
         vanillaItemIdsByTagCache.clear();
         synchronized (recipeCache) {
             recipeCache.clear();
+            recipeMisses.clear();
             recipeGeneration++;
         }
         // Invalidate the recipe-list GUI display cache: this republish path (incl. addon register/
@@ -325,8 +336,13 @@ public class CookingPotRecipeManager {
         // program order, so this pairs the match we are about to compute with the map version it saw.
         long generationAtStart = recipeGeneration;
         CookingPotRecipe cached;
+        boolean cachedMiss;
         synchronized (recipeCache) {
             cached = recipeCache.get(cacheKey);
+            cachedMiss = cached == null && recipeMisses.contains(cacheKey);
+        }
+        if (cachedMiss) {
+            return null;
         }
         if (cached != null && matchesContainer(cached, container)) {
             return cached;
@@ -341,12 +357,15 @@ public class CookingPotRecipeManager {
             result = matchDefaultRecipe(nonEmptyInputs, container);
         }
 
-        if (result != null) {
-            synchronized (recipeCache) {
-                // Skip caching if a (re)publish cleared the cache and bumped the generation while we were
-                // matching: this result may be against now-stale maps and would poison the fresh cache.
-                if (recipeGeneration == generationAtStart) {
+        synchronized (recipeCache) {
+            // Skip caching if a (re)publish cleared the cache and bumped the generation while we were
+            // matching: this result may be against now-stale maps and would poison the fresh cache.
+            if (recipeGeneration == generationAtStart) {
+                if (result != null) {
                     recipeCache.put(cacheKey, result);
+                } else {
+                    // Negative cache so an unchanged incomplete pot won't re-scan every recipe next tick.
+                    recipeMisses.add(cacheKey);
                 }
             }
         }
@@ -585,7 +604,7 @@ public class CookingPotRecipeManager {
         return false;
     }
 
-    private Set<String> getVanillaItemIdsByTag(Key tagKey) {
+    public Set<String> getVanillaItemIdsByTag(Key tagKey) {
         if (tagKey == null) {
             return Set.of();
         }
@@ -713,6 +732,7 @@ public class CookingPotRecipeManager {
     public void clearCache() {
         synchronized (recipeCache) {
             recipeCache.clear();
+            recipeMisses.clear();
         }
     }
 

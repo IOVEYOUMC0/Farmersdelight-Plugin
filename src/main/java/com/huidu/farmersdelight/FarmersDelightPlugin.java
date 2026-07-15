@@ -375,6 +375,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
         loadRecipeManagersWhenReady("plugin.loading_recipes");
 
+        // If CraftEngine is disabled while the server keeps running, FD cannot function; disable ourselves
+        // cleanly instead of throwing from every CraftEngine-bound task. See CraftEngineWatchdogListener.
+        getServer().getPluginManager().registerEvents(new CraftEngineWatchdogListener(this), this);
+
         recipeDiscoveryManager = new RecipeDiscoveryManager(this);
         recipeDiscoveryManager.load();
         getServer().getPluginManager().registerEvents(new RecipeDiscoveryListener(this), this);

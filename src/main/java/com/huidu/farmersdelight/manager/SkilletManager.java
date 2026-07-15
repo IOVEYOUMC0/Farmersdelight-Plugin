@@ -961,7 +961,8 @@ public class SkilletManager {
         World world = location.getWorld();
         if (world == null) return;
         if (!world.isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4)) return;
-        if (!isSkilletBlock(CustomBlockUtils.getState(location.getBlock()))) {
+        ImmutableBlockState carrierState = CustomBlockUtils.getState(location.getBlock());
+        if (!isSkilletBlock(carrierState)) {
             debug(() -> "tick remove: skillet carrier block is gone at " + formatLocation(location));
             cleanupVisual(skillet);
             removeStoredData(location);
@@ -1046,7 +1047,7 @@ public class SkilletManager {
         }
         if (canSpawnEffects && chunkBudget.get() < chunkEffectBudgetLimit
                 && sizzleEnabled && random.nextDouble() < sizzleChance) {
-            SoundUtils.play(nearbyViewers, location, getSizzleSound(location), Sound.BLOCK_CAMPFIRE_CRACKLE, sizzleVolume, sizzlePitch);
+            SoundUtils.play(nearbyViewers, location, getSizzleSound(carrierState), Sound.BLOCK_CAMPFIRE_CRACKLE, sizzleVolume, sizzlePitch);
             chunkBudget.incrementAndGet();
         }
         if (skillet.cookingProgress >= skillet.cookingDuration) {
@@ -1160,8 +1161,10 @@ public class SkilletManager {
         return Constants.SOUND_SKILLET_ADD_FOOD;
     }
 
-    private String getSizzleSound(Location location) {
-        SkilletBlockBehavior behavior = SkilletBlockBehavior.getBlockBehavior(location);
+    // Resolves the sizzle sound from the already-fetched carrier state, avoiding a second CE custom-state
+    // fetch during the sizzle branch (the state is validated once at the top of tickSkillet).
+    private String getSizzleSound(ImmutableBlockState state) {
+        SkilletBlockBehavior behavior = CustomBlockUtils.getBehavior(state, SkilletBlockBehavior.class);
         if (behavior != null) {
             return behavior.getSizzleSound();
         }

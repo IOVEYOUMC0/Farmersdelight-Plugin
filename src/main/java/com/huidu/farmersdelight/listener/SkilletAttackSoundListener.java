@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.SoundUtils;
+import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.entity.Player;
@@ -23,6 +24,12 @@ public final class SkilletAttackSoundListener implements Listener {
         }
 
         ItemStack mainHand = player.getInventory().getItemInMainHand();
+        // Cheap base-material pre-gate before the CraftEngine wrapper allocation: the skillet item is backed
+        // by iron_sword, so anything else (other swords, axes, bare fists) can never be the skillet. This
+        // skips getCustomItemId (a CE item-wrap + component read) on the vast majority of melee hits.
+        if (mainHand.getType() != Material.IRON_SWORD) {
+            return;
+        }
         String customItemId = ItemUtils.getCustomItemId(mainHand);
         if (!Constants.ITEM_SKILLET.equals(customItemId)) {
             return;

@@ -487,19 +487,18 @@ public class CookingPotBlockEntity {
             }
 
             Key itemKey = Key.of("minecraft:" + item.getType().name().toLowerCase(java.util.Locale.ROOT));
-            boolean matchesBase = FarmersDelightPlugin.getInstance().getCraftEngine().itemManager()
-                    .vanillaItemIdsByTag(tagIngredient.key()).stream()
-                    .anyMatch(key -> key.toString().equals(itemKey.toString()))
+            String itemKeyId = itemKey.toString();
+            // Route the vanilla-tag membership test through the recipe manager's memoized lookup (O(1)
+            // contains) instead of streaming CraftEngine's tag list fresh on every probe.
+            var recipes = FarmersDelightPlugin.getInstance().getCookingPotRecipes();
+            boolean matchesBase = recipes.getVanillaItemIdsByTag(tagIngredient.key()).contains(itemKeyId)
                     || ItemUtils.matchesVanillaItemTag(item, tagIngredient.key(),
                     tagIngredient.excludedItems(), tagIngredient.excludedTags());
             if (!matchesBase) {
                 return false;
             }
             for (Key excludedTag : tagIngredient.excludedTags()) {
-                boolean blocked = FarmersDelightPlugin.getInstance().getCraftEngine().itemManager()
-                        .vanillaItemIdsByTag(excludedTag).stream()
-                        .anyMatch(key -> key.toString().equals(itemKey.toString()));
-                if (blocked) {
+                if (recipes.getVanillaItemIdsByTag(excludedTag).contains(itemKeyId)) {
                     return false;
                 }
             }
