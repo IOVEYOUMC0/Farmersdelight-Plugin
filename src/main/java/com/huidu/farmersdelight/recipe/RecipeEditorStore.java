@@ -21,7 +21,7 @@ import java.util.Map;
  * Writes edited recipes back to the recipes/*.yml files and reloads them.
  *
  * Saves are synchronous: they are triggered by an admin action (a GUI button), the files are small, and
- * FarmersDelightPlugin#reloadRecipeFiles() must run on the main/region thread anyway.
+ * FarmersDelightPlugin.reloadRecipeFiles must run on the main/region thread anyway.
  * The files themselves are written atomically (temp file + move), so a crash mid-write does not
  * corrupt the recipe files.
  */
@@ -151,13 +151,16 @@ public final class RecipeEditorStore {
 
     private boolean mutate(String relativePath, YamlMutation mutation) {
         try {
-            YamlConfiguration yaml = RecipeFileLoader.loadRecipeFile(plugin, relativePath);
+            // Load without bundled-recipe reconciliation: this path reads the file only to write it straight
+            // back, so a merge here would re-add in the same operation the very recipe an admin just deleted
+            // in the editor.
+            YamlConfiguration yaml = RecipeFileLoader.loadRecipeFile(plugin, relativePath, false);
             mutation.apply(yaml);
             writeAtomically(new File(plugin.getDataFolder(), relativePath), yaml.saveToString());
             plugin.reloadRecipeFiles();
             return true;
         } catch (Exception e) {
-            I18n.logWarning("recipe_save_failed", "file", relativePath, "error", e.getMessage());
+            I18n.logWarning("plugin.recipe_save_failed", "file", relativePath, "error", e.getMessage());
             return false;
         }
     }

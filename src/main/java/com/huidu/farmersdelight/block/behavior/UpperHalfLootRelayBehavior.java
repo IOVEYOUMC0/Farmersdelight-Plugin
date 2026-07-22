@@ -1,12 +1,14 @@
 package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.util.BehaviorArgParser;
+import com.huidu.farmersdelight.util.Constants;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.property.Property;
+import net.momirealms.craftengine.core.plugin.config.KnownResourceException;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 
@@ -63,6 +65,17 @@ public class UpperHalfLootRelayBehavior extends BlockBehavior {
                     String halfPropertyName = BehaviorArgParser.getStringStrict(arguments, "half-property", "half");
                     String lowerHalfValue = BehaviorArgParser.getStringStrict(arguments, "half-lower-value", "lower");
                     String upperHalfValue = BehaviorArgParser.getStringStrict(arguments, "half-upper-value", "upper");
+                    // Telling the two halves apart is the whole of this behavior: without the property every
+                    // state reads as "not the upper half", the relay never fires and the block silently drops
+                    // its own loot instead of the lower half's. Abort the block's load here with the config
+                    // node and the property name rather than let it look correct and do nothing. The property
+                    // is looked up by name only, with no value class, because the half values are compared as
+                    // text and any property type whose values spell out the two halves is accepted.
+                    String path = section != null ? section.path() : Constants.BEHAVIOR_UPPER_HALF_LOOT_RELAY;
+                    if (block.getProperty(halfPropertyName) == null) {
+                        throw new KnownResourceException(
+                                "resource.block.behavior.missing_property", path, halfPropertyName);
+                    }
                     BlockFace lowerHalfDirection = parseDirection(lowerHalfDirectionName);
                     return new UpperHalfLootRelayBehavior(
                             block,

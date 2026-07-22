@@ -174,12 +174,12 @@ items:
       attribute-modifiers:
       - type: minecraft:attack_damage
         slot: mainhand
-        amount: 8
+        amount: 7
         operation: add_value
       - type: minecraft:attack_speed
         slot: mainhand
-        amount: -0.7
-        operation: add_multiplied_base
+        amount: -3.1
+        operation: add_value
       - type: minecraft:attack_knockback
         slot: mainhand
         amount: 1
@@ -673,30 +673,19 @@ block:
         properties:
           fire: true
       - type: match_item
-        id: minecraft:potion
+        item: ".*_shovel"
+        regex: true
       functions:
+      - type: cancel_event
       - type: update_interaction_tick
       - type: update_block_property
         properties:
           fire: false
       - type: play_sound
         sound: minecraft:block.fire.extinguish
-      - type: set_count
-        target: self
-        count: -1
-        add: true
+      - type: damage_item
+        damage: 1
       - type: swing_hand
-      - type: drop_loot
-        x: <arg:block.block_x>
-        y: <arg:block.block_y> + 2
-        z: <arg:block.block_z>
-        loot:
-          pools:
-          - rolls: 1
-            entries:
-            - type: item
-              item: minecraft:glass_bottle
-              count: 1
     - on: right_click
       conditions:
       - type: hand
@@ -707,12 +696,13 @@ block:
       - type: match_item
         id: minecraft:water_bucket
       functions:
+      - type: cancel_event
       - type: update_interaction_tick
       - type: update_block_property
         properties:
           fire: false
       - type: play_sound
-        sound: minecraft:block.fire.extinguish
+        sound: minecraft:entity.generic.extinguish_fire
       - type: set_count
         target: self
         count: -1
@@ -796,35 +786,17 @@ block:
       light-low-bonus: 0.05
       light-threshold: 12
       activators:
-      - minecraft:wheat
-      - minecraft:wheat_seeds
-      - minecraft:carrot
-      - minecraft:potato
-      - minecraft:beetroot
-      - minecraft:beetroot_seeds
-      - minecraft:melon_seeds
-      - minecraft:pumpkin_seeds
-      - minecraft:rotten_flesh
-      - minecraft:bone_meal
-      - minecraft:apple
-      - minecraft:sweet_berries
-      - minecraft:glow_berries
       - minecraft:brown_mushroom
       - minecraft:red_mushroom
-      - minecraft:oak_sapling
-      - minecraft:birch_sapling
-      - minecraft:spruce_sapling
-      - minecraft:jungle_sapling
-      - minecraft:acacia_sapling
-      - minecraft:dark_oak_sapling
-      - minecraft:cherry_sapling
-      - minecraft:hay_block
-      - minecraft:moss_block
-      - farmersdelight:tomato
-      - farmersdelight:rotten_tomato
-      - farmersdelight:cabbage
-      - farmersdelight:onion
-      - farmersdelight:straw
+      - minecraft:podzol
+      - minecraft:mycelium
+      - farmersdelight:brown_mushroom
+      - farmersdelight:red_mushroom
+      - farmersdelight:brown_mushroom_colony
+      - farmersdelight:red_mushroom_colony
+      - farmersdelight:organic_compost
+      - farmersdelight:rich_soil
+      - farmersdelight:rich_soil_farmland
     loot:
       template: default:loot_table/self
     states:
@@ -836,28 +808,84 @@ block:
       appearances:
         composting=0:
           auto-state: note_block
-          model: farmersdelight:block/organic_compost_0
+          model:
+          - path: farmersdelight:block/organic_compost_0
+          - path: farmersdelight:block/organic_compost_0
+            y: 90
+          - path: farmersdelight:block/organic_compost_0
+            y: 180
+          - path: farmersdelight:block/organic_compost_0
+            y: 270
         composting=1:
           auto-state: note_block
-          model: farmersdelight:block/organic_compost_1
+          model:
+          - path: farmersdelight:block/organic_compost_1
+          - path: farmersdelight:block/organic_compost_1
+            y: 90
+          - path: farmersdelight:block/organic_compost_1
+            y: 180
+          - path: farmersdelight:block/organic_compost_1
+            y: 270
         composting=2:
           auto-state: note_block
-          model: farmersdelight:block/organic_compost_2
+          model:
+          - path: farmersdelight:block/organic_compost_2
+          - path: farmersdelight:block/organic_compost_2
+            y: 90
+          - path: farmersdelight:block/organic_compost_2
+            y: 180
+          - path: farmersdelight:block/organic_compost_2
+            y: 270
         composting=3:
           auto-state: note_block
-          model: farmersdelight:block/organic_compost_3
+          model:
+          - path: farmersdelight:block/organic_compost_3
+          - path: farmersdelight:block/organic_compost_3
+            y: 90
+          - path: farmersdelight:block/organic_compost_3
+            y: 180
+          - path: farmersdelight:block/organic_compost_3
+            y: 270
         composting=4:
           auto-state: note_block
-          model: farmersdelight:block/organic_compost_4
+          model:
+          - path: farmersdelight:block/organic_compost_4
+          - path: farmersdelight:block/organic_compost_4
+            y: 90
+          - path: farmersdelight:block/organic_compost_4
+            y: 180
+          - path: farmersdelight:block/organic_compost_4
+            y: 270
         composting=5:
           auto-state: note_block
-          model: farmersdelight:block/organic_compost_5
+          model:
+          - path: farmersdelight:block/organic_compost_5
+          - path: farmersdelight:block/organic_compost_5
+            y: 90
+          - path: farmersdelight:block/organic_compost_5
+            y: 180
+          - path: farmersdelight:block/organic_compost_5
+            y: 270
         composting=6:
           auto-state: note_block
-          model: farmersdelight:block/organic_compost_6
+          model:
+          - path: farmersdelight:block/organic_compost_6
+          - path: farmersdelight:block/organic_compost_6
+            y: 90
+          - path: farmersdelight:block/organic_compost_6
+            y: 180
+          - path: farmersdelight:block/organic_compost_6
+            y: 270
         composting=7:
           auto-state: note_block
-          model: farmersdelight:block/organic_compost_7
+          model:
+          - path: farmersdelight:block/organic_compost_7
+          - path: farmersdelight:block/organic_compost_7
+            y: 90
+          - path: farmersdelight:block/organic_compost_7
+            y: 180
+          - path: farmersdelight:block/organic_compost_7
+            y: 270
       variants:
         composting=0:
           appearance: composting=0
@@ -897,11 +925,45 @@ block:
       boost-chance: 0.2
       brown-mushroom-colony: farmersdelight:brown_mushroom_colony
       red-mushroom-colony: farmersdelight:red_mushroom_colony
+      unaffected-blocks:
+      - minecraft:grass_block
+      - minecraft:short_grass
+      - minecraft:fern
+      - minecraft:moss_block
+      - minecraft:crimson_nylium
+      - minecraft:warped_nylium
+      - minecraft:twisting_vines
+      - minecraft:twisting_vines_plant
+      - minecraft:big_dripleaf
+      - minecraft:big_dripleaf_stem
+      - minecraft:pink_petals
+      - minecraft:sunflower
+      - minecraft:lilac
+      - minecraft:peony
+      - minecraft:rose_bush
+      - minecraft:pitcher_plant
+      - farmersdelight:sandy_shrub
+      - farmersdelight:brown_mushroom_colony
+      - farmersdelight:red_mushroom_colony
+      - farmersdelight:wild_cabbages
+      - farmersdelight:wild_onions
+      - farmersdelight:wild_tomatoes
+      - farmersdelight:wild_rice
+      - farmersdelight:wild_carrots
+      - farmersdelight:wild_potatoes
+      - farmersdelight:wild_beetroots
     loot:
       template: default:loot_table/self
     state:
       auto-state: note_block
-      model: farmersdelight:block/rich_soil
+      model:
+      - path: farmersdelight:block/rich_soil
+      - path: farmersdelight:block/rich_soil
+        y: 90
+      - path: farmersdelight:block/rich_soil
+        y: 180
+      - path: farmersdelight:block/rich_soil
+        y: 270
   farmersdelight:rich_soil_farmland:
     settings:
       hardness: 0.6
@@ -920,6 +982,7 @@ block:
     - type: farmersdelight:rich_soil_farmland
       boost-chance: 0.08
       moisture-property: moisture
+      rich-soil-block: farmersdelight:rich_soil
     loot:
       pools:
       - rolls: 1
@@ -1907,7 +1970,7 @@ recipes:
     result:
       id: farmersdelight:full_tatami_mat
       count: 2
-  farmersdelight:full_tatami_mat_half:
+  farmersdelight:full_tatami_mat_from_halves:
     type: shaped
     category: building
     group: tatami_mat
@@ -1927,25 +1990,53 @@ recipes:
       id: farmersdelight:half_tatami_mat
       count: 2
   farmersdelight:canvas_rug:
-    type: shaped
+    type: shapeless
     category: building
-    pattern:
-    - CC
     ingredients:
-      C: farmersdelight:canvas
+    - farmersdelight:canvas
     result:
       id: farmersdelight:canvas_rug
       count: 2
+  farmersdelight:canvas_from_canvas_rug:
+    type: shapeless
+    category: misc
+    group: canvas
+    ingredients:
+    - farmersdelight:canvas_rug
+    - farmersdelight:canvas_rug
+    result:
+      id: farmersdelight:canvas
+      count: 1
+  farmersdelight:safety_net:
+    type: shaped
+    category: misc
+    pattern:
+    - RR
+    - RR
+    ingredients:
+      R: farmersdelight:rope
+    result:
+      id: farmersdelight:safety_net
+      count: 1
+  farmersdelight:rope_from_safety_net:
+    type: shapeless
+    category: misc
+    group: rope
+    ingredients:
+    - farmersdelight:safety_net
+    result:
+      id: farmersdelight:rope
+      count: 4
   farmersdelight:oak_cabinet:
     type: shaped
     category: building
     group: cabinet
     pattern:
-    - PPP
-    - S S
-    - PPP
+    - SSS
+    - D D
+    - SSS
     ingredients:
-      P: minecraft:oak_planks
+      D: minecraft:oak_trapdoor
       S: minecraft:oak_slab
     result:
       id: farmersdelight:oak_cabinet
@@ -1955,11 +2046,11 @@ recipes:
     category: building
     group: cabinet
     pattern:
-    - PPP
-    - S S
-    - PPP
+    - SSS
+    - D D
+    - SSS
     ingredients:
-      P: minecraft:spruce_planks
+      D: minecraft:spruce_trapdoor
       S: minecraft:spruce_slab
     result:
       id: farmersdelight:spruce_cabinet
@@ -1969,11 +2060,11 @@ recipes:
     category: building
     group: cabinet
     pattern:
-    - PPP
-    - S S
-    - PPP
+    - SSS
+    - D D
+    - SSS
     ingredients:
-      P: minecraft:birch_planks
+      D: minecraft:birch_trapdoor
       S: minecraft:birch_slab
     result:
       id: farmersdelight:birch_cabinet
@@ -1983,11 +2074,11 @@ recipes:
     category: building
     group: cabinet
     pattern:
-    - PPP
-    - S S
-    - PPP
+    - SSS
+    - D D
+    - SSS
     ingredients:
-      P: minecraft:jungle_planks
+      D: minecraft:jungle_trapdoor
       S: minecraft:jungle_slab
     result:
       id: farmersdelight:jungle_cabinet
@@ -1997,11 +2088,11 @@ recipes:
     category: building
     group: cabinet
     pattern:
-    - PPP
-    - S S
-    - PPP
+    - SSS
+    - D D
+    - SSS
     ingredients:
-      P: minecraft:acacia_planks
+      D: minecraft:acacia_trapdoor
       S: minecraft:acacia_slab
     result:
       id: farmersdelight:acacia_cabinet
@@ -2011,11 +2102,11 @@ recipes:
     category: building
     group: cabinet
     pattern:
-    - PPP
-    - S S
-    - PPP
+    - SSS
+    - D D
+    - SSS
     ingredients:
-      P: minecraft:dark_oak_planks
+      D: minecraft:dark_oak_trapdoor
       S: minecraft:dark_oak_slab
     result:
       id: farmersdelight:dark_oak_cabinet
@@ -2025,11 +2116,11 @@ recipes:
     category: building
     group: cabinet
     pattern:
-    - PPP
-    - S S
-    - PPP
+    - SSS
+    - D D
+    - SSS
     ingredients:
-      P: minecraft:mangrove_planks
+      D: minecraft:mangrove_trapdoor
       S: minecraft:mangrove_slab
     result:
       id: farmersdelight:mangrove_cabinet
@@ -2039,11 +2130,11 @@ recipes:
     category: building
     group: cabinet
     pattern:
-    - PPP
-    - S S
-    - PPP
+    - SSS
+    - D D
+    - SSS
     ingredients:
-      P: minecraft:cherry_planks
+      D: minecraft:cherry_trapdoor
       S: minecraft:cherry_slab
     result:
       id: farmersdelight:cherry_cabinet
@@ -2053,11 +2144,11 @@ recipes:
     category: building
     group: cabinet
     pattern:
-    - PPP
-    - S S
-    - PPP
+    - SSS
+    - D D
+    - SSS
     ingredients:
-      P: minecraft:bamboo_planks
+      D: minecraft:bamboo_trapdoor
       S: minecraft:bamboo_slab
     result:
       id: farmersdelight:bamboo_cabinet
@@ -2067,11 +2158,11 @@ recipes:
     category: building
     group: cabinet
     pattern:
-    - PPP
-    - S S
-    - PPP
+    - SSS
+    - D D
+    - SSS
     ingredients:
-      P: minecraft:pale_oak_planks
+      D: minecraft:pale_oak_trapdoor
       S: minecraft:pale_oak_slab
     result:
       id: farmersdelight:pale_oak_cabinet
@@ -2081,11 +2172,11 @@ recipes:
     category: building
     group: cabinet
     pattern:
-    - PPP
-    - S S
-    - PPP
+    - SSS
+    - D D
+    - SSS
     ingredients:
-      P: minecraft:crimson_planks
+      D: minecraft:crimson_trapdoor
       S: minecraft:crimson_slab
     result:
       id: farmersdelight:crimson_cabinet
@@ -2095,11 +2186,11 @@ recipes:
     category: building
     group: cabinet
     pattern:
-    - PPP
-    - S S
-    - PPP
+    - SSS
+    - D D
+    - SSS
     ingredients:
-      P: minecraft:warped_planks
+      D: minecraft:warped_trapdoor
       S: minecraft:warped_slab
     result:
       id: farmersdelight:warped_cabinet

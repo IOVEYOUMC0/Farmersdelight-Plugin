@@ -72,13 +72,32 @@ public class StrawDropListener implements Listener {
 
         StrawDropConfig.StrawDropRule rule = getStrawDropRule(block);
         if (rule != null) {
-            dropStraw(block, rule);
-            
+            if (!isStrawDroppedByVanillaLootEntry(block)) {
+                dropStraw(block, rule);
+            }
+
             AdvancementManager advancementManager = FarmersDelightPlugin.getInstance().getAdvancementManager();
             if (advancementManager != null) {
                 advancementManager.award(player, "harvest_straw");
             }
         }
+    }
+
+    // Short grass, tall grass and mature wheat already drop straw through the CraftEngine vanilla loot
+    // entries in vanilla_loots.yml, which reproduce the original mod's knife check and its 0.2 chance on
+    // the two grasses. Dropping it here as well would give those blocks two independent straw sources, so
+    // this listener yields the item for them and keeps only the advancement award. Mature rice stays with
+    // this listener: it is a CraftEngine block, which the vanilla loot injection cannot target. Any other
+    // block key an admin adds under drops.straw also keeps dropping through this listener.
+    private boolean isStrawDroppedByVanillaLootEntry(Block block) {
+        Material type = block.getType();
+        if (type == Material.SHORT_GRASS || type == Material.TALL_GRASS) {
+            return true;
+        }
+        if (type == Material.WHEAT && block.getBlockData() instanceof Ageable ageable) {
+            return ageable.getAge() >= ageable.getMaximumAge();
+        }
+        return false;
     }
 
     private boolean isKnife(ItemStack item) {

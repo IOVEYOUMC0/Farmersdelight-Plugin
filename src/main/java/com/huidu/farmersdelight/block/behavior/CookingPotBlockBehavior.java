@@ -86,15 +86,6 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
     // with a different pot at the identical x,y,z in another world. BlockPosKey omits the world by design.
     private static final Map<DisplayStateKey, Long> recentPlacements = new ConcurrentHashMap<>();
 
-    private static int visibilityCheckIntervalTicks() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        return plugin == null
-                ? Constants.DEFAULT_COOKING_POT_DISPLAY_VISIBILITY_CHECK_INTERVAL_TICKS
-                : Math.max(1, plugin.getConfigInt(
-                        Constants.DEFAULT_COOKING_POT_DISPLAY_VISIBILITY_CHECK_INTERVAL_TICKS,
-                        "cooking-pot.display.visibility-check-interval-ticks"));
-    }
-
     private static long placeInteractionCooldownMs() {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         return plugin == null
@@ -169,6 +160,29 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         this.controllerId = id;
     }
 
+    @Override
+    public boolean hasAnalogOutputSignal(Object thisBlock, Object[] args) {
+        return true;
+    }
+
+    @Override
+    public int getAnalogOutputSignal(Object thisBlock, Object[] args) {
+        // args[1] = Level, args[2] = BlockPos. The mod's CookingPotBlock feeds its whole 9-slot handler through
+        // MathUtils.calcRedstoneFromItemHandler, so the signal tracks the pot's overall fill, not just the meal
+        // slot: every occupied slot contributes amount / min(slotLimit, maxStackSize), the sum is divided by the
+        // slot count, and any non-empty slot lifts the floor to 1.
+        World world = CraftEngineAdapter.toWorld(args[1]);
+        BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
+        if (world == null || pos == null) {
+            return 0;
+        }
+        CookingPotBlockEntity entity = getBlockEntity(world, pos);
+        if (entity == null) {
+            return 0;
+        }
+        return entity.getComparatorOutput();
+    }
+
     public static CookingPotBlockEntity getBlockEntity(World world, BlockPos pos) {
         return getBlockEntity(world, new BlockPosKey(pos));
     }
@@ -206,6 +220,14 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         });
         if (created[0]) {
             indexAdd(world.getUID(), posKey);
+            // A brand-new entity may shadow saved state the controller has not applied yet (startup's
+            // throttled chunk scan, or a chunk served from CraftEngine's chunk cache where loadCustomData
+            // never re-ran). Flush it now so the first interaction sees the stored contents instead of a
+            // blank pot whose later save would wipe them. Re-entry from loadData's own getOrCreate call is
+            // blocked by the controller's applyingPendingLoad guard.
+            CustomBlockUtils.notifyControllerChanged(world, posKey, CookingPotBlockEntityController.class,
+                    behavior == null ? null : behavior.controllerId,
+                    CookingPotBlockEntityController::loadPendingDataIfReady);
         }
         if (behavior != null) {
             entity.applyBehavior(behavior);
@@ -594,7 +616,10 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
     public static void saveBlockEntityData(World world, BlockPosKey posKey) {
         if (world == null || posKey == null) return;
         if (!hasCookingPotBehavior(world, posKey)) {
-            removeBlockEntity(world, posKey, true);
+            // The CE state can be transiently unresolvable (a /ce reload unbinds states for the parse
+            // window); deleting the stored NBT here would destroy a live pot's contents. Just mark the
+            // chunk dirty — a genuinely replaced block is cleaned up by the break/removal callbacks.
+            markBlockEntityDirty(world, posKey);
             return;
         }
 
@@ -604,6 +629,42 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         }
 
         markBlockEntityDirty(world, posKey);
+    }
+
+    /**
+     * Chunk-unload save: snapshots the entity into the controller (so the data survives the entity's
+     * removal at MONITOR cleanup and re-hydrates it if the chunk reloads out of CraftEngine's chunk cache),
+     * falling back to the plain save when the controller is unreachable.
+     */
+    public static void passivateBlockEntityData(World world, BlockPosKey posKey) {
+        if (world == null || posKey == null) return;
+        CookingPotBlockEntity entity = getBlockEntity(world, posKey);
+        if (entity == null) {
+            saveBlockEntityData(world, posKey);
+            return;
+        }
+        CookingPotBlockBehavior behavior = getBlockBehavior(posKey.toLocation(world));
+        Integer controllerId = behavior == null ? null : behavior.controllerId;
+        boolean stashed = CustomBlockUtils.notifyControllerChanged(world, posKey,
+                CookingPotBlockEntityController.class, controllerId,
+                controller -> controller.passivate(entity));
+        if (!stashed) {
+            saveBlockEntityData(world, posKey);
+        }
+    }
+
+    /**
+     * Applies any parked controller data (a passivation snapshot left by a chunk-cache reload, or a deferred
+     * startup load) into the plugin-side entity, so callers that read the entity right after — a break/drop
+     * that spills contents, a hopper container read — see the stored contents instead of a blank pot whose
+     * data still sits in the controller's pendingSaveData. Mirrors the flush in getOrCreateBlockEntity.
+     */
+    public static void flushPendingControllerData(World world, BlockPosKey posKey) {
+        if (world == null || posKey == null) return;
+        CookingPotBlockBehavior behavior = getBlockBehavior(posKey.toLocation(world));
+        Integer controllerId = behavior == null ? null : behavior.controllerId;
+        CustomBlockUtils.notifyControllerChanged(world, posKey, CookingPotBlockEntityController.class,
+                controllerId, CookingPotBlockEntityController::loadPendingDataIfReady);
     }
 
     private static boolean notifyControllerChanged(World world, BlockPosKey posKey, CookingPotBlockEntity entity) {
@@ -768,6 +829,7 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
             com.huidu.farmersdelight.manager.HandleManager hm = plugin == null ? null : plugin.getHandleManager();
             if (hm != null) {
                 hm.toggleHandle(bukkitPlayer.getWorld(), pos, bukkitPlayer);
+                bukkitPlayer.swingMainHand();
                 return InteractionResult.SUCCESS_AND_CANCEL;
             }
         }
@@ -797,6 +859,13 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         });
         if (created[0]) {
             indexAdd(world.getUID(), posKey);
+            // Flush parked controller data before the GUI reads this fresh entity. A chunk served back
+            // from CraftEngine's chunk cache never re-runs loadCustomData, so a pot whose entity was
+            // dropped on chunk unload would otherwise open EMPTY here (its snapshot sits in the
+            // controller's pendingSaveData) and a re-deposit would be wiped by that snapshot on the next
+            // save. Mirrors the flush in getOrCreateBlockEntity and the hopper getContainer path.
+            CustomBlockUtils.notifyControllerChanged(world, posKey, CookingPotBlockEntityController.class,
+                    this.controllerId, CookingPotBlockEntityController::loadPendingDataIfReady);
         }
         blockEntity.applyBehavior(this);
         blockEntity.setWorld(world);
@@ -807,6 +876,7 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         }
 
         if (handleHeldContainerServing(bukkitPlayer, world, posKey, blockEntity)) {
+            bukkitPlayer.swingMainHand();
             return InteractionResult.SUCCESS_AND_CANCEL;
         }
 
@@ -891,32 +961,6 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
     }
 
     @Override
-    public int getAnalogOutputSignal(Object thisBlock, Object[] args) {
-        if (args.length >= 3) {
-            World world = CraftEngineAdapter.toWorld(args[1]);
-            BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
-            if (world == null || pos == null) return 0;
-
-            BlockPosKey posKey = new BlockPosKey(pos);
-            Map<BlockPosKey, CookingPotBlockEntity> worldEntities = worldBlockEntities.get(world.getUID());
-            if (worldEntities == null) return 0;
-
-            CookingPotBlockEntity entity = worldEntities.get(posKey);
-            if (entity == null) return 0;
-
-            CookingPotLayout layout = entity.getLayout();
-            int filledSlots = entity.countFilledInputSlots();
-
-            if (entity.hasMealDisplayItem()) {
-                filledSlots++;
-            }
-
-            return (filledSlots * 15) / (layout.inputSlots().length + 1);
-        }
-        return 0;
-    }
-
-    @Override
     public void tick(Object thisBlock, Object[] args) {
         // Managed by TickManager.
     }
@@ -982,6 +1026,13 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         }
         return blockEntity.controller.let(CookingPotBlockEntityController.class, this.controllerId, controller -> {
             CookingPotBlockEntity entity = getBlockEntity(world, pos);
+            if (entity == null) {
+                // Native hoppers reach the pot through this injected WorldlyContainerHolder path without
+                // going through getOrCreateBlockEntity, so apply parked saved data here too — otherwise
+                // the hopper reads/fills an empty shadow and the late apply overwrites its insertions.
+                controller.loadPendingDataIfReady();
+                entity = getBlockEntity(world, pos);
+            }
             if (entity != null) {
                 controller.refreshFromEntity(entity);
             }

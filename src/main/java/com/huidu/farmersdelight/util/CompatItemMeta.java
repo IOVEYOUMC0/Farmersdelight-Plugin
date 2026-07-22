@@ -3,40 +3,22 @@ package com.huidu.farmersdelight.util;
 import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.lang.reflect.Method;
-
 /**
- * Applies the item_model component when the running server supports it, and is a no-op otherwise. The
- * ItemMeta setItemModel method exists only on Minecraft 1.21.4 and newer; on 1.21 / 1.21.1 the method
- * is absent, so the call is routed through reflection and skipped when unavailable. This lets the
- * plugin compile against and run on 1.21 while still honouring the component on newer servers.
+ * Internal alias for the shared item_model compatibility helper that lives in
+ * com.huidu.farmersdelight.api.util.CompatItemMeta. The api copy holds the only implementation (a
+ * single reflective method lookup shared by the plugin and its addons); this class exists only so
+ * internal call sites keep their short import.
  */
 public final class CompatItemMeta {
-
-    private static final Method SET_ITEM_MODEL = findSetItemModel();
 
     private CompatItemMeta() {
     }
 
-    private static Method findSetItemModel() {
-        try {
-            return ItemMeta.class.getMethod("setItemModel", NamespacedKey.class);
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
-
     public static boolean isSupported() {
-        return SET_ITEM_MODEL != null;
+        return com.huidu.farmersdelight.api.util.CompatItemMeta.isSupported();
     }
 
     public static void setItemModel(ItemMeta meta, NamespacedKey key) {
-        if (SET_ITEM_MODEL == null || meta == null || key == null) {
-            return;
-        }
-        try {
-            SET_ITEM_MODEL.invoke(meta, key);
-        } catch (ReflectiveOperationException ignored) {
-        }
+        com.huidu.farmersdelight.api.util.CompatItemMeta.setItemModel(meta, key);
     }
 }

@@ -2,11 +2,13 @@ package com.huidu.farmersdelight.api.event;
 
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Fired after FarmersDelight finishes a full reload (configs, recipes, language). Addons can listen to
  * re-read their own configuration in step with the main plugin.
  */
+@ApiStatus.NonExtendable
 public class FarmersDelightReloadEvent extends Event {
 
     private static final HandlerList HANDLERS = new HandlerList();

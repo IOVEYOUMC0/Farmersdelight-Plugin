@@ -34,9 +34,12 @@ public class SkilletManager {
 
     private static final int HEARTBEAT_LOG_INTERVAL = 20;
     private static final int DEFAULT_TICK_BUDGET = 512;
-    // Squared player-proximity radius for gating per-tick smoke/sizzle broadcasts (32 blocks =
-    // vanilla particle/sound range, matches StoveManager/TickManager).
-    private static final double EFFECT_VIEWER_DISTANCE_SQUARED = 32.0D * 32.0D;
+    // Squared player-proximity radius for gating per-tick smoke/sizzle broadcasts. Default 32 blocks =
+    // vanilla particle/sound range; read from skillet.effects.viewer-distance on reload.
+    private static final double DEFAULT_EFFECT_VIEWER_DISTANCE = 32.0D;
+    // Written in reloadConfig (reload thread), read on Folia region tick threads — volatile for a
+    // happens-before edge, matching the other reload-mutated tick-read fields.
+    private volatile double effectViewerDistanceSquared = DEFAULT_EFFECT_VIEWER_DISTANCE * DEFAULT_EFFECT_VIEWER_DISTANCE;
     private static final int DEFAULT_COOK_TIME = Constants.DEFAULT_COOKING_TIME_SKILLET;
     private static final int DEFAULT_MIN_COOK_TIME = 60;
     private static final int DEFAULT_COOLING_DECREMENT = 2;
@@ -90,7 +93,7 @@ public class SkilletManager {
     // whole tick pass. No chunk stagger is applied: the manager dispatches on a period-4 timer at a
     // fixed tick residue, so a Bukkit.getCurrentTick()-derived stagger would never rotate — it would
     // permanently silence 3/4 of chunks — so only the hard budget cap is used here.
-    private int chunkEffectBudgetLimit = 50;
+    private volatile int chunkEffectBudgetLimit = 50;
     // Keyed by world UID (like StoveManager.chunkFx) so two worlds' chunks sharing a chunkKey don't collide on
     // one budget entry. The outer map is cleared wholesale once per Bukkit tick across the whole tick pass.
     private final Map<java.util.UUID, Map<Long, AtomicInteger>> chunkEffectBudget = new ConcurrentHashMap<>();
@@ -168,6 +171,11 @@ public class SkilletManager {
         this.fireAspectBonus = ManagerSupport.clampChance(plugin.getConfigDouble(DEFAULT_FIRE_ASPECT_BONUS,
                 "skillet.cooking.fire-aspect-bonus",
                 "skillet.fire-aspect-bonus"));
+        double viewerDistance = Math.max(0.0D, plugin.getConfigDouble(DEFAULT_EFFECT_VIEWER_DISTANCE,
+                "skillet.effects.viewer-distance"));
+        this.effectViewerDistanceSquared = viewerDistance * viewerDistance;
+        this.chunkEffectBudgetLimit = Math.max(1, plugin.getConfigInt(50,
+                "performance.chunk-effect-packet-budget"));
         loadEffectsConfig();
         refreshVisualsAfterConfigReload();
     }
@@ -229,6 +237,19 @@ public class SkilletManager {
         SkilletData existing = skillets.get(normalized);
         if (existing != null) {
             return existing;
+        }
+
+        // Saved data may still be parked on the controller (deferred startup load, or a chunk served from
+        // CraftEngine's chunk cache where loadCustomData never re-ran); apply it before creating a blank
+        // entry that would shadow the stored contents and let the late apply overwrite this interaction.
+        if (normalized.getWorld() != null) {
+            CustomBlockUtils.notifyControllerChanged(normalized.getWorld(), new BlockPosKey(normalized),
+                    com.huidu.farmersdelight.block.behavior.SkilletBlockEntityController.class, null,
+                    com.huidu.farmersdelight.block.behavior.SkilletBlockEntityController::loadPendingDataIfReady);
+            SkilletData loaded = skillets.get(normalized);
+            if (loaded != null) {
+                return loaded;
+            }
         }
 
         SkilletData created = new SkilletData(normalized, defaultCookingTime);
@@ -411,6 +432,38 @@ public class SkilletManager {
         return skillet.storedItem.clone();
     }
 
+    /**
+     * Read-only snapshot of the tracked skillet at location for the api station-query facade, or null
+     * when nothing is tracked there. Taken under the SkilletData monitor so a concurrent interact or
+     * break cannot split the stored item from the progress counters; the heat flag is probed live
+     * rather than read from the tick cache so a caller that has just placed a heat source sees it.
+     * Must be called on the region thread owning location, because the heat probe reads blocks.
+     */
+    public com.huidu.farmersdelight.api.block.SkilletSnapshot snapshot(Location location) {
+        Location normalized = ManagerSupport.normalize(location);
+        if (normalized == null) {
+            return null;
+        }
+        SkilletData skillet = skillets.get(normalized);
+        if (skillet == null) {
+            return null;
+        }
+        boolean heated = computeHasHeatSource(normalized);
+        synchronized (skillet) {
+            CookingRecipe<?> recipe = skillet.currentRecipe;
+            return new com.huidu.farmersdelight.api.block.SkilletSnapshot(
+                    normalized,
+                    skillet.storedItem,
+                    skillet.skilletStack,
+                    recipe == null ? null : recipe.getKey().toString(),
+                    skillet.cookingProgress,
+                    skillet.cookingDuration,
+                    Math.max(0, skillet.cookingDuration - skillet.cookingProgress),
+                    heated,
+                    skillet.fireAspectLevel);
+        }
+    }
+
     public boolean canAcceptHopperInput(Location location, ItemStack item) {
         Location normalized = ManagerSupport.normalize(location);
         if (normalized == null || !isSkilletBlock(normalized) || !isValidHopperInput(item)) {
@@ -575,8 +628,23 @@ public class SkilletManager {
         breakSkillet(blockLocation, dropLocation, true);
     }
 
+    /** Applies parked controller data (a chunk-cache passivation snapshot, or a deferred load) back into the
+     *  manager entry, so a caller that reads the entry right after — a break that drops the stored food — sees
+     *  it instead of a blank entry whose state still sits in the controller's pendingSaveData. */
+    private void flushControllerPendingData(Location location) {
+        if (location == null || location.getWorld() == null) return;
+        CustomBlockUtils.notifyControllerChanged(location.getWorld(), new BlockPosKey(location),
+                com.huidu.farmersdelight.block.behavior.SkilletBlockEntityController.class, null,
+                com.huidu.farmersdelight.block.behavior.SkilletBlockEntityController::loadPendingDataIfReady);
+    }
+
     public void breakSkillet(Location blockLocation, Location dropLocation, boolean shouldDropItems) {
+        breakSkillet(blockLocation, dropLocation, shouldDropItems, false);
+    }
+
+    public void breakSkillet(Location blockLocation, Location dropLocation, boolean shouldDropItems, boolean explosion) {
         Location normalized = ManagerSupport.normalize(blockLocation);
+        flushControllerPendingData(normalized);
         SkilletData skillet = removeTrackedSkillet(normalized);
         if (skillet != null) {
             cleanupVisual(skillet);
@@ -587,7 +655,12 @@ public class SkilletManager {
                     normalized.getWorld().dropItemNaturally(dropLocation, skillet.storedItem.clone());
                     skillet.storedItem = null;
                 }
-                if (shouldDropItems) {
+                // Skip the manual base-item drop on explosion: CraftEngine's block loot table (default/self)
+                // already drops the skillet item on an explosion (like the cooking pot), so dropping it here
+                // too would duplicate it. The player-break path suppresses that CE loot (setDropItems(false))
+                // and relies on this manual drop to preserve enchantments; an exploded skillet drops a plain
+                // one from the loot table instead. The stored food (not in the loot table) still drops above.
+                if (shouldDropItems && !explosion) {
                     ItemStack skilletDrop = skillet.skilletStack != null && !skillet.skilletStack.getType().isAir()
                             ? skillet.skilletStack.clone()
                             : ItemUtils.createItem(Constants.ITEM_SKILLET);
@@ -620,9 +693,19 @@ public class SkilletManager {
         if (locations == null || locations.isEmpty()) {
             return;
         }
-        for (Location location : locations) {
+        for (Location location : List.copyOf(locations)) {
             SkilletData skillet = skillets.get(location);
-            if (skillet != null) {
+            if (skillet == null) {
+                continue;
+            }
+            // Same contract as saveAndUnloadChunk: snapshot into the controller, then drop the live entry.
+            // CE serializes the world's chunks at WorldUnloadEvent HIGHEST (after this NORMAL handler and
+            // its cleanup), so a removed entry without a snapshot would export nothing and wipe the data.
+            // If the unload gets cancelled by another plugin, the first interaction re-hydrates from the
+            // snapshot via the entry-creation flush.
+            if (passivateToController(world, location)) {
+                removeSkillet(location, false);
+            } else {
                 saveSkillet(location, skillet);
             }
         }
@@ -659,27 +742,53 @@ public class SkilletManager {
             if (location.getBlockX() >= minX && location.getBlockX() <= maxX
                     && location.getBlockZ() >= minZ && location.getBlockZ() <= maxZ) {
                 SkilletData skillet = skillets.get(location);
-                if (skillet != null) {
+                if (skillet == null) {
+                    removeSkillet(location, false);
+                    continue;
+                }
+                // Snapshot into the controller BEFORE removing the entry: CE serializes this chunk at
+                // ChunkUnloadEvent HIGHEST by pulling from this manager, which runs after this HIGH
+                // handler — removing first would make it export nothing and wipe the persisted data.
+                if (passivateToController(world, location)) {
+                    removeSkillet(location, false);
+                } else {
+                    // Controller unreachable: keep the entry so the pull-serialization can still export
+                    // it; the entry is reconciled on the next chunk load.
                     saveSkillet(location, skillet);
                 }
-                removeSkillet(location, false);
             }
         }
     }
 
-    public void loadSkillet(World world, net.momirealms.craftengine.core.world.BlockPos pos, Map<String, Object> data) {
-        loadSkillet(world, new BlockPosKey(pos), data);
+    /** Stashes the skillet's exported state into its CE controller; false when the controller is unreachable. */
+    private boolean passivateToController(World world, Location location) {
+        boolean[] stashed = {false};
+        CustomBlockUtils.notifyControllerChanged(world, new BlockPosKey(location),
+                com.huidu.farmersdelight.block.behavior.SkilletBlockEntityController.class, null,
+                controller -> stashed[0] = controller.passivate());
+        return stashed[0];
     }
 
-    public void loadSkillet(World world, BlockPosKey posKey, Map<String, Object> data) {
-        if (world == null || posKey == null || data == null) return;
+    public boolean loadSkillet(World world, net.momirealms.craftengine.core.world.BlockPos pos, Map<String, Object> data) {
+        return loadSkillet(world, new BlockPosKey(pos), data);
+    }
+
+    /** Returns whether the saved data was consumed; false keeps it parked on the controller for a retry. */
+    public boolean loadSkillet(World world, BlockPosKey posKey, Map<String, Object> data) {
+        if (world == null || posKey == null || data == null) return true;
 
         Location location = ManagerSupport.toLocation(world, posKey);
-        if (location == null) return;
+        if (location == null) return false;
         if (!isSkilletBlock(location)) {
-            removeStoredData(location);
-            removeSkillet(location, false);
-            return;
+            // The CE state can be transiently unresolvable (a /ce reload unbinds states for the parse
+            // window); keep the data parked instead of discarding it, so a live skillet's contents are
+            // not destroyed. A genuinely replaced block just carries inert leftover NBT.
+            return false;
+        }
+        if (skillets.containsKey(ManagerSupport.normalize(location))) {
+            // A live entry exists (created by an interaction before this deferred load applied); the live
+            // state is newer than the saved snapshot, so consume the snapshot without overwriting it.
+            return true;
         }
 
         SkilletData skillet = new SkilletData(location, defaultCookingTime);
@@ -718,6 +827,7 @@ public class SkilletManager {
         } else {
             removeStoredData(location);
         }
+        return true;
     }
 
     private SkilletData getOrLoadSkillet(Location location) {
@@ -788,6 +898,11 @@ public class SkilletManager {
     private SkilletData putSkillet(Location location, SkilletData skillet) {
         Location normalized = ManagerSupport.normalize(location);
         SkilletData previous = skillets.put(normalized, skillet);
+        if (previous != null && previous != skillet) {
+            // Overwriting a still-tracked skillet (double chunk-load / reload re-scan): destroy the old
+            // entry's item display so it doesn't orphan (the incoming skillet already created its own).
+            cleanupVisual(previous);
+        }
         indexSkillet(normalized);
         markTickLocationsDirty();
         return previous;
@@ -963,6 +1078,12 @@ public class SkilletManager {
         if (!world.isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4)) return;
         ImmutableBlockState carrierState = CustomBlockUtils.getState(location.getBlock());
         if (!isSkilletBlock(carrierState)) {
+            // A /ce reload unbinds custom states for its parse window while the injected server block
+            // is still in the world; skip the tick instead of tearing the skillet down mid-reload
+            // (the teardown below marks the chunk dirty with the entry gone = wipes the saved data).
+            if (net.momirealms.craftengine.bukkit.api.CraftEngineBlocks.isCustomBlock(location.getBlock())) {
+                return;
+            }
             debug(() -> "tick remove: skillet carrier block is gone at " + formatLocation(location));
             cleanupVisual(skillet);
             removeStoredData(location);
@@ -1025,7 +1146,7 @@ public class SkilletManager {
         // recipient set for the sends below, so the particle/sound target player.spawnParticle/playSound
         // instead of world.spawnParticle re-walking the whole world player list per call (R-PERF-006).
         List<Player> nearbyViewers = ManagerSupport.collectNearbyPlayers(
-                world, location, EFFECT_VIEWER_DISTANCE_SQUARED, NEARBY_VIEWER_SCRATCH.get());
+                world, location, effectViewerDistanceSquared, NEARBY_VIEWER_SCRATCH.get());
         // Per-chunk per-dispatch packet budget (mirrors StoveManager): a dense pocket of cooking skillets
         // can't emit more than chunkEffectBudgetLimit particle/sound packets from one chunk in a single
         // Bukkit tick, capping the peak packet burst. Emission chance is unchanged, so per-skillet
@@ -1105,7 +1226,8 @@ public class SkilletManager {
                         skillet.ownerName,
                         "skillet",
                         result,
-                        skillet.currentRecipe.getExperience()
+                        skillet.currentRecipe.getExperience(),
+                        location
                 ));
             }
             Block block = location.getBlock();

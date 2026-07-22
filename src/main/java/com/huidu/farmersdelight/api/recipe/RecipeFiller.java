@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.api.recipe;
 
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Supplied when a recipe book is opened from a station GUI (e.g. a keg). It moves a recipe's ingredients
@@ -9,6 +10,7 @@ import org.bukkit.entity.Player;
  *
  * Implementations must move items dupe-safely (remove from the player exactly what is placed).
  */
+@ApiStatus.OverrideOnly
 public interface RecipeFiller {
 
     /**

@@ -56,6 +56,9 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
     // different worlds within the guard window does not have one interaction eaten by the other's guard.
     private static final Map<UUID, Map<WorldPos, Long>> recentManualInsertions = new ConcurrentHashMap<>();
     private static final long MANUAL_INSERT_GUARD_MILLIS = 250L;
+    // Added to the per-unit keep chance for each level of Fortune on the cutting tool, matching the mod's
+    // cuttingBoardFortuneBonus default.
+    private static final double FORTUNE_BONUS_PER_LEVEL = 0.1d;
 
     private record WorldPos(UUID worldId, BlockPosKey pos) {
     }
@@ -335,7 +338,10 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         if (world == null || posKey == null) return;
 
         if (!isCuttingBoardBlock(world, posKey)) {
-            removeBlockEntity(world, posKey, true);
+            // The CE state can be transiently unresolvable (a /ce reload unbinds states for the parse
+            // window); deleting the stored NBT here would destroy a live board's item. Just mark the
+            // chunk dirty — a genuinely replaced block is cleaned up by the break/removal callbacks.
+            markBlockEntityDirty(world, posKey);
             return;
         }
 
@@ -345,6 +351,40 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         }
 
         markBlockEntityDirty(world, posKey);
+    }
+
+    /**
+     * Chunk-unload save: snapshots the entity into the controller (so the data survives the entity's
+     * removal at MONITOR cleanup and re-hydrates it if the chunk reloads out of CraftEngine's chunk cache),
+     * falling back to the plain save when the controller is unreachable.
+     */
+    public static void passivateBlockEntityData(World world, BlockPosKey posKey) {
+        if (world == null || posKey == null) return;
+        CuttingBoardBlockEntity entity = getBlockEntity(world, posKey);
+        if (entity == null) {
+            saveBlockEntityData(world, posKey);
+            return;
+        }
+        CuttingBoardBlockBehavior behavior = getBlockBehavior(posKey.toLocation(world));
+        Integer controllerId = behavior == null ? null : behavior.controllerId;
+        boolean stashed = CustomBlockUtils.notifyControllerChanged(world, posKey,
+                CuttingBoardBlockEntityController.class, controllerId,
+                controller -> controller.passivate(entity));
+        if (!stashed) {
+            saveBlockEntityData(world, posKey);
+        }
+    }
+
+    /**
+     * Applies any pending controller data (deferred startup load, or a passivation snapshot left by a
+     * chunk-cache reload) before callers create a blank entity that would shadow the stored item.
+     */
+    public static void flushPendingControllerData(World world, BlockPosKey posKey) {
+        if (world == null || posKey == null) return;
+        CuttingBoardBlockBehavior behavior = getBlockBehavior(posKey.toLocation(world));
+        Integer controllerId = behavior == null ? null : behavior.controllerId;
+        CustomBlockUtils.notifyControllerChanged(world, posKey, CuttingBoardBlockEntityController.class,
+                controllerId, CuttingBoardBlockEntityController::loadPendingDataIfReady);
     }
 
     private static boolean notifyControllerChanged(World world, BlockPosKey posKey, CuttingBoardBlockEntity entity) {
@@ -364,6 +404,10 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
 
     public static void loadBlockEntity(World world, BlockPosKey posKey) {
         if (world == null || posKey == null || !isCuttingBoardBlock(world, posKey)) return;
+        // Saved data may still be parked on the controller (deferred startup load, or a chunk served from
+        // CraftEngine's chunk cache); apply it first so the computeIfAbsent below does not create a blank
+        // entity that shadows the stored item and gets overwritten by the late apply.
+        flushPendingControllerData(world, posKey);
         // Only update the index when an entity was actually newly created.
         boolean[] created = {false};
         CuttingBoardBlockEntity entity = worldBlockEntities.computeIfAbsent(world.getUID(), k -> new ConcurrentHashMap<>())
@@ -594,6 +638,7 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
             float pitch = (float) Math.max(0.0D, plugin.getConfigDouble(Constants.CUTTING_BOARD_FAIL_PITCH,
                     "cutting-board.sounds.retrieve-pitch"));
             bukkitPlayer.playSound(bukkitPlayer.getLocation(), Sound.BLOCK_WOOD_HIT, volume, pitch);
+            bukkitPlayer.swingMainHand();
             return InteractionResult.SUCCESS_AND_CANCEL;
         }
 
@@ -671,6 +716,11 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         float pitch = carveTool ? 1.2f : 1.0f;
         String soundKey = carveTool ? knifeSound : null;
         SoundUtils.play(player.getWorld(), player.getLocation(), soundKey, placeSound, 1.0f, pitch);
+        if (offhand) {
+            player.swingOffHand();
+        } else {
+            player.swingMainHand();
+        }
         return true;
     }
 
@@ -698,8 +748,22 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
             if (toMove <= 0) {
                 return false;
             }
-            stored.setAmount(stored.getAmount() + toMove);
-            blockEntity.setStoredItem(stored, world, posKey, facing);
+            int previousAmount = stored.getAmount();
+            stored.setAmount(previousAmount + toMove);
+            // Store, then consume — atomically, mirroring tryPlaceOnEmptyBoardLocked. If the commit throws
+            // (e.g. a Folia region thread-check) roll the stored amount back and skip the consume below, so
+            // the player keeps the item and the board is unchanged: no dupe, no loss.
+            try {
+                blockEntity.setStoredItem(stored, world, posKey, facing);
+            } catch (Throwable t) {
+                stored.setAmount(previousAmount);
+                try {
+                    blockEntity.setStoredItem(stored, world, posKey, facing);
+                } catch (Throwable ignored) {
+                }
+                debug("stack rolled back after store failure: " + t);
+                return false;
+            }
         }
         saveBlockEntityData(world, posKey);
         if (player.getGameMode() != GameMode.CREATIVE) {
@@ -712,6 +776,7 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
             }
         }
         SoundUtils.play(player.getWorld(), player.getLocation(), null, Sound.BLOCK_WOOD_PLACE, 1.0f, 1.0f);
+        player.swingMainHand();
         return true;
     }
 
@@ -720,6 +785,33 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
             return 1;
         }
         return Math.max(1, Math.min(maxStackAmount, item.getMaxStackSize()));
+    }
+
+    @Override
+    public boolean hasAnalogOutputSignal(Object thisBlock, Object[] args) {
+        return true;
+    }
+
+    @Override
+    public int getAnalogOutputSignal(Object thisBlock, Object[] args) {
+        // args[1] = Level, args[2] = BlockPos. Scales the stored stack against the board's own stack limit,
+        // matching the mod's CuttingBoardBlock.getAnalogOutputSignal: a single-stacking item (a tool) reads 15,
+        // one unit of a 64-stacking item reads 1.
+        World world = CraftEngineAdapter.toWorld(args[1]);
+        BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
+        if (world == null || pos == null) {
+            return 0;
+        }
+        CuttingBoardBlockEntity entity = getBlockEntity(world, pos);
+        if (entity == null) {
+            return 0;
+        }
+        ItemStack stored = entity.getStoredItem();
+        if (stored == null || stored.getType().isAir() || stored.getAmount() <= 0) {
+            return 0;
+        }
+        float proportions = (float) stored.getAmount() / (float) getBoardStackLimit(stored);
+        return (int) Math.floor(proportions * 14.0f) + 1;
     }
 
     @Override
@@ -784,6 +876,13 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         }
         return blockEntity.controller.let(CuttingBoardBlockEntityController.class, this.controllerId, controller -> {
             CuttingBoardBlockEntity entity = getBlockEntity(world, pos);
+            if (entity == null) {
+                // Native hoppers reach the board through this injected container path without going through
+                // loadBlockEntity, so apply parked controller data here too — otherwise a chunk-cache-dropped
+                // board reads an empty container and the hopper pulls nothing until a save/interaction flushes.
+                controller.loadPendingDataIfReady();
+                entity = getBlockEntity(world, pos);
+            }
             if (entity != null) {
                 controller.refreshFromEntity(entity);
             }
@@ -891,13 +990,24 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
                                     BlockFace facing, World world, BlockPosKey posKey, boolean toolIsOffhand) {
         // Wrap the whole cut in the entity monitor so two concurrent tool-right-clicks (different
         // regions) can't each grab a clone of the same stored item and both drop the recipe's result.
+        // The api experience event is built inside the monitor (so it snapshots the same state it
+        // always did) but handed back here to be dispatched after the monitor is released, so
+        // third-party listener code never runs while this board is locked.
+        ProfessionCookingExperienceEvent[] pendingExperienceEvent = new ProfessionCookingExperienceEvent[1];
+        boolean cut;
         synchronized (blockEntity) {
-            return processCuttingLocked(blockEntity, tool, player, facing, world, posKey, toolIsOffhand);
+            cut = processCuttingLocked(blockEntity, tool, player, facing, world, posKey, toolIsOffhand,
+                    pendingExperienceEvent);
         }
+        if (pendingExperienceEvent[0] != null) {
+            Bukkit.getPluginManager().callEvent(pendingExperienceEvent[0]);
+        }
+        return cut;
     }
 
     private boolean processCuttingLocked(CuttingBoardBlockEntity blockEntity, ItemStack tool, Player player,
-                                          BlockFace facing, World world, BlockPosKey posKey, boolean toolIsOffhand) {
+                                          BlockFace facing, World world, BlockPosKey posKey, boolean toolIsOffhand,
+                                          ProfessionCookingExperienceEvent[] pendingExperienceEvent) {
         ItemStack storedItem = blockEntity.getStoredItem();
         if (storedItem == null) return false;
 
@@ -912,31 +1022,35 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
 
         int fortuneLevel = tool.getEnchantmentLevel(org.bukkit.enchantments.Enchantment.FORTUNE);
 
+        // Fortune raises the per-unit keep chance, exactly as the mod's ChanceResult.rollOutput does. It never
+        // pushes a result above its configured count.
+        double fortuneBonus = FORTUNE_BONUS_PER_LEVEL * fortuneLevel;
+
         ItemStack firstResult = null;
         boolean hasPossibleResult = false;
         for (CuttingBoardRecipe.ResultEntry resultEntry : recipe.getResults()) {
             ItemStack configuredResult = resultEntry.item();
-            if (configuredResult != null && !configuredResult.getType().isAir() && configuredResult.getAmount() > 0) {
-                hasPossibleResult = true;
-            }
-            if (resultEntry.chance() < 1.0d && ThreadLocalRandom.current().nextDouble() > resultEntry.chance()) {
+            if (configuredResult == null || configuredResult.getType().isAir() || configuredResult.getAmount() <= 0) {
                 continue;
             }
+            hasPossibleResult = true;
 
-            ItemStack result = resultEntry.item().clone();
-
-            if (fortuneLevel > 0 && resultEntry.chance() < 1.0d) {
-                // Fortune gives a chance to produce one extra secondary (chance-based) result.
-                // (The previous logic rolled to remove a result, which made Fortune a downside.)
-                double bonusChance = Math.min(1.0d, 0.1d * fortuneLevel);
-                if (ThreadLocalRandom.current().nextDouble() < bonusChance) {
-                    result.setAmount(result.getAmount() + 1);
+            // One roll per output UNIT, not per result entry. Rolling once for the whole entry made a
+            // count-N chance result all-or-nothing (N or 0, never anything between) and left Fortune unable to
+            // move the count the way the recipe intends; the mod starts at the configured count and drops one
+            // unit per failed roll, so Fortune scales every unit of a stacked result.
+            int outputAmount = configuredResult.getAmount();
+            for (int roll = 0; roll < configuredResult.getAmount(); roll++) {
+                if (ThreadLocalRandom.current().nextDouble() > resultEntry.chance() + fortuneBonus) {
+                    outputAmount--;
                 }
             }
-
-            if (result.getAmount() <= 0 || result.getType().isAir()) {
+            if (outputAmount <= 0) {
                 continue;
             }
+
+            ItemStack result = configuredResult.clone();
+            result.setAmount(outputAmount);
             if (firstResult == null) {
                 firstResult = result.clone();
             }
@@ -953,13 +1067,17 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
             return true;
         }
 
-        Bukkit.getPluginManager().callEvent(new ProfessionCookingExperienceEvent(
+        // Constructed here, dispatched by processCutting once the monitor is released. The event
+        // clones its result on construction, so it still carries the pre-decrement stored item — the
+        // same snapshot the immediate call took.
+        pendingExperienceEvent[0] = new ProfessionCookingExperienceEvent(
                 player.getUniqueId(),
                 player.getName(),
                 "cutting_board",
                 firstResult != null ? firstResult : storedItem,
-                0.0f
-        ));
+                0.0f,
+                posKey.toLocation(world)
+        );
 
         playCuttingFeedback(world, posKey, storedItem, recipe);
         if (toolIsOffhand) {

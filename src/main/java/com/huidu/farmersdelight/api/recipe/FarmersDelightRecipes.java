@@ -5,6 +5,7 @@ import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.ApiStatus;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,6 +15,7 @@ import java.util.List;
  * types (ItemStack) — internal recipe records never cross the API boundary. Lives in the
  * name-stable api package.
  */
+@ApiStatus.NonExtendable
 public final class FarmersDelightRecipes {
 
     private FarmersDelightRecipes() {

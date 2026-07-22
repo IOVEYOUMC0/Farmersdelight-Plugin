@@ -1,7 +1,12 @@
 package com.huidu.farmersdelight.block.behavior;
 
 import net.momirealms.craftengine.core.block.BlockDefinition;
+import net.momirealms.craftengine.core.block.property.EnumProperty;
+import net.momirealms.craftengine.core.block.property.IntegerProperty;
+import net.momirealms.craftengine.core.block.property.Property;
+import net.momirealms.craftengine.core.block.property.type.DoubleBlockHalf;
 import net.momirealms.craftengine.core.plugin.config.ConfigSection;
+import net.momirealms.craftengine.core.plugin.config.KnownResourceException;
 import net.momirealms.craftengine.core.util.Key;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +18,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TallCropBlockBehaviorTest {
@@ -83,6 +89,13 @@ class TallCropBlockBehaviorTest {
         return TallCropBlockBehavior.FACTORY.create(block(blockId), ConfigSection.ofRoot(copy));
     }
 
+    // The behavior requires an int 'age' and a double_block_half 'half' property on the block it is
+    // attached to, so the stub declares both; a block without them fails to construct by design.
+    private static final Property<Integer> AGE = IntegerProperty.create("age", 0, 4, 0);
+    private static final Property<DoubleBlockHalf> HALF = EnumProperty.create(
+            "half", DoubleBlockHalf.class, List.of(DoubleBlockHalf.LOWER, DoubleBlockHalf.UPPER),
+            DoubleBlockHalf.LOWER);
+
     private static BlockDefinition block(String blockId) {
         Key key = Key.of(blockId);
         return (BlockDefinition) Proxy.newProxyInstance(
@@ -90,10 +103,28 @@ class TallCropBlockBehaviorTest {
                 new Class<?>[]{BlockDefinition.class},
                 (proxy, method, args) -> switch (method.getName()) {
                     case "id" -> key;
-                    case "getProperty" -> null;
+                    case "getProperty" -> switch (String.valueOf(args[0])) {
+                        case "age" -> AGE;
+                        case "half" -> HALF;
+                        default -> null;
+                    };
                     case "toString" -> "TestBlockDefinition[" + key + "]";
                     default -> throw new UnsupportedOperationException(method.toString());
                 }
         );
+    }
+
+    @Test
+    void missingAgePropertyAbortsBlockLoad() {
+        assertThrows(KnownResourceException.class, () -> TallCropBlockBehavior.FACTORY.create(
+                block("farmersdelight:rice"),
+                ConfigSection.ofRoot(new LinkedHashMap<>(Map.of("age-property", "no_such_property")))));
+    }
+
+    @Test
+    void missingHalfPropertyAbortsBlockLoad() {
+        assertThrows(KnownResourceException.class, () -> TallCropBlockBehavior.FACTORY.create(
+                block("farmersdelight:rice"),
+                ConfigSection.ofRoot(new LinkedHashMap<>(Map.of("half-property", "no_such_property")))));
     }
 }

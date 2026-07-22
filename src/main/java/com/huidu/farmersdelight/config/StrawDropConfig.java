@@ -11,10 +11,10 @@ public class StrawDropConfig {
     private final Map<String, StrawDropRule> rules = new ConcurrentHashMap<>();
 
     public void loadDefaults() {
-        addRule("short_grass", "farmersdelight:straw", 1, 2);
-        addRule("tall_grass", "farmersdelight:straw", 1, 2);
-        addRule("mature_wheat", "farmersdelight:straw", 1, 2);
-        addRule("mature_rice", "farmersdelight:straw", 1, 2);
+        addRule("short_grass", "farmersdelight:straw", 1, 1);
+        addRule("tall_grass", "farmersdelight:straw", 1, 1);
+        addRule("mature_wheat", "farmersdelight:straw", 1, 1);
+        addRule("mature_rice", "farmersdelight:straw", 1, 1);
     }
 
     public void loadFromConfig(ConfigurationSection section) {

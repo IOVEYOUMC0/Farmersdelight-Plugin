@@ -4,6 +4,7 @@ import org.bukkit.Location;
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.ApiStatus;
 
 import java.util.UUID;
 
@@ -11,6 +12,7 @@ import java.util.UUID;
  * Fired when a FarmersDelight station hands a produced item to a player (e.g. a cooking pot meal taken).
  * A notification hook for addons (stats, quests, integrations); not cancellable — the item is already produced.
  */
+@ApiStatus.NonExtendable
 public class FarmersDelightProduceEvent extends Event {
 
     private static final HandlerList HANDLERS = new HandlerList();

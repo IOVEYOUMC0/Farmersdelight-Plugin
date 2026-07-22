@@ -41,7 +41,13 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
     private Item item = Item.empty();
     private boolean itemCarved;
     private int maxStackSize = 99;
-    private CompoundTag pendingLoadData;
+    private volatile CompoundTag pendingLoadData;
+    // Snapshot taken when the plugin-side entity is dropped on chunk unload. CraftEngine's chunk cache can
+    // serve this same controller object back on a quick reload without ever re-running loadCustomData, so
+    // the snapshot both feeds saveCustomData while the entity is gone and re-hydrates the entity on reload.
+    private volatile CompoundTag pendingSaveData;
+    // Guards loadPendingDataIfReady against re-entry from entity-creation hooks that flush pending data.
+    private volatile boolean applyingPendingLoad;
 
     public CuttingBoardBlockEntityController(BlockEntity blockEntity, CuttingBoardBlockBehavior behavior) {
         super(blockEntity);
@@ -56,6 +62,12 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
 
     @Override
     public void saveCustomData(CompoundTag tag) {
+        // A passivation snapshot is authoritative while the plugin-side entity is gone; checked before
+        // loadPendingDataIfReady so serializing an unloaded chunk cannot resurrect the entity.
+        if (this.pendingSaveData != null) {
+            tag.put(this.behavior.customDataKey(), this.pendingSaveData);
+            return;
+        }
         loadPendingDataIfReady();
         if (this.pendingLoadData != null) {
             tag.put(this.behavior.customDataKey(), this.pendingLoadData);
@@ -68,7 +80,14 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
                 refreshFromEntity(entity);
             }
         }
-        if (this.item == null || this.item.isEmpty()) return;
+        CompoundTag data = buildSaveData();
+        if (data == null) return;
+        tag.put(this.behavior.customDataKey(), data);
+    }
+
+    /** Serializes the shadow copy (stored item + carved flag), or null when the board is empty. */
+    private CompoundTag buildSaveData() {
+        if (this.item == null || this.item.isEmpty()) return null;
 
         CompoundTag data = new CompoundTag();
         Tag itemTag = ItemUtils.saveBukkitItemAsTag(asBukkitStack(this.item));
@@ -76,7 +95,21 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
             data.put(STORED_ITEM, itemTag);
         }
         data.putBoolean(ITEM_CARVED, this.itemCarved);
-        tag.put(this.behavior.customDataKey(), data);
+        return data;
+    }
+
+    /**
+     * Snapshots the entity's current state so it survives the plugin-side entity being dropped on chunk
+     * unload. saveCustomData emits the snapshot verbatim and loadPendingDataIfReady re-hydrates from it
+     * when the chunk reloads out of CraftEngine's chunk cache (where loadCustomData never runs).
+     */
+    public void passivate(CuttingBoardBlockEntity entity) {
+        if (entity == null) {
+            return;
+        }
+        refreshFromEntity(entity);
+        this.pendingSaveData = buildSaveData();
+        CustomBlockUtils.markBlockEntityDirty(this.blockEntity);
     }
 
     @Override
@@ -95,16 +128,32 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
     }
 
     public void loadPendingDataIfReady() {
+        if (this.applyingPendingLoad) {
+            return;
+        }
+        if (this.pendingLoadData == null && this.pendingSaveData != null) {
+            // Chunk reload served from CraftEngine's chunk cache: loadCustomData never ran (no
+            // deserialization), so the passivation snapshot is the authoritative state to re-hydrate from.
+            this.pendingLoadData = this.pendingSaveData;
+            this.pendingSaveData = null;
+        }
         CompoundTag data = this.pendingLoadData;
         if (data == null) {
             return;
         }
-        if (loadData(data)) {
-            this.pendingLoadData = null;
+        this.applyingPendingLoad = true;
+        try {
+            if (loadData(data)) {
+                this.pendingLoadData = null;
+            }
+        } finally {
+            this.applyingPendingLoad = false;
         }
     }
 
     private void queueLoadData(CompoundTag data) {
+        // Freshly deserialized/item-packed data is authoritative; discard any stale passivation snapshot.
+        this.pendingSaveData = null;
         this.pendingLoadData = data;
         loadPendingDataIfReady();
     }
@@ -114,6 +163,11 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
         if (world == null) return false;
 
         BlockPosKey posKey = new BlockPosKey(this.blockEntity.pos);
+        if (CuttingBoardBlockBehavior.getBlockEntity(world, posKey) != null) {
+            // A live entity exists (created after a flush attempt): it is newer than this parked
+            // snapshot, so consume the snapshot instead of replacing the live entity with stale data.
+            return true;
+        }
         Tag itemTag = data.get(STORED_ITEM);
         if (itemTag == null) return true;
 
@@ -142,6 +196,13 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
 
         BlockPosKey posKey = new BlockPosKey(this.blockEntity.pos);
         CuttingBoardBlockEntity entity = CuttingBoardBlockBehavior.getBlockEntity(world, posKey);
+        if (entity == null) {
+            // Apply parked saved data before creating a blank entity that would shadow it (deferred
+            // startup load, or a chunk served from CraftEngine's chunk cache). Runs before the hopper
+            // accept decision, so canPlaceItem sees the stored item instead of an empty board.
+            loadPendingDataIfReady();
+            entity = CuttingBoardBlockBehavior.getBlockEntity(world, posKey);
+        }
         if (entity == null) {
             entity = new CuttingBoardBlockEntity(posKey, world);
             CuttingBoardBlockBehavior.putBlockEntity(world, posKey, entity);

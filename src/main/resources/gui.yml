@@ -161,7 +161,6 @@ recipe-view-gui:
         name: "<yellow><lang:gui.recipe.cutting_board>"
         lore:
           - "<gray><lang:gui.recipe.cutting_board_lore>"
-      # Addon recipes button — only shown when an addon (e.g. Brewin' And Chewin') registers a recipe type.
       recipe_book:
         material: KNOWLEDGE_BOOK
         name: "<aqua><lang:gui.recipe.recipe_book>"
@@ -261,11 +260,6 @@ recipe-view-gui:
         material: ARROW
         item_model: "air"
         name: "<gray><lang:gui.recipe.back>"
-      # Fill button on the recipe detail page.
-      # Normal click: fill at most 1 matching item per recipe ingredient.
-      # Shift click: cycle through matching ingredients, filling the pot input slots as much as possible.
-      # When there is no matching ingredient at all, pot contents are not moved and the button shows fill-missing.
-      # When the original pot contents cannot be safely returned to the player inventory, no fill is performed and the button shows fill-inventory-full.
       fill:
         material: HOPPER
         name: "<green><lang:gui.recipe.fill>"

@@ -1,0 +1,106 @@
+package com.huidu.farmersdelight;
+
+import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.listener.HorseFeedTemptListener;
+import com.huidu.farmersdelight.loot.KnifeDropHandler;
+import com.huidu.farmersdelight.recipe.CookingPotRecipeManager;
+import com.huidu.farmersdelight.recipe.CuttingBoardRecipeManager;
+
+/**
+ * Collects the per-subsystem content counts into the single console line a healthy boot prints instead of
+ * one line per subsystem. Counts are pulled from the managers at report time rather than pushed by them,
+ * so no subsystem has to know a summary exists and no state is threaded through unrelated classes.
+ *
+ * Reporting is driven from the point where the last count becomes final: the tail of the CraftEngine
+ * readiness pass (recipes, advancements and the item warmup all complete there). The same call also runs
+ * at the end of onEnable for the case where CraftEngine is already up, so exactly one of the two wins.
+ * A later pass whose counts are unchanged is demoted to the startup detail channel; a pass that genuinely
+ * changes a count (an addon registering recipes, a reload picking up edited files) reports again at INFO
+ * because the new totals are news.
+ */
+final class StartupSummary {
+
+    private final FarmersDelightPlugin plugin;
+
+    // Counts of the last report printed at INFO, used to suppress an unchanged repeat. Excludes the warmup
+    // duration on purpose: it varies between passes and would defeat the comparison on every run.
+    private volatile String lastReportedCounts;
+
+    // Warmup results, recorded by the warmup pass because they are produced there and nowhere else.
+    private volatile int warmedItems;
+    private volatile long warmupMillis;
+    // The warmup clause is carried by the first summary that has warmup results; later summaries (a
+    // reload, an addon republish) report counts only, so stale timings are never re-presented.
+    private boolean warmupReported;
+
+    StartupSummary(FarmersDelightPlugin plugin) {
+        this.plugin = plugin;
+    }
+
+    void recordWarmup(int items, long millis) {
+        this.warmedItems = items;
+        this.warmupMillis = millis;
+    }
+
+    // Synchronized because the two call sites can run on different threads (plugin enable versus the
+    // deferred CraftEngine readiness task), and the changed-since-last-report check is a read-then-write.
+    synchronized void report() {
+        CookingPotRecipeManager cookingPot = plugin.getCookingPotRecipesOrNull();
+        CuttingBoardRecipeManager cuttingBoard = plugin.getCuttingBoardRecipesOrNull();
+        KnifeDropHandler knifeDrops = plugin.getKnifeDropsOrNull();
+        HorseFeedTemptListener petFoods = plugin.getHorseFeedTemptListener();
+        AdvancementManager advancements = plugin.getAdvancementManager();
+
+        int cookingPotRecipes = cookingPot == null ? 0 : cookingPot.getRecipeCount();
+        int customPotRecipes = cookingPot == null ? 0 : cookingPot.getCustomRecipeCount();
+        int cuttingBoardRecipes = cuttingBoard == null ? 0 : cuttingBoard.getRecipeCount();
+        int dropRules = knifeDrops == null ? 0 : knifeDrops.getDropRuleCount();
+        int petFoodCount = petFoods == null ? 0 : petFoods.getTemptFoodCount();
+        int advancementCount = advancements == null ? 0 : advancements.getLoadedCount();
+        // Addon tabs are built by a separate registry, so their advancements are absent from the manager's
+        // own count. Reported as their own figure and folded into the digest below, so a tab appearing or
+        // disappearing both shows up in the line and re-triggers the report.
+        int addonAdvancementCount = plugin.getAddonAdvancementRegistry().getLoadedAdvancementCount();
+        int items = warmedItems;
+
+        String counts = cookingPotRecipes + "/" + customPotRecipes + "/" + cuttingBoardRecipes + "/"
+                + dropRules + "/" + petFoodCount + "/" + advancementCount + "/" + addonAdvancementCount
+                + "/" + items;
+
+        Object[] args = {
+                "cooking_pot", cookingPotRecipes,
+                "custom_pot", customPotRecipes,
+                "cutting_board", cuttingBoardRecipes,
+                "drop_rules", dropRules,
+                "pet_foods", petFoodCount,
+                "advancements", advancementCount,
+                "addon_advancements", addonAdvancementCount
+        };
+
+        // The warmup runs on enable and on the CraftEngine readiness pass, never on a reload, so its timing is
+        // only reported by the message that carries it. Repeating it after a reload would present the enable
+        // pass's numbers as if the reload had just produced them.
+        String key = items > 0 && !warmupReported ? "plugin.content_summary_warmed" : "plugin.content_summary";
+        Object[] full = key.endsWith("_warmed")
+                ? concat(args, "warm_items", items, "warm_ms", warmupMillis)
+                : args;
+
+        if (counts.equals(lastReportedCounts)) {
+            I18n.logDetail("startup", key, full);
+            return;
+        }
+        lastReportedCounts = counts;
+        if (key.endsWith("_warmed")) {
+            warmupReported = true;
+        }
+        I18n.logInfo(key, full);
+    }
+
+    private static Object[] concat(Object[] base, Object... extra) {
+        Object[] out = new Object[base.length + extra.length];
+        System.arraycopy(base, 0, out, 0, base.length);
+        System.arraycopy(extra, 0, out, base.length, extra.length);
+        return out;
+    }
+}

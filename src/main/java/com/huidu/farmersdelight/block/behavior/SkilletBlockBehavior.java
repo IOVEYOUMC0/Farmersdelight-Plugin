@@ -137,6 +137,7 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock, 
 
         if (manager.handleInteract(player, block, mainHand, EquipmentSlot.HAND)) {
             player.updateInventory();
+            player.swingMainHand();
             return InteractionResult.SUCCESS_AND_CANCEL;
         }
 

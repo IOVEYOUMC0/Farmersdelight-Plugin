@@ -32,9 +32,16 @@ public class HorseFeedTemptListener implements Listener {
     private final Map<UUID, Player> activeTempterPlayers = new ConcurrentHashMap<>();
     private final Map<UUID, PetFoodConfig.PetFoodDefinition> activeTemptDefinitions = new ConcurrentHashMap<>();
     private final Map<String, PetFoodConfig.PetFoodDefinition> temptFoods = new ConcurrentHashMap<>();
-    private boolean enabled;
+    // Written by loadConfig on the reload path, read by the tick pass and by the item-held / swap-hand
+    // handlers on region threads, so it needs the happens-before edge.
+    private volatile boolean enabled;
+    // Written by loadConfig on the reload path, read only by restartTask on that same path when the
+    // repeating task is created, never by the task body — no cross-thread read, so no volatile needed.
     private long tickInterval;
-    private int tickBudget;
+    // Written by loadConfig on the reload path, read by the tick pass on the scheduler thread, so it
+    // needs the happens-before edge.
+    private volatile int tickBudget;
+    // Read and written only inside tickTemptGoals, which is the single repeating task body.
     private int tickCursor;
     private volatile PluginTask task;
     // Structural-change generation of activeTempterPlayers. tickTemptGoals caches an indexable snapshot from it,
@@ -103,11 +110,16 @@ public class HorseFeedTemptListener implements Listener {
         tickInterval = shortestInterval == Long.MAX_VALUE ? DEFAULT_TICK_INTERVAL : shortestInterval;
         tickBudget = Math.max(1, plugin.getConfig().getInt("performance.pet-tempt-tick-budget", DEFAULT_TICK_BUDGET));
         if (logSummary) {
-            I18n.logInfo("pet_food.tempt_loaded",
+            I18n.logDetail("startup", "pet_food.tempt_loaded",
                     "enabled", enabled,
                     "foods", temptFoods.size(),
                     "interval", tickInterval);
         }
+    }
+
+    /** Number of pet foods with tempting enabled, for the consolidated startup summary. */
+    public int getTemptFoodCount() {
+        return temptFoods.size();
     }
 
     private void refreshTemptStatus(Player player) {
@@ -150,13 +162,19 @@ public class HorseFeedTemptListener implements Listener {
         }
     }
 
+    // A server with no tempt-enabled pet food pays nothing for these two hot handlers: without the gate
+    // every hotbar scroll and every offhand swap dispatched a region task just for refreshTemptStatus to
+    // find the feature off. The inner !enabled check in refreshTemptStatus stays as the authority — it
+    // covers the config-reload race where the feature is disabled between dispatch and run.
     @EventHandler
     public void onItemHeld(PlayerItemHeldEvent event) {
+        if (!enabled) return;
         refreshTemptStatusNextTick(event.getPlayer());
     }
 
     @EventHandler
     public void onSwapHand(PlayerSwapHandItemsEvent event) {
+        if (!enabled) return;
         refreshTemptStatusNextTick(event.getPlayer());
     }
 

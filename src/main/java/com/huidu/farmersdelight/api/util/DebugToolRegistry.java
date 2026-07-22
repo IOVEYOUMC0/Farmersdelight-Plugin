@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.api.util;
 
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.ApiStatus;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -9,6 +10,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /** Static registry of addon-provided DebugToolExtensions. Looked up by lowercase target name. */
+@ApiStatus.NonExtendable
 public final class DebugToolRegistry {
 
     private static final Map<String, DebugToolExtension> EXTENSIONS = new ConcurrentHashMap<>();

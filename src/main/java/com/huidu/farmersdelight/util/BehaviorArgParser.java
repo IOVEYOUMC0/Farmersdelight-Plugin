@@ -90,6 +90,38 @@ public final class BehaviorArgParser {
         return defaultValue;
     }
 
+    /**
+     * True when the key is written in the config at all, regardless of whether its value parses.
+     * Distinct from hasArgument, which additionally rejects blank text: presence is what decides
+     * which of two competing spellings of the same setting the author actually wrote, so a value
+     * that later fails to parse still counts as written.
+     */
+    public static boolean isPresent(Map<String, Object> arguments, String key) {
+        return arguments != null && arguments.get(key) != null;
+    }
+
+    /**
+     * The nested map written under the key, or null when the key is absent or carries a scalar
+     * instead of sub-keys. A caller that needs to tell those two cases apart (absent is normal,
+     * scalar is an authoring mistake worth reporting) checks isPresent first.
+     *
+     * YAML sub-keys arrive as a plain Map in the raw argument map, so a nested section needs no
+     * engine-side section type to read.
+     */
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> getSection(Map<String, Object> arguments, String key) {
+        Object value = arguments != null ? arguments.get(key) : null;
+        if (!(value instanceof Map<?, ?> map)) {
+            return null;
+        }
+        for (Object mapKey : map.keySet()) {
+            if (!(mapKey instanceof String)) {
+                return null;
+            }
+        }
+        return (Map<String, Object>) map;
+    }
+
     public static boolean hasArgument(Map<String, Object> arguments, String key) {
         if (arguments == null || !arguments.containsKey(key)) {
             return false;

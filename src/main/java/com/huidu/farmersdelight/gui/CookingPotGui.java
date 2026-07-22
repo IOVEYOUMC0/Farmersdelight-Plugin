@@ -363,6 +363,9 @@ public class CookingPotGui implements InventoryHolder {
             return;
         }
         ItemStack display = cloneOrNull(item);
+        if (display != null) {
+            raiseDisplayStackLimit(display);
+        }
         if (hasContainerHint && display != null) {
             appendContainerHint(display, container);
         }
@@ -376,6 +379,26 @@ public class CookingPotGui implements InventoryHolder {
         cachedDisplayItems.put(guiSlot, cloneOrNull(item));
     }
 
+    /**
+     * Raises the displayed copy's stack-size ceiling to at least its own count. The pending slot holds up to 64
+     * portions even for an item whose own limit is lower (bowl foods stop at 16), and a stack shown above its
+     * item's limit renders as the limit, so the player reads 16 while the pot really holds more. Only the copy
+     * written into the GUI inventory is touched: the pending cell is click-cancelled and never extracted through
+     * the GUI, so this changes what is drawn and nothing else.
+     */
+    private void raiseDisplayStackLimit(ItemStack display) {
+        int amount = display.getAmount();
+        if (amount <= display.getMaxStackSize()) {
+            return;
+        }
+        org.bukkit.inventory.meta.ItemMeta meta = display.getItemMeta();
+        if (meta == null) {
+            return;
+        }
+        meta.setMaxStackSize(Math.min(99, amount));
+        display.setItemMeta(meta);
+    }
+
     /** Invisible PDC-tagged copy of the GUI's configured background filler, used to fill empty buffer / output
      * cells so the painted background shows through. Returns null if no background filler is configured. */
     private ItemStack placeholderItem() {
@@ -386,9 +409,15 @@ public class CookingPotGui implements InventoryHolder {
         return CookingPotPlaceholder.mark(background.createItem());
     }
 
+    // Writable slots only. The buffer and output cells are display-only: they are never written back by
+    // syncToBlockEntity and never read as authority by the click handlers, so updateMappedDisplaySlot is
+    // their sole owner. Refreshing them from the raw entity item here would overwrite that owner's work
+    // with a plain clone — stripping the pending-container hint lore and the invisible background
+    // placeholder — and, because cachedDisplayItems would still match the entity item, nothing would
+    // rebuild them until the underlying item changed again.
     @SuppressWarnings("null")
     private void refreshInputSlotsFromBlockEntity() {
-        for (Map.Entry<Integer, Integer> entry : slotMapping.entrySet()) {
+        for (Map.Entry<Integer, Integer> entry : writableSlotMapping.entrySet()) {
             int guiSlot = entry.getKey();
             int entitySlot = entry.getValue();
 

@@ -15,6 +15,7 @@ import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.behavior.EntityBlock;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.block.entity.BlockEntityController;
+import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
@@ -27,7 +28,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
-import java.util.concurrent.Callable;
 
 public class StoveCookingBlockBehavior extends BlockBehavior implements EntityBlock {
 
@@ -45,13 +45,20 @@ public class StoveCookingBlockBehavior extends BlockBehavior implements EntityBl
     }
 
     public static final int SLOT_COUNT = 6;
+    /** Name of the boolean block state property that carries the stove's lit state. */
+    public static final String FIRE_PROPERTY = "fire";
+    // Resolved once at construction from the block definition this behavior belongs to, so the handle can
+    // never go stale: a /ce reload rebuilds the definition and its Property instances together with this
+    // behavior. Final, so it is safely published to the region tick threads that read it.
+    private final Property<Boolean> fireProperty;
     private final String crackleSound;
     private final boolean burnEnabled;
     private final double burnDamage;
 
-    private StoveCookingBlockBehavior(BlockDefinition block, String crackleSound,
+    private StoveCookingBlockBehavior(BlockDefinition block, Property<Boolean> fireProperty, String crackleSound,
                                        boolean burnEnabled, double burnDamage) {
         super(block);
+        this.fireProperty = fireProperty;
         this.crackleSound = crackleSound;
         this.burnEnabled = burnEnabled;
         this.burnDamage = burnDamage;
@@ -61,12 +68,30 @@ public class StoveCookingBlockBehavior extends BlockBehavior implements EntityBl
         @Override
         public StoveCookingBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
+            // The lit state is not optional: without it the stove has no way to be off, so a block that
+            // declares this behavior without a boolean 'fire' property aborts its own load here with the
+            // config node and property name in the message, instead of behaving as permanently lit.
+            String path = section != null ? section.path() : Constants.BEHAVIOR_STOVE;
+            Property<Boolean> fireProperty = BlockBehaviorFactory.getProperty(path, block, FIRE_PROPERTY, Boolean.class);
             String crackleSound = BehaviorArgParser.getArgumentString(arguments, "crackle-sound", Constants.SOUND_STOVE_CRACKLE);
             boolean burnEnabled = BehaviorArgParser.getBoolean(arguments, "burn-enabled", true);
             double burnDamage = Math.max(0D, (double) BehaviorArgParser.getFloat(arguments, "burn-damage", 1.0F));
-            return new StoveCookingBlockBehavior(block, crackleSound, burnEnabled, burnDamage);
+            return new StoveCookingBlockBehavior(block, fireProperty, crackleSound, burnEnabled, burnDamage);
         }
     };
+
+    /**
+     * Whether the given state of this behavior's block has its fire lit. The property is guaranteed present
+     * by construction; a state from a different block definition yields no value and reads as not lit, so a
+     * mismatch stops cooking and stops burning rather than leaving the stove permanently on.
+     */
+    public boolean isLit(ImmutableBlockState state) {
+        if (state == null || state.isEmpty()) {
+            return false;
+        }
+        Boolean lit = state.getNullable(fireProperty);
+        return lit != null && lit;
+    }
 
     public String getCrackleSound() {
         return crackleSound;
@@ -228,6 +253,12 @@ public class StoveCookingBlockBehavior extends BlockBehavior implements EntityBl
         return plugin.getStoveManager();
     }
 
+    /**
+     * Items the block's own configuration handles as a lit-state change, so the cooking path must let them
+     * through untouched. Kept in step with the right_click events on farmersdelight:stove: flint and steel and
+     * fire charge light it, a shovel or a water bucket puts it out. A potion is not one of them - the reference
+     * mod only extinguishes on a shovel dig or a water bucket.
+     */
     public static boolean isStateChangeItem(ItemStack itemStack) {
         if (itemStack == null || itemStack.getType().isAir()) {
             return false;
@@ -235,9 +266,8 @@ public class StoveCookingBlockBehavior extends BlockBehavior implements EntityBl
 
         Material type = itemStack.getType();
         return type == Material.FLINT_AND_STEEL
+                || type == Material.FIRE_CHARGE
                 || type == Material.WATER_BUCKET
-                || type == Material.BUCKET
-                || type == Material.POTION
                 || type.name().endsWith("_SHOVEL");
     }
 

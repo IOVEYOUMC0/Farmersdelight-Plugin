@@ -44,6 +44,13 @@ public class CuttingBoardInteractListener implements Listener {
         if (behavior == null || !behavior.isTool(mainHand)) return;
 
         CuttingBoardBlockEntity blockEntity = CuttingBoardBlockBehavior.getBlockEntity(block.getWorld(), posKey);
+        if (blockEntity == null) {
+            // Apply parked saved data first (deferred startup load, or a chunk served from CraftEngine's
+            // chunk cache): creating a blank entity here would let the late apply replace it and destroy
+            // the item this handler is about to place. loadBlockEntity flushes pending controller data.
+            CuttingBoardBlockBehavior.loadBlockEntity(block.getWorld(), posKey);
+            blockEntity = CuttingBoardBlockBehavior.getBlockEntity(block.getWorld(), posKey);
+        }
         if (blockEntity != null && blockEntity.hasItem()) return;
 
         if (blockEntity == null) {

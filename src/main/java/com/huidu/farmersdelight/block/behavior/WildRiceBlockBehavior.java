@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.util.BehaviorArgParser;
+import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.RiceCropRules;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
 import com.huidu.farmersdelight.util.SoilRuleSupport.SoilRules;
@@ -9,6 +10,7 @@ import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.property.Property;
+import net.momirealms.craftengine.core.block.property.type.DoubleBlockHalf;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -53,6 +55,12 @@ public class WildRiceBlockBehavior extends BlockBehavior {
             Set.of()
     );
 
+    /** Name of the block state property that carries which half of the two-block plant a state is. */
+    public static final String HALF_PROPERTY = "half";
+
+    // Resolved once at construction from the block definition this behavior belongs to, so the handle can
+    // never go stale: a /ce reload rebuilds the definition and its Property instances together with this
+    // behavior. Final, so it is safely published to the region threads that read it.
     private final Property<?> halfProperty;
     private final Object halfLowerValue;
     private final Object halfUpperValue;
@@ -79,7 +87,14 @@ public class WildRiceBlockBehavior extends BlockBehavior {
         @Override
         public WildRiceBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
-            Property<?> halfProperty = block.getProperty("half");
+            // The half state is not optional: without it every state reads as the lower half, so the
+            // upper half of a placed plant fails its own survival check (it looks for soil under it and
+            // finds the lower plant) and is removed. A block that declares this behavior without a
+            // double_block_half 'half' property aborts its own load here, with the config node and the
+            // property name in the message, instead of destroying placed plants at runtime.
+            String path = section != null ? section.path() : Constants.BEHAVIOR_WILD_RICE;
+            Property<DoubleBlockHalf> halfProperty =
+                    BlockBehaviorFactory.getProperty(path, block, HALF_PROPERTY, DoubleBlockHalf.class);
             Object lowerHalfValue = inferHalfValue(halfProperty, "lower");
             Object upperHalfValue = inferHalfValue(halfProperty, "upper");
             boolean requiresWater = BehaviorArgParser.getBooleanStrict(arguments, "requires-water", true);
@@ -133,7 +148,13 @@ public class WildRiceBlockBehavior extends BlockBehavior {
         if (block == null || state == null || state.isEmpty()) {
             return false;
         }
-        if (isUpperHalf(state)) {
+        Object half = getHalf(state);
+        if (half == null) {
+            // A state whose half cannot be read is left in place. This check drives removal, so an
+            // unreadable state must never be classified as a lower half and then fail the soil test.
+            return true;
+        }
+        if (matchesHalfValue(half, halfUpperValue)) {
             return matchesWildRice(block.getRelative(BlockFace.DOWN));
         }
         return isValidSoil(block.getRelative(BlockFace.DOWN));
@@ -171,15 +192,13 @@ public class WildRiceBlockBehavior extends BlockBehavior {
                 && isLowerHalf(lowerState);
     }
 
+    /** The state's half value, or null when the state does not carry this behavior's half property.
+     *  Callers decide what an unreadable half means; none of them may treat it as a lower half. */
     private Object getHalf(ImmutableBlockState state) {
-        if (halfProperty == null || state == null || state.isEmpty()) {
-            return halfLowerValue;
+        if (state == null || state.isEmpty()) {
+            return null;
         }
-        Object value = state.get(halfProperty);
-        if (value != null) {
-            return value;
-        }
-        return halfLowerValue;
+        return state.getNullable(halfProperty);
     }
 
     private boolean matchesHalfValue(Object actual, Object expected) {
@@ -196,9 +215,6 @@ public class WildRiceBlockBehavior extends BlockBehavior {
     }
 
     private static Object inferHalfValue(Property<?> halfProperty, String fallback) {
-        if (halfProperty == null) {
-            return fallback;
-        }
         for (Object candidate : halfProperty.possibleValues()) {
             if (String.valueOf(candidate).trim().equalsIgnoreCase(fallback)) {
                 return candidate;

@@ -37,15 +37,39 @@ public class EffectListener implements Listener {
     private static final Set<UUID> playersWithEffects = ConcurrentHashMap.newKeySet();
     private static final Map<UUID, Player> trackedPlayers = new ConcurrentHashMap<>();
     private static final Set<UUID> scheduledTicks = ConcurrentHashMap.newKeySet();
-    static final long TICK_INTERVAL = 4L;
+    // Effect task tick cadence, resolved from config once at start(). The same value is the amount
+    // durations decrement by each pass, so every consumer reads it back through tickInterval() to stay
+    // identical. A changed interval takes effect on the next start (plugin enable / server restart),
+    // keeping the running scheduler period and the duration decrement in lockstep.
+    // Config: performance.effect-tick-interval-ticks (default 4, min 1).
+    private static final long DEFAULT_TICK_INTERVAL = 4L;
+    private static volatile long tickInterval = DEFAULT_TICK_INTERVAL;
+
+    static long tickInterval() {
+        return tickInterval;
+    }
     // Default delay (ticks) for the post-join PDC restore retry; overridable via config. 40 ticks (2s)
     // comfortably clears a whole-profile sync plugin's async apply without a visible gap.
     private static final int DEFAULT_RESTORE_RETRY_DELAY_TICKS = 40;
     // Items carrying this CraftEngine item tag act as the single-buff cleanser (milk_bottle and any
     // future milk-bottle-like drink), so the trigger is data-driven instead of a hardcoded item id.
     private static final Key MILK_TAG = Key.of("farmersdelight:milk");
+    // Cadence of the buff-transition sync pass. Remaining times are reported in whole seconds, so a
+    // one-second pass is as fine-grained as a transition can be observed. The pass returns immediately
+    // while no player carries a buff, so this runs at a flat cost on an idle server.
+    private static final long BUFF_SYNC_INTERVAL_TICKS = 20L;
     private final FarmersDelightPlugin plugin;
     private volatile PluginTask effectTask;
+    private volatile PluginTask buffSyncTask;
+    // Guards effectTask against the concurrent producers (trackPlayer runs on whichever region thread
+    // applied the buff) and the tick pass's own self-cancel. R-CONC-002.
+    private final Object taskLock = new Object();
+    private volatile boolean stopped = true;
+    // Resolved once per start() so the tick body does not re-probe it per pass.
+    private volatile boolean folia;
+    // Active instance for the static trackPlayer facade, so a producer can re-arm the ticker without
+    // routing through the plugin singleton. Set in start(), identity-cleared in stop().
+    private static volatile EffectListener active;
 
     public EffectListener(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -97,6 +121,12 @@ public class EffectListener implements Listener {
         UUID playerId = player.getUniqueId();
         playersWithEffects.add(playerId);
         trackedPlayers.put(playerId, player);
+        // Add to the pool BEFORE re-arming, so a tick pass concurrently draining to empty either observes
+        // this player (and does not cancel) or cancels and is immediately restarted by the ensure below.
+        EffectListener listener = active;
+        if (listener != null) {
+            listener.ensureTicking();
+        }
     }
 
     public static void untrackPlayer(UUID playerId) {
@@ -106,75 +136,175 @@ public class EffectListener implements Listener {
     }
 
     public void start() {
-        if (effectTask != null) {
-            return;
-        }
         // Resolve Folia once: on Paper/Spigot the repeating task already runs on the main thread, so we
         // can call EffectManager.tick directly and skip one BukkitTask allocation per tracked player per
         // tick pass (100 buffed players × 5 passes/sec = 500 task allocations/sec saved).
-        boolean folia = plugin.scheduler().isFolia();
-        effectTask = plugin.scheduler().runRepeating(() -> {
-            if (playersWithEffects.isEmpty()) {
-                return;
+        folia = plugin.scheduler().isFolia();
+        synchronized (taskLock) {
+            stopped = false;
+            // Resolve the tick interval only while no pass is scheduled, so the running scheduler period
+            // and the per-pass duration decrement can never disagree. ensureTicking reuses this value for
+            // every later on-demand restart, so a restart mid-session keeps the same cadence.
+            if (effectTask == null) {
+                tickInterval = Math.max(1L, plugin.getConfigInt((int) DEFAULT_TICK_INTERVAL,
+                        "performance.effect-tick-interval-ticks"));
             }
+        }
+        active = this;
+        // Nobody has a food buff on a fresh start, so the ticker is armed on demand by trackPlayer.
+        // Restores that already landed (a reload while players are online) are covered by this ensure.
+        if (!playersWithEffects.isEmpty()) {
+            ensureTicking();
+        }
+        ensureBuffSyncTicking();
+    }
 
-            Iterator<Map.Entry<UUID, Player>> iterator = trackedPlayers.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Map.Entry<UUID, Player> entry = iterator.next();
-                UUID playerId = entry.getKey();
-                Player player = entry.getValue();
-                if (!playersWithEffects.contains(playerId)) {
-                    iterator.remove();
-                    continue;
+    /**
+     * Arms the pass that turns an expired buff into its change event. A buff runs out inside whichever
+     * ticker owns it — this listener's own pass for Comfort and Nourishment, an addon's timer for its
+     * buffs — and none of those report the drop to the registry, so the registry re-reads the players it
+     * knows are buffed and diffs them itself. It covers addon buffs the effect ticker never sees, so it
+     * cannot be folded into that pass.
+     */
+    private void ensureBuffSyncTicking() {
+        synchronized (taskLock) {
+            if (!stopped && buffSyncTask == null && plugin.isEnabled()
+                    && CustomBuffRegistry.isSystemEnabled()) {
+                buffSyncTask = plugin.scheduler().runRepeating(CustomBuffRegistry::syncTrackedPlayers,
+                        BUFF_SYNC_INTERVAL_TICKS, BUFF_SYNC_INTERVAL_TICKS);
+            }
+        }
+    }
+
+    /** Starts the effect tick pass if a tracked player now exists. Producers must add to the pool BEFORE
+     *  calling this, so a concurrently draining pass either sees the new entry (and does not cancel) or
+     *  the producer finds effectTask == null under the lock and reschedules. The ticker is never armed
+     *  while the buff system is switched off — there is nothing to tick then. */
+    private void ensureTicking() {
+        synchronized (taskLock) {
+            if (!stopped && effectTask == null && plugin.isEnabled()
+                    && CustomBuffRegistry.isSystemEnabled()) {
+                effectTask = plugin.scheduler().runRepeating(this::tickEffects, 1L, tickInterval);
+            }
+        }
+    }
+
+    /**
+     * Re-evaluates the buff master switch after a config reload. Switching off cancels the running pass and
+     * drops the live buff state, so nothing keeps ticking until the next restart; switching back on re-arms
+     * the ticker for players who are still tracked. The switch itself is read in the plugin's config load and
+     * published through the registry, so this only has to act on the transition.
+     */
+    public void applySystemEnabled(boolean systemEnabled) {
+        if (!systemEnabled) {
+            synchronized (taskLock) {
+                if (effectTask != null) {
+                    effectTask.cancel();
+                    effectTask = null;
                 }
-                if (player == null) {
-                    continue;
-                }
-                if (folia) {
-                    // Folia: EffectManager.tick touches player state, must run on the player's region thread.
-                    if (!scheduledTicks.add(playerId)) {
-                        continue;
-                    }
-                    try {
-                        // retired callback: on Folia the entity task is silently dropped if the player is
-                        // retired after queueing but before running (no Quit/Death event). Without clearing
-                        // scheduledTicks there, the guard above (scheduledTicks.add) stays false forever and
-                        // EffectManager.tick never runs for that player again.
-                        plugin.scheduler().runForEntity(player, () -> {
-                            try {
-                                if (player.isOnline()) {
-                                    EffectManager.tick(player);
-                                } else {
-                                    untrackPlayer(playerId);
-                                }
-                            } finally {
-                                scheduledTicks.remove(playerId);
-                            }
-                        }, () -> scheduledTicks.remove(playerId));
-                    } catch (RuntimeException e) {
-                        scheduledTicks.remove(playerId);
-                        untrackPlayer(playerId);
-                    }
-                } else {
-                    // Paper/Spigot: already on the main thread, call tick directly.
-                    if (!player.isOnline()) {
-                        untrackPlayer(playerId);
-                        continue;
-                    }
-                    try {
-                        EffectManager.tick(player);
-                    } catch (RuntimeException e) {
-                        untrackPlayer(playerId);
-                    }
+                if (buffSyncTask != null) {
+                    buffSyncTask.cancel();
+                    buffSyncTask = null;
                 }
             }
-        }, 1L, TICK_INTERVAL);
+            playersWithEffects.clear();
+            trackedPlayers.clear();
+            scheduledTicks.clear();
+            // Clears the duration maps only. Retracting what is already drawn on screen is the display
+            // manager's job and it runs its own switch-off pass in the same reload, so no player state is
+            // touched from this thread.
+            EffectManager.clearAll();
+            return;
+        }
+        if (!playersWithEffects.isEmpty()) {
+            ensureTicking();
+        }
+        ensureBuffSyncTicking();
+    }
+
+    private void tickEffects() {
+        // Self-cancel at the same point as the pass's early-return guard. The pool drains to empty via
+        // paths outside this pass (quit / death / milk cleanse / untrackPlayer), and those never touch the
+        // task handle — checking only at the tail of a pass would leave the ticker running forever after
+        // any of them. The locked recheck pairs with trackPlayer's add-then-ensureTicking so a player
+        // added concurrently is never stranded without a running pass.
+        if (playersWithEffects.isEmpty()) {
+            synchronized (taskLock) {
+                if (playersWithEffects.isEmpty() && effectTask != null) {
+                    effectTask.cancel();
+                    effectTask = null;
+                }
+            }
+            return;
+        }
+
+        boolean folia = this.folia;
+        Iterator<Map.Entry<UUID, Player>> iterator = trackedPlayers.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<UUID, Player> entry = iterator.next();
+            UUID playerId = entry.getKey();
+            Player player = entry.getValue();
+            if (!playersWithEffects.contains(playerId)) {
+                iterator.remove();
+                continue;
+            }
+            if (player == null) {
+                continue;
+            }
+            if (folia) {
+                // Folia: EffectManager.tick touches player state, must run on the player's region thread.
+                if (!scheduledTicks.add(playerId)) {
+                    continue;
+                }
+                try {
+                    // retired callback: on Folia the entity task is silently dropped if the player is
+                    // retired after queueing but before running (no Quit/Death event). Without clearing
+                    // scheduledTicks there, the guard above (scheduledTicks.add) stays false forever and
+                    // EffectManager.tick never runs for that player again.
+                    plugin.scheduler().runForEntity(player, () -> {
+                        try {
+                            if (player.isOnline()) {
+                                EffectManager.tick(player);
+                            } else {
+                                untrackPlayer(playerId);
+                            }
+                        } finally {
+                            scheduledTicks.remove(playerId);
+                        }
+                    }, () -> scheduledTicks.remove(playerId));
+                } catch (RuntimeException e) {
+                    scheduledTicks.remove(playerId);
+                    untrackPlayer(playerId);
+                }
+            } else {
+                // Paper/Spigot: already on the main thread, call tick directly.
+                if (!player.isOnline()) {
+                    untrackPlayer(playerId);
+                    continue;
+                }
+                try {
+                    EffectManager.tick(player);
+                } catch (RuntimeException e) {
+                    untrackPlayer(playerId);
+                }
+            }
+        }
     }
 
     public void stop() {
-        if (effectTask != null) {
-            effectTask.cancel();
-            effectTask = null;
+        synchronized (taskLock) {
+            stopped = true;
+            if (effectTask != null) {
+                effectTask.cancel();
+                effectTask = null;
+            }
+            if (buffSyncTask != null) {
+                buffSyncTask.cancel();
+                buffSyncTask = null;
+            }
+        }
+        if (active == this) {
+            active = null;
         }
         playersWithEffects.clear();
         trackedPlayers.clear();
@@ -195,6 +325,7 @@ public class EffectListener implements Listener {
         // gap-filling, so this is a no-op when the immediate restore already succeeded or the player
         // gained a buff since joining. <= 0 disables the retry (single-server needs no retry).
         long retryDelay = plugin.getConfigInt(DEFAULT_RESTORE_RETRY_DELAY_TICKS,
+                "buff.persistence.restore-retry-delay-ticks",
                 "buff-persistence.restore-retry-delay-ticks");
         if (retryDelay > 0) {
             plugin.scheduler().runLaterForEntity(player, () -> {
@@ -216,6 +347,11 @@ public class EffectListener implements Listener {
     public void onPlayerQuit(PlayerQuitEvent event) {
         untrackPlayer(event.getPlayer().getUniqueId());
         EffectManager.clearPlayer(event.getPlayer());
+        // Drops the diff baseline for the departing player, after the LOWEST handler above has saved their
+        // buffs. Keeping it would both hold the entry for the rest of the server's uptime and make the next
+        // join's restore look like "no change" whenever they reconnect at the level they left at, silencing
+        // the gain event for a player who is visibly buffed.
+        CustomBuffRegistry.forget(event.getPlayer());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

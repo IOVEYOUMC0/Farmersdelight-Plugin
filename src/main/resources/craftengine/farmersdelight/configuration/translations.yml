@@ -228,8 +228,10 @@
     farmersdelight.tooltip.placeable: "Placeable"
     farmersdelight.tooltip.placeable_sneaking: "Placeable when sneaking"
 
-    buff.farmersdelight.nourishment: "Nourishment [%s]"
-    buff.farmersdelight.comfort: "Comfort [%s]"
+    buff.farmersdelight.nourishment: "Nourishment"
+    buff.farmersdelight.nourishment.title: "Nourishment [%s]"
+    buff.farmersdelight.comfort: "Comfort"
+    buff.farmersdelight.comfort.title: "Comfort [%s]"
 
     farmersdelight.tooltip.cooking_pot.servings: "%s servings"
 
@@ -462,8 +464,10 @@
     farmersdelight.tooltip.placeable: "可放置"
     farmersdelight.tooltip.placeable_sneaking: "潜行可放置"
 
-    buff.farmersdelight.nourishment: "滋养 [%s]"
-    buff.farmersdelight.comfort: "舒适 [%s]"
+    buff.farmersdelight.nourishment: "滋养"
+    buff.farmersdelight.nourishment.title: "滋养 [%s]"
+    buff.farmersdelight.comfort: "舒适"
+    buff.farmersdelight.comfort.title: "舒适 [%s]"
 
     farmersdelight.tooltip.cooking_pot.servings: "%s 份"
 
@@ -696,8 +700,10 @@
     farmersdelight.tooltip.placeable: "놓을 수 있음"
     farmersdelight.tooltip.placeable_sneaking: "쉬프트 누르고 놓을 수 있음"
 
-    buff.farmersdelight.nourishment: "배부름 [%s]"
-    buff.farmersdelight.comfort: "편안함 [%s]"
+    buff.farmersdelight.nourishment: "배부름"
+    buff.farmersdelight.nourishment.title: "배부름 [%s]"
+    buff.farmersdelight.comfort: "편안함"
+    buff.farmersdelight.comfort.title: "편안함 [%s]"
 
     farmersdelight.tooltip.cooking_pot.servings: "%s인분"
 

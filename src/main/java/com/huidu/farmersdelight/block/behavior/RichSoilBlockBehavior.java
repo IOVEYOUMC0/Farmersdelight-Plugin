@@ -40,13 +40,26 @@ public class RichSoilBlockBehavior extends BlockBehavior {
     private final float boostChance;
     private final Key brownMushroomColonyId;
     private final Key redMushroomColonyId;
+    // The reference mod keeps a single UNAFFECTED_BY_RICH_SOIL block tag consulted by both the rich soil block
+    // and the rich soil farmland. Each configured block carries its own parsed copy: the list belongs to the
+    // behavior instance the factory built it from, so two blocks declaring this behavior cannot overwrite one
+    // another and load order cannot decide the winner. Final field of an instance published by the factory
+    // before any tick thread can reach it, so tick-thread reads see the fully built set.
+    private final ConfiguredBlockSet unaffectedBlocks;
 
     private RichSoilBlockBehavior(BlockDefinition block, float boostChance,
-                                   Key brownMushroomColonyId, Key redMushroomColonyId) {
+                                   Key brownMushroomColonyId, Key redMushroomColonyId,
+                                   ConfiguredBlockSet unaffectedBlocks) {
         super(block);
         this.boostChance = boostChance;
         this.brownMushroomColonyId = brownMushroomColonyId;
         this.redMushroomColonyId = redMushroomColonyId;
+        this.unaffectedBlocks = unaffectedBlocks;
+    }
+
+    /** Blocks this rich soil's boost must skip. The rich soil farmland reads it when it configures no list of its own. */
+    public ConfiguredBlockSet unaffectedBlocks() {
+        return unaffectedBlocks;
     }
 
     public Key getBrownMushroomColonyId() {
@@ -64,7 +77,8 @@ public class RichSoilBlockBehavior extends BlockBehavior {
             float chance = BehaviorArgParser.getFloat(arguments, "boost-chance", 0.08f);
             String brownId = BehaviorArgParser.getStringStrict(arguments, "brown-mushroom-colony", "farmersdelight:brown_mushroom_colony");
             String redId = BehaviorArgParser.getStringStrict(arguments, "red-mushroom-colony", "farmersdelight:red_mushroom_colony");
-            return new RichSoilBlockBehavior(block, chance, Key.of(brownId), Key.of(redId));
+            ConfiguredBlockSet unaffected = ConfiguredBlockSet.parse(arguments.get("unaffected-blocks"));
+            return new RichSoilBlockBehavior(block, chance, Key.of(brownId), Key.of(redId), unaffected);
         }
     };
 
@@ -117,18 +131,32 @@ public class RichSoilBlockBehavior extends BlockBehavior {
         // Convert to a young (age 0) colony that then grows to maturity, matching the mod: planting a
         // mushroom must never yield a fully grown colony. The colony's default state is age 3 (used when the
         // colony item is placed directly), so explicitly drop it to age 0 for this growth path.
-        CraftEngineBlocks.place(target.getLocation().add(0.5, 0, 0.5), colonyAgeZero(colony), true);
+        ImmutableBlockState young = colonyAgeZero(colony);
+        if (young == null) return false;
+        CraftEngineBlocks.place(target.getLocation().add(0.5, 0, 0.5), young, true);
         return true;
     }
 
+    /**
+     * The colony's age 0 state, or null when the configured colony block declares no integer age property.
+     * Falling back to the colony's default state there would hand out a fully grown, immediately harvestable
+     * colony for every mushroom the soil converts, so the conversion is skipped instead and the mushroom is
+     * left standing.
+     */
     @SuppressWarnings("unchecked")
     private static ImmutableBlockState colonyAgeZero(BlockDefinition colony) {
-        ImmutableBlockState state = colony.defaultState();
-        Property<Integer> age = (Property<Integer>) colony.getProperty("age");
-        return age != null ? state.with(age, 0) : state;
+        Property<?> property = colony.getProperty("age");
+        if (property == null || property.valueClass() != Integer.class) return null;
+        return colony.defaultState().with((Property<Integer>) property, 0);
     }
 
     private boolean boostPlant(Block plant) {
+        // Mirrors RichSoilBlock.boostPlant, which bails out before the bone meal call for anything in the
+        // UNAFFECTED_BY_RICH_SOIL tag, so grass, moss, nylium, dripleaf, tall flowers, wild crops and mushroom
+        // colonies keep spreading at their own rate instead of being fertilised by the soil under them.
+        if (unaffectedBlocks.contains(plant)) {
+            return false;
+        }
         try {
             boolean applied = plant.applyBoneMeal(BlockFace.UP);
             if (applied) {

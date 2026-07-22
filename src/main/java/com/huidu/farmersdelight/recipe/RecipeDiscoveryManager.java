@@ -2,10 +2,14 @@ package com.huidu.farmersdelight.recipe;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
+import com.huidu.farmersdelight.api.event.FarmersDelightRecipeDiscoveryEvent;
+import com.huidu.farmersdelight.api.event.FarmersDelightRecipeDiscoveryEvent.Action;
+import com.huidu.farmersdelight.api.event.FarmersDelightRecipeDiscoveryEvent.Source;
 import com.huidu.farmersdelight.api.recipe.RecipeType;
 import com.huidu.farmersdelight.api.recipe.ViewableRecipe;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.ItemUtils;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -18,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,9 +35,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * (e.g. an addon unlocks on advancement or on craft). Locking only affects the books' DISPLAY; it never
  * blocks actual crafting at a station.
  *
- * Synthetic type ids identify FarmersDelight's own recipes: TYPE_COOKING_POT / TYPE_CUTTING_BOARD.
- * Addon recipes use their RecipeType#id(). Disabled by default; when disabled every recipe reads as
- * unlocked, so the books behave exactly as before.
+ * Synthetic type ids identify FarmersDelight's own recipes: TYPE_COOKING_POT / TYPE_CUTTING_BOARD. Addon
+ * recipes use their RecipeType id. Disabled by default; when disabled every recipe reads as unlocked, so the
+ * books behave exactly as before.
  */
 public final class RecipeDiscoveryManager {
 
@@ -47,11 +52,13 @@ public final class RecipeDiscoveryManager {
     // itemId -> keys of recipes whose result or an exact-item ingredient is that item (obtain trigger). Lazy.
     private volatile Map<String, Set<String>> obtainIndex;
 
-    private boolean enabled;
-    private boolean hideLocked;     // true = omit locked recipes; false = show a placeholder
-    private boolean unlockOnObtain; // unlock when a recipe's result / exact ingredient is obtained
-    private boolean notifyOnUnlock; // chat message when a recipe unlocks
-    private Material lockedIcon = Material.BARRIER;
+    // Written by readConfig on the reload thread and read from region threads (books, obtain trigger,
+    // command), so every one of them needs the happens-before edge a volatile read gives.
+    private volatile boolean enabled;
+    private volatile boolean hideLocked;     // true = omit locked recipes; false = show a placeholder
+    private volatile boolean unlockOnObtain; // unlock when a recipe's result / exact ingredient is obtained
+    private volatile boolean notifyOnUnlock; // chat message when a recipe unlocks
+    private volatile Material lockedIcon = Material.BARRIER;
     private volatile boolean dirty;
 
     public RecipeDiscoveryManager(FarmersDelightPlugin plugin) {
@@ -73,7 +80,7 @@ public final class RecipeDiscoveryManager {
     }
 
     private void readConfig() {
-        ConfigurationSection section = plugin.getConfig().getConfigurationSection("recipe-discovery");
+        ConfigurationSection section = plugin.getFirstConfigSection("recipes.discovery", "recipe-discovery");
         enabled = section != null && section.getBoolean("enabled", false);
         String lockedDisplay = section == null ? "placeholder" : section.getString("locked-display", "placeholder");
         hideLocked = "hidden".equalsIgnoreCase(lockedDisplay);
@@ -83,7 +90,7 @@ public final class RecipeDiscoveryManager {
         lockedIcon = icon != null ? icon : Material.BARRIER;
     }
 
-    /** The placeholder item shown in a book for a locked recipe (placeholder display mode), localized for viewer. */
+    /** The placeholder item shown in a book for a locked recipe (placeholder display mode), localized for the viewer. */
     public ItemStack lockedPlaceholder(Player viewer) {
         ItemStack item = new ItemStack(lockedIcon);
         ItemMeta meta = item.getItemMeta();
@@ -104,7 +111,7 @@ public final class RecipeDiscoveryManager {
         return hideLocked;
     }
 
-    /** True if player may see this recipe: always when discovery is off, else only once unlocked. */
+    /** True if the player may see this recipe: always when discovery is off, else only once unlocked. */
     public boolean isUnlocked(UUID playerId, String typeId, String recipeId) {
         if (!enabled) {
             return true;
@@ -118,42 +125,133 @@ public final class RecipeDiscoveryManager {
 
     /** Marks a recipe unlocked for a player. Returns true if it was newly unlocked. */
     public boolean unlock(UUID playerId, String typeId, String recipeId) {
+        return unlock(playerId, typeId, recipeId, Source.API);
+    }
+
+    /** Marks a recipe unlocked for a player, attributing the change to the given source in the fired event. */
+    public boolean unlock(UUID playerId, String typeId, String recipeId, Source source) {
         if (playerId == null || typeId == null || recipeId == null) {
             return false;
         }
-        boolean added = unlocked.computeIfAbsent(playerId, k -> ConcurrentHashMap.newKeySet())
-                .add(key(typeId, recipeId));
+        Set<String> set = unlocked.computeIfAbsent(playerId, k -> ConcurrentHashMap.newKeySet());
+        // add() runs after computeIfAbsent has returned, so no map bin lock is held while the event fires.
+        boolean added = set.add(key(typeId, recipeId));
         if (added) {
             dirty = true;
+            fireChanged(playerId, typeId, recipeId, Action.UNLOCK, source);
         }
         return added;
     }
 
     /** Re-locks a recipe for a player. */
     public void lock(UUID playerId, String typeId, String recipeId) {
+        lock(playerId, typeId, recipeId, Source.API);
+    }
+
+    /** Re-locks a recipe for a player. Returns true if it had been unlocked and is now locked again. */
+    public boolean lock(UUID playerId, String typeId, String recipeId, Source source) {
         if (playerId == null || typeId == null || recipeId == null) {
-            return;
+            return false;
         }
         Set<String> set = unlocked.get(playerId);
-        if (set != null && set.remove(key(typeId, recipeId))) {
+        boolean removed = set != null && set.remove(key(typeId, recipeId));
+        if (removed) {
             dirty = true;
+            fireChanged(playerId, typeId, recipeId, Action.LOCK, source);
         }
+        return removed;
     }
 
     /** Unlocks every known recipe (FarmersDelight + addon) for a player. */
     public int unlockAll(UUID playerId) {
+        return unlockAll(playerId, Source.API);
+    }
+
+    /** Unlocks every known recipe of every type; returns how many were newly unlocked. */
+    public int unlockAll(UUID playerId, Source source) {
         if (playerId == null) {
             return 0;
         }
         int count = 0;
         for (Map.Entry<String, List<String>> entry : allRecipeKeysByType().entrySet()) {
             for (String recipeId : entry.getValue()) {
-                if (unlock(playerId, entry.getKey(), recipeId)) {
+                if (unlock(playerId, entry.getKey(), recipeId, source)) {
                     count++;
                 }
             }
         }
         return count;
+    }
+
+    /** Unlocks every known recipe of one type; returns how many were newly unlocked. */
+    public int unlockAllOfType(UUID playerId, String typeId, Source source) {
+        if (playerId == null || typeId == null) {
+            return 0;
+        }
+        int count = 0;
+        for (String recipeId : allRecipeKeysByType().getOrDefault(typeId, List.of())) {
+            if (unlock(playerId, typeId, recipeId, source)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** Re-locks every known recipe of every type; returns how many were actually re-locked. Keys of types
+     *  that are not currently registered (an addon that is temporarily absent) are left untouched rather
+     *  than discarded, so removing an addon for one restart does not wipe its players' progress. */
+    public int lockAll(UUID playerId, Source source) {
+        if (playerId == null) {
+            return 0;
+        }
+        int count = 0;
+        for (Map.Entry<String, List<String>> entry : allRecipeKeysByType().entrySet()) {
+            for (String recipeId : entry.getValue()) {
+                if (lock(playerId, entry.getKey(), recipeId, source)) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    /** Re-locks every known recipe of one type; returns how many were actually re-locked. */
+    public int lockAllOfType(UUID playerId, String typeId, Source source) {
+        if (playerId == null || typeId == null) {
+            return 0;
+        }
+        int count = 0;
+        for (String recipeId : allRecipeKeysByType().getOrDefault(typeId, List.of())) {
+            if (lock(playerId, typeId, recipeId, source)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** True when the type is registered and declares this recipe id. */
+    public boolean isKnownRecipe(String typeId, String recipeId) {
+        if (typeId == null || recipeId == null) {
+            return false;
+        }
+        return allRecipeKeysByType().getOrDefault(typeId, List.of()).contains(recipeId);
+    }
+
+    /**
+     * Announces a committed state change. The state itself is concurrent-map work that any thread may
+     * perform, but PluginManager.callEvent rejects a synchronous event dispatched from a non-tick thread by
+     * throwing. Calling it inline would therefore let an addon that unlocks from an async callback mutate
+     * the map, mark it dirty and then blow up half-committed. Off a tick thread the finished event is handed
+     * to the global region instead, so the caller always returns normally and listeners still see it.
+     */
+    private void fireChanged(UUID playerId, String typeId, String recipeId, Action action, Source source) {
+        FarmersDelightRecipeDiscoveryEvent event =
+                new FarmersDelightRecipeDiscoveryEvent(playerId, typeId, recipeId, action, source);
+        if (Bukkit.isPrimaryThread()) {
+            Bukkit.getPluginManager().callEvent(event);
+            return;
+        }
+        plugin.scheduler().run(() -> Bukkit.getPluginManager().callEvent(event));
     }
 
     /** The unlocked recipe ids of one type for a player (empty when discovery is off — everything is open). */
@@ -174,7 +272,7 @@ public final class RecipeDiscoveryManager {
 
     // ------------------------------------------------------------------ obtain trigger
 
-    /** Called when player obtains itemId; unlocks any recipe keyed to it (when enabled). */
+    /** Called when a player obtains an item id; unlocks any recipe keyed to it (when enabled). */
     public void onObtain(Player player, String itemId) {
         if (!enabled || !unlockOnObtain || player == null || itemId == null) {
             return;
@@ -193,7 +291,7 @@ public final class RecipeDiscoveryManager {
             }
             String typeId = key.substring(0, sep);
             String recipeId = key.substring(sep + 1);
-            if (unlock(player.getUniqueId(), typeId, recipeId)) {
+            if (unlock(player.getUniqueId(), typeId, recipeId, Source.OBTAIN)) {
                 newlyUnlocked.add(recipeId);
             }
         }
@@ -229,8 +327,10 @@ public final class RecipeDiscoveryManager {
 
     private Map<String, Set<String>> buildObtainIndex() {
         Map<String, Set<String>> index = new ConcurrentHashMap<>();
-        // FarmersDelight cooking pot: result + exact-item ingredients.
-        for (CookingPotRecipe recipe : plugin.getCookingPotRecipes().getRecipes().values()) {
+        // FarmersDelight cooking pot: result + exact-item ingredients. Walks the custom groups' recipes as
+        // well as the default ones, because the books display the group-merged list — indexing only the
+        // defaults would leave every group-only recipe permanently locked with no way to trigger it.
+        for (CookingPotRecipe recipe : plugin.getCookingPotRecipes().getAllRecipes()) {
             String key = key(TYPE_COOKING_POT, recipe.getId());
             indexItem(index, idOf(recipe.getResult()), key);
             for (RecipeIngredient ingredient : recipe.getIngredients()) {
@@ -290,9 +390,18 @@ public final class RecipeDiscoveryManager {
         return ItemUtils.resolveItemId(item);
     }
 
-    private Map<String, List<String>> allRecipeKeysByType() {
+    /**
+     * Every known recipe id grouped by type id: FarmersDelight's own two types plus each registered addon
+     * type. The unlock key is id-only, so a cooking-pot recipe id declared by several custom groups appears
+     * once and shares a single unlock bit across groups.
+     */
+    public Map<String, List<String>> allRecipeKeysByType() {
         Map<String, List<String>> byType = new HashMap<>();
-        List<String> cooking = new ArrayList<>(plugin.getCookingPotRecipes().getRecipes().keySet());
+        Set<String> cookingIds = new LinkedHashSet<>();
+        for (CookingPotRecipe recipe : plugin.getCookingPotRecipes().getAllRecipes()) {
+            cookingIds.add(recipe.getId());
+        }
+        List<String> cooking = new ArrayList<>(cookingIds);
         byType.put(TYPE_COOKING_POT, cooking);
         List<String> cutting = new ArrayList<>(plugin.getCuttingBoardRecipes().getRecipes().keySet());
         byType.put(TYPE_CUTTING_BOARD, cutting);
@@ -340,21 +449,31 @@ public final class RecipeDiscoveryManager {
         dirty = false;
     }
 
-    /** Writes the discovery state to disk when changed. Safe to call from a periodic flush and on disable. */
+    /**
+     * Writes the discovery state to disk when changed. Safe to call from a periodic flush and on disable.
+     *
+     * Merges rather than rewrites: the file on disk is loaded first and only the players held in memory are
+     * overwritten, so any entry this instance does not know about survives. Rebuilding the file purely from
+     * the in-memory map would make the map the sole authority, and any later eviction or pruning of idle
+     * players would silently erase those players' saved progress on the next flush.
+     */
     public synchronized void save() {
         if (!dirty) {
             return;
         }
         // Clear dirty before snapshotting so a concurrent unlock re-marks it and is caught by the next flush.
         dirty = false;
-        YamlConfiguration yaml = new YamlConfiguration();
+        File file = dataFile();
+        YamlConfiguration yaml = file.exists()
+                ? YamlConfiguration.loadConfiguration(file)
+                : new YamlConfiguration();
         for (Map.Entry<UUID, Set<String>> entry : unlocked.entrySet()) {
-            if (!entry.getValue().isEmpty()) {
-                yaml.set(entry.getKey().toString(), new ArrayList<>(entry.getValue()));
-            }
+            Set<String> keys = entry.getValue();
+            // An in-memory player with nothing unlocked is an explicit "everything locked" state, so clear
+            // the stored key rather than leaving a stale list behind.
+            yaml.set(entry.getKey().toString(), keys.isEmpty() ? null : new ArrayList<>(keys));
         }
         try {
-            File file = dataFile();
             File parent = file.getParentFile();
             if (parent != null && !parent.exists()) {
                 parent.mkdirs();

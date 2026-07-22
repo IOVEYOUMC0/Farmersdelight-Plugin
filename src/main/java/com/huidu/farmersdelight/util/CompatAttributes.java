@@ -1,43 +1,20 @@
 package com.huidu.farmersdelight.util;
 
-import org.bukkit.NamespacedKey;
-import org.bukkit.Registry;
 import org.bukkit.attribute.Attribute;
 
 /**
- * Resolves Bukkit attributes across the attribute-registry rename so the plugin runs on Minecraft
- * 1.21 through current builds. Older servers expose the enum constant GENERIC_MAX_HEALTH under the
- * registry key generic.max_health; newer servers renamed these to MAX_HEALTH and max_health.
- * Resolution goes through the attribute registry by key first, then falls back to a reflective field
- * lookup, and never references a version-specific enum constant directly, so this class compiles and
- * loads on every supported version.
+ * Internal alias for the shared attribute-compatibility constants that live in
+ * com.huidu.farmersdelight.api.util.CompatAttributes. The api copy holds the only implementation, so
+ * the plugin and its addons resolve the attribute registry once and identically; this class exists
+ * only so internal call sites keep their short import.
  */
 public final class CompatAttributes {
 
     public static final Attribute MAX_HEALTH =
-            resolve("max_health", "generic.max_health", "MAX_HEALTH", "GENERIC_MAX_HEALTH");
+            com.huidu.farmersdelight.api.util.CompatAttributes.MAX_HEALTH;
     public static final Attribute ATTACK_SPEED =
-            resolve("attack_speed", "generic.attack_speed", "ATTACK_SPEED", "GENERIC_ATTACK_SPEED");
+            com.huidu.farmersdelight.api.util.CompatAttributes.ATTACK_SPEED;
 
     private CompatAttributes() {
-    }
-
-    private static Attribute resolve(String modernKey, String legacyKey, String modernField, String legacyField) {
-        for (String key : new String[]{modernKey, legacyKey}) {
-            try {
-                Attribute attribute = Registry.ATTRIBUTE.get(NamespacedKey.minecraft(key));
-                if (attribute != null) {
-                    return attribute;
-                }
-            } catch (Throwable ignored) {
-            }
-        }
-        for (String field : new String[]{modernField, legacyField}) {
-            try {
-                return (Attribute) Attribute.class.getField(field).get(null);
-            } catch (Throwable ignored) {
-            }
-        }
-        return null;
     }
 }

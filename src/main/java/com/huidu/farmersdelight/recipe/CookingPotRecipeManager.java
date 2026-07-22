@@ -13,6 +13,7 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.ToIntFunction;
 
 public class CookingPotRecipeManager {
 
@@ -159,9 +160,7 @@ public class CookingPotRecipeManager {
                 }
             }
         }
-        if (loadedCount > 0 || plugin.isDebugEnabled()) {
-            I18n.logInfo("recipe.custom_cooking_pot_loaded", "count", loadedCount);
-        }
+        I18n.logDetail("recipe", "recipe.custom_cooking_pot_loaded", "count", loadedCount);
     }
 
     private List<CookingPotRecipe> sortedRecipeList(Map<String, CookingPotRecipe> source) {
@@ -435,8 +434,14 @@ public class CookingPotRecipeManager {
 
     private String buildCacheKey(List<ItemStack> inputs, ItemStack container, String customRecipeGroupId) {
         List<String> keys = new ArrayList<>();
+        // Clamp the per-slot amount that goes into the key. IngredientMatching caps each slot at
+        // min(amount, ingredientCount) interchangeable units, and only recipes with
+        // ingredientCount <= inputs.size() can pass its slot-count gate, so any amount above
+        // inputs.size() is indistinguishable to the matcher. Collapsing it keeps a hopper-fed pot
+        // whose stacks keep growing on one cache entry instead of evicting the whole LRU each tick.
+        int amountCap = inputs.size();
         for (ItemStack item : inputs) {
-            keys.add(getItemKey(item) + ":" + item.getAmount());
+            keys.add(getItemKey(item) + ":" + Math.min(item.getAmount(), amountCap));
         }
         Collections.sort(keys);
 
@@ -465,7 +470,7 @@ public class CookingPotRecipeManager {
             return null;
         }
         // Copy-on-write to avoid the per-call HashSet allocations the old version did even when only
-        // one source set per item / per call needed merging — see the recipe-matching audit notes.
+        // one source set per item / per call needed merging.
         // candidates / recipesForItem start as shared references to an unmodified index entry; we
         // allocate a real HashSet copy only when a second source forces a union or intersection.
         Set<String> candidates = null;
@@ -545,9 +550,19 @@ public class CookingPotRecipeManager {
      *  matchRecipe(List, ItemStack, String)). Skips the per-call ArrayList allocation the
      *  public matchRecipe does for safety. */
     private boolean matchRecipePrefiltered(CookingPotRecipe recipe, List<ItemStack> nonEmptyInputs, boolean exactSlots) {
+        // Unit budget per filled slot. The exact pass mirrors the mod's CookingPotRecipe.matches, which pairs
+        // filled input STACKS against ingredients (RecipeMatcher.findMatches over the stack list) and then
+        // shrinks every filled slot by exactly one on cook. Feeding the slot's amount as its unit budget lets
+        // one stacked slot cover several ingredients, so with slotCount == ingredientCount the matcher can
+        // report a match while another filled slot participates in nothing and is never consumed. Capping the
+        // exact pass at one unit per slot forces the perfect matching the mod requires: every filled slot must
+        // carry exactly one ingredient. The lenient pass keeps the amount budget on purpose — that pass exists
+        // for the same ingredient spread over several slots, and it separately requires every filled slot to
+        // hold an item the recipe can use.
+        ToIntFunction<ItemStack> unitBudget = exactSlots ? slot -> 1 : ItemStack::getAmount;
         return IngredientMatching.matchesIngredients(
                 recipe.getIngredients(), nonEmptyInputs, exactSlots,
-                this::matchIngredient, ItemStack::getAmount);
+                this::matchIngredient, unitBudget);
     }
 
     public boolean canCraft(CookingPotRecipe recipe, List<ItemStack> inputs, ItemStack container) {
@@ -569,7 +584,6 @@ public class CookingPotRecipeManager {
             }
             return false;
         } else if (ingredient instanceof RecipeIngredient.Tag tagIngredient) {
-            String customId = ItemUtils.getCustomItemId(item);
             String vanillaId = ItemUtils.getVanillaMaterialItemId(item);
 
             if (tagIngredient.excludedItems().stream().anyMatch(excluded -> ItemUtils.matchesItemId(item, excluded))) {
@@ -634,6 +648,25 @@ public class CookingPotRecipeManager {
         return Collections.unmodifiableMap(recipes);
     }
 
+    /**
+     * Every cooking-pot recipe the manager knows: the default set plus the own recipes of each custom
+     * group. Callers that must reason about all displayable recipes (recipe discovery, audits) need this
+     * because a group's recipes never appear in the default map, only in the group-merged views.
+     *
+     * A recipe id declared by several groups yields one entry per declaring group, so consumers that key
+     * by id should de-duplicate. Read-only: each volatile field is snapshotted once into a local and the
+     * published maps are never mutated in place, so the walk sees one consistent generation.
+     */
+    public List<CookingPotRecipe> getAllRecipes() {
+        Map<String, CookingPotRecipe> defaultRecipes = this.recipes;
+        Map<String, Map<String, CookingPotRecipe>> groupedRecipes = this.customRecipes;
+        List<CookingPotRecipe> all = new ArrayList<>(defaultRecipes.values());
+        for (Map<String, CookingPotRecipe> groupRecipes : groupedRecipes.values()) {
+            all.addAll(groupRecipes.values());
+        }
+        return Collections.unmodifiableList(all);
+    }
+
     public Map<String, CookingPotRecipe> getRecipes(String customRecipeGroupId) {
         String normalizedGroupId = normalizeRecipeGroupId(customRecipeGroupId);
         if (normalizedGroupId == null) {
@@ -662,6 +695,16 @@ public class CookingPotRecipeManager {
 
     public int getRecipeCount() {
         return recipes.size();
+    }
+
+    /** Total recipes across every custom pot group. A recipe id declared by several groups counts once per
+     *  declaring group, matching how the groups are stored and how many recipes were actually parsed. */
+    public int getCustomRecipeCount() {
+        int count = 0;
+        for (Map<String, CookingPotRecipe> groupRecipes : customRecipes.values()) {
+            count += groupRecipes.size();
+        }
+        return count;
     }
 
     public CookingPotRecipe getRecipe(String id) {
@@ -726,6 +769,11 @@ public class CookingPotRecipeManager {
         plugin.scheduler().runLater(() -> {
             externalRepublishScheduled = false;
             loadRecipes();
+            // This republish runs after the CraftEngine readiness pass already printed the summary, so
+            // without re-reporting the cooking pot count on the console stays one batch behind whatever
+            // addons registered. The summary dedupes on its counts digest, making this a no-op when the
+            // batch did not move a count.
+            plugin.requestContentSummary();
         }, 1L);
     }
     

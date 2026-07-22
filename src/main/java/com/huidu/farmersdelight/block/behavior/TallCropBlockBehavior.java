@@ -1,10 +1,14 @@
 package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.event.FarmersDelightHarvestEvent;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.BehaviorArgParser;
+import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CraftEngineAdapter;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.ProtectionCompat;
 import com.huidu.farmersdelight.util.RiceCropRules;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
 import com.huidu.farmersdelight.util.SoilRuleSupport.SoilRules;
@@ -17,6 +21,7 @@ import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.property.Property;
+import net.momirealms.craftengine.core.block.property.type.DoubleBlockHalf;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.plugin.config.ConfigConstants;
@@ -112,17 +117,28 @@ public class TallCropBlockBehavior extends BlockBehavior {
         @Override
         public TallCropBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
+            String path = section != null ? section.path() : Constants.BEHAVIOR_TALL_CROP;
+
+            // Age and half are not optional: the crop's whole growth and harvest cycle is expressed
+            // through them. A block that declares this behavior without them aborts its own load here,
+            // naming the property that is missing, instead of loading a crop that never grows and can
+            // never be harvested. The property name stays configurable, but an unresolvable configured
+            // name is now an error rather than a silent fall back to the default name.
             String agePropertyName = BehaviorArgParser.getString(arguments, "age-property", "age");
-            Property<Integer> ageProperty = (Property<Integer>) block.getProperty(agePropertyName);
-            if (ageProperty == null) {
-                ageProperty = (Property<Integer>) block.getProperty("age");
-            }
-            
+            Property<Integer> ageProperty =
+                    BlockBehaviorFactory.getProperty(path, block, agePropertyName, Integer.class);
+
             String halfPropertyName = BehaviorArgParser.getString(arguments, "half-property", "half");
-            Property<?> halfProperty = block.getProperty(halfPropertyName);
-            
+            Property<DoubleBlockHalf> halfProperty =
+                    BlockBehaviorFactory.getProperty(path, block, halfPropertyName, DoubleBlockHalf.class);
+
+            // Optional by design: a crop may express its mature supporting stage as a distinct age value
+            // instead of a separate boolean, in which case there is no such property to write. Resolved
+            // leniently so its absence is not an error, but type-checked so a non-boolean property of
+            // that name is ignored rather than failing at the first write.
             String supportingPropertyName = BehaviorArgParser.getString(arguments, "supporting-property", "supporting");
-            Property<Boolean> supportingProperty = (Property<Boolean>) block.getProperty(supportingPropertyName);
+            Property<Boolean> supportingProperty =
+                    BlockBehaviorFactory.getOptionalProperty(block, supportingPropertyName, Boolean.class);
 
             float growSpeed = BehaviorArgParser.getFloat(arguments, "grow-speed", 0.25f);
             int minGrowLight = BehaviorArgParser.getInt(arguments, "light-requirement", 9);
@@ -230,22 +246,26 @@ public class TallCropBlockBehavior extends BlockBehavior {
         return maxAgeUpper;
     }
 
+    /** The state's age, or 0 when the state does not carry this behavior's age property. Reads of a
+     *  state belonging to another block definition therefore report an immature crop rather than
+     *  throwing. */
     public int getAge(ImmutableBlockState state) {
-        if (ageProperty == null) return 0;
-        Integer value = state.get(ageProperty);
-        if (value != null) {
-            return value;
+        if (state == null || state.isEmpty()) {
+            return 0;
         }
-        return 0;
+        Integer value = state.getNullable(ageProperty);
+        return value != null ? value : 0;
     }
 
+    /** The state's half value, or null when the state does not carry this behavior's half property.
+     *  Null matches neither half, so a state that cannot be classified takes no half-specific action;
+     *  it must never be treated as a lower half, because the lower half's removal handling deletes the
+     *  block above it. */
     public Object getHalf(ImmutableBlockState state) {
-        if (halfProperty == null) return halfLowerValue;
-        Object value = state.get(halfProperty);
-        if (value != null) {
-            return value;
+        if (state == null || state.isEmpty()) {
+            return null;
         }
-        return halfLowerValue;
+        return state.getNullable(halfProperty);
     }
 
     public boolean isLowerHalf(ImmutableBlockState state) {
@@ -279,7 +299,21 @@ public class TallCropBlockBehavior extends BlockBehavior {
         if (isUpperHalf(state) && isUpperMature(state)) {
             if (resetOnHarvest && isValidHarvestTool(mainHand)) {
                 Block bukkitBlock = world.getBlockAt(pos.x(), pos.y(), pos.z());
+                // This harvest removes the block and drops loot while cancelling vanilla, so it must respect
+                // land/region protection or a player with no build rights could harvest crops in a claim
+                // (R-SEC-001).
+                if (!ProtectionCompat.canBuild(bukkitPlayer, bukkitBlock, ProtectionCompat.Feature.RICE)) {
+                    return InteractionResult.PASS;
+                }
                 Location loc = bukkitBlock.getLocation().add(0.5, 0.5, 0.5);
+
+                // Fired after the protection check and before any drop is spawned. The drop list is
+                // empty because the loot for this crop is produced inside CraftEngine (a loot table or
+                // a configured break-loot function chain) and never passes through as a list — see the
+                // event's javadoc. Outside any block-entity monitor: this behavior holds none.
+                Bukkit.getPluginManager().callEvent(new FarmersDelightHarvestEvent(
+                        bukkitPlayer, bukkitBlock.getLocation(), CustomBlockUtils.getId(state),
+                        mainHand, java.util.List.of()));
 
                 net.momirealms.craftengine.core.world.World ceWorld = BukkitAdaptor.adapt(world);
                 WorldPosition wPos = new WorldPosition(ceWorld, loc.getX(), loc.getY(), loc.getZ());
@@ -304,10 +338,16 @@ public class TallCropBlockBehavior extends BlockBehavior {
         }
 
         if (mainHand.getType() == Material.BONE_MEAL && isBoneMealTarget) {
+            // Bone-mealing grows the crop and cancels vanilla, so gate it on protection too (R-SEC-001).
+            if (!ProtectionCompat.canBuild(bukkitPlayer, world.getBlockAt(pos.x(), pos.y(), pos.z()),
+                    ProtectionCompat.Feature.RICE)) {
+                return InteractionResult.PASS;
+            }
             if (applyBoneMeal(pos, world, state, bukkitPlayer)) {
                 if (bukkitPlayer.getGameMode() != GameMode.CREATIVE) {
                     mainHand.setAmount(mainHand.getAmount() - 1);
                 }
+                bukkitPlayer.swingMainHand();
                 return InteractionResult.SUCCESS_AND_CANCEL;
             }
         }

@@ -10,12 +10,12 @@
       attribute-modifiers:
         - type: minecraft:attack_damage
           slot: mainhand
-          amount: 2.5
+          amount: 1.5
           operation: add_value
         - type: minecraft:attack_speed
           slot: mainhand
-          amount: 0.4
-          operation: add_multiplied_base
+          amount: -2.0
+          operation: add_value
       lore:
         - content:
           - ''
@@ -32,12 +32,12 @@
       attribute-modifiers:
         - type: minecraft:attack_damage
           slot: mainhand
-          amount: 3.5
+          amount: 2.5
           operation: add_value
         - type: minecraft:attack_speed
           slot: mainhand
-          amount: 0.4
-          operation: add_multiplied_base
+          amount: -2.0
+          operation: add_value
       lore:
         - content:
           - ''
@@ -54,12 +54,12 @@
       attribute-modifiers:
         - type: minecraft:attack_damage
           slot: mainhand
-          amount: 1.5
+          amount: 0.5
           operation: add_value
         - type: minecraft:attack_speed
           slot: mainhand
-          amount: 0.4
-          operation: add_multiplied_base
+          amount: -2.0
+          operation: add_value
       lore:
         - content:
           - ''
@@ -76,12 +76,12 @@
       attribute-modifiers:
         - type: minecraft:attack_damage
           slot: mainhand
-          amount: 4.5
+          amount: 3.5
           operation: add_value
         - type: minecraft:attack_speed
           slot: mainhand
-          amount: 0.4
-          operation: add_multiplied_base
+          amount: -2.0
+          operation: add_value
       lore:
         - content:
           - ''
@@ -98,12 +98,12 @@
       attribute-modifiers:
         - type: minecraft:attack_damage
           slot: mainhand
-          amount: 5.5
+          amount: 4.5
           operation: add_value
         - type: minecraft:attack_speed
           slot: mainhand
-          amount: 0.4
-          operation: add_multiplied_base
+          amount: -2.0
+          operation: add_value
       lore:
         - content:
           - ''
@@ -166,4 +166,40 @@ recipes:
     addition: minecraft:netherite_ingot
     result:
       id: farmersdelight:netherite_knife
+      count: 1
+  farmersdelight:iron_nugget_from_smelting_knife:
+    type: smelting
+    category: misc
+    experience: 0.1
+    time: 200
+    ingredient: "farmersdelight:iron_knife"
+    result:
+      id: minecraft:iron_nugget
+      count: 1
+  farmersdelight:iron_nugget_from_blasting_knife:
+    type: blasting
+    category: misc
+    experience: 0.1
+    time: 100
+    ingredient: "farmersdelight:iron_knife"
+    result:
+      id: minecraft:iron_nugget
+      count: 1
+  farmersdelight:gold_nugget_from_smelting_knife:
+    type: smelting
+    category: misc
+    experience: 0.1
+    time: 200
+    ingredient: "farmersdelight:golden_knife"
+    result:
+      id: minecraft:gold_nugget
+      count: 1
+  farmersdelight:gold_nugget_from_blasting_knife:
+    type: blasting
+    category: misc
+    experience: 0.1
+    time: 100
+    ingredient: "farmersdelight:golden_knife"
+    result:
+      id: minecraft:gold_nugget
       count: 1

@@ -23,8 +23,13 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class KnifeDropHandler implements Listener {
 
-    private static final String[] DROP_RULE_PATHS = {"mob-extra-drops", "entity-extra-drops", "knife-drops"};
-    private static final String[] DROP_TOOL_PATHS = {"mob-extra-drop-tools", "entity-extra-drop-tools", "knife-drop-tools"};
+    // Current path first, then every name the section has had, so a config file that predates any of the
+    // renames still reads correctly even if the on-disk migration has not run against it.
+    private static final String[] DROP_RULE_PATHS =
+            {"drops.mob-extra", "mob-extra-drops", "entity-extra-drops", "knife-drops"};
+    private static final String[] DROP_TOOL_PATHS =
+            {"drops.mob-extra-tools", "mob-extra-drop-tools", "entity-extra-drop-tools", "knife-drop-tools"};
+    private static final String[] KNIFE_ITEM_PATHS = {"knife-items", "drops.knife-items", "knife-config"};
     private static final List<String> DEFAULT_DROP_TOOL_ITEMS = List.of(
             "farmersdelight:flint_knife",
             "farmersdelight:iron_knife",
@@ -41,6 +46,11 @@ public class KnifeDropHandler implements Listener {
     private volatile Map<String, KnifeDropRule> dropRules = new ConcurrentHashMap<>();
     private volatile List<String> dropToolTags = new ArrayList<>();
     private volatile List<String> dropToolItems = new ArrayList<>();
+    // Rules registered at runtime through the api facade rather than read from config.yml. loadConfig
+    // rebuilds dropRules from scratch, so these are re-applied on top of every rebuild — otherwise an
+    // addon's rules would silently vanish on /fd reload. Same contract as the externally registered
+    // cooking-pot and cutting-board recipes.
+    private final Map<String, KnifeDropRule> externalRules = new ConcurrentHashMap<>();
 
     public KnifeDropHandler(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -56,7 +66,7 @@ public class KnifeDropHandler implements Listener {
 
         ConfigurationSection dropsSection = getFirstConfiguredSection(DROP_RULE_PATHS);
         if (dropsSection == null) {
-            dropsSection = plugin.getFirstConfigSection(DROP_RULE_PATHS);
+            dropsSection = getFirstBundledSection(DROP_RULE_PATHS);
         }
         if (dropsSection != null) {
             for (String entityType : dropsSection.getKeys(false)) {
@@ -75,15 +85,16 @@ public class KnifeDropHandler implements Listener {
                 ));
             }
         }
+        // Runtime-registered rules win over both the defaults and config.yml, and are re-applied here
+        // so a reload doesn't drop them.
+        newRules.putAll(externalRules);
         // Publish the fully-built rule map in one volatile write, so a concurrent onEntityDeath reader sees
         // the complete old map or the complete new map, never a mid-rebuild state.
         this.dropRules = newRules;
 
         dropToolTags = new ArrayList<>(List.of(Constants.TAG_KNIVES));
         dropToolItems = new ArrayList<>(DEFAULT_DROP_TOOL_ITEMS);
-        ConfigurationSection knifeSection = plugin.getConfig().isSet("knife-config")
-                ? plugin.getConfig().getConfigurationSection("knife-config")
-                : null;
+        ConfigurationSection knifeSection = getFirstConfiguredSection(KNIFE_ITEM_PATHS);
         if (knifeSection != null) {
             loadDropToolMatchers(knifeSection);
         }
@@ -91,20 +102,40 @@ public class KnifeDropHandler implements Listener {
         if (dropToolSection != null) {
             loadDropToolMatchers(dropToolSection);
         } else if (knifeSection == null) {
-            loadDropToolMatchers(plugin.getFirstConfigSection(DROP_TOOL_PATHS));
+            loadDropToolMatchers(getFirstBundledSection(DROP_TOOL_PATHS));
         }
 
         if (logSummary) {
-            I18n.logInfo("knife.loaded_rules", "count", newRules.size());
-            I18n.logInfo("knife.loaded_matchers", "tags", dropToolTags.size(), "items", dropToolItems.size());
+            I18n.logDetail("loot", "knife.loaded_rules", "count", newRules.size());
+            I18n.logDetail("loot", "knife.loaded_matchers", "tags", dropToolTags.size(), "items", dropToolItems.size());
         }
     }
 
+    /** Number of entity extra-drop rules currently published, for the consolidated startup summary. */
+    public int getDropRuleCount() {
+        return dropRules.size();
+    }
+
+    /** The section at the first path the admin's own file sets. isSet ignores the jar defaults Bukkit
+     *  attaches to getConfig(), so this reports only what the admin actually configured. */
     private ConfigurationSection getFirstConfiguredSection(String... paths) {
         for (String path : paths) {
             if (!plugin.getConfig().isSet(path)) {
                 continue;
             }
+            ConfigurationSection section = plugin.getConfig().getConfigurationSection(path);
+            if (section != null) {
+                return section;
+            }
+        }
+        return null;
+    }
+
+    /** Last resort for a file that configures none of the paths: read the section out of the jar's bundled
+     *  config.yml, which Bukkit exposes as getConfig()'s default configuration. Only ever consulted after
+     *  getFirstConfiguredSection has found nothing, so an admin's own value always wins. */
+    private ConfigurationSection getFirstBundledSection(String... paths) {
+        for (String path : paths) {
             ConfigurationSection section = plugin.getConfig().getConfigurationSection(path);
             if (section != null) {
                 return section;
@@ -173,7 +204,10 @@ public class KnifeDropHandler implements Listener {
 
     private void loadDefaultDropRules(Map<String, KnifeDropRule> target) {
         putDefaultDrop(target, "pig", "farmersdelight:ham", "farmersdelight:smoked_ham", 0.5D, 0.1D);
-        putDefaultDrop(target, "hoglin", "farmersdelight:ham", "farmersdelight:smoked_ham", 0.5D, 0.1D);
+        // Hoglin ham is an unconditional knife drop: the mod's scavenging_ham_from_hoglin /
+        // scavenging_smoked_ham_from_hoglin modifiers carry no random-chance and no looting term,
+        // unlike the pig variant which rolls 0.5 plus 0.1 per looting level.
+        putDefaultDrop(target, "hoglin", "farmersdelight:ham", "farmersdelight:smoked_ham", 1.0D, 0.0D);
         for (String entityType : List.of("cow", "mooshroom", "donkey", "horse", "mule", "llama", "trader_llama")) {
             putDefaultDrop(target, entityType, "minecraft:leather", null, 1.0D, 0.0D);
         }
@@ -189,7 +223,12 @@ public class KnifeDropHandler implements Listener {
         target.put(entityType, new KnifeDropRule(entityType, normalItem, burningItem, chance, lootingMultiplier));
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    // NORMAL rather than HIGHEST so loot / quest / economy plugins listening at HIGH and HIGHEST still
+    // get to see and edit the knife drop before it is spawned. The drop is contributed to
+    // event.getDrops() instead of being spawned directly, which is what makes it visible to them at
+    // all: Paper hands the event a live view over the server's pending drop list, and every entry
+    // still in that list once the event returns is what actually spawns.
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onEntityDeath(EntityDeathEvent event) {
         if (!FarmersDelightPlugin.isEnabled0()) return;
 
@@ -228,7 +267,7 @@ public class KnifeDropHandler implements Listener {
 
         ItemStack dropItem = createItem(itemId);
         if (dropItem != null) {
-            entity.getWorld().dropItemNaturally(entity.getLocation(), dropItem);
+            event.getDrops().add(dropItem);
 
             // When a ham item actually drops, trigger the ham-related advancement.
             if (isHamItem(itemId)) {
@@ -303,12 +342,39 @@ public class KnifeDropHandler implements Listener {
         return ItemUtils.createItem(itemId);
     }
 
+    /** Adds or replaces a rule for the run only — a reload rebuilds the map and drops it. Callers that
+     *  want the rule to survive /fd reload use registerExternalDropRule. */
     public void addDropRule(String entityType, KnifeDropRule rule) {
         dropRules.put(entityType.toLowerCase(java.util.Locale.ROOT), rule);
     }
 
     public void removeDropRule(String entityType) {
         dropRules.remove(entityType.toLowerCase(java.util.Locale.ROOT));
+    }
+
+    /** Adds or replaces a rule and remembers it, so a reload re-applies it on top of the rebuilt map.
+     *  Backs the api facade; null entityType or rule is a no-op. */
+    public void registerExternalDropRule(String entityType, KnifeDropRule rule) {
+        if (entityType == null || rule == null) {
+            return;
+        }
+        String key = entityType.toLowerCase(java.util.Locale.ROOT);
+        externalRules.put(key, rule);
+        dropRules.put(key, rule);
+    }
+
+    /** Removes a rule registered through registerExternalDropRule. Returns true when one was present.
+     *  The next reload restores whatever the defaults and config.yml define for that entity type. */
+    public boolean unregisterExternalDropRule(String entityType) {
+        if (entityType == null) {
+            return false;
+        }
+        String key = entityType.toLowerCase(java.util.Locale.ROOT);
+        if (externalRules.remove(key) == null) {
+            return false;
+        }
+        dropRules.remove(key);
+        return true;
     }
 
     public Map<String, KnifeDropRule> getDropRules() {

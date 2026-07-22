@@ -66,7 +66,7 @@ cooking_pot_recipes:
       - "minecraft:chicken|farmersdelight:chicken_cuts"
       - "minecraft:carrot"
       - "farmersdelight:cabbage|farmersdelight:cabbage_leaf"
-      - "minecraft:beetroot|minecraft:carrot|farmersdelight:onion|minecraft:potato|farmersdelight:tomato"
+      - "minecraft:beetroot|minecraft:carrot|minecraft:golden_carrot|farmersdelight:onion|minecraft:potato|farmersdelight:tomato"
     container: "minecraft:bowl"
     result: "farmersdelight:chicken_soup"
     experience: 1.0
@@ -75,7 +75,7 @@ cooking_pot_recipes:
   
   fish_stew:
     ingredients:
-      - "minecraft:cod|minecraft:salmon|minecraft:tropical_fish"
+      - "minecraft:cod|farmersdelight:cod_slice|minecraft:salmon|farmersdelight:salmon_slice|minecraft:tropical_fish"
       - "farmersdelight:tomato_sauce"
       - "farmersdelight:onion"
     container: "minecraft:bowl"
@@ -86,7 +86,7 @@ cooking_pot_recipes:
   
   baked_cod_stew:
     ingredients:
-      - "minecraft:cod"
+      - "minecraft:cod|farmersdelight:cod_slice"
       - "minecraft:potato"
       - "minecraft:egg"
       - "farmersdelight:tomato"
@@ -113,10 +113,9 @@ cooking_pot_recipes:
       - "minecraft:beetroot"
       - "minecraft:beetroot"
       - "minecraft:beetroot"
-      - "minecraft:beetroot"
     container: "minecraft:bowl"
     result: "minecraft:beetroot_soup"
-    experience: 0.7
+    experience: 1.0
     cook-time: 200
     category: meals
   
@@ -126,7 +125,7 @@ cooking_pot_recipes:
       - "minecraft:red_mushroom"
     container: "minecraft:bowl"
     result: "minecraft:mushroom_stew"
-    experience: 0.7
+    experience: 1.0
     cook-time: 200
     category: meals
   
@@ -135,7 +134,7 @@ cooking_pot_recipes:
       - "minecraft:rabbit"
       - "minecraft:carrot"
       - "minecraft:potato"
-      - "minecraft:brown_mushroom"
+      - "minecraft:brown_mushroom|minecraft:red_mushroom"
     container: "minecraft:bowl"
     result: "minecraft:rabbit_stew"
     experience: 1.0
@@ -151,7 +150,19 @@ cooking_pot_recipes:
     experience: 0.35
     cook-time: 200
     category: meals
-  
+
+  onion_soup:
+    ingredients:
+      - "farmersdelight:onion"
+      - "farmersdelight:onion"
+      - "minecraft:bread"
+      - "minecraft:milk_bucket|farmersdelight:milk_bottle"
+    container: "minecraft:bowl"
+    result: "farmersdelight:onion_soup"
+    experience: 1.0
+    cook-time: 200
+    category: meals
+
   # ========================================
   # Rice dishes
   # ========================================
@@ -196,10 +207,10 @@ cooking_pot_recipes:
   vegetable_noodles:
     ingredients:
       - "minecraft:carrot"
-      - "minecraft:brown_mushroom"
+      - "minecraft:brown_mushroom|minecraft:red_mushroom"
       - "farmersdelight:raw_pasta"
-      - "farmersdelight:cabbage"
-      - "minecraft:beetroot|minecraft:carrot|farmersdelight:onion|minecraft:potato|farmersdelight:tomato"
+      - "farmersdelight:cabbage|farmersdelight:cabbage_leaf"
+      - "minecraft:beetroot|minecraft:carrot|minecraft:golden_carrot|farmersdelight:onion|minecraft:potato|farmersdelight:tomato"
     container: "minecraft:bowl"
     result: "farmersdelight:vegetable_noodles"
     experience: 1.0
@@ -230,7 +241,7 @@ cooking_pot_recipes:
   
   squid_ink_pasta:
     ingredients:
-      - "minecraft:cod|minecraft:salmon|minecraft:tropical_fish"
+      - "minecraft:cod|farmersdelight:cod_slice|minecraft:salmon|farmersdelight:salmon_slice|minecraft:tropical_fish"
       - "farmersdelight:raw_pasta"
       - "farmersdelight:tomato"
       - "minecraft:ink_sac"
@@ -243,12 +254,12 @@ cooking_pot_recipes:
   noodle_soup:
     ingredients:
       - "farmersdelight:raw_pasta"
-      - "farmersdelight:fried_egg"
+      - "minecraft:egg"
       - "minecraft:dried_kelp"
       - "minecraft:porkchop|farmersdelight:bacon"
     container: "minecraft:bowl"
     result: "farmersdelight:noodle_soup"
-    experience: 0.7
+    experience: 1.0
     cook-time: 200
     category: meals
   
@@ -260,6 +271,7 @@ cooking_pot_recipes:
     ingredients:
       - "farmersdelight:tomato"
       - "farmersdelight:tomato"
+    container: "minecraft:bowl"
     result: "farmersdelight:tomato_sauce"
     experience: 0.35
     cook-time: 100
@@ -288,7 +300,7 @@ cooking_pot_recipes:
       - "minecraft:sugar"
     container: "minecraft:glass_bottle"
     result: "farmersdelight:apple_cider"
-    experience: 0.7
+    experience: 1.0
     cook-time: 200
     category: drinks
   
@@ -311,9 +323,9 @@ cooking_pot_recipes:
   dumplings:
     ingredients:
       - "farmersdelight:wheat_dough"
-      - "farmersdelight:cabbage"
+      - "farmersdelight:cabbage|farmersdelight:cabbage_leaf"
       - "farmersdelight:onion"
-      - "minecraft:chicken|minecraft:porkchop|minecraft:beef|minecraft:brown_mushroom"
+      - "minecraft:chicken|farmersdelight:chicken_cuts|minecraft:porkchop|farmersdelight:bacon|minecraft:beef|farmersdelight:minced_beef|minecraft:brown_mushroom"
     result: "farmersdelight:dumplings"
     result-count: 2
     experience: 1.0
@@ -322,8 +334,8 @@ cooking_pot_recipes:
   
   cabbage_rolls:
     ingredients:
-      - "farmersdelight:cabbage"
-      - "minecraft:beef|minecraft:porkchop|minecraft:mutton|minecraft:chicken|minecraft:rabbit|#minecraft:fishes|minecraft:egg|minecraft:brown_mushroom|minecraft:red_mushroom|minecraft:carrot|minecraft:potato|minecraft:beetroot"
+      - "farmersdelight:cabbage|farmersdelight:cabbage_leaf"
+      - "minecraft:beef|farmersdelight:minced_beef|minecraft:porkchop|farmersdelight:bacon|minecraft:chicken|farmersdelight:chicken_cuts|minecraft:rabbit|minecraft:mutton|farmersdelight:mutton_chops|minecraft:cod|farmersdelight:cod_slice|minecraft:salmon|farmersdelight:salmon_slice|minecraft:tropical_fish|minecraft:beetroot|minecraft:carrot|minecraft:golden_carrot|farmersdelight:onion|minecraft:potato|farmersdelight:tomato|minecraft:brown_mushroom|minecraft:red_mushroom"
     result: "farmersdelight:cabbage_rolls"
     experience: 0.35
     cook-time: 100
@@ -334,7 +346,7 @@ cooking_pot_recipes:
       - "farmersdelight:tomato"
       - "farmersdelight:onion"
       - "minecraft:beetroot"
-      - "minecraft:beetroot|minecraft:carrot|farmersdelight:onion|minecraft:potato|farmersdelight:tomato"
+      - "minecraft:beetroot|minecraft:carrot|minecraft:golden_carrot|farmersdelight:onion|minecraft:potato|farmersdelight:tomato"
     container: "minecraft:bowl"
     result: "farmersdelight:ratatouille"
     experience: 1.0
@@ -345,8 +357,9 @@ cooking_pot_recipes:
     ingredients:
       - "minecraft:rotten_flesh"
       - "minecraft:bone_meal"
-      - "minecraft:chicken|minecraft:mutton|minecraft:rabbit"
+      - "minecraft:beef|farmersdelight:minced_beef|minecraft:porkchop|farmersdelight:bacon|minecraft:chicken|farmersdelight:chicken_cuts|minecraft:rabbit|minecraft:mutton|farmersdelight:mutton_chops"
       - "farmersdelight:rice"
+    container: "minecraft:bowl"
     result: "farmersdelight:dog_food"
     experience: 1.0
     cook-time: 200
@@ -359,7 +372,7 @@ cooking_pot_recipes:
       - "minecraft:brown_mushroom"
       - "minecraft:potato"
       - "minecraft:sweet_berries|minecraft:glow_berries"
-      - "minecraft:beetroot|minecraft:carrot|farmersdelight:onion|minecraft:potato|farmersdelight:tomato"
+      - "minecraft:beetroot|minecraft:carrot|minecraft:golden_carrot|farmersdelight:onion|minecraft:potato|farmersdelight:tomato"
     container: "minecraft:pumpkin"
     result: "farmersdelight:stuffed_pumpkin_block"
     experience: 2.0

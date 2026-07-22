@@ -15,6 +15,9 @@ permissions:
   farmersdelight.command.recipe:
     description: 允许查看配方
     default: true
+  farmersdelight.command.recipe.discovery:
+    description: 允许管理配方解锁进度
+    default: op
   farmersdelight.use.cooking_pot:
     description: 允许使用烹饪锅
     default: true
@@ -36,6 +39,7 @@ permissions:
     children:
       farmersdelight.command: true
       farmersdelight.command.recipe: true
+      farmersdelight.command.recipe.discovery: true
       farmersdelight.use.cooking_pot: true
       farmersdelight.use.stove: true
       farmersdelight.use.skillet: true

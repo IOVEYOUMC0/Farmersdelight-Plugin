@@ -89,7 +89,7 @@ public class TrayManager {
     }
 
     private void loadConfig() {
-        ConfigurationSection config = plugin.getFirstConfigSection("cooking-pot.tray", "tray");
+        ConfigurationSection config = plugin.getFirstConfigSection("tray", "cooking-pot.tray");
         if (config == null) {
             // Use a detached empty section so missing config falls back to each field's default below,
             // without mutating the live FileConfiguration (createSection would inject an unexpected
@@ -479,7 +479,7 @@ public class TrayManager {
                 scheduledThisRun
         );
         // Orphaned trays (owner pot removed while the chunk was unloaded) are reconciled by the chunk-load
-        // path (ChunkLoadListener -> cleanupInvalidAutoTraysInChunk). The old periodic world-wide
+        // path (ChunkLoadListener -> cleanupInvalidAutoTraysIn). The old periodic world-wide
         // ItemDisplay scan that used to live here has been removed — it stalled the main thread on
         // worlds with many displays for no extra coverage.
     }
@@ -865,7 +865,7 @@ public class TrayManager {
 
     public int cleanupInvalidAutoTrays() {
         // Folia and Paper now share the known-owner path: ChunkLoadListener already runs
-        // cleanupInvalidAutoTraysInChunk per chunk on load (covers tray entities), and this call
+        // cleanupInvalidAutoTraysIn per chunk on load (covers tray entities), and this call
         // re-syncs every tracked pot/skillet owner so any auto-tray whose owner state changed gets
         // placed/removed. The previous world-wide ItemDisplay scan duplicated chunk-load work and
         // blocked the main thread proportionally to the world's total display count.
@@ -889,7 +889,19 @@ public class TrayManager {
         }
 
         Chunk chunk = world.getChunkAt(chunkX, chunkZ);
-        for (Entity entity : chunk.getEntities()) {
+        cleanupInvalidAutoTraysIn(world, Arrays.asList(chunk.getEntities()));
+    }
+
+    /**
+     * Sweeps an already-fetched entity list instead of fetching a chunk's own. Lets a caller that has to
+     * walk the same chunk's entities for another purpose share one walk; the caller is responsible for
+     * having confirmed the chunk is loaded and for being on the region that owns it.
+     */
+    public void cleanupInvalidAutoTraysIn(World world, List<Entity> entities) {
+        if (world == null || entities == null) {
+            return;
+        }
+        for (Entity entity : entities) {
             if (!(entity instanceof ItemDisplay itemDisplay)
                     || !isTrayFurnitureEntity(itemDisplay)
                     || !isAutoPlacedTrayEntity(itemDisplay)) {

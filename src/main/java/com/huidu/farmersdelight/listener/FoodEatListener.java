@@ -36,7 +36,7 @@ public class FoodEatListener implements Listener {
 
     private void loadNourishmentFoods() {
         comfortFoodDurations.clear();
-        ConfigurationSection comfortSection = plugin.getConfig().getConfigurationSection("comfort-foods");
+        ConfigurationSection comfortSection = plugin.getFirstConfigSection("buff.comfort", "comfort-foods");
         comfortFoodsEnabled = comfortSection != null && comfortSection.getBoolean("enabled", false);
         ConfigurationSection comfortFoodsSection = comfortSection != null
                 ? comfortSection.getConfigurationSection("foods")
@@ -65,7 +65,7 @@ public class FoodEatListener implements Listener {
         }
 
         nourishmentFoodDurations.clear();
-        ConfigurationSection nourishmentSection = plugin.getConfig().getConfigurationSection("nourishment-foods");
+        ConfigurationSection nourishmentSection = plugin.getFirstConfigSection("buff.nourishment", "nourishment-foods");
         nourishmentFoodsEnabled = nourishmentSection != null && nourishmentSection.getBoolean("enabled", false);
         ConfigurationSection foodsSection = nourishmentSection != null
                 ? nourishmentSection.getConfigurationSection("foods")

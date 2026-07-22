@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.api.recipe;
 
+import org.jetbrains.annotations.ApiStatus;
 import java.util.List;
 
 /**
@@ -9,6 +10,7 @@ import java.util.List;
  *
  * Lives in the name-stable api package; uses only api / java types.
  */
+@ApiStatus.OverrideOnly
 public interface RecipeEditor {
 
     /** Labels for the editable item slots, in order (e.g. ingredient slots + a fluid slot). */

@@ -7,6 +7,7 @@ import com.huidu.farmersdelight.advancement.AdvancementDef;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.ApiStatus;
 
 import java.util.List;
 
@@ -20,6 +21,7 @@ import java.util.List;
  * Everything requires the UltimateAdvancementAPI plugin installed and FarmersDelight's advancement system
  * enabled (guard with isAvailable()); all methods are null/absence-safe no-ops otherwise.
  */
+@ApiStatus.NonExtendable
 public final class FarmersDelightAdvancements {
 
     private FarmersDelightAdvancements() {

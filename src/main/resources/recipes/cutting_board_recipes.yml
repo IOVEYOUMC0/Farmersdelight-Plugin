@@ -403,264 +403,756 @@ cutting_board_recipes:
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:oak_planks"
+        chance: 0.75
 
   oak_trapdoor:
     input: "minecraft:oak_trapdoor"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:oak_planks"
+        chance: 0.75
 
   oak_sign:
     input: "minecraft:oak_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:oak_planks"
+        chance: 0.75
 
   oak_hanging_sign:
     input: "minecraft:oak_hanging_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:oak_planks"
+        chance: 0.75
+
+  oak_fence:
+    input: "minecraft:oak_fence"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:oak_planks"
+        chance: 0.75
+
+  oak_fence_gate:
+    input: "minecraft:oak_fence_gate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:oak_planks"
+        chance: 0.75
+
+  oak_pressure_plate:
+    input: "minecraft:oak_pressure_plate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:oak_planks"
+        chance: 0.75
+
+  oak_button:
+    input: "minecraft:oak_button"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:oak_planks"
+        chance: 0.75
+
+  oak_boat:
+    input: "minecraft:oak_boat"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:oak_planks"
+        chance: 0.75
+
+  oak_cabinet:
+    input: "farmersdelight:oak_cabinet"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:oak_planks"
+        chance: 0.75
 
   spruce_door:
     input: "minecraft:spruce_door"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:spruce_planks"
+        chance: 0.75
 
   spruce_trapdoor:
     input: "minecraft:spruce_trapdoor"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:spruce_planks"
+        chance: 0.75
 
   spruce_sign:
     input: "minecraft:spruce_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:spruce_planks"
+        chance: 0.75
 
   spruce_hanging_sign:
     input: "minecraft:spruce_hanging_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:spruce_planks"
+        chance: 0.75
+
+  spruce_fence:
+    input: "minecraft:spruce_fence"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:spruce_planks"
+        chance: 0.75
+
+  spruce_fence_gate:
+    input: "minecraft:spruce_fence_gate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:spruce_planks"
+        chance: 0.75
+
+  spruce_pressure_plate:
+    input: "minecraft:spruce_pressure_plate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:spruce_planks"
+        chance: 0.75
+
+  spruce_button:
+    input: "minecraft:spruce_button"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:spruce_planks"
+        chance: 0.75
+
+  spruce_boat:
+    input: "minecraft:spruce_boat"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:spruce_planks"
+        chance: 0.75
+
+  spruce_cabinet:
+    input: "farmersdelight:spruce_cabinet"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:spruce_planks"
+        chance: 0.75
 
   birch_door:
     input: "minecraft:birch_door"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:birch_planks"
+        chance: 0.75
 
   birch_trapdoor:
     input: "minecraft:birch_trapdoor"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:birch_planks"
+        chance: 0.75
 
   birch_sign:
     input: "minecraft:birch_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:birch_planks"
+        chance: 0.75
 
   birch_hanging_sign:
     input: "minecraft:birch_hanging_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:birch_planks"
+        chance: 0.75
+
+  birch_fence:
+    input: "minecraft:birch_fence"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:birch_planks"
+        chance: 0.75
+
+  birch_fence_gate:
+    input: "minecraft:birch_fence_gate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:birch_planks"
+        chance: 0.75
+
+  birch_pressure_plate:
+    input: "minecraft:birch_pressure_plate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:birch_planks"
+        chance: 0.75
+
+  birch_button:
+    input: "minecraft:birch_button"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:birch_planks"
+        chance: 0.75
+
+  birch_boat:
+    input: "minecraft:birch_boat"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:birch_planks"
+        chance: 0.75
+
+  birch_cabinet:
+    input: "farmersdelight:birch_cabinet"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:birch_planks"
+        chance: 0.75
 
   jungle_door:
     input: "minecraft:jungle_door"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:jungle_planks"
+        chance: 0.75
 
   jungle_trapdoor:
     input: "minecraft:jungle_trapdoor"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:jungle_planks"
+        chance: 0.75
 
   jungle_sign:
     input: "minecraft:jungle_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:jungle_planks"
+        chance: 0.75
 
   jungle_hanging_sign:
     input: "minecraft:jungle_hanging_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:jungle_planks"
+        chance: 0.75
+
+  jungle_fence:
+    input: "minecraft:jungle_fence"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:jungle_planks"
+        chance: 0.75
+
+  jungle_fence_gate:
+    input: "minecraft:jungle_fence_gate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:jungle_planks"
+        chance: 0.75
+
+  jungle_pressure_plate:
+    input: "minecraft:jungle_pressure_plate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:jungle_planks"
+        chance: 0.75
+
+  jungle_button:
+    input: "minecraft:jungle_button"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:jungle_planks"
+        chance: 0.75
+
+  jungle_boat:
+    input: "minecraft:jungle_boat"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:jungle_planks"
+        chance: 0.75
+
+  jungle_cabinet:
+    input: "farmersdelight:jungle_cabinet"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:jungle_planks"
+        chance: 0.75
 
   acacia_door:
     input: "minecraft:acacia_door"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:acacia_planks"
+        chance: 0.75
 
   acacia_trapdoor:
     input: "minecraft:acacia_trapdoor"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:acacia_planks"
+        chance: 0.75
 
   acacia_sign:
     input: "minecraft:acacia_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:acacia_planks"
+        chance: 0.75
 
   acacia_hanging_sign:
     input: "minecraft:acacia_hanging_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:acacia_planks"
+        chance: 0.75
+
+  acacia_fence:
+    input: "minecraft:acacia_fence"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:acacia_planks"
+        chance: 0.75
+
+  acacia_fence_gate:
+    input: "minecraft:acacia_fence_gate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:acacia_planks"
+        chance: 0.75
+
+  acacia_pressure_plate:
+    input: "minecraft:acacia_pressure_plate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:acacia_planks"
+        chance: 0.75
+
+  acacia_button:
+    input: "minecraft:acacia_button"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:acacia_planks"
+        chance: 0.75
+
+  acacia_boat:
+    input: "minecraft:acacia_boat"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:acacia_planks"
+        chance: 0.75
+
+  acacia_cabinet:
+    input: "farmersdelight:acacia_cabinet"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:acacia_planks"
+        chance: 0.75
 
   dark_oak_door:
     input: "minecraft:dark_oak_door"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:dark_oak_planks"
+        chance: 0.75
 
   dark_oak_trapdoor:
     input: "minecraft:dark_oak_trapdoor"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:dark_oak_planks"
+        chance: 0.75
 
   dark_oak_sign:
     input: "minecraft:dark_oak_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:dark_oak_planks"
+        chance: 0.75
 
   dark_oak_hanging_sign:
     input: "minecraft:dark_oak_hanging_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:dark_oak_planks"
+        chance: 0.75
+
+  dark_oak_fence:
+    input: "minecraft:dark_oak_fence"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:dark_oak_planks"
+        chance: 0.75
+
+  dark_oak_fence_gate:
+    input: "minecraft:dark_oak_fence_gate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:dark_oak_planks"
+        chance: 0.75
+
+  dark_oak_pressure_plate:
+    input: "minecraft:dark_oak_pressure_plate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:dark_oak_planks"
+        chance: 0.75
+
+  dark_oak_button:
+    input: "minecraft:dark_oak_button"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:dark_oak_planks"
+        chance: 0.75
+
+  dark_oak_boat:
+    input: "minecraft:dark_oak_boat"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:dark_oak_planks"
+        chance: 0.75
+
+  dark_oak_cabinet:
+    input: "farmersdelight:dark_oak_cabinet"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:dark_oak_planks"
+        chance: 0.75
 
   mangrove_door:
     input: "minecraft:mangrove_door"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:mangrove_planks"
+        chance: 0.75
 
   mangrove_trapdoor:
     input: "minecraft:mangrove_trapdoor"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:mangrove_planks"
+        chance: 0.75
 
   mangrove_sign:
     input: "minecraft:mangrove_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:mangrove_planks"
+        chance: 0.75
 
   mangrove_hanging_sign:
     input: "minecraft:mangrove_hanging_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:mangrove_planks"
+        chance: 0.75
+
+  mangrove_fence:
+    input: "minecraft:mangrove_fence"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:mangrove_planks"
+        chance: 0.75
+
+  mangrove_fence_gate:
+    input: "minecraft:mangrove_fence_gate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:mangrove_planks"
+        chance: 0.75
+
+  mangrove_pressure_plate:
+    input: "minecraft:mangrove_pressure_plate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:mangrove_planks"
+        chance: 0.75
+
+  mangrove_button:
+    input: "minecraft:mangrove_button"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:mangrove_planks"
+        chance: 0.75
+
+  mangrove_boat:
+    input: "minecraft:mangrove_boat"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:mangrove_planks"
+        chance: 0.75
+
+  mangrove_cabinet:
+    input: "farmersdelight:mangrove_cabinet"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:mangrove_planks"
+        chance: 0.75
 
   cherry_door:
     input: "minecraft:cherry_door"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:cherry_planks"
+        chance: 0.75
 
   cherry_trapdoor:
     input: "minecraft:cherry_trapdoor"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:cherry_planks"
+        chance: 0.75
 
   cherry_sign:
     input: "minecraft:cherry_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:cherry_planks"
+        chance: 0.75
 
   cherry_hanging_sign:
     input: "minecraft:cherry_hanging_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:cherry_planks"
+        chance: 0.75
+
+  cherry_fence:
+    input: "minecraft:cherry_fence"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:cherry_planks"
+        chance: 0.75
+
+  cherry_fence_gate:
+    input: "minecraft:cherry_fence_gate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:cherry_planks"
+        chance: 0.75
+
+  cherry_pressure_plate:
+    input: "minecraft:cherry_pressure_plate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:cherry_planks"
+        chance: 0.75
+
+  cherry_button:
+    input: "minecraft:cherry_button"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:cherry_planks"
+        chance: 0.75
+
+  cherry_boat:
+    input: "minecraft:cherry_boat"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:cherry_planks"
+        chance: 0.75
+
+  cherry_cabinet:
+    input: "farmersdelight:cherry_cabinet"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:cherry_planks"
+        chance: 0.75
 
   crimson_door:
     input: "minecraft:crimson_door"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:crimson_planks"
+        chance: 0.75
 
   crimson_trapdoor:
     input: "minecraft:crimson_trapdoor"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:crimson_planks"
+        chance: 0.75
 
   crimson_sign:
     input: "minecraft:crimson_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:crimson_planks"
+        chance: 0.75
 
   crimson_hanging_sign:
     input: "minecraft:crimson_hanging_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:crimson_planks"
+        chance: 0.75
+
+  crimson_fence:
+    input: "minecraft:crimson_fence"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:crimson_planks"
+        chance: 0.75
+
+  crimson_fence_gate:
+    input: "minecraft:crimson_fence_gate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:crimson_planks"
+        chance: 0.75
+
+  crimson_pressure_plate:
+    input: "minecraft:crimson_pressure_plate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:crimson_planks"
+        chance: 0.75
+
+  crimson_button:
+    input: "minecraft:crimson_button"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:crimson_planks"
+        chance: 0.75
+
+  crimson_cabinet:
+    input: "farmersdelight:crimson_cabinet"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:crimson_planks"
+        chance: 0.75
 
   warped_door:
     input: "minecraft:warped_door"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:warped_planks"
+        chance: 0.75
 
   warped_trapdoor:
     input: "minecraft:warped_trapdoor"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:warped_planks"
+        chance: 0.75
 
   warped_sign:
     input: "minecraft:warped_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:warped_planks"
+        chance: 0.75
 
   warped_hanging_sign:
     input: "minecraft:warped_hanging_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:warped_planks"
+        chance: 0.75
+
+  warped_fence:
+    input: "minecraft:warped_fence"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:warped_planks"
+        chance: 0.75
+
+  warped_fence_gate:
+    input: "minecraft:warped_fence_gate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:warped_planks"
+        chance: 0.75
+
+  warped_pressure_plate:
+    input: "minecraft:warped_pressure_plate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:warped_planks"
+        chance: 0.75
+
+  warped_button:
+    input: "minecraft:warped_button"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:warped_planks"
+        chance: 0.75
+
+  warped_cabinet:
+    input: "farmersdelight:warped_cabinet"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:warped_planks"
+        chance: 0.75
 
   bamboo_door:
     input: "minecraft:bamboo_door"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:bamboo_planks"
+        chance: 0.75
 
   bamboo_trapdoor:
     input: "minecraft:bamboo_trapdoor"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:bamboo_planks"
+        chance: 0.75
 
   bamboo_sign:
     input: "minecraft:bamboo_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:bamboo_planks"
+        chance: 0.75
 
   bamboo_hanging_sign:
     input: "minecraft:bamboo_hanging_sign"
     tool: "farmersdelight:axe_dig"
     results:
       - item: "minecraft:bamboo_planks"
+        chance: 0.75
+
+  bamboo_fence:
+    input: "minecraft:bamboo_fence"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:bamboo_planks"
+        chance: 0.75
+
+  bamboo_fence_gate:
+    input: "minecraft:bamboo_fence_gate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:bamboo_planks"
+        chance: 0.75
+
+  bamboo_pressure_plate:
+    input: "minecraft:bamboo_pressure_plate"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:bamboo_planks"
+        chance: 0.75
+
+  bamboo_button:
+    input: "minecraft:bamboo_button"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:bamboo_planks"
+        chance: 0.75
+
+  bamboo_raft:
+    input: "minecraft:bamboo_raft"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:bamboo_planks"
+        chance: 0.75
+
+  bamboo_cabinet:
+    input: "farmersdelight:bamboo_cabinet"
+    tool: "farmersdelight:axe_dig"
+    results:
+      - item: "minecraft:bamboo_planks"
+        chance: 0.75
 
   bamboo_block:
     input: "minecraft:bamboo_block"

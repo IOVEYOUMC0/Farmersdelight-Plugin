@@ -76,9 +76,12 @@ public class TickManager {
     private volatile boolean performanceStatsEnabled;
 
     private static final int TICK_INTERVAL = 4;
-    // Squared player-proximity radius for gating cooking-pot particle/sound broadcasts. 32 blocks =
-    // vanilla particle/sound range upper bound (matches StoveManager's effect viewer distance).
-    private static final double EFFECT_VIEWER_DISTANCE_SQUARED = 32.0D * 32.0D;
+    // Squared player-proximity radius for gating cooking-pot particle/sound broadcasts. Default 32 blocks =
+    // vanilla particle/sound range upper bound; read from cooking-pot.effects.viewer-distance on reload.
+    private static final double DEFAULT_EFFECT_VIEWER_DISTANCE = 32.0D;
+    // Written in reloadConfig (reload thread), read on Folia region tick threads — volatile for a
+    // happens-before edge, matching the other reload-mutated tick-read fields.
+    private volatile double effectViewerDistanceSquared = DEFAULT_EFFECT_VIEWER_DISTANCE * DEFAULT_EFFECT_VIEWER_DISTANCE;
     // Reusable per-thread recipient list for targeted particle/sound sends (per-thread for Folia's
     // concurrent per-region cooking-pot ticks; refilled per pot and consumed synchronously).
     private static final ThreadLocal<List<Player>> NEARBY_VIEWER_SCRATCH = ThreadLocal.withInitial(ArrayList::new);
@@ -88,7 +91,7 @@ public class TickManager {
     // The context also caches the chunk's tracked-player list so pots sharing a chunk pay one
     // getPlayersSeeingChunk lookup that tick (mirrors StoveManager.chunkFx). World-keyed so identical
     // chunk coordinates in different worlds never collide.
-    private int cookingPotChunkEffectBudgetLimit = 50;
+    private volatile int cookingPotChunkEffectBudgetLimit = 50;
     private final Map<UUID, Map<Long, CookingPotFxContext>> chunkFx = new ConcurrentHashMap<>();
     private volatile long effectBudgetResetTick = -1L;
 
@@ -127,6 +130,11 @@ public class TickManager {
         cookingPotTickBudget = Math.max(1, plugin.getConfigInt(DEFAULT_COOKING_POT_TICK_BUDGET,
                 "cooking-pot.tick-budget",
                 "performance.cooking-pot-tick-budget"));
+        double viewerDistance = Math.max(0.0D, plugin.getConfigDouble(DEFAULT_EFFECT_VIEWER_DISTANCE,
+                "cooking-pot.effects.viewer-distance"));
+        effectViewerDistanceSquared = viewerDistance * viewerDistance;
+        cookingPotChunkEffectBudgetLimit = Math.max(1, plugin.getConfigInt(50,
+                "performance.chunk-effect-packet-budget"));
         cookingPotProgressDisplayUpdateIntervalTicks = Math.max(1,
                 plugin.getCookingPotProgressDisplayUpdateIntervalTicks());
         cookingPotProgressDisplayDisableAboveActivePots = Math.max(0,
@@ -151,7 +159,7 @@ public class TickManager {
         
         tickTask = plugin.scheduler().runRepeating(this::tick, 1L, TICK_INTERVAL);
         cleanupTask = plugin.scheduler().runRepeating(this::performCleanup, CLEANUP_INTERVAL, CLEANUP_INTERVAL);
-        I18n.logInfo("tick.started", "interval", TICK_INTERVAL);
+        I18n.logDetail("startup", "tick.started", "interval", TICK_INTERVAL);
     }
 
     public void stop() {
@@ -173,7 +181,7 @@ public class TickManager {
         progressDisplayLastUpdateTicks.clear();
         scheduledActiveBlocks.clear();
 
-        I18n.logInfo("tick.stopped");
+        I18n.logDetail("startup", "tick.stopped");
     }
     
     private void performCleanup() {
@@ -564,10 +572,18 @@ public class TickManager {
     private void tickCookingPot(ActiveBlock activeBlock, World world, BlockPosKey posKey, int elapsedTicks) {
         Block block = world.getBlockAt(posKey.x(), posKey.y(), posKey.z());
         ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
-        
+
         if (state == null || state.isEmpty()) {
+            // A /ce reload unbinds custom states for its parse window, making them unresolvable while the
+            // injected server block is still in the world. Skip the tick and keep everything registered:
+            // deleting here would destroy a live pot's contents mid-reload.
+            if (CraftEngineBlocks.isCustomBlock(block)) {
+                return;
+            }
             unregisterCookingPotBlock(activeBlock, world, posKey);
-            CookingPotBlockBehavior.removeBlockEntity(world, posKey);
+            // Keep the CE-side stored NBT: only the break/removal callbacks delete data. A block replaced
+            // behind CE's back (WorldEdit /setblock) just leaves inert leftover NBT behind.
+            CookingPotBlockBehavior.removeBlockEntity(world, posKey, false);
             return;
         }
 
@@ -748,7 +764,7 @@ public class TickManager {
         nearbyViewers.clear();
         for (int i = 0; i < seeing.size(); i++) {
             Player p = seeing.get(i);
-            if (p.getWorld() == world && p.getLocation().distanceSquared(center) <= EFFECT_VIEWER_DISTANCE_SQUARED) {
+            if (p.getWorld() == world && p.getLocation().distanceSquared(center) <= effectViewerDistanceSquared) {
                 nearbyViewers.add(p);
             }
         }

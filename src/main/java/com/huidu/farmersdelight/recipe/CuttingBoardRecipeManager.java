@@ -465,6 +465,10 @@ public class CuttingBoardRecipeManager {
         plugin.scheduler().runLater(() -> {
             externalRepublishScheduled = false;
             loadRecipes();
+            // Same as the cooking pot republish: the summary was already printed by the CraftEngine
+            // readiness pass, so the cutting board count would stay a batch behind the addon recipes
+            // without this. Deduped on the counts digest, so an unchanged batch prints nothing.
+            plugin.requestContentSummary();
         }, 1L);
     }
 
