@@ -107,7 +107,7 @@ behavior:
 The block itself uses an empty CE model — the visible appearance is drawn by an `ItemDisplay` overlay spawned by `RugDisplayListener` on place. Re-skin the rug by pointing `visual-item` at a different CE item; tune the size via `scale`. See [Migration notes](#migration-notes) for upgrading from the legacy furniture-based rug.
 
 ### `farmersdelight:tall_crop`
-See `CE_BEHAVIOR_HELP.txt` at the repo root for the long-form crop + extra-planting-items doc.
+See section 3.7 of [README.md](README.md#37-crop-behaviors) (or [README.zh.md](README.zh.md)) for the long-form crop + `extra-planting-items` reference.
 
 ### Stove burn damage
 Configured per stove **block** in CE yml:

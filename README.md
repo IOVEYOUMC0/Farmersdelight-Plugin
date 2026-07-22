@@ -86,7 +86,7 @@ You typically need to prepare in the CraftEngine resource pack:
 - Language: item names and lore should be written in CE's language/display configuration; the plugin GUI prefers the item's own display name.
 - Image fonts: tags such as `<image:farmersdelight:cooking_pot_gui>` and `<image:farmersdelight:recipelist>` used in `gui.yml` must exist on the CE resource side.
 
-The main behavior IDs registered by this plugin:
+The block behavior IDs this plugin registers:
 
 ```text
 farmersdelight:cooking_pot
@@ -95,13 +95,22 @@ farmersdelight:skillet
 farmersdelight:stove
 farmersdelight:tall_crop
 farmersdelight:wild_rice
+farmersdelight:wild_plant
+farmersdelight:tomato_vine
+farmersdelight:mushroom_colony
+farmersdelight:rich_soil
+farmersdelight:rich_soil_farmland
+farmersdelight:organic_compost
 farmersdelight:rope
 farmersdelight:tatami
-farmersdelight:mushroom_colony
 farmersdelight:upper_half_loot_relay
 ```
 
+It also registers one **item** behavior, `farmersdelight:conditional_block_planting`, and two **event functions**, `farmersdelight:comfort` and `farmersdelight:nourishment`. Those are covered in 3.10.
+
 In the CE block or furniture configuration you must attach the corresponding behavior to the corresponding resource. For example, attach `farmersdelight:cooking_pot` to the cooking pot, `farmersdelight:cutting_board` to the cutting board, and `farmersdelight:stove` to the stove. The CE configuration syntax follows the CraftEngine 26.5 resource configuration.
+
+Per CraftEngine's design, a custom block inherits **nothing** from the vanilla block it is disguised as — not its block tags, not its behavior. Anything a feature needs (`minecraft:dirt`, `minecraft:climbable`, `farmersdelight:heat_sources`, …) has to be written out explicitly on your own block.
 
 ### 3.1 Attaching Block Behaviors
 
@@ -113,9 +122,54 @@ behavior:
     permission: farmersdelight.use.cooking_pot
 ```
 
-If the same resource also has a CE-native behavior or another plugin's behavior attached, simply append it to the `behavior` list.
+If the same resource also has a CE-native behavior or another plugin's behavior attached, simply append it to the `behavior` list. CraftEngine accepts both `behavior:` and `behaviors:` as the section name, and both spellings appear in this plugin's own resource files.
 
-### 3.2 Cooking Pot Behavior
+**Parameter names are hyphen-only.** CraftEngine does not normalise `-` and `_`; a key is looked up by its exact spelling. A few CE-native options accept two spellings because their parser explicitly asks for both, but this plugin's behaviors do not, apart from the three exceptions listed below. Writing `boil_sound`, `burn_enabled`, `tool_tags`, `max_stack_amount`, `data_key`, `rich_soil_block`, `pair_while_sneaking`, `bottom_blocks` and so on is **not an error** — the key is ignored and the default is used. Use hyphens everywhere.
+
+The only parameters in this plugin that accept more than one spelling:
+
+| Parameter | Accepted spellings |
+| --- | --- |
+| `tall_crop` bone meal bonus | `bone-meal-age-bonus`, `bone_meal_age_bonus` |
+| `tall_crop` extra planting items | `extra-planting-items`, `extra_planting_items`, `extraPlantingItems` |
+| `comfort` / `nourishment` conditions | `condition`, `conditions` |
+
+**Nothing validates unknown keys.** No behavior in this plugin rejects, warns about, or logs a key it does not recognise. A typo produces a block that loads cleanly and quietly behaves as if you had configured nothing, so the only symptom is the default taking effect in game. When a parameter "does not work", suspect its spelling first. The one way a mistyped key can still be fatal is indirect: mistyping a property-name key such as `age-property` falls back to the default property name, which then has to exist on the block — see 3.2.
+
+**How values are read.** Most parameters are lenient about type, but the failure modes point in different directions and none of them produce a message. The exception is the property-name parameters listed in 3.2: their value is resolved against the block's declared properties, and a name that matches none of them is an error that costs the block its whole behavior list — see 3.2 for what that actually looks like.
+
+| What you write | How it is read |
+| --- | --- |
+| Unquoted `true` / `false` | Always correct. Use this form. |
+| Quoted `"true"` / `"false"` | Accepted by most boolean parameters. A few read a strict boolean and discard the string, keeping the default: `requires-water` on `wild_rice`, and `require-matching-lower-half` / `require-matching-block` on `upper_half_loot_relay`. |
+| `yes`, `on`, `off` on a boolean parameter | Read as **`false`**, whatever the word means in English. Only the literal `true` is truthy. |
+| `0` / `1` on a boolean parameter | A number is the wrong type, so the parameter falls back to **its default**. On a parameter that defaults to `true`, `burn-enabled: 0` therefore means *enabled* — the opposite of what a string gives you. |
+| A number that does not parse (`sound-chance: high`) | Silently replaced by the default. The block still loads. |
+| An empty value (`grow-speed:` with nothing after it) | Counts as omitted. |
+
+### 3.2 Traps That Cause Silent Misbehaviour
+
+These are the mistakes that produce a working-looking block with wrong behavior. They are worth reading before the parameter tables.
+
+- **Omitting a parameter is not always the same as writing its apparent default.** Several defaults are *derived* rather than constant: `tall_crop`'s `max-age-lower` is the top of the `age` property's declared range, and `max-age-upper` is that minus one — on a `0~7` crop, omitting them gives `7` and `6`, not `4` and `3`. Others make omission genuinely different from writing the number: `sound-chance: 0` silences the cooking pot, while deleting the key gives `0.1`.
+- **The shipped values are not always the code defaults.** `farmersdelight:rich_soil` ships with `boost-chance: 0.2`, while the code default is `0.08` — deleting the line slows the shipped block down by more than half.
+- **A flag can gate less than its name suggests.** `is-bone-meal-target: false` on `tall_crop` only skips *that behavior's* bone meal branch. If the same block also carries CE's `crop_block`, CE's own bone meal path is untouched and the crop still grows. This is why the shipped `farmersdelight:budding_tomatoes` carries **both** `is-bone-meal-target: false` and `bone-meal-age-bonus: 0` on its `crop_block`; the zeroed bonus is what actually neutralises it, and the redundant-looking pair must not be "cleaned up".
+- **`bone-meal-age-bonus: 0` does not disable bone meal on `tall_crop`.** That behavior clamps the bonus to at least 1, so a zero still advances the crop one stage. It is the opposite of CE's `crop_block`, where zeroing is the way to neutralise bone meal.
+- **An empty list means "omitted", not "none".** `tool-tags: []` on a cutting board does not remove tag-based tools; it restores the four built-in defaults. There is no supported way to write "no tags" — use a tag ID that matches nothing.
+- **Configuring a list replaces the built-in list wholesale.** You cannot add `minecraft:swords` to the cutting board's tools without re-listing the four defaults, and configuring `bottom-blocks` on a crop discards its entire built-in soil fallback.
+- **Adding `custom:` to a cooking pot reshuffles the slot indices**, even when the four slot counts match the defaults. The default layout is inputs 0-5, pending 6, container 7, output 8; a custom layout always lays them out input → pending → output → container, so container and output swap. A `gui.yml` layout written against the default ordering will point at the wrong slots.
+- **Changing `data-key` orphans everything already stored.** Cooking pots and cutting boards read their contents from that sub-key. Change it on a block type that already exists in the world and every placed one reads as empty. Choose it once, when you define the variant, and never edit it afterwards.
+- **Nine behaviors require a state property, and a block that lacks it loses its behavior — not its existence.** This is the single most common way to be sent debugging the wrong thing. CraftEngine catches the error, prints one line naming the file, the config node and the missing property, and then substitutes a plain do-nothing behavior. The block still registers, still places, still shows every state you defined, still drops its loot, still holds its item. What is gone is everything the behavior did. So the in-game symptom is not "my block vanished", it is "my custom stove is just a block now" — it never lights, never burns anyone, never heats a pot above it, and stays that way silently until the next reload. The error at load is the only announcement you get; go and look for it. Only that one block is affected — the rest of the pack loads normally.
+  - The substitution replaces the **whole** `behavior:` list, not the entry that failed. A block carrying four behaviors with one bad property loses all four, along with CraftEngine's own automatic `waterlogged` and rotation/mirror handling. One typo can therefore flatten a block that mostly looked fine.
+  - *Name configurable, but a property of that name must exist:* `tall_crop` (`age-property`, an int, and `half-property`, a `double_block_half`), `mushroom_colony` (`age-property`, an int), `rich_soil_farmland` (`moisture-property`, an int), `organic_compost` (`composting-property`, an int), `tatami` (`facing-property`, and `paired-property` as a boolean), `upper_half_loot_relay` (`half-property`).
+  - *Name fixed, with no parameter to point it elsewhere:* `stove` needs a boolean `fire`, `wild_rice` a `double_block_half` named `half`, and `tomato_vine` an int named `age`.
+  - The renaming parameters rename what the behavior looks for; they do not make it optional. A configured name that resolves to no property is an error, **not** a quiet fall back to the default name.
+  - Existence and type are both checked, except for the two properties whose values are compared as text: `tatami`'s facing property and `upper_half_loot_relay`'s half property are looked up by name alone, so any property type whose values spell out the direction or half names is accepted.
+- **Exactly two property lookups are optional, and no others.** `tall_crop`'s `supporting-property` — the shipped `farmersdelight:rice` declares no such property and expresses its supporting stage as a max age value instead — and `rope`'s four connection properties. In those two places a missing (or wrong-typed) property is skipped rather than reported, so a typo there costs you one feature instead of the whole behavior list — and with no error line at all.
+- **A missing item ID can silently disable an interaction.** `mushroom_colony` without a valid `mushroom-type` returns before it changes anything, so the colony simply cannot be harvested.
+- **The same parameter name can mean different things on different behaviors.** `light-requirement: 0` on `mushroom_colony` means "skip the light check", while on `tall_crop` it is a real comparison. `requires-water` is lenient on `tall_crop` and strict on `wild_rice`. Read the table for the behavior you are actually configuring.
+
+### 3.3 Cooking Pot Behavior
 
 A default cooking pot only needs the behavior attached:
 
@@ -126,25 +180,43 @@ behavior:
 
 Available parameters:
 
-| Parameter | Default | Effect |
-| --- | --- | --- |
-| `permission` | `farmersdelight.use.cooking_pot` | Permission required to open the cooking pot. Write an empty string to disable this plugin's permission check. |
-| `open-while-sneaking` | `false` | Whether sneak-right-click also opens the cooking pot. When off, sneak interactions are yielded to other behaviors. |
-| `place-tray-on-open` | `true` | Whether to automatically sync/place the tray display under the pot when opening the cooking pot. |
-| `boil-sound` | Built-in boiling sound | Sound ID for normal cooking boiling. |
-| `soup-boil-sound` | Built-in soup boiling sound | Sound ID for soup cooking boiling. |
-| `sound-chance` | Main config default | Probability of playing a sound on each cooking tick. |
-| `sound-volume` | Main config default | Boiling sound volume. |
-| `sound-pitch-min` | Main config default | Lower bound of random pitch. |
-| `sound-pitch-max` | Main config default | Upper bound of random pitch. |
-| `data-key` | `farmersdelight:cooking_pot` | Data key under which cooking pot contents are stored in the CE BlockEntity. Changing this value on already-placed blocks will make old contents unreadable under the new key, unless you migrate manually. |
-| `custom` | Not enabled | Custom cooking pot slots, recipe group, and GUI title. |
+| Parameter | Required | Default | Effect |
+| --- | --- | --- | --- |
+| `permission` | No | `farmersdelight.use.cooking_pot` | Permission required to open the cooking pot. Write an empty string to disable this plugin's permission check. |
+| `open-while-sneaking` | No | `false` | Whether sneak-right-click also opens the cooking pot. When off, sneak interactions are yielded to other behaviors, so a held block places normally. |
+| `place-tray-on-open` | No | `true` | Whether to sync/place the tray display under the pot when opening it. Also gated by `tray.enabled` in `config.yml`; with that master switch off, the tray never appears. |
+| `boil-sound` | No | `farmersdelight:block.cooking_pot.boil` | Ambient sound while cooking with no finished meal waiting. |
+| `soup-boil-sound` | No | `farmersdelight:block.cooking_pot.boil_soup` | Ambient sound once a meal is pending or displayed. |
+| `sound-chance` | No | `0.1` | Probability of playing the boiling sound on each effect tick. `0` silences it; deleting the key does not. |
+| `sound-volume` | No | `0.5` | Boiling sound volume. |
+| `sound-pitch-min` | No | `0.9` | Lower bound of the random pitch. |
+| `sound-pitch-max` | No | `1.1` | Upper bound. If it is not greater than the minimum, the pitch is fixed at the minimum. |
+| `data-key` | No | `farmersdelight:cooking_pot` | Sub-key under which the pot's contents are stored, both in the CE BlockEntity and in the dropped pot item. See the trap in 3.2 before changing it. |
+| `custom` | No | Not enabled | Custom slot counts, recipe group, and GUI title. |
+
+The four sound parameters fall back to the built-in sound when the value is empty or unparseable, so there is no way to write a silent pot; use `sound-chance: 0` instead.
+
+The pot itself reads nothing else from the behavior section. Interaction cooldown, progress display, hopper interaction and the tray master switch all live in `config.yml`, and heat comes from the `heat-sources` list (section 9) — the block *under* the pot must be listed there. The shipped pot declares a `facing` property for its model; the behavior does not read it, so a pot without `facing` still works and only loses its orientation. Comparator output is provided automatically and reflects the fill of every slot, not just the meal slot.
+
+As shipped:
+
+```yaml
+behavior:
+  - type: farmersdelight:cooking_pot
+    boil-sound: farmersdelight:block.cooking_pot.boil
+    soup-boil-sound: farmersdelight:block.cooking_pot.boil_soup
+    sound-chance: 0.1
+    sound-volume: 0.5
+    sound-pitch-min: 0.9
+    sound-pitch-max: 1.1
+```
 
 Custom cooking pot example:
 
 ```yaml
 behavior:
   - type: farmersdelight:cooking_pot
+    data-key: farmersdelight:large_pot
     custom:
       id: large_pot
       title: "<image:farmersdelight:large_cooking_pot_gui>"
@@ -156,14 +228,16 @@ behavior:
 
 `custom` parameter descriptions:
 
-| Parameter | Effect |
-| --- | --- |
-| `id` | Custom cooking pot ID. In the recipe file, use `custom_cooking_pot_recipes.<id>` to write recipes specific to this pot; `gui.yml` can override the interface using a cooking pot GUI config of the same name. |
-| `title` / `gui-title` | The title used when opening the GUI. Usually written as an image font to override the custom interface texture. |
-| `input-slots` | Number of ingredient slots. |
-| `pending-output-slots` | Number of pending-output slots. Products that are cooked but not yet moved into the output slots are temporarily held in the pending-output slots. |
-| `output-slots` | Number of finished-product output slots. |
-| `container-slots` | Number of container slots, e.g. for bowls, bottles, etc. |
+| Parameter | Required | Default | Effect |
+| --- | --- | --- | --- |
+| `id` | No | Not set | Custom cooking pot ID. In the recipe file, use `custom_cooking_pot_recipes.<id>` to write recipes specific to this pot; `gui.yml` can override the interface using cooking pot, recipe detail, and recipe editor GUI configs of the same name. |
+| `title` / `gui-title` | No | Not set | The title used when opening the GUI, usually written as an image font. `gui-title` is only read when `title` is absent or blank. |
+| `input-slots` | No | `6` | Number of ingredient slots. Values below `1` are raised to `1`. |
+| `pending-output-slots` | No | `1` | Number of pending-output slots. Products that are cooked but not yet moved into the output slots are temporarily held here. Values below `1` are raised to `1`. |
+| `output-slots` | No | `1` | Number of finished-product output slots. Values below `1` are raised to `1`. |
+| `container-slots` | No | `1` | Number of container slots, e.g. for bowls or bottles. `0` is allowed and removes the container slot. |
+
+Writing a `custom` section at all switches the pot to a custom layout, even a section that only sets `id`. The slots are then allocated as one run in the order input → pending → output → container, which is not the default ordering — see 3.2.
 
 When `custom` is not written, the default cooking pot layout is used, which does not affect the original cooking pot.
 
@@ -271,47 +345,66 @@ custom_cooking_pot_recipes:
       cook-time: 200
 ```
 
-If a custom pot has dedicated recipes but no `recipe-detail-cooking-pot-guis.<id>`, the plugin outputs a warning to the console when opening the recipe GUI from that pot, and falls back to the default `recipe-detail-cooking-pot`. If a recipe's ingredient count exceeds the number of `ingredient` slots on the detail page, that is also reported to the console when opening that GUI.
+Setting `custom.id` without adding the matching `cooking-pot-guis.<id>` entry is legal; the plugin falls back to the default cooking pot GUI. If a custom pot has dedicated recipes but no `recipe-detail-cooking-pot-guis.<id>`, the plugin outputs a warning to the console when opening the recipe GUI from that pot, and falls back to the default `recipe-detail-cooking-pot`. If a recipe's ingredient count exceeds the number of `ingredient` slots on the detail page, that is also reported to the console when opening that GUI.
 
-### 3.3 Cutting Board Behavior
+### 3.4 Cutting Board Behavior
 
 ```yaml
 behavior:
   - type: farmersdelight:cutting_board
+    knife-sound: farmersdelight:block.cutting_board.knife
     tool-tags:
-      - farmersdelight:knives
+      - '#farmersdelight:knives'
+      - '#minecraft:axes'
+      - '#minecraft:pickaxes'
+      - '#minecraft:shovels'
     tool-items:
       - minecraft:shears
-    max-stack-amount: 64
 ```
+
+The shipped configuration above simply re-states the built-in defaults; it is documentation, not a change.
 
 Available parameters:
 
-| Parameter | Default | Effect |
-| --- | --- | --- |
-| `tool-tags` | `farmersdelight:knives`, `farmersdelight:axes`, `farmersdelight:pickaxes` | Tool tags that can trigger cutting board recipes. Tag notation with or without `#` is supported. |
-| `tool-items` | `minecraft:shears` | Specific item IDs that can directly act as cutting board tools. |
-| `knife-sound` | `farmersdelight:block.cutting_board.knife` | Sound played when processing ingredients. |
-| `max-stack-amount` | `64` | Maximum number of items the cutting board allows to be placed. The actual amount is also limited by the item's own max stack size. |
-| `data-key` | `farmersdelight:cutting_board` | Data key under which cutting board contents are stored in the CE BlockEntity. |
+| Parameter | Required | Default | Effect |
+| --- | --- | --- | --- |
+| `tool-tags` | No | `farmersdelight:knives`, `minecraft:axes`, `minecraft:pickaxes`, `minecraft:shovels` | Item tags whose members act as cutting tools. A leading `#` is optional here. Writing this parameter replaces all four defaults; writing an empty list restores them. |
+| `tool-items` | No | `minecraft:shears` | Individual item IDs that act as cutting tools, in addition to the tags. Written **without** `#` — a tag put here produces a malformed ID that matches nothing. |
+| `knife-sound` | No | `farmersdelight:block.cutting_board.knife` | Sound played when processing ingredients. |
+| `max-stack-amount` | No | `64` | Maximum number of identical items the board allows on it. It can only ever lower the natural limit — the effective cap is the smallest of this value, the container's stack size, and the item's own max stack size. |
+| `data-key` | No | `farmersdelight:cutting_board` | Sub-key under which the board's contents are stored in the CE BlockEntity. Same trap as the pot's `data-key`. |
 
-Whether the cutting board enables stacking is controlled by `cutting-board.interaction-mode` in `config.yml`: `stacking` enables stacking, `offhand` enables off-hand interaction.
+Whether the cutting board enables stacking is controlled by `cutting-board.interaction-mode` in `config.yml`: `stacking` enables stacking, `offhand` enables off-hand interaction. With stacking disabled, `max-stack-amount` has no effect at all.
 
-### 3.4 Stove and Skillet Behaviors
+The board's permission node is the fixed `farmersdelight.use.cutting_board`; unlike the pot, there is no `permission` parameter. The `facing` property is optional but strongly recommended — without it the placed item renders facing north and does not rotate with the board.
 
-Stove:
+### 3.5 Stove Behavior
 
 ```yaml
 behavior:
   - type: farmersdelight:stove
     crackle-sound: farmersdelight:block.stove.crackle
+states:
+  properties:
+    facing:
+      type: 4-direction
+      default: north
+    fire:
+      type: boolean
+      default: true
 ```
 
-| Parameter | Default | Effect |
-| --- | --- | --- |
-| `crackle-sound` | `farmersdelight:block.stove.crackle` | Burning sound played while the stove is cooking. |
+**The `fire` property is required.** The stove reads its lit state from a boolean block-state property named exactly `fire`. A block that declares `farmersdelight:stove` without it still loads and still places, but it loses the stove behavior entirely: the console names the config node and the missing property, and what you get in the world is an ordinary decorative block that never cooks and never burns anyone. The name is fixed — there is no parameter to point it elsewhere. The same property is what the heat-source entry `farmersdelight:stove[fire:true]` in `config.yml` matches against, so such a stove also never heats a pot or skillet placed on top.
 
-Skillet:
+| Parameter | Required | Default | Effect |
+| --- | --- | --- | --- |
+| `crackle-sound` | No | `farmersdelight:block.stove.crackle` | Burning sound played while the stove is lit. An empty value falls back to the default rather than silencing it. |
+| `burn-enabled` | No | `true` | Whether a lit stove damages living entities standing on the grilling surface. |
+| `burn-damage` | No | `1.0` | Damage per burn tick. Negative values are clamped to `0`, which stops the damage rather than healing. |
+
+The shipped stove sets neither burn parameter and relies on those defaults. Tick budget, cook time, cooling, mob-scan radius, particle rates and the six food-display offsets are in the `stove` section of `config.yml`, and the permission node is the fixed `farmersdelight.use.stove`.
+
+### 3.6 Skillet Behavior
 
 ```yaml
 behavior:
@@ -320,86 +413,349 @@ behavior:
     sizzle-sound: farmersdelight:block.skillet.sizzle
 ```
 
-| Parameter | Default | Effect |
+| Parameter | Required | Default | Effect |
+| --- | --- | --- | --- |
+| `add-food-sound` | No | `farmersdelight:block.skillet.add_food` | Sound played when adding food. |
+| `sizzle-sound` | No | `farmersdelight:block.skillet.sizzle` | Sizzling sound played while cooking. |
+
+These two are the whole behavior section. An empty value falls back to the default, so a silent skillet cannot be configured here. Cook-time multipliers, the Fire Aspect bonus, cooling, hopper input, heat conduction through a hopper, viewer distance and the food display scale/offsets are all in the `skillet` section of `config.yml`, and the permission node is the fixed `farmersdelight.use.skillet`. The shipped skillet declares `facing` for its model and food placement.
+
+### 3.7 Crop Behaviors
+
+Four of these behaviors share the same pair of soil parameters:
+
+| Parameter | Required | Effect |
 | --- | --- | --- |
-| `add-food-sound` | `farmersdelight:block.skillet.add_food` | Sound played when adding food. |
-| `sizzle-sound` | `farmersdelight:block.skillet.sizzle` | Sizzling sound played while cooking. |
+| `bottom-block-tags` | No | Block tags the crop may sit on. A leading `#` is optional. Matched against vanilla block tags **and** against the tags a CE custom block declares in its own `settings.tags`. |
+| `bottom-blocks` | No | Individual blocks. Three usable forms: a vanilla ID (`minecraft:farmland`), a vanilla state (`minecraft:farmland[moisture=7]`), or a CE block ID (`your_pack:custom_soil`). A CE ID with a state suffix is **not** supported — see below. |
 
-### 3.5 Crop, Rope, Tatami, and Mushroom Colony Behaviors
+Three things to know about `bottom-blocks`.
 
-Tall crop:
+A vanilla state entry is a **subset** match, not an exact one: only the properties you actually wrote are compared, so `minecraft:farmland[moisture=7]` matches every farmland at moisture 7 whatever its other properties say. Writing the bare ID and writing every property out are therefore the same thing.
+
+A CE ID carrying a state suffix — `your_pack:custom_soil[level=2]` — is not merely ignored. Entries are first offered to the vanilla block-data parser, which rejects anything outside `minecraft:`; the parse failure is swallowed and the entry is retried as a plain material name, and that retry rejects `[`, `]` and `=` outright and throws. Nothing catches that second throw, so it escapes as an unknown error during behavior construction and the block **genuinely fails to register** — no block, no item, no states, unlike the recoverable property errors described in 3.2. Match custom soils by their plain ID, or by a tag they declare.
+
+An entry is resolved as a vanilla material by its *path*, ignoring the namespace, so a custom block whose path collides with a vanilla material name (`your_pack:stone`) silently resolves to the vanilla block instead. Give custom soils non-colliding paths.
+
+Configuring either parameter replaces the behavior's built-in soil fallback entirely; configuring neither keeps the fallback. `mushroom_colony` is the exception — it has no built-in fallback, so configuring neither leaves its growth ungated by soil altogether.
+
+Tall crop — the two-half crop used by rice, with growth, bone meal, right-click harvesting of the mature upper half, and a placement check:
 
 ```yaml
 behavior:
   - type: farmersdelight:tall_crop
-    age-property: age
-    half-property: half
-    upper-block: farmersdelight:tomatoes_top
-    max-age-lower: 4
-    max-age-upper: 3
+    extra_planting_items:
+      - farmersdelight:rice_panicle
     grow-speed: 0.25
-    light-requirement: 9
+    light-requirement: 6
+    is-bone-meal-target: true
+    bone_meal_age_bonus:
+      type: uniform
+      min: 1
+      max: 4
+    requires-water: true
+    harvest-tool-tags:
+      - "#farmersdelight:knives"
     bottom-block-tags:
-      - minecraft:dirt
+      - "#minecraft:dirt"
+    bottom-blocks:
+      - minecraft:grass_block
+states:
+  properties:
+    age:
+      type: int
+      default: 0
+      range: 0~4
+    half:
+      type: double_block_half
+      default: lower
 ```
 
-| Parameter | Default | Effect |
-| --- | --- | --- |
-| `age-property` | `age` | Name of the CE block-state property representing the growth stage. |
-| `half-property` | `half` | Name of the CE block-state property representing the upper/lower half. |
-| `supporting-property` | `supporting` | Name of the boolean property marking the supporting state. Skipped when the property is absent. |
-| `grow-speed` | `0.25` | Random-tick growth probability coefficient. |
-| `light-requirement` | `9` | Minimum light level required for growth. |
-| `is-bone-meal-target` | `true` | Whether bone meal is allowed to accelerate growth. |
-| `random-bone-meal-growth` | `false` | Whether the bone meal growth amount uses a random range. |
-| `bone-meal-min` / `bone-meal-max` | `1` / `2` | Minimum/maximum stages of bone meal growth. |
-| `max-age-lower` / `max-age-upper` | Inferred from the property | Maximum mature stage of the lower/upper half. Harvesting and drops should be based on the mature state. |
-| `half-lower-value` / `half-upper-value` | Inferred from the property | State values for the lower/upper half. |
-| `requires-water` | `false` | Whether placement and survival require water. |
-| `reset-on-harvest` | `true` | Whether mature harvesting resets to immature instead of breaking the block directly. |
-| `upper-block` | Empty | Upper-half block ID automatically generated when the lower half is placed. |
-| `harvest-tool-tags` | Empty | Tool tags that can harvest. |
-| `harvest-tool-items` | Empty | Specific item IDs that can harvest. |
-| `bottom-blocks` | Empty | Blocks that can be planted on / support the crop. Supports vanilla blocks, vanilla BlockData, CE block IDs, and CE state strings. |
-| `bottom-block-tags` | Empty | Block tags that can be planted on / support the crop. Supports vanilla block tags and CE block tags. |
+(That is the shipped `farmersdelight:rice`. The two underscore keys in it are among the three parameters that accept both spellings.)
 
-Wild rice:
+| Parameter | Required | Default | Effect |
+| --- | --- | --- | --- |
+| `age-property` | Yes | `age` | Name of the integer growth-stage property. **Required**: an `int` property of this name must exist, or the block keeps loading but loses this behavior, with the property named in the console. There is no fall back to `age`. |
+| `half-property` | Yes | `half` | Name of the property distinguishing the halves. **Required** on the same terms, and it must be of type `double_block_half`. |
+| `supporting-property` | No | `supporting` | Optional boolean property set when the lower half matures. Genuinely optional: silently skipped when the block declares no property of that name, or declares one that is not a boolean. The shipped `farmersdelight:rice` declares none. |
+| `grow-speed` | No | `0.25` | Per-random-tick chance to advance one stage. |
+| `light-requirement` | No | `9` | Minimum light level for random-tick growth. Not checked for bone meal. |
+| `is-bone-meal-target` | No | **`true`** | Whether this behavior's own bone meal branch runs. Gates nothing else — see 3.2. |
+| `bone-meal-age-bonus` | No | `1` | Stages gained per bone meal. Accepts a plain number or a CE number provider such as `type: uniform`. Clamped to at least `1`, so `0` does not disable bone meal. |
+| `max-age-lower` | No | Top of the `age` range | Age at which the lower half matures and spawns the upper half. |
+| `max-age-upper` | No | `max-age-lower` minus one | Age at which the upper half becomes harvestable. |
+| `half-lower-value` / `half-upper-value` | No | `lower` / `upper` when the property has values by those names, otherwise its first and last value | Raw property values counted as each half. |
+| `requires-water` | No | `false` | When true, planting also requires a water source at the planting cell or directly below it. Enforced at placement only — draining the water later does not kill a planted crop. |
+| `reset-on-harvest` | No | `true` | When true, right-clicking the mature upper half harvests it and resets the lower half. When **false there is no right-click harvest at all**. |
+| `upper-block` | No | Same block as this one | Block definition used for the upper half. |
+| `harvest-tool-tags` / `harvest-tool-items` | No | Empty | Item tags / item IDs accepted as harvest tools, on top of the `knife-items` list in `config.yml`, which always works. |
+| `extra-planting-items` | No | Empty | Extra item IDs that reuse this crop's planting logic. Accepts a list or a single string. |
+| `bottom-block-tags` / `bottom-blocks` | No | Built-in fallback | Soil rules, as described above. The fallback is farmland, dirt, grass block, mud, clay, sand, coarse dirt, rooted dirt, podzol and mycelium, plus any CE block carrying a tag whose name contains `farmland`, `soil` or `dirt`. |
+
+The age and half properties are mandatory outright, not merely advisable: a `tall_crop` block that cannot resolve both keeps its states and its item but is stripped of the crop behavior, so what a mistake here actually buys you is a decorative plant that never grows, never matures and can never be harvested — plus one console line naming the property. Read that line rather than trusting the block's appearance. An item claimed by `extra-planting-items` can map to only one crop block; a second claim is ignored with a console warning. Every successful upper-half harvest also drops the item configured under `drops.straw.mature_rice` in `config.yml`, for every `tall_crop` block, not just rice. If the block declares a `loot` section, the harvest rolls that loot table, falling back to the lower half's table when the upper half yields nothing; a block with no `loot` fires its CE `on: break` event chain instead.
+
+Wild rice — a rules provider with no growth of its own. It decides whether the naturally generated two-block wild rice may be placed and may survive:
 
 ```yaml
 behavior:
+  - type: double_high_block
   - type: farmersdelight:wild_rice
     requires-water: true
+    bottom-block-tags:
+      - "#minecraft:dirt"
     bottom-blocks:
-      - minecraft:dirt
       - minecraft:grass_block
       - minecraft:mud
+      - minecraft:sand
+      - minecraft:red_sand
+  - type: farmersdelight:upper_half_loot_relay
 ```
 
-`farmersdelight:wild_rice` handles the upper/lower-half structure, water source restoration, and soil validation. `requires-water` defaults to `true`, and the notation for `bottom-blocks` / `bottom-block-tags` is the same as for tall crops.
+| Parameter | Required | Default | Effect |
+| --- | --- | --- | --- |
+| `requires-water` | No | **`true`** | When true, the planting cell must be a water **source** block. Read as a strict boolean: a quoted `"false"` is discarded and the default stands. |
+| `bottom-block-tags` / `bottom-blocks` | No | Built-in fallback | Blocks the lower half may stand on. The fallback is dirt, grass block, coarse dirt, rooted dirt, podzol, mycelium, mud, sand and red sand. |
 
-Mushroom colony:
+There is no `half-property` here; the property name is fixed to `half`, it must be of type `double_block_half`, and it is required — a block declaring this behavior without it still loads, but the behavior is dropped and the plant is left with no placement or survival rules of its own. The two half values are then matched by name against the property's own values. The block ID is fixed too: the plugin looks this behavior up under `farmersdelight:wild_rice`, so attaching it to a block with another ID registers it but nothing ever calls it. The cell above the water must also be air, and the upper half must sit on the same block ID's lower half — neither is configurable.
+
+Wild plant — bone-meal spreading for the static wild crops (wild cabbages, onions, tomatoes). It has no survival logic of its own; that is CE's `bush_block` on the same block:
 
 ```yaml
 behavior:
-  - type: farmersdelight:mushroom_colony
-    age-property: age
-    max-age: 3
-    grow-speed: 0.25
-    light-requirement: 0
-    mushroom-type: minecraft:red_mushroom
-    grow-on-blocks:
-      - minecraft:mycelium
+  - type: liquid_flowable_block
+  - type: bush_block
+    bottom-block-tags:
+      - minecraft:dirt
+      - minecraft:sand
+  - type: farmersdelight:wild_plant
+    is-bone-meal-target: true
 ```
 
-| Parameter | Default | Effect |
-| --- | --- | --- |
-| `age-property` | `age` | Name of the growth stage property. |
-| `max-age` | Inferred from the property | Maximum mature stage. |
-| `grow-speed` | `0.25` | Random-tick growth probability coefficient. |
-| `light-requirement` | `0` | Minimum light level required for growth. |
-| `harvest-tool-tags` / `harvest-tool-items` | Empty | Tools that can harvest. |
-| `mushroom-type` | Empty | Mushroom item ID corresponding to the colony. |
-| `grow-on-blocks` / `grow-on-block-tags` | Empty | Blocks or tags it can grow on; also compatible with `bottom-blocks` / `bottom-block-tags`. |
+| Parameter | Required | Default | Effect |
+| --- | --- | --- | --- |
+| `is-bone-meal-target` | No | `true` | When false the behavior passes the click straight through, consuming no bone meal and never spreading. |
+| `bone-meal-success-chance` | No | `0.8` | Probability that a bone meal use actually attempts a spread. The bone meal is consumed either way, so `0` still eats it on every click. |
+| `spread-limit` | No | `10` | Population cap within the surrounding 9×3×9 box. The origin plant counts itself, so `1` means "never spread". Values below `1` are raised to `1`. |
+| `bottom-block-tags` / `bottom-blocks` | No | `minecraft:dirt` or `minecraft:sand` tag | Blocks a **spread copy** may land on — not where the plant may exist. If these disagree with the `bush_block` survival rules, the copies pop off on the next block update. |
+
+Tomato vine — one behavior attached to all three tomato blocks, dispatching on whichever block is actually at the position:
+
+```yaml
+behavior:
+  - type: crop_block
+    grow-speed: 0.25
+    light-requirement: 9
+    is-bone-meal-target: true
+    bone_meal_age_bonus:
+      type: uniform
+      min: 1
+      max: 2
+  - type: bush_block
+    bottom-blocks:
+      - farmersdelight:tomatoes
+    stackable: true
+    max-height: 3
+    delay: 1
+  - type: farmersdelight:tomato_vine
+    budding-block: farmersdelight:budding_tomatoes
+    tomatoes-block: farmersdelight:tomatoes
+    crop-on-rope-block: farmersdelight:tomato_crop_on_rope
+    mature-age: 0
+```
+
+| Parameter | Required | Default | Effect |
+| --- | --- | --- | --- |
+| `budding-block` | No | `farmersdelight:budding_tomatoes` | ID of the budding stage. |
+| `tomatoes-block` | No | `farmersdelight:tomatoes` | ID of the ground stage. |
+| `crop-on-rope-block` | No | `farmersdelight:tomato_crop_on_rope` | ID of the hanging stage. |
+| `rope-block` | No | `farmersdelight:rope` | Block restored when a hanging tomato is removed. |
+| `mature-age` | No | `0` | When greater than `0`, climbing requires that age. `0` disables the gate, so writing `0` is identical to omitting it. |
+| `min-light` | No | `9` | Minimum light for the budding-to-ground conversion and for any climb. |
+| `max-stack-height` | No | `3` | Fallback only, and usually inert — see below. |
+| `budding-max-age` | No | `3` | Age at which budding tomatoes convert to ground tomatoes. |
+| `tomatoes-max-age` | No | `3` | Max age of the ground stage, and the age at which right-click harvest is ready. |
+| `hanging-max-age` | No | `3` | Max age of the hanging stage. |
+| `bonemeal-climb-chance` | No | `0.3` | Chance a bone meal on a ground or hanging tomato attempts a rope climb. |
+| `bonemeal-bonus-min` / `bonemeal-bonus-max` | No | `1` / `4` | Inclusive range of the budding stage's bone meal age bonus. |
+
+All three IDs must agree across all three blocks; the behavior compares the block at the position against them, and a block whose own copy lists different IDs simply does nothing on tick. `max-stack-height` is overridden whenever the hanging block carries a `bush_block` with `max-height` greater than `0`, which the shipped config does — change the `bush_block` value instead. Climbing also requires the cell above to carry the `farmersdelight:rope` behavior, not merely a block with the ID in `rope-block`; that parameter is only used to restore a rope afterwards. There is no `is-bone-meal-target` here — bone meal is always accepted. Each of the three blocks needs an integer `age` property named exactly `age` and `is-randomly-ticking: true`; the age property is checked when the behavior loads, so a block missing it is stripped of the behavior at load — named in the console — rather than placing normally and ticking uselessly forever.
+
+Mushroom colony — an age-based cluster with shears/knife harvesting, random-tick growth and bone meal:
+
+```yaml
+behavior:
+  - type: bush_block
+    bottom-block-tags:
+      - minecraft:mushroom_grow_block
+    bottom-blocks:
+      - farmersdelight:rich_soil
+      - farmersdelight:organic_compost
+  - type: farmersdelight:mushroom_colony
+    mushroom-type: "minecraft:brown_mushroom"
+    light-requirement: 0
+    grow-on-blocks:
+      - farmersdelight:rich_soil
+      - farmersdelight:organic_compost
+states:
+  properties:
+    age:
+      type: int
+      default: 3
+      range: 0~3
+```
+
+| Parameter | Required | Default | Effect |
+| --- | --- | --- | --- |
+| `age-property` | Yes | `age` | Name of the integer growth-stage property. **Required**: an `int` property of this name must exist, or the block loads without this behavior, with the property named in the console. |
+| `max-age` | No | Top of the `age` range | Age cap for growth and bone meal. |
+| `grow-speed` | No | `0.25` | Per-random-tick chance to advance one age. |
+| `light-requirement` | No | `0` | Minimum light for random-tick growth. **`0` skips the light check entirely** rather than requiring light level 0. |
+| `bonemeal-min-age-bonus` / `bonemeal-max-age-bonus` | No | `1` / `2` | Inclusive range of the bone meal age gain. Note the prefix is `bonemeal-`, not `bone-meal-`; this is a different parameter from the one on `tall_crop` and the spellings are not interchangeable. |
+| `mushroom-type` | Yes | Empty | Item dropped on harvest. **Effectively mandatory** — without a valid ID the colony cannot be harvested at all. |
+| `harvest-tool-tags` | No | Empty | Item tags counted as a shears-style tool. |
+| `harvest-tool-items` | No | Empty | Exact item IDs. Only `minecraft:shears` counts as shears-style; anything else is knife-style. |
+| `grow-on-blocks` / `grow-on-block-tags` | No | Falls through to `bottom-blocks` / `bottom-block-tags`, and to no soil check at all if those are absent too | Blocks the colony must sit on **to keep growing**. |
+
+A shears-style tool drops one mushroom and lowers the age by one; a knife-style tool drops as many mushrooms as the current age and resets the age to 0. The knife list in `config.yml` always works as a fallback, with or without `harvest-tool-items`. Bone meal cannot be disabled through this behavior. `mushroom-type` also decides the particle colour: an ID containing `red` renders red particles, anything else brown.
+
+Do not mix the two soil naming pairs on this behavior. Writing `grow-on-blocks` together with `bottom-block-tags` makes the `grow-on-*` pair win and discards your `bottom-block-tags`. Pick one pair and use it for both keys. Omitting all four is not the same as omitting soil rules on the other three behaviors: this behavior has no built-in soil fallback, so an unconfigured colony grows on anything its `bush_block` lets it stand on. Note also that these parameters gate growth only — where the colony may *exist* is the `bush_block` on the same block, which the shipped config deliberately keeps wider.
+
+### 3.8 Soil Behaviors
+
+Rich soil — on random tick it converts a mushroom sitting directly above into a mushroom colony, and otherwise rolls a chance to bone-meal the plant above (or, failing that, the block below):
+
+```yaml
+behavior:
+  - type: farmersdelight:rich_soil
+    boost-chance: 0.2
+    brown-mushroom-colony: farmersdelight:brown_mushroom_colony
+    red-mushroom-colony: farmersdelight:red_mushroom_colony
+    unaffected-blocks:
+      - minecraft:grass_block
+      - minecraft:short_grass
+      - minecraft:sunflower
+      - farmersdelight:brown_mushroom_colony
+      - farmersdelight:red_mushroom_colony
+      - farmersdelight:wild_rice
+```
+
+| Parameter | Required | Default | Effect |
+| --- | --- | --- | --- |
+| `boost-chance` | No | `0.08` | Per-random-tick probability of a boost attempt. `0` or less disables boosting; the mushroom conversion still runs. The shipped block uses `0.2`. |
+| `brown-mushroom-colony` | No | `farmersdelight:brown_mushroom_colony` | Block placed when a brown mushroom above is converted. |
+| `red-mushroom-colony` | No | `farmersdelight:red_mushroom_colony` | Block placed when a red mushroom above is converted. |
+| `unaffected-blocks` | No | Empty | Blocks the boost must skip. Each rich soil block carries its own list. |
+
+Entries in `unaffected-blocks` come in three shapes. A leading `#` marks a **tag**, an entry beginning with `minecraft:` or with no namespace at all is a vanilla block, and anything else is a CraftEngine block ID.
+
+Tags are **not** split by namespace. Every `#` entry, whatever its namespace, is added to the tag set that custom blocks are tested against — a custom block matches if it declares that tag in its own `settings.tags`. Each `#` entry is *additionally* resolved against the server's block tag registry (datapack tags included), and that resolved tag is what vanilla blocks are tested against. So `#minecraft:dirt` matches both a genuine dirt block and any custom block declaring `minecraft:dirt` in its settings — which is not a hypothetical, since the shipped `farmersdelight:rich_soil` declares exactly that. A tag in a non-vanilla namespace usually resolves to nothing on the vanilla side and so behaves as CraftEngine-only in practice, but that is a consequence of the registry lookup failing, not a rule about namespaces. A `minecraft:` tag the server does not know is reported as a console warning at load; a tag in any other namespace stays silent, because CraftEngine publishes no tag index to check it against.
+
+Matching asks CraftEngine first, so nothing ever matches a custom block through the material it is disguised as: a `minecraft:` block entry cannot reach a custom block, and a `#minecraft:` tag reaches one only through the tag list that block declares for itself, never through its disguise. To exclude a custom block, list its CE ID or a tag it actually declares.
+
+The boost is a plain bone meal application, so anything the server considers bone-mealable is affected, including other plugins' and datapacks' crops. The conversion recognises both vanilla mushrooms and this plugin's look-alike custom mushrooms, and always places the colony at age 0.
+
+The block needs `settings.is-randomly-ticking: true`, or the behavior never runs at all. The shipped block also carries the `minecraft:dirt`, `minecraft:bamboo_plantable_on` and `minecraft:mushroom_grow_block` tags; without them, crops, bamboo and mushrooms refuse the soil.
+
+Rich soil farmland — the vanilla farmland moisture cycle, plus a boost at full moisture, plus reverting to rich soil when covered:
+
+```yaml
+behavior:
+  - type: farmersdelight:rich_soil_farmland
+    boost-chance: 0.08
+    rich-soil-block: farmersdelight:rich_soil
+states:
+  properties:
+    moisture:
+      type: int
+      default: 0
+      min: 0
+      max: 7
+```
+
+| Parameter | Required | Default | Effect |
+| --- | --- | --- | --- |
+| `boost-chance` | No | `0.08` | Probability, per random tick **at full moisture only**, of bone-mealing the plant above. `0` or less disables the boost; moisture still cycles. |
+| `rich-soil-block` | No | `farmersdelight:rich_soil` | Block this reverts to when a solid block is placed on top. |
+| `unaffected-blocks` | No | The list of the block named by `rich-soil-block` | Blocks the boost must skip. Same entry syntax as above. |
+| `moisture-property` | Yes | `moisture` | Name of the integer moisture property. **Required**: an `int` property of this name must exist, or the block loads without this behavior, with the property named in the console. |
+
+The block must declare an integer moisture property with the range `0~7`. The name may be changed with `moisture-property`, but a property of whatever name is configured has to exist — otherwise the block places as inert farmland with no moisture cycle, no boost and no revert-on-cover, and the reason is in the console rather than in the world. Moisture is capped at 7 and is not configurable. Rain, or water within the 9×9×2 box around the block, snaps it straight to 7; otherwise it drops by one per random tick. Because the boost only rolls at full moisture, a dry farm never boosts.
+
+The exclusion list falls back to the rich soil block's own list when this block declares none, which is how the shipped pair keeps both blocks in sync from a single list. Writing an explicitly empty `unaffected-blocks: []` here is different from omitting it: it disables the exclusions for this block instead of borrowing them.
+
+The revert-on-cover check uses collision, with melons, pumpkins, moving pistons and fence gates exempted. Crops do not collide, so planting never reverts the soil.
+
+Organic compost — scans the 3×3×3 box around itself each random tick, sums a chance from activators, water and sky light, and on success advances one stage or, at the top stage, turns into rich soil:
+
+```yaml
+behavior:
+  - type: farmersdelight:organic_compost
+    rich-soil-block: farmersdelight:rich_soil
+    max-stage: 7
+    activator-bonus-per-neighbor: 0.02
+    water-bonus: 0.10
+    light-high-bonus: 0.10
+    light-low-bonus: 0.05
+    light-threshold: 12
+    activators:
+      - minecraft:brown_mushroom
+      - minecraft:red_mushroom
+      - minecraft:podzol
+      - minecraft:mycelium
+      - farmersdelight:brown_mushroom_colony
+      - farmersdelight:red_mushroom_colony
+      - farmersdelight:organic_compost
+      - farmersdelight:rich_soil
+      - farmersdelight:rich_soil_farmland
+states:
+  properties:
+    composting:
+      type: int
+      default: 0
+      range: 0~7
+```
+
+| Parameter | Required | Default | Effect |
+| --- | --- | --- | --- |
+| `max-stage` | No | `7` | Stage at or above which the block converts instead of advancing. Keep it inside the declared `composting` range: a `max-stage` above the range's maximum makes the block try to advance past its last state. |
+| `rich-soil-block` | No | `farmersdelight:rich_soil` | Block placed on completion. |
+| `brown-mushroom-colony` / `red-mushroom-colony` | No | The shipped colony IDs | Exposed for other parts of the plugin; this behavior does not place them itself. |
+| `activator-bonus-per-neighbor` | No | `0.02` | Chance added per activator block found in the 3×3×3 box. |
+| `water-bonus` | No | `0.10` | Chance added if any water is in the box. Flat, not per block. |
+| `light-high-bonus` | No | `0.10` | Chance added when the highest sky light in the box is **above** `light-threshold`. |
+| `light-low-bonus` | No | `0.05` | Chance added otherwise. One of the two always applies. |
+| `light-threshold` | No | `12` | Sky-light cutoff between the two. |
+| `activators` | No | Empty | Blocks that count as activators. Same entry syntax as `unaffected-blocks`. |
+| `composting-property` | Yes | `composting` | Name of the integer stage property. **Required**: an `int` property of this name must exist, or the block loads without this behavior, with the property named in the console. |
+
+The per-tick chance is `activator count × activator-bonus-per-neighbor`, plus the applicable light bonus, plus the water bonus if any water is in the box.
+
+Two things surprise people here. The 3×3×3 scan includes the compost block itself, so listing `farmersdelight:organic_compost` among the activators — as the shipped config does, mirroring the original mod — gives every compost block a permanent bonus and makes a stack of them compost faster; removing that one entry measurably slows composting. And there is no "no light bonus" branch: omitting the two light parameters still adds `0.10` or `0.05`. To make light irrelevant, set both to the same value; to stop dark compost progressing on light alone, set `light-low-bonus: 0`.
+
+The block must declare an integer stage property. The name may be changed with `composting-property`, but a property of whatever name is configured has to exist — otherwise the block still places and still looks like compost, but never composts and never converts, with the reason confined to the load log. It also needs `settings.is-randomly-ticking: true`.
+
+`max-stage` is compared against the live property value with "at or above", so it should equal the top of the property's declared range. Set it lower and the higher stages become unreachable. Set it higher and the block never converts — instead it tries to advance to a stage the property does not have, which fails on the tick that reaches the top of the range.
+
+### 3.9 Rope, Tatami, and Upper-Half Loot Relay
+
+Rope:
+
+```yaml
+behavior:
+  - type: farmersdelight:rope
+states:
+  properties:
+    north: {type: boolean, default: false}
+    east: {type: boolean, default: false}
+    south: {type: boolean, default: false}
+    west: {type: boolean, default: false}
+```
+
+**This behavior takes no parameters at all.** Anything written under it is inert. The four connection properties are looked up by fixed name; a missing one is tolerated rather than reported, so a typo shows up as a rope that never connects on that one side.
+
+Connections are decided when the rope is placed and are never re-derived upward afterwards. Clicking a horizontal face lets the rope tie to anything presenting a full sturdy face; clicking a vertical face restricts the tie to ropes, iron bars, glass panes and walls. A later neighbour update only ever re-applies the restricted test, so a tie to a plain solid block lasts only until something on that side changes. Right-clicking a rope while holding the same rope item reels one down into the first replaceable slot below; right-clicking with an empty hand walks up the rope column and rings the first bell it finds, within the distance set by `rope.bell-ring-max-distance` in `config.yml`.
+
+The shipped rope carries the `minecraft:climbable`, `minecraft:fall_damage_resetting`, `minecraft:mineable/shears` and `minecraft:sword_efficient` tags. None of them are inherited from the backing block, so a custom rope must declare its own.
 
 Tatami:
 
@@ -410,38 +766,100 @@ behavior:
     facing-property: facing
     paired-property: paired
     pair-while-sneaking: false
+states:
+  properties:
+    facing:
+      type: direction
+      default: down
+    paired:
+      type: boolean
+      default: false
 ```
 
-| Parameter | Default | Effect |
-| --- | --- | --- |
-| `block-id` | Built-in tatami ID | Used to determine whether an adjacent block is the same kind of tatami. |
-| `facing-property` | `facing` | Name of the facing property. |
-| `paired-property` | `paired` | Name of the boolean property for whether it is paired. |
-| `pair-while-sneaking` | `false` | Whether sneak-placement also auto-pairs. |
+| Parameter | Required | Default | Effect |
+| --- | --- | --- | --- |
+| `block-id` | No | `farmersdelight:tatami`, or whatever a previous parse left | Block ID treated as "a tatami" by the pairing check. |
+| `facing-property` | Yes | `facing` | Name of the direction property. |
+| `paired-property` | Yes | `paired` | Name of the boolean pairing property. |
+| `pair-while-sneaking` | No | `false` | `false` means sneak-placing suppresses pairing, matching vanilla. `true` means pairing always happens. |
 
-Rope:
+Placement sets `facing` to the opposite of the clicked face, so placing on the ground gives a lone flat mat while placing against another tatami's side gives a horizontal facing, which is what drives the woven long-mat texture. Pairing then rewrites both mats.
+
+These three names are **server-wide, and the last configuration parsed wins**: only one block ID is recognised as a tatami at a time. The defaults are also self-referential — after a reload in which you deleted the key, the previously set value persists rather than reverting. Once you have written a value, omitting it later is not the same as writing the default. There is no validation that `block-id` names an existing block.
+
+**Both properties are required.** A block declaring this behavior that cannot resolve either one keeps loading and keeps placing, but without the tatami behavior: no facing on placement, no pairing, no woven long mat. The missing property is named in the console, and that message is the only place the failure is visible — the block itself looks fine. `paired` must be a boolean, since the pairing flag is written as one, and a property of that name with any other type costs you the behavior just as a missing one does. `facing` is looked up by name only: its value is read and written as text, so any property type whose values spell out direction names is accepted. What that type must cover is the values actually written — placement writes the opposite of the clicked face, so a floor placement writes `down`. A value the property does not have is dropped and the state is left unchanged, which is why a `4-direction` property, having no `down`, leaves floor-placed mats on their default facing.
+
+Upper-half loot relay — for double-tall blocks, so that breaking the upper half drops the *lower* half's loot table instead of the upper half's usually empty one:
 
 ```yaml
 behavior:
-  - type: farmersdelight:rope
-```
-
-`farmersdelight:rope` reads the `north`, `south`, `east`, `west` boolean properties from the block state and automatically connects adjacent ropes. This behavior has no additional configuration parameters.
-
-Upper-half loot relay:
-
-```yaml
-behavior:
+  - type: double_high_block
+  - type: farmersdelight:wild_rice
+    requires-water: true
   - type: farmersdelight:upper_half_loot_relay
-    lower-half-direction: DOWN
-    require-matching-lower-half: true
-    require-matching-block: true
-    half-property: half
-    half-lower-value: lower
-    half-upper-value: upper
 ```
 
-This behavior is used for double-tall blocks: when the player breaks the upper half, it relays the drop determination to the corresponding lower half, preventing the upper half from bypassing maturity or lower-half state validation.
+The defaults already match CE's `double_high_block` naming, so the bare form above is how this plugin uses it. For a plant whose halves are laid out unusually:
+
+| Parameter | Required | Default | Effect |
+| --- | --- | --- | --- |
+| `lower-half-direction` | No | `DOWN` | Direction from this block to its lower half. An unrecognised name falls back to `DOWN` silently. |
+| `require-matching-lower-half` | No | `true` | Whether the block in that direction must really be a valid lower half. Read as a strict boolean. |
+| `require-matching-block` | No | `true` | Whether the lower half must be the same block ID. `false` accepts any custom block with a matching half value. Read as a strict boolean. |
+| `half-property` | Yes | `half` | Name of the property holding lower/upper. **Required**: a property of this name must exist, or the block loads without this behavior — the upper half then simply drops its own loot table — with the property named in the console. Looked up by name only, with no type check, because the half values are compared as text. |
+| `half-lower-value` / `half-upper-value` | No | `lower` / `upper` | Property values meaning each half. Compared case-insensitively. |
+
+Setting both `require-*` parameters to `false` does not make the relay unconditional: the state must still be recognised as the upper half first. And when the block also carries `farmersdelight:tall_crop`, an immature pairing suppresses drops entirely before the relay is even considered — which is how unripe tall crops avoid dropping their mature loot. If the resolved lower-half loot is empty, the relay does nothing and the normal drops stand.
+
+### 3.10 Item Behavior and Food Effect Functions
+
+`farmersdelight:conditional_block_planting` is an **item** behavior: it makes one item place different blocks depending on what it is clicked on. Note that an item's `behavior` is a single map, not a list:
+
+```yaml
+items:
+  minecraft:brown_mushroom:
+    behavior:
+      type: farmersdelight:conditional_block_planting
+      rules:
+        - target: farmersdelight:rich_soil
+          block: farmersdelight:brown_mushroom
+        - target: farmersdelight:organic_compost
+          block: farmersdelight:brown_mushroom
+```
+
+| Parameter | Required | Default | Effect |
+| --- | --- | --- | --- |
+| `rules` | Yes | **Required** | List of rules. There is no default and no pass-through fallback: a missing list, an empty list, or a list whose every entry was discarded as malformed throws at load. CraftEngine keeps the item and drops only its behavior. |
+| `rules[].target` | Yes | Required | Block that must be clicked: a CE block ID, or `minecraft:<block>` for vanilla. |
+| `rules[].block` | Yes | Required | CE block placed in the slot above. |
+
+An entry that is not a map, and an entry missing either key, is skipped — but not silently: each one logs its own warning at load naming the item. Two rules with the same `target` collapse to the last one, and that is the one case with no warning at all. A rule naming a block CraftEngine does not know is not caught at load either; it is only noticed when someone clicks the matching target, and it then logs a warning **per click** and passes the click through. The click is likewise handed back to CraftEngine and vanilla untouched when the clicked face is not the top face, when no rule matches, when the slot above is not air, or when a protection plugin denies building.
+
+That pass-through is the useful part: the behavior can be attached to a vanilla item without breaking it. In the shipped config, a brown mushroom clicked on plain dirt still places the vanilla mushroom, while the same item clicked on rich soil or organic compost places this plugin's custom mushroom. Keep the placed block's own survival rules pointing back at the same soils, or it pops off on the next block update.
+
+`farmersdelight:comfort` and `farmersdelight:nourishment` apply this plugin's two food effects. They are **event functions, not loot functions** — they belong in an event list such as a food item's `on: consume`, and writing them inside a loot table's `functions` list does not resolve:
+
+```yaml
+farmersdelight:beef_stew:
+  events:
+    - on: consume
+      functions:
+        - type: farmersdelight:nourishment
+          duration: 180
+          level: 1
+```
+
+| Parameter | Required | Default | Effect |
+| --- | --- | --- | --- |
+| `duration` | No | `90` | Effect duration in **seconds**, not ticks. Accepts a CE number provider. Clamped to at least 1. |
+| `level` | No | `1` | Effect level, counted from 1. Accepts a CE number provider. Clamped to at least 1. |
+| `condition` / `conditions` | No | None | Standard CE predicates. This is one of the few parameters that accepts both spellings. |
+
+A dose stacks against an active one by the vanilla potion rule: stronger replaces and refreshes, equal extends to the longer remaining time, weaker is ignored.
+
+These functions bypass the per-effect switches in `config.yml`. `buff.comfort.enabled` and `buff.nourishment.enabled` only gate the config-driven food lists described in section 13; a food carrying `type: farmersdelight:comfort` grants Comfort even with `buff.comfort.enabled: false`. The only switch that silences them is `buff.enabled: false`. Note also that `buff.comfort.heal-interval-ticks: 0` leaves the effect display intact while disabling its healing, so the effect can look applied and do nothing.
+
+This plugin's own resources do not use either function — its foods are wired through `config.yml` instead. They exist for pack authors and addons.
 
 ## 4. Configuration File Responsibilities
 
@@ -491,16 +909,15 @@ cooking-pot:
 
 `true` means that when the cooking pot is broken, its internal ingredients, container, pending-output slot, and output slot are saved into the dropped cooking pot item; `false` means dropping an empty pot and scattering the pot's contents into the world.
 
-Cooking pot product experience reward:
+Station product experience reward (top level: the cooking pot and every addon station that credits experience through the API share it):
 
 ```yaml
-cooking-pot:
-  experience-reward:
-    mode: vanilla
-    auraskills:
-      skill: farming
-      multiplier: 1.0
-      raw: false
+experience-reward:
+  mode: vanilla
+  auraskills:
+    skill: farming
+    multiplier: 1.0
+    raw: false
 ```
 
 `mode` can be `vanilla`, `auraskills`, `both`, or `none`. The reward is settled when the player takes the product from the cooking pot's output slot, or right-clicks with a container to take out a pending-output product; hopper auto-extraction has no player context, so it does not trigger AuraSkills experience. `multiplier` uses the recipe's `experience` times the multiplier, while writing `amount` instead gives a fixed amount of experience per extraction.
@@ -527,10 +944,10 @@ minecraft:air
 
 Applicable locations:
 
-- `knife-drops.<entity>.normal`
-- `knife-drops.<entity>.burning`
-- `straw-drops.<type>.drop`
-- `cooking-pot.container-returns.<item>`
+- `drops.mob-extra.<entity>.normal`
+- `drops.mob-extra.<entity>.burning`
+- `drops.straw.<type>.drop`
+- `container-returns.<item>`
 - Optional display items in `gui.yml`
 
 A recipe's `result` should not be cleared; if you do not want a particular recipe, simply delete that recipe.
@@ -860,10 +1277,10 @@ This requires the corresponding translation to exist in the resource pack's lang
 
 ## 12. Knife Drops and Straw
 
-Knife recognition:
+Knife recognition (top level: the cutting board, the skillet, mushroom colonies, rice harvesting, straw drops and the recipe viewer read the same list):
 
 ```yaml
-knife-config:
+knife-items:
   tags:
     - farmersdelight:knives
   items:
@@ -874,25 +1291,34 @@ knife-config:
     - farmersdelight:netherite_knife
 ```
 
-Extra drops from knife kills:
+Extra drops from killing a mob with one of the tools in `drops.mob-extra-tools`:
 
 ```yaml
-knife-drops:
-  pig:
-    normal: farmersdelight:ham
-    burning: farmersdelight:smoked_ham
-    chance: 0.5
-    looting-multiplier: 0.1
+drops:
+  mob-extra-tools:
+    tags:
+      - farmersdelight:knives
+    items:
+      - farmersdelight:flint_knife
+  mob-extra:
+    pig:
+      normal: farmersdelight:ham
+      burning: farmersdelight:smoked_ham
+      chance: 0.5
+      looting-multiplier: 0.1
 ```
+
+`drops.mob-extra-tools` is the default trigger list for these drops only; it does not make those items count as knives elsewhere. An individual rule can override it with `tool-item` / `tool-items` / `tool-tags`.
 
 Straw drops:
 
 ```yaml
-straw-drops:
-  mature_wheat:
-    drop: farmersdelight:straw
-    min-amount: 1
-    max-amount: 2
+drops:
+  straw:
+    mature_wheat:
+      drop: farmersdelight:straw
+      min-amount: 1
+      max-amount: 2
 ```
 
 ## 13. Food Effects
@@ -942,32 +1368,125 @@ pet-foods:
 
 Each key under `pet-foods` is a food item ID, supporting both CraftEngine item IDs and vanilla item IDs. `entities` uses Bukkit `EntityType` names, e.g. `HORSE`, `DONKEY`, `MULE`, `LLAMA`, `CAMEL`. `tempt` is the held-item temptation config; `tick-interval` is in ticks, and 10 ticks is about 0.5 seconds. When you need more temptable foods, simply add a new item entry under `pet-foods`.
 
-Nourishment effect (clears exhaustion after eating, preventing hunger loss): takes effect when eating a food in the `nourishment-foods` list. `duration` is in seconds, defaulting to the original mod's tiers (30 / 60 / 180 / 300). The comfort effect (periodic regeneration) is deprecated in the original mod, so `comfort-foods` is off by default with an empty list; the mechanism code is retained, and you can enable it and add foods yourself if needed.
+Nourishment effect (clears exhaustion after eating, preventing hunger loss): takes effect when eating a food in the `buff.nourishment.foods` list. `duration` is in seconds, defaulting to the original mod's tiers (30 / 60 / 180 / 300). The comfort effect (periodic regeneration) is deprecated in the original mod, so `buff.comfort` is off by default with an empty list; the mechanism code is retained, and you can enable it and add foods yourself if needed. Both report themselves through the buff display configured under `buff.display`.
 
 ```yaml
-comfort-foods:
-  enabled: false
-  foods: {}
-nourishment-foods:
-  enabled: true
-  foods:
-    farmersdelight:cooked_rice:
-      duration: 30        # 30/60/180/300 second tiers
-    farmersdelight:beef_stew:
-      duration: 180
-    farmersdelight:noodle_soup:
-      duration: 300
+buff:
+  comfort:
+    enabled: false
+    heal-interval-ticks: 80
+    heal-amount: 1.0
+    foods: {}
+  nourishment:
+    enabled: true
+    foods:
+      farmersdelight:cooked_rice:
+        duration: 30        # 30/60/180/300 second tiers
+      farmersdelight:beef_stew:
+        duration: 180
+      farmersdelight:noodle_soup:
+        duration: 300
 ```
 
-Container returns:
+Container returns (top level: the cooking pot and every addon station that returns containers through the API share it):
 
 ```yaml
-cooking-pot:
-  container-returns:
-    farmersdelight:milk_bottle: minecraft:glass_bottle
+container-returns:
+  farmersdelight:milk_bottle: minecraft:glass_bottle
 ```
 
-## 14. Commands and Permissions
+## 14. World Data: Composting, Furnace Fuel, and Trades
+
+`world-data` is where this plugin plugs its items into vanilla world mechanics that CraftEngine cannot reach on its own: the composter, the furnace fuel slot, and the two merchant trade pools. It has three subsections, `composting`, `furnace-fuel` and `trades`, and `trades` splits again into `villager` and `wandering-trader`, so there are four independently switchable features:
+
+```yaml
+world-data:
+  composting:
+    enabled: true
+    items:
+      farmersdelight:straw: 0.3
+      farmersdelight:cabbage: 0.65
+      farmersdelight:apple_pie: 1.0
+  furnace-fuel:
+    enabled: true
+    items:
+      farmersdelight:straw: 100
+      farmersdelight:tree_bark: 200
+      farmersdelight:straw_bale: 1000
+  trades:
+    villager:
+      enabled: true
+      trades:
+        - profession: farmer
+          level: 1
+          ingredient: farmersdelight:onion
+          ingredient-amount: 26
+          result: minecraft:emerald
+          result-amount: 1
+          max-uses: 16
+          villager-xp: 2
+          price-multiplier: 0.05
+          chance: 0.14285714285714285
+    wandering-trader:
+      enabled: true
+      generic-trade-count: 5
+      trades:
+        - ingredient: minecraft:emerald
+          ingredient-amount: 1
+          result: farmersdelight:cabbage_seeds
+          result-amount: 1
+          max-uses: 1
+          villager-xp: 12
+          price-multiplier: 0.05
+          chance: 0.014705882352941176
+```
+
+Every `enabled` flag defaults to `true`. Setting one to `false` turns that whole feature off while leaving its list in the file, which is the reversible way to disable a feature; deleting a single entry from a list is how you disable that one item or that one offer (see "Deleting an entry" below).
+
+### 14.1 Composting
+
+A composter refuses this plugin's items on its own, because a CraftEngine item is a plain vanilla material underneath and vanilla only recognises vanilla compostables. The fill is therefore carried out by the plugin.
+
+`items` is keyed by item ID, and the value is the chance between `0.0` and `1.0` that one item raises the composter by one level — the same meaning the number has in vanilla. Vanilla always accepts the first item into an empty composter, and that still applies here. A key that is not a valid item ID, or a value outside `0.0`–`1.0`, is skipped with a console warning and the rest of the list still loads.
+
+### 14.2 Furnace Fuel
+
+`items` is keyed by item ID, and the value is the burn time in ticks, which must be positive. Smelting one item takes 200 ticks, so `200` is worth exactly one smelt. A non-positive value or an invalid item ID is skipped with a console warning.
+
+These burn times are also pushed into the CraftEngine item definition, which is what lets the stack be moved into a furnace's fuel slot at all. `/fd reload config` re-pushes them, so an edited list takes effect without waiting for a CraftEngine reload.
+
+### 14.3 Villager and Wandering Trader Trades
+
+The vanilla merchant listing pools cannot be joined from a plugin, so an offer here is substituted for a drawn vanilla one at the probability the mod's listing would have been picked. `chance` is that probability: it is the share this plugin's listings hold in the pool. A datapack that changes the vanilla pools changes those shares, so `chance` has to be retuned by hand when you use one.
+
+`trades` is a **list of offers**, not a map keyed by ID. Each entry accepts:
+
+| Key | Default | Effect |
+| --- | --- | --- |
+| `profession` | Required for villager offers | Villager profession ID path, e.g. `farmer`. Unused by the wandering trader, which has no profession. |
+| `level` | `1` | Villager level whose pool the listing joins. Unused by the wandering trader. |
+| `ingredient` | Required | Item ID the player hands over. |
+| `ingredient-amount` | `1` | How many of it. Values below `1` are raised to `1`. |
+| `result` | Required | Item ID the player receives. |
+| `result-amount` | `1` | How many of it. Values below `1` are raised to `1`. |
+| `max-uses` | `16` | How many times the trade works before restock. Values below `1` are raised to `1`. |
+| `villager-xp` | `1` | Merchant experience the trade awards. |
+| `price-multiplier` | `0.05` | The vanilla demand and reputation multiplier. |
+| `chance` | `1.0` | Probability this listing wins one draw from its pool. Values above `1.0` are clamped; an entry with `0` or less is dropped. |
+
+An entry without a `profession` (villager list only), or without a valid `ingredient` and `result`, is skipped with a console warning.
+
+`wandering-trader` additionally has `generic-trade-count`, defaulting to `5`: how many of a trader's offers are drawn from the generic pool these listings compete in. Its remaining offer comes from a separate rare pool this plugin does not add to.
+
+### 14.4 Deleting an Entry Is How You Disable It
+
+Every list in `world-data` ships with defaults that reproduce the original mod's data exactly, so the feature works on a `config.yml` that predates these sections. Once your file carries a list, that list replaces the built-in one wholesale: only the entries your file still has are kept.
+
+Deleting an entry is therefore the way to disable that one item or offer — remove `farmersdelight:straw` from `composting.items` and straw no longer composts, remove an offer from `trades.villager.trades` and no farmer ever lists it. Updating the plugin will not add it back: these four lists are treated as content registries by the config updater, which fills in a section only when your file has none of it at all, and never merges individual entries into a section you already have.
+
+`/fd reload config` rebuilds the whole of `world-data`.
+
+## 15. Commands and Permissions
 
 The main command is dynamically registered through code, with the command name `/farmersdelight` and the alias `/fd`. All subcommands first check the base permission `farmersdelight.command`; without this permission, you cannot enter a subcommand even if you have that subcommand's permission.
 
@@ -1058,7 +1577,7 @@ behavior:
 
 Such custom permissions are not automatically written into `plugin.yml`; the permission plugin can still recognize and assign them directly. If you need Bukkit's permission list to show it, you need to register it in the server permission plugin or the plugin description.
 
-## 15. Reload Recommendations
+## 16. Reload Recommendations
 
 `/fd reload` by default only reloads the regular gameplay config, equivalent to `/fd reload config`. Available reload commands:
 
@@ -1078,7 +1597,7 @@ A full restart is recommended for:
 
 Hot-reloading this plugin and CraftEngine with PlugMan or Bukkit reload is not recommended.
 
-## 16. FAQ
+## 17. FAQ
 
 CE item names showing as IDs: check whether the CE item's display name, language file, and resource pack are loaded. This plugin's recipe page prefers the item's own name.
 
@@ -1088,7 +1607,7 @@ Hoppers not working as expected: first confirm whether `hopper-interactions.enab
 
 No change after modifying the config: try `/fd reload` first. If you touched CE resources or the resource pack, do a full restart.
 
-## 17. Compilation
+## 18. Compilation
 
 The development environment resolves the CraftEngine 26.5 dependency through a Maven repository, and `build.gradle.kts` already uses the `net.momirealms:craft-engine-*` coordinates. If the dependency repository is temporarily unavailable, you can first install the corresponding CraftEngine artifacts into `mavenLocal()`.
 
@@ -1119,7 +1638,7 @@ build/libs/farmersdelight-1.0.0-obf.jar
 build/reports/proguard/farmersdelight-1.0.0-mapping.txt
 ```
 
-The obfuscated build (ProGuard) preserves the lifecycle methods of the Bukkit main class, `@EventHandler` methods (kept but allowed to be renamed), enum entries, and the public API package `com.huidu.farmersdelight.api.event.**`; all other classes are renamed and repackaged into `fd`. CraftEngine block behaviors are registered by string key + factory reference and do not rely on class-name reflection, so they can be safely obfuscated. After obfuscation, only the public API package of the plugin's own code remains readable. `build/reports/proguard/*-mapping.txt` is kept solely for internal troubleshooting records (used to reverse-look-up obfuscated stack traces); `build/` is already git-ignored and should not be committed to a public repository.
+The obfuscated build (ProGuard) preserves the lifecycle methods of the Bukkit main class, `@EventHandler` methods (kept but allowed to be renamed), enum entries, and the whole public API tree `com.huidu.farmersdelight.api.**` (events, facades, registries, snapshots — the same set the api-only jar ships); all other classes are renamed and repackaged into `fd`. CraftEngine block behaviors are registered by string key + factory reference and do not rely on class-name reflection, so they can be safely obfuscated. After obfuscation, only the public API package of the plugin's own code remains readable. `build/reports/proguard/*-mapping.txt` is kept solely for internal troubleshooting records (used to reverse-look-up obfuscated stack traces); `build/` is already git-ignored and should not be committed to a public repository.
 
 The debug tools (the `/fd debugtools …` performance testing commands) are not packed into the jar by default; build with `-PdebugTools=true` when needed:
 
