@@ -17,8 +17,6 @@ import net.momirealms.craftengine.core.plugin.context.function.FunctionFactory;
 import net.momirealms.craftengine.core.registry.BuiltInRegistries;
 import net.momirealms.craftengine.core.util.Key;
 
-import java.util.logging.Logger;
-
 /**
  * Registers FarmersDelight's CraftEngine block and item behavior factories. Extracted from the plugin
  * main class so the (verbose, append-only) registration list lives in one focused place. Registration
@@ -29,7 +27,7 @@ public final class BehaviorRegistrar {
     private BehaviorRegistrar() {
     }
 
-    public static void registerBlockBehaviors(Logger logger) {
+    public static void registerBlockBehaviors() {
         registerBehavior(Constants.BEHAVIOR_COOKING_POT, CookingPotBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_CUTTING_BOARD, CuttingBoardBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_SKILLET, SkilletBlockBehavior.FACTORY);
@@ -46,7 +44,9 @@ public final class BehaviorRegistrar {
         registerBehavior(Constants.BEHAVIOR_RICH_SOIL, RichSoilBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_RICH_SOIL_FARMLAND, RichSoilFarmlandBlockBehavior.FACTORY);
 
-        logger.info(I18n.formatConsole("plugin.registered_block_behaviors"));
+        // Census line, not news on a healthy boot: routed through the startup detail channel so it is
+        // recorded at FINE normally and raised to INFO only for an operator debugging the load phase.
+        I18n.logDetail("startup", "plugin.registered_block_behaviors");
     }
 
     public static void registerItemBehaviors() {

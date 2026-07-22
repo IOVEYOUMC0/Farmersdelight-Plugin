@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.api.event;
 
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
+import org.jetbrains.annotations.ApiStatus;
 
 import java.util.Collection;
 import java.util.Set;
@@ -16,6 +17,7 @@ import java.util.Set;
  * rather than reporting removals. Listeners must only ADD ids — the set already holds FarmersDelight's own
  * live displays.
  */
+@ApiStatus.NonExtendable
 public class FarmersDelightCollectLiveDisplaysEvent extends Event {
 
     private static final HandlerList HANDLERS = new HandlerList();

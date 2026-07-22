@@ -14,6 +14,7 @@ import org.bukkit.block.Block;
 import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.ApiStatus;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -26,8 +27,60 @@ import java.util.concurrent.ThreadLocalRandom;
  * Stable, addon-facing entry point for FarmersDelight services (scheduling + experience). Lives in the
  * name-stable api package; every signature uses only Bukkit / java / other api types so
  * addons keep working against the obfuscated jar. Method bodies delegate to renamed internals freely.
+ *
+ * Version your integration with apiVersion() and hasFeature(String) rather than
+ * with the plugin's version string — the plugin version tracks content, the api version tracks the
+ * surface addons compile against.
  */
+@ApiStatus.NonExtendable
 public final class FarmersDelightApi {
+
+    /**
+     * Current api surface revision. Monotonic and bumped by exactly one on every release that ADDS to
+     * the addon-facing surface (a new api class, method, event, or feature flag). Never
+     * decremented, never reused, and never bumped for internal refactors that leave the surface
+     * unchanged. Removals / incompatible changes are not made under this scheme at all: an addon that
+     * compiled against revision N keeps compiling and linking against every revision greater than N.
+     *
+     * Revision 1 is the first build to expose apiVersion(); on older builds the method is
+     * absent, so a call throws NoSuchMethodError — treat a caught NoSuchMethodError (or
+     * NoSuchFieldError) as "revision 0, pre-versioning".
+     */
+    private static final int API_VERSION = 1;
+
+    /**
+     * Feature ids answered by hasFeature(String). An id is added here in the same release that
+     * adds the capability and is never removed, so a probe for an unknown id simply returns false on
+     * older builds. Comparing against apiVersion() works too; feature ids exist so an addon can
+     * ask about one capability without tracking which revision introduced it.
+     */
+    private static final java.util.Set<String> FEATURES = java.util.Set.of(
+            // Runtime recipe registration + the generic recipe book / editor (registerRecipeType,
+            // registerCookingPotRecipe, registerCuttingBoardRecipe, openRecipeBook, openRecipeEditor).
+            "recipes",
+            // Packet-only item displays (createItemDisplay / updateItemDisplay / removeItemDisplay).
+            "item-displays",
+            // Folia-safe scheduling helpers (runAtLocation / runLaterAtLocation / runRepeating).
+            "scheduler",
+            // Custom buff registry + the buff bossbar render channels.
+            "buffs",
+            // com.huidu.farmersdelight.api.block: station identification and read-only snapshots.
+            "station-query",
+            // FarmersDelightHarvestEvent for the Java-side harvest handlers.
+            "harvest-event",
+            // FarmersDelightCookStartEvent on the cooking pot's idle-to-cooking transition.
+            "cook-start-event",
+            // FarmersDelightBuffChangeEvent on real custom-buff level transitions.
+            "buff-change-event",
+            // ProfessionCookingExperienceEvent carries the station location.
+            "cooking-experience-location",
+            // Knife extra-drop rule registration (FarmersDelightKnifeDrops).
+            "knife-drop-rules",
+            // com.huidu.farmersdelight.api.util cross-version compatibility helpers.
+            "compat-util",
+            // Debug tool extension hooks for /fd debugtools.
+            "debug-tools"
+    );
 
     private static final FarmersDelightApi INSTANCE = new FarmersDelightApi();
 
@@ -42,6 +95,43 @@ public final class FarmersDelightApi {
 
     public static FarmersDelightApi get() {
         return INSTANCE;
+    }
+
+    /**
+     * The api surface revision of the running FarmersDelight build (see the bump policy on API_VERSION:
+     * monotonic, +1 per additive release, never decremented, no removals). Compare with a minimum your
+     * addon needs:
+     *
+     * int version;
+     * try {
+     *     version = FarmersDelightApi.get().apiVersion();
+     * } catch (NoSuchMethodError pre) {
+     *     version = 0;
+     * }
+     * if (version >= 1) { ... }
+     *
+     * A build older than the one that introduced this method has no such method, so the call throws
+     * NoSuchMethodError — catch it and treat it as revision 0. Unlike isAvailable this reports the
+     * compiled-in surface, so it stays meaningful even while the plugin is still enabling.
+     */
+    public int apiVersion() {
+        return API_VERSION;
+    }
+
+    /**
+     * True when the running build exposes the capability named by feature. Feature ids are
+     * lowercase hyphenated ("station-query", "harvest-event", "cook-start-event", "buff-change-event",
+     * "cooking-experience-location", "knife-drop-rules", "compat-util", "recipes", "item-displays",
+     * "scheduler", "buffs", "debug-tools"). Unknown or null ids return false, so probing an id that a
+     * newer build introduces is safe on an older one. Ids are never removed once published.
+     *
+     * Prefer this over a version comparison when you care about one capability; prefer
+     * apiVersion() when you need an ordering. Like apiVersion, calling this on a build older
+     * than the one that introduced it throws NoSuchMethodError — guard the first probe if you support
+     * those builds.
+     */
+    public boolean hasFeature(String feature) {
+        return feature != null && FEATURES.contains(feature.trim().toLowerCase(java.util.Locale.ROOT));
     }
 
     /** Registers an addon's block namespace (e.g. "brewinandchewin") so its CraftEngine blocks are
@@ -225,6 +315,18 @@ public final class FarmersDelightApi {
         return com.huidu.farmersdelight.i18n.I18n.formatConsole(key, args);
     }
 
+    /**
+     * True when FarmersDelight's shared debug switch is on and the given category is listed in
+     * debug.categories (or the list is all / *). Lets an addon apply the same console
+     * policy as FarmersDelight itself: keep a healthy boot to a single summary line, and log the
+     * per-subsystem counts through its own logger at INFO only when the operator asked for that
+     * category, at FINE otherwise. Use the startup category for boot census lines.
+     */
+    public static boolean isDebugEnabled(String category) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        return plugin != null && plugin.isDebugEnabled(category);
+    }
+
     /** True if block is a configured heat source (cooking-pot heating). */
     public boolean isHeatSource(Block block) {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
@@ -350,7 +452,8 @@ public final class FarmersDelightApi {
             }
             plugin.awardCookingPotAuraSkillsExperience(player, baseExperience);
             Bukkit.getPluginManager().callEvent(new ProfessionCookingExperienceEvent(
-                    player.getUniqueId(), player.getName(), source, resultCopy, (float) baseExperience));
+                    player.getUniqueId(), player.getName(), source, resultCopy, (float) baseExperience,
+                    location));
         });
     }
 

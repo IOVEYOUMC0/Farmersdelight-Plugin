@@ -7,6 +7,7 @@ import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.jetbrains.annotations.ApiStatus;
 
 import java.util.List;
 import java.util.Map;
@@ -19,6 +20,7 @@ import java.util.Set;
  * This class lives in com.huidu.farmersdelight.api.**, the only package kept name-stable
  * through obfuscation, so addons may call it directly. Signatures use only Bukkit / java types.
  */
+@ApiStatus.NonExtendable
 public final class FarmersDelightItems {
 
     private FarmersDelightItems() {

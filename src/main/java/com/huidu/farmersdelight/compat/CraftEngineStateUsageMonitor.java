@@ -3,7 +3,6 @@ package com.huidu.farmersdelight.compat;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
 import net.momirealms.craftengine.bukkit.block.BukkitBlockManager;
-import net.momirealms.craftengine.core.block.BlockManager;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.pack.allocator.IdAllocator;
 import net.momirealms.craftengine.core.plugin.config.Config;
@@ -14,6 +13,10 @@ import java.util.Map;
 public final class CraftEngineStateUsageMonitor {
     private static final String FARMERS_DELIGHT_NAMESPACE = "farmersdelight:";
     private static final int DEFAULT_LOW_FREE_STATE_WARNING_THRESHOLD = 32;
+
+    // Usage figures last reported at INFO. The plugin refuses to re-enable in the same JVM (see the reload
+    // guard in the main class), so a static field tracks exactly one plugin lifecycle.
+    private static volatile Usage lastReportedUsage;
 
     private CraftEngineStateUsageMonitor() {
     }
@@ -26,7 +29,7 @@ public final class CraftEngineStateUsageMonitor {
             }
 
             Usage usage = inspect(blockManager);
-            plugin.getLogger().info(I18n.formatConsole("craftengine_state.usage",
+            String message = I18n.formatConsole("craftengine_state.usage",
                     "reason", reason == null || reason.isBlank()
                             ? ""
                             : I18n.formatConsole("craftengine_state.reason_suffix", "reason", reason),
@@ -34,7 +37,16 @@ public final class CraftEngineStateUsageMonitor {
                     "total", usage.total(),
                     "free", usage.free(),
                     "fd_states", usage.farmersDelightStates(),
-                    "addon_states", usage.addonStates()));
+                    "addon_states", usage.addonStates());
+
+            // Report the figures once per lifecycle, and again only when they actually move. Startup and the
+            // CraftEngine reload pass both reach this point, but only the reload pass sees the final numbers.
+            if (usage.equals(lastReportedUsage)) {
+                plugin.getLogger().fine(message);
+            } else {
+                lastReportedUsage = usage;
+                plugin.getLogger().info(message);
+            }
 
             if (usage.free() == 0) {
                 plugin.getLogger().warning(I18n.formatConsole("craftengine_state.exhausted"));

@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.api.buff;
 
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * A server-side custom buff an addon tracks outside of vanilla PotionEffects — typical examples
@@ -20,6 +21,7 @@ import org.bukkit.entity.Player;
  * <p>Implementations must be idempotent: remove(Player) on a player without the buff is a
  * no-op, and isActive(Player) returns false both before activation and after removal.
  */
+@ApiStatus.OverrideOnly
 public interface CustomBuff {
 
     /** Stable id used for de-duplication in the registry and (if you want) logging. */

@@ -1,7 +1,9 @@
 package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.util.BehaviorArgParser;
+import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CraftEngineAdapter;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
@@ -24,6 +26,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public class RichSoilFarmlandBlockBehavior extends BlockBehavior {
 
     private static final int MAX_MOISTURE = 7;
+    private static final String MOISTURE_PROPERTY = "moisture";
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
@@ -41,25 +44,71 @@ public class RichSoilFarmlandBlockBehavior extends BlockBehavior {
     private final float boostChance;
     private final Property<Integer> moistureProperty;
     private final Key richSoilBlockId;
+    // Null when the configuration declares no unaffected-blocks key of its own, in which case the list is
+    // borrowed from the rich soil block named by rich-soil-block. An explicitly configured empty list is a
+    // parsed empty set, not null, so writing an empty list does disable the exclusions.
+    private final ConfiguredBlockSet configuredUnaffectedBlocks;
+    // Resolved copy of the borrowed list. The rich soil block may not be registered yet when this behavior is
+    // built, so the lookup is deferred to first use and cached once it succeeds. Written from the tick thread
+    // that first resolves it and read from every tick thread, hence volatile; the referenced set is immutable
+    // and the field only ever moves from null to a fully built set, so a racing reader either misses the cache
+    // and repeats the lookup or sees the finished set.
+    private volatile ConfiguredBlockSet borrowedUnaffectedBlocks;
 
     private RichSoilFarmlandBlockBehavior(BlockDefinition block, float boostChance, Property<Integer> moistureProperty,
-                                          Key richSoilBlockId) {
+                                          Key richSoilBlockId, ConfiguredBlockSet configuredUnaffectedBlocks) {
         super(block);
         this.boostChance = boostChance;
         this.moistureProperty = moistureProperty;
         this.richSoilBlockId = richSoilBlockId;
+        this.configuredUnaffectedBlocks = configuredUnaffectedBlocks;
     }
 
-    @SuppressWarnings("unchecked")
+    /**
+     * Blocks this farmland's boost must skip: its own configured list when it declares one, otherwise the list
+     * of the rich soil block it reverts to. The reference mod routes the farmland's boost through
+     * RichSoilBlock.tryBoostingPlantsAboveAndBelow, so both blocks honour the same exclusions by default.
+     */
+    private ConfiguredBlockSet unaffectedBlocks() {
+        if (configuredUnaffectedBlocks != null) {
+            return configuredUnaffectedBlocks;
+        }
+        ConfiguredBlockSet cached = borrowedUnaffectedBlocks;
+        if (cached != null) {
+            return cached;
+        }
+        BlockDefinition richSoil = CraftEngineBlocks.byId(richSoilBlockId);
+        if (richSoil == null) {
+            return ConfiguredBlockSet.EMPTY;
+        }
+        RichSoilBlockBehavior behavior = CustomBlockUtils.getBehavior(richSoil.defaultState(), RichSoilBlockBehavior.class);
+        if (behavior == null) {
+            return ConfiguredBlockSet.EMPTY;
+        }
+        ConfiguredBlockSet resolved = behavior.unaffectedBlocks();
+        borrowedUnaffectedBlocks = resolved;
+        return resolved;
+    }
+
     public static final BlockBehaviorFactory<RichSoilFarmlandBlockBehavior> FACTORY = new BlockBehaviorFactory<>() {
         @Override
         public RichSoilFarmlandBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
             float chance = BehaviorArgParser.getFloat(arguments, "boost-chance", 0.08f);
-            String moisturePropertyName = BehaviorArgParser.getString(arguments, "moisture-property", "moisture");
-            Property<Integer> moistureProperty = (Property<Integer>) block.getProperty(moisturePropertyName);
+            // Moisture drives the whole random tick: drying out, rehydrating from water or rain, and the boost
+            // that only fully wet soil performs. The property may carry another name, but one of that name has
+            // to exist: a block declaring this behavior without it aborts its own load here, with the config
+            // node and the name in the message, instead of loading as farmland whose moisture never changes
+            // and which never boosts anything.
+            String path = section != null ? section.path() : Constants.BEHAVIOR_RICH_SOIL_FARMLAND;
+            String moisturePropertyName = BehaviorArgParser.getString(arguments, "moisture-property", MOISTURE_PROPERTY);
+            Property<Integer> moistureProperty =
+                    BlockBehaviorFactory.getProperty(path, block, moisturePropertyName, Integer.class);
             String richSoilId = BehaviorArgParser.getStringStrict(arguments, "rich-soil-block", "farmersdelight:rich_soil");
-            return new RichSoilFarmlandBlockBehavior(block, chance, moistureProperty, Key.of(richSoilId));
+            ConfiguredBlockSet unaffected = BehaviorArgParser.hasArgument(arguments, "unaffected-blocks")
+                    ? ConfiguredBlockSet.parse(arguments.get("unaffected-blocks"))
+                    : null;
+            return new RichSoilFarmlandBlockBehavior(block, chance, moistureProperty, Key.of(richSoilId), unaffected);
         }
     };
 
@@ -105,7 +154,7 @@ public class RichSoilFarmlandBlockBehavior extends BlockBehavior {
     public void randomTick(Object thisBlock, Object[] args) {
         if (args.length < 3) return;
         ImmutableBlockState state = BlockStateUtils.getOptionalCustomBlockState(args[0]).orElse(null);
-        if (state == null || state.isEmpty() || moistureProperty == null) return;
+        if (state == null || state.isEmpty()) return;
         World world = CraftEngineAdapter.toWorld(args[1]);
         BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
         if (world == null || pos == null) return;
@@ -159,6 +208,7 @@ public class RichSoilFarmlandBlockBehavior extends BlockBehavior {
     private void boostAbove(World world, BlockPos pos) {
         Block plant = world.getBlockAt(pos.x(), pos.y() + 1, pos.z());
         if (plant.getType() == Material.AIR) return;
+        if (unaffectedBlocks().contains(plant)) return;
         try {
             // Bukkit's applyBoneMeal delegates to NMS BonemealableBlock.performBonemeal for vanilla
             // crops + custom CE blocks that implement the interface, so this matches the original

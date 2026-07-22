@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.i18n;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.config.ConfigFileUpdater;
 import com.huidu.farmersdelight.util.Text;
 import net.kyori.adventure.text.Component;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -82,8 +83,21 @@ public class I18n {
 
         state = new LocaleState(Map.copyOf(loaded), resolvedCurrent, resolvedDefault);
 
-        logInfo("i18n.loaded", "count", loaded.size(), "locale", resolvedDefault);
+        // The locale set is resolved on plugin load, again on enable, and once more on every CraftEngine
+        // reload. Only the first resolution, and any later one that actually changes the file count or the
+        // selected locale, is worth a console line; the rest go to the startup detail channel.
+        String signature = loaded.size() + "/" + resolvedDefault;
+        if (signature.equals(lastLoggedLocaleSignature)) {
+            logDetail("startup", "i18n.loaded", "count", loaded.size(), "locale", resolvedDefault);
+        } else {
+            lastLoggedLocaleSignature = signature;
+            logInfo("i18n.loaded", "count", loaded.size(), "locale", resolvedDefault);
+        }
     }
+
+    // Locale count + selected locale last reported at INFO, so a repeated resolution with an unchanged
+    // result stays off the console. Null until the first resolution of this plugin lifecycle.
+    private static volatile String lastLoggedLocaleSignature;
 
     private static void saveDefaultLanguages() {
         String[] defaultLangs = {"zh_cn", "en_us"};
@@ -143,6 +157,7 @@ public class I18n {
             }
 
             if (changed) {
+                ConfigFileUpdater.tidy(existing);
                 Files.writeString(langFile, existing.saveToString(), StandardCharsets.UTF_8);
                 logInfo("i18n.merged_missing", "locale", lang);
             }
@@ -468,6 +483,29 @@ public class I18n {
         }
     }
 
+    /**
+     * Startup / reload detail that a healthy boot does not need on the console: per-subsystem census
+     * counts, "loaded successfully" notices, and steps that legitimately run more than once per
+     * lifecycle. Printed at INFO when the matching debug category is enabled (debug.enabled plus
+     * debug.categories in config.yml), and recorded at FINE otherwise so raising the logger level
+     * still surfaces it. Nothing routed here is ever dropped.
+     */
+    public static void logDetail(String category, String key, Object... args) {
+        FarmersDelightPlugin pluginInstance = plugin;
+        if (pluginInstance == null) {
+            return;
+        }
+        Logger logger = pluginInstance.getLogger();
+        if (logger == null) {
+            return;
+        }
+        if (category != null && pluginInstance.isDebugEnabled(category)) {
+            logger.info(formatConsole(key, args));
+        } else {
+            logger.fine(formatConsole(key, args));
+        }
+    }
+
     public static void logWarning(String key, Object... args) {
         Logger logger = plugin != null ? plugin.getLogger() : null;
         if (logger != null) {
@@ -623,6 +661,7 @@ public class I18n {
 
     public static void cleanup() {
         plugin = null;
+        lastLoggedLocaleSignature = null;
         state = new LocaleState(Map.of(), null, FALLBACK_LOCALE);
     }
 }

@@ -11,7 +11,11 @@ language: ''
 # Debug logging. Off by default, not needed on a normal server.
 # enabled=true is only the master switch; an empty categories outputs no per-category debug logs.
 # Recommended only when troubleshooting, with specific categories such as cooking_pot, stove, skillet, tray.
-# To temporarily output all categories, set categories to all or *.
+# The startup category restores the per-subsystem boot lines (language files, block behaviors, tick manager,
+# proxy displays, pet foods, advancements, warmup, datapack writes) that a normal boot folds into the two
+# summary lines; the recipe and loot categories do the same for per-recipe-type and drop-rule counts.
+# Everything in those categories is also written at FINE, so raising the logger level surfaces it without
+# turning debug on. To temporarily output all categories, set categories to all or *.
 debug:
   enabled: false
   categories: []
@@ -29,6 +33,17 @@ loot-injection:
 # Advancement system. When disabled, the built-in advancement datapack is not synced.
 advancements:
   enabled: true
+  # Hide advancements whose CraftEngine items/blocks were deleted from the CraftEngine configuration, and drop
+  # the matching subtasks of multi-step advancements so they stay completable. Children of a hidden advancement
+  # re-attach to the nearest visible ancestor; the tab root is never hidden. Gating is skipped entirely while the
+  # CraftEngine registries are still empty, so a slow start never looks like deleted content.
+  auto-disable-missing: true
+  # Always keep these advancements visible, even when their CraftEngine content is missing.
+  # Entries are the advancement id (master_chef) or tab-qualified (farmersdelight:master_chef).
+  # A bare id applies to every registered tab, so prefer the tab-qualified form when addons add tabs.
+  force-enable: []
+  # Always hide these advancements. Beats force-enable and automatic detection.
+  force-disable: []
 
 # CraftEngine resource auto-completion.
 # First startup always extracts the full built-in CraftEngine resources to CraftEngine/resources/farmersdelight.
@@ -36,6 +51,31 @@ advancements:
 # Set to false if you manually deleted some built-in configs and do not want them re-added (first extraction is unaffected).
 craftengine-resources:
   auto-completion: true
+
+# Recipe settings: which bundled recipes are written to disk, and how recipes are revealed in the books.
+recipes:
+  # Bundled recipe files.
+  # A recipe file is only written when it is missing entirely, so recipes added by a plugin update never
+  # reach a server that already has recipes/*.yml. On startup the ids that exist in the jar but not on
+  # disk are listed once in the console.
+  # merge-missing-bundled=true adds those ids back to the file. Leave it false if you deleted recipes on
+  # purpose to disable them, because the merge would bring every deleted recipe back.
+  # An id that already exists on disk is never overwritten under either setting.
+  merge-missing-bundled: false
+
+  # Recipe discovery: when enabled, recipes start LOCKED in the recipe books (FarmersDelight's own cooking-pot /
+  # cutting-board viewer AND the addon recipe book) and are revealed per-player as they unlock them. Locking only
+  # affects the books' display -- it never blocks actual crafting at a station. Off by default (books behave as before).
+  discovery:
+    enabled: false
+    # How locked recipes appear in a book: 'placeholder' shows a locked icon; 'hidden' omits them until unlocked.
+    locked-display: placeholder
+    # Item id used for the 'placeholder' locked icon.
+    locked-icon: BARRIER
+    # Auto-unlock a recipe when the player obtains its result item or one of its exact (non-tag) ingredients.
+    unlock-on-obtain: true
+    # Send the player a chat message when a recipe unlocks.
+    notify: true
 
 # Global performance budget. Per-block tick budgets live in each block's config; this keeps cross-feature maintenance tasks.
 performance:
@@ -62,6 +102,16 @@ performance:
   # Max plugin block data entries reloaded per tick from already-loaded chunks during plugin startup.
   # Increase to shorten post-startup recovery time, decrease to ease startup-instant load.
   startup-chunk-loads-per-tick: 16
+
+  # Hard cap on particle + sound packets a single chunk's cooking pots / skillets / stoves may emit in one
+  # server tick. Prevents a dense pocket of heat blocks from flooding the packet queue. Lower on a struggling
+  # server; the per-block emission chances (in each block's effects section) still gate individual visuals.
+  chunk-effect-packet-budget: 50
+
+  # How often (ticks) the Comfort / Nourishment effect task runs per tracked player: drives duration
+  # countdown and the bossbar push. Higher = smoother CPU under many buffed
+  # players at the cost of bar smoothness; durations self-correct since they decrement by this interval.
+  effect-tick-interval-ticks: 4
 
 # Master switch for the vanilla container bridge between hoppers and plugin blocks.
 # When enabled=false, the hopper container bridge for plugin blocks is fully disabled, avoiding hoppers eating items, duplicate container creation or write errors.
@@ -282,8 +332,10 @@ cutting-board:
   #     scale: 0.55
 
 # Knife detection. Recommended to keep both tags and explicit items: tags for CE resource-side extension, explicit items as a fallback.
-# This still defines which items count as knives, affecting board/knife-recipe knife semantics.
-knife-config:
+# This is the knife definition for the whole plugin, not only for drops: the cutting board, the skillet,
+# mushroom colony harvesting, rice harvesting, straw drops, the knife icon in the recipe viewer and the
+# knife achievements all read it, as do addon drop rules registered without their own tool list.
+knife-items:
   tags:
     - farmersdelight:knives
   items:
@@ -293,94 +345,121 @@ knife-config:
     - farmersdelight:diamond_knife
     - farmersdelight:netherite_knife
 
-# Default trigger tools for mob extra drops. Only affects mob-extra-drops below, does not treat these items as knives.
-# items can be any minecraft:* or CraftEngine item ID; tags can be vanilla/CraftEngine item tags.
-# For example, to let an iron sword also trigger mob extra drops, add minecraft:iron_sword under items.
-mob-extra-drop-tools:
-  tags:
-    - farmersdelight:knives
-  items:
-    - farmersdelight:flint_knife
-    - farmersdelight:iron_knife
-    - farmersdelight:golden_knife
-    - farmersdelight:diamond_knife
-    - farmersdelight:netherite_knife
+# Extra drops that knives (and other configured tools) produce.
+drops:
+  # Default trigger tools for mob extra drops. Only affects drops.mob-extra below, does not treat these items as knives.
+  # items can be any minecraft:* or CraftEngine item ID; tags can be vanilla/CraftEngine item tags.
+  # For example, to let an iron sword also trigger mob extra drops, add minecraft:iron_sword under items.
+  mob-extra-tools:
+    tags:
+      - farmersdelight:knives
+    items:
+      - farmersdelight:flint_knife
+      - farmersdelight:iron_knife
+      - farmersdelight:golden_knife
+      - farmersdelight:diamond_knife
+      - farmersdelight:netherite_knife
 
-# Extra drops when killing an adult mob with a tool configured in mob-extra-drop-tools.
-# normal is the regular drop, burning is the drop when the target is on fire, chance is the base probability, looting-multiplier is the added probability per looting level.
-# Each rule may use tool-item / tool-items / tool-tags to override the trigger tools; otherwise mob-extra-drop-tools is used.
-# Example: tool-item: minecraft:iron_sword means this rule triggers only when an iron sword kills the mob.
-mob-extra-drops:
-  pig:
-    normal: farmersdelight:ham
-    burning: farmersdelight:smoked_ham
-    chance: 0.5
-    looting-multiplier: 0.1
-  hoglin:
-    normal: farmersdelight:ham
-    burning: farmersdelight:smoked_ham
-    chance: 0.5
-    looting-multiplier: 0.1
-  cow:
-    normal: minecraft:leather
-    burning: ""
-    chance: 1.0
-    looting-multiplier: 0.0
-  mooshroom:
-    normal: minecraft:leather
-    burning: ""
-    chance: 1.0
-    looting-multiplier: 0.0
-  donkey:
-    normal: minecraft:leather
-    burning: ""
-    chance: 1.0
-    looting-multiplier: 0.0
-  horse:
-    normal: minecraft:leather
-    burning: ""
-    chance: 1.0
-    looting-multiplier: 0.0
-  mule:
-    normal: minecraft:leather
-    burning: ""
-    chance: 1.0
-    looting-multiplier: 0.0
-  llama:
-    normal: minecraft:leather
-    burning: ""
-    chance: 1.0
-    looting-multiplier: 0.0
-  trader_llama:
-    normal: minecraft:leather
-    burning: ""
-    chance: 1.0
-    looting-multiplier: 0.0
-  chicken:
-    normal: minecraft:feather
-    burning: ""
-    chance: 1.0
-    looting-multiplier: 0.0
-  spider:
-    normal: minecraft:string
-    burning: ""
-    chance: 1.0
-    looting-multiplier: 0.0
-  cave_spider:
-    normal: minecraft:string
-    burning: ""
-    chance: 1.0
-    looting-multiplier: 0.0
-  rabbit:
-    normal: minecraft:rabbit_hide
-    burning: ""
-    chance: 1.0
-    looting-multiplier: 0.0
-  shulker:
-    normal: minecraft:shulker_shell
-    burning: ""
-    chance: 1.0
-    looting-multiplier: 0.0
+  # Extra drops when killing an adult mob with a tool configured in drops.mob-extra-tools.
+  # normal is the regular drop, burning is the drop when the target is on fire, chance is the base probability, looting-multiplier is the added probability per looting level.
+  # Each rule may use tool-item / tool-items / tool-tags to override the trigger tools; otherwise drops.mob-extra-tools is used.
+  # Example: tool-item: minecraft:iron_sword means this rule triggers only when an iron sword kills the mob.
+  mob-extra:
+    pig:
+      normal: farmersdelight:ham
+      burning: farmersdelight:smoked_ham
+      chance: 0.5
+      looting-multiplier: 0.1
+    hoglin:
+      normal: farmersdelight:ham
+      burning: farmersdelight:smoked_ham
+      chance: 1.0
+      looting-multiplier: 0.0
+    cow:
+      normal: minecraft:leather
+      burning: ""
+      chance: 1.0
+      looting-multiplier: 0.0
+    mooshroom:
+      normal: minecraft:leather
+      burning: ""
+      chance: 1.0
+      looting-multiplier: 0.0
+    donkey:
+      normal: minecraft:leather
+      burning: ""
+      chance: 1.0
+      looting-multiplier: 0.0
+    horse:
+      normal: minecraft:leather
+      burning: ""
+      chance: 1.0
+      looting-multiplier: 0.0
+    mule:
+      normal: minecraft:leather
+      burning: ""
+      chance: 1.0
+      looting-multiplier: 0.0
+    llama:
+      normal: minecraft:leather
+      burning: ""
+      chance: 1.0
+      looting-multiplier: 0.0
+    trader_llama:
+      normal: minecraft:leather
+      burning: ""
+      chance: 1.0
+      looting-multiplier: 0.0
+    chicken:
+      normal: minecraft:feather
+      burning: ""
+      chance: 1.0
+      looting-multiplier: 0.0
+    spider:
+      normal: minecraft:string
+      burning: ""
+      chance: 1.0
+      looting-multiplier: 0.0
+    cave_spider:
+      normal: minecraft:string
+      burning: ""
+      chance: 1.0
+      looting-multiplier: 0.0
+    rabbit:
+      normal: minecraft:rabbit_hide
+      burning: ""
+      chance: 1.0
+      looting-multiplier: 0.0
+    shulker:
+      normal: minecraft:shulker_shell
+      burning: ""
+      chance: 1.0
+      looting-multiplier: 0.0
+
+  # Extra straw drops when breaking grass, mature wheat or mature rice with a knife.
+  # Ownership split: the straw ITEM for short_grass / tall_grass / mature_wheat is dropped by the
+  # CraftEngine vanilla loot entries in craftengine/farmersdelight/configuration/vanilla_loots.yml,
+  # which also carry the 0.2 grass chance; the plugin listener deliberately does not drop straw a
+  # second time for those three blocks, it only awards the harvest_straw advancement there. So for
+  # those three the drop / min-amount / max-amount values below are inert and only mature_rice, plus
+  # any extra block key added here, is dropped by the listener itself.
+  straw:
+    short_grass:
+      drop: farmersdelight:straw
+      min-amount: 1
+      max-amount: 1
+    tall_grass:
+      drop: farmersdelight:straw
+      min-amount: 1
+      max-amount: 1
+    mature_wheat:
+      drop: farmersdelight:straw
+      min-amount: 1
+      max-amount: 1
+    mature_rice:
+      drop: farmersdelight:straw
+      min-amount: 1
+      max-amount: 1
 
 # Cooking pot configuration. Configure custom pot slots and GUI in the CraftEngine block behavior and gui.yml.
 cooking-pot:
@@ -400,19 +479,14 @@ cooking-pot:
   # true = pack pot contents into the dropped pot item; false = drop an empty pot and scatter the contents.
   pack-contents-on-break: true
 
-  # How recipe experience is settled when a player takes a finished dish from the pot output slot / pending result.
-  # vanilla = drop vanilla experience orbs; auraskills = only grant AuraSkills experience; both = both; none = no experience reward.
-  # Base experience is still decided by each recipe's experience field in recipes/cooking_pot_recipes.yml.
-  experience-reward:
-    mode: vanilla
+  # Milliseconds a player must wait after placing a pot before the placing click can also open it. Stops the
+  # placement click from carrying straight through into the GUI. Set to 0 to allow opening immediately.
+  place-interaction-cooldown-ms: 1000
 
-    # Applies when mode is auraskills or both. Skill ID can be farming, auraskills/farming, or namespace/custom_skill.
-    # multiplier uses "recipe experience x multiplier" as AuraSkills experience; if amount is set, instead gives a fixed amount per pickup.
-    # raw=false goes through AuraSkills' own multipliers/modifiers; raw=true adds raw experience directly.
-    auraskills:
-      skill: farming
-      multiplier: 1.0
-      raw: false
+  display:
+    # How often (ticks) the pot re-checks which players should see its displays. Raise it to trade display
+    # responsiveness for fewer visibility checks on servers with very many pots.
+    visibility-check-interval-ticks: 100
 
   # Floating TextDisplay during pot cooking.
   progress-display:
@@ -443,33 +517,6 @@ cooking-pot:
     # Auto-disable the floating TextDisplay when active pot count exceeds this value; 0 = do not auto-disable by count.
     disable-above-active-pots: 512
 
-  # Tray furniture auto-placed when the pot opens, used to carry the CE display effect.
-  tray:
-    # true = ensure a tray exists below when opening/syncing the pot; false = no auto tray, pot contents display may be incomplete.
-    enabled: true
-
-    # CraftEngine tray block/furniture ID. Must be updated here too if renamed on the resource side.
-    tray-block-id: farmersdelight:tray
-
-    # Tray offset relative to the pot block coordinates, usually no need to change.
-    x-offset: 0.5
-    y-offset: -1.0
-    z-offset: 0.5
-
-    # true = only auto-place the tray when the support block is not a full block, to avoid covering normal solid blocks.
-    # CraftEngine custom heat sources bypass this limit; used to support model blocks like the stove.
-    require-non-full-support: true
-    # Tray batch sync interval and per-batch count. sync-batch-size also limits the urgent tray sync triggered by support block changes / stress-test batch activation.
-    # Increase the interval or decrease the batch when TPS is tight.
-    sync-interval-ticks: 100
-    sync-batch-size: 32
-    # On Paper, an extra interval for scanning marked trays, used to recover/clean up auto trays after restart or chunk reload.
-    # Default 1200 ticks = 60 seconds; set to 0 to scan every tray sync round, useful temporarily when troubleshooting trays.
-    # On Folia, to avoid cross-region entity scanning, no world-wide tray scan is performed.
-    marked-tray-scan-interval-ticks: 1200
-    # Tray marker key. Not recommended to change for an already-placed world; old trays cannot be recognized as auto trays after changing it.
-    marker-key: auto_tray_marker
-
   # Player-installed bail handle decoration. Toggled via shift + empty-hand right-click on a cooking
   # pot. Mirrors the tray configuration shape: change the handle furniture ID here if you renamed it
   # on the resource pack side, or to swap in a custom handle variant.
@@ -486,9 +533,16 @@ cooking-pot:
     x-offset: 0.5
     y-offset: 0.0
     z-offset: 0.5
+    # Feedback sound played to the player when toggling the handle on/off. Set volume to 0 to silence it.
+    toggle-sound: "minecraft:block.lantern.place"
+    toggle-sound-volume: 0.7
+    toggle-sound-pitch: 1.0
 
   # Cooking pot world particle effects.
   effects:
+    # How many blocks away a player must be for the pot to broadcast its particles/sounds. 32 = vanilla
+    # particle/sound range. Lower it to shrink the broadcast radius for dense pot farms (matches stove.effects.viewer-distance).
+    viewer-distance: 32.0
     bubble:
       enabled: true
       type: BUBBLE_POP
@@ -519,11 +573,56 @@ cooking-pot:
         offset-z: 0.0
         speed: 0.02
 
-  # Return table after the pot consumes container-type items.
-  # Key is the container item ID consumed by the pot, value is the item ID returned to the container slot / player inventory after cooking.
-  # For example, milk_bottle returns glass_bottle after being consumed. Set a value to "" to disable that return.
-  container-returns:
-    farmersdelight:milk_bottle: minecraft:glass_bottle
+# How recipe experience is settled when a station hands a finished result to the player.
+# vanilla = drop vanilla experience orbs; auraskills = only grant AuraSkills experience; both = both; none = no experience reward.
+# Base experience is still decided by each recipe's experience field in recipes/cooking_pot_recipes.yml.
+# Applies to the cooking pot and to every addon station that credits experience through the FarmersDelight API,
+# such as the Brewin' and Chewin' keg, so setting none here silences those addons too.
+experience-reward:
+  mode: vanilla
+
+  # Applies when mode is auraskills or both. Skill ID can be farming, auraskills/farming, or namespace/custom_skill.
+  # multiplier uses "recipe experience x multiplier" as AuraSkills experience; if amount is set, instead gives a fixed amount per pickup.
+  # raw=false goes through AuraSkills' own multipliers/modifiers; raw=true adds raw experience directly.
+  auraskills:
+    skill: farming
+    multiplier: 1.0
+    raw: false
+
+# Tray furniture auto-placed under a station, used to carry the CE display effect.
+# Owned by the cooking pot and the skillet alike: enabled: false removes auto trays from both.
+tray:
+  # true = ensure a tray exists below when opening/syncing the pot or placing a skillet; false = no auto tray, contents display may be incomplete.
+  enabled: true
+
+  # CraftEngine tray block/furniture ID. Must be updated here too if renamed on the resource side.
+  tray-block-id: farmersdelight:tray
+
+  # Tray offset relative to the station block coordinates, usually no need to change.
+  x-offset: 0.5
+  y-offset: -1.0
+  z-offset: 0.5
+
+  # true = only auto-place the tray when the support block is not a full block, to avoid covering normal solid blocks.
+  # CraftEngine custom heat sources bypass this limit; used to support model blocks like the stove.
+  require-non-full-support: true
+  # Tray batch sync interval and per-batch count. sync-batch-size also limits the urgent tray sync triggered by support block changes / stress-test batch activation.
+  # Increase the interval or decrease the batch when TPS is tight.
+  sync-interval-ticks: 100
+  sync-batch-size: 32
+  # On Paper, an extra interval for scanning marked trays, used to recover/clean up auto trays after restart or chunk reload.
+  # Default 1200 ticks = 60 seconds; set to 0 to scan every tray sync round, useful temporarily when troubleshooting trays.
+  # On Folia, to avoid cross-region entity scanning, no world-wide tray scan is performed.
+  marked-tray-scan-interval-ticks: 1200
+  # Tray marker key. Not recommended to change for an already-placed world; old trays cannot be recognized as auto trays after changing it.
+  marker-key: auto_tray_marker
+
+# Return table after a station consumes container-type items.
+# Key is the container item ID consumed, value is the item ID returned to the container slot / player inventory after use.
+# For example, milk_bottle returns glass_bottle after being consumed. Set a value to "" to disable that return.
+# Read by the cooking pot and by the shared remainder helper the API exposes to addon stations.
+container-returns:
+  farmersdelight:milk_bottle: minecraft:glass_bottle
 
 # Heat source detection. Used by both the pot and the skillet; the skillet's hopper heat conduction can be disabled separately.
 heat-sources:
@@ -569,6 +668,12 @@ mushroom-colonies:
     # When the block above is not in always-valid-supports, placement is allowed only if the target light is at or below this value.
     max-light: 12
 
+# Rope block behavior.
+rope:
+  # How many blocks up a rope column is searched for a bell when right-clicked with an empty hand.
+  # The search stops early at any gap or non-rope block. Minimum 1.
+  bell-ring-max-distance: 24
+
 # Skillet configuration.
 skillet:
   # true = when hopper-interactions.enabled is on, the skillet allows hopper ingredient input; results still pop out directly per the original mod behavior, with no hopper output slot.
@@ -590,10 +695,15 @@ skillet:
     cooling-decrement: 2
 
   heat:
-    # The original mod's skillet does not conduct heat through hoppers, off by default.
-    allow-conductors: false
+    # true = the skillet also takes heat from a source one block further down, through a conductor listed in
+    # heat-sources.conductors (a hopper). This matches the original mod, whose skillet does not require direct
+    # heat, so it is on by default. Set to false to make the skillet accept only a heat source directly below.
+    allow-conductors: true
 
   effects:
+    # How many blocks away a player must be for the skillet to broadcast its particles/sounds. 32 = vanilla
+    # particle/sound range. Lower it to shrink the broadcast radius for dense skillet farms (matches stove.effects.viewer-distance).
+    viewer-distance: 32.0
     smoke:
       enabled: true
       type: SMOKE
@@ -637,7 +747,17 @@ stove:
     # How much cooking progress reverts per tick when the stove goes out; set to 0 for no revert.
     cooling-decrement: 2
 
+  # A lit stove burns living entities standing on its central grilling area. Burn damage/type is on the
+  # CraftEngine stove block; this only bounds the always-on poll.
+  burn:
+    # Radius (blocks) around each online player scanned for mobs to burn. Lower on high-population servers
+    # to shrink the per-player entity scan; also limits how far away mobs get grilled.
+    mob-scan-radius: 12.0
+
   effects:
+    # How many blocks away a player must be for the stove to broadcast its particles/sounds. 32 = vanilla
+    # particle/sound range. Lower it to shrink the broadcast radius for dense stove farms.
+    viewer-distance: 32.0
     smoke:
       enabled: true
       type: SMOKE
@@ -679,25 +799,6 @@ stove:
       - "-0.3,1.02,-0.2"
     # display-overrides: {}
     # display-tag-overrides: {}
-
-# Extra straw drops when breaking grass, mature wheat or mature rice with a knife.
-straw-drops:
-  short_grass:
-    drop: farmersdelight:straw
-    min-amount: 1
-    max-amount: 2
-  tall_grass:
-    drop: farmersdelight:straw
-    min-amount: 1
-    max-amount: 2
-  mature_wheat:
-    drop: farmersdelight:straw
-    min-amount: 1
-    max-amount: 2
-  mature_rice:
-    drop: farmersdelight:straw
-    min-amount: 1
-    max-amount: 2
 
 # Pet foods. Grant effects when a player right-clicks the matching entity; add more foods in the same format.
 # Each key is an item ID, supporting CraftEngine items and vanilla items.
@@ -764,128 +865,305 @@ pet-foods:
       # true = a tamed horse owned by the feeding player is not further pulled by its own horse feed.
       ignore-owned-tamed: true
 
-# Recipe discovery: when enabled, recipes start LOCKED in the recipe books (FarmersDelight's own cooking-pot /
-# cutting-board viewer AND the addon recipe book) and are revealed per-player as they unlock them. Locking only
-# affects the books' display -- it never blocks actual crafting at a station. Off by default (books behave as before).
-recipe-discovery:
-  enabled: false
-  # How locked recipes appear in a book: 'placeholder' shows a locked icon; 'hidden' omits them until unlocked.
-  locked-display: placeholder
-  # Item id used for the 'placeholder' locked icon.
-  locked-icon: BARRIER
-  # Auto-unlock a recipe when the player obtains its result item or one of its exact (non-tag) ingredients.
-  unlock-on-obtain: true
-  # Send the player a chat message when a recipe unlocks.
-  notify: true
-
-# Buff display — render per-player active-buff state. Addons (e.g. Brewin' And Chewin') push their
-# buffs into this via the BuffBossbar API; FD renders them on the channels below.
-# Set enabled: false to suppress every buff display globally regardless of per-addon toggles.
-bossbar:
+# Buff system. Master switch for every custom buff: Comfort, Nourishment and any buff an addon registers
+# through the buff API.
+# enabled=false turns the whole system off — no buff is applied or ticked, the effect ticker never starts,
+# nothing is shown on any display channel, and the /fd buff subcommand is hidden from help and
+# tab-completion and rejected when typed. Addon API calls stay safe no-ops, so an addon keeps working.
+# buff.display.enabled below is the narrower switch: it only silences the display while the effects
+# themselves keep being applied and ticked.
+buff:
   enabled: true
-  # Display channels. List any combination — add/remove to route around another plugin that already
-  # occupies a channel, so FD's buffs don't crowd/overwrite it. Options:
-  #   bossbar    = one boss bar per active buff (laid out via layout-mode below). Stacks with other bars.
-  #   actionbar  = all active buffs joined on the action bar line (above the hotbar); auto-refreshed so
-  #                it never fades. Last writer wins, so avoid it if another plugin owns the action bar.
-  #   tab_footer = active buffs listed in the player-list (TAB) footer; only the footer is touched.
-  channels:
-    - bossbar
-  # Separator placed between buffs on the action bar (actionbar channel only).
-  actionbar-separator: "   "
-  # stacked = every active buff gets its own bossbar simultaneously (vanilla style; up to ~4 simultaneous is fine).
-  # rotating = exactly one bossbar visible at a time, cycles to the next active buff every rotation-interval-ticks.
-  layout-mode: stacked
-  # Ticks between switches in rotating mode. Lower bound 20 (1 second). Ignored in stacked mode.
-  rotation-interval-ticks: 80
-  # Per-buff visual. color ∈ {PINK, BLUE, RED, GREEN, YELLOW, PURPLE, WHITE};
-  # overlay ∈ {PROGRESS, NOTCHED_6, NOTCHED_10, NOTCHED_12, NOTCHED_20}. Case-insensitive,
-  # hyphen/underscore tolerant. Addons (e.g. BrewinAndChewin) configure their own buff styles in
-  # their own config.yml; this section only covers FD's two built-in buffs.
-  styles:
-    nourishment: {color: GREEN, overlay: PROGRESS}
-    comfort:     {color: BLUE,  overlay: PROGRESS}
 
-# Buff persistence. Comfort / Nourishment remaining time is mirrored into player PDC on quit and
-# restored on join, so the buff survives relog / restart (and rides whole-PDC sync plugins like
-# HuskSync / MySQLPlayerDataBridge across a proxy network). Because those sync plugins apply the
-# synced PDC a moment AFTER join, the restore is retried once this many ticks later — gap-filling,
-# so it never overwrites a buff gained since join. Set to 0 to skip the retry (single-server only).
-buff-persistence:
-  restore-retry-delay-ticks: 40
+  # Buff persistence. Comfort / Nourishment remaining time is mirrored into player PDC on quit and
+  # restored on join, so the buff survives relog / restart (and rides whole-PDC sync plugins like
+  # HuskSync / MySQLPlayerDataBridge across a proxy network). Because those sync plugins apply the
+  # synced PDC a moment AFTER join, the restore is retried once this many ticks later — gap-filling,
+  # so it never overwrites a buff gained since join. Set to 0 to skip the retry (single-server only).
+  persistence:
+    restore-retry-delay-ticks: 40
 
-# Comfort effect. The original mod deprecated Comfort (replaced by Nourishment), so it is off by default with an empty list.
-# The mechanic code is kept: set enabled to true and add foods under foods if needed.
-comfort-foods:
-  enabled: false
-  # How many ticks between each half-heart of comfort healing; set to 0 to disable comfort healing and keep only message/status.
-  heal-interval-ticks: 80
-  # Send an about-to-end reminder when this many ticks of the effect remain; set to 0 to disable the reminder.
-  fade-warning-ticks: 200
-  foods: {}
+  # Buff display — render per-player active-buff state. Addons (e.g. Brewin' And Chewin') push their
+  # buffs into this via the BuffBossbar API; FD renders them on the channels below.
+  # Set enabled: false to suppress every buff display globally regardless of per-addon toggles.
+  display:
+    enabled: true
+    # Display channels. List any combination — add/remove to route around another plugin that already
+    # occupies a channel, so FD's buffs don't crowd/overwrite it. Options:
+    #   bossbar    = one boss bar per active buff (laid out via layout-mode below). Stacks with other bars.
+    #   actionbar  = all active buffs joined on the action bar line (above the hotbar); auto-refreshed so
+    #                it never fades. Last writer wins, so avoid it if another plugin owns the action bar.
+    #   tab_footer = active buffs listed in the player-list (TAB) footer; only the footer is touched.
+    channels:
+      - bossbar
+    # Separator placed between buffs on the action bar (actionbar channel only).
+    actionbar-separator: "   "
+    # stacked = every active buff gets its own bossbar simultaneously (vanilla style; up to ~4 simultaneous is fine).
+    # rotating = exactly one bossbar visible at a time, cycles to the next active buff every rotation-interval-ticks.
+    layout-mode: stacked
+    # Ticks between switches in rotating mode. Lower bound 20 (1 second). Ignored in stacked mode.
+    rotation-interval-ticks: 80
+    # How often (ticks) the action bar buff line is re-sent so it doesn't fade (~3s vanilla fade). Only used
+    # when the actionbar channel is enabled; raise if another plugin fights over the action bar.
+    actionbar-refresh-ticks: 30
+    # Per-buff visual. color ∈ {PINK, BLUE, RED, GREEN, YELLOW, PURPLE, WHITE};
+    # overlay ∈ {PROGRESS, NOTCHED_6, NOTCHED_10, NOTCHED_12, NOTCHED_20}. Case-insensitive,
+    # hyphen/underscore tolerant. Addons (e.g. BrewinAndChewin) configure their own buff styles in
+    # their own config.yml; this section only covers FD's two built-in buffs.
+    styles:
+      nourishment: {color: GREEN, overlay: PROGRESS}
+      comfort:     {color: BLUE,  overlay: PROGRESS}
 
-# Nourishment effect. Eating listed foods grants the player Nourishment (resets exhaustion, prevents hunger loss).
-# Duration (seconds) follows the original mod's tiers: cooked_rice=30; broths/bacon and eggs etc.=60; stews/pasta etc.=180; rich soups/feasts etc.=300.
-nourishment-foods:
-  enabled: true
-  # Send an about-to-end reminder when this many ticks of the effect remain; set to 0 to disable the reminder.
-  fade-warning-ticks: 200
-  foods:
-    farmersdelight:cooked_rice:
-      duration: 30
-    farmersdelight:bone_broth:
-      duration: 60
-    farmersdelight:bacon_and_eggs:
-      duration: 60
-    farmersdelight:ratatouille:
-      duration: 60
-    farmersdelight:beef_stew:
-      duration: 180
-    farmersdelight:vegetable_soup:
-      duration: 180
-    farmersdelight:fish_stew:
-      duration: 180
-    farmersdelight:onion_soup:
-      duration: 180
-    farmersdelight:steak_and_potatoes:
-      duration: 180
-    farmersdelight:pasta_with_meatballs:
-      duration: 180
-    farmersdelight:pasta_with_mutton_chop:
-      duration: 180
-    farmersdelight:mushroom_rice:
-      duration: 180
-    farmersdelight:grilled_salmon:
-      duration: 180
-    minecraft:mushroom_stew:
-      duration: 180
-    minecraft:beetroot_soup:
-      duration: 180
-    farmersdelight:chicken_soup:
-      duration: 300
-    farmersdelight:fried_rice:
-      duration: 300
-    farmersdelight:pumpkin_soup:
-      duration: 300
-    farmersdelight:baked_cod_stew:
-      duration: 300
-    farmersdelight:noodle_soup:
-      duration: 300
-    farmersdelight:roasted_mutton_chops:
-      duration: 300
-    farmersdelight:vegetable_noodles:
-      duration: 300
-    farmersdelight:squid_ink_pasta:
-      duration: 300
-    farmersdelight:roast_chicken:
-      duration: 300
-    farmersdelight:stuffed_pumpkin:
-      duration: 300
-    farmersdelight:honey_glazed_ham:
-      duration: 300
-    farmersdelight:shepherds_pie:
-      duration: 300
-    farmersdelight:gleaming_salad:
-      duration: 300
-    minecraft:rabbit_stew:
-      duration: 300
+  # Comfort effect. The original mod deprecated Comfort (replaced by Nourishment), so it is off by default with an empty list.
+  # The mechanic code is kept: set enabled to true and add foods under foods if needed.
+  comfort:
+    enabled: false
+    # How many ticks between each comfort heal tick; set to 0 to disable comfort healing and keep only the status display.
+    heal-interval-ticks: 80
+    # How much health (in HP; 1.0 = half a heart) each comfort heal tick restores.
+    heal-amount: 1.0
+    foods: {}
+
+  # Nourishment effect. Eating listed foods grants the player Nourishment (resets exhaustion, prevents hunger loss).
+  # Duration (seconds) follows the original mod's tiers: cooked_rice=30; broths/bacon and eggs etc.=60; stews/pasta etc.=180; rich soups/feasts etc.=300.
+  nourishment:
+    enabled: true
+    # Nourishment reports itself through the buff bossbar, so it sends no chat messages and has no fade reminder.
+    foods:
+      farmersdelight:cooked_rice:
+        duration: 30
+      farmersdelight:bone_broth:
+        duration: 60
+      farmersdelight:bacon_and_eggs:
+        duration: 60
+      farmersdelight:ratatouille:
+        duration: 60
+      farmersdelight:beef_stew:
+        duration: 180
+      farmersdelight:vegetable_soup:
+        duration: 180
+      farmersdelight:fish_stew:
+        duration: 180
+      farmersdelight:onion_soup:
+        duration: 180
+      farmersdelight:steak_and_potatoes:
+        duration: 180
+      farmersdelight:pasta_with_meatballs:
+        duration: 180
+      farmersdelight:pasta_with_mutton_chop:
+        duration: 180
+      farmersdelight:mushroom_rice:
+        duration: 180
+      farmersdelight:grilled_salmon:
+        duration: 180
+      minecraft:mushroom_stew:
+        duration: 180
+      minecraft:beetroot_soup:
+        duration: 180
+      farmersdelight:chicken_soup:
+        duration: 180
+      farmersdelight:fried_rice:
+        duration: 180
+      farmersdelight:pumpkin_soup:
+        duration: 300
+      farmersdelight:baked_cod_stew:
+        duration: 300
+      farmersdelight:noodle_soup:
+        duration: 300
+      farmersdelight:roasted_mutton_chops:
+        duration: 300
+      farmersdelight:vegetable_noodles:
+        duration: 300
+      farmersdelight:squid_ink_pasta:
+        duration: 300
+      farmersdelight:roast_chicken:
+        duration: 300
+      farmersdelight:stuffed_pumpkin:
+        duration: 300
+      farmersdelight:honey_glazed_ham:
+        duration: 300
+      farmersdelight:shepherds_pie:
+        duration: 300
+      farmersdelight:gleaming_salad:
+        duration: 300
+      minecraft:rabbit_stew:
+        duration: 300
+
+# World data the mod ships alongside its items: composting chances, furnace burn times and the crop trades
+# farmer villagers and the wandering trader offer. The values reproduce the mod's own data exactly, so an
+# untouched section behaves like the mod. Each of the four enabled switches turns its own behaviour off
+# without affecting the others.
+# The items and trades lists are content: deleting an entry is how you disable that one entry, and a deleted
+# entry is not written back on the next startup.
+world-data:
+  # Lets the mod's compostable items be used in a vanilla composter. The composter refuses them on its own
+  # because a CraftEngine item is a plain vanilla material underneath, so the fill is carried out here.
+  composting:
+    enabled: true
+    # Key is the item ID, value is the chance between 0.0 and 1.0 that one item raises the composter by one
+    # level. Vanilla always accepts the first item into an empty composter, and that still applies here.
+    items:
+      farmersdelight:tree_bark: 0.3
+      farmersdelight:straw: 0.3
+      farmersdelight:cabbage_seeds: 0.3
+      farmersdelight:tomato_seeds: 0.3
+      farmersdelight:rice: 0.3
+      farmersdelight:rice_panicle: 0.3
+      farmersdelight:sandy_shrub: 0.3
+      farmersdelight:pumpkin_slice: 0.5
+      farmersdelight:cabbage_leaf: 0.5
+      farmersdelight:kelp_roll_slice: 0.5
+      farmersdelight:cabbage: 0.65
+      farmersdelight:onion: 0.65
+      farmersdelight:tomato: 0.65
+      farmersdelight:wild_cabbages: 0.65
+      farmersdelight:wild_onions: 0.65
+      farmersdelight:wild_tomatoes: 0.65
+      farmersdelight:wild_carrots: 0.65
+      farmersdelight:wild_potatoes: 0.65
+      farmersdelight:wild_beetroots: 0.65
+      farmersdelight:wild_rice: 0.65
+      farmersdelight:pie_crust: 0.65
+      farmersdelight:rice_bale: 0.85
+      farmersdelight:sweet_berry_cookie: 0.85
+      farmersdelight:honey_cookie: 0.85
+      farmersdelight:cake_slice: 0.85
+      farmersdelight:apple_pie_slice: 0.85
+      farmersdelight:sweet_berry_cheesecake_slice: 0.85
+      farmersdelight:chocolate_pie_slice: 0.85
+      farmersdelight:raw_pasta: 0.85
+      farmersdelight:rotten_tomato: 0.85
+      farmersdelight:kelp_roll: 0.85
+      farmersdelight:apple_pie: 1.0
+      farmersdelight:sweet_berry_cheesecake: 1.0
+      farmersdelight:chocolate_pie: 1.0
+      farmersdelight:dumplings: 1.0
+      farmersdelight:stuffed_pumpkin_block: 1.0
+      farmersdelight:brown_mushroom_colony: 1.0
+      farmersdelight:red_mushroom_colony: 1.0
+
+  # Gives the mod's fuel items their furnace burn times. The burn time is also pushed into the CraftEngine
+  # item definition, which is what lets the stack be moved into a furnace's fuel slot at all.
+  furnace-fuel:
+    enabled: true
+    # Key is the item ID, value is the burn time in ticks and must be positive. Smelting one item takes 200
+    # ticks, so 200 here is worth exactly one smelt.
+    items:
+      farmersdelight:half_tatami_mat: 100
+      farmersdelight:straw: 100
+      farmersdelight:cutting_board: 200
+      farmersdelight:rope: 200
+      farmersdelight:safety_net: 200
+      farmersdelight:full_tatami_mat: 200
+      farmersdelight:canvas_rug: 200
+      farmersdelight:rope_fence: 200
+      farmersdelight:rope_fence_gate: 200
+      farmersdelight:tree_bark: 200
+      farmersdelight:wooden_basket: 300
+      farmersdelight:bamboo_basket: 300
+      farmersdelight:oak_cabinet: 300
+      farmersdelight:spruce_cabinet: 300
+      farmersdelight:birch_cabinet: 300
+      farmersdelight:jungle_cabinet: 300
+      farmersdelight:acacia_cabinet: 300
+      farmersdelight:dark_oak_cabinet: 300
+      farmersdelight:mangrove_cabinet: 300
+      farmersdelight:cherry_cabinet: 300
+      farmersdelight:bamboo_cabinet: 300
+      farmersdelight:tatami: 400
+      farmersdelight:canvas: 400
+      farmersdelight:straw_bale: 1000
+
+  # Trades the mod contributes to vanilla merchant listing pools. The pools themselves cannot be joined, so
+  # an offer is substituted for a drawn vanilla one at the probability the mod's listing would have been
+  # picked. chance is that probability: it is the share the mod's listings hold in the pool, so a datapack
+  # that changes the vanilla pools needs these retuned.
+  trades:
+    # Crop trades farmer villagers offer. profession is a villager profession ID path and level is the
+    # villager level whose pool the listing joins. ingredient is what the player hands over, result what
+    # they receive. max-uses is how many times the trade works before restock, villager-xp the merchant
+    # experience it awards, price-multiplier the vanilla demand and reputation multiplier.
+    villager:
+      enabled: true
+      trades:
+        - profession: farmer
+          level: 1
+          ingredient: farmersdelight:onion
+          ingredient-amount: 26
+          result: minecraft:emerald
+          result-amount: 1
+          max-uses: 16
+          villager-xp: 2
+          price-multiplier: 0.05
+          chance: 0.14285714285714285
+        - profession: farmer
+          level: 1
+          ingredient: farmersdelight:tomato
+          ingredient-amount: 26
+          result: minecraft:emerald
+          result-amount: 1
+          max-uses: 16
+          villager-xp: 2
+          price-multiplier: 0.05
+          chance: 0.14285714285714285
+        - profession: farmer
+          level: 2
+          ingredient: farmersdelight:cabbage
+          ingredient-amount: 16
+          result: minecraft:emerald
+          result-amount: 1
+          max-uses: 16
+          villager-xp: 5
+          price-multiplier: 0.05
+          chance: 0.2
+        - profession: farmer
+          level: 2
+          ingredient: farmersdelight:rice
+          ingredient-amount: 20
+          result: minecraft:emerald
+          result-amount: 1
+          max-uses: 16
+          villager-xp: 5
+          price-multiplier: 0.05
+          chance: 0.2
+
+    # Seed trades the wandering trader offers. It has no profession or level, so those two keys are unused
+    # here.
+    wandering-trader:
+      enabled: true
+      # How many of a trader's offers are drawn from the generic pool these listings compete in. Its
+      # remaining offer comes from a separate rare pool the mod does not add to.
+      generic-trade-count: 5
+      trades:
+        - ingredient: minecraft:emerald
+          ingredient-amount: 1
+          result: farmersdelight:cabbage_seeds
+          result-amount: 1
+          max-uses: 1
+          villager-xp: 12
+          price-multiplier: 0.05
+          chance: 0.014705882352941176
+        - ingredient: minecraft:emerald
+          ingredient-amount: 1
+          result: farmersdelight:tomato_seeds
+          result-amount: 1
+          max-uses: 1
+          villager-xp: 12
+          price-multiplier: 0.05
+          chance: 0.014705882352941176
+        - ingredient: minecraft:emerald
+          ingredient-amount: 1
+          result: farmersdelight:rice
+          result-amount: 1
+          max-uses: 1
+          villager-xp: 12
+          price-multiplier: 0.05
+          chance: 0.014705882352941176
+        - ingredient: minecraft:emerald
+          ingredient-amount: 1
+          result: farmersdelight:onion
+          result-amount: 1
+          max-uses: 1
+          villager-xp: 12
+          price-multiplier: 0.05
+          chance: 0.014705882352941176

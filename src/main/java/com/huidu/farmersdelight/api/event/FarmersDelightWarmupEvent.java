@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.api.event;
 
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Fired once CraftEngine items are ready (on startup and after each CE reload), after FarmersDelight has
@@ -11,6 +12,7 @@ import org.bukkit.event.HandlerList;
  * <p>Handlers must do pure computation only (build item stacks, prime caches). They run on the global/main
  * thread and must not touch worlds, entities, regions, or real block state.
  */
+@ApiStatus.NonExtendable
 public class FarmersDelightWarmupEvent extends Event {
 
     private static final HandlerList HANDLERS = new HandlerList();

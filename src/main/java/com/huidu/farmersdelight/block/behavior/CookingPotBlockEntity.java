@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.config.ContainerReturnConfig;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.event.FarmersDelightCookStartEvent;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.util.BlockPosKey;
@@ -28,6 +29,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class CookingPotBlockEntity {
 
+    // Per-slot stack ceiling used by the comparator fill fraction, matching the default slot limit of the
+    // ItemStackHandler the mod's pot uses.
+    private static final int SLOT_STACK_LIMIT = 64;
+
     private final BlockPosKey posKey;
     private volatile World world;
     private volatile CookingPotLayout layout;
@@ -44,6 +49,11 @@ public class CookingPotBlockEntity {
     private final AtomicBoolean hasHeatSource = new AtomicBoolean(false);
     private final AtomicReference<CookingPotRecipe> currentRecipe = new AtomicReference<>(null);
     private final AtomicReference<String> lastRecipeId = new AtomicReference<>(null);
+    // Recipe recorded by canCookInternal on the no-match to match transition, parked here until the
+    // caller has released inventoryLock/cookingLock and can dispatch FarmersDelightCookStartEvent
+    // without holding this block entity's monitors. Only the transition is recorded, so a pot that
+    // keeps cooking the same batch parks nothing and the event stays an edge, not a per-tick signal.
+    private final AtomicReference<CookingPotRecipe> pendingCookStart = new AtomicReference<>(null);
     private final AtomicReference<ItemStack> mealContainerStack = new AtomicReference<>(null);
     private final Object inventoryLock = new Object();
     private final Object cookingLock = new Object();
@@ -168,6 +178,13 @@ public class CookingPotBlockEntity {
         inventoryVersion++;
     }
 
+    // Same purpose as setSlot's version bump, for the paths that shrink a stack in place instead of replacing it.
+    // An in-place setAmount leaves the array reference untouched, so without this an open GUI keeps showing the
+    // pre-consumption count until something else makes it rescan. Callers must hold inventoryLock.
+    private void bumpInventoryVersion() {
+        inventoryVersion++;
+    }
+
     // Inventory version for the GUI to read; the GUI can skip an input-slot rescan when the version is unchanged.
     public long getInventoryVersion() {
         return inventoryVersion;
@@ -215,6 +232,33 @@ public class CookingPotBlockEntity {
         synchronized (inventoryLock) {
             return getIngredientSlotsInternal();
         }
+    }
+
+    /** Comparator strength for this pot, reproducing the mod's MathUtils.calcRedstoneFromItemHandler over the
+     * full inventory: the per-slot fill fractions are averaged across all slots (inputs, meal, container and
+     * output alike), scaled to 14, floored, and lifted by 1 whenever any slot holds something. An empty pot
+     * reads 0; a pot with a single item in one slot reads 1. */
+    public int getComparatorOutput() {
+        int occupied = 0;
+        float fill = 0.0f;
+        synchronized (inventoryLock) {
+            if (inventory.length == 0) {
+                return 0;
+            }
+            for (ItemStack item : inventory) {
+                // Amount-based empty check — see takeMealPortionWithExperience for rationale.
+                if (item == null || item.getType().isAir() || item.getAmount() <= 0) {
+                    continue;
+                }
+                int slotLimit = Math.max(1, Math.min(SLOT_STACK_LIMIT, item.getMaxStackSize()));
+                // A slot can hold more than its nominal limit, so the ratio is capped: an over-full slot is still
+                // just full, and without the cap the average can exceed 1 and push the signal past redstone 15.
+                fill += Math.min(1.0f, (float) item.getAmount() / (float) slotLimit);
+                occupied++;
+            }
+            fill /= (float) inventory.length;
+        }
+        return (int) Math.floor(fill * 14.0f) + (occupied > 0 ? 1 : 0);
     }
 
     private ItemStack copyOrNull(ItemStack item) {
@@ -449,6 +493,13 @@ public class CookingPotBlockEntity {
             return new ItemStack(remainderType, amount);
         }
 
+        // Ingredients whose container vanilla does not expose as a crafting remainder (fish buckets, stews,
+        // potions). Consulted only after the real remainder, matching the mod's ordering.
+        ItemStack override = CookingPotIngredientRemainders.getRemainder(item, amount);
+        if (override != null) {
+            return override;
+        }
+
         return switch (item.getType()) {
             case MILK_BUCKET, WATER_BUCKET, LAVA_BUCKET -> new ItemStack(Material.BUCKET, amount);
             case HONEY_BOTTLE -> new ItemStack(Material.GLASS_BOTTLE, amount);
@@ -509,52 +560,85 @@ public class CookingPotBlockEntity {
     }
 
     public boolean canCook() {
+        boolean result;
         synchronized (inventoryLock) {
-            return canCookInternal();
+            result = canCookInternal();
         }
+        // Outside the monitor: a listener may read or even mutate this pot without deadlocking.
+        firePendingCookStart();
+        return result;
+    }
+
+    /**
+     * Raises FarmersDelightCookStartEvent once for a recipe match that was recorded while the locks
+     * were held. Both entry points that can record one (canCook and finishCooking) call this after
+     * releasing every monitor, so third-party listener code never runs under this block entity's lock.
+     * The pending slot is cleared by the poll, so a recipe is announced exactly once even if both
+     * paths run in the same tick.
+     */
+    private void firePendingCookStart() {
+        CookingPotRecipe started = pendingCookStart.getAndSet(null);
+        if (started == null || !FarmersDelightPlugin.isEnabled0()) {
+            return;
+        }
+        World currentWorld = this.world;
+        Location location = currentWorld == null
+                ? null
+                : new Location(currentWorld, posKey.x(), posKey.y(), posKey.z());
+        org.bukkit.Bukkit.getPluginManager().callEvent(new FarmersDelightCookStartEvent(
+                location, started.getId(), started.getResult(), started.getCookTime()));
     }
 
     public boolean finishCooking(World world, Location blockLoc) {
+        boolean result;
         synchronized (inventoryLock) {
             synchronized (cookingLock) {
-                CookingPotRecipe recipe = currentRecipe.get();
-                if (recipe == null) {
-                    if (!canCookInternal()) return false;
-                    recipe = currentRecipe.get();
-                    if (recipe == null) return false;
-                } else {
-                    // The cached recipe may become invalid between canCook and finishCooking if inputs change (e.g. cross-region GUI sync,
-                    // hopper interaction); re-validate under the lock before producing, to avoid conjuring a result from zero/insufficient ingredients (item duping).
-                    FarmersDelightPlugin instance = FarmersDelightPlugin.getInstance();
-                    if (instance == null || !instance.getCookingPotRecipes()
-                            .canCraft(recipe, getIngredientSlotsInternal(), getContainerItemInternal())) {
-                        currentRecipe.set(null);
-                        lastRecipeId.set(null);
-                        return false;
-                    }
-                }
-
-                ItemStack resultItem = recipe.getResult();
-                if (resultItem == null) return false;
-
-                ItemStack outputItem = resultItem.clone();
-
-                boolean stored = storeCookedResult(outputItem, recipe, recipe.getExperience());
-                if (!stored) {
-                    cookingProgress.set(getCookingDuration());
-                    syncWorldlyContainer();
-                    return false;
-                }
-
-                consumeIngredientsInternal(recipe, world, blockLoc);
-                cookingProgress.set(0);
-                currentRecipe.set(null);
-                lastRecipeId.set(null);
-
-                syncWorldlyContainer();
-                return true;
+                result = finishCookingLocked(world, blockLoc);
             }
         }
+        // Same reason as canCook: dispatch after both monitors are released.
+        firePendingCookStart();
+        return result;
+    }
+
+    /** The body of finishCooking. Callers must hold inventoryLock then cookingLock, in that order. */
+    private boolean finishCookingLocked(World world, Location blockLoc) {
+        CookingPotRecipe recipe = currentRecipe.get();
+        if (recipe == null) {
+            if (!canCookInternal()) return false;
+            recipe = currentRecipe.get();
+            if (recipe == null) return false;
+        } else {
+            // The cached recipe may become invalid between canCook and finishCooking if inputs change (e.g. cross-region GUI sync,
+            // hopper interaction); re-validate under the lock before producing, to avoid conjuring a result from zero/insufficient ingredients (item duping).
+            FarmersDelightPlugin instance = FarmersDelightPlugin.getInstance();
+            if (instance == null || !instance.getCookingPotRecipes()
+                    .canCraft(recipe, getIngredientSlotsInternal(), getContainerItemInternal())) {
+                currentRecipe.set(null);
+                lastRecipeId.set(null);
+                return false;
+            }
+        }
+
+        ItemStack resultItem = recipe.getResult();
+        if (resultItem == null) return false;
+
+        ItemStack outputItem = resultItem.clone();
+
+        boolean stored = storeCookedResult(outputItem, recipe, recipe.getExperience());
+        if (!stored) {
+            cookingProgress.set(getCookingDuration());
+            syncWorldlyContainer();
+            return false;
+        }
+
+        consumeIngredientsInternal(recipe, world, blockLoc);
+        cookingProgress.set(0);
+        currentRecipe.set(null);
+        lastRecipeId.set(null);
+
+        syncWorldlyContainer();
+        return true;
     }
 
     private boolean canCookInternal() {
@@ -569,6 +653,9 @@ public class CookingPotBlockEntity {
             CookingPotRecipe previousRecipe = currentRecipe.get();
             if (previousRecipe != null
                     && instance.getCookingPotRecipes().canCraft(previousRecipe, inputItems, containerItem)) {
+                if (!hasRoomForResult(previousRecipe)) {
+                    return false;
+                }
                 lastRecipeId.set(previousRecipe.getId());
                 currentRecipe.set(previousRecipe);
                 return true;
@@ -583,6 +670,10 @@ public class CookingPotBlockEntity {
                 return false;
             }
 
+            if (!hasRoomForResult(recipe)) {
+                return false;
+            }
+
             String newRecipeId = recipe.getId();
             String lastId = lastRecipeId.get();
 
@@ -593,10 +684,41 @@ public class CookingPotBlockEntity {
             lastRecipeId.set(newRecipeId);
 
             currentRecipe.set(recipe);
+            // Idle to cooking is the only transition worth announcing. Reaching here with a non-null
+            // previousRecipe means the previous recipe stopped being craftable and a different one
+            // matched in the same pass — a recipe swap, not a start — so nothing is parked. The pot
+            // must first fall idle (the recipe == null branch above) for the next match to count.
+            if (previousRecipe == null) {
+                pendingCookStart.set(recipe);
+            }
             return true;
         } catch (IllegalStateException e) {
             return false;
         }
+    }
+
+    /**
+     * True when the finished result would actually fit somewhere. Mirrors the routing storeCookedResult uses,
+     * without mutating anything. The original mod gates cooking on the same condition, so a pot whose meal slot
+     * is full stops cooking instead of running the timer out and failing to store: without this the pot keeps
+     * re-completing, and the player sees one more portion produced than the slot can hold.
+     * Callers must hold inventoryLock.
+     */
+    private boolean hasRoomForResult(CookingPotRecipe recipe) {
+        ItemStack result = recipe.getResult();
+        if (result == null || result.getType().isAir()) {
+            return false;
+        }
+        if (recipe.needsContainer()) {
+            ItemStack requiredContainer = recipe.getContainer();
+            if (getMovableOutputAmount(result) >= result.getAmount()
+                    && getAvailableContainerAmount(requiredContainer) >= result.getAmount()) {
+                return true;
+            }
+            return hasSpaceFor(layout.pendingOutputSlots(), result);
+        }
+        return hasSpaceFor(layout.outputSlots(), result)
+                || hasSpaceFor(layout.pendingOutputSlots(), result);
     }
 
     private List<ItemStack> getIngredientSlotsInternal() {
@@ -652,6 +774,7 @@ public class CookingPotBlockEntity {
                 slotExperience[i] = 0.0D;
             } else {
                 slotItem.setAmount(newAmount);
+                bumpInventoryVersion();
             }
         }
 
@@ -1079,6 +1202,7 @@ public class CookingPotBlockEntity {
             remainingAmount -= consumed;
             if (remaining > 0) {
                 container.setAmount(remaining);
+                bumpInventoryVersion();
             } else {
                 setSlot(slot, null);
                 slotExperience[slot] = 0.0D;
@@ -1108,18 +1232,30 @@ public class CookingPotBlockEntity {
         return space;
     }
 
+    /**
+     * Per-slot stack limit, mirroring the original mod's meal-display override: the pending-output
+     * slot (the in-pot meal) holds at least 64 regardless of the item's own max stack size — bowl
+     * foods stack to 16 elsewhere but the pot accumulates 64 servings before cooking stops. Every
+     * other slot uses the item's real limit. The pending slot is display-only in the GUI (clicks are
+     * cancelled) and unreachable by hoppers, so the oversized stack never enters player inventories.
+     */
+    private int slotStackLimit(int slot, ItemStack item) {
+        int itemMax = Math.max(1, item.getMaxStackSize());
+        return layout.isPendingOutputSlot(slot) ? Math.max(64, itemMax) : itemMax;
+    }
+
     private int getAvailableSpace(int slot, ItemStack item) {
         if (!isValidSlot(slot) || item == null || item.getType().isAir()) {
             return 0;
         }
         ItemStack existing = inventory[slot];
         if (existing == null || existing.getType().isAir()) {
-            return item.getMaxStackSize();
+            return slotStackLimit(slot, item);
         }
         if (!isSimilarIgnoringStoredExperience(existing, item)) {
             return 0;
         }
-        return Math.max(0, existing.getMaxStackSize() - existing.getAmount());
+        return Math.max(0, slotStackLimit(slot, existing) - existing.getAmount());
     }
 
     private void addItemToSlot(int slot, ItemStack item, double itemStoredExperience) {
@@ -1134,8 +1270,9 @@ public class CookingPotBlockEntity {
 
         ItemStack existing = inventory[slot];
         if (existing != null && isSimilarIgnoringStoredExperience(existing, item)) {
-            // Clamp the merged result to the max stack size so a slot never holds items beyond the stack limit.
-            int maxStack = Math.max(1, existing.getMaxStackSize());
+            // Clamp the merged result to the slot's stack limit so a slot never holds items beyond it
+            // (the pending-output slot allows at least 64, every other slot the item's real limit).
+            int maxStack = slotStackLimit(slot, existing);
             int merged = Math.min(maxStack, existing.getAmount() + item.getAmount());
             existing.setAmount(merged);
             slotExperience[slot] += Math.max(0.0D, itemStoredExperience);
@@ -1166,7 +1303,7 @@ public class CookingPotBlockEntity {
             if (existing == null || existing.getType().isAir() || !isSimilarIgnoringStoredExperience(existing, pending)) {
                 continue;
             }
-            int space = existing.getMaxStackSize() - existing.getAmount();
+            int space = slotStackLimit(slot, existing) - existing.getAmount();
             if (space <= 0) {
                 continue;
             }
@@ -1187,7 +1324,7 @@ public class CookingPotBlockEntity {
             if (existing != null && !existing.getType().isAir()) {
                 continue;
             }
-            int moved = Math.min(pending.getMaxStackSize(), pending.getAmount());
+            int moved = Math.min(slotStackLimit(slot, pending), pending.getAmount());
             ItemStack moving = pending.clone();
             moving.setAmount(moved);
             double experiencePart = itemStoredExperience <= 0.0D ? 0.0D : Math.min(remainingExperience, (itemStoredExperience * moved) / originalAmount);

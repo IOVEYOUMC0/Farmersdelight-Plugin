@@ -8,6 +8,7 @@ import com.fren_gor.ultimateAdvancementAPI.advancement.RootAdvancement;
 import com.fren_gor.ultimateAdvancementAPI.advancement.display.AdvancementFrameType;
 import com.fren_gor.ultimateAdvancementAPI.advancement.tasks.MultiTasksAdvancement;
 import com.fren_gor.ultimateAdvancementAPI.advancement.tasks.TaskAdvancement;
+import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -16,6 +17,8 @@ import org.bukkit.plugin.Plugin;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -37,6 +40,10 @@ public final class AddonAdvancementTab {
     private final Map<String, Advancement> byId = new ConcurrentHashMap<>();
     private final Map<String, Map<String, TaskAdvancement>> multiTasks = new ConcurrentHashMap<>();
     private final Set<UUID> rootAwarded = ConcurrentHashMap.newKeySet();
+    // Which ids each tab's previous build gated off, so only the difference is logged. Keyed by tab name rather
+    // than held per instance because a rebuild replaces the whole AddonAdvancementTab.
+    private static final Map<String, Set<String>> GATED_OFF_BY_TAB = new ConcurrentHashMap<>();
+
     private AdvancementTab tab;
     private String rootId;
 
@@ -54,6 +61,12 @@ public final class AddonAdvancementTab {
         return tab != null && tab.isInitialised();
     }
 
+    /** Number of advancements currently built into this tab, for the consolidated startup summary.
+     *  Zero once dispose has torn the tab down, and zero for a tab whose build failed. */
+    public int getLoadedCount() {
+        return byId.size();
+    }
+
     /** Builds (or rebuilds) the UAA tab from the definitions. Returns false on any failure. */
     public boolean load() {
         try {
@@ -63,9 +76,9 @@ public final class AddonAdvancementTab {
             }
             tab = api.createAdvancementTab(tabName);
             buildTree();
-            I18n.logInfo("advancement.addon_tab_built", "tab", tabName, "count", definitions.size());
+            I18n.logDetail("startup", "advancement.addon_tab_built", "tab", tabName, "count", definitions.size());
             return true;
-        } catch (Throwable e) {
+        } catch (Exception | LinkageError e) {
             disposeQuietly();
             // A build failure otherwise leaves the addon's advancements missing in-game with no error; log the
             // localized message + stack trace so the cause is diagnosable (I18n.logWarning can't carry the throwable).
@@ -79,22 +92,53 @@ public final class AddonAdvancementTab {
         byId.clear();
         multiTasks.clear();
 
+        Map<String, AdvancementDef> defsById = new LinkedHashMap<>();
         AdvancementDef rootDef = null;
         for (AdvancementDef def : definitions) {
-            if (def.isRoot()) {
+            defsById.put(def.id(), def);
+            if (def.isRoot() && rootDef == null) {
                 rootDef = def;
-                break;
             }
         }
         if (rootDef == null) {
             throw new IllegalStateException("advancement tab '" + tabName + "' has no root definition");
         }
 
+        // Drop the advancements whose declared CraftEngine content is gone, then re-hang their children on the
+        // nearest surviving ancestor. Addons that declared no requirement keep every advancement, as before.
+        AdvancementGate gate = AdvancementGate.fromConfig(FarmersDelightPlugin.getInstance(), tabName);
+        Map<String, String> declaredParents = new HashMap<>();
+        Set<String> kept = new LinkedHashSet<>();
+        for (AdvancementDef def : definitions) {
+            if (!def.isRoot()) {
+                declaredParents.put(def.id(), def.parentId());
+            }
+            if (def.isRoot() || gate.keeps(def.id(), def.requirement())) {
+                kept.add(def.id());
+            }
+        }
+        Map<String, String> parents = AdvancementGate.resolveParents(rootDef.id(), declaredParents, kept);
+        List<String> order = parents == null ? null : AdvancementGate.buildOrder(rootDef.id(), parents, kept);
+        boolean gated = order != null;
+        if (!gated) {
+            // Either gating disconnected the tree or the addon's own tree is malformed. Try the full tree; only
+            // if that is unbuildable too is the definition itself at fault.
+            kept = new LinkedHashSet<>(defsById.keySet());
+            parents = declaredParents;
+            order = AdvancementGate.buildOrder(rootDef.id(), parents, kept);
+            if (order == null) {
+                throw new IllegalStateException("advancement tab '" + tabName
+                        + "' has advancements with unknown/cyclic parents: " + unresolvedIds(defsById));
+            }
+            I18n.logWarning("advancement.gate_structure_invalid", "tab", tabName);
+        }
+        gate.warnUnknownConfiguredIds(defsById.keySet());
+        Set<String> currentGatedOff = AdvancementGate.orderedGatedOff(List.copyOf(defsById.keySet()), kept);
+
         String background = rootDef.background() == null
                 ? "minecraft:textures/block/stone.png"
                 : rootDef.background();
-        RootAdvancement root = new RootAdvancement(tab, rootDef.id(),
-                display(rootDef), background);
+        RootAdvancement root = new RootAdvancement(tab, rootDef.id(), display(rootDef), background);
         byId.put(rootDef.id(), root);
         rootId = rootDef.id();
         if (rootDef.isMulti()) {
@@ -103,44 +147,46 @@ public final class AddonAdvancementTab {
         }
 
         Set<BaseAdvancement> all = new HashSet<>();
-        // Multi-pass so children may appear before their parents in the definition order.
-        List<AdvancementDef> pending = new ArrayList<>(definitions);
-        pending.remove(rootDef);
-        boolean progress = true;
-        while (progress && !pending.isEmpty()) {
-            progress = false;
-            for (var it = pending.iterator(); it.hasNext(); ) {
-                AdvancementDef def = it.next();
-                Advancement parent = byId.get(def.parentId());
-                if (parent == null) {
-                    continue; // parent not built yet
-                }
-                BaseAdvancement built = def.isMulti()
-                        ? buildMulti(def, parent)
-                        : new BaseAdvancement(def.id(), display(def), parent);
-                byId.put(def.id(), built);
-                all.add(built);
-                it.remove();
-                progress = true;
+        for (String id : order) {
+            if (id.equals(rootDef.id())) {
+                continue;
             }
-        }
-        if (!pending.isEmpty()) {
-            StringBuilder unresolved = new StringBuilder();
-            for (AdvancementDef def : pending) {
-                unresolved.append(def.id()).append("(parent=").append(def.parentId()).append(") ");
-            }
-            throw new IllegalStateException("advancement tab '" + tabName
-                    + "' has advancements with unknown/cyclic parents: " + unresolved);
+            AdvancementDef def = defsById.get(id);
+            Advancement parent = byId.get(parents.get(id));
+            BaseAdvancement built = def.isMulti()
+                    ? buildMulti(def, parent, gated ? gate : null)
+                    : new BaseAdvancement(def.id(), display(def), parent);
+            byId.put(def.id(), built);
+            all.add(built);
         }
 
         tab.registerAdvancements(root, all);
+        // Recorded only once the tab is actually registered, so a build that threw part-way does not become the
+        // baseline the next build compares against.
+        GATED_OFF_BY_TAB.put(tabName, AdvancementGate.logChanges(tabName, GATED_OFF_BY_TAB.get(tabName),
+                currentGatedOff));
     }
 
-    private MultiTasksAdvancement buildMulti(AdvancementDef def, Advancement parent) {
-        MultiTasksAdvancement multi = new MultiTasksAdvancement(def.id(), display(def), parent, def.criteria().size());
+    /** Names the definitions that stop the tab from being a tree: unknown parents first, cycles otherwise. */
+    private static String unresolvedIds(Map<String, AdvancementDef> defsById) {
+        StringBuilder unresolved = new StringBuilder();
+        for (AdvancementDef def : defsById.values()) {
+            if (!def.isRoot() && !defsById.containsKey(def.parentId())) {
+                unresolved.append(def.id()).append("(parent=").append(def.parentId()).append(") ");
+            }
+        }
+        return unresolved.length() == 0 ? "cyclic parent chain" : unresolved.toString().trim();
+    }
+
+    /** Builds a multi-task advancement, dropping the subtasks whose CraftEngine content is gone. */
+    private MultiTasksAdvancement buildMulti(AdvancementDef def, Advancement parent, AdvancementGate gate) {
+        List<String> criteria = gate == null
+                ? def.criteria()
+                : gate.filterCriteria(def.id(), def.criteria(), def.criterionRequirements());
+        MultiTasksAdvancement multi = new MultiTasksAdvancement(def.id(), display(def), parent, criteria.size());
         Map<String, TaskAdvancement> taskMap = new HashMap<>();
         List<TaskAdvancement> tasks = new ArrayList<>();
-        for (String criterion : def.criteria()) {
+        for (String criterion : criteria) {
             TaskAdvancement task = new TaskAdvancement(def.id() + "_" + criterion, multi);
             taskMap.put(criterion, task);
             tasks.add(task);

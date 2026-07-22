@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.api.event;
 
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
+import org.jetbrains.annotations.ApiStatus;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -14,6 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * this as a one-shot admin signal (not periodic) and may do best-effort regional scheduling on Folia — the
  * count is allowed to be "scheduled for removal" rather than "removed before this method returns".
  */
+@ApiStatus.NonExtendable
 public class FarmersDelightCleanupEvent extends Event {
 
     private static final HandlerList HANDLERS = new HandlerList();

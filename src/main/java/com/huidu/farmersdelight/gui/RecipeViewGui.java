@@ -594,6 +594,10 @@ public class RecipeViewGui implements InventoryHolder {
         clearDetailActionSlot(detailConfig, detailConfig.getFilterSlot());
         if (fromCookingPot) {
             setFillButton(detailConfig, player);
+        } else {
+            // The background pass already painted the layout's fill slot, so without this the button stays
+            // visible when the view was opened by command and there is no pot to fill.
+            clearDetailActionSlot(detailConfig, detailConfig.getFillSlot());
         }
     }
 
@@ -706,7 +710,7 @@ public class RecipeViewGui implements InventoryHolder {
     }
 
     private ItemStack createKnifePreviewItem() {
-        for (String knifeId : plugin.getConfig().getStringList("knife-config.items")) {
+        for (String knifeId : plugin.getConfigStringList("knife-items.items", "drops.knife-items.items", "knife-config.items")) {
             ItemStack knife = RecipeIngredientIcons.createItemFromKey(Key.of(knifeId));
             if (knife != null && knife.getType() != Material.BARRIER && !knife.getType().isAir()) {
                 return knife;
@@ -1480,7 +1484,7 @@ public class RecipeViewGui implements InventoryHolder {
             return;
         }
 
-        if (cookingPotMode && slot == detailConfig.getFillSlot()) {
+        if (fromCookingPot && cookingPotMode && slot == detailConfig.getFillSlot()) {
             FillResult result = fillCookingPotFromInventory(player, shiftClick);
             if (result.returnToPot()) {
                 closeGui(player);

@@ -46,7 +46,7 @@ public final class LootDatapackInstaller implements Listener {
     /** Install into every currently loaded world. Call from onEnable. */
     public void installToAllWorlds() {
         if (!installEnabled) {
-            I18n.logInfo("loot_datapack_disabled");
+            I18n.logDetail("startup", "plugin.loot_datapack_disabled");
             return;
         }
         int installed = 0;
@@ -54,22 +54,35 @@ public final class LootDatapackInstaller implements Listener {
             if (installToWorld(world)) installed++;
         }
         if (installed > 0) {
-            plugin.getLogger().warning("==================================================================");
-            plugin.getLogger().warning(" Installed FarmersDelight loot datapack into " + installed + " world(s).");
-            plugin.getLogger().warning(" RESTART the server (or run /reload) for the loot injections to");
-            plugin.getLogger().warning(" take effect. Custom items in vanilla chests / mob drops / grass");
-            plugin.getLogger().warning(" will not appear until the datapack is loaded by vanilla.");
-            plugin.getLogger().warning("==================================================================");
+            printRestartBanner(installed);
         }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onWorldLoad(WorldLoadEvent event) {
         // Cover newly-created / runtime-loaded worlds (e.g. Multiverse) — same idempotent install path.
-        if (installEnabled) installToWorld(event.getWorld());
+        // A world that actually receives files here needs the same restart notice the startup path prints:
+        // the per-world write itself only reaches the startup detail channel, so without this banner an
+        // install into a runtime-created world would leave no console trace and the operator would never
+        // learn the loot injections are not live yet.
+        if (installEnabled && installToWorld(event.getWorld())) {
+            printRestartBanner(1);
+        }
     }
 
-    /** @return true if files were written this call (false: already present or skipped). */
+    /** Restart notice for worlds that just received datapack files. Stays at WARNING: until vanilla loads
+     *  the datapack the loot injections silently do nothing, which is worth interrupting the console for. */
+    private void printRestartBanner(int worlds) {
+        plugin.getLogger().warning("==================================================================");
+        plugin.getLogger().warning(" Installed FarmersDelight loot datapack into " + worlds + " world(s).");
+        plugin.getLogger().warning(" RESTART the server (or run /reload) for the loot injections to");
+        plugin.getLogger().warning(" take effect. Custom items in vanilla chests / mob drops / grass");
+        plugin.getLogger().warning(" will not appear until the datapack is loaded by vanilla.");
+        plugin.getLogger().warning("==================================================================");
+    }
+
+    /** @return true only if files were actually written this call. A world whose datapack was already
+     *  complete returns false, so the restart banner stays quiet on a boot that changed nothing. */
     private boolean installToWorld(World world) {
         Path datapackDir = world.getWorldFolder().toPath().resolve("datapacks").resolve(DATAPACK_NAME);
         // Fresh install → copy everything. Existing install → only ADD files that are missing (e.g. a
@@ -97,12 +110,15 @@ public final class LootDatapackInstaller implements Listener {
                     count++;
                 }
                 if (count > 0) {
-                    I18n.logInfo("loot_datapack_written", "count", count, "dir", datapackDir);
+                    I18n.logDetail("startup", "plugin.loot_datapack_written", "count", count, "dir", datapackDir);
                 }
+                // Only a call that wrote at least one file counts as an install: the restart banner is about
+                // datapack content the running server has not loaded yet, which is exactly this case. A boot
+                // where every bundled file was already on disk changed nothing and must stay silent.
+                return count > 0;
             }
-            return true;
         } catch (IOException e) {
-            I18n.logSevere("loot_datapack_install_failed", "world", world.getName(), "error", e.getMessage());
+            I18n.logSevere("plugin.loot_datapack_install_failed", "world", world.getName(), "error", e.getMessage());
             return false;
         }
     }

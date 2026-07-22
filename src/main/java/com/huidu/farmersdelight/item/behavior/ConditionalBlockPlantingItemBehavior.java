@@ -13,7 +13,9 @@ import net.momirealms.craftengine.core.item.behavior.ItemBehavior;
 import net.momirealms.craftengine.core.item.behavior.ItemBehaviorFactory;
 import net.momirealms.craftengine.core.pack.Pack;
 import net.momirealms.craftengine.core.plugin.CraftEngine;
+import net.momirealms.craftengine.core.plugin.config.ConfigConstants;
 import net.momirealms.craftengine.core.plugin.config.ConfigSection;
+import net.momirealms.craftengine.core.plugin.config.KnownResourceException;
 import net.momirealms.craftengine.core.util.Direction;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.BlockPos;
@@ -138,12 +140,27 @@ public final class ConditionalBlockPlantingItemBehavior extends ItemBehavior {
             Map<Key, Key> rules = new HashMap<>();
             if (rawRules != null) {
                 for (Object entry : rawRules) {
-                    if (!(entry instanceof Map<?, ?> map)) continue;
+                    if (!(entry instanceof Map<?, ?> map)) {
+                        CraftEngine.instance().logger().warn("ConditionalBlockPlantingItemBehavior: " + key
+                                + " has a rule that is not a section, ignoring it");
+                        continue;
+                    }
                     Object t = map.get("target");
                     Object b = map.get("block");
-                    if (t == null || b == null) continue;
+                    if (t == null || b == null) {
+                        CraftEngine.instance().logger().warn("ConditionalBlockPlantingItemBehavior: " + key
+                                + " has a rule missing 'target' or 'block', ignoring it");
+                        continue;
+                    }
                     rules.put(Key.of(t.toString()), Key.of(b.toString()));
                 }
+            }
+            // The rules are the entire behavior: with none of them every click returns PASS and the item is
+            // indistinguishable from one that never declared the behavior at all. Report it against the item's
+            // config node so the mistake is visible instead of leaving an author to wonder why their seed still
+            // plants the vanilla crop. CraftEngine keeps the item and drops only its behavior.
+            if (rules.isEmpty()) {
+                throw KnownResourceException.missingArgument("rules", ConfigConstants.ARGUMENT_LIST);
             }
             return new ConditionalBlockPlantingItemBehavior(rules);
         }

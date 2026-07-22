@@ -4,6 +4,7 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.SoundUtils;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.api.CraftEngineFurniture;
 import net.momirealms.craftengine.bukkit.entity.furniture.BukkitFurniture;
@@ -52,6 +53,9 @@ public final class HandleManager {
     private static final double DEFAULT_X_OFFSET = 0.5D;
     private static final double DEFAULT_Y_OFFSET = 0.0D;
     private static final double DEFAULT_Z_OFFSET = 0.5D;
+    private static final String DEFAULT_TOGGLE_SOUND = "minecraft:block.lantern.place";
+    private static final float DEFAULT_TOGGLE_SOUND_VOLUME = 0.7F;
+    private static final float DEFAULT_TOGGLE_SOUND_PITCH = 1.0F;
 
     private final FarmersDelightPlugin plugin;
     private final Set<UUID> trackedWorlds = ConcurrentHashMap.newKeySet();
@@ -60,6 +64,9 @@ public final class HandleManager {
     private double xOffset;
     private double yOffset;
     private double zOffset;
+    private String toggleSoundId;
+    private float toggleSoundVolume;
+    private float toggleSoundPitch;
 
     public HandleManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -80,6 +87,9 @@ public final class HandleManager {
         xOffset = config.getDouble("x-offset", DEFAULT_X_OFFSET);
         yOffset = config.getDouble("y-offset", DEFAULT_Y_OFFSET);
         zOffset = config.getDouble("z-offset", DEFAULT_Z_OFFSET);
+        toggleSoundId = config.getString("toggle-sound", DEFAULT_TOGGLE_SOUND);
+        toggleSoundVolume = (float) config.getDouble("toggle-sound-volume", DEFAULT_TOGGLE_SOUND_VOLUME);
+        toggleSoundPitch = (float) config.getDouble("toggle-sound-pitch", DEFAULT_TOGGLE_SOUND_PITCH);
     }
 
     /** The world location at which the handle furniture is anchored for a pot at potPos. */
@@ -129,8 +139,9 @@ public final class HandleManager {
             if (trayManager != null) trayManager.removeTrayIfAutoPlaced(world, potPos);
             placeHandleIfMissing(world, potPos, potBlock);
         }
-        if (player != null) {
-            player.playSound(player.getLocation(), Sound.BLOCK_LANTERN_PLACE, SoundCategory.BLOCKS, 0.7f, 1.0f);
+        if (player != null && toggleSoundVolume > 0) {
+            SoundUtils.play(player, player.getLocation(), toggleSoundId, Sound.BLOCK_LANTERN_PLACE,
+                    SoundCategory.BLOCKS, toggleSoundVolume, toggleSoundPitch);
         }
         return !had;
     }
@@ -196,7 +207,17 @@ public final class HandleManager {
 
     private void sweepOrphansInChunkNow(World world, int chunkX, int chunkZ) {
         if (world == null || !world.isChunkLoaded(chunkX, chunkZ)) return;
-        for (Entity entity : world.getChunkAt(chunkX, chunkZ).getEntities()) {
+        sweepOrphansIn(world, java.util.Arrays.asList(world.getChunkAt(chunkX, chunkZ).getEntities()));
+    }
+
+    /**
+     * Sweeps an already-fetched entity list instead of fetching a chunk's own. Lets a caller that has to
+     * walk the same chunk's entities for another purpose share one walk; the caller is responsible for
+     * having confirmed the chunk is loaded and for being on the region that owns it.
+     */
+    public void sweepOrphansIn(World world, List<Entity> entities) {
+        if (world == null || entities == null) return;
+        for (Entity entity : entities) {
             if (!(entity instanceof ItemDisplay display)) continue;
             BukkitFurniture furniture = CraftEngineFurniture.getLoadedFurnitureByMetaEntity(display);
             if (furniture == null) continue;
@@ -221,7 +242,7 @@ public final class HandleManager {
         try {
             furniture = CraftEngineFurniture.place(handleLoc, handleFurnitureKey, variant);
         } catch (Exception e) {
-            I18n.logWarning("handle_place_failed", "anchor", handleLoc, "error", e.getMessage());
+            I18n.logWarning("plugin.handle_place_failed", "anchor", handleLoc, "error", e.getMessage());
             return;
         }
         if (furniture == null) return;

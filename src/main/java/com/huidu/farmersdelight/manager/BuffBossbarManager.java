@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Renders per-player buff state pushed via com.huidu.farmersdelight.api.buff.BuffBossbar to one
- * or more display Channels (config bossbar.channels), so an admin can route around a
+ * or more display Channels (config buff.display.channels), so an admin can route around a
  * plugin that already occupies a given channel: bossbar (boss bar), actionbar (action
  * bar line), tab_footer (player-list footer). Any combination may run at once; default is
  * boss bar only.
@@ -32,7 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <ul>
  *   <li>stacked — every active buff shows its own bossbar simultaneously (vanilla style).</li>
  *   <li>rotating — only one bar visible at a time, advances every
- *       bossbar.rotation-interval-ticks.</li>
+ *       buff.display.rotation-interval-ticks.</li>
  * </ul>
  * The action bar / tab footer always list every active buff (joined on one line / one per line).
  *
@@ -57,7 +57,7 @@ public final class BuffBossbarManager implements Listener {
 
     /**
      * A place the active-buff state can be rendered. Any combination may be enabled at once via
-     * bossbar.channels, so an admin can route around another plugin that already occupies a
+     * buff.display.channels, so an admin can route around another plugin that already occupies a
      * given channel (that plugin's boss bar / action bar / tab footer).
      * <ul>
      *   <li>BOSSBAR — one boss bar per buff, laid out per LayoutMode.</li>
@@ -81,15 +81,27 @@ public final class BuffBossbarManager implements Listener {
         }
     }
 
-    // Action bar messages fade after ~3s, so the rotation tick re-sends them this often when the
-    // ACTIONBAR channel is active. Boss bar / tab footer persist and need no refresh.
-    private static final long ACTIONBAR_REFRESH_TICKS = 30L;
+    // Quantization step count for the bar's progress value. Feeders compute progress as
+    // remaining/initial, so the raw float changes on every feed tick and the snapshot compare below
+    // never absorbs it — each change becomes one boss-event packet, most of them moving the bar by
+    // less than a pixel. The vanilla boss bar texture is ~182px wide, so rounding to 1/128 is below
+    // the visible resolution while collapsing the majority of those packets into no-ops. Applied here
+    // rather than in the feeds: this is the single choke point every addon's bar passes through.
+    private static final int PROGRESS_STEPS = 128;
 
     private final FarmersDelightPlugin plugin;
     private final Map<UUID, PlayerBars> players = new ConcurrentHashMap<>();
+    // Display switch (buff.display.enabled): silences every channel while the effects themselves keep
+    // running and ticking.
     private volatile boolean enabled = true;
+    // Buff master switch (buff.enabled): when off there are no effects at all, so there is nothing to draw.
+    // Written by the reload path, read from the tick and from addon push threads (R-CONC-002).
+    private volatile boolean systemEnabled = true;
     private volatile LayoutMode layoutMode = LayoutMode.STACKED;
     private volatile long rotationIntervalTicks = 80L;
+    // Action bar messages fade after ~3s, so the rotation tick re-sends them this often when the
+    // ACTIONBAR channel is active. Boss bar / tab footer persist and need no refresh.
+    private volatile long actionbarRefreshTicks = 30L;
     // Enabled render channels. EnumSet, replaced wholesale on reload (never mutated in place) so readers
     // see a consistent snapshot. Defaults to BOSSBAR to preserve pre-channels behaviour.
     private volatile java.util.Set<Channel> channels = java.util.EnumSet.of(Channel.BOSSBAR);
@@ -112,16 +124,18 @@ public final class BuffBossbarManager implements Listener {
         this.plugin = plugin;
     }
 
-    /** Read bossbar.enabled, bossbar.layout-mode, bossbar.rotation-interval-ticks
-     *  from the given section. Safe to call live to apply reloads — visibility is resynced for all
-     *  current players. */
-    public void applyConfig(ConfigurationSection section) {
-        boolean wasEnabled = this.enabled;
+    /** Read enabled, layout-mode, rotation-interval-ticks and the channel list from the buff.display
+     *  section, plus the buff.enabled master switch. Safe to call live to apply reloads — visibility is
+     *  resynced for all current players, and a switch-off retracts everything already drawn. */
+    public void applyConfig(ConfigurationSection section, boolean systemEnabled) {
+        boolean wasRendering = renderingEnabled();
         java.util.Set<Channel> oldChannels = this.channels;
+        this.systemEnabled = systemEnabled;
         if (section == null) {
             this.enabled = true;
             this.layoutMode = LayoutMode.STACKED;
             this.rotationIntervalTicks = 80L;
+            this.actionbarRefreshTicks = 30L;
             this.channels = java.util.EnumSet.of(Channel.BOSSBAR);
             this.actionbarSeparator = Component.text("   ");
         } else {
@@ -129,10 +143,12 @@ public final class BuffBossbarManager implements Listener {
             this.layoutMode = LayoutMode.parse(section.getString("layout-mode", "stacked"));
             this.rotationIntervalTicks = Math.max(20L,
                     section.getLong("rotation-interval-ticks", 80L));
+            this.actionbarRefreshTicks = Math.max(1L,
+                    section.getLong("actionbar-refresh-ticks", 30L));
             this.channels = parseChannels(section.getStringList("channels"));
             this.actionbarSeparator = Component.text(section.getString("actionbar-separator", "   "));
         }
-        if (wasEnabled && !this.enabled) {
+        if (wasRendering && !renderingEnabled()) {
             hideAndClearAll();
             ensureTickTask();
             return;
@@ -204,7 +220,7 @@ public final class BuffBossbarManager implements Listener {
     private synchronized void ensureTickTask() {
         // The tick drives boss bar rotation AND the action bar's periodic re-send. Stacked boss bar and
         // the tab footer both persist without a tick, so neither keeps the task alive on its own.
-        boolean want = started && enabled
+        boolean want = started && renderingEnabled()
                 && ((channels.contains(Channel.BOSSBAR) && layoutMode == LayoutMode.ROTATING)
                     || channels.contains(Channel.ACTIONBAR));
         if (want && tickTask == null) {
@@ -215,15 +231,21 @@ public final class BuffBossbarManager implements Listener {
         }
     }
 
+    /** True only when the buff system is on AND the display is on. Both have to hold for anything to be
+     *  drawn, so this is what every render path and the addon-facing guard read. */
+    private boolean renderingEnabled() {
+        return systemEnabled && enabled;
+    }
+
     public boolean isEnabled() {
-        return enabled;
+        return renderingEnabled();
     }
 
     public void update(Plugin owner, Player player, NamespacedKey key,
                        Component title, float progress,
                        BossBar.Color color, BossBar.Overlay overlay) {
-        if (!enabled || player == null || key == null || !player.isOnline()) return;
-        float clamped = clamp(progress);
+        if (!renderingEnabled() || player == null || key == null || !player.isOnline()) return;
+        float clamped = quantize(clamp(progress));
         BossBar.Color c = color == null ? BossBar.Color.WHITE : color;
         BossBar.Overlay o = overlay == null ? BossBar.Overlay.PROGRESS : overlay;
         Component t = title == null ? Component.empty() : title;
@@ -344,7 +366,7 @@ public final class BuffBossbarManager implements Listener {
 
     /** Draw the active-buff state to every enabled channel. Caller must hold the per-player monitor. */
     private void render(Player player, PlayerBars state) {
-        if (!enabled) return;
+        if (!renderingEnabled()) return;
         java.util.Set<Channel> ch = channels;
         if (ch.contains(Channel.BOSSBAR)) {
             syncBossbars(player, state);
@@ -355,7 +377,7 @@ public final class BuffBossbarManager implements Listener {
     /** Refresh only the push-only channels (action bar / tab footer) — used when a boss bar was mutated
      *  in place (that mutation already auto-propagated). Caller must hold the per-player monitor. */
     private void renderAuxiliary(Player player, PlayerBars state) {
-        if (!enabled) return;
+        if (!renderingEnabled()) return;
         renderAuxiliary(player, state, channels);
     }
 
@@ -418,13 +440,13 @@ public final class BuffBossbarManager implements Listener {
 
     private void tick() {
         currentTick++;
-        if (!enabled || players.isEmpty()) {
+        if (!renderingEnabled() || players.isEmpty()) {
             return;
         }
         java.util.Set<Channel> ch = channels;
         boolean rotate = ch.contains(Channel.BOSSBAR) && layoutMode == LayoutMode.ROTATING;
         boolean refreshActionBar = ch.contains(Channel.ACTIONBAR)
-                && currentTick % ACTIONBAR_REFRESH_TICKS == 0;
+                && currentTick % actionbarRefreshTicks == 0;
         if (!rotate && !refreshActionBar) {
             return;
         }
@@ -475,6 +497,13 @@ public final class BuffBossbarManager implements Listener {
         if (Float.isNaN(progress) || progress < 0F) return 0F;
         if (progress > 1F) return 1F;
         return progress;
+    }
+
+    /** Rounds an already-clamped progress value onto the PROGRESS_STEPS grid so the snapshot compare in
+     *  update() absorbs sub-pixel movement instead of emitting a packet for it. 0F and 1F are exact grid
+     *  points, so an empty or full bar still compares equal to itself. */
+    private static float quantize(float clamped) {
+        return Math.round(clamped * PROGRESS_STEPS) / (float) PROGRESS_STEPS;
     }
 
     private static final class PlayerBars {

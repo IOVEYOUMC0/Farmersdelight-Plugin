@@ -6,6 +6,7 @@ import net.kyori.adventure.text.Component;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Per-player buff bossbar display API. Addons (or FD itself) push the live state of an active buff
@@ -17,15 +18,17 @@ import org.bukkit.plugin.Plugin;
  * existing bossbar; pass a fresh title/progress to refresh. Call hide when the buff ends.
  * Player quit and FD disable both flush all bars; addons don't have to clean up on quit.
  *
- * <p>Channels / layout / master toggle live in FD's config.yml under bossbar:. Per-buff
- * enabled flags (e.g. "hide tipsy bar but show raging") are the addon's concern, not FD's.
+ * Channels, layout and the display toggle live in FD's config.yml under buff.display; the whole buff
+ * system also has a master switch at buff.enabled, and either one being off makes every call here a no-op.
+ * Per-buff enabled flags (e.g. "hide tipsy bar but show raging") are the addon's concern, not FD's.
  */
+@ApiStatus.NonExtendable
 public final class BuffBossbar {
 
     private BuffBossbar() {
     }
 
-    /** Master switch — false when FD config has bossbar.enabled: false OR the manager is not
+    /** False when FD config has buff.enabled: false or buff.display.enabled: false, or the manager is not
      *  yet initialised. Cheap guard for addons to skip update calls entirely when disabled. */
     public static boolean isEnabled() {
         BuffBossbarManager manager = manager();

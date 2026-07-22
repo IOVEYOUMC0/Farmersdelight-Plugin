@@ -82,6 +82,30 @@ public final class SoundUtils {
         }
     }
 
+    /** Plays a sound to a single player at the given location, resolving the config sound key against the
+     *  Bukkit registry with a resourcepack-sound string fallback. Shares the resolution cache with play. */
+    public static void play(Player player, Location location, String soundKey, Sound fallback, SoundCategory category, float volume, float pitch) {
+        if (player == null || location == null) {
+            return;
+        }
+        if (soundKey == null || soundKey.isBlank()) {
+            player.playSound(location, fallback, category, volume, pitch);
+            return;
+        }
+        Object resolved = RESOLUTION_CACHE.get(soundKey);
+        if (resolved == null) {
+            resolved = resolve(soundKey);
+            if (RESOLUTION_CACHE.size() < RESOLUTION_CACHE_MAX) {
+                RESOLUTION_CACHE.put(soundKey, resolved);
+            }
+        }
+        if (resolved instanceof Sound sound) {
+            player.playSound(location, sound, category, volume, pitch);
+        } else {
+            player.playSound(location, (String) resolved, category, volume, pitch);
+        }
+    }
+
     private static Object resolve(String soundKey) {
         String normalized = soundKey.trim().toLowerCase(java.util.Locale.ROOT);
         NamespacedKey key = normalized.contains(":")

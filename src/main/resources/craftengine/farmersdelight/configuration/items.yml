@@ -34,7 +34,7 @@ templates:
     data:
       food:
         nutrition: 3
-        saturation: 1
+        saturation: 1.8
         can-always-eat: false
     events:
       - on: consume
@@ -89,11 +89,8 @@ items:
     events:
       - on: consume
         functions:
-          - type: potion_effect
-            potion-effect: minecraft:instant_health
-            duration: 1
-            amplifier: 0
-            particles: false
+          - type: heal
+            amount: 2
   farmersdelight:hot_cocoa:
     template: farmersdelight:drink_template
     data:
@@ -145,7 +142,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.cabbage>
       food:
         nutrition: 2
-        saturation: 1
+        saturation: 1.6
         can-always-eat: false
     settings:
       tags:
@@ -156,7 +153,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.tomato>
       food:
         nutrition: 1
-        saturation: 0.5
+        saturation: 0.6
         can-always-eat: false
   farmersdelight:onion:
     template: farmersdelight:food_template
@@ -164,7 +161,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.onion>
       food:
         nutrition: 2
-        saturation: 1
+        saturation: 1.6
         can-always-eat: false
     behavior:
       type: block_item
@@ -236,15 +233,15 @@ items:
       item-name: <!i><lang:item.farmersdelight.fried_egg>
       food:
         nutrition: 4
-        saturation: 3
+        saturation: 3.2
         can-always-eat: false
   farmersdelight:tomato_sauce:
-    template: farmersdelight:food_template
+    template: farmersdelight:soup_template
     data:
       item-name: <!i><lang:item.farmersdelight.tomato_sauce>
       food:
         nutrition: 4
-        saturation: 3
+        saturation: 3.2
         can-always-eat: false
   farmersdelight:wheat_dough:
     template: farmersdelight:food_template
@@ -252,13 +249,13 @@ items:
       item-name: <!i><lang:item.farmersdelight.wheat_dough>
       food:
         nutrition: 2
-        saturation: 1
+        saturation: 1.2
         can-always-eat: false
     events:
       - on: consume
         conditions:
           - type: expression
-            expression: "random() < 0.5"
+            expression: "random() < 0.3"
         functions:
           - type: potion_effect
             potion-effect: minecraft:hunger
@@ -271,13 +268,13 @@ items:
       item-name: <!i><lang:item.farmersdelight.raw_pasta>
       food:
         nutrition: 2
-        saturation: 1
+        saturation: 1.2
         can-always-eat: false
     events:
       - on: consume
         conditions:
           - type: expression
-            expression: "random() < 0.5"
+            expression: "random() < 0.3"
         functions:
           - type: potion_effect
             potion-effect: minecraft:hunger
@@ -290,7 +287,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.pumpkin_slice>
       food:
         nutrition: 3
-        saturation: 1
+        saturation: 1.8
         can-always-eat: false
   farmersdelight:cabbage_leaf:
     template: farmersdelight:food_cut_template
@@ -298,7 +295,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.cabbage_leaf>
       food:
         nutrition: 1
-        saturation: 1
+        saturation: 0.8
         can-always-eat: false
     settings:
       tags:
@@ -309,7 +306,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.minced_beef>
       food:
         nutrition: 2
-        saturation: 1
+        saturation: 1.2
         can-always-eat: false
     settings:
       tags:
@@ -320,7 +317,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.beef_patty>
       food:
         nutrition: 4
-        saturation: 7
+        saturation: 6.4
         can-always-eat: false
   farmersdelight:chicken_cuts:
     template: farmersdelight:food_cut_template
@@ -328,16 +325,16 @@ items:
       item-name: <!i><lang:item.farmersdelight.chicken_cuts>
       food:
         nutrition: 1
-        saturation: 1
+        saturation: 0.6
         can-always-eat: false
-      settings:
-       tags:
-         - minecraft:meat
+    settings:
+      tags:
+        - minecraft:meat
     events:
       - on: consume
         conditions:
           - type: expression
-            expression: "random() < 0.5"
+            expression: "random() < 0.3"
         functions:
           - type: potion_effect
             potion-effect: minecraft:hunger
@@ -350,7 +347,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.cooked_chicken_cuts>
       food:
         nutrition: 3
-        saturation: 3
+        saturation: 3.6
         can-always-eat: false
   farmersdelight:bacon:
     template: farmersdelight:food_cut_template
@@ -358,18 +355,18 @@ items:
       item-name: <!i><lang:item.farmersdelight.bacon>
       food:
         nutrition: 2
-        saturation: 1
+        saturation: 1.2
         can-always-eat: false
-      settings:
-       tags:
-         - minecraft:meat
+    settings:
+      tags:
+        - minecraft:meat
   farmersdelight:cooked_bacon:
     template: farmersdelight:food_cut_template
     data:
       item-name: <!i><lang:item.farmersdelight.cooked_bacon>
       food:
         nutrition: 4
-        saturation: 6.5
+        saturation: 6.4
         can-always-eat: false
   farmersdelight:cod_slice:
     template: farmersdelight:food_cut_template
@@ -377,11 +374,11 @@ items:
       item-name: <!i><lang:item.farmersdelight.cod_slice>
       food:
         nutrition: 1
-        saturation: 0.5
+        saturation: 0.2
         can-always-eat: false
-      settings:
-       tags:
-         - minecraft:meat
+    settings:
+      tags:
+        - minecraft:cat_food
   farmersdelight:cooked_cod_slice:
     template: farmersdelight:food_cut_template
     data:
@@ -396,18 +393,18 @@ items:
       item-name: <!i><lang:item.farmersdelight.salmon_slice>
       food:
         nutrition: 1
-        saturation: 1
+        saturation: 0.2
         can-always-eat: false
-      settings:
-       tags:
-         - minecraft:meat
+    settings:
+      tags:
+        - minecraft:cat_food
   farmersdelight:cooked_salmon_slice:
     template: farmersdelight:food_cut_template
     data:
       item-name: <!i><lang:item.farmersdelight.cooked_salmon_slice>
       food:
         nutrition: 3
-        saturation: 5
+        saturation: 4.8
         can-always-eat: false
   farmersdelight:mutton_chops:
     template: farmersdelight:food_cut_template
@@ -415,18 +412,18 @@ items:
       item-name: <!i><lang:item.farmersdelight.mutton_chops>
       food:
         nutrition: 1
-        saturation: 1
+        saturation: 0.6
         can-always-eat: false
-      settings:
-       tags:
-         - minecraft:meat
+    settings:
+      tags:
+        - minecraft:meat
   farmersdelight:cooked_mutton_chops:
     template: farmersdelight:food_cut_template
     data:
       item-name: <!i><lang:item.farmersdelight.cooked_mutton_chops>
       food:
         nutrition: 3
-        saturation: 5
+        saturation: 4.8
         can-always-eat: false
   farmersdelight:ham:
     template: farmersdelight:food_template
@@ -454,7 +451,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.pie_crust>
       food:
         nutrition: 2
-        saturation: 1
+        saturation: 0.8
         can-always-eat: false
   farmersdelight:apple_pie:
     template: farmersdelight:pie_template
@@ -477,14 +474,14 @@ items:
       item-name: <!i><lang:item.farmersdelight.cake_slice>
       food:
         nutrition: 2
-        saturation: 1
+        saturation: 0.4
         can-always-eat: false
     events:
       - on: consume
         functions:
           - type: potion_effect
             potion-effect: minecraft:speed
-            duration: 600
+            duration: 400
             amplifier: 0
             particles: false
   farmersdelight:apple_pie_slice:
@@ -516,7 +513,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.sweet_berry_cookie>
       food:
         nutrition: 2
-        saturation: 1
+        saturation: 0.4
         can-always-eat: false
   farmersdelight:honey_cookie:
     template: farmersdelight:food_cut_template
@@ -524,7 +521,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.honey_cookie>
       food:
         nutrition: 2
-        saturation: 1
+        saturation: 0.4
         can-always-eat: false
   farmersdelight:melon_popsicle:
     template: farmersdelight:food_cut_template
@@ -532,8 +529,8 @@ items:
       item-name: <!i><lang:item.farmersdelight.melon_popsicle>
       food:
         nutrition: 3
-        saturation: 1
-        can-always-eat: false
+        saturation: 1.2
+        can-always-eat: true
     settings:
       consume-replacement: "minecraft:stick"
   farmersdelight:glow_berry_custard:
@@ -543,8 +540,8 @@ items:
       lore: '<!i><blue><lang:effect.minecraft.glowing> (00:05)</blue>'
       food:
         nutrition: 7
-        saturation: 9
-        can-always-eat: false
+        saturation: 8.4
+        can-always-eat: true
     events:
       - on: consume
         functions:
@@ -560,7 +557,7 @@ items:
       lore: '<!i><blue><lang:effect.minecraft.regeneration> (00:05)</blue>'
       food:
         nutrition: 6
-        saturation: 7
+        saturation: 7.2
         can-always-eat: false
     events:
       - on: consume
@@ -577,7 +574,7 @@ items:
       lore: '<!i><blue><lang:effect.minecraft.regeneration> (00:05)</blue>'
       food:
         nutrition: 6
-        saturation: 7
+        saturation: 7.2
         can-always-eat: false
     events:
       - on: consume
@@ -599,11 +596,11 @@ items:
       - on: consume
         conditions:
           - type: expression
-            expression: "random() < 0.25"
+            expression: "random() < 0.3"
         functions:
           - type: potion_effect
             potion-effect: minecraft:nausea
-            duration: 200
+            duration: 240
             amplifier: 0
             particles: true
   farmersdelight:barbecue_stick:
@@ -612,7 +609,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.barbecue_stick>
       food:
         nutrition: 8
-        saturation: 15
+        saturation: 14.4
         can-always-eat: false
     settings:
       consume-replacement: "minecraft:stick"
@@ -622,7 +619,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.egg_sandwich>
       food:
         nutrition: 8
-        saturation: 13
+        saturation: 12.8
         can-always-eat: false
   farmersdelight:chicken_sandwich:
     template: farmersdelight:food_template
@@ -630,7 +627,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.chicken_sandwich>
       food:
         nutrition: 10
-        saturation: 14
+        saturation: 16
         can-always-eat: false
   farmersdelight:hamburger:
     template: farmersdelight:food_template
@@ -638,7 +635,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.hamburger>
       food:
         nutrition: 11
-        saturation: 17
+        saturation: 17.6
         can-always-eat: false
   farmersdelight:bacon_sandwich:
     template: farmersdelight:food_template
@@ -662,7 +659,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.dumplings>
       food:
         nutrition: 8
-        saturation: 13
+        saturation: 12.8
         can-always-eat: false
   farmersdelight:stuffed_potato:
     template: farmersdelight:food_template
@@ -686,7 +683,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.salmon_roll>
       food:
         nutrition: 7
-        saturation: 9
+        saturation: 8.4
         can-always-eat: false
   farmersdelight:cod_roll:
     template: farmersdelight:food_template
@@ -694,7 +691,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.cod_roll>
       food:
         nutrition: 7
-        saturation: 9
+        saturation: 8.4
         can-always-eat: false
   farmersdelight:kelp_roll:
     template: farmersdelight:food_template
@@ -719,7 +716,7 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (00:30)</blue>'
       food:
         nutrition: 6
-        saturation: 5
+        saturation: 4.8
         can-always-eat: false
     settings:
       craft-remainder:
@@ -740,7 +737,7 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (01:00)</blue>'
       food:
         nutrition: 8
-        saturation: 11
+        saturation: 11.2
         can-always-eat: false
   farmersdelight:beef_stew:
     template: farmersdelight:soup_template
@@ -749,16 +746,16 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
-        saturation: 19
+        saturation: 19.2
         can-always-eat: false
   farmersdelight:chicken_soup:
     template: farmersdelight:soup_template
     data:
       item-name: <!i><lang:item.farmersdelight.chicken_soup>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
+      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
-        nutrition: 14
-        saturation: 22
+        nutrition: 12
+        saturation: 19.2
         can-always-eat: false
   farmersdelight:vegetable_soup:
     template: farmersdelight:soup_template
@@ -767,7 +764,7 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
-        saturation: 19
+        saturation: 19.2
         can-always-eat: false
   farmersdelight:onion_soup:
     template: farmersdelight:soup_template
@@ -776,7 +773,7 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
-        saturation: 19
+        saturation: 19.2
         can-always-eat: false
   farmersdelight:fish_stew:
     template: farmersdelight:soup_template
@@ -785,16 +782,16 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
-        saturation: 19
+        saturation: 19.2
         can-always-eat: false
   farmersdelight:fried_rice:
     template: farmersdelight:soup_template
     data:
       item-name: <!i><lang:item.farmersdelight.fried_rice>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
+      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
-        nutrition: 14
-        saturation: 22
+        nutrition: 12
+        saturation: 19.2
         can-always-eat: false
   farmersdelight:pumpkin_soup:
     template: farmersdelight:soup_template
@@ -803,7 +800,7 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 22
+        saturation: 21
         can-always-eat: false
   farmersdelight:baked_cod_stew:
     template: farmersdelight:soup_template
@@ -812,7 +809,7 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 22
+        saturation: 21
         can-always-eat: false
   farmersdelight:noodle_soup:
     template: farmersdelight:soup_template
@@ -821,7 +818,7 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 22
+        saturation: 21
         can-always-eat: false
   farmersdelight:bacon_and_eggs:
     template: farmersdelight:food_template
@@ -841,7 +838,7 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
-        saturation: 19
+        saturation: 19.2
         can-always-eat: false
   farmersdelight:pasta_with_mutton_chop:
     template: farmersdelight:soup_template
@@ -850,7 +847,7 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
-        saturation: 19
+        saturation: 19.2
         can-always-eat: false
   farmersdelight:mushroom_rice:
     template: farmersdelight:soup_template
@@ -859,7 +856,7 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
-        saturation: 19
+        saturation: 19.2
         can-always-eat: false
   farmersdelight:roasted_mutton_chops:
     template: farmersdelight:soup_template
@@ -868,7 +865,7 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 22
+        saturation: 21
         can-always-eat: false
   farmersdelight:vegetable_noodles:
     template: farmersdelight:soup_template
@@ -877,7 +874,7 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 22
+        saturation: 21
         can-always-eat: false
   farmersdelight:steak_and_potatoes:
     template: farmersdelight:soup_template
@@ -885,8 +882,8 @@ items:
       item-name: <!i><lang:item.farmersdelight.steak_and_potatoes>
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
-        nutrition: 14
-        saturation: 19
+        nutrition: 12
+        saturation: 19.2
         can-always-eat: false
   farmersdelight:ratatouille:
     template: farmersdelight:soup_template
@@ -895,7 +892,7 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (01:00)</blue>'
       food:
         nutrition: 10
-        saturation: 10
+        saturation: 12
         can-always-eat: false
   farmersdelight:squid_ink_pasta:
     template: farmersdelight:soup_template
@@ -904,7 +901,7 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 22
+        saturation: 21
         can-always-eat: false
   farmersdelight:grilled_salmon:
     template: farmersdelight:soup_template
@@ -913,7 +910,7 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 14
-        saturation: 22
+        saturation: 21
         can-always-eat: false
   farmersdelight:roast_chicken_block:
     template: farmersdelight:pie_template
@@ -929,7 +926,7 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 22
+        saturation: 21
         can-always-eat: false
   farmersdelight:stuffed_pumpkin_block:
     template: farmersdelight:pie_template
@@ -945,7 +942,7 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 22
+        saturation: 21
         can-always-eat: false
   farmersdelight:honey_glazed_ham_block:
     template: farmersdelight:pie_template
@@ -961,7 +958,7 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 22
+        saturation: 21
         can-always-eat: false
   farmersdelight:shepherds_pie_block:
     template: farmersdelight:pie_template
@@ -977,7 +974,7 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 22
+        saturation: 21
         can-always-eat: false
   farmersdelight:gleaming_salad_block:
     template: farmersdelight:pie_template
@@ -993,7 +990,7 @@ items:
       lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 22
+        saturation: 21
         can-always-eat: false
   farmersdelight:rice_roll_medley_block:
     template: farmersdelight:pie_template
@@ -1014,7 +1011,7 @@ items:
         - '<!i><blue>  <lang:effect.minecraft.resistance> (05:00)</blue>'
       food:
         nutrition: 4
-        saturation: 1
+        saturation: 1.6
         can-always-eat: false
     settings:
       tags:
@@ -1045,6 +1042,65 @@ recipes:
     result:
       id: farmersdelight:canvas
       count: 1
+  farmersdelight:book_from_canvas:
+    type: shapeless
+    category: misc
+    ingredients:
+      - "minecraft:paper"
+      - "minecraft:paper"
+      - "minecraft:paper"
+      - "farmersdelight:canvas"
+    result:
+      id: minecraft:book
+      count: 1
+  farmersdelight:painting_from_canvas:
+    type: shaped
+    category: misc
+    pattern:
+      - "SSS"
+      - "SCS"
+      - "SSS"
+    ingredients:
+      C: "farmersdelight:canvas"
+      S: "minecraft:stick"
+    result:
+      id: minecraft:painting
+      count: 1
+  farmersdelight:scaffolding_from_canvas:
+    type: shaped
+    category: misc
+    pattern:
+      - "BCB"
+      - "B B"
+      - "B B"
+    ingredients:
+      B: "minecraft:bamboo"
+      C: "farmersdelight:canvas"
+    result:
+      id: minecraft:scaffolding
+      count: 6
+  farmersdelight:lead_from_straw:
+    type: shaped
+    category: equipment
+    pattern:
+      - "SS "
+      - "SS "
+      - "  S"
+    ingredients:
+      S: "farmersdelight:straw"
+    result:
+      id: minecraft:lead
+      count: 1
+  farmersdelight:packed_mud_from_straw:
+    type: shapeless
+    category: building
+    ingredients:
+      - "farmersdelight:straw"
+      - "minecraft:mud"
+      - "minecraft:mud"
+    result:
+      id: minecraft:packed_mud
+      count: 2
   farmersdelight:rice:
     type: shapeless
     category: misc
@@ -1062,12 +1118,22 @@ recipes:
     result:
       id: farmersdelight:tomato_seeds
       count: 1
+  farmersdelight:cabbage_from_leaves:
+    type: shapeless
+    category: misc
+    group: cabbage
+    ingredients:
+      - "farmersdelight:cabbage_leaf"
+      - "farmersdelight:cabbage_leaf"
+    result:
+      id: farmersdelight:cabbage
+      count: 1
   farmersdelight:fried_egg:
     type: smelting
     experience: 0.35
     category: food
     time: 200
-    ingredient: "#minecraft:eggs"
+    ingredient: "minecraft:egg"
     result:
       id: farmersdelight:fried_egg
       count: 1
@@ -1075,15 +1141,15 @@ recipes:
     type: smoking
     experience: 0.35
     time: 100
-    ingredient: "#minecraft:eggs"
+    ingredient: "minecraft:egg"
     result:
       id: farmersdelight:fried_egg
       count: 1
   farmersdelight:fried_egg_campfire:
     type: campfire_cooking
     experience: 0.35
-    time: 100
-    ingredient: "#minecraft:eggs"
+    time: 600
+    ingredient: "minecraft:egg"
     result:
       id: farmersdelight:fried_egg
       count: 1
@@ -1091,7 +1157,7 @@ recipes:
     type: shapeless
     category: misc
     ingredients:
-      - "#minecraft:eggs"
+      - "minecraft:egg"
       - "minecraft:wheat"
       - "minecraft:wheat"
       - "minecraft:wheat"
@@ -1139,6 +1205,39 @@ recipes:
     result:
       id: minecraft:milk_bucket
       count: 1
+  farmersdelight:cake_from_milk_bottle:
+    type: shaped
+    category: misc
+    group: cake
+    pattern:
+      - "MMM"
+      - "SES"
+      - "WWW"
+    ingredients:
+      E: "minecraft:egg"
+      M:
+        - "minecraft:milk_bucket"
+        - "farmersdelight:milk_bottle"
+      S: "minecraft:sugar"
+      W: "minecraft:wheat"
+    result:
+      id: minecraft:cake
+      count: 1
+  farmersdelight:cake_from_slices:
+    type: shapeless
+    category: misc
+    group: cake
+    ingredients:
+      - "farmersdelight:cake_slice"
+      - "farmersdelight:cake_slice"
+      - "farmersdelight:cake_slice"
+      - "farmersdelight:cake_slice"
+      - "farmersdelight:cake_slice"
+      - "farmersdelight:cake_slice"
+      - "farmersdelight:cake_slice"
+    result:
+      id: minecraft:cake
+      count: 1
   farmersdelight:melon_juice:
     type: shapeless
     category: misc
@@ -1170,6 +1269,34 @@ recipes:
       - "farmersdelight:pumpkin_slice"
     result:
       id: minecraft:pumpkin_seeds
+      count: 1
+  farmersdelight:pumpkin_pie_from_pie_crust:
+    type: shaped
+    category: misc
+    group: pumpkin_pie
+    pattern:
+      - "PEP"
+      - "PSP"
+      - " C "
+    ingredients:
+      C: "farmersdelight:pie_crust"
+      E: "minecraft:egg"
+      P: "farmersdelight:pumpkin_slice"
+      S: "minecraft:sugar"
+    result:
+      id: minecraft:pumpkin_pie
+      count: 2
+  farmersdelight:pumpkin_pie_from_slices:
+    type: shaped
+    category: misc
+    group: pumpkin_pie
+    pattern:
+      - "PP"
+      - "PP"
+    ingredients:
+      P: "farmersdelight:pumpkin_pie_slice"
+    result:
+      id: minecraft:pumpkin_pie
       count: 1
   farmersdelight:beef_patty:
     type: smelting
@@ -1323,7 +1450,7 @@ recipes:
     result:
       id: farmersdelight:smoked_ham
       count: 1
-  farmersdelight:tree_bark:
+  farmersdelight:paper_from_tree_bark:
     type: shapeless
     category: misc
     ingredients:
@@ -1730,7 +1857,7 @@ recipes:
     group: mutton_wrap
     ingredients:
       - "minecraft:bread"
-      - "minecraft:mutton"
+      - "minecraft:cooked_mutton"
       - "#farmersdelight:leafs"
       - "farmersdelight:onion"
     result:
@@ -1742,7 +1869,7 @@ recipes:
     group: mutton_wrap
     ingredients:
       - "minecraft:bread"
-      - "farmersdelight:mutton_chops"
+      - "farmersdelight:cooked_mutton_chops"
       - "#farmersdelight:leafs"
       - "farmersdelight:onion"
     result:
@@ -1754,7 +1881,7 @@ recipes:
     group: stuffed_potato
     ingredients:
       - "minecraft:baked_potato"
-      - "minecraft:beef"
+      - "minecraft:cooked_beef"
       - "minecraft:milk_bucket"
     result:
       id: farmersdelight:stuffed_potato
@@ -1776,7 +1903,7 @@ recipes:
     group: stuffed_potato
     ingredients:
       - "minecraft:baked_potato"
-      - "minecraft:beef"
+      - "minecraft:cooked_beef"
       - "farmersdelight:milk_bottle"
     result:
       id: farmersdelight:stuffed_potato
@@ -1892,7 +2019,7 @@ recipes:
     category: misc
     ingredients:
       - "farmersdelight:onion"
-      - "#minecraft:eggs"
+      - "minecraft:egg"
       - "minecraft:bread"
       - "minecraft:carrot"
       - "minecraft:cooked_chicken"
@@ -1996,7 +2123,7 @@ recipes:
       - "minecraft:glow_berries"
       - "farmersdelight:tomato"
       - "minecraft:golden_carrot"
-      - "farmersdelight:tomato"
+      - "minecraft:beetroot"
       - "farmersdelight:cabbage"
       - "minecraft:bowl"
       - "farmersdelight:cabbage"

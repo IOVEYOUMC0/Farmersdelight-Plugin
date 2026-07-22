@@ -61,6 +61,17 @@ public final class AddonAdvancementRegistry {
         return ready;
     }
 
+    /** Total advancements across every currently built addon tab, for the consolidated startup summary.
+     *  Counts what is live rather than what is defined, so a tab whose build failed contributes zero and
+     *  a tab that appears or disappears moves the number the summary dedupes on. */
+    public int getLoadedAdvancementCount() {
+        int total = 0;
+        for (AddonAdvancementTab tab : tabs.values()) {
+            total += tab.getLoadedCount();
+        }
+        return total;
+    }
+
     /** Called when FarmersDelight's advancement system becomes ready: (re)build every registered tab. */
     public void onSystemReady() {
         ready = true;

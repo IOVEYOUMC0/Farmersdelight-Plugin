@@ -23,6 +23,7 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.ItemDisplay;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -36,6 +37,7 @@ import org.bukkit.event.block.BlockPistonRetractEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.ItemSpawnEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
+import org.bukkit.event.world.EntitiesLoadEvent;
 import org.bukkit.event.world.WorldUnloadEvent;
 
 import java.util.ArrayList;
@@ -67,10 +69,22 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li><b>fire burns it</b> (BlockBurnEvent) — otherwise a burnt carpet would orphan the furniture</li>
  * </ul>
  *
- * <p>Tracking: a Map&lt;cellPosKey, BukkitFurniture&gt; populated on FurniturePlace, drained on removal.
- * <b>Known limitation</b>: rugs that exist before a server restart aren't in the map until a chunk
- * roundtrip or re-place; an entity-scan fallback keeps BlockBreak working, but water/burn on those
- * legacy rugs is missed until they re-register.
+ *
+ * Tracking: a map from cell position to furniture. Entries are added when a player places a rug
+ * (FurniturePlace), when a chunk's entities come back (onEntitiesLoad), and for the chunks that were
+ * already loaded when this listener registered (indexRugsInLoadedChunks). Without that rebuild every
+ * path with no fallback lookup (water, burn, piston, explosion) would silently stop working on a rug
+ * once its chunk had cycled, since FurniturePlace fires for player placement alone. Coverage is
+ * therefore "every rug whose base entity has been seen loaded", not "every rug that exists": a rug
+ * furniture introduced into an already-loaded chunk by something other than a player place stays
+ * untracked until its chunk next cycles, which is why the break path keeps its entity-scan fallback.
+ *
+ * Eviction is keyed on the chunk holding the rug's BASE ENTITY, not on the chunk holding each cell,
+ * so it pairs with the rebuild — onEntitiesLoad only ever sees a rug from the chunk its entity lives
+ * in. Evicting per cell would drop the entry for a cell that straddles into a neighbouring chunk when
+ * that neighbour unloaded, and reloading the neighbour would never restore it (it holds no rug entity).
+ * The tradeoff is that a straddling cell stays mapped while its own chunk is unloaded, which is inert:
+ * no block event fires for an unloaded cell, and the entry goes when the entity's chunk unloads.
  */
 public final class RugListener implements Listener {
 
@@ -327,10 +341,72 @@ public final class RugListener implements Listener {
         }
     }
 
+    // Repopulates cellToRug for a chunk as its entities come back, undoing onChunkUnload. Rug furnitures
+    // are only ever added to the map by FurniturePlace, which fires for player placement and nothing
+    // else, so a rug that survived a chunk roundtrip (or predates this listener) would otherwise never be
+    // tracked again.
+    // EntitiesLoadEvent rather than ChunkLoadEvent: entity sections load independently of block sections,
+    // so a chunk's entities are not necessarily present when ChunkLoadEvent fires, and CraftEngine
+    // populates its furniture registry from this very event at LOWEST priority — running at MONITOR is
+    // what guarantees the furniture handles are resolvable here. The event is delivered on the region
+    // owning the chunk, so the furniture entities are read on the correct thread.
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onEntitiesLoad(EntitiesLoadEvent event) {
+        // No configured rugs at all: nothing can ever be tracked, so skip before walking the entity list.
+        if (config().isEmpty()) return;
+        for (Entity entity : event.getEntities()) {
+            indexRugEntity(entity);
+        }
+    }
+
+    // Chunks whose entities were already loaded when this listener registered never fire
+    // EntitiesLoadEvent, so the rugs in them — typically the spawn area, which often never unloads —
+    // would stay untracked for the lifetime of the server. Each chunk is scanned on its own region.
+    public void indexRugsInLoadedChunks() {
+        if (config().isEmpty()) return;
+        for (World world : Bukkit.getWorlds()) {
+            for (org.bukkit.Chunk chunk : world.getLoadedChunks()) {
+                int chunkX = chunk.getX();
+                int chunkZ = chunk.getZ();
+                plugin.scheduler().runAt(world, chunkX, chunkZ, () -> {
+                    if (!world.isChunkLoaded(chunkX, chunkZ)) return;
+                    for (Entity entity : world.getChunkAt(chunkX, chunkZ).getEntities()) {
+                        indexRugEntity(entity);
+                    }
+                });
+            }
+        }
+    }
+
+    // Adds every footprint cell of the entity to the tracker if it is a rug furniture.
+    // Gate order matters: this runs for every entity in a loading chunk (mobs, items, arrows, XP orbs),
+    // so the cheap type check comes first — CraftEngine only ever registers ItemDisplay as a furniture
+    // meta entity. The registry lookup that follows is an int-keyed map get and is already conclusive:
+    // a non-null result proves the entity is a registered furniture, so probing the entity's persistent
+    // data container first would only add a deserialize per entity for a weaker answer. R-PERF-002.
+    private void indexRugEntity(Entity entity) {
+        if (!(entity instanceof ItemDisplay)) return;
+        BukkitFurniture furniture = CraftEngineFurniture.getLoadedFurnitureByMetaEntity(entity);
+        // underlyingOf resolves the rug by its CraftEngine furniture id, never by Bukkit material, and
+        // returns null for any furniture that is not a configured rug.
+        if (furniture == null || underlyingOf(furniture) == null) return;
+        for (Location cell : cellsOf(furniture)) {
+            cellToRug.put(posKey(cell), furniture);
+        }
+    }
+
     /**
-     * Folia chunks unload without firing FurnitureBreakEvent, so cellToRug entries for that chunk would
-     * linger and keep the (now-despawned) furniture's ItemDisplay strong-referenced — blocking GC of
-     * every rug ever loaded on a long-running server. Scan + drop matching entries.
+     * Folia chunks unload without firing FurnitureBreakEvent, so cellToRug entries for a departed rug
+     * would linger and keep the (now-despawned) furniture's ItemDisplay strong-referenced — blocking GC
+     * of every rug ever loaded on a long-running server.
+     *
+     * Matching is on the chunk of the rug's base entity, so ALL cells of a rug leave together exactly
+     * when the furniture despawns, including cells that straddle into a neighbouring chunk. Matching per
+     * cell instead would evict a straddling cell when its own chunk unloaded, and the rebuild — which
+     * only sees a rug from the chunk its entity is in — would never put it back.
+     *
+     * BukkitFurniture.location() reads a field cached at spawn/teleport, touching neither the entity nor
+     * any chunk, so it is safe to call for a rug owned by another region (R-CONC-006).
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onChunkUnload(ChunkUnloadEvent event) {
@@ -338,8 +414,18 @@ public final class RugListener implements Listener {
         java.util.UUID worldId = event.getWorld().getUID();
         int cx = event.getChunk().getX();
         int cz = event.getChunk().getZ();
-        cellToRug.keySet().removeIf(cell ->
-                worldId.equals(cell.worldId()) && (cell.x() >> 4) == cx && (cell.z() >> 4) == cz);
+        cellToRug.entrySet().removeIf(entry -> {
+            Location base = entry.getValue().location();
+            World baseWorld = base == null ? null : base.getWorld();
+            if (baseWorld == null) {
+                // Base position unusable (world already gone): fall back to the cell's own chunk so the
+                // entry can still be reclaimed rather than pinned for the server's lifetime.
+                Cell cell = entry.getKey();
+                return worldId.equals(cell.worldId()) && (cell.x() >> 4) == cx && (cell.z() >> 4) == cz;
+            }
+            return worldId.equals(baseWorld.getUID())
+                    && (base.getBlockX() >> 4) == cx && (base.getBlockZ() >> 4) == cz;
+        });
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

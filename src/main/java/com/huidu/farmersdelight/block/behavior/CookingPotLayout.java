@@ -45,6 +45,10 @@ public record CookingPotLayout(
         return contains(outputSlots, slot);
     }
 
+    public boolean isPendingOutputSlot(int slot) {
+        return contains(pendingOutputSlots, slot);
+    }
+
     public boolean isContainerSlot(int slot) {
         return contains(containerSlots, slot);
     }

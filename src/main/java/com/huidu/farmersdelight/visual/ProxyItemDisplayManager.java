@@ -113,8 +113,10 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 onlinePlayers.put(player.getUniqueId(), player);
             }
+            // reload() arms the sync pass through ensureSyncTask, which is the only path allowed to start it:
+            // a second bare start here would overwrite the handle and leave the first task running untracked,
+            // beyond the reach of every cancel.
             reload();
-            startSyncTask();
         }
     }
 
@@ -246,7 +248,10 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         }
 
         ProxyDisplay display = displays.get(entityId);
-        if (display == null) {
+        // Reject a handle of the wrong kind, mirroring updateText. Without this an addon passing a
+        // text-display handle would overwrite that display's item/text packets with item-display ones,
+        // corrupting FD's own progress text displays.
+        if (display == null || display.isText()) {
             return false;
         }
 
@@ -299,6 +304,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
             markDisplaySnapshotDirty();
             destroyForAllViewers(removed);
             destroyCount.incrementAndGet();
+            stopSyncTaskIfIdle();
         }
     }
 
@@ -451,14 +457,35 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         syncTask = plugin.scheduler().runRepeating(this::syncAll, syncIntervalTicks, syncIntervalTicks);
     }
 
+    /** Starts the sync task unless one is already running. The whole check-then-start is inside the lock,
+     *  with no unlocked probe of the handle: an unlocked read could observe a non-null handle for a task
+     *  stopSyncTaskIfIdle is concurrently cancelling, and return without starting a replacement, leaving
+     *  the displays with no sync pass. Callers are display creation and reload only, so the monitor is
+     *  effectively uncontended. Same shape as TrayManager.ensureQueuedSyncTask. */
     private void ensureSyncTask() {
-        if (syncTask != null) {
-            return;
-        }
         synchronized (syncTaskLock) {
             if (syncTask == null) {
                 startSyncTask();
             }
+        }
+    }
+
+    /** Stops the sync task once the display map has drained, so a server with no FD displays present does
+     *  not keep a repeating pass alive. The unlocked displays.isEmpty() probe is only a hint that skips the
+     *  monitor while displays exist — never cancelling is always safe. The authoritative recheck happens
+     *  inside the lock, and because ensureSyncTask takes the same lock, a display put into the map
+     *  concurrently either is seen by that recheck (no cancel) or its ensureSyncTask observes the cleared
+     *  handle afterwards and starts a fresh pass. */
+    private void stopSyncTaskIfIdle() {
+        if (!displays.isEmpty()) {
+            return;
+        }
+        synchronized (syncTaskLock) {
+            if (!displays.isEmpty() || syncTask == null) {
+                return;
+            }
+            syncTask.cancel();
+            syncTask = null;
         }
     }
 
@@ -468,6 +495,10 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         }
         syncRunCount.incrementAndGet();
         if (displays.isEmpty()) {
+            // Self-cancel at the same point as the pass's early-return guard, not at the tail: the pass
+            // returns here on every drain-to-empty (destroy, chunk unload, world cleanup), so putting the
+            // check anywhere later would leave those paths spinning the task forever.
+            stopSyncTaskIfIdle();
             return;
         }
 

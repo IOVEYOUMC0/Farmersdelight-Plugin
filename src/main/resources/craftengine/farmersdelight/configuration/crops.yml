@@ -56,60 +56,35 @@ blocks:
           appearance: age=3
     events:
       - on: break
-        conditions:
-          - type: match_block_property
-            properties:
-              age: 3
         functions:
           - type: drop_loot
             x: <arg:block.block_x> + 0.5
             y: <arg:block.block_y> + 0.5
             z: <arg:block.block_z> + 0.5
             loot:
+              functions:
+                - type: explosion_decay
               pools:
                 - rolls: 1
                   entries:
-                    - type: alternatives
-                      children:
-                        - type: item
-                          item: farmersdelight:onion
-                          functions:
-                            - type: set_count
-                              count:
-                                type: uniform
-                                min: 1
-                                max: 3
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                age: 3
-                        - type: item
-                          item: farmersdelight:onion
-                          count: 1
-                          conditions:
-                            - type: inverted
-                              term:
-                                type: match_block_property
-                                properties:
-                                  age: 3
+                    - type: item
+                      item: farmersdelight:onion
+                      count: 1
                 - rolls: 1
                   conditions:
-                    - type: enchantment
-                      predicate: minecraft:fortune>=1
+                    - type: match_block_property
+                      properties:
+                        age: 3
                   entries:
                     - type: item
                       item: farmersdelight:onion
+                      count: 1
                       functions:
-                        - type: set_count
-                          count:
-                            type: uniform
-                            min: 1
-                            max: 3
                         - type: apply_bonus
                           enchantment: minecraft:fortune
                           formula:
                             type: binomial_with_bonus_count
-                            extra: 5
+                            extra: 3
                             probability: 0.5714286
   farmersdelight:rice:
     settings:
@@ -210,11 +185,6 @@ blocks:
           appearance: age=3,half=upper
     events:
       - on: break
-        conditions:
-          - type: match_block_property
-            properties:
-              half: upper
-              age: 3
         functions:
           - type: drop_loot
             x: <arg:block.block_x> + 0.5
@@ -223,6 +193,23 @@ blocks:
             loot:
               pools:
                 - rolls: 1
+                  conditions:
+                    - type: match_block_property
+                      properties:
+                        half: lower
+                    - type: survives_explosion
+                  entries:
+                    - type: item
+                      item: farmersdelight:rice
+                      count: 1
+                - rolls: 1
+                  conditions:
+                    - type: match_block_property
+                      properties:
+                        half: upper
+                        age: 3
+                  functions:
+                    - type: explosion_decay
                   entries:
                     - type: alternatives
                       children:
@@ -317,6 +304,8 @@ blocks:
             y: <arg:block.block_y> + 0.5
             z: <arg:block.block_z> + 0.5
             loot:
+              functions:
+                - type: explosion_decay
               pools:
                 - rolls: 1
                   entries:
@@ -324,12 +313,7 @@ blocks:
                       children:
                         - type: item
                           item: farmersdelight:cabbage
-                          functions:
-                            - type: set_count
-                              count:
-                                type: uniform
-                                min: 1
-                                max: 3
+                          count: 1
                           conditions:
                             - type: match_block_property
                               properties:
@@ -351,17 +335,13 @@ blocks:
                   entries:
                     - type: item
                       item: farmersdelight:cabbage_seeds
+                      count: 1
                       functions:
-                        - type: set_count
-                          count:
-                            type: uniform
-                            min: 1
-                            max: 3
                         - type: apply_bonus
                           enchantment: minecraft:fortune
                           formula:
                             type: binomial_with_bonus_count
-                            extra: 5
+                            extra: 3
                             probability: 0.5714286
   farmersdelight:budding_tomatoes:
     settings:
@@ -388,9 +368,10 @@ blocks:
           - minecraft:farmland
           - farmersdelight:rich_soil_farmland
       - type: farmersdelight:tomato_vine
-        budding-block: farmersdelight:budding_tomatoes
-        tomatoes-block: farmersdelight:tomatoes
-        crop-on-rope-block: farmersdelight:tomato_crop_on_rope
+        blocks:
+          budding: farmersdelight:budding_tomatoes
+          tomatoes: farmersdelight:tomatoes
+          crop-on-rope: farmersdelight:tomato_crop_on_rope
     states:
       properties:
         age:
@@ -446,9 +427,10 @@ blocks:
           - minecraft:farmland
           - farmersdelight:rich_soil_farmland
       - type: farmersdelight:tomato_vine
-        budding-block: farmersdelight:budding_tomatoes
-        tomatoes-block: farmersdelight:tomatoes
-        crop-on-rope-block: farmersdelight:tomato_crop_on_rope
+        blocks:
+          budding: farmersdelight:budding_tomatoes
+          tomatoes: farmersdelight:tomatoes
+          crop-on-rope: farmersdelight:tomato_crop_on_rope
     states:
       properties:
         age:
@@ -507,7 +489,7 @@ blocks:
                       count: 1
                       conditions:
                         - type: random
-                          chance: 0.05
+                          value: 0.05
           - type: update_block_property
             properties:
               age: 0
@@ -521,6 +503,8 @@ blocks:
             y: <arg:block.block_y> + 0.5
             z: <arg:block.block_z> + 0.5
             loot:
+              functions:
+                - type: explosion_decay
               pools:
                 - rolls: 1
                   conditions:
@@ -540,8 +524,8 @@ blocks:
                           enchantment: minecraft:fortune
                           formula:
                             type: binomial_with_bonus_count
-                            extra: 5
-                            probability: 0.5714286
+                            extra: 0
+                            probability: 0.5
                 - rolls: 1
                   entries:
                     - type: item
@@ -553,7 +537,7 @@ blocks:
                       properties:
                         age: 3
                     - type: random
-                      chance: 0.05
+                      value: 0.05
                   entries:
                     - type: item
                       item: farmersdelight:rotten_tomato
@@ -586,9 +570,10 @@ blocks:
         max-height: 3
         delay: 1
       - type: farmersdelight:tomato_vine
-        budding-block: farmersdelight:budding_tomatoes
-        tomatoes-block: farmersdelight:tomatoes
-        crop-on-rope-block: farmersdelight:tomato_crop_on_rope
+        blocks:
+          budding: farmersdelight:budding_tomatoes
+          tomatoes: farmersdelight:tomatoes
+          crop-on-rope: farmersdelight:tomato_crop_on_rope
         mature-age: 0
     states:
       properties:
@@ -647,7 +632,7 @@ blocks:
                       item: farmersdelight:rotten_tomato
                       conditions:
                         - type: random
-                          chance: 0.05
+                          value: 0.05
           - type: update_block_property
             properties:
               age: 0
@@ -665,6 +650,8 @@ blocks:
             y: <arg:block.block_y> + 0.5
             z: <arg:block.block_z> + 0.5
             loot:
+              functions:
+                - type: explosion_decay
               pools:
                 - rolls: 1
                   entries:
@@ -680,12 +667,12 @@ blocks:
                           enchantment: minecraft:fortune
                           formula:
                             type: binomial_with_bonus_count
-                            extra: 5
-                            probability: 0.5714286
+                            extra: 0
+                            probability: 0.5
                 - rolls: 1
                   conditions:
                     - type: random
-                      chance: 0.05
+                      value: 0.05
                   entries:
                     - type: item
                       item: farmersdelight:rotten_tomato

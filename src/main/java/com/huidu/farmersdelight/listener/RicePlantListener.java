@@ -55,17 +55,15 @@ public class RicePlantListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onRicePhysics(BlockPhysicsEvent event) {
         Block block = event.getBlock();
-        // Cheap material fast-reject BEFORE any CraftEngine state resolution. BlockPhysicsEvent is one of
-        // the hottest Bukkit events (fluid flow, redstone, gravity, neighbor updates), and getCustomBlockState
-        // does an NMS getBlockState + BlockPos/Optional allocation per call — wasteful on non-rice blocks.
-        // Rice and wild rice only ever carry TRIPWIRE (tall stages: CE lower/higher_tripwire auto-state) or
-        // KELP (young stages: CE kelp auto-state), so any other material can't be rice. Mirrors CraftEngine's
-        // own onBlockPhysics (fast-rejects on getChangedType()==NOTE_BLOCK) and FD's RugListener/RopeBlockListener.
-        Material carrierType = block.getType();
-        if (carrierType != Material.TRIPWIRE && carrierType != Material.KELP && carrierType != Material.KELP_PLANT) {
+        // Identify the block by its CraftEngine custom state, NOT by Bukkit getType(): CE's
+        // deceive-bukkit-material makes every custom block report a disguised material (bricks by default),
+        // so a getType() == tripwire/kelp filter never matches a real rice block and would dead-return this
+        // whole handler (R-API-007). getCustomBlockState returns null for vanilla blocks,
+        // which is the correct fast-reject; the block's true auto-state material is not observable via getType().
+        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
+        if (state == null) {
             return;
         }
-        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
         if (isWildRiceBlock(state)) {
             if (canWildRiceStay(block, state)) {
                 return;

@@ -11,6 +11,11 @@ import net.momirealms.craftengine.bukkit.api.event.CustomBlockBreakEvent;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import net.momirealms.craftengine.core.world.BlockPos;
+import net.momirealms.craftengine.core.world.CEWorld;
+import net.momirealms.craftengine.core.world.chunk.CEChunk;
+import net.momirealms.craftengine.core.world.chunk.CESection;
+import net.momirealms.craftengine.core.world.chunk.PalettedContainer;
+import org.bukkit.Chunk;
 import org.bukkit.GameMode;
 import org.bukkit.Sound;
 import org.bukkit.World;
@@ -23,6 +28,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPhysicsEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
 import org.bukkit.event.world.WorldUnloadEvent;
 import org.bukkit.inventory.ItemStack;
@@ -38,15 +44,48 @@ public class RopeBlockListener implements Listener {
     // BlockPhysicsEvent storms (flowing water / redstone / pistons near ropes), so each position
     // is scanned and refreshed at most once per tick rather than once per physics event.
     private final Set<String> pendingRopeRefreshes = ConcurrentHashMap.newKeySet();
-    // Tracked rope positions. Maintained by CustomBlockPlace/Break + chunk/world unload. Gives the
-    // hot-path scheduleRopeRefreshIfNearby a Set.isEmpty() / Set.contains() short-circuit so servers
-    // with no ropes (or no nearby ropes) skip 5 CE hasBehavior queries per BlockPhysicsEvent.
+    // Tracked rope positions. Maintained by CustomBlockPlace/Break, rebuilt per chunk on ChunkLoad, and
+    // drained on chunk/world unload. Gives the hot-path scheduleRopeRefreshIfNearby a Set.isEmpty() /
+    // Set.contains() short-circuit so servers with no ropes (or no nearby ropes) skip 5 CE hasBehavior
+    // queries per BlockPhysicsEvent.
+    // Coverage is "ropes placed through CustomBlockPlace, ropes this plugin writes itself and reports
+    // through syncRopeIndex, plus every rope in a chunk that has loaded since this listener registered" —
+    // not "every rope that exists". A rope written straight into an already-loaded chunk by an external
+    // writer (WorldEdit, /ce setblock, another plugin calling CraftEngineBlocks.place) fires no
+    // CustomBlockPlaceEvent and gets no ChunkLoad rebuild, so it stays outside the index and its connected
+    // texture is not refreshed until its chunk next cycles. The global isEmpty() gate does not save that
+    // case: any other rope on the server keeps the set non-empty, so the miss lands on contains() instead.
     private final Set<Cell> placedRopes = ConcurrentHashMap.newKeySet();
+
+    // The registered listener, so rope code outside this class can keep the index honest. Replaced whenever a
+    // listener is constructed, which on a plugin reload hands the index over to the new instance.
+    private static volatile RopeBlockListener active;
+
+    private static final int SECTION_VOLUME = 16 * 16 * 16;
 
     private record Cell(UUID worldId, int x, int y, int z) {}
 
     public RopeBlockListener(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
+        active = this;
+    }
+
+    // Brings the index in line with what actually stands at pos. Ropes written straight into the world with
+    // CraftEngineBlocks.place or removed with CraftEngineBlocks.remove produce no CustomBlockPlace/BreakEvent,
+    // so without this the reel-down and retract paths would leave the index disagreeing with the world. The
+    // index is the sole verdict for every refresh entry point, so a rope missing from it never refreshes again.
+    public static void syncRopeIndex(World world, BlockPos pos) {
+        RopeBlockListener listener = active;
+        if (listener == null) {
+            return;
+        }
+        Cell cell = new Cell(world.getUID(), pos.x(), pos.y(), pos.z());
+        Block block = world.getBlockAt(pos.x(), pos.y(), pos.z());
+        if (CustomBlockUtils.hasBehavior(block, RopeBlockBehavior.class)) {
+            listener.placedRopes.add(cell);
+        } else {
+            listener.placedRopes.remove(cell);
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -95,8 +134,12 @@ public class RopeBlockListener implements Listener {
 
         CraftEngineBlocks.remove(bottomBlock);
         world.playSound(bottomBlock.getLocation(), Sound.BLOCK_WOOL_BREAK, 1.0f, 1.0f);
+        player.swingMainHand();
 
         BlockPos bp = new BlockPos(block.getX(), bottomY, block.getZ());
+        // CraftEngineBlocks.remove fires no CustomBlockBreakEvent, so drop the cell here rather than waiting
+        // for the scheduled refresh to notice.
+        placedRopes.remove(new Cell(world.getUID(), bp.x(), bp.y(), bp.z()));
         plugin.scheduler().runAt(bottomBlock.getLocation(),
                 () -> RopeBlockBehavior.refreshAdjacentRopes(world, bp));
     }
@@ -114,6 +157,12 @@ public class RopeBlockListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockPhysics(BlockPhysicsEvent event) {
+        // Cheapest gate first: with no tracked rope anywhere there is nothing to refresh, so skip even
+        // the getChangedType()/getType() world lookups. R-PERF-002. The same check inside
+        // scheduleRopeRefreshIfNearby still guards the other callers.
+        if (placedRopes.isEmpty()) {
+            return;
+        }
         if (event.getChangedType() != event.getBlock().getType()) {
             scheduleRopeRefreshIfNearby(event.getBlock());
         }
@@ -151,10 +200,11 @@ public class RopeBlockListener implements Listener {
     private boolean hasNearbyRope(Block block) {
         // Use the tracked placedRopes set (O(1) hash lookups) instead of 5 CE hasBehavior queries
         // (each of which calls CraftEngineBlocks.getCustomBlockState → NMS getBlockState + Optional alloc).
-        // placedRopes is maintained by CustomBlockPlace/Break + chunk/world unload. When a rope exists
-        // that wasn't placed during this session (e.g. pre-existing on startup), placedRopes.isEmpty()
-        // already short-circuits in scheduleRopeRefreshIfNearby before we get here, so the index is
-        // authoritative for the "at least one tracked rope exists" case.
+        // This is the sole nearby-rope test for every refresh entry point, so a rope missing from the
+        // index fails contains() and never refreshes. indexRopesInChunk closes the large gap — ropes placed
+        // before the server started, or before this listener existed — by repopulating from the CraftEngine
+        // chunk on load, but it does not make contains() authoritative: a rope introduced into a loaded chunk
+        // without a CustomBlockPlaceEvent stays missing until that chunk cycles (see placedRopes).
         UUID worldId = block.getWorld().getUID();
         int x = block.getX();
         int y = block.getY();
@@ -190,6 +240,111 @@ public class RopeBlockListener implements Listener {
         if (!CustomBlockUtils.hasBehavior(state, RopeBlockBehavior.class)) return;
         Block b = event.bukkitBlock();
         placedRopes.remove(new Cell(b.getWorld().getUID(), b.getX(), b.getY(), b.getZ()));
+    }
+
+    // Rebuild the index for a chunk as it comes back. Ropes are stateful custom blocks with no block
+    // entity, so they are absent from CEChunk.blockEntities() and cannot be recovered the way
+    // ChunkLoadListener recovers block-entity backed blocks; the chunk's own block states are the only
+    // authority. ChunkLoadEvent is delivered on the region that owns the chunk, so the CraftEngine chunk
+    // is read on the correct thread (R-CONC-006). Re-adding cells already present is a no-op, so a chunk
+    // that loads more than once (or overlaps the CustomBlockPlace path) stays consistent.
+    // ChunkLoadEvent does not implement Cancellable, so ignoreCancelled would have no meaning here.
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onChunkLoad(ChunkLoadEvent event) {
+        Chunk chunk = event.getChunk();
+        indexRopesInChunk(chunk.getWorld(), chunk.getX(), chunk.getZ());
+    }
+
+    // Chunks that were already loaded when this listener registered never fire ChunkLoadEvent, so the
+    // ropes in them (typically the spawn area, which often never unloads) would stay outside the index
+    // for the lifetime of the server. Each chunk is indexed on its own region.
+    public void indexRopesInLoadedChunks() {
+        for (World world : plugin.getServer().getWorlds()) {
+            for (Chunk chunk : world.getLoadedChunks()) {
+                int chunkX = chunk.getX();
+                int chunkZ = chunk.getZ();
+                plugin.scheduler().runAt(world, chunkX, chunkZ, () -> {
+                    if (world.isChunkLoaded(chunkX, chunkZ)) {
+                        indexRopesInChunk(world, chunkX, chunkZ);
+                    }
+                });
+            }
+        }
+    }
+
+    private void indexRopesInChunk(World world, int chunkX, int chunkZ) {
+        CEWorld ceWorld = CustomBlockUtils.getCEWorld(world);
+        if (ceWorld == null) {
+            return;
+        }
+        CEChunk ceChunk = ceWorld.getChunkAtIfLoaded(chunkX, chunkZ);
+        if (ceChunk == null) {
+            return;
+        }
+
+        UUID worldId = world.getUID();
+        int baseX = chunkX << 4;
+        int baseZ = chunkZ << 4;
+        for (CESection section : ceChunk.sections()) {
+            if (section == null || !sectionMayContainRope(section, world, chunkX, chunkZ)) {
+                continue;
+            }
+            int baseY = section.sectionY() << 4;
+            for (int index = 0; index < SECTION_VOLUME; index++) {
+                ImmutableBlockState state = section.getBlockState(index);
+                if (!CustomBlockUtils.hasBehavior(state, RopeBlockBehavior.class)) {
+                    continue;
+                }
+                placedRopes.add(new Cell(worldId,
+                        baseX + (index & 15),
+                        baseY + ((index >> 8) & 15),
+                        baseZ + ((index >> 4) & 15)));
+            }
+        }
+    }
+
+    // One-shot latch so a persistently broken world logs once instead of once per section per chunk load.
+    private static final java.util.concurrent.atomic.AtomicBoolean PALETTE_FAILURE_LOGGED =
+            new java.util.concurrent.atomic.AtomicBoolean();
+
+    // Palette probe: a CraftEngine section stores its states in a paletted container, so the distinct
+    // states of all 4096 positions are a handful of palette entries. Testing those decides whether the
+    // section can hold a rope at all, and only a section that proves it does gets its positions walked.
+    //
+    // The two probe calls are caught separately on purpose, because both failure modes are
+    // IllegalStateException and their messages do not separate them: PalettedContainer.isEmpty reads
+    // palette entry 0 directly, so a single-entry palette that has never been written reports the same
+    // "Missing Palette entry" text that a genuinely damaged palette would. Which call threw is the
+    // reliable discriminator — isEmpty throwing is the ordinary empty-section case, while hasAny
+    // throwing means the container changed shape after isEmpty had just proved it readable.
+    private boolean sectionMayContainRope(CESection section, World world, int chunkX, int chunkZ) {
+        PalettedContainer<ImmutableBlockState> states = section.statesContainer;
+        if (states == null) {
+            return false;
+        }
+        try {
+            if (states.isEmpty()) {
+                return false;
+            }
+        } catch (IllegalStateException uninitialisedPalette) {
+            // Single-entry palette carrying no entry: the section holds no states, so no rope to index.
+            return false;
+        }
+        try {
+            return states.hasAny(state -> CustomBlockUtils.hasBehavior(state, RopeBlockBehavior.class));
+        } catch (IllegalStateException unreadablePalette) {
+            // Reporting rather than swallowing: returning "no ropes here" for a section that could not
+            // be read leaves its ropes outside the index, which silently reinstates the stale-index
+            // defect this rebuild exists to fix. The skip still has to happen, but not in silence.
+            if (PALETTE_FAILURE_LOGGED.compareAndSet(false, true)) {
+                plugin.getLogger().warning("Could not read the block palette of section y="
+                        + section.sectionY() + " in chunk " + chunkX + "," + chunkZ + " of world "
+                        + world.getName() + "; ropes in it are not indexed, so their connected textures"
+                        + " will not refresh until that chunk reloads. Reported once per server start."
+                        + " Cause: " + unreadablePalette);
+            }
+            return false;
+        }
     }
 
     // Folia chunks unload without firing per-block break events, so leftover entries would linger and

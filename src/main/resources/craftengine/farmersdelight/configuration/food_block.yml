@@ -2845,36 +2845,68 @@ blocks:
       variants:
         servings=0,facing=east:
           appearance: count_0_east
+          settings:
+            luminance: 12
         servings=0,facing=north:
           appearance: count_0_north
+          settings:
+            luminance: 12
         servings=0,facing=south:
           appearance: count_0_south
+          settings:
+            luminance: 12
         servings=0,facing=west:
           appearance: count_0_west
+          settings:
+            luminance: 12
         servings=1,facing=east:
           appearance: count_1_east
+          settings:
+            luminance: 9
         servings=1,facing=north:
           appearance: count_1_north
+          settings:
+            luminance: 9
         servings=1,facing=south:
           appearance: count_1_south
+          settings:
+            luminance: 9
         servings=1,facing=west:
           appearance: count_1_west
+          settings:
+            luminance: 9
         servings=2,facing=east:
           appearance: count_2_east
+          settings:
+            luminance: 6
         servings=2,facing=north:
           appearance: count_2_north
+          settings:
+            luminance: 6
         servings=2,facing=south:
           appearance: count_2_south
+          settings:
+            luminance: 6
         servings=2,facing=west:
           appearance: count_2_west
+          settings:
+            luminance: 6
         servings=3,facing=east:
           appearance: count_3_east
+          settings:
+            luminance: 3
         servings=3,facing=north:
           appearance: count_3_north
+          settings:
+            luminance: 3
         servings=3,facing=south:
           appearance: count_3_south
+          settings:
+            luminance: 3
         servings=3,facing=west:
           appearance: count_3_west
+          settings:
+            luminance: 3
         servings=4,facing=east:
           appearance: count_4_east
         servings=4,facing=north:

@@ -62,6 +62,11 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     private final Item[] items;
     private final double[] slotExperience;
     private final boolean[] dirtySlots;
+    // The entity value each slot's shadow was last read from (refreshFromEntity). Lets writeToEntity tell a
+    // local hopper in-place grow (shadow changed, entity still equals this baseline) apart from a concurrent
+    // entity write by another region's GUI viewer (entity no longer equals this baseline) — so it persists
+    // the grow but never clobbers the concurrent write with a stale shadow.
+    private final ItemStack[] entityBaseline;
     private final Object container;
     private final Inventory inventory;
     private ItemStack mealContainer;
@@ -69,7 +74,14 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     private int cookingDuration = 200;
     private int maxStackSize = 99;
     private boolean allSlotsDirty;
-    private CompoundTag pendingLoadData;
+    private volatile CompoundTag pendingLoadData;
+    // Snapshot taken when the plugin-side entity is dropped on chunk unload. CraftEngine's chunk cache can
+    // serve this same controller object back on a quick reload without ever re-running loadCustomData, so
+    // the snapshot both feeds saveCustomData while the entity is gone and re-hydrates the entity on reload.
+    private volatile CompoundTag pendingSaveData;
+    // Guards loadPendingDataIfReady against re-entry: applying pending data creates the plugin entity,
+    // whose creation hook flushes pending data again.
+    private volatile boolean applyingPendingLoad;
     // The block pos is fixed for this controller's lifetime; cache the key so getItem/contents
     // (called per slot during container scans) need not reallocate it on every access.
     private BlockPosKey cachedPosKey;
@@ -81,6 +93,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         this.items = new Item[this.layout.size()];
         this.slotExperience = new double[this.layout.size()];
         this.dirtySlots = new boolean[this.layout.size()];
+        this.entityBaseline = new ItemStack[this.layout.size()];
         Arrays.fill(this.items, Item.empty());
         this.container = CraftEngine.instance().platform().createContainer(this);
         this.inventory = CraftInventoryProxy.INSTANCE.newInstance(this.container);
@@ -92,6 +105,12 @@ public final class CookingPotBlockEntityController extends BlockEntityController
 
     @Override
     public void saveCustomData(CompoundTag tag) {
+        // A passivation snapshot is authoritative while the plugin-side entity is gone; checked before
+        // loadPendingDataIfReady so serializing an unloaded chunk cannot resurrect the entity.
+        if (this.pendingSaveData != null) {
+            tag.put(this.behavior.customDataKey, this.pendingSaveData);
+            return;
+        }
         loadPendingDataIfReady();
         if (this.pendingLoadData != null) {
             tag.put(this.behavior.customDataKey, this.pendingLoadData);
@@ -150,13 +169,41 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     }
 
     public void loadPendingDataIfReady() {
+        if (this.applyingPendingLoad) {
+            return;
+        }
+        if (this.pendingLoadData == null && this.pendingSaveData != null) {
+            // Chunk reload served from CraftEngine's chunk cache: loadCustomData never ran (no
+            // deserialization), so the passivation snapshot is the authoritative state to re-hydrate from.
+            this.pendingLoadData = this.pendingSaveData;
+            this.pendingSaveData = null;
+        }
         CompoundTag data = this.pendingLoadData;
         if (data == null) {
             return;
         }
-        if (loadData(data)) {
-            this.pendingLoadData = null;
+        this.applyingPendingLoad = true;
+        try {
+            if (loadData(data)) {
+                this.pendingLoadData = null;
+            }
+        } finally {
+            this.applyingPendingLoad = false;
         }
+    }
+
+    /**
+     * Snapshots the entity's current state so it survives the plugin-side entity being dropped on chunk
+     * unload. saveCustomData emits the snapshot verbatim and loadPendingDataIfReady re-hydrates from it
+     * when the chunk reloads out of CraftEngine's chunk cache (where loadCustomData never runs).
+     */
+    public void passivate(CookingPotBlockEntity entity) {
+        if (entity == null) {
+            return;
+        }
+        refreshFromEntity(entity);
+        this.pendingSaveData = saveData(entity);
+        CustomBlockUtils.markBlockEntityDirty(this.blockEntity);
     }
 
     private CompoundTag getPackedDataFromItem(Item item) {
@@ -210,6 +257,8 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     }
 
     private void queueLoadData(CompoundTag data) {
+        // Freshly deserialized/item-packed data is authoritative; discard any stale passivation snapshot.
+        this.pendingSaveData = null;
         this.pendingLoadData = data;
         loadPendingDataIfReady();
     }
@@ -248,8 +297,12 @@ public final class CookingPotBlockEntityController extends BlockEntityController
             if (hasDirtySlots && (this.allSlotsDirty || this.dirtySlots[i])) {
                 continue;
             }
-            this.items[i] = normalize(BukkitItemManager.instance().wrap(entity.getInventorySlot(i)));
+            ItemStack entitySlot = entity.getInventorySlot(i);
+            this.items[i] = normalize(BukkitItemManager.instance().wrap(entitySlot));
             this.slotExperience[i] = entity.getSlotExperience(i);
+            // getInventorySlot returns a fresh copy, so this baseline stays stable against later
+            // setInventorySlot writes; writeToEntity compares the live entity slot against it.
+            this.entityBaseline[i] = entitySlot;
         }
         if (!hasDirtySlots) {
             this.cookingProgress = entity.getCookingProgress();
@@ -308,14 +361,26 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         World world = getBukkitWorld();
         if (entity == null || world == null) return;
 
-        boolean writeAll = this.allSlotsDirty || !hasDirtySlots();
         synchronized (entity.getLock()) {
             for (int i = 0; i < this.items.length; i++) {
-                // A hopper merge grows getItem(i) in place without marking it dirty. Skip a non-dirty slot
-                // only when the shadow still matches the entity; if it differs (an in-place grow), persist
-                // it, otherwise refreshFromEntity below would overwrite the merged amount with the stale value.
-                if (!writeAll && !this.dirtySlots[i]
-                        && itemStacksEqual(asBukkitStack(this.items[i]), entity.getInventorySlot(i))) {
+                boolean slotDirty = this.allSlotsDirty || this.dirtySlots[i];
+                ItemStack entityNow = entity.getInventorySlot(i);
+                // Non-dirty slot with no local change: nothing to write.
+                if (!slotDirty && itemStacksEqual(asBukkitStack(this.items[i]), entityNow)) {
+                    continue;
+                }
+                // A local change is pending: a hopper setItem/removeItem (dirty slot) or a hopper in-place
+                // grow (non-dirty, grows getItem without marking dirty). Commit it, but never clobber a
+                // concurrent entity write. The shadow was read from the entity at refreshFromEntity (recorded
+                // in entityBaseline); if the live entity no longer equals that baseline, another region's GUI
+                // viewer wrote this slot under the entity lock — adopt the entity's current value instead of
+                // overwriting it with our stale shadow (which would dupe on extract / lose on insert). This
+                // guard previously covered only the non-dirty branch, letting hopper writes clobber a
+                // cross-region viewer.
+                if (!itemStacksEqual(this.entityBaseline[i], entityNow)) {
+                    this.items[i] = normalize(BukkitItemManager.instance().wrap(entityNow));
+                    this.slotExperience[i] = entity.getSlotExperience(i);
+                    this.entityBaseline[i] = entityNow;
                     continue;
                 }
                 entity.setInventorySlot(i, asBukkitStack(this.items[i]));

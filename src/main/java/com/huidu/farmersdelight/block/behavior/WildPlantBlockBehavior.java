@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.ProtectionCompat;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
 import com.huidu.farmersdelight.util.SoilRuleSupport.SoilRules;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
@@ -81,9 +82,16 @@ public class WildPlantBlockBehavior extends BlockBehavior {
         World world = player.getWorld();
         Block origin = world.getBlockAt(pos.x(), pos.y(), pos.z());
 
+        // This interaction cancels vanilla and manually places a wild plant via CraftEngineBlocks.place, so
+        // without a protection check a player with no build rights could spread wild plants inside a protected
+        // region (R-SEC-001). Gate the interaction here; the placement target is additionally checked in spread.
+        if (!ProtectionCompat.canBuild(player, origin)) {
+            return InteractionResult.PASS;
+        }
+
         // Vanilla consumes bone meal on a valid target; the spread itself only happens on a successful roll.
         if (ThreadLocalRandom.current().nextDouble() < successChance) {
-            spread(world, origin, state);
+            spread(world, origin, state, player);
         }
         playBonemealEffect(world, pos.x(), pos.y(), pos.z());
         if (player.getGameMode() != GameMode.CREATIVE) {
@@ -94,7 +102,7 @@ public class WildPlantBlockBehavior extends BlockBehavior {
 
     // Faithful port of WildCropBlock.performBonemeal: aborts if the 9x3x9 area already has spreadLimit identical plants,
     // otherwise random-walks to a target position and places a copy in the air above dirt/sand.
-    private void spread(World world, Block origin, ImmutableBlockState state) {
+    private void spread(World world, Block origin, ImmutableBlockState state, Player player) {
         String selfId = block().id().toString();
         int remaining = spreadLimit;
         for (int dx = -4; dx <= 4; dx++) {
@@ -116,7 +124,9 @@ public class WildPlantBlockBehavior extends BlockBehavior {
             }
             target = randomNeighbor(origin, random);
         }
-        if (canPlaceAt(target)) {
+        // Also gate the actual placement target: the spread can land in an adjacent claim even when the
+        // clicked block is buildable (R-SEC-001).
+        if (canPlaceAt(target) && ProtectionCompat.canBuild(player, target)) {
             CraftEngineBlocks.place(target.getLocation(), state, false);
         }
     }

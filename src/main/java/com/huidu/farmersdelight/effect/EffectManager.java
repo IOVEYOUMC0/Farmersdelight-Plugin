@@ -2,7 +2,6 @@ package com.huidu.farmersdelight.effect;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.buff.BuffBossbar;
-import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.CompatAttributes;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
@@ -23,8 +22,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class EffectManager {
 
-    private static final int DEFAULT_EFFECT_FADE_WARNING_TICKS = 200;
     private static final int DEFAULT_COMFORT_HEAL_INTERVAL_TICKS = 80;
+    private static final double DEFAULT_COMFORT_HEAL_AMOUNT = 1.0D;
 
     // Bossbar styles for the two FD buffs. Volatile + setters so /fd reload can mutate them without
     // touching the per-tick push path. Defaults match the original NamedTextColor mapping
@@ -34,9 +33,8 @@ public final class EffectManager {
     private static volatile BossBar.Color comfortBarColor = BossBar.Color.BLUE;
     private static volatile BossBar.Overlay comfortBarOverlay = BossBar.Overlay.PROGRESS;
 
-    /** Apply the per-buff bossbar visual from FD's bossbar.styles config section. Called on
-     *  enable AND on /fd reload so colour edits land immediately. section may be
-     *  null (defaults retained). */
+    /** Apply the per-buff bossbar visual from FD's buff.display.styles config section. Called on
+     *  enable AND on /fd reload so colour edits land immediately. section may be null (defaults retained). */
     public static void applyBossbarStyles(org.bukkit.configuration.ConfigurationSection section) {
         if (section == null) return;
         org.bukkit.configuration.ConfigurationSection n = section.getConfigurationSection("nourishment");
@@ -50,9 +48,12 @@ public final class EffectManager {
             comfortBarOverlay = com.huidu.farmersdelight.api.buff.BuffBossbar.parseOverlay(c.getString("overlay"), BossBar.Overlay.PROGRESS);
         }
     }
-    // Must match the effect task (EffectListener) run period. Durations are stored in real ticks,
-    // so they must be decremented by the elapsed real ticks between calls.
-    private static final int TICK_INTERVAL = (int) EffectListener.TICK_INTERVAL;
+    // Real ticks elapsed between effect-task passes. Mirrors EffectListener's resolved tick interval
+    // so durations (stored in real ticks) decrement by the actual elapsed ticks and self-correct.
+    private static int tickInterval() {
+        return (int) EffectListener.tickInterval();
+    }
+
     private static final Map<UUID, Integer> comfortDurations = new ConcurrentHashMap<>();
     private static final Map<UUID, Integer> nourishmentDurations = new ConcurrentHashMap<>();
     // Parallel "initial duration" maps — needed so the buff bossbar can render progress as
@@ -80,13 +81,13 @@ public final class EffectManager {
     // in FarmersDelightText.translatable so packs without the lang entry still show readable text.
     private static Component titleNourishment(int durationTicks) {
         return com.huidu.farmersdelight.api.text.FarmersDelightText.translatable(
-                "buff.farmersdelight.nourishment",
+                "buff.farmersdelight.nourishment.title",
                 com.huidu.farmersdelight.api.text.FarmersDelightText.formatDuration(Math.max(0, durationTicks) / 20));
     }
 
     private static Component titleComfort(int durationTicks) {
         return com.huidu.farmersdelight.api.text.FarmersDelightText.translatable(
-                "buff.farmersdelight.comfort",
+                "buff.farmersdelight.comfort.title",
                 com.huidu.farmersdelight.api.text.FarmersDelightText.formatDuration(Math.max(0, durationTicks) / 20));
     }
 
@@ -104,6 +105,9 @@ public final class EffectManager {
      * is active. (These effects aren't chainable, so a masked weaker dose isn't stored to resume later.)
      */
     public static void applyComfort(Player player, int durationSeconds, int level) {
+        if (!com.huidu.farmersdelight.api.buff.CustomBuffRegistry.isSystemEnabled()) {
+            return;
+        }
         UUID playerId = player.getUniqueId();
         int lvl = Math.max(1, level);
         int currentDuration = comfortDurations.getOrDefault(playerId, 0);
@@ -118,13 +122,6 @@ public final class EffectManager {
             comfortInitial.put(playerId, result[0]); // fresh / stronger dose resets the progress bar
         } else {
             comfortInitial.merge(playerId, result[0], Math::max);
-        }
-        if (currentDuration <= 0) {
-            player.sendMessage(I18n.getComponent(
-                    "effects.comfort.start",
-                    player,
-                    durationPlaceholders(result[0])
-            ));
         }
         EffectListener.trackPlayer(player);
     }
@@ -157,6 +154,9 @@ public final class EffectManager {
      * rule as applyComfort(Player, int, int).
      */
     public static void applyNourishment(Player player, int durationSeconds, int level) {
+        if (!com.huidu.farmersdelight.api.buff.CustomBuffRegistry.isSystemEnabled()) {
+            return;
+        }
         UUID playerId = player.getUniqueId();
         int lvl = Math.max(1, level);
         int currentDuration = nourishmentDurations.getOrDefault(playerId, 0);
@@ -171,13 +171,6 @@ public final class EffectManager {
             nourishmentInitial.put(playerId, result[0]);
         } else {
             nourishmentInitial.merge(playerId, result[0], Math::max);
-        }
-        if (currentDuration <= 0) {
-            player.sendMessage(I18n.getComponent(
-                    "effects.nourishment.start",
-                    player,
-                    durationPlaceholders(result[0])
-            ));
         }
         EffectListener.trackPlayer(player);
         // Award whenever nourishment is applied or refreshed (AdvancementManager guards against
@@ -204,7 +197,6 @@ public final class EffectManager {
         comfortDurations.remove(playerId);
         comfortInitial.remove(playerId);
         if (player.isOnline()) {
-            player.sendMessage(I18n.getComponent("effects.comfort.end", player));
             BuffBossbar.hide(FarmersDelightPlugin.getInstance(), player, KEY_COMFORT);
         }
         checkAndUntrack(player);
@@ -218,7 +210,6 @@ public final class EffectManager {
         nourishmentDurations.remove(playerId);
         nourishmentInitial.remove(playerId);
         if (player.isOnline()) {
-            player.sendMessage(I18n.getComponent("effects.nourishment.end", player));
             BuffBossbar.hide(FarmersDelightPlugin.getInstance(), player, KEY_NOURISHMENT);
         }
         checkAndUntrack(player);
@@ -240,6 +231,12 @@ public final class EffectManager {
         if (player == null || !player.isValid() || !player.isOnline() || player.isDead()) {
             return;
         }
+        // Buff master switch. The reload path also cancels the ticker, so this only covers a pass that was
+        // already in flight when the switch went off.
+        if (!com.huidu.farmersdelight.api.buff.CustomBuffRegistry.isSystemEnabled()) {
+            EffectListener.untrackPlayer(player.getUniqueId());
+            return;
+        }
 
         try {
             UUID playerId = player.getUniqueId();
@@ -254,18 +251,10 @@ public final class EffectManager {
             if (comfortDuration > 0) {
                 tickComfort(player, comfortDuration);
                 if (player.isValid()) {
-                    if (shouldSendFadeWarning(comfortDuration, getComfortFadeWarningTicks())) {
-                        player.sendMessage(I18n.getComponent(
-                                "effects.comfort.fade",
-                                player,
-                                durationPlaceholders(comfortDuration)
-                        ));
-                    }
-                    int newDuration = comfortDuration - TICK_INTERVAL;
+                    int newDuration = comfortDuration - tickInterval();
                     if (newDuration > 0) {
                         comfortDurations.put(playerId, newDuration);
                     } else {
-                        player.sendMessage(I18n.getComponent("effects.comfort.end", player));
                         comfortDurations.remove(playerId);
                         comfortInitial.remove(playerId);
                     }
@@ -276,29 +265,22 @@ public final class EffectManager {
                 tickNourishment(player);
             }
             if (player.isValid() && nourishmentDuration > 0) {
-                if (shouldSendFadeWarning(nourishmentDuration, getNourishmentFadeWarningTicks())) {
-                    player.sendMessage(I18n.getComponent(
-                            "effects.nourishment.fade",
-                            player,
-                            durationPlaceholders(nourishmentDuration)
-                    ));
-                }
-                int newDuration = nourishmentDuration - TICK_INTERVAL;
+                int newDuration = nourishmentDuration - tickInterval();
                 if (newDuration > 0) {
                     nourishmentDurations.put(playerId, newDuration);
                 } else {
-                    player.sendMessage(I18n.getComponent("effects.nourishment.end", player));
                     nourishmentDurations.remove(playerId);
                     nourishmentInitial.remove(playerId);
                 }
             }
 
-            if (comfortDuration <= TICK_INTERVAL && nourishmentDuration <= TICK_INTERVAL) {
+            int interval = tickInterval();
+            if (comfortDuration <= interval && nourishmentDuration <= interval) {
                 EffectListener.untrackPlayer(playerId);
             }
 
-            // Bossbar feed — push current state every tick this method runs. Tick rate is FD's
-            // EffectListener.TICK_INTERVAL (4 ticks = 5 Hz), plenty for a smooth progress bar.
+            // Bossbar feed — push current state every tick this method runs. Tick rate is the effect
+            // task's configured interval (default 4 ticks = 5 Hz), plenty for a smooth progress bar.
             pushBossbar(player, playerId);
         } catch (Exception e) {
             EffectListener.untrackPlayer(player.getUniqueId());
@@ -506,27 +488,8 @@ public final class EffectManager {
         }
         double maxHealth = maxHealthAttr.getValue();
         if (player.getHealth() < maxHealth) {
-            player.setHealth(Math.min(player.getHealth() + 1.0D, maxHealth));
+            player.setHealth(Math.min(player.getHealth() + getComfortHealAmount(), maxHealth));
         }
-    }
-
-    private static Map<String, String> durationPlaceholders(int durationTicks) {
-        int seconds = Math.max(0, durationTicks / 20);
-        int minutes = seconds / 60;
-        int remainSeconds = seconds % 60;
-        return Map.of(
-                "seconds", String.valueOf(seconds),
-                "minutes", String.valueOf(minutes),
-                "time", minutes > 0
-                        ? minutes + "m " + remainSeconds + "s"
-                        : seconds + "s"
-        );
-    }
-
-    private static boolean shouldSendFadeWarning(int durationTicks, int warningTicks) {
-        return warningTicks > 0
-                && durationTicks <= warningTicks
-                && durationTicks > warningTicks - TICK_INTERVAL;
     }
 
     private static int getComfortHealIntervalTicks() {
@@ -534,24 +497,17 @@ public final class EffectManager {
         return plugin == null
                 ? DEFAULT_COMFORT_HEAL_INTERVAL_TICKS
                 : Math.max(0, plugin.getConfigInt(DEFAULT_COMFORT_HEAL_INTERVAL_TICKS,
+                "buff.comfort.heal-interval-ticks",
                 "comfort-foods.heal-interval-ticks"));
     }
 
-    private static int getComfortFadeWarningTicks() {
+    private static double getComfortHealAmount() {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         return plugin == null
-                ? DEFAULT_EFFECT_FADE_WARNING_TICKS
-                : Math.max(0, plugin.getConfigInt(DEFAULT_EFFECT_FADE_WARNING_TICKS,
-                "comfort-foods.fade-warning-ticks",
-                "food-effects.fade-warning-ticks"));
+                ? DEFAULT_COMFORT_HEAL_AMOUNT
+                : Math.max(0, plugin.getConfigDouble(DEFAULT_COMFORT_HEAL_AMOUNT,
+                "buff.comfort.heal-amount",
+                "comfort-foods.heal-amount"));
     }
 
-    private static int getNourishmentFadeWarningTicks() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        return plugin == null
-                ? DEFAULT_EFFECT_FADE_WARNING_TICKS
-                : Math.max(0, plugin.getConfigInt(DEFAULT_EFFECT_FADE_WARNING_TICKS,
-                "nourishment-foods.fade-warning-ticks",
-                "food-effects.fade-warning-ticks"));
-    }
 }

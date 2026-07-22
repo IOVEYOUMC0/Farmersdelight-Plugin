@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.util.BehaviorArgParser;
+import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CraftEngineAdapter;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
@@ -11,6 +12,7 @@ import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.entity.player.Player;
+import net.momirealms.craftengine.core.plugin.config.KnownResourceException;
 import net.momirealms.craftengine.core.util.Direction;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.BlockPos;
@@ -56,7 +58,6 @@ public class TatamiPairingBehavior extends BlockBehavior {
         this.pairWhileSneaking = pairWhileSneaking;
     }
 
-    @SuppressWarnings("unchecked")
     public static final BlockBehaviorFactory<TatamiPairingBehavior> FACTORY = new BlockBehaviorFactory<TatamiPairingBehavior>() {
         @Override
         public TatamiPairingBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
@@ -66,8 +67,22 @@ public class TatamiPairingBehavior extends BlockBehavior {
             pairedPropertyName = BehaviorArgParser.getString(arguments, "paired-property", pairedPropertyName);
             boolean pairWhileSneaking = BehaviorArgParser.getBoolean(arguments, "pair-while-sneaking", false);
 
+            // Both properties carry the pairing, which is everything this behavior does: without either one no
+            // mat ever pairs, no weave orientation is written and no partner is ever reset, while the block
+            // still places and looks like a working tatami. A block that declares this behavior without them
+            // aborts its own load here with the config node and the property name.
+            String path = section != null ? section.path() : Constants.BEHAVIOR_TATAMI;
+            // Looked up by name only: the facing value is read and written as text, so any property type whose
+            // values spell out directions is accepted.
             Property<?> facingProperty = block.getProperty(facingPropertyName);
-            Property<Boolean> pairedProperty = (Property<Boolean>) block.getProperty(pairedPropertyName);
+            if (facingProperty == null) {
+                throw new KnownResourceException(
+                        "resource.block.behavior.missing_property", path, facingPropertyName);
+            }
+            // The paired flag is set with a Boolean, so a wrong-typed property would throw on the first
+            // placement instead of at load; require the type here.
+            Property<Boolean> pairedProperty =
+                    BlockBehaviorFactory.getProperty(path, block, pairedPropertyName, Boolean.class);
 
             return new TatamiPairingBehavior(block, facingProperty, pairedProperty, pairWhileSneaking);
         }
@@ -82,9 +97,6 @@ public class TatamiPairingBehavior extends BlockBehavior {
      */
     @Override
     public ImmutableBlockState updateStateForPlacement(BlockPlaceContext context, ImmutableBlockState state) {
-        if (facingProperty == null) {
-            return state;
-        }
         Direction facing = context.getClickedFace().opposite();
         return withPropertyValue(state, facingProperty, facing.name().toLowerCase(java.util.Locale.ROOT));
     }
@@ -123,7 +135,7 @@ public class TatamiPairingBehavior extends BlockBehavior {
      */
     @Override
     public Object updateShape(Object thisBlock, Object[] args) {
-        if (args.length < 7 || pairedProperty == null || facingProperty == null) {
+        if (args.length < 7) {
             return args[0];
         }
         ImmutableBlockState state = BlockStateUtils.getOptionalCustomBlockState(args[0]).orElse(null);
@@ -154,7 +166,7 @@ public class TatamiPairingBehavior extends BlockBehavior {
      */
     @Override
     public void neighborChanged(Object thisBlock, Object[] args) {
-        if (args.length < 3 || pairedProperty == null || facingProperty == null) {
+        if (args.length < 3) {
             return;
         }
         World world = CraftEngineAdapter.toWorld(args[1]);
@@ -244,10 +256,6 @@ public class TatamiPairingBehavior extends BlockBehavior {
             return false;
         }
 
-        if (pairedProperty == null || facingProperty == null) {
-            return false;
-        }
-
         Boolean neighborPaired = neighborState.get(pairedProperty);
         if (Boolean.TRUE.equals(neighborPaired)) {
             return false;
@@ -262,14 +270,9 @@ public class TatamiPairingBehavior extends BlockBehavior {
     }
 
     private ImmutableBlockState withFacingAndPair(ImmutableBlockState state, BlockFace facing, boolean paired) {
-        ImmutableBlockState result = state;
-        if (facingProperty != null) {
-            result = withPropertyValue(result, facingProperty, facing.name().toLowerCase(java.util.Locale.ROOT));
-        }
-        if (pairedProperty != null) {
-            result = result.with(pairedProperty, paired);
-        }
-        return result;
+        ImmutableBlockState result =
+                withPropertyValue(state, facingProperty, facing.name().toLowerCase(java.util.Locale.ROOT));
+        return result.with(pairedProperty, paired);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

@@ -329,5 +329,9 @@
   "block.farmersdelight.canvas_rug": "粗布毯",
   "block.farmersdelight.full_tatami_mat": "长榻榻米垫",
   "block.farmersdelight.half_tatami_mat": "短榻榻米垫",
-  "block.farmersdelight.tatami": "榻榻米方块"
+  "block.farmersdelight.tatami": "榻榻米方块",
+  "buff.farmersdelight.nourishment": "滋养",
+  "buff.farmersdelight.nourishment.title": "滋养 [%s]",
+  "buff.farmersdelight.comfort": "舒适",
+  "buff.farmersdelight.comfort.title": "舒适 [%s]"
 }

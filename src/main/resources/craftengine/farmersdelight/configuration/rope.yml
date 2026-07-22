@@ -145,9 +145,8 @@ recipes:
     pattern:
       - "S"
       - "S"
-      - "S"
     ingredients:
       S: "farmersdelight:straw"
     result:
       id: farmersdelight:rope
-      count: 3
+      count: 4

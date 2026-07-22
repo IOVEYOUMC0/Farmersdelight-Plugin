@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.api.recipe;
 import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.ApiStatus;
 
 import java.util.List;
 import java.util.Map;
@@ -13,6 +14,7 @@ import java.util.Map;
  *
  * Lives in the name-stable api package; uses only Bukkit / Adventure / java types.
  */
+@ApiStatus.OverrideOnly
 public interface ViewableRecipe {
 
     /** Unique id within its RecipeType (used for detail/editor lookup). */

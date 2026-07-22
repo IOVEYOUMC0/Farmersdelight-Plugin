@@ -329,5 +329,9 @@
   "block.farmersdelight.canvas_rug": "Canvas Rug",
   "block.farmersdelight.full_tatami_mat": "Full Tatami Mat",
   "block.farmersdelight.half_tatami_mat": "Half Tatami Mat",
-  "block.farmersdelight.tatami": "Tatami Block"
+  "block.farmersdelight.tatami": "Tatami Block",
+  "buff.farmersdelight.nourishment": "Nourishment",
+  "buff.farmersdelight.nourishment.title": "Nourishment [%s]",
+  "buff.farmersdelight.comfort": "Comfort",
+  "buff.farmersdelight.comfort.title": "Comfort [%s]"
 }
