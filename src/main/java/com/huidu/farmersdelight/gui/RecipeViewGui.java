@@ -1674,8 +1674,12 @@ public class RecipeViewGui implements InventoryHolder {
         if (entity != null && !canRecipeFitCookingPot(recipe, entity)) {
             return false;
         }
-        ItemStack container = findContainerForRecipe(recipe, available);
-        return plugin.getCookingPotRecipes().canCraft(recipe, available, container);
+        // The container is not part of "can I cook this": the pot cooks from ingredients alone and the bowl is
+        // supplied at extraction time, so a meal recipe stays craftable even when the player carries no bowl.
+        // Containment question, not the real cook: does the inventory (+ current pot inputs) hold enough of
+        // each ingredient, ignoring the unrelated items every inventory carries? canCraft's lenient pass would
+        // reject on the first foreign slot, so it can't be used here.
+        return plugin.getCookingPotRecipes().containsIngredientsFor(recipe, available);
     }
 
     private List<ItemStack> getAvailableCookingPotItems(CookingPotBlockEntity entity) {
@@ -1693,22 +1697,6 @@ public class RecipeViewGui implements InventoryHolder {
             }
         }
         return items;
-    }
-
-    private ItemStack findContainerForRecipe(CookingPotRecipe recipe, List<ItemStack> available) {
-        if (recipe == null || !recipe.needsContainer()) {
-            return null;
-        }
-        ItemStack required = recipe.getContainer();
-        if (required == null || required.getType().isAir()) {
-            return null;
-        }
-        for (ItemStack item : available) {
-            if (sameRecipeItem(required, item)) {
-                return item;
-            }
-        }
-        return null;
     }
 
     private FillResult fillCookingPotFromInventory(Player player, boolean fillAll) {

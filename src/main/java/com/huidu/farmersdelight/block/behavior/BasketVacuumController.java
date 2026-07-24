@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.bukkit.block.entity.SimpleStorageBlockEntityController;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -109,12 +110,24 @@ public final class BasketVacuumController extends BlockEntityController {
         int fx = facing.getModX();
         int fy = facing.getModY();
         int fz = facing.getModZ();
-        double minX = pos.x() + Math.min(0, fx);
-        double minY = pos.y() + Math.min(0, fy);
-        double minZ = pos.z() + Math.min(0, fz);
-        double maxX = pos.x() + 1 + Math.max(0, fx);
-        double maxY = pos.y() + 1 + Math.max(0, fy);
-        double maxZ = pos.z() + 1 + Math.max(0, fz);
+        // A horizontal facing reaches into the neighbouring column, which on Folia can belong to another region;
+        // scanning it from this region's tick thread throws the region ownership check. When that cell is not
+        // owned here, drop it and scan only the basket's own cell this tick. A vertical facing (the default) stays
+        // in the same column and is always owned, so it never pays this check. Paper always reports owned.
+        boolean includeFaced = true;
+        if (fx != 0 || fz != 0) {
+            org.bukkit.Location facedCell = new org.bukkit.Location(world, pos.x() + fx, pos.y() + fy, pos.z() + fz);
+            includeFaced = FarmersDelightPlugin.getInstance().scheduler().isOwnedByCurrentRegion(facedCell);
+        }
+        int rx = includeFaced ? fx : 0;
+        int ry = includeFaced ? fy : 0;
+        int rz = includeFaced ? fz : 0;
+        double minX = pos.x() + Math.min(0, rx);
+        double minY = pos.y() + Math.min(0, ry);
+        double minZ = pos.z() + Math.min(0, rz);
+        double maxX = pos.x() + 1 + Math.max(0, rx);
+        double maxY = pos.y() + 1 + Math.max(0, ry);
+        double maxZ = pos.z() + 1 + Math.max(0, rz);
         BoundingBox area = new BoundingBox(minX, minY, minZ, maxX, maxY, maxZ);
 
         for (Entity entity : world.getNearbyEntities(area, candidate -> candidate instanceof Item)) {

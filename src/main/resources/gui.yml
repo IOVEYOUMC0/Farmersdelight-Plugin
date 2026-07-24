@@ -231,8 +231,10 @@ recipe-view-gui:
         name: "<gray><lang:gui.recipe.filter>"
       filter-on:
         item: farmersdelight:cooking_pot_can_cooked_enabled
+        name: "<green><lang:gui.recipe.filter_craftable_on>"
       filter-off:
         item: farmersdelight:cooking_pot_can_cooked_disenabled
+        name: "<gray><lang:gui.recipe.filter_craftable_off>"
 
   recipe-detail-cooking-pot:
     title: "<white><offset><icon><shift:-1600><lang:gui.recipe.detail_title>"
