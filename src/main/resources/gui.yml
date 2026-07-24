@@ -208,6 +208,19 @@ recipe-view-gui:
       back:
         material: BARRIER
         name: "<gray><lang:gui.recipe.back>"
+        # The back/close button also accepts an optional command list, run one tick after the
+        # menu closes. Fields command, commands, and cmd are all read and merged. Prefix an
+        # entry with [console] to run it as the console, or [player] (the default) to run it as
+        # the clicking player. Placeholders: {player} {player_name} %player% %player_name%
+        # {uuid} {world}. Reopening another menu must go through this list rather than a raw
+        # command, because an inventory cannot be opened during the click event itself. These
+        # fire when the list was opened via /fd recipe cooking_pot or /fd recipe cutting_board.
+        # commands:
+        #   - "[player] menu open hub"
+        #   - "[console] tellraw {player} {\"text\":\"Returning to the hub\"}"
+      close:
+        material: BARRIER
+        name: "<red><lang:gui.recipe.close>"
       info:
         material: BOOK
         name: "<dark_gray><lang:gui.recipe.title>"

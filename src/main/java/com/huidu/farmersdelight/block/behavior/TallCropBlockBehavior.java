@@ -155,10 +155,10 @@ public class TallCropBlockBehavior extends BlockBehavior {
                     : Math.max(0, maxAgeLower - 1);
             
             Object halfLowerValue = BehaviorArgParser.hasArgument(arguments, "half-lower-value")
-                    ? getRawPropertyValue(arguments.get("half-lower-value"), halfProperty, inferLowerHalfValue(halfProperty))
+                    ? getRawPropertyValue(BehaviorArgParser.getRaw(arguments, "half-lower-value"), halfProperty, inferLowerHalfValue(halfProperty))
                     : inferLowerHalfValue(halfProperty);
             Object halfUpperValue = BehaviorArgParser.hasArgument(arguments, "half-upper-value")
-                    ? getRawPropertyValue(arguments.get("half-upper-value"), halfProperty, inferUpperHalfValue(halfProperty))
+                    ? getRawPropertyValue(BehaviorArgParser.getRaw(arguments, "half-upper-value"), halfProperty, inferUpperHalfValue(halfProperty))
                     : inferUpperHalfValue(halfProperty);
             
             boolean requiresWater = BehaviorArgParser.getBoolean(arguments, "requires-water", false);
@@ -401,7 +401,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
             return applyBoneMealToExistingUpperHalf(pos, world);
         }
 
-        int ageBonus = Math.max(1, computeBoneMealAgeBonus());
+        int ageBonus = Math.max(0, computeBoneMealAgeBonus());
         int newAge = currentAge + ageBonus;
         playBonemealEffect(world, pos.x(), pos.y(), pos.z());
         return applyBoneMealToLowerHalf(pos, world, state, newAge);
@@ -466,7 +466,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
             return false;
         }
 
-        int ageBonus = Math.max(1, computeBoneMealAgeBonus());
+        int ageBonus = Math.max(0, computeBoneMealAgeBonus());
         int newAge = Math.min(currentAge + ageBonus, maxAgeUpper);
         playBonemealEffect(world, pos.x(), pos.y(), pos.z());
 
@@ -490,7 +490,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
             return false;
         }
 
-        int ageBonus = Math.max(1, computeBoneMealAgeBonus());
+        int ageBonus = Math.max(0, computeBoneMealAgeBonus());
         int newUpperAge = Math.min(upperAge + ageBonus, maxAgeUpper);
         playBonemealEffect(world, pos.x(), pos.y() + 1, pos.z());
 

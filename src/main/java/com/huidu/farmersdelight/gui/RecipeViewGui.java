@@ -507,7 +507,7 @@ public class RecipeViewGui implements InventoryHolder {
             setGuiItem(listConfig, "next_page", listConfig.getNextPageSlot());
         }
 
-        setGuiItem(listConfig, "back", listConfig.getBackSlot());
+        drawListBackOrCloseButton(listConfig);
         if (cookingPotMode) {
             setFilterToggleItem(listConfig, player);
         } else if (listConfig.getFilterSlot() >= 0) {
@@ -524,6 +524,33 @@ public class RecipeViewGui implements InventoryHolder {
                 placeholders.put("total", String.valueOf(totalPages));
                 inventory.setItem(listConfig.getInfoSlot(), infoItem.createItem(placeholders));
             }
+        }
+    }
+
+    /**
+     * Renders the recipe-list back slot. For a command-opened top-level list (no menu above, no back
+     * commands) the slot's click closes the GUI, so it shows the "close" item; every other entry point
+     * (menu descent, opened from a pot, or a configured back command) shows the "back" item. Falls back to
+     * the "back" item when no "close" item is configured, so an older gui.yml without it keeps working.
+     */
+    private void drawListBackOrCloseButton(RecipeViewGuiConfig.RecipeListConfig listConfig) {
+        int backSlot = listConfig.getBackSlot();
+        if (backSlot < 0) {
+            return;
+        }
+        GuiConfig.GuiItem backItem = listConfig.getItem("back");
+        boolean closesOnBack = backButtonCommandsEnabled && !fromCookingPot
+                && (backItem == null || !backItem.hasCommands());
+        if (closesOnBack) {
+            GuiConfig.GuiItem closeItem = listConfig.getItem("close");
+            GuiConfig.GuiItem rendered = closeItem != null ? closeItem : backItem;
+            if (rendered != null) {
+                inventory.setItem(backSlot, rendered.createItem());
+            }
+            return;
+        }
+        if (backItem != null) {
+            inventory.setItem(backSlot, backItem.createItem());
         }
     }
 
@@ -1377,7 +1404,10 @@ public class RecipeViewGui implements InventoryHolder {
             // Hand off to the generic addon recipe book (deferred a tick, like the editor handoff).
             plugin.scheduler().runLaterForEntity(player, () -> {
                 if (player.isOnline()) {
-                    com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.openMenu(player, null);
+                    // Backing out of the addon book returns to this recipe menu (where the player came from)
+                    // instead of closing, which would strand them.
+                    com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.openMenu(player, null,
+                            () -> new RecipeViewGui(plugin, player).open(player));
                 }
             }, 1L);
         } else if (slot == menuConfig.getBackSlot()) {
@@ -1428,6 +1458,10 @@ public class RecipeViewGui implements InventoryHolder {
             if (fromCookingPot && isCookingPot) {
                 closeGui(player);
                 returnToCookingPot(player);
+            } else if (backButtonCommandsEnabled && !fromCookingPot) {
+                // A command-opened top-level list has no menu above it, so back closes instead of dropping the
+                // player into a MAIN_MENU they never opened (which would strand them with only a close button).
+                closeGui(player);
             } else {
                 navigateToState(player, GuiState.MAIN_MENU);
             }
