@@ -569,6 +569,29 @@ public class CookingPotRecipeManager {
         return recipe != null && matchesContainer(recipe, container) && matchRecipe(recipe, inputs);
     }
 
+    /**
+     * Containment test for the recipe-list "craftable only" filter: does the supplied item pool (typically the
+     * player's whole inventory plus the pot's current inputs) hold enough of every required ingredient,
+     * ignoring unrelated items? This is deliberately NOT the real cook question. The real cook feeds the pot's
+     * own &lt;=6 input slots into matchRecipe / canCraft, whose lenient pass rejects any
+     * filled slot the recipe cannot use; a real inventory always has such slots, so that path always answers
+     * "no". Here the unit budget stays each stack's amount so a single stack covers several units, but the
+     * slot-count and foreign-slot gates are dropped. Container presence is checked by the caller.
+     */
+    public boolean containsIngredientsFor(CookingPotRecipe recipe, List<ItemStack> available) {
+        if (recipe == null) {
+            return false;
+        }
+        List<ItemStack> nonEmpty = new ArrayList<>();
+        for (ItemStack item : available) {
+            if (item != null && !item.getType().isAir()) {
+                nonEmpty.add(item);
+            }
+        }
+        return IngredientMatching.containsIngredients(
+                recipe.getIngredients(), nonEmpty, this::matchIngredient, ItemStack::getAmount);
+    }
+
     public boolean matchesIngredient(ItemStack item, RecipeIngredient ingredient) {
         return matchIngredient(item, ingredient);
     }

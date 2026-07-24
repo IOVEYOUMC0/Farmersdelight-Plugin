@@ -24,6 +24,7 @@ items:
               - "farmersdelight:shepherds_pie_block_mutton"
               - "farmersdelight:shepherds_pie_block_mutton_chops"
             craft-remainder: "minecraft:bucket"
+        fallback: "minecraft:bucket"
   minecraft:honey_bottle:
     material: honey_bottle
     settings:
@@ -35,3 +36,4 @@ items:
               - "farmersdelight:honey_glazed_ham_block"
               - "farmersdelight:gleaming_salad_block"
             craft-remainder: "minecraft:glass_bottle"
+        fallback: "minecraft:glass_bottle"

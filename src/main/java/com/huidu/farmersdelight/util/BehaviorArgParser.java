@@ -11,10 +11,55 @@ public final class BehaviorArgParser {
     private BehaviorArgParser() {
     }
 
+    /**
+     * The value written for a key, trying the given spelling first and the alternate hyphen or
+     * underscore spelling second. CraftEngine's own behaviors accept both grow_speed and grow-speed
+     * for every key, so a config written in either convention resolves the same way here. The given
+     * spelling always wins when its value is present, so existing hyphenated configs and the deployed
+     * server keep their meaning even if the underscore form is also written.
+     */
+    private static Object resolve(Map<String, Object> arguments, String key) {
+        if (arguments == null || key == null) {
+            return null;
+        }
+        Object value = arguments.get(key);
+        if (value != null) {
+            return value;
+        }
+        String alternate = alternateSpelling(key);
+        return alternate != null ? arguments.get(alternate) : null;
+    }
+
+    /** The raw value for a key, trying both the given and the alternate spelling, for callers that need the
+     *  unconverted object rather than a typed accessor. Returns null when neither spelling is present. */
+    public static Object getRaw(Map<String, Object> arguments, String key) {
+        return resolve(arguments, key);
+    }
+
+    /**
+     * The same key with every '-' turned into '_' and every '_' into '-', or null when the key has
+     * no such separator and therefore no alternate spelling to try.
+     */
+    private static String alternateSpelling(String key) {
+        boolean changed = false;
+        char[] chars = key.toCharArray();
+        for (int i = 0; i < chars.length; i++) {
+            char c = chars[i];
+            if (c == '-') {
+                chars[i] = '_';
+                changed = true;
+            } else if (c == '_') {
+                chars[i] = '-';
+                changed = true;
+            }
+        }
+        return changed ? new String(chars) : null;
+    }
+
     /** Lenient: any non-null value is coerced via String.valueOf; only null yields the fallback.
      *  Use when the YAML value can legally be a non-String type (e.g. an integer that should print as text). */
     public static String getString(Map<String, Object> arguments, String key, String defaultValue) {
-        Object value = arguments != null ? arguments.get(key) : null;
+        Object value = resolve(arguments, key);
         if (value != null) {
             return String.valueOf(value);
         }
@@ -24,14 +69,14 @@ public final class BehaviorArgParser {
     /** Strict: only an actual non-empty String value passes through; anything else (null, wrong type,
      *  empty string) returns the fallback. Use to reject malformed configs early instead of silently coercing. */
     public static String getStringStrict(Map<String, Object> arguments, String key, String fallback) {
-        Object value = arguments != null ? arguments.get(key) : null;
+        Object value = resolve(arguments, key);
         return value instanceof String s && !s.isEmpty() ? s : fallback;
     }
 
     /** Lenient: a non-null Boolean passes through, a String is parsed via Boolean#parseBoolean,
      *  everything else falls back. */
     public static boolean getBoolean(Map<String, Object> arguments, String key, boolean defaultValue) {
-        Object value = arguments != null ? arguments.get(key) : null;
+        Object value = resolve(arguments, key);
         if (value instanceof Boolean booleanValue) {
             return booleanValue;
         }
@@ -44,12 +89,12 @@ public final class BehaviorArgParser {
     /** Strict: only an actual Boolean value passes through; quoted strings ("true"/"false") and any
      *  other type return the fallback. Use to reject malformed configs early. */
     public static boolean getBooleanStrict(Map<String, Object> arguments, String key, boolean fallback) {
-        Object value = arguments != null ? arguments.get(key) : null;
+        Object value = resolve(arguments, key);
         return value instanceof Boolean b ? b : fallback;
     }
 
     public static int getInt(Map<String, Object> arguments, String key, int defaultValue) {
-        Object value = arguments != null ? arguments.get(key) : null;
+        Object value = resolve(arguments, key);
         if (value instanceof Number number) {
             return number.intValue();
         }
@@ -63,7 +108,7 @@ public final class BehaviorArgParser {
     }
 
     public static float getFloat(Map<String, Object> arguments, String key, float defaultValue) {
-        Object value = arguments != null ? arguments.get(key) : null;
+        Object value = resolve(arguments, key);
         if (value instanceof Number number) {
             return number.floatValue();
         }
@@ -77,7 +122,7 @@ public final class BehaviorArgParser {
     }
 
     public static double getDouble(Map<String, Object> arguments, String key, double defaultValue) {
-        Object value = arguments != null ? arguments.get(key) : null;
+        Object value = resolve(arguments, key);
         if (value instanceof Number number) {
             return number.doubleValue();
         }
@@ -97,7 +142,7 @@ public final class BehaviorArgParser {
      * that later fails to parse still counts as written.
      */
     public static boolean isPresent(Map<String, Object> arguments, String key) {
-        return arguments != null && arguments.get(key) != null;
+        return resolve(arguments, key) != null;
     }
 
     /**
@@ -110,7 +155,7 @@ public final class BehaviorArgParser {
      */
     @SuppressWarnings("unchecked")
     public static Map<String, Object> getSection(Map<String, Object> arguments, String key) {
-        Object value = arguments != null ? arguments.get(key) : null;
+        Object value = resolve(arguments, key);
         if (!(value instanceof Map<?, ?> map)) {
             return null;
         }
@@ -123,10 +168,7 @@ public final class BehaviorArgParser {
     }
 
     public static boolean hasArgument(Map<String, Object> arguments, String key) {
-        if (arguments == null || !arguments.containsKey(key)) {
-            return false;
-        }
-        Object value = arguments.get(key);
+        Object value = resolve(arguments, key);
         return value != null && !String.valueOf(value).trim().isEmpty();
     }
 
@@ -146,10 +188,7 @@ public final class BehaviorArgParser {
     }
 
     public static String getArgumentString(Map<String, Object> arguments, String key, String defaultValue) {
-        if (arguments == null) {
-            return defaultValue;
-        }
-        Object value = arguments.get(key);
+        Object value = resolve(arguments, key);
         if (value == null) {
             return defaultValue;
         }

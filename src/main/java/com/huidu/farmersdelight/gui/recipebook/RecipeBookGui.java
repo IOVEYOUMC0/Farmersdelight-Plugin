@@ -55,6 +55,11 @@ public final class RecipeBookGui implements InventoryHolder {
     // Optional "craftable only" filter (toggled by a 'filter' button); needs the viewer to test inventories.
     private boolean filterCraftable;
     private Player viewer;
+    // Optional action run instead of closing when the top-level view (menu, or a single-type list with no
+    // station filler) is backed out of. Lets a caller that opened this book from its own menu (FarmersDelight's
+    // recipe menu handing off to the addon book) send the player back to that menu instead of an empty screen.
+    // Null keeps the original behavior: the terminal back just closes the inventory.
+    private Runnable onExit;
     // Back-navigation history: each drill-in (menu to list, list to detail, and a detail-to-detail jump)
     // pushes the page it left, so "back" returns there instead of always dropping to the current type's list.
     // A jump into another recipe's detail (the keg fluid icon opening the recipe that makes that fluid) thus
@@ -79,10 +84,15 @@ public final class RecipeBookGui implements InventoryHolder {
     private java.util.function.Consumer<Void> tickCallback;
 
     public static void openMenu(Player player, RecipeFiller filler) {
+        openMenu(player, filler, null);
+    }
+
+    public static void openMenu(Player player, RecipeFiller filler, Runnable onExit) {
         RecipeBookListener.ensureRegistered();
         RecipeBookGui gui = new RecipeBookGui();
         gui.filler = filler;
         gui.viewer = player;
+        gui.onExit = onExit;
         List<RecipeType> types = FarmersDelightApi.get().recipeTypes();
         if (types.size() == 1) {
             gui.singleType = true;
@@ -495,12 +505,12 @@ public final class RecipeBookGui implements InventoryHolder {
             return;
         }
         switch (view) {
-            case MENU -> player.closeInventory();
+            case MENU -> exitOrClose(player);
             case LIST -> {
                 if (singleType) {
-                    // Opened from a station (e.g. a keg): let its filler reopen that GUI; else just close.
+                    // Opened from a station (e.g. a keg): let its filler reopen that GUI; else exit or close.
                     if (filler == null || !filler.onBack(player)) {
-                        player.closeInventory();
+                        exitOrClose(player);
                     }
                 } else {
                     drawMenu();
@@ -511,6 +521,16 @@ public final class RecipeBookGui implements InventoryHolder {
                 drawList(type, page);
                 player.openInventory(inventory);
             }
+        }
+    }
+
+    /** Terminal back-out of the top-level view: run the caller-supplied exit action if one was given (e.g. reopen
+     * the FarmersDelight recipe menu this book was opened from), otherwise just close the inventory. */
+    private void exitOrClose(Player player) {
+        if (onExit != null) {
+            onExit.run();
+        } else {
+            player.closeInventory();
         }
     }
 

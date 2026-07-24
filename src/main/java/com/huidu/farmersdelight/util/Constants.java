@@ -35,6 +35,7 @@ public final class Constants {
     public static final String BLOCK_CABBAGES = "farmersdelight:cabbages";
     public static final String BLOCK_TOMATOES = "farmersdelight:tomatoes";
     public static final String BLOCK_BUDDING_TOMATOES = "farmersdelight:budding_tomatoes";
+    public static final String BEHAVIOR_BASKET = "farmersdelight:basket";
     public static final String BEHAVIOR_COOKING_POT = "farmersdelight:cooking_pot";
     public static final String BEHAVIOR_CUTTING_BOARD = "farmersdelight:cutting_board";
     public static final String BEHAVIOR_SKILLET = "farmersdelight:skillet";
