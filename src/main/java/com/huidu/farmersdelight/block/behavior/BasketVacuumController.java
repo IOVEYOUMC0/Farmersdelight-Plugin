@@ -10,6 +10,7 @@ import net.momirealms.craftengine.core.block.entity.tick.BlockEntityTicker;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.CEWorld;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Item;
@@ -34,14 +35,17 @@ import java.util.Map;
 public final class BasketVacuumController extends BlockEntityController {
 
     private final int transferCooldownTicks;
+    // Whether the basket pushes its contents into a container it faces. Collection is unconditional.
+    private final boolean eject;
     // Read and written only on the block entity's own region tick thread (the CraftEngine sync
     // block-entity ticker), so it needs no cross-thread synchronization. Starts negative to match the
     // reference basket, which begins ready to collect.
     private int transferCooldown = -1;
 
-    public BasketVacuumController(BlockEntity blockEntity, int transferCooldownTicks) {
+    public BasketVacuumController(BlockEntity blockEntity, int transferCooldownTicks, boolean eject) {
         super(blockEntity);
         this.transferCooldownTicks = transferCooldownTicks;
+        this.eject = eject;
     }
 
     @Override
@@ -60,8 +64,24 @@ public final class BasketVacuumController extends BlockEntityController {
         }
         this.transferCooldown = 0;
 
+        World world = CustomBlockUtils.getBukkitWorld(this.blockEntity);
+        if (world == null) {
+            return;
+        }
+
+        // The basket does nothing while it receives a redstone signal, mirroring the reference
+        // BasketBlock ENABLED = !hasNeighborSignal. Block.isBlockIndirectlyPowered maps to the vanilla
+        // level.hasNeighborSignal(pos), so the disable state is read live each tick and no block-state
+        // property is added. This reads the basket's own block on the region that ticks it; the
+        // neighbour-signal scan stays inside the region's owned area, which always keeps a chunk border
+        // for block ticking, so it is region-safe on Folia and needs no ownership guard.
+        Block ownBlock = world.getBlockAt(pos.x(), pos.y(), pos.z());
+        if (ownBlock.isBlockIndirectlyPowered()) {
+            return;
+        }
+
         Inventory inventory = storageInventory();
-        if (inventory == null || isFull(inventory)) {
+        if (inventory == null) {
             return;
         }
 
@@ -70,14 +90,87 @@ public final class BasketVacuumController extends BlockEntityController {
             return;
         }
 
-        World world = CustomBlockUtils.getBukkitWorld(this.blockEntity);
-        if (world == null) {
+        int fx = facing.getModX();
+        int fy = facing.getModY();
+        int fz = facing.getModZ();
+
+        // The faced cell can belong to another region on Folia when the facing is horizontal; reading its
+        // block or container from this region's tick thread throws the ownership check. A vertical facing
+        // (the basket default) stays in the same column and is always owned. When the faced cell is not
+        // owned here the eject branch has no fallback, so it is skipped and the tick falls through to the
+        // collect branch, which vacuums only the basket's own cell.
+        boolean facedOwned = true;
+        if (eject && (fx != 0 || fz != 0)) {
+            org.bukkit.Location facedCell = new org.bukkit.Location(world, pos.x() + fx, pos.y() + fy, pos.z() + fz);
+            facedOwned = FarmersDelightPlugin.getInstance().scheduler().isOwnedByCurrentRegion(facedCell);
+        }
+
+        if (eject && facedOwned) {
+            Inventory target = facedContainerInventory(world, pos.x() + fx, pos.y() + fy, pos.z() + fz);
+            if (target != null) {
+                // The faced cell holds a container: push contents into it hopper-style rather than
+                // vacuuming. A full basket still reaches this branch, so isFull only gates the collect
+                // branch below.
+                if (ejectOneItem(inventory, target)) {
+                    this.transferCooldown = this.transferCooldownTicks;
+                }
+                return;
+            }
+        }
+
+        if (isFull(inventory)) {
             return;
         }
 
         if (collectItems(world, pos, facing, inventory)) {
             this.transferCooldown = this.transferCooldownTicks;
         }
+    }
+
+    /**
+     * The live inventory of a vanilla container occupying the given cell, or null when that cell holds no
+     * container. The block state is read without a snapshot so writes go through the real block entity,
+     * which persists them and updates the container's comparator output. The caller has already confirmed
+     * the cell is owned by the current region.
+     */
+    private static Inventory facedContainerInventory(World world, int x, int y, int z) {
+        org.bukkit.block.BlockState facedState = world.getBlockAt(x, y, z).getState(false);
+        if (facedState instanceof org.bukkit.block.Container container) {
+            return container.getInventory();
+        }
+        return null;
+    }
+
+    /**
+     * Moves a single item from the first occupied basket slot whose contents the target accepts, matching
+     * the hopper cadence of one item per successful transfer. Returns true when an item moved so the
+     * caller applies the transfer cooldown, false when nothing could be inserted (empty basket or the
+     * target rejected every stack).
+     */
+    private static boolean ejectOneItem(Inventory source, Inventory target) {
+        ItemStack[] contents = source.getStorageContents();
+        for (int slot = 0; slot < contents.length; slot++) {
+            ItemStack stack = contents[slot];
+            if (stack == null || stack.getType().isAir()) {
+                continue;
+            }
+            ItemStack single = stack.clone();
+            single.setAmount(1);
+            Map<Integer, ItemStack> leftover = target.addItem(single);
+            if (!leftover.isEmpty()) {
+                continue;
+            }
+            int remaining = stack.getAmount() - 1;
+            if (remaining <= 0) {
+                source.setItem(slot, null);
+            } else {
+                ItemStack reduced = stack.clone();
+                reduced.setAmount(remaining);
+                source.setItem(slot, reduced);
+            }
+            return true;
+        }
+        return false;
     }
 
     /** The 27-slot inventory owned by the sibling simple_storage_block controller, or null when the block
