@@ -23,7 +23,7 @@ the version you compile against and re-check on upgrade. `@ApiStatus.NonExtendab
 
 ## Never identify a station by Material
 
-This is a project red line (`R-API-007`). FarmersDelight stations are CraftEngine custom blocks.
+FarmersDelight stations are CraftEngine custom blocks.
 CraftEngine reports a configurable *disguise* material through Bukkit — by default the same one for
 every custom block — so this identifies nothing:
 

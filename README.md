@@ -4,7 +4,7 @@ icon: weight-scale
 
 # FarmersDelight Admin Wiki
 
-A CraftEngine-based port of the Forge mod **Farmer's Delight** for Paper/Folia servers. This page documents the runtime configuration knobs and the blocks/items/effects that ship out of the box. For the bilingual feature overview see [README.md](/broken/pages/6mbgxpFPnWjYLY9WTB2l) / [README.zh.md](/broken/pages/U5xWBO0J0S3P29g6XbW2).
+A CraftEngine-based port of the Forge mod **Farmer's Delight** for Paper/Folia servers. This page documents the runtime configuration knobs and the blocks/items/effects that ship out of the box.
 
 ***
 
@@ -15,6 +15,7 @@ A CraftEngine-based port of the Forge mod **Farmer's Delight** for Paper/Folia s
 * [CraftEngine block definitions](./#craftengine-block-definitions)
 * [Effects (Comfort / Nourishment)](./#effects-comfort--nourishment)
 * [Buff bossbar API + PAPI placeholders](./#buff-bossbar-api--papi-placeholders)
+* [Recipe GUI (`gui.yml`)](./#recipe-gui-guiyml)
 * [Commands](./#commands)
 * [Migration notes](./#migration-notes)
 
@@ -124,7 +125,17 @@ The block itself uses an empty CE model — the visible appearance is drawn by a
 
 ### `farmersdelight:tall_crop`
 
-See section 3.7 of [README.md](/broken/pages/6mbgxpFPnWjYLY9WTB2l#37-crop-behaviors) (or [README.zh.md](/broken/pages/U5xWBO0J0S3P29g6XbW2)) for the long-form crop + `extra-planting-items` reference.
+```yaml
+behavior:
+- type: farmersdelight:tall_crop
+  extra-planting-items:
+    - farmersdelight:rice_panicle
+  grow-speed: 0.25
+  light-requirement: 6
+  requires-water: true
+```
+
+A two-block-tall crop. `extra-planting-items` (also accepted as `extra_planting_items` / `extraPlantingItems`) is the list of items that plant this crop when used on valid soil, in addition to the crop's own seed item. The remaining keys tune growth: `grow-speed` is the per-random-tick advance chance, `light-requirement` the minimum light level, and `requires-water: true` gates growth on nearby water.
 
 ### Stove burn damage
 
@@ -177,6 +188,31 @@ Example BetterHud / MythicHud row:
 condition: "%farmersdelight_buff_brewinandchewin_tipsy_active% == 1"
 text: "&e%farmersdelight_buff_brewinandchewin_tipsy_name% Lv.%farmersdelight_buff_brewinandchewin_tipsy_level% [%farmersdelight_buff_brewinandchewin_tipsy_time_fmt%]"
 ```
+
+***
+
+## Recipe GUI (`gui.yml`)
+
+`plugins/FarmersDelight/gui.yml` defines the layout of the cooking-pot, cutting-board and recipe-book GUIs — sizes, background images, and the item in each slot (`back`, `close`, `filter`, page arrows, and so on).
+
+### Back / close button command
+
+The `back` (and `close`) item accepts an optional list of commands that run one tick after the menu closes:
+
+```yaml
+back:
+  material: BARRIER
+  name: "<gray><lang:gui.recipe.back>"
+  commands:
+    - "[player] menu open hub"
+    - "[console] tellraw {player} {\"text\":\"Returning to the hub\"}"
+```
+
+* The fields `command`, `commands` and `cmd` are all read and merged, so any of them works; each accepts a single string or a list.
+* Prefix an entry with `[console]` to run it as the console, or `[player]` (the default) to run it as the clicking player. `console:` and `player:` are accepted as equivalents. A leading `/` is optional and stripped.
+* Placeholders: `{player}`, `{player_name}`, `%player%`, `%player_name%` (player name), `{uuid}` (player UUID) and `{world}` (the player's world name).
+* Dispatch is deferred by one tick after the GUI closes, and is skipped if the player logged off during that tick. Reopening another menu must go through this command list rather than a raw open call, because an inventory cannot be opened during the click event itself.
+* These fire when the list was opened via `/fd recipe cooking_pot` or `/fd recipe cutting_board`.
 
 ***
 

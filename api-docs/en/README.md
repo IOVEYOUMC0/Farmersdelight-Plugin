@@ -16,9 +16,9 @@ Start with [Getting started](getting-started.md) for the dependency wiring and p
 
 ## The CraftEngine side
 
-This book documents the Java API only. For the YAML that attaches FarmersDelight behaviors to your CraftEngine blocks and items — every behavior type, its parameters, and the traps that cause silent misbehaviour — see section 3, "What to Configure on the CraftEngine Side", in the [project README](/broken/pages/6mbgxpFPnWjYLY9WTB2l). Its section 3.1 covers behavior attachment, and 3.2 collects the mistakes that fail quietly.
+This book documents the FarmersDelight plugin's Java API only.
 
-That reference is worth reading before this one if your addon is mostly content. A large addon can be built with almost no Java at all; you only need this API when you want behavior CraftEngine cannot express.
+If your addon is mostly content, see CraftEngine's official wiki. A large addon can be built with almost no Java at all; you only need this API when you want behavior CraftEngine cannot express.
 
 ## Stability contract
 
