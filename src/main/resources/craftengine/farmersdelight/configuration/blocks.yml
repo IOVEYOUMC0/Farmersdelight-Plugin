@@ -1209,11 +1209,12 @@ block:
         place: minecraft:block.scaffolding.place
         step: minecraft:block.scaffolding.step
     behavior:
-      type: simple_storage_block
+    - type: simple_storage_block
       title: <!i><l10n:block.farmersdelight.basket>
       rows: 3
       allow-input: true
       allow-output: true
+    - type: farmersdelight:basket
     states:
       properties:
         facing:

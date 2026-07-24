@@ -28,6 +28,7 @@ public final class BehaviorRegistrar {
     }
 
     public static void registerBlockBehaviors() {
+        registerBehavior(Constants.BEHAVIOR_BASKET, BasketBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_COOKING_POT, CookingPotBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_CUTTING_BOARD, CuttingBoardBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_SKILLET, SkilletBlockBehavior.FACTORY);

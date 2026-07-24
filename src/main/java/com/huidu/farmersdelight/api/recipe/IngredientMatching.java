@@ -58,6 +58,36 @@ public final class IngredientMatching {
             }
         }
 
+        return assignAll(required, slots, matcher, initialAmount);
+    }
+
+    /**
+     * Containment check for the "craftable only" recipe-list filter: does the supplied item pool hold enough
+     * of each required ingredient, ignoring any extra unrelated items? Unlike matchesIngredients this
+     * omits both the slot-count gate and the foreign-slot rejection loop — a player's inventory always carries
+     * items no recipe uses, so those gates would reject every recipe. It keeps only the Kuhn bipartite
+     * assignment (each ingredient claims one distinct unit; a slot with amount a offers up to a units), so a
+     * recipe passes exactly when the pool can supply one item per ingredient simultaneously.
+     *
+     * <p>This must never drive the real cook, which pairs the pot's own &lt;=6 input slots via
+     * matchesIngredients. It answers only the GUI's "do I have the ingredients somewhere" question.
+     */
+    public static <Slot, Ingredient> boolean containsIngredients(
+            List<Ingredient> required,
+            List<Slot> slots,
+            BiPredicate<Slot, Ingredient> matcher,
+            ToIntFunction<Slot> initialAmount) {
+        return assignAll(required, slots, matcher, initialAmount);
+    }
+
+    private static <Slot, Ingredient> boolean assignAll(
+            List<Ingredient> required,
+            List<Slot> slots,
+            BiPredicate<Slot, Ingredient> matcher,
+            ToIntFunction<Slot> initialAmount) {
+        int n = slots.size();
+        int requiredCount = required.size();
+
         int[] remaining = new int[n];
         for (int i = 0; i < n; i++) {
             remaining[i] = Math.max(0, initialAmount.applyAsInt(slots.get(i)));

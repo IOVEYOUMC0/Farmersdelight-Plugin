@@ -302,6 +302,40 @@ public final class CustomBlockUtils {
         return null;
     }
 
+    /**
+     * Six-way facing including UP and DOWN, for blocks whose facing is a full direction property (the
+     * basket, placed with the vanilla FACING convention). getFacing collapses to the four horizontal
+     * faces because its display-pipeline callers only rotate around the vertical axis; this variant
+     * keeps the vertical faces, so a value of null means the state carries no facing at all.
+     */
+    public static BlockFace getFullFacing(ImmutableBlockState state) {
+        if (state == null || state.isEmpty()) {
+            return null;
+        }
+        Object value = getPropertyValue(state, "facing");
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof net.momirealms.craftengine.core.util.Direction direction) {
+            return switch (direction) {
+                case UP -> BlockFace.UP;
+                case DOWN -> BlockFace.DOWN;
+                case NORTH -> BlockFace.NORTH;
+                case SOUTH -> BlockFace.SOUTH;
+                case WEST -> BlockFace.WEST;
+                case EAST -> BlockFace.EAST;
+            };
+        }
+        return switch (value.toString().toLowerCase(java.util.Locale.ROOT)) {
+            case "up" -> BlockFace.UP;
+            case "down" -> BlockFace.DOWN;
+            case "south" -> BlockFace.SOUTH;
+            case "east" -> BlockFace.EAST;
+            case "west" -> BlockFace.WEST;
+            default -> BlockFace.NORTH;
+        };
+    }
+
     public static BlockFace parseFacing(String facingValue) {
         return switch (facingValue.toLowerCase(java.util.Locale.ROOT)) {
             case "south" -> BlockFace.SOUTH;

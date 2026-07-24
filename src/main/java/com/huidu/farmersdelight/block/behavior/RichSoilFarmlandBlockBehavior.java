@@ -184,11 +184,15 @@ public class RichSoilFarmlandBlockBehavior extends BlockBehavior {
     }
 
     private static boolean isHydrated(World world, BlockPos pos) {
-        // Rain check — vanilla farmland uses level.isRainingAt(pos.above()) which is hasStorm + biome
-        // can-rain. We approximate with world.hasStorm() + Bukkit world.isClearWeather() inverse, and
-        // assume the admin places the block in a biome that supports rain (biome-level temperature
-        // gating is left out — the cost of a wrong rain-during-snowstorm boost is tiny).
-        if (world.hasStorm() && !world.isClearWeather()) {
+        // Rain check — vanilla farmland uses level.isRainingAt(pos.above()), which is a storm AND the block
+        // above being exposed to the sky, so covered / indoor / underground farmland is never rained on.
+        // We approximate the storm with world.hasStorm() + the world.isClearWeather() inverse, and the
+        // sky-exposure part with the block-above sky light reaching its maximum (the same getLightFromSky
+        // reading OrganicCompostBlockBehavior uses); a solid cover, roof, or ceiling drops it below 15.
+        // Biome precipitation is still left out: hasStorm() is true during snowfall in cold biomes too, so a
+        // sky-exposed heap in a snowy biome will still rehydrate where the mod's RAIN-only check would not.
+        if (world.hasStorm() && !world.isClearWeather()
+                && world.getBlockAt(pos.x(), pos.y() + 1, pos.z()).getLightFromSky() == 15) {
             return true;
         }
         // Same 9×9×2 box as RichSoilFarmlandBlock.isNearWater (1.21 reference): pos.offset(-4,0,-4) to
