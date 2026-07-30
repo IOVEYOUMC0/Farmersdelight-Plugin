@@ -31,6 +31,15 @@ public interface ViewableRecipe {
         return List.of();
     }
 
+    /**
+     * Per-recipe detail-window title (used verbatim), or null to use the type's static detail-layout title.
+     * Lets recipes differing in a headline attribute (e.g. the keg's fermenting temperature) show it in the
+     * title bar. Defaults to none.
+     */
+    default Component detailTitle() {
+        return null;
+    }
+
     /** Icon shown in the recipe list; defaults to the result item. */
     default ItemStack icon() {
         return result();

@@ -351,7 +351,9 @@ public final class RecipeBookGui implements InventoryHolder {
         recipeId = id;
         RenderSpec spec = detailSpec(target);
         ViewableRecipe recipe = target.recipe(id);
-        inventory = Bukkit.createInventory(this, spec.size(), spec.title());
+        // Per-recipe title override falls back to the static layout title.
+        Component detailTitle = recipe != null ? recipe.detailTitle() : null;
+        inventory = Bukkit.createInventory(this, spec.size(), detailTitle != null ? detailTitle : spec.title());
         spec.renderChrome(inventory);
         if (recipe != null) {
             List<Integer> ingredientSlots = spec.slotsByType("ingredient");

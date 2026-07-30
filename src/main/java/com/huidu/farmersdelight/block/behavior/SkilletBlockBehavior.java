@@ -10,6 +10,7 @@ import com.huidu.farmersdelight.util.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.ProtectionCompat;
+import com.huidu.farmersdelight.util.PermissionChecker;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
@@ -121,6 +122,9 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock, 
         if (plugin.isDebugEnabled("skillet")) {
             logDebug(player, block, mainHand, manager.findRecipeId(mainHand));
         }
+        if (!PermissionChecker.check(player, "farmersdelight.use.skillet")) {
+            return InteractionResult.PASS;
+        }
         if (!ProtectionCompat.canUse(player, block, ProtectionCompat.Feature.SKILLET)
                 || !ProtectionCompat.canBuild(player, block, ProtectionCompat.Feature.SKILLET)) {
             return InteractionResult.PASS;
@@ -128,11 +132,6 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock, 
 
         if (player.isSneaking() && isSkilletItem(mainHand)) {
             return InteractionResult.PASS;
-        }
-
-        if (!player.hasPermission("farmersdelight.use.skillet")) {
-            player.sendActionBar(I18n.getComponent("general.no_permission", player));
-            return InteractionResult.FAIL;
         }
 
         if (manager.handleInteract(player, block, mainHand, EquipmentSlot.HAND)) {

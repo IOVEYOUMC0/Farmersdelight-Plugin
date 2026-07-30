@@ -1167,21 +1167,21 @@ block:
           state: heavy_weighted_pressure_plate[power=2]
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
-            y: 90
+            y: 270
         north:
           state: heavy_weighted_pressure_plate[power=3]
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
+            y: 180
         south:
           state: heavy_weighted_pressure_plate[power=4]
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
-            y: 180
         west:
           state: heavy_weighted_pressure_plate[power=5]
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
-            y: 270
+            y: 90
       variants:
         facing=east:
           appearance: east
@@ -1245,7 +1245,7 @@ block:
             x: 90
             y: 270
         up:
-          auto-state: non_tintable_leaves
+          state: composter[level=7]
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
         down:
@@ -1627,6 +1627,7 @@ block-state-mappings:
   farmland[moisture=4]: farmland[moisture=0]
   farmland[moisture=5]: farmland[moisture=0]
   farmland[moisture=6]: farmland[moisture=0]
+  composter[level=7]: composter[level=6]
 recipes:
   farmersdelight:organic_compost:
     type: shapeless

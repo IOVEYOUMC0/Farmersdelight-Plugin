@@ -236,7 +236,7 @@ items:
         saturation: 3.2
         can-always-eat: false
   farmersdelight:tomato_sauce:
-    template: farmersdelight:soup_template
+    template: farmersdelight:food_template
     data:
       item-name: <!i><lang:item.farmersdelight.tomato_sauce>
       food:

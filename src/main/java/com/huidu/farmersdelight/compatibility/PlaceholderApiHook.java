@@ -12,6 +12,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Locale;
+import java.util.Optional;
 
 /**
  * PlaceholderAPI bridge that exposes every registered buff (FarmersDelight's
@@ -79,16 +80,18 @@ public final class PlaceholderApiHook extends PlaceholderExpansion {
     }
 
     private int activeBuffCount(@Nullable OfflinePlayer offline) {
-        Player player = onlinePlayer(offline);
-        if (player == null) return 0;
-        int count = 0;
-        for (CustomBuff buff : CustomBuffRegistry.all()) {
-            try {
-                if (buff.isActive(player)) count++;
-            } catch (RuntimeException ignored) {
-            }
-        }
-        return count;
+        return onlinePlayer(offline)
+                .map(player -> {
+                    int count = 0;
+                    for (CustomBuff buff : CustomBuffRegistry.all()) {
+                        try {
+                            if (buff.isActive(player)) count++;
+                        } catch (RuntimeException ignored) {
+                        }
+                    }
+                    return count;
+                })
+                .orElse(0);
     }
 
     /** Parse a <ns>_<id>_<field> request and return its value. field ∈
@@ -118,17 +121,16 @@ public final class PlaceholderApiHook extends PlaceholderExpansion {
         CustomBuff buff = findById(buffId);
         if (buff == null) return "";
 
-        Player player = onlinePlayer(offline);
-        if (player == null) return inactiveDefault(field, buff);
-
-        return switch (field) {
-            case "active" -> buff.isActive(player) ? "1" : "0";
-            case "level" -> Integer.toString(buff.level(player));
-            case "time" -> Integer.toString(buff.remainingSeconds(player));
-            case "time_fmt" -> FarmersDelightText.formatDuration(buff.remainingSeconds(player));
-            case "name" -> resolveName(buff);
-            default -> "";
-        };
+        return onlinePlayer(offline)
+                .map(player -> switch (field) {
+                    case "active" -> buff.isActive(player) ? "1" : "0";
+                    case "level" -> Integer.toString(buff.level(player));
+                    case "time" -> Integer.toString(buff.remainingSeconds(player));
+                    case "time_fmt" -> FarmersDelightText.formatDuration(buff.remainingSeconds(player));
+                    case "name" -> resolveName(buff);
+                    default -> "";
+                })
+                .orElseGet(() -> inactiveDefault(field, buff));
     }
 
     private static String inactiveDefault(String field, CustomBuff buff) {
@@ -150,10 +152,10 @@ public final class PlaceholderApiHook extends PlaceholderExpansion {
         return CustomBuffRegistry.byId(id);
     }
 
-    private static Player onlinePlayer(@Nullable OfflinePlayer offline) {
-        if (offline == null) return null;
-        if (offline instanceof Player p && p.isOnline()) return p;
+    private static Optional<Player> onlinePlayer(@Nullable OfflinePlayer offline) {
+        if (offline == null) return Optional.empty();
+        if (offline instanceof Player p && p.isOnline()) return Optional.of(p);
         Player p = Bukkit.getPlayer(offline.getUniqueId());
-        return (p != null && p.isOnline()) ? p : null;
+        return (p != null && p.isOnline()) ? Optional.of(p) : Optional.empty();
     }
 }

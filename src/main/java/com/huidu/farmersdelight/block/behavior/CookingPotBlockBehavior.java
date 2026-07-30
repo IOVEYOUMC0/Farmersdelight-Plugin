@@ -11,6 +11,7 @@ import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.PermissionChecker;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.BlockDefinition;
@@ -838,13 +839,12 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
             return InteractionResult.PASS;
         }
 
-        if (isRecentlyPlaced(bukkitPlayer.getWorld(), posKey)) {
+        if (!PermissionChecker.check(bukkitPlayer, permission)) {
             return InteractionResult.PASS;
         }
 
-        if (!permission.isBlank() && !bukkitPlayer.hasPermission(permission)) {
-            bukkitPlayer.sendActionBar(I18n.getComponent("general.no_permission", bukkitPlayer));
-            return InteractionResult.FAIL;
+        if (isRecentlyPlaced(bukkitPlayer.getWorld(), posKey)) {
+            return InteractionResult.PASS;
         }
 
         World world = bukkitPlayer.getWorld();
@@ -1092,10 +1092,6 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
     }
 
     private static String normalizeBlank(String value) {
-        if (value == null) {
-            return null;
-        }
-        String trimmed = value.trim();
-        return trimmed.isEmpty() ? null : trimmed;
+        return com.huidu.farmersdelight.util.ItemUtils.normalizeBlank(value);
     }
 }

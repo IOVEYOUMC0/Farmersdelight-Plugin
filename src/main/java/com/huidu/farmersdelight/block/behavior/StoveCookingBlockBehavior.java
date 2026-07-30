@@ -8,6 +8,7 @@ import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CookingDebugLog;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ProtectionCompat;
+import com.huidu.farmersdelight.util.PermissionChecker;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
@@ -149,6 +150,9 @@ public class StoveCookingBlockBehavior extends BlockBehavior implements EntityBl
         if (plugin.isDebugEnabled("stove")) {
             logDebug(player, block, mainHand, manager.findRecipeId(mainHand));
         }
+        if (!PermissionChecker.check(player, "farmersdelight.use.stove")) {
+            return InteractionResult.PASS;
+        }
         if (!ProtectionCompat.canUse(player, block, ProtectionCompat.Feature.STOVE)
                 || !ProtectionCompat.canBuild(player, block, ProtectionCompat.Feature.STOVE)) {
             return InteractionResult.PASS;
@@ -160,11 +164,6 @@ public class StoveCookingBlockBehavior extends BlockBehavior implements EntityBl
 
         if (isStateChangeItem(mainHand)) {
             return InteractionResult.PASS;
-        }
-
-        if (!player.hasPermission("farmersdelight.use.stove")) {
-            player.sendActionBar(I18n.getComponent("general.no_permission", player));
-            return InteractionResult.FAIL;
         }
 
         if (mainHand == null || mainHand.getType().isAir()) {

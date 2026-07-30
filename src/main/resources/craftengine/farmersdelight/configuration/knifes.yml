@@ -1,4 +1,4 @@
-﻿items:
+items:
   farmersdelight:flint_knife:
     material: wooden_sword
     model: ${__NAMESPACE__}:item/${__ID__}
@@ -6,120 +6,135 @@
       item-name: <!i><lang:item.farmersdelight.flint_knife>
       max-damage: 131
       hide-tooltip:
-        - attribute_modifiers
+      - attribute_modifiers
       attribute-modifiers:
-        - type: minecraft:attack_damage
-          slot: mainhand
-          amount: 1.5
-          operation: add_value
-        - type: minecraft:attack_speed
-          slot: mainhand
-          amount: -2.0
-          operation: add_value
+      - type: minecraft:attack_damage
+        slot: mainhand
+        amount: 1.5
+        operation: add_value
+      - type: minecraft:attack_speed
+        slot: mainhand
+        amount: -2.0
+        operation: add_value
       lore:
-        - content:
-          - ''
-          - '<!i><gray><lang:item.modifiers.mainhand></gray>'
-          - '<!i><dark_green>  2.5 <lang:attribute.name.attack_damage></dark_green>'
-          - '<!i><dark_green>  2.0 <lang:attribute.name.attack_speed></dark_green>'
+      - content:
+        - ''
+        - <!i><gray><lang:item.modifiers.mainhand></gray>
+        - <!i><dark_green>  2.5 <lang:attribute.name.attack_damage></dark_green>
+        - <!i><dark_green>  2.0 <lang:attribute.name.attack_speed></dark_green>
+    settings:
+      tags:
+      - farmersdelight:knives
   farmersdelight:iron_knife:
     material: iron_sword
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
       item-name: <!i><lang:item.farmersdelight.iron_knife>
       hide-tooltip:
-        - attribute_modifiers
+      - attribute_modifiers
       attribute-modifiers:
-        - type: minecraft:attack_damage
-          slot: mainhand
-          amount: 2.5
-          operation: add_value
-        - type: minecraft:attack_speed
-          slot: mainhand
-          amount: -2.0
-          operation: add_value
+      - type: minecraft:attack_damage
+        slot: mainhand
+        amount: 2.5
+        operation: add_value
+      - type: minecraft:attack_speed
+        slot: mainhand
+        amount: -2.0
+        operation: add_value
       lore:
-        - content:
-          - ''
-          - '<!i><gray><lang:item.modifiers.mainhand></gray>'
-          - '<!i><dark_green>  3.5 <lang:attribute.name.attack_damage></dark_green>'
-          - '<!i><dark_green>  2.0 <lang:attribute.name.attack_speed></dark_green>'
+      - content:
+        - ''
+        - <!i><gray><lang:item.modifiers.mainhand></gray>
+        - <!i><dark_green>  3.5 <lang:attribute.name.attack_damage></dark_green>
+        - <!i><dark_green>  2.0 <lang:attribute.name.attack_speed></dark_green>
+    settings:
+      tags:
+      - farmersdelight:knives
   farmersdelight:golden_knife:
     material: golden_sword
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
       item-name: <!i><lang:item.farmersdelight.golden_knife>
       hide-tooltip:
-        - attribute_modifiers
+      - attribute_modifiers
       attribute-modifiers:
-        - type: minecraft:attack_damage
-          slot: mainhand
-          amount: 0.5
-          operation: add_value
-        - type: minecraft:attack_speed
-          slot: mainhand
-          amount: -2.0
-          operation: add_value
+      - type: minecraft:attack_damage
+        slot: mainhand
+        amount: 0.5
+        operation: add_value
+      - type: minecraft:attack_speed
+        slot: mainhand
+        amount: -2.0
+        operation: add_value
       lore:
-        - content:
-          - ''
-          - '<!i><gray><lang:item.modifiers.mainhand></gray>'
-          - '<!i><dark_green>  1.5 <lang:attribute.name.attack_damage></dark_green>'
-          - '<!i><dark_green>  2.0 <lang:attribute.name.attack_speed></dark_green>'
+      - content:
+        - ''
+        - <!i><gray><lang:item.modifiers.mainhand></gray>
+        - <!i><dark_green>  1.5 <lang:attribute.name.attack_damage></dark_green>
+        - <!i><dark_green>  2.0 <lang:attribute.name.attack_speed></dark_green>
+    settings:
+      tags:
+      - farmersdelight:knives
   farmersdelight:diamond_knife:
     material: diamond_sword
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
       item-name: <!i><lang:item.farmersdelight.diamond_knife>
       hide-tooltip:
-        - attribute_modifiers
+      - attribute_modifiers
       attribute-modifiers:
-        - type: minecraft:attack_damage
-          slot: mainhand
-          amount: 3.5
-          operation: add_value
-        - type: minecraft:attack_speed
-          slot: mainhand
-          amount: -2.0
-          operation: add_value
+      - type: minecraft:attack_damage
+        slot: mainhand
+        amount: 3.5
+        operation: add_value
+      - type: minecraft:attack_speed
+        slot: mainhand
+        amount: -2.0
+        operation: add_value
       lore:
-        - content:
-          - ''
-          - '<!i><gray><lang:item.modifiers.mainhand></gray>'
-          - '<!i><dark_green>  4.5 <lang:attribute.name.attack_damage></dark_green>'
-          - '<!i><dark_green>  2.0 <lang:attribute.name.attack_speed></dark_green>'
+      - content:
+        - ''
+        - <!i><gray><lang:item.modifiers.mainhand></gray>
+        - <!i><dark_green>  4.5 <lang:attribute.name.attack_damage></dark_green>
+        - <!i><dark_green>  2.0 <lang:attribute.name.attack_speed></dark_green>
+    settings:
+      tags:
+      - farmersdelight:knives
   farmersdelight:netherite_knife:
     material: netherite_sword
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
       item-name: <!i><lang:item.farmersdelight.netherite_knife>
       hide-tooltip:
-        - attribute_modifiers
+      - attribute_modifiers
       attribute-modifiers:
-        - type: minecraft:attack_damage
-          slot: mainhand
-          amount: 4.5
-          operation: add_value
-        - type: minecraft:attack_speed
-          slot: mainhand
-          amount: -2.0
-          operation: add_value
+      - type: minecraft:attack_damage
+        slot: mainhand
+        amount: 4.5
+        operation: add_value
+      - type: minecraft:attack_speed
+        slot: mainhand
+        amount: -2.0
+        operation: add_value
       lore:
-        - content:
-          - ''
-          - '<!i><gray><lang:item.modifiers.mainhand></gray>'
-          - '<!i><dark_green>  5.5 <lang:attribute.name.attack_damage></dark_green>'
-          - '<!i><dark_green>  2.0 <lang:attribute.name.attack_speed></dark_green>'
+      - content:
+        - ''
+        - <!i><gray><lang:item.modifiers.mainhand></gray>
+        - <!i><dark_green>  5.5 <lang:attribute.name.attack_damage></dark_green>
+        - <!i><dark_green>  2.0 <lang:attribute.name.attack_speed></dark_green>
+    settings:
+      tags:
+      - farmersdelight:knives
 recipes:
   farmersdelight:flint_knife:
     type: shaped
     category: equipment
     pattern:
-      - "F"
-      - "S"
+    - F
+    - S
     ingredients:
-      F: "minecraft:flint"
-      S: "minecraft:stick"
+      F: minecraft:flint
+      S: minecraft:stick
     result:
       id: farmersdelight:flint_knife
       count: 1
@@ -127,11 +142,11 @@ recipes:
     type: shaped
     category: equipment
     pattern:
-      - "I"
-      - "S"
+    - I
+    - S
     ingredients:
-      I: "minecraft:iron_ingot"
-      S: "minecraft:stick"
+      I: minecraft:iron_ingot
+      S: minecraft:stick
     result:
       id: farmersdelight:iron_knife
       count: 1
@@ -139,11 +154,11 @@ recipes:
     type: shaped
     category: equipment
     pattern:
-      - "G"
-      - "S"
+    - G
+    - S
     ingredients:
-      G: "minecraft:gold_ingot"
-      S: "minecraft:stick"
+      G: minecraft:gold_ingot
+      S: minecraft:stick
     result:
       id: farmersdelight:golden_knife
       count: 1
@@ -151,11 +166,11 @@ recipes:
     type: shaped
     category: equipment
     pattern:
-      - "D"
-      - "S"
+    - D
+    - S
     ingredients:
-      D: "minecraft:diamond"
-      S: "minecraft:stick"
+      D: minecraft:diamond
+      S: minecraft:stick
     result:
       id: farmersdelight:diamond_knife
       count: 1
@@ -172,7 +187,7 @@ recipes:
     category: misc
     experience: 0.1
     time: 200
-    ingredient: "farmersdelight:iron_knife"
+    ingredient: farmersdelight:iron_knife
     result:
       id: minecraft:iron_nugget
       count: 1
@@ -181,7 +196,7 @@ recipes:
     category: misc
     experience: 0.1
     time: 100
-    ingredient: "farmersdelight:iron_knife"
+    ingredient: farmersdelight:iron_knife
     result:
       id: minecraft:iron_nugget
       count: 1
@@ -190,7 +205,7 @@ recipes:
     category: misc
     experience: 0.1
     time: 200
-    ingredient: "farmersdelight:golden_knife"
+    ingredient: farmersdelight:golden_knife
     result:
       id: minecraft:gold_nugget
       count: 1
@@ -199,7 +214,7 @@ recipes:
     category: misc
     experience: 0.1
     time: 100
-    ingredient: "farmersdelight:golden_knife"
+    ingredient: farmersdelight:golden_knife
     result:
       id: minecraft:gold_nugget
       count: 1

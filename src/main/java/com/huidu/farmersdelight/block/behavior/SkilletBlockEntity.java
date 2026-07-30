@@ -288,9 +288,6 @@ public class SkilletBlockEntity {
     }
 
     private ItemStack cloneOrNull(ItemStack item) {
-        if (item == null) {
-            return null;
-        }
-        return item.clone();
+        return com.huidu.farmersdelight.util.ItemUtils.cloneOrNull(item);
     }
 }

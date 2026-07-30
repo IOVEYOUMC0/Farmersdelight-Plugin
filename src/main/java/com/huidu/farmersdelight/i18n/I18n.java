@@ -4,6 +4,10 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.config.ConfigFileUpdater;
 import com.huidu.farmersdelight.util.Text;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TranslatableComponent;
+import net.kyori.adventure.translation.GlobalTranslator;
+import net.momirealms.craftengine.core.plugin.config.Config;
+import net.momirealms.craftengine.core.plugin.locale.TranslationManager;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 
@@ -15,8 +19,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.Path;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
@@ -298,50 +300,13 @@ public class I18n {
 
     private static String selectCraftEngineLocale() {
         try {
-            Class<?> managerClass = Class.forName("net.momirealms.craftengine.core.plugin.locale.TranslationManager");
-            Object manager = managerClass.getMethod("instance").invoke(null);
-            Locale locale = readCraftEngineSelectedLocale(manager);
-            return locale != null ? normalizeLocale(formatLocale(locale), false) : null;
-        } catch (ReflectiveOperationException | LinkageError ignored) {
-            return null;
-        }
-    }
-
-    private static Locale readCraftEngineSelectedLocale(Object manager) {
-        if (manager == null) {
-            return null;
-        }
-        try {
-            Field selectedLocale = manager.getClass().getDeclaredField("selectedLocale");
-            selectedLocale.setAccessible(true);
-            Object value = selectedLocale.get(manager);
-            if (value instanceof Locale locale) {
-                return locale;
+            Locale locale = Config.forcedLocale();
+            if (locale != null) {
+                return normalizeLocale(TranslationManager.formatLocale(locale), false);
             }
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
-        }
-        try {
-            Class<?> configClass = Class.forName("net.momirealms.craftengine.core.plugin.config.Config");
-            Method forcedLocale = configClass.getMethod("forcedLocale");
-            Object value = forcedLocale.invoke(null);
-            if (value instanceof Locale locale) {
-                return locale;
-            }
-        } catch (ReflectiveOperationException | LinkageError ignored) {
+        } catch (LinkageError ignored) {
         }
         return null;
-    }
-
-    private static String formatLocale(Locale locale) {
-        if (locale == null) {
-            return null;
-        }
-        String language = locale.getLanguage();
-        String country = locale.getCountry();
-        if (language == null || language.isBlank()) {
-            return null;
-        }
-        return country == null || country.isBlank() ? language : language + "_" + country;
     }
 
     public static String get(String key) {
@@ -395,7 +360,43 @@ public class I18n {
             return bundled;
         }
 
+        // CraftEngine 翻译（直接调用公开 API，不再用反射）
+        try {
+            String ceResult = craftEngineTranslate(key, locale);
+            if (ceResult != null && !ceResult.equals(key)) {
+                return ceResult;
+            }
+        } catch (LinkageError ignored) {
+        }
+
+        // Adventure 全局翻译器（原版 Minecraft 翻译 key）
+        try {
+            java.util.Locale loc = locale != null && !locale.isEmpty()
+                    ? java.util.Locale.forLanguageTag(locale.replace('_', '-'))
+                    : java.util.Locale.getDefault();
+            Component rendered = GlobalTranslator.render(Component.translatable(key), loc);
+            String plain = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(rendered);
+            if (!plain.equals(key)) {
+                return plain;
+            }
+        } catch (Exception ignored) {
+        }
+
         return key;
+    }
+
+    /**
+     * 通过 CraftEngine 的公开 API 翻译，不再使用反射。
+     */
+    private static String craftEngineTranslate(String key, String locale) {
+        try {
+            Locale loc = locale != null && !locale.isEmpty()
+                    ? Locale.forLanguageTag(locale.replace('_', '-'))
+                    : null;
+            return TranslationManager.instance().plainTranslation(key, loc);
+        } catch (LinkageError ignored) {
+            return null;
+        }
     }
 
     // Jar-bundled language fallback. The jar content is immutable at runtime, so parsed configs are cached for
@@ -445,7 +446,7 @@ public class I18n {
         return get(key, locale);
     }
 
-    private static String getPlayerLocale(Player player) {
+    public static String getPlayerLocale(Player player) {
         try {
             return player.locale().toString().toLowerCase(Locale.ROOT);
         } catch (Exception e) {

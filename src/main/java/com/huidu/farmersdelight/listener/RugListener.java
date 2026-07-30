@@ -470,11 +470,27 @@ public final class RugListener implements Listener {
 
     private BukkitFurniture findRugByScan(Location loc) {
         if (loc == null || loc.getWorld() == null) return null;
+        World world = loc.getWorld();
+        // 使用 chunk 实体列表扫描，避免 Folia 区域线程上调用 getNearbyEntities
+        int cx = loc.getBlockX() >> 4;
+        int cz = loc.getBlockZ() >> 4;
+        if (!world.isChunkLoaded(cx, cz)) return null;
+        List<Entity> chunkEntities = java.util.Arrays.asList(world.getChunkAt(cx, cz).getEntities());
         // Scan a small radius so we catch the base entity of a multi-cell rug when the player breaks the
         // block at its non-base cell (base entity is up to 1 block away in the rotated facing direction).
         Location center = loc.toBlockLocation().add(0.5, 0.5, 0.5);
-        for (Entity entity : loc.getWorld().getNearbyEntities(center, 1.5, 1.2, 1.5)) {
+        double minX = center.getX() - 1.5;
+        double minY = center.getY() - 1.2;
+        double minZ = center.getZ() - 1.5;
+        double maxX = center.getX() + 1.5;
+        double maxY = center.getY() + 1.2;
+        double maxZ = center.getZ() + 1.5;
+        for (Entity entity : chunkEntities) {
             if (!CraftEngineFurniture.isFurniture(entity)) continue;
+            Location eloc = entity.getLocation();
+            if (eloc.getX() < minX || eloc.getX() > maxX
+                    || eloc.getY() < minY || eloc.getY() > maxY
+                    || eloc.getZ() < minZ || eloc.getZ() > maxZ) continue;
             BukkitFurniture furniture = CraftEngineFurniture.getLoadedFurnitureByMetaEntity(entity);
             if (furniture == null) continue;
             Key id = furniture.id();

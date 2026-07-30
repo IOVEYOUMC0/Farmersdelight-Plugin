@@ -88,6 +88,25 @@ public class CookingPotRecipeManager {
                 });
         loadCustomRecipes(config, newCustomRecipes, newCustomIngredientToRecipes, newValidContainerKeys);
 
+        // Recipes an addon ships inside a CraftEngine pack (<pack>/farmersdelight/*.yml). Loaded after the
+        // plugin's own file so a pack can never silently replace a built-in recipe, and before the API merge
+        // below so an explicit runtime registration still wins on an id clash. See PackRecipeSource.
+        for (PackRecipeSource.Loaded loaded : PackRecipeSource.load(plugin)) {
+            RecipeFileLoader.loadRecipeSections(plugin, loaded.config(), "cooking_pot_recipes",
+                    "cooking pot [" + loaded.source() + "]",
+                    (recipeId, section) -> {
+                        if (newRecipes.containsKey(recipeId)) {
+                            I18n.logWarning("recipe.pack_duplicate_skipped", "id", recipeId, "source", loaded.source());
+                            return;
+                        }
+                        CookingPotRecipe recipe = parseRecipe(recipeId, section, 6);
+                        newRecipes.put(recipeId, recipe);
+                        indexDefaultRecipe(newIngredientToRecipes, recipeId, recipe);
+                        indexContainer(newValidContainerKeys, recipe);
+                    });
+            loadCustomRecipes(loaded.config(), newCustomRecipes, newCustomIngredientToRecipes, newValidContainerKeys);
+        }
+
         // Merge addon-registered recipes last so they survive reloads (and override file ids on clash).
         for (CookingPotRecipe recipe : externalRecipes.values()) {
             newRecipes.put(recipe.getId(), recipe);
@@ -145,6 +164,12 @@ public class CookingPotRecipeManager {
             for (String recipeId : groupSection.getKeys(false)) {
                 ConfigurationSection section = groupSection.getConfigurationSection(recipeId);
                 if (section == null) {
+                    continue;
+                }
+                // A recipe already present in this group was contributed by the plugin's own file or an
+                // earlier pack; a later pack must not replace it silently.
+                if (groupRecipes.containsKey(recipeId)) {
+                    I18n.logWarning("recipe.pack_duplicate_skipped", "id", groupId + "." + recipeId, "source", "custom cooking pot group");
                     continue;
                 }
                 try {

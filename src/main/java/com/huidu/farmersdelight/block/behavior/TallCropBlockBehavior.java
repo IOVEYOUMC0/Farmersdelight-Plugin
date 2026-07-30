@@ -370,7 +370,7 @@ public class TallCropBlockBehavior extends BlockBehavior {
                     ImmutableBlockState upperState = CraftEngineBlocks.getCustomBlockState(upperBlock);
 
                     if (upperState != null && !upperState.isEmpty() && isUpperHalf(upperState)) {
-                        upperBlock.setType(Material.AIR, false);
+                        CraftEngineBlocks.remove(upperBlock);
                     }
                 }
 

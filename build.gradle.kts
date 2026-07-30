@@ -26,9 +26,9 @@ repositories {
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
     compileOnly("org.jetbrains:annotations:26.1.0")
-    compileOnly("net.momirealms:craft-engine-core:26.7")
-    compileOnly("net.momirealms:craft-engine-bukkit:26.7")
-    compileOnly("net.momirealms:craft-engine-bukkit-proxy:26.7")
+    compileOnly("net.momirealms:craft-engine-core:26.7.4")
+    compileOnly("net.momirealms:craft-engine-bukkit:26.7.4")
+    compileOnly("net.momirealms:craft-engine-bukkit-proxy:26.7.4")
     compileOnly("me.clip:placeholderapi:2.11.6")
     // AntiGriefLib: unified protection facade over 24+ land/claim plugins (MIT). Bundled by shadowJar (not
     // relocated — Bukkit plugin classloaders are isolated, so the package cannot clash with another plugin's).

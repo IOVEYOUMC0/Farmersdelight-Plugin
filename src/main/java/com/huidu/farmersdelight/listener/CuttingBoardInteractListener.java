@@ -2,10 +2,10 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntity;
-import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ProtectionCompat;
+import com.huidu.farmersdelight.util.PermissionChecker;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockInteractEvent;
 import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import org.bukkit.GameMode;
@@ -30,8 +30,7 @@ public class CuttingBoardInteractListener implements Listener {
 
         Block block = event.bukkitBlock();
         BlockPosKey posKey = new BlockPosKey(block.getLocation());
-        if (!player.hasPermission("farmersdelight.use.cutting_board")) {
-            player.sendActionBar(I18n.getComponent("general.no_permission", player));
+        if (!PermissionChecker.check(player, "farmersdelight.use.cutting_board")) {
             return;
         }
         if (!ProtectionCompat.canUse(player, block, ProtectionCompat.Feature.CUTTING_BOARD)

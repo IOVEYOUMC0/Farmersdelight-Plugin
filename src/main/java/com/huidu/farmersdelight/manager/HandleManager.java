@@ -109,11 +109,33 @@ public final class HandleManager {
 
     // ── public API ──────────────────────────────────────────────────────────────────────────────
 
-    /** True if an auto-placed handle furniture sits at the cooking_pot block at potPos. */
+    /**
+     * 检查烹饪锅上是否有自动放置的手柄家具。
+     * 内部使用 chunk 实体列表扫描，避免 getNearbyEntities 的 Folia 线程安全问题。
+     */
     public boolean hasHandle(World world, BlockPos potPos) {
         if (world == null || potPos == null) return false;
-        for (BukkitFurniture furniture : findHandleFurniture(world, getHandleLocation(world, potPos))) {
-            if (isAutoPlacedHandle(furniture)) return true;
+        return hasHandle(world, potPos, getChunkEntities(world, potPos));
+    }
+
+    /**
+     * 使用预获取的实体列表检查手柄，避免在 Folia 区域线程上调用 getNearbyEntities。
+     * 调用方（如 chunk 加载清理）已经持有实体列表，直接扫描即可。
+     */
+    public boolean hasHandle(World world, BlockPos potPos, List<Entity> entities) {
+        if (world == null || potPos == null || entities == null) return false;
+        Location handleLoc = getHandleLocation(world, potPos);
+        int hx = handleLoc.getBlockX();
+        int hy = handleLoc.getBlockY();
+        int hz = handleLoc.getBlockZ();
+        for (Entity entity : entities) {
+            if (!(entity instanceof ItemDisplay)) continue;
+            Location eloc = entity.getLocation();
+            if (eloc.getBlockX() != hx || eloc.getBlockY() != hy || eloc.getBlockZ() != hz) continue;
+            BukkitFurniture furniture = CraftEngineFurniture.getLoadedFurnitureByMetaEntity(entity);
+            if (furniture != null && furniture.id().equals(handleFurnitureKey) && isAutoPlacedHandle(furniture)) {
+                return true;
+            }
         }
         return false;
     }
@@ -129,15 +151,16 @@ public final class HandleManager {
         if (!Constants.BLOCK_COOKING_POT.equals(CustomBlockUtils.getId(potBlock))) return false;
         trackWorld(world);
 
-        boolean had = hasHandle(world, potPos);
+        List<Entity> chunkEntities = getChunkEntities(world, potPos);
+        boolean had = hasHandle(world, potPos, chunkEntities);
         if (had) {
-            removeHandle(world, potPos);
+            removeHandle(world, potPos, chunkEntities);
             TrayManager trayManager = plugin.getTrayManager();
             if (trayManager != null) trayManager.checkAndPlaceTray(world, potPos);
         } else {
             TrayManager trayManager = plugin.getTrayManager();
             if (trayManager != null) trayManager.removeTrayIfAutoPlaced(world, potPos);
-            placeHandleIfMissing(world, potPos, potBlock);
+            placeHandleIfMissing(world, potPos, potBlock, chunkEntities);
         }
         if (player != null && toggleSoundVolume > 0) {
             SoundUtils.play(player, player.getLocation(), toggleSoundId, Sound.BLOCK_LANTERN_PLACE,
@@ -146,10 +169,15 @@ public final class HandleManager {
         return !had;
     }
 
-    /** Remove any auto-placed handle at potPos. Called when the pot is broken/replaced. */
+    /** 移除烹饪锅上所有自动放置的手柄。锅被破坏/替换时调用。 */
     public void removeHandle(World world, BlockPos potPos) {
         if (world == null || potPos == null) return;
-        for (BukkitFurniture furniture : findHandleFurniture(world, getHandleLocation(world, potPos))) {
+        removeHandle(world, potPos, getChunkEntities(world, potPos));
+    }
+
+    private void removeHandle(World world, BlockPos potPos, List<Entity> entities) {
+        if (world == null || potPos == null || entities == null) return;
+        for (BukkitFurniture furniture : findHandleFurniture(world, getHandleLocation(world, potPos), entities)) {
             if (isAutoPlacedHandle(furniture)) {
                 CraftEngineFurniture.remove(furniture, true, true);
             }
@@ -232,9 +260,9 @@ public final class HandleManager {
         }
     }
 
-    private void placeHandleIfMissing(World world, BlockPos potPos, Block potBlock) {
+    private void placeHandleIfMissing(World world, BlockPos potPos, Block potBlock, List<Entity> entities) {
         Location handleLoc = getHandleLocation(world, potPos);
-        for (BukkitFurniture existing : findHandleFurniture(world, handleLoc)) {
+        for (BukkitFurniture existing : findHandleFurniture(world, handleLoc, entities)) {
             if (isAutoPlacedHandle(existing)) return;
         }
         String variant = facingVariant(potBlock);
@@ -280,15 +308,29 @@ public final class HandleManager {
     }
 
     private Collection<BukkitFurniture> findHandleFurniture(World world, Location handleLoc) {
+        return findHandleFurniture(world, handleLoc, getChunkEntities(world, handleLoc));
+    }
+
+    /**
+     * 使用预获取的实体列表查找手柄家具，避免在 Folia 区域线程上调用 getNearbyEntities。
+     */
+    private Collection<BukkitFurniture> findHandleFurniture(World world, Location handleLoc, List<Entity> entities) {
         List<BukkitFurniture> result = new ArrayList<>();
         Set<UUID> seen = new HashSet<>();
-        // handleLoc is the anchor position (block-centered horizontally per the configured offsets); the
-        // CE definition's element {position: 0, 0.5, 0} pushes the visible model +0.5 Y from the anchor,
-        // so we search a 1.1×1.1×1.1 box centered there to catch the entity regardless of CE's exact
-        // entity location vs configured anchor.
+        if (world == null || handleLoc == null || entities == null) return result;
         Location searchCentre = handleLoc.clone().add(0, 0.5, 0);
-        for (Entity entity : world.getNearbyEntities(searchCentre, 0.55, 0.55, 0.55)) {
+        double minX = searchCentre.getX() - 0.55;
+        double minY = searchCentre.getY() - 0.55;
+        double minZ = searchCentre.getZ() - 0.55;
+        double maxX = searchCentre.getX() + 0.55;
+        double maxY = searchCentre.getY() + 0.55;
+        double maxZ = searchCentre.getZ() + 0.55;
+        for (Entity entity : entities) {
             if (!(entity instanceof ItemDisplay)) continue;
+            Location eloc = entity.getLocation();
+            if (eloc.getX() < minX || eloc.getX() > maxX
+                    || eloc.getY() < minY || eloc.getY() > maxY
+                    || eloc.getZ() < minZ || eloc.getZ() > maxZ) continue;
             BukkitFurniture furniture = CraftEngineFurniture.getLoadedFurnitureByMetaEntity(entity);
             if (furniture == null) continue;
             if (!furniture.id().equals(handleFurnitureKey)) continue;
@@ -298,5 +340,23 @@ public final class HandleManager {
             }
         }
         return result;
+    }
+
+    /** 从 BlockPos 所在 chunk 获取实体列表，chunk 未加载时返回空列表。 */
+    private List<Entity> getChunkEntities(World world, BlockPos pos) {
+        if (world == null || pos == null) return List.of();
+        int cx = pos.x() >> 4;
+        int cz = pos.z() >> 4;
+        if (!world.isChunkLoaded(cx, cz)) return List.of();
+        return java.util.Arrays.asList(world.getChunkAt(cx, cz).getEntities());
+    }
+
+    /** 从 Location 所在 chunk 获取实体列表，chunk 未加载时返回空列表。 */
+    private List<Entity> getChunkEntities(World world, Location loc) {
+        if (world == null || loc == null) return List.of();
+        int cx = loc.getBlockX() >> 4;
+        int cz = loc.getBlockZ() >> 4;
+        if (!world.isChunkLoaded(cx, cz)) return List.of();
+        return java.util.Arrays.asList(world.getChunkAt(cx, cz).getEntities());
     }
 }

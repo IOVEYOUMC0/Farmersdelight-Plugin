@@ -46,6 +46,21 @@ public class CuttingBoardRecipeManager {
         RecipeFileLoader.loadRecipeSections(plugin, "recipes/cutting_board_recipes.yml", "cutting_board_recipes", "cutting board",
                 (recipeId, section) -> newRecipes.put(recipeId, parseRecipe(recipeId, section)));
 
+        // Recipes an addon ships inside a CraftEngine pack (<pack>/farmersdelight/*.yml). Loaded after the
+        // plugin's own file so a pack can never silently replace a built-in recipe, and before the API merge
+        // below so an explicit runtime registration still wins on an id clash. See PackRecipeSource.
+        for (PackRecipeSource.Loaded loaded : PackRecipeSource.load(plugin)) {
+            RecipeFileLoader.loadRecipeSections(plugin, loaded.config(), "cutting_board_recipes",
+                    "cutting board [" + loaded.source() + "]",
+                    (recipeId, section) -> {
+                        if (newRecipes.containsKey(recipeId)) {
+                            I18n.logWarning("recipe.pack_duplicate_skipped", "id", recipeId, "source", loaded.source());
+                            return;
+                        }
+                        newRecipes.put(recipeId, parseRecipe(recipeId, section));
+                    });
+        }
+
         // Merge addon-registered recipes last so they survive reloads (and override file ids on clash).
         newRecipes.putAll(externalRecipes);
 
@@ -70,6 +85,14 @@ public class CuttingBoardRecipeManager {
                 // Tag-typed: can't index by tag because vanilla tags aren't surfaced via getItemTagIds.
                 // Keep them all in tagInputRecipeIds so candidate set always includes them.
                 newTagInputRecipeIds.add(recipe.getId());
+            } else if (ingredient instanceof RecipeIngredient.Choice choice) {
+                for (RecipeIngredient option : choice.options()) {
+                    if (option instanceof RecipeIngredient.Item optItem) {
+                        newByItemId.computeIfAbsent(optItem.key().toString().toLowerCase(Locale.ROOT), k -> new HashSet<>()).add(recipe.getId());
+                    } else {
+                        newTagInputRecipeIds.add(recipe.getId());
+                    }
+                }
             }
         }
         Map<String, Set<String>> frozenByItemId = new HashMap<>(newByItemId.size());
@@ -208,6 +231,20 @@ public class CuttingBoardRecipeManager {
     }
 
     private RecipeIngredient parseIngredient(String str) {
+        String[] choiceParts = str.split("\\|");
+        if (choiceParts.length > 1) {
+            List<RecipeIngredient> options = new ArrayList<>();
+            for (String part : choiceParts) {
+                String trimmed = part.trim();
+                if (!trimmed.isEmpty()) {
+                    options.add(RecipeParsingSupport.parseSimpleItemOrTag(trimmed));
+                }
+            }
+            if (options.isEmpty()) {
+                throw new IllegalArgumentException("Choice ingredient must contain at least one option");
+            }
+            return options.size() == 1 ? options.get(0) : new RecipeIngredient.Choice(options);
+        }
         return RecipeParsingSupport.parseSimpleItemOrTag(str);
     }
 
@@ -224,6 +261,15 @@ public class CuttingBoardRecipeManager {
         if (ingredient instanceof RecipeIngredient.Tag tagIngredient) {
             for (var candidate : plugin.getCraftEngine().itemManager().itemIdsByTag(tagIngredient.key())) {
                 ItemStack item = createItem(candidate.key().toString());
+                if (item != null && !item.getType().isAir()) {
+                    return item;
+                }
+            }
+        }
+
+        if (ingredient instanceof RecipeIngredient.Choice choice) {
+            for (RecipeIngredient option : choice.options()) {
+                ItemStack item = createDisplayItem(option);
                 if (item != null && !item.getType().isAir()) {
                     return item;
                 }
@@ -305,6 +351,19 @@ public class CuttingBoardRecipeManager {
 
         if (ingredient instanceof RecipeIngredient.Tag tagIngredient) {
             return matchesTaggedItem(input, tagIngredient.key(), tagIngredient.excludedItems(), tagIngredient.excludedTags());
+        }
+
+        if (ingredient instanceof RecipeIngredient.Choice choice) {
+            for (RecipeIngredient option : choice.options()) {
+                if (option instanceof RecipeIngredient.Item optItem && ItemUtils.matchesItemId(input, optItem.key())) {
+                    return true;
+                }
+                if (option instanceof RecipeIngredient.Tag optTag
+                        && matchesTaggedItem(input, optTag.key(), optTag.excludedItems(), optTag.excludedTags())) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         return false;

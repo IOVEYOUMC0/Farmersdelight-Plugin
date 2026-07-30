@@ -86,58 +86,37 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
     }
 
     private void registerCommands() {
-        register(new SubCommand(
-                "recipe",
-                List.of("recipes"),
-                "farmersdelight.command.recipe",
-                "command.help_recipe",
-                this::executeRecipe,
-                this::completeRecipe
-        ));
-        register(new SubCommand(
-                "reload",
-                List.of(),
-                "farmersdelight.admin",
-                "command.help_reload",
-                this::executeReload,
-                this::completeReload
-        ));
-        register(new SubCommand(
-                "cleanup",
-                List.of(),
-                "farmersdelight.admin",
-                "command.help_cleanup",
-                this::executeCleanup,
-                (sender, args) -> List.of()
-        ));
-        register(new SubCommand(
-                "buff",
-                List.of("effect"),
-                "farmersdelight.admin",
-                "command.help_buff",
-                this::executeBuff,
-                this::completeBuff,
-                plugin::isBuffSystemEnabled
-        ));
-        register(new SubCommand(
-                "help",
-                List.of("?"),
-                null,
-                "command.help_help",
-                (sender, label, args) -> sendHelp(sender),
-                (sender, args) -> List.of()
-        ));
+        register(SubCommand.builder("recipe", this::executeRecipe, this::completeRecipe)
+                .aliases(List.of("recipes"))
+                .permission("farmersdelight.command.recipe")
+                .helpKey("command.help_recipe")
+                .build());
+        register(SubCommand.builder("reload", this::executeReload, this::completeReload)
+                .permission("farmersdelight.admin")
+                .helpKey("command.help_reload")
+                .build());
+        register(SubCommand.builder("cleanup", this::executeCleanup, (sender, args) -> List.of())
+                .permission("farmersdelight.admin")
+                .helpKey("command.help_cleanup")
+                .build());
+        register(SubCommand.builder("buff", this::executeBuff, this::completeBuff)
+                .aliases(List.of("effect"))
+                .permission("farmersdelight.admin")
+                .helpKey("command.help_buff")
+                .availability(plugin::isBuffSystemEnabled)
+                .build());
+        register(SubCommand.builder("help", (sender, label, args) -> sendHelp(sender), (sender, args) -> List.of())
+                .aliases(List.of("?"))
+                .helpKey("command.help_help")
+                .build());
         if (BuildFlags.DEBUG_TOOLS) {
             debugToolsCommand = createDebugToolsCommand();
             if (debugToolsCommand != null) {
-                register(new SubCommand(
-                        "debugtools",
-                        List.of("debug", "perf"),
-                        "farmersdelight.admin",
-                        "literal:debug performance tools",
-                        this::executeDebugTools,
-                        this::completeDebugTools
-                ));
+                register(SubCommand.builder("debugtools", this::executeDebugTools, this::completeDebugTools)
+                        .aliases(List.of("debug", "perf"))
+                        .permission("farmersdelight.admin")
+                        .helpKey("literal:debug performance tools")
+                        .build());
             }
         }
     }
@@ -1037,25 +1016,48 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
             String helpKey,
             SubCommandExecutor executor,
             SubCommandTabCompleter tabCompleter,
-            // Re-checked on every use so a config reload that switches the feature this subcommand drives
-            // on or off takes effect without a restart. null means the subcommand is always available.
+            // 每次使用时重新检查，确保配置重载后功能开关即时生效。null 表示始终可用。
             BooleanSupplier availability
     ) {
 
-        SubCommand(String name, List<String> aliases, String permission, String helpKey,
-                   SubCommandExecutor executor, SubCommandTabCompleter tabCompleter) {
-            this(name, aliases, permission, helpKey, executor, tabCompleter, null);
-        }
-
-        /** True when the feature this subcommand drives is switched on. A subcommand whose feature is off is
-         *  hidden from help and tab-completion and refused when typed. */
+        /** 当该子命令驱动的功能已开启时返回 true。功能关闭的子命令会在帮助列表和 Tab 补全中隐藏，手动输入也会被拒绝。 */
         private boolean isAvailable() {
             return availability == null || availability.getAsBoolean();
         }
 
-        /** The single gate help, tab-completion and execution all funnel through. */
+        /** 帮助、Tab 补全和执行共用的统一入口。 */
         private boolean canUse(CommandSender sender) {
             return isAvailable() && (permission == null || sender.hasPermission(permission));
+        }
+
+        /** 创建一个 Builder，name、executor 和 tabCompleter 为必填项。 */
+        static Builder builder(String name, SubCommandExecutor executor, SubCommandTabCompleter tabCompleter) {
+            return new Builder(name, executor, tabCompleter);
+        }
+
+        static final class Builder {
+            private final String name;
+            private final SubCommandExecutor executor;
+            private final SubCommandTabCompleter tabCompleter;
+            private List<String> aliases = List.of();
+            private String permission;
+            private String helpKey;
+            private BooleanSupplier availability;
+
+            Builder(String name, SubCommandExecutor executor, SubCommandTabCompleter tabCompleter) {
+                this.name = name;
+                this.executor = executor;
+                this.tabCompleter = tabCompleter;
+            }
+
+            Builder aliases(List<String> aliases) { this.aliases = aliases; return this; }
+            Builder permission(String permission) { this.permission = permission; return this; }
+            Builder helpKey(String helpKey) { this.helpKey = helpKey; return this; }
+            Builder availability(BooleanSupplier availability) { this.availability = availability; return this; }
+
+            SubCommand build() {
+                return new SubCommand(name, aliases, permission, helpKey, executor, tabCompleter, availability);
+            }
         }
     }
 }

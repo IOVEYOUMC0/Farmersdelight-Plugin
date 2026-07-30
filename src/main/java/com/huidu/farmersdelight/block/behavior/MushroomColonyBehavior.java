@@ -16,6 +16,7 @@ import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.behavior.BonemealableBlock;
+import net.momirealms.craftengine.core.block.behavior.RandomTickBlock;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.util.Key;
@@ -40,7 +41,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class MushroomColonyBehavior extends BlockBehavior implements BonemealableBlock {
+public class MushroomColonyBehavior extends BlockBehavior implements BonemealableBlock, RandomTickBlock {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
@@ -384,6 +385,11 @@ public class MushroomColonyBehavior extends BlockBehavior implements Bonemealabl
         ImmutableBlockState newState = state.with(ageProperty, newAge);
         Block block = world.getBlockAt(pos.x(), pos.y(), pos.z());
         CraftEngineBlocks.place(block.getLocation(), newState, false);
+    }
+
+    @Override
+    public boolean canRandomlyTick(ImmutableBlockState state) {
+        return getAge(state) < maxAge;
     }
 
     @Override

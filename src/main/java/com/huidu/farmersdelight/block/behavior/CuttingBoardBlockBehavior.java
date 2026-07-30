@@ -501,9 +501,8 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
             return InteractionResult.SUCCESS_AND_CANCEL;
         }
 
-        if (!bukkitPlayer.hasPermission("farmersdelight.use.cutting_board")) {
-            bukkitPlayer.sendActionBar(I18n.getComponent("general.no_permission", bukkitPlayer));
-            return InteractionResult.FAIL;
+        if (!PermissionChecker.check(bukkitPlayer, "farmersdelight.use.cutting_board")) {
+            return InteractionResult.PASS;
         }
 
         World world = bukkitPlayer.getWorld();

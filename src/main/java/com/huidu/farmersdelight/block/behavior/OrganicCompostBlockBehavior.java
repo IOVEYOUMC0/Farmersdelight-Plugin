@@ -10,12 +10,20 @@ import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.property.Property;
+import net.momirealms.craftengine.core.entity.player.InteractionHand;
+import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.BlockPos;
+import net.momirealms.craftengine.core.world.context.UseOnContext;
+import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
@@ -106,6 +114,55 @@ public class OrganicCompostBlockBehavior extends BlockBehavior {
                     activators, activatorBonus, waterBonus, lightHighBonus, lightLowBonus, lightThreshold);
         }
     };
+
+    @Override
+    public InteractionResult useOnBlock(UseOnContext context, ImmutableBlockState state) {
+        if (context.getPlayer() == null || context.getHand() != InteractionHand.MAIN_HAND) {
+            return InteractionResult.PASS;
+        }
+        Player bukkitPlayer = Bukkit.getPlayer(context.getPlayer().uuid());
+        if (bukkitPlayer == null) return InteractionResult.PASS;
+
+        ItemStack held = bukkitPlayer.getInventory().getItemInMainHand();
+        if (held.getType() != Material.WATER_BUCKET) return InteractionResult.PASS;
+
+        Integer currentStage = state.get(compostingProperty);
+        if (currentStage == null) return InteractionResult.PASS;
+
+        BlockPos pos = context.getClickedPos();
+        World world = bukkitPlayer.getWorld();
+        Location loc = new Location(world, pos.x() + 0.5, pos.y(), pos.z() + 0.5);
+
+        if (currentStage >= maxStage) {
+            // Already max — convert to rich soil immediately
+            BlockDefinition richSoil = CraftEngineBlocks.byId(richSoilBlockId);
+            if (richSoil == null) return InteractionResult.PASS;
+            CraftEngineBlocks.place(loc, richSoil.defaultState(), true);
+        } else {
+            // 水桶加速堆肥：立即推进一个阶段
+            ImmutableBlockState next = state.with(compostingProperty, currentStage + 1);
+            CraftEngineBlocks.place(loc, next, true);
+        }
+
+        // 生存模式消耗水桶，返还空桶
+        if (bukkitPlayer.getGameMode() != GameMode.CREATIVE) {
+            held.setAmount(held.getAmount() - 1);
+            ItemStack emptyBucket = new ItemStack(Material.BUCKET);
+            if (held.getAmount() <= 0) {
+                bukkitPlayer.getInventory().setItemInMainHand(emptyBucket);
+            } else {
+                // 如果主手还有堆叠的水桶，空桶掉落在玩家位置
+                Map<Integer, ItemStack> leftovers = bukkitPlayer.getInventory().addItem(emptyBucket);
+                for (ItemStack leftover : leftovers.values()) {
+                    world.dropItemNaturally(bukkitPlayer.getLocation(), leftover);
+                }
+            }
+        }
+
+        world.playSound(loc, Sound.ITEM_BUCKET_EMPTY, 1.0f, 1.0f);
+        bukkitPlayer.swingMainHand();
+        return InteractionResult.SUCCESS_AND_CANCEL;
+    }
 
     @Override
     public void randomTick(Object thisBlock, Object[] args) {

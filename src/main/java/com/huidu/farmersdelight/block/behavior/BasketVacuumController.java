@@ -9,6 +9,7 @@ import net.momirealms.craftengine.core.block.entity.BlockEntityController;
 import net.momirealms.craftengine.core.block.entity.tick.BlockEntityTicker;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.CEWorld;
+import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -16,8 +17,8 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Item;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.util.BoundingBox;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -221,13 +222,38 @@ public final class BasketVacuumController extends BlockEntityController {
         double maxX = pos.x() + 1 + Math.max(0, rx);
         double maxY = pos.y() + 1 + Math.max(0, ry);
         double maxZ = pos.z() + 1 + Math.max(0, rz);
-        BoundingBox area = new BoundingBox(minX, minY, minZ, maxX, maxY, maxZ);
 
-        for (Entity entity : world.getNearbyEntities(area, candidate -> candidate instanceof Item)) {
-            Item item = (Item) entity;
+        // 使用 chunk 实体列表扫描，避免 Folia 区域线程上调用 getNearbyEntities
+        int cx = pos.x() >> 4;
+        int cz = pos.z() >> 4;
+        List<Entity> entities = new java.util.ArrayList<>();
+        if (world.isChunkLoaded(cx, cz)) {
+            java.util.Collections.addAll(entities, world.getChunkAt(cx, cz).getEntities());
+        }
+        if (includeFaced && (rx != 0 || rz != 0)) {
+            int fcx = (pos.x() + rx) >> 4;
+            int fcz = (pos.z() + rz) >> 4;
+            if ((fcx != cx || fcz != cz) && world.isChunkLoaded(fcx, fcz)) {
+                java.util.Collections.addAll(entities, world.getChunkAt(fcx, fcz).getEntities());
+            }
+        }
+
+        for (Entity entity : entities) {
+            if (!(entity instanceof Item item)) continue;
             if (!item.isValid() || item.isDead()) {
                 continue;
             }
+            // Leave permanently un-pickuppable drops alone: a pickup delay pinned to the never-pickup
+            // sentinel marks items other plugins spawn as ground decoration or mechanic markers, which the
+            // basket should not swallow. Normal drops carry a short delay that counts down, so they are still
+            // collected like the reference mod and vanilla hoppers.
+            if (item.getPickupDelay() >= Short.MAX_VALUE) {
+                continue;
+            }
+            Location eloc = item.getLocation();
+            if (eloc.getX() < minX || eloc.getX() > maxX
+                    || eloc.getY() < minY || eloc.getY() > maxY
+                    || eloc.getZ() < minZ || eloc.getZ() > maxZ) continue;
             ItemStack stack = item.getItemStack();
             if (stack == null || stack.getType().isAir()) {
                 continue;

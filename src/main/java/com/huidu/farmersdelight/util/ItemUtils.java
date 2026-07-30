@@ -16,7 +16,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -39,13 +38,6 @@ public final class ItemUtils {
     // on CE/config reload so redefined items rebuild.
     private static final Map<Key, ItemStack> itemBuildCache = new ConcurrentHashMap<>();
     private static final List<Material> ITEM_MATERIALS = new ArrayList<>();
-
-    // Cached CraftEngine TranslationManager reflection handles (resolved once, reused per translate).
-    private static volatile Method ceTranslationInstanceMethod;
-    private static volatile Method cePlainTranslationMethod;
-    private static volatile Method ceMiniMessageTranslationMethod;
-    private static volatile boolean ceTranslationUnavailable;
-    private static volatile boolean cePlainTranslationMissing;
 
     private static final PlainTextComponentSerializer PLAIN_TEXT = PlainTextComponentSerializer.plainText();
     private static final Pattern L10N_PATTERN = Pattern.compile("<(?:l10n|i18n)[:;]([^>]+)>");
@@ -201,26 +193,11 @@ public final class ItemUtils {
         return built;
     }
 
-    private static volatile Method saveItemAsTagMethod;
-
     /**
-     * Serializes a Bukkit item to a CraftEngine NBT tag reflectively. CraftEngine's 
-     * ItemStackUtils.saveBukkitItemAsTag has narrowed its return type across releases (Tag to CompoundTag); a
-     * direct call bakes the return type into the invoke descriptor and throws NoSuchMethodError against a
-     * CraftEngine build whose return type differs. Resolving by name + parameter type tolerates either return type.
+     * 将 Bukkit 物品序列化为 CraftEngine NBT 标签，直接调用 CE 的 ItemStackUtils。
      */
     public static net.momirealms.craftengine.libraries.nbt.Tag saveBukkitItemAsTag(ItemStack item) {
-        try {
-            Method method = saveItemAsTagMethod;
-            if (method == null) {
-                method = net.momirealms.craftengine.bukkit.util.ItemStackUtils.class
-                        .getMethod("saveBukkitItemAsTag", ItemStack.class);
-                saveItemAsTagMethod = method;
-            }
-            return (net.momirealms.craftengine.libraries.nbt.Tag) method.invoke(null, item);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("CraftEngine saveBukkitItemAsTag unavailable", e);
-        }
+        return net.momirealms.craftengine.bukkit.util.ItemStackUtils.saveBukkitItemAsTag(item);
     }
 
     public static boolean isValidItemId(String itemId) {
@@ -327,7 +304,7 @@ public final class ItemUtils {
             return Component.text(I18n.get("gui.recipe.unknown", player));
         }
 
-        String locale = playerLocale(player);
+        String locale = I18n.getPlayerLocale(player);
         Component nameMeta = null;
         ItemMeta meta = item.getItemMeta();
         if (meta != null && meta.hasItemName() && meta.itemName() != null) {
@@ -496,110 +473,9 @@ public final class ItemUtils {
         }
     }
 
-    /** Server-resolved plain text for key. Tries FD's I18n (server default locale, then en_us),
-     *  then CraftEngine's TranslationManager, then Adventure's GlobalTranslator; returns
-     *  the key itself when no source has a value. Use this whenever you must NOT depend on the receiving
-     *  client's locale or resource pack (lore lines, bossbar titles, broadcast text). */
+    /** Server-resolved plain text for key. 统一走 I18n.get() 降级链（已内置 CraftEngine + Adventure 翻译）。 */
     public static String translate(String key, String locale) {
-        String translated;
-        if (locale != null) {
-            translated = I18n.get(key, locale);
-        } else {
-            translated = I18n.get(key);
-        }
-        if (!translated.equals(key)) {
-            return translated;
-        }
-
-        translated = I18n.get(key, "en_us");
-        if (!translated.equals(key)) {
-            return translated;
-        }
-
-        translated = translateViaCraftEngine(key, locale);
-        if (translated != null && !translated.equals(key)) {
-            return translated;
-        }
-
-        try {
-            java.util.Locale loc = locale != null && !locale.isEmpty()
-                    ? java.util.Locale.forLanguageTag(locale.replace('_', '-'))
-                    : java.util.Locale.getDefault();
-            Component rendered = net.kyori.adventure.translation.GlobalTranslator.render(
-                    Component.translatable(key), loc);
-            String plain = PLAIN_TEXT.serialize(rendered);
-            if (!plain.equals(key)) {
-                return plain;
-            }
-        } catch (Exception ignored) {
-        }
-
-        return key;
-    }
-
-    private static String translateViaCraftEngine(String key, String locale) {
-        if (ceTranslationUnavailable) {
-            return null;
-        }
-        try {
-            Method instanceMethod = ceTranslationInstanceMethod;
-            if (instanceMethod == null) {
-                Class<?> translationManagerClass = Class.forName(
-                        "net.momirealms.craftengine.core.plugin.locale.TranslationManager");
-                instanceMethod = translationManagerClass.getMethod("instance");
-                ceTranslationInstanceMethod = instanceMethod;
-            }
-            Object manager = instanceMethod.invoke(null);
-            if (manager == null) {
-                return null;
-            }
-
-            Locale loc = locale != null && !locale.isEmpty()
-                    ? Locale.forLanguageTag(locale.replace('_', '-'))
-                    : null;
-
-            if (!cePlainTranslationMissing) {
-                Method plainTranslation = cePlainTranslationMethod;
-                if (plainTranslation == null) {
-                    try {
-                        plainTranslation = manager.getClass().getMethod(
-                                "plainTranslation", String.class, Locale.class, String[].class);
-                        cePlainTranslationMethod = plainTranslation;
-                    } catch (NoSuchMethodException ignored) {
-                        cePlainTranslationMissing = true;
-                    }
-                }
-                if (plainTranslation != null) {
-                    Object result = plainTranslation.invoke(manager, key, loc, new String[0]);
-                    if (result instanceof String text && !text.equals(key)) {
-                        return text;
-                    }
-                }
-            }
-
-            Method miniMessageTranslation = ceMiniMessageTranslationMethod;
-            if (miniMessageTranslation == null) {
-                miniMessageTranslation = manager.getClass().getMethod(
-                        "miniMessageTranslation", String.class, Locale.class);
-                ceMiniMessageTranslationMethod = miniMessageTranslation;
-            }
-            Object result = miniMessageTranslation.invoke(manager, key, loc);
-            if (result instanceof String text && !text.equals(key)) {
-                return stripMiniMessageTags(text);
-            }
-        } catch (ClassNotFoundException e) {
-            // CraftEngine translation API absent; stop retrying forName on every call.
-            ceTranslationUnavailable = true;
-        } catch (ReflectiveOperationException | LinkageError ignored) {
-        }
-        return null;
-    }
-
-    private static String stripMiniMessageTags(String text) {
-        if (text == null || text.isEmpty()) {
-            return text;
-        }
-        return text.replaceAll("<[^>]+>", "");
+        return I18n.get(key, locale);
     }
 
     private static String resolveSpecialDisplayText(String rawText, ItemStack item, String locale) {
@@ -700,17 +576,6 @@ public final class ItemUtils {
         return "";
     }
 
-    private static String playerLocale(Player player) {
-        if (player == null) {
-            return null;
-        }
-        try {
-            return player.locale().toString().toLowerCase(Locale.ROOT);
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
     /**
      * Replaces translation tags (<l10n:key> / <lang:key> / <i18n:key>) in text
      * with their localized strings for player's locale (falling back to the default/en locale, then the
@@ -721,7 +586,7 @@ public final class ItemUtils {
         if (text == null || text.isEmpty() || text.indexOf('<') < 0) {
             return text;
         }
-        String locale = playerLocale(player);
+        String locale = I18n.getPlayerLocale(player);
         Matcher matcher = TRANSLATION_TAG_PATTERN.matcher(text);
         StringBuilder out = new StringBuilder();
         while (matcher.find()) {
@@ -933,6 +798,15 @@ public final class ItemUtils {
             return null;
         }
         return item.clone();
+    }
+
+    /** 将 null 或空白字符串规范化为 null，否则返回 trim 后的值。 */
+    public static String normalizeBlank(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     /** True if item is a CraftEngine custom item (not a plain vanilla material). */

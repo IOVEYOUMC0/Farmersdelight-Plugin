@@ -10,16 +10,12 @@ import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
 import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
 import net.momirealms.craftengine.bukkit.plugin.network.BukkitNetworkManager;
 import net.momirealms.craftengine.core.plugin.network.NetWorkUser;
+import net.momirealms.craftengine.bukkit.util.EntityUtils;
 import net.momirealms.craftengine.proxy.minecraft.network.protocol.game.ClientboundAddEntityPacketProxy;
-import net.momirealms.craftengine.proxy.minecraft.network.protocol.game.ClientboundEntityPositionSyncPacketProxy;
 import net.momirealms.craftengine.proxy.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacketProxy;
 import net.momirealms.craftengine.proxy.minecraft.network.protocol.game.ClientboundSetEntityDataPacketProxy;
-import net.momirealms.craftengine.proxy.minecraft.network.protocol.game.ClientboundTeleportEntityPacketProxy;
 import net.momirealms.craftengine.proxy.minecraft.world.entity.EntityTypesProxy;
-import net.momirealms.craftengine.proxy.minecraft.world.entity.PositionMoveRotationProxy;
 import net.momirealms.craftengine.proxy.minecraft.world.phys.Vec3Proxy;
-import net.momirealms.craftengine.core.util.MiscUtils;
-import net.momirealms.craftengine.core.util.VersionHelper;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
@@ -38,7 +34,7 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
+
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -153,7 +149,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         try {
             DisplaySpec normalizedSpec = normalize(spec);
             int entityId = nextEntityId.getAndIncrement();
-            UUID entityUuid = fastRandomUuid();
+            UUID entityUuid = UUID.randomUUID();
             Object spawnPacket = createItemSpawnPacket(entityId, entityUuid, normalizedSpec);
             Object metadataPacket = createItemMetadataPacket(entityId, normalizedSpec);
             Object destroyPacket = createDestroyPacket(entityId);
@@ -191,7 +187,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
 
         TextDisplaySpec normalizedSpec = normalizeText(spec);
         int entityId = nextEntityId.getAndIncrement();
-        UUID entityUuid = fastRandomUuid();
+        UUID entityUuid = UUID.randomUUID();
         Object spawnPacket = createTextSpawnPacket(entityId, entityUuid, normalizedSpec);
         Object metadataPacket = createTextMetadataPacket(entityId, normalizedSpec);
         Object destroyPacket = createDestroyPacket(entityId);
@@ -584,16 +580,6 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         }
     }
 
-    /** Random v4 UUID from ThreadLocalRandom. The fake display entities' UUIDs only ever ride in the
-     *  spawn packet — no persistence, no equality against real entity UUIDs — so SecureRandom's
-     *  synchronized entropy (UUID.randomUUID) buys nothing on this path. */
-    private static UUID fastRandomUuid() {
-        ThreadLocalRandom random = ThreadLocalRandom.current();
-        long msb = (random.nextLong() & 0xFFFF_FFFF_FFFF_0FFFL) | 0x0000_0000_0000_4000L;
-        long lsb = (random.nextLong() & 0x3FFF_FFFF_FFFF_FFFFL) | 0x8000_0000_0000_0000L;
-        return new UUID(msb, lsb);
-    }
-
     /** Chunk identity for the per-pass player-tracking memo. Includes the world so identical
      *  coordinates in different worlds never collide. */
     private record ChunkKey(World world, int x, int z) {
@@ -920,21 +906,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
     }
 
     private Object createPositionPacket(int entityId, Location location) {
-        if (VersionHelper.isOrAbove1_21_2) {
-            Object position = Vec3Proxy.INSTANCE.newInstance(location.getX(), location.getY(), location.getZ());
-            Object values = PositionMoveRotationProxy.INSTANCE.newInstance(position, Vec3Proxy.ZERO, 0.0F, 0.0F);
-            return ClientboundEntityPositionSyncPacketProxy.INSTANCE.newInstance(entityId, values, false);
-        }
-
-        Object packet = ClientboundTeleportEntityPacketProxy.UNSAFE_CONSTRUCTOR.newInstance();
-        ClientboundTeleportEntityPacketProxy.INSTANCE.setId(packet, entityId);
-        ClientboundTeleportEntityPacketProxy.INSTANCE.setX(packet, location.getX());
-        ClientboundTeleportEntityPacketProxy.INSTANCE.setY(packet, location.getY());
-        ClientboundTeleportEntityPacketProxy.INSTANCE.setZ(packet, location.getZ());
-        ClientboundTeleportEntityPacketProxy.INSTANCE.setYRot(packet, MiscUtils.packDegrees(0.0F));
-        ClientboundTeleportEntityPacketProxy.INSTANCE.setXRot(packet, MiscUtils.packDegrees(0.0F));
-        ClientboundTeleportEntityPacketProxy.INSTANCE.setOnGround(packet, false);
-        return packet;
+        return EntityUtils.createUpdatePosPacket(entityId, location.getX(), location.getY(), location.getZ(), 0.0F, 0.0F, false);
     }
 
     private void logDisplayBuildFailure(String op, DisplaySpec spec, Throwable t) {

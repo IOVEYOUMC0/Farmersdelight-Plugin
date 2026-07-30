@@ -251,6 +251,7 @@ console:
     loaded_total: "已加载 {count} 个 {type} 配方"
     custom_cooking_pot_load_failed: "加载自定义厨锅配方 '{id}' 失败：{error}"
     custom_cooking_pot_loaded: "已加载 {count} 个自定义厨锅配方"
+    pack_duplicate_skipped: "已跳过来自 {source} 的配方 '{id}'：同 id 配方已加载。"
     editor_missing_custom_pot_gui: "自定义厨锅 '{id}' 没有对应的 recipe-editor-cooking-pot-guis 配置,改用默认编辑器布局。"
     invalid_count: "配方中的 count 无效：{error}"
     invalid_chance: "配方中的 chance 无效：{error}"

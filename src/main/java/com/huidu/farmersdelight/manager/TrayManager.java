@@ -235,13 +235,15 @@ public class TrayManager {
         // source below, so without this guard placing a campfire (a heat source) would spuriously place a
         // tray in the empty block above it — and every block place/break near a heat source queues a sync
         // here via syncAroundSupportChange, so that spurious CraftEngineFurniture.place ran on the hot
-        // path. Verifying the owner block first short-circuits before the getNearbyEntities scan + place.
+        // path. Verifying the owner block first short-circuits before the entity scan + place.
         if (!isPotOrSkilletAt(world, potPos)) {
             removeTrayIfAutoPlaced(world, potPos);
             return;
         }
 
-        if (!shouldHaveTray(world, potPos)) {
+        // 获取 chunk 实体列表，避免 Folia 区域线程上调用 getNearbyEntities
+        List<Entity> potChunkEntities = getChunkEntities(world, potPos);
+        if (!shouldHaveTray(world, potPos, potChunkEntities)) {
             removeTrayIfAutoPlaced(world, potPos);
             return;
         }
@@ -253,7 +255,8 @@ public class TrayManager {
         }
 
         BlockPos trayPos = new BlockPos(trayLoc.getBlockX(), trayLoc.getBlockY(), trayLoc.getBlockZ());
-        List<ItemDisplay> existingTrayEntities = findTrayItemDisplays(world, trayLoc);
+        List<Entity> trayChunkEntities = getChunkEntities(world, trayLoc);
+        List<ItemDisplay> existingTrayEntities = findTrayItemDisplays(world, trayLoc, trayChunkEntities);
         ItemDisplay existingAutoTray = firstAutoTrayEntity(existingTrayEntities);
         if (existingAutoTray != null) {
             markTrayEntity(existingAutoTray, world, potPos);
@@ -425,6 +428,15 @@ public class TrayManager {
     }
 
     public boolean shouldHaveTray(World world, BlockPos potPos) {
+        return shouldHaveTray(world, potPos, null);
+    }
+
+    /**
+     * 与 shouldHaveTray(World, BlockPos) 相同，但使用预获取的实体列表检查手柄，
+     * 避免在 Folia 区域线程上调用 getNearbyEntities。
+     * entities 为 null 时退回到普通的 hasHandle 调用。
+     */
+    public boolean shouldHaveTray(World world, BlockPos potPos, @Nullable List<Entity> entities) {
         HeatSourceConfig heatConfig = plugin.getHeatSourceConfig();
         if (heatConfig == null) {
             return false;
@@ -432,8 +444,13 @@ public class TrayManager {
 
         // Handle takes precedence: a pot with a player-installed handle never shows a tray.
         HandleManager hm = plugin.getHandleManager();
-        if (hm != null && hm.hasHandle(world, potPos)) {
-            return false;
+        if (hm != null) {
+            boolean hasHandle = entities != null
+                    ? hm.hasHandle(world, potPos, entities)
+                    : hm.hasHandle(world, potPos);
+            if (hasHandle) {
+                return false;
+            }
         }
 
         Location belowLoc = new Location(world, potPos.x(), potPos.y() - 1, potPos.z());
@@ -590,7 +607,8 @@ public class TrayManager {
             return;
         }
 
-        if (shouldHaveTray(world, ownerPos)) {
+        List<Entity> chunkEntities = getChunkEntities(world, ownerPos);
+        if (shouldHaveTray(world, ownerPos, chunkEntities)) {
             checkAndPlaceTray(world, ownerPos);
         } else {
             removeTrayIfAutoPlaced(world, ownerPos);
@@ -912,7 +930,7 @@ public class TrayManager {
             if (enabled
                     && owner != null
                     && owner.worldId().equals(world.getUID())
-                    && isValidAutoTrayOwner(world, owner.pos())) {
+                    && isValidAutoTrayOwner(world, owner.pos(), entities)) {
                 markTrayEntity(itemDisplay, world, owner.pos());
                 continue;
             }
@@ -922,18 +940,23 @@ public class TrayManager {
     }
 
     private boolean isValidAutoTrayOwner(World world, BlockPos ownerPos) {
-        return ownerPos != null && isPotOrSkilletAt(world, ownerPos) && shouldHaveTray(world, ownerPos);
+        return isValidAutoTrayOwner(world, ownerPos, null);
+    }
+
+    private boolean isValidAutoTrayOwner(World world, BlockPos ownerPos, @Nullable List<Entity> entities) {
+        return ownerPos != null && isPotOrSkilletAt(world, ownerPos) && shouldHaveTray(world, ownerPos, entities);
     }
 
     private void removeTrayAt(World world, BlockPos trayPos, String reason) {
         try {
             Location location = new Location(world, trayPos.x(), trayPos.y(), trayPos.z());
+            List<Entity> chunkEntities = getChunkEntities(world, location);
             int removed = 0;
             boolean allowUnmarkedExactTray = "owner removed".equals(reason)
                     || "cleanup invalid owner".equals(reason)
                     || "offset changed".equals(reason);
             Set<UUID> removedEntities = new HashSet<>();
-            for (BukkitFurniture furniture : findTrayFurnitures(world, location)) {
+            for (BukkitFurniture furniture : findTrayFurnitures(world, location, chunkEntities)) {
                 if (isManualTray(furniture.bukkitEntity())) {
                     // Never remove a player-placed tray, even at the exact auto-tray position.
                     continue;
@@ -951,7 +974,7 @@ public class TrayManager {
                 }
             }
 
-            for (ItemDisplay entity : findTrayItemDisplays(world, location)) {
+            for (ItemDisplay entity : findTrayItemDisplays(world, location, chunkEntities)) {
                 if (isManualTray(entity)) {
                     continue;
                 }
@@ -992,12 +1015,16 @@ public class TrayManager {
     }
 
     private List<BukkitFurniture> findTrayFurnitures(World world, Location location) {
-        if (world == null || location == null) {
+        return findTrayFurnitures(world, location, getChunkEntities(world, location));
+    }
+
+    private List<BukkitFurniture> findTrayFurnitures(World world, Location location, List<Entity> entities) {
+        if (world == null || location == null || entities == null) {
             return List.of();
         }
         List<BukkitFurniture> furnitures = new ArrayList<>();
         Set<UUID> seenEntities = new HashSet<>();
-        for (ItemDisplay entity : findTrayItemDisplays(world, location)) {
+        for (ItemDisplay entity : findTrayItemDisplays(world, location, entities)) {
             BukkitFurniture furniture = getLoadedTrayFurniture(entity);
             Entity rootEntity = furniture == null ? null : furniture.bukkitEntity();
             if (rootEntity != null && seenEntities.add(rootEntity.getUniqueId())) {
@@ -1008,24 +1035,37 @@ public class TrayManager {
     }
 
     private List<ItemDisplay> findTrayItemDisplays(World world, Location location) {
-        if (world == null || location == null) {
+        return findTrayItemDisplays(world, location, getChunkEntities(world, location));
+    }
+
+    /**
+     * 使用预获取的实体列表查找托盘 ItemDisplay，避免在 Folia 区域线程上调用 getNearbyEntities。
+     */
+    private List<ItemDisplay> findTrayItemDisplays(World world, Location location, List<Entity> entities) {
+        if (world == null || location == null || entities == null) {
             return List.of();
         }
-        List<ItemDisplay> entities = new ArrayList<>();
+        List<ItemDisplay> result = new ArrayList<>();
         double bx = location.getBlockX();
         double by = location.getBlockY();
         double bz = location.getBlockZ();
-        // Allow a small margin so display entities sitting exactly on a block edge still match; the margin
-        // stays within the 1-block tray spacing.
         double margin = 0.3D;
-        for (Entity entity : world.getNearbyEntities(
-                new BoundingBox(bx - margin, by - margin, bz - margin,
-                        bx + 1 + margin, by + 1 + margin, bz + 1 + margin))) {
-            if (entity instanceof ItemDisplay itemDisplay && isTrayFurnitureEntity(itemDisplay)) {
-                entities.add(itemDisplay);
-            }
+        double minX = bx - margin;
+        double minY = by - margin;
+        double minZ = bz - margin;
+        double maxX = bx + 1 + margin;
+        double maxY = by + 1 + margin;
+        double maxZ = bz + 1 + margin;
+        for (Entity entity : entities) {
+            if (!(entity instanceof ItemDisplay itemDisplay)) continue;
+            if (!isTrayFurnitureEntity(itemDisplay)) continue;
+            Location eloc = entity.getLocation();
+            if (eloc.getX() < minX || eloc.getX() > maxX
+                    || eloc.getY() < minY || eloc.getY() > maxY
+                    || eloc.getZ() < minZ || eloc.getZ() > maxZ) continue;
+            result.add(itemDisplay);
         }
-        return entities;
+        return result;
     }
 
     @Nullable
@@ -1126,6 +1166,24 @@ public class TrayManager {
     public void cleanupAll() {
         stop();
         removeAllTrays();
+    }
+
+    /** 从 BlockPos 所在 chunk 获取实体列表，chunk 未加载时返回空列表。 */
+    private List<Entity> getChunkEntities(World world, BlockPos pos) {
+        if (world == null || pos == null) return List.of();
+        int cx = pos.x() >> 4;
+        int cz = pos.z() >> 4;
+        if (!world.isChunkLoaded(cx, cz)) return List.of();
+        return java.util.Arrays.asList(world.getChunkAt(cx, cz).getEntities());
+    }
+
+    /** 从 Location 所在 chunk 获取实体列表，chunk 未加载时返回空列表。 */
+    private List<Entity> getChunkEntities(World world, Location loc) {
+        if (world == null || loc == null) return List.of();
+        int cx = loc.getBlockX() >> 4;
+        int cz = loc.getBlockZ() >> 4;
+        if (!world.isChunkLoaded(cx, cz)) return List.of();
+        return java.util.Arrays.asList(world.getChunkAt(cx, cz).getEntities());
     }
 
     private record TraySyncKey(UUID worldId, int x, int y, int z) {

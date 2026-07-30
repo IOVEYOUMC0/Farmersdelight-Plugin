@@ -251,6 +251,7 @@ console:
     loaded_total: "Loaded {count} {type} recipes"
     custom_cooking_pot_load_failed: "Failed to load custom cooking pot recipe '{id}': {error}"
     custom_cooking_pot_loaded: "Loaded {count} custom cooking pot recipes"
+    pack_duplicate_skipped: "Skipped recipe '{id}' from {source}: a recipe with that id is already loaded."
     editor_missing_custom_pot_gui: "No recipe-editor-cooking-pot-guis entry for custom pot '{id}'; using the default editor layout."
     invalid_count: "Invalid count for recipe: {error}"
     invalid_chance: "Invalid chance for recipe: {error}"
