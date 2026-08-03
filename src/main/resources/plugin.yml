@@ -7,34 +7,34 @@ depend: [CraftEngine]
 softdepend: [AuraSkills, UltimateAdvancementAPI, PlaceholderAPI, WorldGuard, GriefPrevention, Lands, Towny, Residence, PlotSquared, Factions, HuskClaims, HuskTowns, BentoBox, SuperiorSkyblock2, IridiumSkyblock, GriefDefender, Kingdoms, CrashClaim, RedProtect, Landlord, uSkyBlock, XClaim, UltimateClaims, UltimateClans, PreciousStones, Dominion, FabledSkyBlock, NoBuildPlus, Protect]
 authors:
   - HuiDu_OwO
-description: CraftEngine 的农夫乐事（Farmer's Delight）扩展
+description: CraftEngine Farmer's Delight Addon
 permissions:
   farmersdelight.command:
-    description: 允许使用主命令
+    description: Allow to use main command
     default: true
   farmersdelight.command.recipe:
-    description: 允许查看配方
+    description: Allow to check the recipe
     default: true
   farmersdelight.command.recipe.discovery:
-    description: 允许管理配方解锁进度
+    description: Allow to unlock the recipe
     default: op
   farmersdelight.use.cooking_pot:
-    description: 允许使用烹饪锅
+    description: Allow to use the Cooking Pot
     default: true
   farmersdelight.use.stove:
-    description: 允许使用炉灶
+    description: Allow to use the Stove
     default: true
   farmersdelight.use.skillet:
-    description: 允许使用煎锅
+    description: Allow to use the Skillet
     default: true
   farmersdelight.use.cutting_board:
-    description: 允许使用砧板
+    description: Allow to use the Cutting Board
     default: true
   farmersdelight.admin:
-    description: 管理员权限
+    description: Admin permissions
     default: op
   farmersdelight.*:
-    description: 所有 FarmersDelight 权限
+    description: All the FarmersDelight Plugin's permissions
     default: op
     children:
       farmersdelight.command: true

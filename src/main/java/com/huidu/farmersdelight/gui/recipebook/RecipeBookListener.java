@@ -59,7 +59,7 @@ public final class RecipeBookListener implements Listener {
         if (holder instanceof RecipeBookGui book) {
             event.setCancelled(true);
             if (event.getClickedInventory() == event.getInventory()) {
-                book.handleClick(player, event.getRawSlot());
+                book.handleClick(player, event.getRawSlot(), event.isShiftClick());
             }
             return;
         }

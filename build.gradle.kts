@@ -24,7 +24,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
     compileOnly("org.jetbrains:annotations:26.1.0")
     compileOnly("net.momirealms:craft-engine-core:26.7.4")
     compileOnly("net.momirealms:craft-engine-bukkit:26.7.4")
@@ -42,12 +42,20 @@ dependencies {
     implementation("org.bstats:bstats-bukkit:3.1.0")
     // UltimateAdvancementAPI: separate server plugin; vendored only for offline compile against its API.
     compileOnly(files("libs/UltimateAdvancementAPI-Plugin-2.8.0-folia.jar"))
-    testImplementation("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
+    testImplementation("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
     testImplementation("net.momirealms:craft-engine-core:26.7")
     testImplementation("net.momirealms:craft-engine-bukkit:26.7")
     testImplementation("net.momirealms:craft-engine-bukkit-proxy:26.7")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+configurations.all {
+    resolutionStrategy {
+        // 强制升级传递依赖中的已知漏洞版本（仅编译期，不打包进插件）
+        force("org.codehaus.plexus:plexus-utils:4.0.3")
+        force("org.apache.commons:commons-lang3:3.18.0")
+    }
 }
 
 val obfuscateBuild = providers.gradleProperty("obfuscate")

@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * FarmersDelight's own tab. Definitions persist (so tabs survive /fd reload); actual UAA tabs are
  * (re)built only while the advancement system is ready — after CraftEngine items load and UAA is enabled.
  *
- * The FarmersDelight plugin drives this: onSystemReady() after its own tab loads, onSystemDown()
+ * The FarmersDelight plugin drives this: #onSystemReady() after its own tab loads, #onSystemDown()
  * when the advancement system is disabled. Addons register through FarmersDelightAdvancements.
  */
 public final class AddonAdvancementRegistry {

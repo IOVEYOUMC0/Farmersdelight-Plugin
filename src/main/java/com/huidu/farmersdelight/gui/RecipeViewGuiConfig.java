@@ -205,7 +205,7 @@ public class RecipeViewGuiConfig {
         if (slots.isEmpty()) {
             return -1;
         }
-        return slots.get(0);
+        return slots.getFirst();
         }
 
         protected static BaseConfig parseConfig(ConfigurationSection section) {
@@ -213,7 +213,7 @@ public class RecipeViewGuiConfig {
                 return null;
             }
 
-            String title = section.getString("title", "界面");
+            String title = section.getString("title", "GUI");
             int rows = section.getInt("rows", 3);
             List<String> layout = section.getStringList("layout");
 
@@ -278,6 +278,7 @@ public class RecipeViewGuiConfig {
         }
     }
 
+    @SuppressWarnings("UnstableApiUsage")
     private static void warnConfig(String key, Object... placeholders) {
         String message = I18n.formatNamedArgs(key, placeholders);
         com.huidu.farmersdelight.FarmersDelightPlugin plugin =

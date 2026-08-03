@@ -346,7 +346,7 @@ public class CookingPotBlockEntity {
 
     /** Headline meal item for the broken-pot lore + fill bar: prefer the pending-output slot
      *  (the just-cooked meal still inside the pot), fall back to output when pending is empty.
-     *  Differs from getMealDisplayItem(), which only ever reads the output slot. */
+     *  Differs from #getMealDisplayItem(), which only ever reads the output slot. */
     public ItemStack getPackedMealDisplayItem() {
         synchronized (inventoryLock) {
             ItemStack pending = getFirstItem(layout.pendingOutputSlots());
@@ -1154,7 +1154,7 @@ public class CookingPotBlockEntity {
     }
 
     /** True if provided is the container required demands (custom-id match, else
-     *  isSimilar). Unlike isContainerValid this validates against the passed argument, not
+     *  isSimilar). Unlike #isContainerValid this validates against the passed argument, not
      *  the mealContainerStack field — needed for the direct-store path where the field is still null
      *  (a null field made isContainerValid accept ANY item, so a wrong container in a C-slot was
      *  counted and consumed). required null/air = no requirement (matches anything). */
@@ -1381,6 +1381,8 @@ public class CookingPotBlockEntity {
         return first.isSimilar(second);
     }
 
+    // Pure utility, cannot delegate to ItemUtils — ItemUtils' static initializer depends on
+    // Bukkit Registry which isn't available in unit test environments.
     private static String normalizeBlank(String value) {
         if (value == null) {
             return null;

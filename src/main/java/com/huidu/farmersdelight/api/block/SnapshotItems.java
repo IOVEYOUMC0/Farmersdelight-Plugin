@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.api.block;
 
+import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
@@ -17,7 +18,7 @@ final class SnapshotItems {
     }
 
     static ItemStack copy(ItemStack item) {
-        return item == null ? null : item.clone();
+        return ItemUtils.cloneOrNull(item);
     }
 
     /** An unmodifiable list of clones; null entries are preserved so slot indexes stay meaningful. */

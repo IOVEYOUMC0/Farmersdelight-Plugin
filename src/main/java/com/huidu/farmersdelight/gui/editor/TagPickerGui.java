@@ -1,14 +1,12 @@
 package com.huidu.farmersdelight.gui.editor;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.gui.AbstractInventoryGui;
 import com.huidu.farmersdelight.gui.GuiConfig;
 import com.huidu.farmersdelight.gui.RecipeViewGuiConfig;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.Text;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.util.UniqueKey;
 import org.bukkit.Material;
@@ -17,11 +15,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
-import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.inventory.ItemFlag;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -29,6 +25,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
@@ -36,22 +33,16 @@ import java.util.function.Consumer;
  * uses that tag directly, right-click opens the second page, which lists the tag's member items for the player to
  * toggle exclusions. Layout and text come from the recipe-tag-picker-gui section of gui.yml.
  */
-public final class TagPickerGui implements EditorGui {
-
-    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacyAmpersand();
-    private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
+public final class TagPickerGui extends AbstractInventoryGui implements EditorGui {
 
     private enum Mode { SELECT, EXCLUDE }
 
-    private final FarmersDelightPlugin plugin;
-    private final Player player;
     private final RecipeViewGuiConfig.BaseConfig config;
     private final ItemStack sourceItem;
     private final List<String> tagIds;
     private final Consumer<RecipeIngredient> onConfirm;
     private final Runnable onCancel;
     private final List<Integer> entrySlots;
-    private final Inventory inventory;
 
     private Mode mode = Mode.SELECT;
     private int page = 0;
@@ -60,31 +51,40 @@ public final class TagPickerGui implements EditorGui {
     private final Set<String> excludedItemIds = new LinkedHashSet<>();
 
     private boolean acted = false;
-    private boolean closed = false;
 
     public TagPickerGui(FarmersDelightPlugin plugin, Player player, RecipeViewGuiConfig.BaseConfig config,
                         ItemStack sourceItem, List<String> tagIds,
                         Consumer<RecipeIngredient> onConfirm, Runnable onCancel) {
-        this.plugin = plugin;
-        this.player = player;
+        super(plugin, player);
         this.config = config;
         this.sourceItem = sourceItem.clone();
         this.tagIds = List.copyOf(tagIds);
         this.onConfirm = onConfirm;
         this.onCancel = onCancel;
         this.entrySlots = config.getSlotsByType("entry");
-        this.inventory = plugin.getServer().createInventory(this, config.getSize(), coloredTitle(config.getTitle()));
+        this.inventory = plugin.getServer().createInventory(this, config.getSize(), EditorGui.coloredComponent(config.getTitle()));
     }
 
     public void open() {
-        RecipeEditorListener.ensureRegistered(plugin);
-        render();
-        player.openInventory(inventory);
+        doOpen(this::render);
     }
 
     @Override
-    public @NotNull Inventory getInventory() {
-        return inventory;
+    protected AbstractInventoryGui findExistingGui(UUID playerId) {
+        return null;
+    }
+
+    @Override
+    protected void putActiveGui(UUID playerId, AbstractInventoryGui gui) {
+    }
+
+    @Override
+    protected void removeFromActiveGuis(UUID playerId) {
+    }
+
+    @Override
+    protected void ensureListenerRegistered() {
+        RecipeEditorListener.ensureRegistered(plugin);
     }
 
     private int pageCount(int total) {
@@ -219,7 +219,7 @@ public final class TagPickerGui implements EditorGui {
             }
             case "cancel" -> {
                 acted = true;
-                closed = true;
+                super.close();
                 clearCursor();
                 onCancel.run();
             }
@@ -258,14 +258,14 @@ public final class TagPickerGui implements EditorGui {
 
     private void finish(RecipeIngredient ingredient) {
         acted = true;
-        closed = true;
+        super.close();
         clearCursor();
         onConfirm.accept(ingredient);
     }
 
     @Override
     public void handleClose(InventoryCloseEvent event) {
-        closed = true;
+        super.close();
         clearCursor();
         if (!acted) {
             acted = true;
@@ -328,13 +328,5 @@ public final class TagPickerGui implements EditorGui {
         ItemStack copy = source.clone();
         copy.setAmount(1);
         return copy;
-    }
-
-    private static Component coloredTitle(String title) {
-        String resolved = title == null ? "" : title;
-        if (resolved.contains("<") && resolved.contains(">")) {
-            return MINI_MESSAGE.deserialize(resolved);
-        }
-        return LEGACY.deserialize(resolved.replaceAll("&(?=[0-9a-fk-orA-FK-OR])", "§"));
     }
 }

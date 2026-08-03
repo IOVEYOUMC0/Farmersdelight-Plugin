@@ -35,6 +35,7 @@ import org.bukkit.event.block.BlockPhysicsEvent;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPistonRetractEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.entity.EntityRemoveEvent;
 import org.bukkit.event.entity.ItemSpawnEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
 import org.bukkit.event.world.EntitiesLoadEvent;
@@ -54,20 +55,20 @@ import java.util.concurrent.ConcurrentHashMap;
  * don't collide with entities physically). Which furnitures are rugs, and which block goes under each,
  * come entirely from RugConfig — nothing is hard-coded here.
  *
- * <p>Multi-cell rugs (full_tatami_mat spans two cells, per its YAML hitbox list) get one underlying
+ * Multi-cell rugs (full_tatami_mat spans two cells, per its YAML hitbox list) get one underlying
  * block per cell. "Any cell loses its support → the whole rug goes" holds because every removal path
- * of any cell's block routes through removeRug, which destroys the furniture and clears ALL
+ * of any cell's block routes through #removeRug, which destroys the furniture and clears ALL
  * of its cells at once.
  *
- * <p>Removal paths covered — each is needed because CraftEngine's FurnitureBreakEvent fires
+ * Removal paths covered — each is needed because CraftEngine's FurnitureBreakEvent fires
  * ONLY when a player attacks the furniture entity, never for programmatic removals:
- * <ul>
- *   <li>player mines the underlying block (BlockBreakEvent)</li>
- *   <li>support lost → block self-destructs silently (BlockPhysicsEvent / ItemSpawnEvent)</li>
- *   <li>piston push (BlockPistonExtendEvent / BlockPistonRetractEvent)</li>
- *   <li>liquid washes over it (BlockFromToEvent)</li>
- *   <li><b>fire burns it</b> (BlockBurnEvent) — otherwise a burnt carpet would orphan the furniture</li>
- * </ul>
+ * 
+ *   - player mines the underlying block (BlockBreakEvent)
+ *   - support lost → block self-destructs silently (BlockPhysicsEvent / ItemSpawnEvent)
+ *   - piston push (BlockPistonExtendEvent / BlockPistonRetractEvent)
+ *   - liquid washes over it (BlockFromToEvent)
+ *   - <b>fire burns it</b> (BlockBurnEvent) — otherwise a burnt carpet would orphan the furniture
+ * 
  *
  *
  * Tracking: a map from cell position to furniture. Entries are added when a player places a rug
@@ -90,6 +91,9 @@ public final class RugListener implements Listener {
 
     private static final BlockFace[] FACE_6 = {
             BlockFace.UP, BlockFace.DOWN,
+            BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST
+    };
+    private static final BlockFace[] HORIZONTAL = {
             BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST
     };
 
@@ -153,7 +157,7 @@ public final class RugListener implements Listener {
         if (world == null) return;
         for (Location cell : cellsOf(furn)) {
             cellToRug.put(posKey(cell), furn);
-            Bukkit.getRegionScheduler().runDelayed(plugin, cell, t -> {
+            plugin.scheduler().runLaterAt(cell, () -> {
                 // The rug can be removed within this delay window — only FurnitureBreakEvent can fire that
                 // early, since every other removal path keys off the not-yet-placed underlying block. If it
                 // was removed, its tracking entry is gone; skip the place so we don't strand an orphan
@@ -166,6 +170,17 @@ public final class RugListener implements Listener {
                     b.setType(underlying, false);
                 }
             }, UNDERLYING_PLACE_DELAY_TICKS);
+        }
+        // 底层方块放置后，更新新地毯自身及相邻地毯的变体
+        if (world != null && !cellsOf(furn).isEmpty()) {
+            List<Location> cells = cellsOf(furn);
+            Location anchor = event.location();
+            plugin.scheduler().runLaterAt(anchor, () -> {
+                if (furn.isValid()) {
+                    updateRugVariant(furn);
+                    refreshAdjacentRugs(world, cells);
+                }
+            }, UNDERLYING_PLACE_DELAY_TICKS + 2);
         }
     }
 
@@ -184,10 +199,10 @@ public final class RugListener implements Listener {
      * Removes a rug furniture AND clears its companion underlying blocks + tracking.
      * CraftEngineFurniture#remove does NOT fire FurnitureBreakEvent (only a player
      * attacking the furniture entity does), so the block cleanup can't be left to
-     * onFurnitureBreak for programmatic removals. Capture the cells + material WHILE the
+     * #onFurnitureBreak for programmatic removals. Capture the cells + material WHILE the
      * furniture is still valid, remove it, then clear each cell.
      *
-     * @param dropLoot whether the rug drops its item (true for break/support/piston/water; false for fire)
+     * dropLoot whether the rug drops its item (true for break/support/piston/water; false for fire)
      */
     private void removeRug(BukkitFurniture rug, org.bukkit.entity.Player player, boolean dropLoot) {
         if (rug == null || !rug.isValid()) return;
@@ -210,12 +225,17 @@ public final class RugListener implements Listener {
         if (world == null) return;
         for (Location cell : cells) {
             cellToRug.remove(posKey(cell));
-            Bukkit.getRegionScheduler().run(plugin, cell, t -> {
+            plugin.scheduler().runAt(cell, () -> {
                 Block b = world.getBlockAt(cell);
                 if (b.getType() == underlying) {
                     b.setType(Material.AIR, false);
                 }
             });
+        }
+        // 底层方块清除后，刷新相邻地毯的变体
+        if (!cells.isEmpty()) {
+            Location anchor = cells.getFirst();
+            plugin.scheduler().runLaterAt(anchor, () -> refreshAdjacentRugs(world, cells), 2);
         }
     }
 
@@ -257,7 +277,7 @@ public final class RugListener implements Listener {
         if (!config().isUnderlyingMaterial(block.getType())) return;
         BukkitFurniture rug = cellToRug.get(posKey(block.getLocation()));
         if (rug == null) return;
-        Bukkit.getRegionScheduler().run(plugin, block.getLocation(), task -> {
+        plugin.scheduler().runAt(block.getLocation(), () -> {
             if (config().isUnderlyingMaterial(block.getType()) || !rug.isValid()) return;
             removeRug(rug, null, true);
         });
@@ -333,7 +353,7 @@ public final class RugListener implements Listener {
         for (BukkitFurniture rug : rugs) {
             Location anchor = rug.location();
             if (anchor == null) continue;
-            Bukkit.getRegionScheduler().run(plugin, anchor, task -> {
+            plugin.scheduler().runAt(anchor, () -> {
                 if (rug.isValid()) {
                     removeRug(rug, null, true);
                 }
@@ -454,7 +474,7 @@ public final class RugListener implements Listener {
         Material underlying = target.getType();
         // Defer one tick: BlockFromToEvent fires mid-tick; re-check the block so we don't double-fire
         // if another listener already cleaned up.
-        Bukkit.getRegionScheduler().run(plugin, target.getLocation(), task -> {
+        plugin.scheduler().runAt(target.getLocation(), () -> {
             if (rug.isValid() && target.getType() == underlying) {
                 removeRug(rug, null, true);
             }
@@ -471,7 +491,7 @@ public final class RugListener implements Listener {
     private BukkitFurniture findRugByScan(Location loc) {
         if (loc == null || loc.getWorld() == null) return null;
         World world = loc.getWorld();
-        // 使用 chunk 实体列表扫描，避免 Folia 区域线程上调用 getNearbyEntities
+        // Scan chunk entity list instead of getNearbyEntities to avoid blocking on Folia region threads
         int cx = loc.getBlockX() >> 4;
         int cz = loc.getBlockZ() >> 4;
         if (!world.isChunkLoaded(cx, cz)) return null;
@@ -531,5 +551,125 @@ public final class RugListener implements Listener {
         if (furn == null || furn.id() == null) return null;
         String id = furn.id().toString();
         return config().isRug(id) ? config().underlyingOf(id) : null;
+    }
+
+    /**
+     * 根据四周相邻地毯底层方块计算当前应使用的变体名称。
+     * 优先级：全包 > 对边相连 > 单边相连 > 独立
+     */
+    private String computeRugVariant(World world, BukkitFurniture furn) {
+        java.util.Set<BlockFace> connected = java.util.EnumSet.noneOf(BlockFace.class);
+        for (Location cell : cellsOf(furn)) {
+            for (BlockFace face : HORIZONTAL) {
+                if (connected.contains(face)) continue;
+                Location neighbor = cell.clone().add(face.getDirection());
+                if (config().isUnderlyingMaterial(world.getBlockAt(neighbor).getType())) {
+                    connected.add(face);
+                }
+            }
+        }
+        boolean north = connected.contains(BlockFace.NORTH);
+        boolean south = connected.contains(BlockFace.SOUTH);
+        boolean east = connected.contains(BlockFace.EAST);
+        boolean west = connected.contains(BlockFace.WEST);
+
+        if (north && south && east && west) return "surrounded";
+        if (north && south) return "no_north_south";
+        if (east && west) return "no_east_west";
+        if (north) return "no_north";
+        if (south) return "no_south";
+        if (east) return "no_east";
+        if (west) return "no_west";
+        return "standalone";
+    }
+
+    /**
+     * 更新单个地毯的变体（根据相邻连接状态选择正确的变体名称并调用 setVariant）。
+     */
+    private void updateRugVariant(BukkitFurniture furn) {
+        if (furn == null || !furn.isValid()) return;
+        Location loc = furn.location();
+        if (loc == null || loc.getWorld() == null) return;
+        String target = computeRugVariant(loc.getWorld(), furn);
+        furn.setVariant(target, true);
+    }
+
+    /**
+     * 刷新指定位置四周相邻地毯的变体。
+     */
+    private void refreshAdjacentRugs(World world, List<Location> cells) {
+        if (world == null || cells.isEmpty()) return;
+        java.util.Set<BukkitFurniture> seen = new java.util.HashSet<>();
+        for (Location cell : cells) {
+            for (BlockFace face : HORIZONTAL) {
+                Location neighbor = cell.clone().add(face.getDirection());
+                BukkitFurniture neighborRug = cellToRug.get(posKey(neighbor));
+                if (neighborRug != null && neighborRug.isValid() && seen.add(neighborRug)) {
+                    updateRugVariant(neighborRug);
+                }
+            }
+        }
+    }
+
+    /**
+     * 当 item_display 实体被非正常移除（如 /kill 命令）时，CE 家具实体丢失但底层方块仍保留。
+     * 此监听器检测已追踪地毯的元实体被移除，并清理残留的底层方块和 cellToRug 追踪。
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onEntityRemoved(EntityRemoveEvent event) {
+        if (cellToRug.isEmpty()) return;
+        Entity entity = event.getEntity();
+        if (!(entity instanceof ItemDisplay)) return;
+
+        Location loc = entity.getLocation();
+        if (loc.getWorld() == null) return;
+        // 跳过区块卸载——已由 onChunkUnload 处理
+        int cx = loc.getBlockX() >> 4;
+        int cz = loc.getBlockZ() >> 4;
+        if (!loc.getWorld().isChunkLoaded(cx, cz)) return;
+
+        // 元实体被移除时 CE 已将其从家具注册表中清除，getLoadedFurnitureByMetaEntity 返回 null
+        // 因此遍历 cellToRug 按位置匹配，找到该实体对应的地毯并清理
+        World world = loc.getWorld();
+        java.util.UUID worldId = world.getUID();
+        int bx = loc.getBlockX();
+        int by = loc.getBlockY();
+        int bz = loc.getBlockZ();
+
+        java.util.Set<BukkitFurniture> orphaned = new java.util.HashSet<>();
+        for (java.util.Map.Entry<Cell, BukkitFurniture> entry : cellToRug.entrySet()) {
+            Cell cell = entry.getKey();
+            if (!cell.worldId().equals(worldId)) continue;
+            // 元实体通常位于地毯锚点位置，匹配约1格范围
+            if (Math.abs(cell.x() - bx) <= 1 && cell.y() == by && Math.abs(cell.z() - bz) <= 1) {
+                orphaned.add(entry.getValue());
+            }
+        }
+
+        for (BukkitFurniture furn : orphaned) {
+            Material underlying = underlyingOf(furn);
+            // 从追踪表中清除该家具的所有格子
+            java.util.List<Location> rugCells = new java.util.ArrayList<>();
+            cellToRug.entrySet().removeIf(e -> {
+                if (e.getValue() == furn) {
+                    rugCells.add(new Location(world, e.getKey().x(), e.getKey().y(), e.getKey().z()));
+                    return true;
+                }
+                return false;
+            });
+            // 清除底层方块
+            if (underlying != null && !rugCells.isEmpty()) {
+                clearUnderlying(world, rugCells, underlying);
+            } else if (!rugCells.isEmpty()) {
+                for (Location c : rugCells) {
+                    plugin.scheduler().runAt(c, () -> {
+                        Block b = world.getBlockAt(c);
+                        if (config().isUnderlyingMaterial(b.getType())) {
+                            b.setType(Material.AIR, false);
+                        }
+                    });
+                }
+            }
+        }
     }
 }

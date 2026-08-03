@@ -4,7 +4,7 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.listener.RopeBlockListener;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
-import com.huidu.farmersdelight.util.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -15,7 +15,12 @@ import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.context.BlockPlaceContext;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.Tag;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockSupport;
@@ -25,19 +30,11 @@ import org.bukkit.inventory.ItemStack;
 import java.util.EnumSet;
 import java.util.Set;
 
-public class RopeBlockBehavior extends BlockBehavior {
+public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
         return false;
-    }
-
-    @Override
-    public void fallOn(Object thisBlock, Object[] args) {
-    }
-
-    @Override
-    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
     }
 
     private static final String PROP_NORTH = "north";
@@ -105,17 +102,14 @@ public class RopeBlockBehavior extends BlockBehavior {
     // rope, and climbing, reeling down and ringing a bell all work without them. They are resolved with the
     // value class checked, so a property declared under one of these names but not as a boolean is skipped
     // like an absent one instead of throwing out of the placement path on the first rope put down.
-    public static final BlockBehaviorFactory<RopeBlockBehavior> FACTORY = new BlockBehaviorFactory<>() {
-        @Override
-        public RopeBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
-            return new RopeBlockBehavior(
-                    block,
-                    BlockBehaviorFactory.getOptionalProperty(block, PROP_NORTH, Boolean.class),
-                    BlockBehaviorFactory.getOptionalProperty(block, PROP_SOUTH, Boolean.class),
-                    BlockBehaviorFactory.getOptionalProperty(block, PROP_EAST, Boolean.class),
-                    BlockBehaviorFactory.getOptionalProperty(block, PROP_WEST, Boolean.class)
-            );
-        }
+    public static final BlockBehaviorFactory<RopeBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+        return new RopeBlockBehavior(
+                block,
+                BlockBehaviorFactory.getOptionalProperty(block, PROP_NORTH, Boolean.class),
+                BlockBehaviorFactory.getOptionalProperty(block, PROP_SOUTH, Boolean.class),
+                BlockBehaviorFactory.getOptionalProperty(block, PROP_EAST, Boolean.class),
+                BlockBehaviorFactory.getOptionalProperty(block, PROP_WEST, Boolean.class)
+        );
     };
 
     // Connections are decided once, here, and never re-derived afterwards. Clicking a horizontal face lets the

@@ -9,15 +9,15 @@ import org.jetbrains.annotations.ApiStatus;
  * FarmersDelightBlocks#skillet(org.bukkit.block.Block). A skillet holds at most one stack of
  * food plus the skillet item it was placed from. Nothing here writes back.
  *
- * @param location        the skillet's block location (block-aligned corner)
- * @param storedItem      the food currently in the pan, or null when the pan is empty
- * @param skilletItem     the skillet item the block was placed from (carries its enchantments), or null
- * @param recipeId        the campfire recipe key being cooked, or null when nothing matches
- * @param progressTicks   ticks of progress accumulated toward the current recipe
- * @param cookTimeTicks   ticks the current recipe needs in total
- * @param remainingTicks  cookTimeTicks minus progressTicks, floored at 0
- * @param heated          whether a configured heat source (or conductor over one) is under the skillet
- * @param fireAspectLevel the Fire Aspect level on the skillet item, which shortens the cook time
+ * location the skillet's block location (block-aligned corner)
+ * storedItem the food currently in the pan, or null when the pan is empty
+ * skilletItem the skillet item the block was placed from (carries its enchantments), or null
+ * recipeId the campfire recipe key being cooked, or null when nothing matches
+ * progressTicks ticks of progress accumulated toward the current recipe
+ * cookTimeTicks ticks the current recipe needs in total
+ * remainingTicks cookTimeTicks minus progressTicks, floored at 0
+ * heated whether a configured heat source (or conductor over one) is under the skillet
+ * fireAspectLevel the Fire Aspect level on the skillet item, which shortens the cook time
  */
 @ApiStatus.Experimental
 public record SkilletSnapshot(Location location,

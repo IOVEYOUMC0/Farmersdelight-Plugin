@@ -12,7 +12,14 @@ import com.huidu.farmersdelight.util.ManagerSupport;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Particle;
+import org.bukkit.Registry;
+import org.bukkit.Sound;
+import org.bukkit.SoundCategory;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
@@ -762,9 +769,19 @@ public class TickManager {
         // recipient set for the targeted sends below (R-PERF-006, mirrors StoveManager).
         List<Player> nearbyViewers = NEARBY_VIEWER_SCRATCH.get();
         nearbyViewers.clear();
-        for (int i = 0; i < seeing.size(); i++) {
-            Player p = seeing.get(i);
-            if (p.getWorld() == world && p.getLocation().distanceSquared(center) <= effectViewerDistanceSquared) {
+        // Compute squared distance by hand to avoid allocating a Location per candidate. Same world is
+        // already guaranteed below, so this is equivalent to distanceSquared.
+        double cx = center.getX();
+        double cy = center.getY();
+        double cz = center.getZ();
+        for (Player p : seeing) {
+            if (p.getWorld() != world) {
+                continue;
+            }
+            double dx = p.getX() - cx;
+            double dy = p.getY() - cy;
+            double dz = p.getZ() - cz;
+            if (dx * dx + dy * dy + dz * dz <= effectViewerDistanceSquared) {
                 nearbyViewers.add(p);
             }
         }
@@ -897,7 +914,7 @@ public class TickManager {
     ) {
         return new EffectSpec(
                 section == null ? defaultEnabled : section.getBoolean("enabled", defaultEnabled),
-                resolveParticle(section == null ? null : section.getString("type"), defaultParticle),
+                ManagerSupport.resolveParticle(section == null ? null : section.getString("type"), defaultParticle),
                 section == null ? defaultChance : (float) section.getDouble("chance", defaultChance),
                 Math.max(1, section == null ? defaultCount : section.getInt("count", defaultCount)),
                 section == null ? defaultYOffset : section.getDouble("y-offset", defaultYOffset),
@@ -908,23 +925,6 @@ public class TickManager {
         );
     }
 
-    private Particle resolveParticle(String configured, Particle defaultParticle) {
-        if (configured == null || configured.isBlank()) {
-            return defaultParticle;
-        }
-
-        String normalized = configured.trim();
-        int namespaceSeparator = normalized.indexOf(':');
-        if (namespaceSeparator >= 0 && namespaceSeparator < normalized.length() - 1) {
-            normalized = normalized.substring(namespaceSeparator + 1);
-        }
-
-        try {
-            return Particle.valueOf(normalized.trim().toUpperCase(java.util.Locale.ROOT));
-        } catch (IllegalArgumentException ignored) {
-            return defaultParticle;
-        }
-    }
 
     // Memo of sound resolution keyed on (configured, defaultSound). The vanilla sound registry is frozen
     // at bootstrap, so a given key always resolves the same way; this replaces a per-cooking-pot-per-tick
@@ -978,14 +978,14 @@ public class TickManager {
 
     private void playConfiguredSound(List<Player> viewers, Location location, ResolvedSound sound, float volume, float pitch) {
         if (sound.bukkitSound() != null) {
-            for (int i = 0; i < viewers.size(); i++) {
-                viewers.get(i).playSound(location, sound.bukkitSound(), volume, pitch);
+            for (Player viewer : viewers) {
+                viewer.playSound(location, sound.bukkitSound(), volume, pitch);
             }
             return;
         }
         if (sound.soundKey() != null && !sound.soundKey().isBlank()) {
-            for (int i = 0; i < viewers.size(); i++) {
-                viewers.get(i).playSound(location, sound.soundKey(), SoundCategory.BLOCKS, volume, pitch);
+            for (Player viewer : viewers) {
+                viewer.playSound(location, sound.soundKey(), SoundCategory.BLOCKS, volume, pitch);
             }
         }
     }

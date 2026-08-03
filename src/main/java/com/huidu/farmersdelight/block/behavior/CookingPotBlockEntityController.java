@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.block.behavior;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.util.BlockPosKey;
+import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
 import net.momirealms.craftengine.bukkit.util.ItemStackUtils;
@@ -37,14 +38,14 @@ import java.util.Optional;
 /**
  * CraftEngine container/hopper bridge for the cooking pot. The authoritative inventory lives in
  * CookingPotBlockEntity; this controller keeps a shadow copy, reconciled via
- * refreshFromEntity/writeToEntity with dirty-slot tracking.
+ * #refreshFromEntity/#writeToEntity with dirty-slot tracking.
  *
- * getItem(int) must return the live shadow Item so vanilla hopper in-place
- * merges (getItem(slot).grow(n) followed by setChanged(), without calling
- * setItem) are captured; returning a detached copy would drop every merged item. Any
- * mutator must markDirty(int) the changed slot and call setChanged(), or be
- * part of a larger operation that ends in setChanged(); otherwise the next
- * refreshFromEntity reverts it.
+ * #getItem(int) must return the live shadow Item so vanilla hopper in-place
+ * merges (getItem(slot).grow(n) followed by #setChanged(), without calling
+ * #setItem) are captured; returning a detached copy would drop every merged item. Any
+ * mutator must #markDirty(int) the changed slot and call #setChanged(), or be
+ * part of a larger operation that ends in #setChanged(); otherwise the next
+ * #refreshFromEntity reverts it.
  */
 public final class CookingPotBlockEntityController extends BlockEntityController implements BukkitContainer, WorldlyContainer, InventoryHolder {
 
@@ -108,22 +109,22 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         // A passivation snapshot is authoritative while the plugin-side entity is gone; checked before
         // loadPendingDataIfReady so serializing an unloaded chunk cannot resurrect the entity.
         if (this.pendingSaveData != null) {
-            tag.put(this.behavior.customDataKey, this.pendingSaveData);
+            tag.put(this.behavior.getCustomDataKey(), this.pendingSaveData);
             return;
         }
         loadPendingDataIfReady();
         if (this.pendingLoadData != null) {
-            tag.put(this.behavior.customDataKey, this.pendingLoadData);
+            tag.put(this.behavior.getCustomDataKey(), this.pendingLoadData);
             return;
         }
         CookingPotBlockEntity entity = getEntityIfLoaded();
         if (entity != null) {
             refreshFromEntity(entity);
-            tag.put(this.behavior.customDataKey, saveData(entity));
+            tag.put(this.behavior.getCustomDataKey(), saveData(entity));
             return;
         }
 
-        tag.put(this.behavior.customDataKey, saveSnapshotData());
+        tag.put(this.behavior.getCustomDataKey(), saveSnapshotData());
     }
 
     public static CompoundTag saveData(CookingPotBlockEntity entity) {
@@ -156,7 +157,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
 
     @Override
     public void loadCustomData(CompoundTag tag) {
-        CompoundTag data = tag.getCompound(this.behavior.customDataKey);
+        CompoundTag data = tag.getCompound(this.behavior.getCustomDataKey());
         if (data == null) return;
         queueLoadData(data);
     }
@@ -207,7 +208,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     }
 
     private CompoundTag getPackedDataFromItem(Item item) {
-        return CustomBlockUtils.getNestedComponentCompound(item, DataComponentKeys.CUSTOM_DATA, this.behavior.customDataKey);
+        return CustomBlockUtils.getNestedComponentCompound(item, DataComponentKeys.CUSTOM_DATA, this.behavior.getCustomDataKey());
     }
 
     public static void loadDataIntoEntity(CookingPotBlockEntity entity, CompoundTag data) {
@@ -661,7 +662,28 @@ public final class CookingPotBlockEntityController extends BlockEntityController
 
     @Override
     public boolean canPlaceItem(int slot, Item item) {
-        return isValidSlot(slot) && (layout.isInputSlot(slot) || layout.isContainerSlot(slot));
+        return isValidSlot(slot) && (layout.isInputSlot(slot) || layout.isContainerSlot(slot))
+                && !isNestingHazard(item);
+    }
+
+    /**
+     * True when a hopper/automation item must be refused: a cooking pot (empty or packed) or any item already
+     * carrying a stored block-entity inventory. Nesting a container into the pot lets its saved NBT be grown
+     * recursively into a client-crashing bomb, so the automation path rejects it just like the GUI does.
+     */
+    private boolean isNestingHazard(Item item) {
+        if (item == null || item.isEmpty()) {
+            return false;
+        }
+        if (item.id() != null && Constants.BLOCK_COOKING_POT.equals(item.id().toString())) {
+            return true;
+        }
+        // A stored inventory in any form: CE/FD block-entity containers (block_entity_data), vanilla shulker
+        // boxes (minecraft:container) and bundles (minecraft:bundle_contents). Nesting any of these into the pot
+        // lets its payload be grown recursively into an NBT bomb.
+        return CustomBlockUtils.getComponentCompound(item, DataComponentKeys.BLOCK_ENTITY_DATA) != null
+                || item.hasComponent(DataComponentKeys.CONTAINER)
+                || item.hasComponent(DataComponentKeys.BUNDLE_CONTENTS);
     }
 
     @Override
@@ -681,6 +703,9 @@ public final class CookingPotBlockEntityController extends BlockEntityController
 
     @Override
     public boolean canPlaceItemThroughFace(int slot, Item stack, Direction direction) {
+        if (isNestingHazard(stack)) {
+            return false;
+        }
         return switch (direction) {
             case UP -> layout.isInputSlot(slot);
             case NORTH, SOUTH, EAST, WEST -> layout.isContainerSlot(slot);

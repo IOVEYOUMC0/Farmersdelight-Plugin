@@ -2,8 +2,11 @@ package com.huidu.farmersdelight.recipe;
 
 import net.momirealms.craftengine.core.util.Key;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 final class RecipeParsingSupport {
 
@@ -15,6 +18,30 @@ final class RecipeParsingSupport {
             return new RecipeIngredient.Item(Key.of(str));
         }
         return new RecipeIngredient.Tag(Key.of(str.substring(1)));
+    }
+
+    // Splits a choice ingredient on '|', trims each option, drops empties, and collapses a single-option
+    // choice to that option; a string without '|' is passed through to leafParser as-is (each caller
+    // applies its own single-token trimming). The leaf parser turns one option token into a RecipeIngredient.
+    static RecipeIngredient parseChoice(String str, Function<String, RecipeIngredient> leafParser) {
+        String[] choiceParts = str.split("\\|");
+        if (choiceParts.length > 1) {
+            List<RecipeIngredient> options = new ArrayList<>();
+            for (String choicePart : choiceParts) {
+                String trimmed = choicePart.trim();
+                if (!trimmed.isEmpty()) {
+                    options.add(leafParser.apply(trimmed));
+                }
+            }
+            if (options.isEmpty()) {
+                throw new IllegalArgumentException("Choice ingredient must contain at least one option");
+            }
+            if (options.size() == 1) {
+                return options.getFirst();
+            }
+            return new RecipeIngredient.Choice(options);
+        }
+        return leafParser.apply(str);
     }
 
     static RecipeIngredient.Tag parseTagIngredientWithExclusions(String str, String contextName) {

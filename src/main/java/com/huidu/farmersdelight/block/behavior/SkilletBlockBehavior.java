@@ -6,10 +6,10 @@ import com.huidu.farmersdelight.manager.SkilletManager;
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.CookingDebugLog;
 import com.huidu.farmersdelight.util.Constants;
-import com.huidu.farmersdelight.util.CraftEngineAdapter;
+import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
-import com.huidu.farmersdelight.util.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.util.PermissionChecker;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -34,33 +34,22 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
 
-public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock, WorldlyContainerHolder {
+public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements EntityBlock, WorldlyContainerHolder {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
         return false;
     }
 
-    @Override
-    public void fallOn(Object thisBlock, Object[] args) {
-    }
-
-    @Override
-    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
-    }
-
     private final String addFoodSound;
     private final String sizzleSound;
     private int controllerId;
 
-    public static final BlockBehaviorFactory<SkilletBlockBehavior> FACTORY = new BlockBehaviorFactory<>() {
-        @Override
-        public SkilletBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
-            Map<String, Object> arguments = section != null ? section.values() : Map.of();
-            String addFoodSound = BehaviorArgParser.getArgumentString(arguments, "add-food-sound", Constants.SOUND_SKILLET_ADD_FOOD);
-            String sizzleSound = BehaviorArgParser.getArgumentString(arguments, "sizzle-sound", Constants.SOUND_SKILLET_SIZZLE);
-            return new SkilletBlockBehavior(block, addFoodSound, sizzleSound);
-        }
+    public static final BlockBehaviorFactory<SkilletBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+        Map<String, Object> arguments = section != null ? section.values() : Map.of();
+        String addFoodSound = BehaviorArgParser.getArgumentString(arguments, "add-food-sound", Constants.SOUND_SKILLET_ADD_FOOD);
+        String sizzleSound = BehaviorArgParser.getArgumentString(arguments, "sizzle-sound", Constants.SOUND_SKILLET_SIZZLE);
+        return new SkilletBlockBehavior(block, addFoodSound, sizzleSound);
     };
 
     private SkilletBlockBehavior(BlockDefinition block, String addFoodSound, String sizzleSound) {
@@ -243,6 +232,7 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock, 
         return itemStack != null && Constants.ITEM_SKILLET.equals(ItemUtils.getCustomItemId(itemStack));
     }
 
+    @SuppressWarnings("UnstableApiUsage")
     private void logDebug(Player player, Block clickedBlock, ItemStack item, String recipeId) {
         String resolvedItemId = CookingDebugLog.resolveItemId(item);
         Material material = Material.AIR;

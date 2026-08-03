@@ -195,7 +195,7 @@ public final class FarmersDelightApi {
                 (float) experience, cookTime, category);
     }
 
-    /** Removes a cooking-pot recipe registered via registerCookingPotRecipe. */
+    /** Removes a cooking-pot recipe registered via #registerCookingPotRecipe. */
     public void unregisterCookingPotRecipe(String id) {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin != null && isAvailable() && id != null) {
@@ -224,7 +224,7 @@ public final class FarmersDelightApi {
         plugin.getCuttingBoardRecipes().registerExternalRecipe(id, input, tool, copies, sound);
     }
 
-    /** Removes a cutting-board recipe registered via registerCuttingBoardRecipe. */
+    /** Removes a cutting-board recipe registered via #registerCuttingBoardRecipe. */
     public void unregisterCuttingBoardRecipe(String id) {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin != null && isAvailable() && id != null) {
@@ -339,7 +339,7 @@ public final class FarmersDelightApi {
         return plugin != null && block != null && plugin.getHeatSourceConfig().isConductor(block);
     }
 
-    // ── Packet item displays ─────────────────────────────────────────────────────────────────────
+    // Packet item displays
     // Server-side, packet-only ItemDisplay proxies (no real entity is spawned): FarmersDelight tracks them,
     // syncs them to nearby players (join / chunk-load / teleport) and cleans them up on world unload. Use
     // these instead of world.spawn(ItemDisplay) so an addon's decoration displays don't persist to disk,

@@ -3,7 +3,7 @@ package com.huidu.farmersdelight.block.behavior;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.Constants;
-import com.huidu.farmersdelight.util.CraftEngineAdapter;
+import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.block.behavior.BushBlockBehavior;
@@ -27,20 +27,20 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Three-block tomato vine controller mirroring original FD 1.21 structure:
- * <ul>
- *   <li>farmersdelight:budding_tomatoes (age 0-3) — BuddingTomatoBlock equivalent. No rope
+ * 
+ *   - farmersdelight:budding_tomatoes (age 0-3) — BuddingTomatoBlock equivalent. No rope
  *       climbing. random tick at age 3 + light &ge; minLight → swap to ground tomatoes age 0
  *       (tryGrowPastMaxAge). The sibling crop_block has bone-meal-age-bonus: 0, so its
  *       own performBonemeal is a no-op (after == before) and bonemeal age growth is owned entirely by
  *       this behavior, replicating original BuddingTomatoBlock.performBonemeal overflow rules. Note
  *       is-bone-meal-target: false alone is NOT enough: CE crop_block.performBonemeal ignores
- *       that flag and always adds its bonus, so the bonus must be zeroed to avoid a double application.</li>
- *   <li>farmersdelight:tomatoes (age 0-3) — ground TomatoBlock equivalent. Any age attempts
- *       rope climb on random tick / 30% on bonemeal. Right-click at age 3 harvests + resets age 0.</li>
- *   <li>farmersdelight:tomato_crop_on_rope (age 0-3) — HangingTomatoBlock equivalent. Any
+ *       that flag and always adds its bonus, so the bonus must be zeroed to avoid a double application.
+ *   - farmersdelight:tomatoes (age 0-3) — ground TomatoBlock equivalent. Any age attempts
+ *       rope climb on random tick / 30% on bonemeal. Right-click at age 3 harvests + resets age 0.
+ *   - farmersdelight:tomato_crop_on_rope (age 0-3) — HangingTomatoBlock equivalent. Any
  *       age can extend the chain. Removed cell restores a connected rope via
- *       affectNeighborsAfterRemoval.</li>
- * </ul>
+ *       affectNeighborsAfterRemoval.
+ * 
  *
  * Climb guards mirror original TomatoBlock.climbRopeAbove: brightness >= minLight, same-id column
  * below + self < the effective stack cap, and the cell directly above must carry a
@@ -50,16 +50,16 @@ import java.util.concurrent.ThreadLocalRandom;
  * hangings = 4 total.
  *
  * Bonemeal dispatch (4 paths) tracks the original closely:
- * <ul>
- *   <li>budding: 2 + rand(3) bonus age; overflow past 3 transitions to ground tomatoes at
- *       clamp(newAge - 4, 0, 3) (original BuddingTomato overflow).</li>
- *   <li>hanging: 30% chance to climb (sibling crop_block already advanced age).</li>
- *   <li>ground age &lt; 3: 30% chance to climb.</li>
- *   <li>ground age == 3: original "newAge &gt; maxAge" branch — forward +1 age to a non-max hanging
- *       directly above if one exists, else attempt climb.</li>
- * </ul>
+ * 
+ *   - budding: 2 + rand(3) bonus age; overflow past 3 transitions to ground tomatoes at
+ *       clamp(newAge - 4, 0, 3) (original BuddingTomato overflow).
+ *   - hanging: 30% chance to climb (sibling crop_block already advanced age).
+ *   - ground age &lt; 3: 30% chance to climb.
+ *   - ground age == 3: original "newAge &gt; maxAge" branch — forward +1 age to a non-max hanging
+ *       directly above if one exists, else attempt climb.
+ * 
  */
-public class TomatoVineBlockBehavior extends BlockBehavior implements RandomTickBlock, BonemealableBlock {
+public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior implements RandomTickBlock, BonemealableBlock {
 
     @Override
     public boolean canRandomlyTick(ImmutableBlockState state) {
@@ -114,19 +114,19 @@ public class TomatoVineBlockBehavior extends BlockBehavior implements RandomTick
         if (atState == null || atState.isEmpty()) return;
         Key currentBlockId = atState.owner().value().id();
 
-        if (currentBlockId.equals(buddingBlockId)) {
+        if (currentBlockId.equals(config.buddingBlockId())) {
             performBuddingBonemeal(world, pos, atState);
             return;
         }
 
-        if (currentBlockId.equals(cropOnRopeBlockId)) {
-            if (ThreadLocalRandom.current().nextFloat() < bonemealClimbChance) {
+        if (currentBlockId.equals(config.cropOnRopeBlockId())) {
+            if (ThreadLocalRandom.current().nextFloat() < config.bonemealClimbChance()) {
                 tryClimb(world, pos);
             }
             return;
         }
 
-        if (!currentBlockId.equals(tomatoesBlockId)) return;
+        if (!currentBlockId.equals(config.tomatoesBlockId())) return;
 
         @SuppressWarnings("unchecked")
         Property<Integer> ageProp = (Property<Integer>) atState.owner().value().getProperty(AGE_PROPERTY);
@@ -134,8 +134,8 @@ public class TomatoVineBlockBehavior extends BlockBehavior implements RandomTick
         Integer currentAge = atState.get(ageProp);
         if (currentAge == null) return;
 
-        if (currentAge < tomatoesMaxAge) {
-            if (ThreadLocalRandom.current().nextFloat() < bonemealClimbChance) {
+        if (currentAge < config.tomatoesMaxAge()) {
+            if (ThreadLocalRandom.current().nextFloat() < config.bonemealClimbChance()) {
                 tryClimb(world, pos);
             }
             return;
@@ -144,12 +144,12 @@ public class TomatoVineBlockBehavior extends BlockBehavior implements RandomTick
         Block aboveBlock = world.getBlockAt(pos.x(), pos.y() + 1, pos.z());
         ImmutableBlockState aboveState = CraftEngineBlocks.getCustomBlockState(aboveBlock);
         if (aboveState != null && !aboveState.isEmpty()
-                && aboveState.owner().value().id().equals(cropOnRopeBlockId)) {
+                && aboveState.owner().value().id().equals(config.cropOnRopeBlockId())) {
             @SuppressWarnings("unchecked")
             Property<Integer> aboveAgeProp = (Property<Integer>) aboveState.owner().value().getProperty(AGE_PROPERTY);
             if (aboveAgeProp != null) {
                 Integer aboveAge = aboveState.get(aboveAgeProp);
-                if (aboveAge != null && aboveAge < hangingMaxAge) {
+                if (aboveAge != null && aboveAge < config.hangingMaxAge()) {
                     ImmutableBlockState newAboveState = aboveState.with(aboveAgeProp, aboveAge + 1);
                     Location aboveLoc = new Location(world,
                             aboveBlock.getX() + 0.5, aboveBlock.getY(), aboveBlock.getZ() + 0.5);
@@ -167,18 +167,18 @@ public class TomatoVineBlockBehavior extends BlockBehavior implements RandomTick
         if (ageProp == null) return;
         Integer currentAge = state.get(ageProp);
         if (currentAge == null) return;
-        int bonusRange = Math.max(1, bonemealBonusMax - bonemealBonusMin + 1);
-        int bonusAge = bonemealBonusMin + ThreadLocalRandom.current().nextInt(bonusRange);
+        int bonusRange = Math.max(1, config.bonemealBonusMax() - config.bonemealBonusMin() + 1);
+        int bonusAge = config.bonemealBonusMin() + ThreadLocalRandom.current().nextInt(bonusRange);
         int newAge = currentAge + bonusAge;
         Location loc = new Location(world, pos.x() + 0.5, pos.y(), pos.z() + 0.5);
-        if (newAge <= buddingMaxAge) {
+        if (newAge <= config.buddingMaxAge()) {
             ImmutableBlockState updated = state.with(ageProp, newAge);
             CraftEngineBlocks.place(loc, updated, false);
             return;
         }
-        BlockDefinition tomatoes = CraftEngineBlocks.byId(tomatoesBlockId);
+        BlockDefinition tomatoes = CraftEngineBlocks.byId(config.tomatoesBlockId());
         if (tomatoes == null) return;
-        int tomatoesAgeValue = Math.min(tomatoesMaxAge, Math.max(0, newAge - (buddingMaxAge + 1)));
+        int tomatoesAgeValue = Math.min(config.tomatoesMaxAge(), Math.max(0, newAge - (config.buddingMaxAge() + 1)));
         ImmutableBlockState newState = tomatoes.defaultState();
         @SuppressWarnings("unchecked")
         Property<Integer> tomatoesAgeProp = (Property<Integer>) tomatoes.getProperty(AGE_PROPERTY);
@@ -188,98 +188,73 @@ public class TomatoVineBlockBehavior extends BlockBehavior implements RandomTick
         CraftEngineBlocks.place(loc, newState, true);
     }
 
-    @Override
-    public void fallOn(Object thisBlock, Object[] args) {
-    }
-
-    @Override
-    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
-    }
-
-    /** Name of the int block state property carrying each vine stage's growth age. */
     public static final String AGE_PROPERTY = "age";
 
     /** Index for external lookup (bonemeal listener) by block id. */
     private static final Map<Key, TomatoVineBlockBehavior> BEHAVIORS = new ConcurrentHashMap<>();
 
-    private final Key buddingBlockId;
-    private final Key tomatoesBlockId;
-    private final Key cropOnRopeBlockId;
-    private final Key ropeBlockId;
-    private final int matureAge;
-    private final int minLight;
-    private final int maxStackHeight;
-    private final int buddingMaxAge;
-    private final int tomatoesMaxAge;
-    private final int hangingMaxAge;
-    private final float bonemealClimbChance;
-    private final int bonemealBonusMin;
-    private final int bonemealBonusMax;
+    private record Config(
+            Key buddingBlockId,
+            Key tomatoesBlockId,
+            Key cropOnRopeBlockId,
+            Key ropeBlockId,
+            int matureAge,
+            int minLight,
+            int maxStackHeight,
+            int buddingMaxAge,
+            int tomatoesMaxAge,
+            int hangingMaxAge,
+            float bonemealClimbChance,
+            int bonemealBonusMin,
+            int bonemealBonusMax
+    ) {}
+
+    private final Config config;
     // Lazily resolved from the hanging block's sibling bush_block.max-height so the climb cap and the
     // survival cap share ONE authority (the CE bush_block config). -1 = not yet resolved. Recomputed
     // per behavior instance, and instances are rebuilt on /ce reload, so config edits take effect
     // without a stale cache. A benign race just recomputes the same value; volatile guards visibility.
     private volatile int resolvedMaxStackHeight = -1;
 
-    private TomatoVineBlockBehavior(BlockDefinition block, Key buddingBlockId, Key tomatoesBlockId,
-                                     Key cropOnRopeBlockId, Key ropeBlockId,
-                                     int matureAge, int minLight, int maxStackHeight,
-                                     int buddingMaxAge, int tomatoesMaxAge, int hangingMaxAge,
-                                     float bonemealClimbChance,
-                                     int bonemealBonusMin, int bonemealBonusMax) {
+    private TomatoVineBlockBehavior(BlockDefinition block, Config config) {
         super(block);
-        this.buddingBlockId = buddingBlockId;
-        this.tomatoesBlockId = tomatoesBlockId;
-        this.cropOnRopeBlockId = cropOnRopeBlockId;
-        this.ropeBlockId = ropeBlockId;
-        this.matureAge = matureAge;
-        this.minLight = minLight;
-        this.maxStackHeight = maxStackHeight;
-        this.buddingMaxAge = buddingMaxAge;
-        this.tomatoesMaxAge = tomatoesMaxAge;
-        this.hangingMaxAge = hangingMaxAge;
-        this.bonemealClimbChance = bonemealClimbChance;
-        this.bonemealBonusMin = bonemealBonusMin;
-        this.bonemealBonusMax = bonemealBonusMax;
+        this.config = config;
     }
 
-    public static final BlockBehaviorFactory<TomatoVineBlockBehavior> FACTORY = new BlockBehaviorFactory<>() {
-        @Override
-        public TomatoVineBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
-            Map<String, Object> arguments = section != null ? section.values() : Map.of();
-            // Every stage of the vine is driven by the age of the block the behavior sits on: budding
-            // transitions at max age, the ground and hanging blocks gate climbing and harvesting on it.
-            // A block that declares this behavior without an int age property aborts its own load here,
-            // naming the property, instead of loading a vine that never grows, never climbs and never
-            // reports itself harvest-ready. Validation only: the behavior is shared by three block ids
-            // and reads whichever block actually occupies a position, so it resolves the age property
-            // per state at runtime rather than holding this one handle.
-            String path = section != null ? section.path() : Constants.BEHAVIOR_TOMATO_VINE;
-            BlockBehaviorFactory.getProperty(path, block, AGE_PROPERTY, Integer.class);
-            // Reads both the nested sections (blocks / max-age / bonemeal) and the flat keys they
-            // group, with the nested spelling winning where an author wrote both. Anything worth
-            // telling the operator about comes back as a warning list rather than being logged from
-            // the resolution itself, and none of it stops the block from loading. See
-            // TomatoVineSettings for the accepted shapes and the resolution rule.
-            // max-stack-height is a fallback only: the live climb cap is derived from the hanging
-            // block's bush_block max-height at runtime (see effectiveMaxStackHeight), and this value
-            // is used solely when the hanging block has no bush_block behavior. Default 3 matches
-            // original FD 1.21 (TomatoBlock.climbRopeAbove uses `vineHeight < 3` = 3 hangings +
-            // 1 ground = 4 total).
-            TomatoVineSettings settings = TomatoVineSettings.parse(arguments, block.id().toString());
-            for (TomatoVineSettings.Warning warning : settings.warnings()) {
-                I18n.logWarning(warning.key(), warning.arguments());
-            }
-            TomatoVineBlockBehavior behavior = new TomatoVineBlockBehavior(
-                    block,
-                    Key.of(settings.buddingBlock()), Key.of(settings.tomatoesBlock()),
-                    Key.of(settings.cropOnRopeBlock()), Key.of(settings.ropeBlock()),
-                    settings.matureAge(), settings.minLight(), settings.maxStackHeight(),
-                    settings.buddingMaxAge(), settings.tomatoesMaxAge(), settings.hangingMaxAge(),
-                    settings.bonemealClimbChance(), settings.bonemealBonusMin(), settings.bonemealBonusMax());
-            BEHAVIORS.put(block.id(), behavior);
-            return behavior;
+    public static final BlockBehaviorFactory<TomatoVineBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+        Map<String, Object> arguments = section != null ? section.values() : Map.of();
+        // Every stage of the vine is driven by the age of the block the behavior sits on: budding
+        // transitions at max age, the ground and hanging blocks gate climbing and harvesting on it.
+        // A block that declares this behavior without an int age property aborts its own load here,
+        // naming the property, instead of loading a vine that never grows, never climbs and never
+        // reports itself harvest-ready. Validation only: the behavior is shared by three block ids
+        // and reads whichever block actually occupies a position, so it resolves the age property
+        // per state at runtime rather than holding this one handle.
+        String path = section != null ? section.path() : Constants.BEHAVIOR_TOMATO_VINE;
+        BlockBehaviorFactory.getProperty(path, block, AGE_PROPERTY, Integer.class);
+        // Reads both the nested sections (blocks / max-age / bonemeal) and the flat keys they
+        // group, with the nested spelling winning where an author wrote both. Anything worth
+        // telling the operator about comes back as a warning list rather than being logged from
+        // the resolution itself, and none of it stops the block from loading. See
+        // TomatoVineSettings for the accepted shapes and the resolution rule.
+        // max-stack-height is a fallback only: the live climb cap is derived from the hanging
+        // block's bush_block max-height at runtime (see effectiveMaxStackHeight), and this value
+        // is used solely when the hanging block has no bush_block behavior. Default 3 matches
+        // original FD 1.21 (TomatoBlock.climbRopeAbove uses `vineHeight < 3` = 3 hangings +
+        // 1 ground = 4 total).
+        TomatoVineSettings settings = TomatoVineSettings.parse(arguments, block.id().toString());
+        for (TomatoVineSettings.Warning warning : settings.warnings()) {
+            I18n.logWarning(warning.key(), warning.arguments());
         }
+        TomatoVineBlockBehavior behavior = new TomatoVineBlockBehavior(block, new Config(
+                Key.of(settings.buddingBlock()), Key.of(settings.tomatoesBlock()),
+                Key.of(settings.cropOnRopeBlock()), Key.of(settings.ropeBlock()),
+                settings.matureAge(), settings.minLight(), settings.maxStackHeight(),
+                settings.buddingMaxAge(), settings.tomatoesMaxAge(), settings.hangingMaxAge(),
+                settings.bonemealClimbChance(), settings.bonemealBonusMin(), settings.bonemealBonusMax()
+        ));
+        BEHAVIORS.put(block.id(), behavior);
+        return behavior;
     };
 
     /** Lookup by block id (e.g. farmersdelight:tomatoes). Null if no behavior registered for that id. */
@@ -305,10 +280,10 @@ public class TomatoVineBlockBehavior extends BlockBehavior implements RandomTick
         if (state == null || state.isEmpty()) return false;
         Key id = state.owner().value().id();
         int max;
-        if (id.equals(tomatoesBlockId)) {
-            max = tomatoesMaxAge;
-        } else if (id.equals(cropOnRopeBlockId)) {
-            max = hangingMaxAge;
+        if (id.equals(config.tomatoesBlockId())) {
+            max = config.tomatoesMaxAge();
+        } else if (id.equals(config.cropOnRopeBlockId())) {
+            max = config.hangingMaxAge();
         } else {
             return false;
         }
@@ -329,7 +304,7 @@ public class TomatoVineBlockBehavior extends BlockBehavior implements RandomTick
         ImmutableBlockState atState = CraftEngineBlocks.getCustomBlockState(atPos);
         if (atState == null || atState.isEmpty()) return;
         Key currentBlockId = atState.owner().value().id();
-        if (currentBlockId.equals(buddingBlockId)) {
+        if (currentBlockId.equals(config.buddingBlockId())) {
             tryGrowPastMaxAge(world, pos, atState, atPos);
         } else {
             tryClimb(world, pos);
@@ -339,13 +314,13 @@ public class TomatoVineBlockBehavior extends BlockBehavior implements RandomTick
     /** Mirrors original FD 1.21 BuddingTomatoBlock.growPastMaxAge: when budding reaches
      *  its max age (3) under enough light, swap to ground tomatoes at age 0. */
     private void tryGrowPastMaxAge(World world, BlockPos pos, ImmutableBlockState state, Block atPos) {
-        if (atPos.getLightLevel() < minLight) return;
+        if (atPos.getLightLevel() < config.minLight()) return;
         @SuppressWarnings("unchecked")
         Property<Integer> ageProp = (Property<Integer>) state.owner().value().getProperty(AGE_PROPERTY);
         if (ageProp == null) return;
         Integer age = state.get(ageProp);
-        if (age == null || age < buddingMaxAge) return;
-        BlockDefinition tomatoes = CraftEngineBlocks.byId(tomatoesBlockId);
+        if (age == null || age < config.buddingMaxAge()) return;
+        BlockDefinition tomatoes = CraftEngineBlocks.byId(config.tomatoesBlockId());
         if (tomatoes == null) return;
         ImmutableBlockState newState = tomatoes.defaultState();
         @SuppressWarnings("unchecked")
@@ -373,15 +348,15 @@ public class TomatoVineBlockBehavior extends BlockBehavior implements RandomTick
         ImmutableBlockState atState = CraftEngineBlocks.getCustomBlockState(atPos);
         if (atState == null || atState.isEmpty()) return false;
         Key currentBlockId = atState.owner().value().id();
-        if (matureAge > 0) {
+        if (config.matureAge() > 0) {
             @SuppressWarnings("unchecked")
             Property<Integer> ageProperty = (Property<Integer>) atState.owner().value().getProperty(AGE_PROPERTY);
             if (ageProperty != null) {
                 Integer currentAge = atState.get(ageProperty);
-                if (currentAge != null && currentAge < matureAge) return false;
+                if (currentAge != null && currentAge < config.matureAge()) return false;
             }
         }
-        if (atPos.getLightLevel() < minLight) return false;
+        if (atPos.getLightLevel() < config.minLight()) return false;
 
         int height = countSameIdHeightBelow(world, pos, currentBlockId);
         if (height >= effectiveMaxStackHeight()) return false;
@@ -389,7 +364,7 @@ public class TomatoVineBlockBehavior extends BlockBehavior implements RandomTick
         Block aboveTop = world.getBlockAt(pos.x(), pos.y() + 1, pos.z());
         if (!CustomBlockUtils.hasBehavior(aboveTop, RopeBlockBehavior.class)) return false;
 
-        BlockDefinition cropOnRope = CraftEngineBlocks.byId(cropOnRopeBlockId);
+        BlockDefinition cropOnRope = CraftEngineBlocks.byId(config.cropOnRopeBlockId());
         if (cropOnRope == null) return false;
         ImmutableBlockState newState = cropOnRope.defaultState();
         @SuppressWarnings("unchecked")
@@ -419,13 +394,13 @@ public class TomatoVineBlockBehavior extends BlockBehavior implements RandomTick
         ImmutableBlockState state = BlockStateUtils.getOptionalCustomBlockState(args[0]).orElse(null);
         if (state == null || state.isEmpty()) return;
         Key removedId = state.owner().value().id();
-        if (!removedId.equals(cropOnRopeBlockId)) return;
+        if (!removedId.equals(config.cropOnRopeBlockId())) return;
 
         World world = CraftEngineAdapter.toWorld(args[1]);
         BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
         if (world == null || pos == null) return;
 
-        BlockDefinition ropeBlock = CraftEngineBlocks.byId(ropeBlockId);
+        BlockDefinition ropeBlock = CraftEngineBlocks.byId(config.ropeBlockId());
         if (ropeBlock == null) return;
 
         Location placeLoc = new Location(world, pos.x() + 0.5, pos.y(), pos.z() + 0.5);
@@ -456,8 +431,8 @@ public class TomatoVineBlockBehavior extends BlockBehavior implements RandomTick
     private int effectiveMaxStackHeight() {
         int cached = resolvedMaxStackHeight;
         if (cached > 0) return cached;
-        int resolved = maxStackHeight;
-        BlockDefinition cropOnRope = CraftEngineBlocks.byId(cropOnRopeBlockId);
+        int resolved = config.maxStackHeight();
+        BlockDefinition cropOnRope = CraftEngineBlocks.byId(config.cropOnRopeBlockId());
         if (cropOnRope != null) {
             BushBlockBehavior bush = CustomBlockUtils.getBehavior(cropOnRope.defaultState(), BushBlockBehavior.class);
             if (bush != null && bush.maxHeight > 0) {
@@ -471,7 +446,7 @@ public class TomatoVineBlockBehavior extends BlockBehavior implements RandomTick
     /** Original TomatoBlock.climbRopeAbove pattern: walk strictly downward, counting blocks
      *  that share the *current* block's id (not "any vine block"). Includes self. The hanging
      *  variant therefore only counts the chain of hangings below it, stopping at the ground tomato —
-     *  so a ground tomato + N hangings on a rope is allowed (N = effectiveMaxStackHeight). */
+     *  so a ground tomato + N hangings on a rope is allowed (N = #effectiveMaxStackHeight). */
     private int countSameIdHeightBelow(World world, BlockPos pos, Key currentBlockId) {
         int count = 1;
         int y = pos.y() - 1;

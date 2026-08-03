@@ -14,12 +14,12 @@ import java.util.List;
 /**
  * Stable, addon-facing access to FarmersDelight's UltimateAdvancementAPI integration. Two uses:
  * (1) grant/revoke/check FarmersDelight's own built-in advancements by id (award/awardCriteria/revoke/has/
- * showFarmersDelightTab); (2) register a new addon advancement tab from plain data via tree(String),
+ * showFarmersDelightTab); (2) register a new addon advancement tab from plain data via #tree(String),
  * then grant/check it with the tabId-prefixed overloads — FarmersDelight builds and rebuilds the UAA
  * tab (including across /fd reload), and no UAA types cross this boundary.
  *
  * Everything requires the UltimateAdvancementAPI plugin installed and FarmersDelight's advancement system
- * enabled (guard with isAvailable()); all methods are null/absence-safe no-ops otherwise.
+ * enabled (guard with #isAvailable()); all methods are null/absence-safe no-ops otherwise.
  */
 @ApiStatus.NonExtendable
 public final class FarmersDelightAdvancements {
@@ -84,7 +84,7 @@ public final class FarmersDelightAdvancements {
         return new AdvancementTree(tabId);
     }
 
-    /** Unregisters an addon tab registered via tree(String) (e.g. on addon disable). */
+    /** Unregisters an addon tab registered via #tree(String) (e.g. on addon disable). */
     public static void unregister(String tabId) {
         AddonAdvancementRegistry registry = registry();
         if (registry != null) {

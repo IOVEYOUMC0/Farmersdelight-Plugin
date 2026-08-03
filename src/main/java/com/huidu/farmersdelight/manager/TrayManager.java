@@ -14,7 +14,12 @@ import net.momirealms.craftengine.bukkit.entity.furniture.BukkitFurniture;
 import net.momirealms.craftengine.bukkit.entity.furniture.BukkitFurnitureManager;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.BlockPos;
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Entity;
@@ -23,7 +28,17 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.BoundingBox;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.RandomAccess;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -241,7 +256,7 @@ public class TrayManager {
             return;
         }
 
-        // 获取 chunk 实体列表，避免 Folia 区域线程上调用 getNearbyEntities
+        // Get chunk entity list instead of getNearbyEntities to avoid blocking on Folia region threads
         List<Entity> potChunkEntities = getChunkEntities(world, potPos);
         if (!shouldHaveTray(world, potPos, potChunkEntities)) {
             removeTrayIfAutoPlaced(world, potPos);
@@ -275,7 +290,7 @@ public class TrayManager {
             // An unmarked tray furniture already exists at the auto-tray position (auto PDC markers lost when
             // CraftEngine rebuilt the display entity on restart/chunk reload). Reclaim it (re-mark + track) so
             // break-removal and break-protection logic can recognize it again.
-            ItemDisplay reclaimed = existingTrayEntities.get(0);
+            ItemDisplay reclaimed = existingTrayEntities.getFirst();
             markTrayEntity(reclaimed, world, potPos);
             removeDuplicateAutoTrays(world, trayPos, existingTrayEntities, reclaimed, "reclaim unmarked tray");
             return;
@@ -432,9 +447,9 @@ public class TrayManager {
     }
 
     /**
-     * 与 shouldHaveTray(World, BlockPos) 相同，但使用预获取的实体列表检查手柄，
-     * 避免在 Folia 区域线程上调用 getNearbyEntities。
-     * entities 为 null 时退回到普通的 hasHandle 调用。
+     * Same as shouldHaveTray(World, BlockPos) but uses a pre-fetched entity list to check handles,
+     * avoiding getNearbyEntities on Folia region threads.
+     * When entities is null, falls back to the regular hasHandle call.
      */
     public boolean shouldHaveTray(World world, BlockPos potPos, @Nullable List<Entity> entities) {
         HeatSourceConfig heatConfig = plugin.getHeatSourceConfig();
@@ -607,12 +622,11 @@ public class TrayManager {
             return;
         }
 
-        List<Entity> chunkEntities = getChunkEntities(world, ownerPos);
-        if (shouldHaveTray(world, ownerPos, chunkEntities)) {
-            checkAndPlaceTray(world, ownerPos);
-        } else {
-            removeTrayIfAutoPlaced(world, ownerPos);
-        }
+        // The owner is a pot/skillet, so let checkAndPlaceTray fetch the chunk entities and decide
+        // place-vs-remove itself (it removes the auto tray internally when shouldHaveTray is false).
+        // Pre-computing getChunkEntities + shouldHaveTray here only to gate that call duplicated the
+        // exact same work checkAndPlaceTray already redoes.
+        checkAndPlaceTray(world, ownerPos);
     }
 
     private List<Location> getKnownTrayOwnerLocations(@Nullable UUID worldId) {
@@ -1039,7 +1053,7 @@ public class TrayManager {
     }
 
     /**
-     * 使用预获取的实体列表查找托盘 ItemDisplay，避免在 Folia 区域线程上调用 getNearbyEntities。
+     * Uses a pre-fetched entity list to find tray ItemDisplays, avoiding getNearbyEntities on Folia region threads.
      */
     private List<ItemDisplay> findTrayItemDisplays(World world, Location location, List<Entity> entities) {
         if (world == null || location == null || entities == null) {
@@ -1081,7 +1095,7 @@ public class TrayManager {
     }
 
     private boolean isTrayFurnitureEntity(Entity entity) {
-        if (!(entity instanceof ItemDisplay) || entity == null || !entity.isValid()) {
+        if (!(entity instanceof ItemDisplay) || !entity.isValid()) {
             return false;
         }
         BukkitFurniture furniture = getLoadedTrayFurniture(entity);
@@ -1168,7 +1182,7 @@ public class TrayManager {
         removeAllTrays();
     }
 
-    /** 从 BlockPos 所在 chunk 获取实体列表，chunk 未加载时返回空列表。 */
+    /** Get entity list from the chunk containing BlockPos. Returns empty list if chunk is not loaded. */
     private List<Entity> getChunkEntities(World world, BlockPos pos) {
         if (world == null || pos == null) return List.of();
         int cx = pos.x() >> 4;
@@ -1177,7 +1191,7 @@ public class TrayManager {
         return java.util.Arrays.asList(world.getChunkAt(cx, cz).getEntities());
     }
 
-    /** 从 Location 所在 chunk 获取实体列表，chunk 未加载时返回空列表。 */
+    /** Get entity list from the chunk containing Location. Returns empty list if chunk is not loaded. */
     private List<Entity> getChunkEntities(World world, Location loc) {
         if (world == null || loc == null) return List.of();
         int cx = loc.getBlockX() >> 4;

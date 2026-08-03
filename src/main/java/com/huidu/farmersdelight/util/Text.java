@@ -19,13 +19,13 @@ import java.util.List;
  * and the whole string is parsed once by MiniMessage, so old configs still work and new MiniMessage
  * configs render too.
  *
- * name(String) and lore(String) also fix two long-standing visual issues
+ * #name(String) and #lore(String) also fix two long-standing visual issues
  * with NBT-driven text:
  * (1) Italics &mdash; custom item names and lore render italic by default. These helpers
  * disable italics unless the text explicitly requests it.
  * (2) Dark-purple lore &mdash; uncolored lore lines fall back to the vanilla
- * dark_purple default. lore(String) supplies gray (and
- * name(String) supplies white), only when the text sets no color itself.
+ * dark_purple default. #lore(String) supplies gray (and
+ * #name(String) supplies white), only when the text sets no color itself.
  */
 public final class Text {
 

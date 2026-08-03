@@ -2,7 +2,7 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
-import com.huidu.farmersdelight.util.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
 import com.huidu.farmersdelight.util.SoilRuleSupport.SoilRules;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
@@ -15,10 +15,7 @@ import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
-import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.Particle;
-import org.bukkit.Sound;
 import org.bukkit.Tag;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -34,7 +31,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * WildCropBlock: on success, scatters a copy into the air above nearby valid soil, with spread count
  * capped by the number of identical plants already around. Placement/survival stays in bush_block; never does random tick updates.
  */
-public class WildPlantBlockBehavior extends BlockBehavior {
+public class WildPlantBlockBehavior extends FarmersDelightBlockBehavior {
 
     private final boolean isBoneMealTarget;
     private final double successChance;
@@ -54,14 +51,6 @@ public class WildPlantBlockBehavior extends BlockBehavior {
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
         return true;
-    }
-
-    @Override
-    public void fallOn(Object thisBlock, Object[] args) {
-    }
-
-    @Override
-    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
     }
 
     @Override
@@ -148,12 +137,6 @@ public class WildPlantBlockBehavior extends BlockBehavior {
         }
         Material belowType = below.getType();
         return Tag.DIRT.isTagged(belowType) || Tag.SAND.isTagged(belowType);
-    }
-
-    private void playBonemealEffect(World world, int x, int y, int z) {
-        Location location = new Location(world, x + 0.5, y + 0.5, z + 0.5);
-        world.spawnParticle(Particle.HAPPY_VILLAGER, location, 15, 0.5, 0.5, 0.5);
-        world.playSound(location, Sound.ITEM_BONE_MEAL_USE, 1.0f, 1.0f);
     }
 
     public static final BlockBehaviorFactory<WildPlantBlockBehavior> FACTORY = new BlockBehaviorFactory<WildPlantBlockBehavior>() {

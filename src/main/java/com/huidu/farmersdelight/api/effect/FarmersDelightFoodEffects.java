@@ -40,7 +40,7 @@ public final class FarmersDelightFoodEffects {
     }
 
     /** Applies the Nourishment effect at level (1-based) for durationSeconds, with the same
-     *  vanilla stacking rule as applyComfort(Player, int, int). */
+     *  vanilla stacking rule as int, int). */
     public static void applyNourishment(Player player, int durationSeconds, int level) {
         if (player != null && durationSeconds > 0) {
             EffectManager.applyNourishment(player, durationSeconds, level);
@@ -94,7 +94,7 @@ public final class FarmersDelightFoodEffects {
         }
     }
 
-    /** Removes an addon comfort-food mapping registered via registerComfortFood. */
+    /** Removes an addon comfort-food mapping registered via #registerComfortFood. */
     public static void unregisterComfortFood(String itemId) {
         FoodEatListener listener = listener();
         if (listener != null) {
@@ -102,7 +102,7 @@ public final class FarmersDelightFoodEffects {
         }
     }
 
-    /** Removes an addon nourishment-food mapping registered via registerNourishmentFood. */
+    /** Removes an addon nourishment-food mapping registered via #registerNourishmentFood. */
     public static void unregisterNourishmentFood(String itemId) {
         FoodEatListener listener = listener();
         if (listener != null) {

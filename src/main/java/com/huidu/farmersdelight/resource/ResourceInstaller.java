@@ -82,15 +82,24 @@ public final class ResourceInstaller {
             throw new IOException("No bundled CraftEngine resources found at " + resourceRoot);
         }
 
+        boolean debug = plugin.isDebugEnabled("resource");
         int copiedFiles = 0;
+        int skippedFiles = 0;
         Files.createDirectories(targetRoot);
         for (String resourcePath : resourcePaths) {
             String relativePath = resourcePath.substring(resourceRoot.length() + 1);
             Path targetPath = resolveSafeChild(targetRoot, relativePath);
             if (Files.exists(targetPath)) {
+                skippedFiles++;
+                if (debug) {
+                    plugin.getLogger().info("[FarmersDelight] = " + relativePath);
+                }
                 continue;
             }
 
+            if (debug) {
+                plugin.getLogger().info("[FarmersDelight] + " + relativePath);
+            }
             Files.createDirectories(Objects.requireNonNull(targetPath.getParent(), "targetPath parent"));
             Path tempFile = Files.createTempFile(targetPath.getParent(), "fd-ce-resource-", ".tmp");
             boolean moved = false;
@@ -112,6 +121,9 @@ public final class ResourceInstaller {
                 }
             }
         }
+        if (debug) {
+            plugin.getLogger().info("[FarmersDelight] 资源补齐: +" + copiedFiles + " 新文件, =" + skippedFiles + " 已存在");
+        }
         return copiedFiles;
     }
 
@@ -121,6 +133,7 @@ public final class ResourceInstaller {
             throw new IOException("No bundled CraftEngine resources found at " + resourceRoot);
         }
 
+        boolean debug = plugin.isDebugEnabled("resource");
         Path parent = Objects.requireNonNull(targetRoot.getParent(), "targetRoot parent");
         Files.createDirectories(parent);
         Path tempRoot = Files.createTempDirectory(parent, targetRoot.getFileName() + "-");
@@ -131,6 +144,9 @@ public final class ResourceInstaller {
             for (String resourcePath : resourcePaths) {
                 String relativePath = resourcePath.substring(resourceRoot.length() + 1);
                 Path targetPath = resolveSafeChild(tempRoot, relativePath);
+                if (debug) {
+                    plugin.getLogger().info("[FarmersDelight] + " + relativePath);
+                }
                 Files.createDirectories(Objects.requireNonNull(targetPath.getParent(), "targetPath parent"));
                 try (InputStream inputStream = plugin.getResource(resourcePath)) {
                     if (inputStream == null) {
@@ -147,6 +163,9 @@ public final class ResourceInstaller {
                 Files.move(tempRoot, targetRoot);
             }
             moved = true;
+            if (debug) {
+                plugin.getLogger().info("[FarmersDelight] 资源首次安装: " + copiedFiles + " 个文件 -> " + targetRoot);
+            }
             return copiedFiles;
         } finally {
             if (!moved) {

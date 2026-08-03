@@ -2,7 +2,7 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.Constants;
-import com.huidu.farmersdelight.util.CraftEngineAdapter;
+import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
@@ -26,7 +26,7 @@ import org.bukkit.block.BlockFace;
 import java.util.Map;
 import java.util.Optional;
 
-public class TatamiPairingBehavior extends BlockBehavior {
+public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
     private static final BlockFace[] ORTHOGONAL_FACES = {
             BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST, BlockFace.UP, BlockFace.DOWN
     };
@@ -36,13 +36,6 @@ public class TatamiPairingBehavior extends BlockBehavior {
         return false;
     }
 
-    @Override
-    public void fallOn(Object thisBlock, Object[] args) {
-    }
-
-    @Override
-    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
-    }
     private static volatile String tatamiBlockId = "farmersdelight:tatami";
     private static volatile String facingPropertyName = "facing";
     private static volatile String pairedPropertyName = "paired";

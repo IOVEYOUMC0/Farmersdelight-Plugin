@@ -7,7 +7,7 @@ import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CookingDebugLog;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
-import com.huidu.farmersdelight.util.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.util.PermissionChecker;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -30,19 +30,11 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
 
-public class StoveCookingBlockBehavior extends BlockBehavior implements EntityBlock {
+public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior implements EntityBlock {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
         return false;
-    }
-
-    @Override
-    public void fallOn(Object thisBlock, Object[] args) {
-    }
-
-    @Override
-    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
     }
 
     public static final int SLOT_COUNT = 6;
@@ -270,6 +262,7 @@ public class StoveCookingBlockBehavior extends BlockBehavior implements EntityBl
                 || type.name().endsWith("_SHOVEL");
     }
 
+    @SuppressWarnings("UnstableApiUsage")
     private void logDebug(Player player, Block clickedBlock, ItemStack item, String recipeId) {
         String resolvedItemId = CookingDebugLog.resolveItemId(item);
         Material material = Material.AIR;

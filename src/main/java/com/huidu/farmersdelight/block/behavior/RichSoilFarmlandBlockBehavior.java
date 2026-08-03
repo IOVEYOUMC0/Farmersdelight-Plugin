@@ -2,7 +2,7 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.Constants;
-import com.huidu.farmersdelight.util.CraftEngineAdapter;
+import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
@@ -23,7 +23,7 @@ import org.bukkit.block.BlockFace;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class RichSoilFarmlandBlockBehavior extends BlockBehavior {
+public class RichSoilFarmlandBlockBehavior extends FarmersDelightBlockBehavior {
 
     private static final int MAX_MOISTURE = 7;
     private static final String MOISTURE_PROPERTY = "moisture";
@@ -31,14 +31,6 @@ public class RichSoilFarmlandBlockBehavior extends BlockBehavior {
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
         return false;
-    }
-
-    @Override
-    public void fallOn(Object thisBlock, Object[] args) {
-    }
-
-    @Override
-    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
     }
 
     private final float boostChance;
@@ -90,26 +82,23 @@ public class RichSoilFarmlandBlockBehavior extends BlockBehavior {
         return resolved;
     }
 
-    public static final BlockBehaviorFactory<RichSoilFarmlandBlockBehavior> FACTORY = new BlockBehaviorFactory<>() {
-        @Override
-        public RichSoilFarmlandBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
-            Map<String, Object> arguments = section != null ? section.values() : Map.of();
-            float chance = BehaviorArgParser.getFloat(arguments, "boost-chance", 0.08f);
-            // Moisture drives the whole random tick: drying out, rehydrating from water or rain, and the boost
-            // that only fully wet soil performs. The property may carry another name, but one of that name has
-            // to exist: a block declaring this behavior without it aborts its own load here, with the config
-            // node and the name in the message, instead of loading as farmland whose moisture never changes
-            // and which never boosts anything.
-            String path = section != null ? section.path() : Constants.BEHAVIOR_RICH_SOIL_FARMLAND;
-            String moisturePropertyName = BehaviorArgParser.getString(arguments, "moisture-property", MOISTURE_PROPERTY);
-            Property<Integer> moistureProperty =
-                    BlockBehaviorFactory.getProperty(path, block, moisturePropertyName, Integer.class);
-            String richSoilId = BehaviorArgParser.getStringStrict(arguments, "rich-soil-block", "farmersdelight:rich_soil");
-            ConfiguredBlockSet unaffected = BehaviorArgParser.hasArgument(arguments, "unaffected-blocks")
-                    ? ConfiguredBlockSet.parse(arguments.get("unaffected-blocks"))
-                    : null;
-            return new RichSoilFarmlandBlockBehavior(block, chance, moistureProperty, Key.of(richSoilId), unaffected);
-        }
+    public static final BlockBehaviorFactory<RichSoilFarmlandBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+        Map<String, Object> arguments = section != null ? section.values() : Map.of();
+        float chance = BehaviorArgParser.getFloat(arguments, "boost-chance", 0.08f);
+        // Moisture drives the whole random tick: drying out, rehydrating from water or rain, and the boost
+        // that only fully wet soil performs. The property may carry another name, but one of that name has
+        // to exist: a block declaring this behavior without it aborts its own load here, with the config
+        // node and the name in the message, instead of loading as farmland whose moisture never changes
+        // and which never boosts anything.
+        String path = section != null ? section.path() : Constants.BEHAVIOR_RICH_SOIL_FARMLAND;
+        String moisturePropertyName = BehaviorArgParser.getString(arguments, "moisture-property", MOISTURE_PROPERTY);
+        Property<Integer> moistureProperty =
+                BlockBehaviorFactory.getProperty(path, block, moisturePropertyName, Integer.class);
+        String richSoilId = BehaviorArgParser.getStringStrict(arguments, "rich-soil-block", "farmersdelight:rich_soil");
+        ConfiguredBlockSet unaffected = BehaviorArgParser.hasArgument(arguments, "unaffected-blocks")
+                ? ConfiguredBlockSet.parse(arguments.get("unaffected-blocks"))
+                : null;
+        return new RichSoilFarmlandBlockBehavior(block, chance, moistureProperty, Key.of(richSoilId), unaffected);
     };
 
     @Override
@@ -131,6 +120,7 @@ public class RichSoilFarmlandBlockBehavior extends BlockBehavior {
             CraftEngineBlocks.place(new Location(world, pos.x() + 0.5, pos.y(), pos.z() + 0.5),
                     richSoil.defaultState(), true);
         } catch (Throwable ignored) {
+            // block placement is best-effort during ticking; rich soil conversion continues next tick
         }
     }
 
@@ -222,6 +212,7 @@ public class RichSoilFarmlandBlockBehavior extends BlockBehavior {
                         plant.getLocation().add(0.5, 0.5, 0.5), 10, 0.3, 0.3, 0.3);
             }
         } catch (Throwable ignored) {
+            // cosmetic only; effect failure does not block growth
         }
     }
 

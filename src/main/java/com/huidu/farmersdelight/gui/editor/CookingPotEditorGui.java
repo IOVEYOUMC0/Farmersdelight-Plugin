@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.gui.editor;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.gui.AbstractInventoryGui;
 import com.huidu.farmersdelight.gui.GuiConfig;
 import com.huidu.farmersdelight.gui.RecipeViewGuiConfig;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
@@ -10,23 +11,20 @@ import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.Text;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
-import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * In-game editor for editing a single cooking-pot recipe. Layout, slot positions, and button text come from
@@ -34,21 +32,16 @@ import java.util.Map;
  * chat feedback comes from the gui.editor.* language keys. Ingredient capacity adapts
  * to the parsed layout, so custom (large) pots can expose more ingredient slots.
  */
-public final class CookingPotEditorGui implements EditorGui {
+public final class CookingPotEditorGui extends AbstractInventoryGui implements EditorGui {
 
-    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacyAmpersand();
-    private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
     private static final List<String> CATEGORY_PRESETS = List.of("meals", "soups", "drinks", "misc");
     private static final int MAX_COOK_TIME = 6000;
     private static final int MIN_COOK_TIME = 20;
 
-    private final FarmersDelightPlugin plugin;
-    private final Player player;
     private final String recipeId;
     private final String customGroupId;
     private final boolean editingExisting;
     private final RecipeViewGuiConfig.BaseConfig config;
-    private final Inventory inventory;
 
     private final List<Integer> ingredientSlots;
     private final Map<Integer, String> slotTypeByIndex = new HashMap<>();
@@ -62,13 +55,10 @@ public final class CookingPotEditorGui implements EditorGui {
     private int priority = 0;
     private String category = "meals";
 
-    private boolean closed = false;
-
     public CookingPotEditorGui(FarmersDelightPlugin plugin, Player player, String recipeId,
                                String customGroupId, CookingPotRecipe existing,
                                RecipeViewGuiConfig.BaseConfig config) {
-        this.plugin = plugin;
-        this.player = player;
+        super(plugin, player);
         this.recipeId = recipeId;
         this.customGroupId = customGroupId;
         this.editingExisting = existing != null;
@@ -83,7 +73,7 @@ public final class CookingPotEditorGui implements EditorGui {
             }
         }
 
-        this.inventory = plugin.getServer().createInventory(this, config.getSize(), coloredTitle(config.getTitle()));
+        this.inventory = plugin.getServer().createInventory(this, config.getSize(), EditorGui.coloredComponent(config.getTitle()));
         if (existing != null) {
             loadFrom(existing);
         }
@@ -110,14 +100,27 @@ public final class CookingPotEditorGui implements EditorGui {
     }
 
     public void open() {
-        RecipeEditorListener.ensureRegistered(plugin);
-        render();
-        player.openInventory(inventory);
+        doOpen(this::render);
     }
 
     @Override
-    public @NotNull Inventory getInventory() {
-        return inventory;
+    protected AbstractInventoryGui findExistingGui(UUID playerId) {
+        return null; // 编辑器直接覆盖打开，无需追踪
+    }
+
+    @Override
+    protected void putActiveGui(UUID playerId, AbstractInventoryGui gui) {
+        // 编辑器由 RecipeEditorListener 统一管理
+    }
+
+    @Override
+    protected void removeFromActiveGuis(UUID playerId) {
+        // 编辑器由 RecipeEditorListener 统一管理
+    }
+
+    @Override
+    protected void ensureListenerRegistered() {
+        RecipeEditorListener.ensureRegistered(plugin);
     }
 
     private void render() {
@@ -292,7 +295,7 @@ public final class CookingPotEditorGui implements EditorGui {
                 save();
                 return;
             case "cancel":
-                close();
+                closeEditor();
                 return;
             case "delete":
                 if (editingExisting) {
@@ -305,7 +308,7 @@ public final class CookingPotEditorGui implements EditorGui {
 
     @Override
     public void handleClose(InventoryCloseEvent event) {
-        closed = true;
+        super.close();
         clearCursor();
         plugin.scheduler().runLaterForEntity(player, this::clearCursor, 1L);
     }
@@ -338,7 +341,7 @@ public final class CookingPotEditorGui implements EditorGui {
             player.sendMessage(Component.translatable("gui.editor.feedback.saved",
                     Component.text(recipeId).color(NamedTextColor.WHITE))
                     .color(NamedTextColor.GREEN));
-            close();
+            closeEditor();
         } else {
             player.sendMessage(Component.translatable("gui.editor.feedback.save_failed")
                     .color(NamedTextColor.RED));
@@ -385,7 +388,7 @@ public final class CookingPotEditorGui implements EditorGui {
             }
         }
         options.add(added);
-        return options.size() == 1 ? options.get(0) : new RecipeIngredient.Choice(options);
+        return options.size() == 1 ? options.getFirst() : new RecipeIngredient.Choice(options);
     }
 
     private void openTagPicker(int idx, ItemStack source) {
@@ -432,8 +435,8 @@ public final class CookingPotEditorGui implements EditorGui {
         player.openInventory(inventory);
     }
 
-    private void close() {
-        closed = true;
+    private void closeEditor() {
+        super.close();
         clearCursor();
         player.closeInventory();
     }
@@ -487,14 +490,6 @@ public final class CookingPotEditorGui implements EditorGui {
             stack.setItemMeta(meta);
         }
         return stack;
-    }
-
-    private static Component coloredTitle(String title) {
-        String resolved = title == null ? "" : title;
-        if (resolved.contains("<") && resolved.contains(">")) {
-            return MINI_MESSAGE.deserialize(resolved);
-        }
-        return LEGACY.deserialize(resolved.replaceAll("&(?=[0-9a-fk-orA-FK-OR])", "§"));
     }
 
     private static Map<String, String> noPlaceholders() {

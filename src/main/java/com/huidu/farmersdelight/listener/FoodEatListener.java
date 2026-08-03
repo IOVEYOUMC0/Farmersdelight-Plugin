@@ -14,74 +14,74 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class FoodEatListener implements Listener {
 
+    /** Buff kind enum — each kind holds its default duration, config path, and legacy config key */
+    private enum BuffKind {
+        COMFORT(Constants.DEFAULT_COMFORT_DURATION, "buff.comfort", "comfort-foods", "comfort-foods-enabled"),
+        NOURISHMENT(Constants.DEFAULT_NOURISHMENT_DURATION, "buff.nourishment", "nourishment-foods", "nourishment-foods-enabled");
+
+        final int defaultDuration;
+        final String configPath;
+        final String legacyConfigPath;
+        final String legacyEnabledPath;
+
+        BuffKind(int defaultDuration, String configPath, String legacyConfigPath, String legacyEnabledPath) {
+            this.defaultDuration = defaultDuration;
+            this.configPath = configPath;
+            this.legacyConfigPath = legacyConfigPath;
+            this.legacyEnabledPath = legacyEnabledPath;
+        }
+    }
+
     private final FarmersDelightPlugin plugin;
-    private final Map<String, Integer> comfortFoodDurations = new ConcurrentHashMap<>();
-    private final Map<String, Integer> nourishmentFoodDurations = new ConcurrentHashMap<>();
-    // Addon-registered food → effect mappings (via the API). Survive /fd reload (config reload only clears
-    // the config-loaded maps above) and apply regardless of the comfort/nourishment-foods enabled flags.
-    private final Map<String, Integer> externalComfortFoods = new ConcurrentHashMap<>();
-    private final Map<String, Integer> externalNourishmentFoods = new ConcurrentHashMap<>();
-    private boolean comfortFoodsEnabled;
-    private boolean nourishmentFoodsEnabled;
+    // Food → duration mappings loaded from config files
+    private final Map<BuffKind, Map<String, Integer>> configDurations = new EnumMap<>(BuffKind.class);
+    // External food → duration mappings registered via plugin API (not affected by /fd reload)
+    private final Map<BuffKind, Map<String, Integer>> externalDurations = new EnumMap<>(BuffKind.class);
+    private final Map<BuffKind, Boolean> enabled = new EnumMap<>(BuffKind.class);
 
     public FoodEatListener(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
+        for (BuffKind kind : BuffKind.values()) {
+            configDurations.put(kind, new ConcurrentHashMap<>());
+            externalDurations.put(kind, new ConcurrentHashMap<>());
+            enabled.put(kind, false);
+        }
         loadNourishmentFoods();
     }
 
     private void loadNourishmentFoods() {
-        comfortFoodDurations.clear();
-        ConfigurationSection comfortSection = plugin.getFirstConfigSection("buff.comfort", "comfort-foods");
-        comfortFoodsEnabled = comfortSection != null && comfortSection.getBoolean("enabled", false);
-        ConfigurationSection comfortFoodsSection = comfortSection != null
-                ? comfortSection.getConfigurationSection("foods")
-                : null;
-        if (comfortFoodsSection != null) {
-            for (String foodId : comfortFoodsSection.getKeys(false)) {
-                int duration = comfortFoodsSection.getInt(foodId + ".duration", Constants.DEFAULT_COMFORT_DURATION);
-                comfortFoodDurations.put(foodId, duration);
-            }
-        } else {
-            // Compatible with the legacy plugin config structure:
-            // comfort-foods-enabled: false
-            // comfort-foods:
-            //   item_id:
-            //     duration: 300
-            comfortFoodsEnabled = plugin.getConfig().getBoolean("comfort-foods-enabled", comfortFoodsEnabled);
-            if (comfortSection != null) {
-                for (String foodId : comfortSection.getKeys(false)) {
-                    if ("enabled".equalsIgnoreCase(foodId) || "foods".equalsIgnoreCase(foodId)) {
-                        continue;
-                    }
-                    int duration = comfortSection.getInt(foodId + ".duration", Constants.DEFAULT_COMFORT_DURATION);
-                    comfortFoodDurations.put(foodId, duration);
-                }
-            }
-        }
+        for (BuffKind kind : BuffKind.values()) {
+            Map<String, Integer> map = configDurations.get(kind);
+            map.clear();
 
-        nourishmentFoodDurations.clear();
-        ConfigurationSection nourishmentSection = plugin.getFirstConfigSection("buff.nourishment", "nourishment-foods");
-        nourishmentFoodsEnabled = nourishmentSection != null && nourishmentSection.getBoolean("enabled", false);
-        ConfigurationSection foodsSection = nourishmentSection != null
-                ? nourishmentSection.getConfigurationSection("foods")
-                : null;
-        if (foodsSection != null) {
-            for (String foodId : foodsSection.getKeys(false)) {
-                int duration = foodsSection.getInt(foodId + ".duration", Constants.DEFAULT_NOURISHMENT_DURATION);
-                nourishmentFoodDurations.put(foodId, duration);
-            }
-        } else if (nourishmentSection != null) {
-            for (String foodId : nourishmentSection.getKeys(false)) {
-                if ("enabled".equalsIgnoreCase(foodId) || "foods".equalsIgnoreCase(foodId)) {
-                    continue;
+            ConfigurationSection section = plugin.getFirstConfigSection(kind.configPath, kind.legacyConfigPath);
+            boolean foodEnabled = section != null && section.getBoolean("enabled", false);
+            enabled.put(kind, foodEnabled);
+
+            ConfigurationSection foodsSection = section != null ? section.getConfigurationSection("foods") : null;
+            if (foodsSection != null) {
+                for (String foodId : foodsSection.getKeys(false)) {
+                    int duration = foodsSection.getInt(foodId + ".duration", kind.defaultDuration);
+                    map.put(foodId, duration);
                 }
-                int duration = nourishmentSection.getInt(foodId + ".duration", Constants.DEFAULT_NOURISHMENT_DURATION);
-                nourishmentFoodDurations.put(foodId, duration);
+            } else {
+                // Legacy config structure: food ids at top level, enable flag on separate key
+                enabled.put(kind, plugin.getConfig().getBoolean(kind.legacyEnabledPath, foodEnabled));
+                if (section != null) {
+                    for (String foodId : section.getKeys(false)) {
+                        if ("enabled".equalsIgnoreCase(foodId) || "foods".equalsIgnoreCase(foodId)) {
+                            continue;
+                        }
+                        int duration = section.getInt(foodId + ".duration", kind.defaultDuration);
+                        map.put(foodId, duration);
+                    }
+                }
             }
         }
     }
@@ -102,53 +102,54 @@ public class FoodEatListener implements Listener {
 
         AdvancementManager advancementManager = FarmersDelightPlugin.getInstance().getAdvancementManager();
 
-        // Each distinct FD dish eaten completes one master_chef criterion; non-dish ids are ignored.
+        // Each distinct FD food awards one master_chef criterion on consume
         if (advancementManager != null && itemId.startsWith("farmersdelight:")) {
             advancementManager.awardCriteria(player, "master_chef", itemId.substring("farmersdelight:".length()));
         }
 
-        Integer comfortDuration = externalComfortFoods.get(itemId);
-        if (comfortDuration == null && comfortFoodsEnabled) {
-            comfortDuration = comfortFoodDurations.get(itemId);
-        }
-        if (comfortDuration != null) {
-            EffectManager.applyComfort(player, comfortDuration);
-        }
-
-        Integer nourishmentDuration = externalNourishmentFoods.get(itemId);
-        if (nourishmentDuration == null && nourishmentFoodsEnabled) {
-            nourishmentDuration = nourishmentFoodDurations.get(itemId);
-        }
-        if (nourishmentDuration != null) {
-            EffectManager.applyNourishment(player, nourishmentDuration);
+        for (BuffKind kind : BuffKind.values()) {
+            Integer duration = externalDurations.get(kind).get(itemId);
+            if (duration == null && enabled.get(kind)) {
+                duration = configDurations.get(kind).get(itemId);
+            }
+            if (duration != null) {
+                switch (kind) {
+                    case COMFORT -> EffectManager.applyComfort(player, duration);
+                    case NOURISHMENT -> EffectManager.applyNourishment(player, duration);
+                }
+            }
         }
     }
 
-    /** Registers (or replaces) an addon food → comfort-effect mapping. Survives /fd reload. */
+    /** Register (or replace) a food → comfort mapping via plugin API, unaffected by /fd reload */
     public void registerComfortFood(String itemId, int durationSeconds) {
-        if (itemId != null && durationSeconds > 0) {
-            externalComfortFoods.put(itemId, durationSeconds);
-        }
+        registerFood(BuffKind.COMFORT, itemId, durationSeconds);
     }
 
-    /** Registers (or replaces) an addon food → nourishment-effect mapping. Survives /fd reload. */
+    /** Register (or replace) a food → nourishment mapping via plugin API, unaffected by /fd reload */
     public void registerNourishmentFood(String itemId, int durationSeconds) {
-        if (itemId != null && durationSeconds > 0) {
-            externalNourishmentFoods.put(itemId, durationSeconds);
-        }
+        registerFood(BuffKind.NOURISHMENT, itemId, durationSeconds);
     }
 
-    /** Removes an addon comfort-food mapping registered via registerComfortFood. */
+    /** Remove external food mapping registered via #registerComfortFood */
     public void unregisterComfortFood(String itemId) {
-        if (itemId != null) {
-            externalComfortFoods.remove(itemId);
+        unregisterFood(BuffKind.COMFORT, itemId);
+    }
+
+    /** Remove external food mapping registered via #registerNourishmentFood */
+    public void unregisterNourishmentFood(String itemId) {
+        unregisterFood(BuffKind.NOURISHMENT, itemId);
+    }
+
+    private void registerFood(BuffKind kind, String itemId, int durationSeconds) {
+        if (itemId != null && durationSeconds > 0) {
+            externalDurations.get(kind).put(itemId, durationSeconds);
         }
     }
 
-    /** Removes an addon nourishment-food mapping registered via registerNourishmentFood. */
-    public void unregisterNourishmentFood(String itemId) {
+    private void unregisterFood(BuffKind kind, String itemId) {
         if (itemId != null) {
-            externalNourishmentFoods.remove(itemId);
+            externalDurations.get(kind).remove(itemId);
         }
     }
 

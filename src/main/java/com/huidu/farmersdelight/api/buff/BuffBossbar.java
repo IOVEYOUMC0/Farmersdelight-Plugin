@@ -14,8 +14,8 @@ import org.jetbrains.annotations.ApiStatus;
  * pushed buffs on the admin-configured display channels (boss bar / action bar / tab footer) and
  * boss-bar layout; the addon doesn't choose the channel or layout, the server admin does.
  *
- * <p>Idempotent: calling update repeatedly for the same (player, key) mutates the
- * existing bossbar; pass a fresh title/progress to refresh. Call hide when the buff ends.
+ * Idempotent: calling #update repeatedly for the same (player, key) mutates the
+ * existing bossbar; pass a fresh title/progress to refresh. Call #hide when the buff ends.
  * Player quit and FD disable both flush all bars; addons don't have to clean up on quit.
  *
  * Channels, layout and the display toggle live in FD's config.yml under buff.display; the whole buff
@@ -39,13 +39,13 @@ public final class BuffBossbar {
      * Create or update the bar for (player, key). No-op when the master toggle is off or the
      * player is offline. Progress is clamped to [0,1].
      *
-     * @param owner   the addon plugin pushing the update (logged on errors; future per-plugin features)
-     * @param player  the player whose bar to update
-     * @param key     a stable identifier; same key across calls updates the same bar
-     * @param title   the bar's display name (use Component#translatable so each viewer's client renders in its own locale)
-     * @param progress 0..1; clamped automatically
-     * @param color   BossBar.Color (PINK, BLUE, RED, GREEN, YELLOW, PURPLE, WHITE)
-     * @param overlay BossBar.Overlay (PROGRESS, NOTCHED_6, NOTCHED_10, NOTCHED_12, NOTCHED_20)
+     * owner the addon plugin pushing the update (logged on errors; future per-plugin features)
+     * player the player whose bar to update
+     * key a stable identifier; same key across calls updates the same bar
+     * title the bar's display name (use Component#translatable so each viewer's client renders in its own locale)
+     * progress 0..1; clamped automatically
+     * color BossBar.Color (PINK, BLUE, RED, GREEN, YELLOW, PURPLE, WHITE)
+     * overlay BossBar.Overlay (PROGRESS, NOTCHED_6, NOTCHED_10, NOTCHED_12, NOTCHED_20)
      */
     public static void update(Plugin owner, Player player, NamespacedKey key,
                               Component title, float progress,

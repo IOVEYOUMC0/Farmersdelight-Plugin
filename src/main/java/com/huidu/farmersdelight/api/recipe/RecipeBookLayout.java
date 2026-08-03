@@ -15,7 +15,7 @@ import java.util.Map;
  * menu, and each addon controls its title (image-font textures included), grid, and decoration items.
  *
  * The addon builds this from its own config and pre-resolves any CraftEngine <image:>/<shift:>
- * glyphs in title() itself (it has CraftEngine access); FarmersDelight uses the title as-is.
+ * glyphs in #title() itself (it has CraftEngine access); FarmersDelight uses the title as-is.
  *
  * Lives in the name-stable api package; uses only Bukkit / Adventure / java types.
  */
@@ -28,7 +28,7 @@ public interface RecipeBookLayout {
     /** Row count (1-6); window size is rows*9. */
     int rows();
 
-    /** One string per row (up to 9 chars each); each char maps to a role via legend(). */
+    /** One string per row (up to 9 chars each); each char maps to a role via #legend(). */
     List<String> layout();
 
     /**
@@ -36,7 +36,7 @@ public interface RecipeBookLayout {
      * ingredient/result (detail), any custom role supplied by
      * ViewableRecipe#displaySlots() (e.g. fluid), and the buttons prev_page/
      * next_page/back/fill. Any other role is static decoration filled from
-     * decorations().
+     * #decorations().
      */
     Map<Character, String> legend();
 
@@ -69,6 +69,6 @@ public interface RecipeBookLayout {
     /** The first slot for role, or -1 if none. */
     default int firstSlotByType(String role) {
         List<Integer> slots = slotsByType(role);
-        return slots.isEmpty() ? -1 : slots.get(0);
+        return slots.isEmpty() ? -1 : slots.getFirst();
     }
 }

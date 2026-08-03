@@ -10,11 +10,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Fired by a FarmersDelight /fd <migration> admin action (e.g. /fd rug-migrate) after
  * FarmersDelight has migrated its own legacy data, so addons can migrate their own legacy state in the same
  * admin pass instead of intercepting the command or reflecting into FarmersDelight internals.
- * migrationKey() identifies which migration ran (e.g. "rug"), so a listener can react only
+ * #migrationKey() identifies which migration ran (e.g. "rug"), so a listener can react only
  * to migrations it cares about. Listeners report how many entries they migrated / cleaned via
- * addRemoved(int); the command sums those counts into its final reply.
+ * #addRemoved(int); the command sums those counts into its final reply.
  *
- * <p>Mirrors FarmersDelightCleanupEvent / FarmersDelightReloadEvent as the migrate-side
+ * Mirrors FarmersDelightCleanupEvent / FarmersDelightReloadEvent as the migrate-side
  * addon hook. Treat it as a one-shot admin signal (not periodic); listeners may do best-effort regional
  * scheduling on Folia — the count is allowed to be "scheduled for removal" rather than "removed before this
  * method returns".

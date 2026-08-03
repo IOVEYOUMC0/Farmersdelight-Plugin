@@ -63,6 +63,7 @@ gui:
   cooking_pot:
     pending_container_hint: "&7容器: &f{container}"
     servings: "&7{count} 份"
+    no_container_ingredient: "&c不能把容器放进烹饪锅里烹煮。"
   editor:
     usage: "&e/fd recipe edit <pot|board> <id> [自定义组]"
     feedback:
@@ -104,9 +105,6 @@ console:
     tipsy_effect_unknown: "config.yml tipsy.effects 中的微醺效果 '{effect}' 未知"
     resources_released: "已释放 {count} 个 CraftEngine 资源文件到 {target}"
     resources_release_failed: "释放 CraftEngine 资源失败：{error}"
-    advancements_disabled: "Brewin' 成就已禁用（UltimateAdvancementAPI 未加载）。"
-    advancements_registered: "Brewin' 成就已注册（{count} 个条件）。"
-    advancements_registration_failed: "Brewin' 成就注册失败。"
   prefix: "[FarmersDelight]"
   recipe-discovery:
     save_failed: "保存配方解锁数据失败：{error}"
@@ -162,9 +160,12 @@ console:
     invalid_cutting_board_mode: "cutting-board.interaction-mode '{value}' 无效，已回退到 stacking。"
     startup_config: "启动配置"
     startup_reason: "启动"
+    enchantment:
+      backstabbing:
+        auto_disabled: "检测到已安装的附魔插件，FarmersDelight 自己的背刺附魔已自动禁用。如需启用请在 config.yml 中设置 enchantments.backstabbing.enabled: true。"
     config_summary: "{label}：scheduler={scheduler}, cutting-board mode={mode}, hopper={hopper}, cooking-pot-hopper={cooking_pot_hopper}, cutting-board-hopper={cutting_board_hopper}, skillet-hopper={skillet_hopper}, advancements={advancements}"
-    content_summary: "内容已就绪：{cooking_pot} 个厨锅配方（另有 {custom_pot} 个自定义）、{cutting_board} 个砧板配方，{drop_rules} 条生物掉落规则，{pet_foods} 种宠物食物，{advancements} 个进度（另有附属的 {addon_advancements} 个）。"
-    content_summary_warmed: "内容已就绪：{cooking_pot} 个厨锅配方（另有 {custom_pot} 个自定义）、{cutting_board} 个砧板配方，{drop_rules} 条生物掉落规则，{pet_foods} 种宠物食物，{advancements} 个进度（另有附属的 {addon_advancements} 个），已预热 {warm_items} 个 CraftEngine 物品，耗时 {warm_ms}ms。"
+    content_summary: "内容已就绪：{cooking_pot} 个厨锅配方（FD {fd_pot}、附属 {cooking_pot_addon}、自定义 {custom_pot}）、{cutting_board} 个砧板配方（FD {fd_board}、附属 {cutting_board_addon}），{drop_rules} 条生物掉落规则，{pet_foods} 种宠物食物，{advancements} 个进度（另有附属的 {addon_advancements} 个）。"
+    content_summary_warmed: "内容已就绪：{cooking_pot} 个厨锅配方（FD {fd_pot}、附属 {cooking_pot_addon}、自定义 {custom_pot}）、{cutting_board} 个砧板配方（FD {fd_board}、附属 {cutting_board_addon}），{drop_rules} 条生物掉落规则，{pet_foods} 种宠物食物，{advancements} 个进度（另有附属的 {addon_advancements} 个），已预热 {warm_items} 个 CraftEngine 物品，耗时 {warm_ms}ms。"
     advancement_resource_sync_failed: "同步进度资源 {resource} 到世界 {world} 失败：{error}"
     advancement_file_delete_failed: "删除进度数据包文件 {path} 失败：{error}"
     advancement_directory_delete_failed: "删除进度数据包目录 {path} 失败：{error}"
@@ -188,6 +189,9 @@ console:
     loot_datapack_disabled: "配置中已禁用战利品注入数据包安装；跳过。"
     loot_datapack_written: "已写入 {count} 个数据包文件到 {dir}"
     loot_datapack_install_failed: "向世界 {world} 安装战利品数据包失败：{error}"
+    enchantment_datapack_disabled: "配置中已禁用附魔数据包安装；背刺附魔不会注入附魔台。"
+    enchantment_datapack_written: "已写入 {count} 个附魔数据包文件到 {dir}"
+    enchantment_datapack_install_failed: "向世界 {world} 安装附魔数据包失败：{error}"
     handle_place_failed: "在 {anchor} 放置 cooking_pot_handle 家具失败：{error}"
     recipe_save_failed: "保存配方文件 {file} 失败：{error}"
     recipe_bundled_save_failed: "保存内置配方文件 {file} 失败：{error}"
@@ -224,7 +228,6 @@ console:
   advancement:
     loaded_keys: "已加载 {count} 个进度键"
     unknown: "未知进度：{id}"
-    not_found: "找不到进度：{key}"
     award_failed: "授予进度 {id} 失败：{error}"
     award_criterion_failed: "授予进度条件 {id}/{criterion} 失败：{error}"
     revoke_failed: "撤销进度 {id} 失败：{error}"
@@ -306,8 +309,6 @@ console:
     skillet: "[SkilletDebug] {message}"
     cutting_board: "[cutting-board] {message}"
     ce_header: "=== FD DEBUG CE ==="
-    probe_header: "=== FD DEBUG PROBE ==="
-    header: "=== FD DEBUG ==="
     field: "{label}: {value}"
     label_stage: "阶段"
     label_use_item: "使用物品"
@@ -346,7 +347,6 @@ command:
   recipe_discovery_list_empty: "<gray>{player} 尚未解锁任何 <yellow>{type}</yellow> 配方。</gray>"
   recipe_discovery_status: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <white>{player}</white> <gray>已解锁</gray> <white>{unlocked}</white><gray>/</gray><white>{total}</white> <gray>个配方</gray>"
   recipe_discovery_status_line: "<gray>  •</gray> <yellow>{type}</yellow> <gray>—</gray> <white>{unlocked}</white><gray>/</gray><white>{total}</white>"
-  help_discovery: "管理玩家的配方解锁进度"
   help_title: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <white>命令</white>"
   help_recipe: "打开配方查看界面"
   help_reload: "重新加载配置"

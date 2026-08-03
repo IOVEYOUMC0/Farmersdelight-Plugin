@@ -82,7 +82,7 @@ public final class FarmersDelightText {
     }
 
     /**
-     * serverText(String) formatted with positional %s args and wrapped in a
+     * #serverText(String) formatted with positional %s args and wrapped in a
      * Component.text — pre-rendered, locale-stable, identical for every viewer. Component args
      * get plain-text serialized first; the result is a flat text Component (no nested translatable).
      */
@@ -96,7 +96,7 @@ public final class FarmersDelightText {
      * still see readable text (server default locale) instead of the raw key. Args are wrapped in
      * Component.text unless they're already Components.
      *
-     * <p>Use for bossbar titles / lore lines where the visible text SHOULD follow the receiving client's
+     * Use for bossbar titles / lore lines where the visible text SHOULD follow the receiving client's
      * language (each player sees their own) but must NEVER show a raw namespace.key on packs
      * without the entry. Pair with FarmersDelightItems#translatableDisplayNameOfNoAnvilOf
      * when embedding an item name in lore (lore should ignore anvil rename).
@@ -110,7 +110,7 @@ public final class FarmersDelightText {
      * count — drop-in arg for buff bossbar titles that follow the "<name> [%s]" convention.
      * Negative input clamps to 0:00.
      *
-     * <p>Hand-rolled StringBuilder (not String.format) because this gets called from the PAPI
+     * Hand-rolled StringBuilder (not String.format) because this gets called from the PAPI
      * hot path (HUDs × players × placeholder count per tick) — printf-style formatting allocates a
      * Formatter + intermediate StringBuilder + boxes the args each call.
      */

@@ -333,5 +333,7 @@
   "buff.farmersdelight.nourishment": "滋养",
   "buff.farmersdelight.nourishment.title": "滋养 [%s]",
   "buff.farmersdelight.comfort": "舒适",
-  "buff.farmersdelight.comfort.title": "舒适 [%s]"
+  "buff.farmersdelight.comfort.title": "舒适 [%s]",
+  "enchantment.farmersdelight.backstabbing": "背刺",
+  "enchantment.farmersdelight.backstabbing.desc": "从背后攻击时造成额外伤害。"
 }

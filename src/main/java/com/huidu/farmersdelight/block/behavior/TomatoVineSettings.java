@@ -56,7 +56,22 @@ import java.util.Set;
  * A warning never removes the block from the game. Warnings are collected here and emitted by the
  * caller, which keeps this resolution free of plugin state and directly testable.
  */
-public final class TomatoVineSettings {
+public record TomatoVineSettings(
+        String buddingBlock,
+        String tomatoesBlock,
+        String cropOnRopeBlock,
+        String ropeBlock,
+        int buddingMaxAge,
+        int tomatoesMaxAge,
+        int hangingMaxAge,
+        int bonemealBonusMin,
+        int bonemealBonusMax,
+        float bonemealClimbChance,
+        int matureAge,
+        int minLight,
+        int maxStackHeight,
+        List<Warning> warnings
+) {
 
     public static final String SECTION_BLOCKS = "blocks";
     public static final String SECTION_MAX_AGE = "max-age";
@@ -79,62 +94,9 @@ public final class TomatoVineSettings {
     public static final int DEFAULT_BONEMEAL_BONUS_MAX = 4;
 
     /** A console line the caller emits through the plugin's I18n logger. */
-    public static final class Warning {
-        private final String key;
-        private final Object[] arguments;
-
-        Warning(String key, Object... arguments) {
-            this.key = key;
-            this.arguments = arguments;
-        }
-
-        public String key() {
-            return key;
-        }
-
-        public Object[] arguments() {
-            return arguments.clone();
-        }
-    }
-
-    private final String buddingBlock;
-    private final String tomatoesBlock;
-    private final String cropOnRopeBlock;
-    private final String ropeBlock;
-    private final int buddingMaxAge;
-    private final int tomatoesMaxAge;
-    private final int hangingMaxAge;
-    private final int bonemealBonusMin;
-    private final int bonemealBonusMax;
-    private final float bonemealClimbChance;
-    private final int matureAge;
-    private final int minLight;
-    private final int maxStackHeight;
-    private final List<Warning> warnings;
-
-    private TomatoVineSettings(Resolver resolver) {
-        Map<String, Object> blocks = resolver.section(SECTION_BLOCKS, BLOCKS_KEYS);
-        this.buddingBlock = resolver.string(blocks, SECTION_BLOCKS, "budding", "budding-block", DEFAULT_BUDDING_BLOCK);
-        this.tomatoesBlock = resolver.string(blocks, SECTION_BLOCKS, "tomatoes", "tomatoes-block", DEFAULT_TOMATOES_BLOCK);
-        this.cropOnRopeBlock = resolver.string(blocks, SECTION_BLOCKS, "crop-on-rope", "crop-on-rope-block", DEFAULT_CROP_ON_ROPE_BLOCK);
-        this.ropeBlock = resolver.string(blocks, SECTION_BLOCKS, "rope", "rope-block", DEFAULT_ROPE_BLOCK);
-
-        Map<String, Object> maxAge = resolver.section(SECTION_MAX_AGE, MAX_AGE_KEYS);
-        this.buddingMaxAge = resolver.integer(maxAge, SECTION_MAX_AGE, "budding", "budding-max-age", DEFAULT_MAX_AGE);
-        this.tomatoesMaxAge = resolver.integer(maxAge, SECTION_MAX_AGE, "tomatoes", "tomatoes-max-age", DEFAULT_MAX_AGE);
-        this.hangingMaxAge = resolver.integer(maxAge, SECTION_MAX_AGE, "hanging", "hanging-max-age", DEFAULT_MAX_AGE);
-
-        Map<String, Object> bonemeal = resolver.section(SECTION_BONEMEAL, BONEMEAL_KEYS);
-        this.bonemealBonusMin = resolver.integer(bonemeal, SECTION_BONEMEAL, "bonus-min", "bonemeal-bonus-min", DEFAULT_BONEMEAL_BONUS_MIN);
-        this.bonemealBonusMax = resolver.integer(bonemeal, SECTION_BONEMEAL, "bonus-max", "bonemeal-bonus-max", DEFAULT_BONEMEAL_BONUS_MAX);
-        this.bonemealClimbChance = resolver.decimal(bonemeal, SECTION_BONEMEAL, "climb-chance", "bonemeal-climb-chance", DEFAULT_BONEMEAL_CLIMB_CHANCE);
-
-        // No cluster to join, so no section: one spelling, read straight off the top level.
-        this.matureAge = BehaviorArgParser.getInt(resolver.arguments, "mature-age", DEFAULT_MATURE_AGE);
-        this.minLight = BehaviorArgParser.getInt(resolver.arguments, "min-light", DEFAULT_MIN_LIGHT);
-        this.maxStackHeight = BehaviorArgParser.getInt(resolver.arguments, "max-stack-height", DEFAULT_MAX_STACK_HEIGHT);
-
-        this.warnings = List.copyOf(resolver.warnings);
+    public record Warning(String key, Object[] arguments) {
+        public static Warning of(String key, Object... args) { return new Warning(key, args); }
+        public Object[] arguments() { return arguments.clone(); }
     }
 
     /**
@@ -142,7 +104,35 @@ public final class TomatoVineSettings {
      * offending block in warnings.
      */
     public static TomatoVineSettings parse(Map<String, Object> arguments, String blockId) {
-        return new TomatoVineSettings(new Resolver(arguments, blockId));
+        Resolver resolver = new Resolver(arguments, blockId);
+
+        Map<String, Object> blocks = resolver.section(SECTION_BLOCKS, BLOCKS_KEYS);
+        String buddingBlock = resolver.string(blocks, SECTION_BLOCKS, "budding", "budding-block", DEFAULT_BUDDING_BLOCK);
+        String tomatoesBlock = resolver.string(blocks, SECTION_BLOCKS, "tomatoes", "tomatoes-block", DEFAULT_TOMATOES_BLOCK);
+        String cropOnRopeBlock = resolver.string(blocks, SECTION_BLOCKS, "crop-on-rope", "crop-on-rope-block", DEFAULT_CROP_ON_ROPE_BLOCK);
+        String ropeBlock = resolver.string(blocks, SECTION_BLOCKS, "rope", "rope-block", DEFAULT_ROPE_BLOCK);
+
+        Map<String, Object> maxAge = resolver.section(SECTION_MAX_AGE, MAX_AGE_KEYS);
+        int buddingMaxAge = resolver.integer(maxAge, SECTION_MAX_AGE, "budding", "budding-max-age", DEFAULT_MAX_AGE);
+        int tomatoesMaxAge = resolver.integer(maxAge, SECTION_MAX_AGE, "tomatoes", "tomatoes-max-age", DEFAULT_MAX_AGE);
+        int hangingMaxAge = resolver.integer(maxAge, SECTION_MAX_AGE, "hanging", "hanging-max-age", DEFAULT_MAX_AGE);
+
+        Map<String, Object> bonemeal = resolver.section(SECTION_BONEMEAL, BONEMEAL_KEYS);
+        int bonemealBonusMin = resolver.integer(bonemeal, SECTION_BONEMEAL, "bonus-min", "bonemeal-bonus-min", DEFAULT_BONEMEAL_BONUS_MIN);
+        int bonemealBonusMax = resolver.integer(bonemeal, SECTION_BONEMEAL, "bonus-max", "bonemeal-bonus-max", DEFAULT_BONEMEAL_BONUS_MAX);
+        float bonemealClimbChance = resolver.decimal(bonemeal, SECTION_BONEMEAL, "climb-chance", "bonemeal-climb-chance", DEFAULT_BONEMEAL_CLIMB_CHANCE);
+
+        int matureAge = BehaviorArgParser.getInt(resolver.arguments, "mature-age", DEFAULT_MATURE_AGE);
+        int minLight = BehaviorArgParser.getInt(resolver.arguments, "min-light", DEFAULT_MIN_LIGHT);
+        int maxStackHeight = BehaviorArgParser.getInt(resolver.arguments, "max-stack-height", DEFAULT_MAX_STACK_HEIGHT);
+
+        return new TomatoVineSettings(
+                buddingBlock, tomatoesBlock, cropOnRopeBlock, ropeBlock,
+                buddingMaxAge, tomatoesMaxAge, hangingMaxAge,
+                bonemealBonusMin, bonemealBonusMax, bonemealClimbChance,
+                matureAge, minLight, maxStackHeight,
+                List.copyOf(resolver.warnings)
+        );
     }
 
     private static final class Resolver {
@@ -167,13 +157,13 @@ public final class TomatoVineSettings {
             }
             Map<String, Object> nested = BehaviorArgParser.getSection(arguments, sectionKey);
             if (nested == null) {
-                warnings.add(new Warning("behavior.nested_not_a_section",
+                warnings.add(Warning.of("behavior.nested_not_a_section",
                         "block", blockId, "section", sectionKey, "known", String.join(", ", knownKeys)));
                 return null;
             }
             for (String key : nested.keySet()) {
                 if (!knownKeys.contains(key)) {
-                    warnings.add(new Warning("behavior.nested_unknown_key",
+                    warnings.add(Warning.of("behavior.nested_unknown_key",
                             "block", blockId, "section", sectionKey, "key", key,
                             "known", String.join(", ", knownKeys)));
                 }
@@ -221,7 +211,7 @@ public final class TomatoVineSettings {
             if (!BehaviorArgParser.isPresent(arguments, flatKey) || Objects.equals(nestedValue, flatValue)) {
                 return;
             }
-            warnings.add(new Warning("behavior.nested_overrides_flat",
+            warnings.add(Warning.of("behavior.nested_overrides_flat",
                     "block", blockId,
                     "nested", sectionKey + "." + nestedKey, "nested_value", nestedValue,
                     "flat", flatKey, "flat_value", flatValue));
@@ -230,61 +220,5 @@ public final class TomatoVineSettings {
 
     private static Set<String> keys(String... names) {
         return new LinkedHashSet<>(List.of(names));
-    }
-
-    public String buddingBlock() {
-        return buddingBlock;
-    }
-
-    public String tomatoesBlock() {
-        return tomatoesBlock;
-    }
-
-    public String cropOnRopeBlock() {
-        return cropOnRopeBlock;
-    }
-
-    public String ropeBlock() {
-        return ropeBlock;
-    }
-
-    public int buddingMaxAge() {
-        return buddingMaxAge;
-    }
-
-    public int tomatoesMaxAge() {
-        return tomatoesMaxAge;
-    }
-
-    public int hangingMaxAge() {
-        return hangingMaxAge;
-    }
-
-    public int bonemealBonusMin() {
-        return bonemealBonusMin;
-    }
-
-    public int bonemealBonusMax() {
-        return bonemealBonusMax;
-    }
-
-    public float bonemealClimbChance() {
-        return bonemealClimbChance;
-    }
-
-    public int matureAge() {
-        return matureAge;
-    }
-
-    public int minLight() {
-        return minLight;
-    }
-
-    public int maxStackHeight() {
-        return maxStackHeight;
-    }
-
-    public List<Warning> warnings() {
-        return warnings;
     }
 }

@@ -78,7 +78,7 @@ public class EffectListener implements Listener {
 
     /** Wire FD's Comfort / Nourishment into the buff registry so milk_bucket / milk_bottle clears
      *  them through the same code path addons use, and so PAPI placeholders can read their level /
-     *  remaining time / name key. The unregister happens in stop(). */
+     *  remaining time / name key. The unregister happens in #stop(). */
     private static void registerOwnBuffs() {
         CustomBuffRegistry.register(new com.huidu.farmersdelight.api.buff.CustomBuff() {
             @Override public String id() { return "farmersdelight:comfort"; }

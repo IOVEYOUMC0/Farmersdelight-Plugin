@@ -9,9 +9,9 @@ import org.jetbrains.annotations.ApiStatus;
  * FarmersDelightBlocks#cuttingBoard(org.bukkit.block.Block). A cutting board holds at most one
  * stack. Nothing here writes back.
  *
- * @param location   the board's block location (block-aligned corner)
- * @param storedItem the stack lying on the board, or null when the board is empty
- * @param carved     whether the stored item is displayed in the "carved" (tool) pose rather than flat
+ * location the board's block location (block-aligned corner)
+ * storedItem the stack lying on the board, or null when the board is empty
+ * carved whether the stored item is displayed in the "carved" (tool) pose rather than flat
  */
 @ApiStatus.Experimental
 public record CuttingBoardSnapshot(Location location, ItemStack storedItem, boolean carved) {

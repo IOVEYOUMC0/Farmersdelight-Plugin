@@ -114,7 +114,7 @@ public final class VillagerTradeListener implements Listener {
             if (ingredients.isEmpty()) {
                 continue;
             }
-            if (!offer.ingredient().equals(ItemUtils.resolveItemId(ingredients.get(0)))) {
+            if (!offer.ingredient().equals(ItemUtils.resolveItemId(ingredients.getFirst()))) {
                 continue;
             }
             if (offer.result().equals(ItemUtils.resolveItemId(recipe.getResult()))) {

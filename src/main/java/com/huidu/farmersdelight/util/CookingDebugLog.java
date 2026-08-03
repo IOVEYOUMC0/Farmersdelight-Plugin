@@ -14,6 +14,7 @@ public final class CookingDebugLog {
     private CookingDebugLog() {
     }
 
+    @SuppressWarnings("UnstableApiUsage")
     public static void logField(String labelKey, Object value) {
         Bukkit.getLogger().info(I18n.formatConsole("debug.field",
                 "label", I18n.formatConsole(labelKey),

@@ -1,6 +1,21 @@
 package com.huidu.farmersdelight.registry;
 
-import com.huidu.farmersdelight.block.behavior.*;
+import com.huidu.farmersdelight.block.behavior.BasketBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.MushroomColonyBehavior;
+import com.huidu.farmersdelight.block.behavior.OrganicCompostBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.RichSoilBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.RichSoilFarmlandBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.RopeBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.TallCropBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.TatamiPairingBehavior;
+import com.huidu.farmersdelight.block.behavior.TomatoVineBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.UpperHalfLootRelayBehavior;
+import com.huidu.farmersdelight.block.behavior.WildPlantBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.WildRiceBlockBehavior;
 import com.huidu.farmersdelight.effect.FoodBuffFunction;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.item.behavior.ConditionalBlockPlantingItemBehavior;

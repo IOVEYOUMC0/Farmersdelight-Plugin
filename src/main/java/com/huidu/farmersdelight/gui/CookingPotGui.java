@@ -31,19 +31,23 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 
-public class CookingPotGui implements InventoryHolder {
+public class CookingPotGui extends AbstractInventoryGui {
 
     static final Map<UUID, CookingPotGui> activeGuis = new ConcurrentHashMap<>();
     private static volatile boolean listenerRegistered = false;
@@ -51,11 +55,9 @@ public class CookingPotGui implements InventoryHolder {
     private static final Pattern IMAGE_TAG_PATTERN = Pattern.compile("<image:([a-z0-9_./-]+:[a-z0-9_./-]+)>");
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
 
-    private final FarmersDelightPlugin plugin;
     private final CookingPotBlockEntity blockEntity;
     private final CookingPotBlockBehavior blockBehavior;
     private final GuiConfig config;
-    private final Inventory inventory;
 
     private final int[] ingredientSlots;
     private final int[] containerSlots;
@@ -69,9 +71,7 @@ public class CookingPotGui implements InventoryHolder {
 
     private final World world;
     private final Location cookingPotLocation;
-    private volatile boolean closed = false;
     private final Map<String, String> reusablePlaceholders = new HashMap<>();
-    private final Consumer<Void> tickCallback;
     private Boolean cachedHeatState;
     private int cachedProgressPercent = -1;
     private int cachedRemainingSeconds = -1;
@@ -96,7 +96,7 @@ public class CookingPotGui implements InventoryHolder {
 
     public CookingPotGui(FarmersDelightPlugin plugin, CookingPotBlockEntity blockEntity,
                          CookingPotBlockBehavior blockBehavior, World world, Location cookingPotLocation) {
-        this.plugin = plugin;
+        super(plugin, null);
         this.blockEntity = blockEntity;
         this.blockBehavior = blockBehavior;
         this.world = world;
@@ -120,11 +120,11 @@ public class CookingPotGui implements InventoryHolder {
         mapSlots(outputSlots, layout.outputSlots(), false);
 
         this.inventory = Bukkit.createInventory(this, config.getSize(), resolveTitleComponent());
-        this.tickCallback = ignored -> {
-            if (!closed) {
-                tick();
-            }
-        };
+    }
+
+    @Override
+    protected void onTick() {
+        if (!closed) tick();
     }
 
     private void mapSlots(int[] guiSlots, int[] entitySlots, boolean writable) {
@@ -138,20 +138,9 @@ public class CookingPotGui implements InventoryHolder {
     }
 
     public void open(Player player) {
-        closed = false;
-
-        CookingPotGui existingGui = activeGuis.get(player.getUniqueId());
-        if (existingGui != null && !existingGui.closed) {
-            existingGui.close();
-        }
-
-        ensureListenerRegistered();
-        activeGuis.put(player.getUniqueId(), this);
-
-        refreshInventory();
-        player.openInventory(inventory);
-
-        GuiTickManager.getInstance(plugin).registerCallback(player, tickCallback);
+        this.player = player;
+        this.playerId = player.getUniqueId();
+        doOpen(this::refreshInventory);
     }
 
     private void tick() {
@@ -176,11 +165,6 @@ public class CookingPotGui implements InventoryHolder {
                 blockEntity.setHasHeatSource(blockBehavior.checkHeatSource(blockEntity.getPos(), world));
             }
         });
-    }
-
-    @Override
-    public Inventory getInventory() {
-        return inventory;
     }
 
     private void refreshInventory() {
@@ -252,7 +236,7 @@ public class CookingPotGui implements InventoryHolder {
 
     private String replaceShiftTags(String text) {
         Matcher matcher = SHIFT_TAG_PATTERN.matcher(text);
-        StringBuffer buffer = new StringBuffer();
+        StringBuilder buffer = new StringBuilder();
         while (matcher.find()) {
             int offset = Integer.parseInt(matcher.group(1));
             String replacement = plugin.getCraftEngine().fontManager().createMiniMessageOffsets(offset);
@@ -264,7 +248,7 @@ public class CookingPotGui implements InventoryHolder {
 
     private String replaceImageTags(String text) {
         Matcher matcher = IMAGE_TAG_PATTERN.matcher(text);
-        StringBuffer buffer = new StringBuffer();
+        StringBuilder buffer = new StringBuilder();
         while (matcher.find()) {
             Image image = CraftEngineImages.byId(Key.of(matcher.group(1)));
             String replacement = matcher.group(0);
@@ -489,6 +473,7 @@ public class CookingPotGui implements InventoryHolder {
     /** Writes item to rawSlot AND marks the slot dirty for the next sync. Use this
      *  from every click/drag handler that mutates a writable GUI slot; never use it for periodic
      *  display refresh (those don't represent player intent and would force a false write). */
+
     private void writeWritableSlot(int rawSlot, ItemStack item) {
         inventory.setItem(rawSlot, item);
         if (writableSlotMapping.containsKey(rawSlot)) {
@@ -525,12 +510,12 @@ public class CookingPotGui implements InventoryHolder {
         }
     }
 
-    private void close() {
+    @Override
+    public void close() {
         if (closed) return;
-        closed = true;
         syncQueued = false;
         try {
-            GuiTickManager.getInstance(plugin).unregisterCallback(tickCallback);
+            super.close();
         } catch (Exception e) {
             plugin.getLogger().warning(I18n.formatConsole("gui_runtime.unregister_tick_failed", "error", e.getMessage()));
         }
@@ -577,7 +562,8 @@ public class CookingPotGui implements InventoryHolder {
         // If the clicked slot is a placeable input slot, let vanilla handle it normally (drop the cursor
         // item into the slot) by not cancelling the event, so the double-click is not interrupted.
         if (action == InventoryAction.NOTHING && click == ClickType.DOUBLE_CLICK
-                && clickedTop && isPlayerInputSlot(rawSlot)) {
+                && clickedTop && isPlayerInputSlot(rawSlot)
+                && !ItemUtils.isContainerNestingHazard(event.getCursor())) {
             scheduleGuiSync(event.getWhoClicked() instanceof Player p ? p : null);
             return;
         }
@@ -642,6 +628,9 @@ public class CookingPotGui implements InventoryHolder {
             event.setCancelled(true);
             ItemStack current = event.getCurrentItem();
             if (current != null && !current.getType().isAir()) {
+                if (ItemUtils.isContainerNestingHazard(current)) {
+                    return;
+                }
                 // Adopt authoritative state first so the deposit stacks onto the real slot contents, not a stale
                 // phantom from another viewer. Hold the block entity's inventory lock across the whole
                 // read-modify-write so a concurrent cook tick (which consumes ingredients under the same lock)
@@ -661,7 +650,8 @@ public class CookingPotGui implements InventoryHolder {
         scheduleGuiSync(event.getWhoClicked() instanceof Player p ? p : null);
     }
 
-    void onDrag(InventoryDragEvent event) {
+    @Override
+    public void onDrag(InventoryDragEvent event) {
         if (event.getInventory().getHolder() != this) return;
         if (closed) {
             event.setCancelled(true);
@@ -691,6 +681,9 @@ public class CookingPotGui implements InventoryHolder {
 
         ItemStack oldCursor = event.getOldCursor();
         if (oldCursor == null || oldCursor.getType().isAir()) {
+            return;
+        }
+        if (ItemUtils.isContainerNestingHazard(oldCursor)) {
             return;
         }
 
@@ -793,6 +786,12 @@ public class CookingPotGui implements InventoryHolder {
             handleTopShiftClick(player, rawSlot);
             syncToBlockEntity();
             updateDisplayItems();
+            return;
+        }
+
+        // A cooking pot (or any packed container) placed as an ingredient would nest its saved NBT inside this
+        // pot and let a player grow it into an NBT bomb; refuse it and leave the item on the cursor.
+        if (ItemUtils.isContainerNestingHazard(event.getCursor())) {
             return;
         }
 
@@ -992,12 +991,11 @@ public class CookingPotGui implements InventoryHolder {
         }
     }
 
-    void onClose(InventoryCloseEvent event) {
+    @Override
+    public void onClose(InventoryCloseEvent event) {
         if (event.getInventory().getHolder() != this) return;
         if (closed) return;
-
-        close();
-        activeGuis.remove(event.getPlayer().getUniqueId());
+        super.onClose(event);
     }
 
 
@@ -1076,7 +1074,23 @@ public class CookingPotGui implements InventoryHolder {
         }
     }
 
-    private void ensureListenerRegistered() {
+    @Override
+    protected AbstractInventoryGui findExistingGui(UUID playerId) {
+        return activeGuis.get(playerId);
+    }
+
+    @Override
+    protected void putActiveGui(UUID playerId, AbstractInventoryGui gui) {
+        activeGuis.put(playerId, (CookingPotGui) gui);
+    }
+
+    @Override
+    protected void removeFromActiveGuis(UUID playerId) {
+        activeGuis.remove(playerId);
+    }
+
+    @Override
+    protected void ensureListenerRegistered() {
         warm(plugin);
     }
 

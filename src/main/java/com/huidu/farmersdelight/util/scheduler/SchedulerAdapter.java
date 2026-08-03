@@ -87,7 +87,7 @@ public final class SchedulerAdapter {
     }
 
     /**
-     * Like runForEntity(Entity, Runnable) but with a retired callback invoked if the
+     * Like Runnable) but with a retired callback invoked if the
      * entity is removed before the task runs (Folia). Without it, a task queued for an entity that is
      * retired mid-flight is silently dropped and any bookkeeping the task's finally block would do
      * (e.g. clearing an "already scheduled" guard set) never happens, leaking that entry forever. On

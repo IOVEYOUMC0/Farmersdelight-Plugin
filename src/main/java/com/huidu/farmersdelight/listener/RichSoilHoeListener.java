@@ -5,7 +5,7 @@ import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.block.behavior.RichSoilBlockBehavior;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
-import com.huidu.farmersdelight.util.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockInteractEvent;
 import net.momirealms.craftengine.core.block.BlockDefinition;
@@ -32,6 +32,7 @@ public final class RichSoilHoeListener implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @SuppressWarnings("UnstableApiUsage")
     public void onInteract(CustomBlockInteractEvent event) {
         if (event.action() != CustomBlockInteractEvent.Action.RIGHT_CLICK) return;
         if (event.hand() != InteractionHand.MAIN_HAND) return;

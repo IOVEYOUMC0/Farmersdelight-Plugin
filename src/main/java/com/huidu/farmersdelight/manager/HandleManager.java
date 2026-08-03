@@ -39,7 +39,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * removed by the same action. While the handle is present, TrayManager#shouldHaveTray returns false
  * so the auto-tray never coexists with the handle.
  *
- * <p>Tracked worlds get an orphan-sweep on startup/load and cleanup on disable/unload/reload. Handle
+ * Tracked worlds get an orphan-sweep on startup/load and cleanup on disable/unload/reload. Handle
  * entities carry a PDC marker so the despawn paths only touch auto-placed ones (the item itself isn't
  * user-placeable).
  */
@@ -107,11 +107,11 @@ public final class HandleManager {
         }
     }
 
-    // ── public API ──────────────────────────────────────────────────────────────────────────────
+    // public API
 
     /**
-     * 检查烹饪锅上是否有自动放置的手柄家具。
-     * 内部使用 chunk 实体列表扫描，避免 getNearbyEntities 的 Folia 线程安全问题。
+     * Check whether an auto-placed handle furniture exists on the cooking pot.
+     * Uses chunk entity list scan internally to avoid getNearbyEntities Folia thread safety issues.
      */
     public boolean hasHandle(World world, BlockPos potPos) {
         if (world == null || potPos == null) return false;
@@ -119,8 +119,8 @@ public final class HandleManager {
     }
 
     /**
-     * 使用预获取的实体列表检查手柄，避免在 Folia 区域线程上调用 getNearbyEntities。
-     * 调用方（如 chunk 加载清理）已经持有实体列表，直接扫描即可。
+     * Check handle using a pre-fetched entity list, avoiding getNearbyEntities on Folia region threads.
+     * Callers (e.g. chunk-load cleanup) already hold the entity list and can scan it directly.
      */
     public boolean hasHandle(World world, BlockPos potPos, List<Entity> entities) {
         if (world == null || potPos == null || entities == null) return false;
@@ -169,7 +169,7 @@ public final class HandleManager {
         return !had;
     }
 
-    /** 移除烹饪锅上所有自动放置的手柄。锅被破坏/替换时调用。 */
+    /** Remove all auto-placed handles on the cooking pot. Called when the pot is broken/replaced. */
     public void removeHandle(World world, BlockPos potPos) {
         if (world == null || potPos == null) return;
         removeHandle(world, potPos, getChunkEntities(world, potPos));
@@ -184,7 +184,7 @@ public final class HandleManager {
         }
     }
 
-    // ── lifecycle ───────────────────────────────────────────────────────────────────────────────
+    // lifecycle
 
     /** Register a world and sweep orphan handles (handles whose pot is gone). */
     public void trackWorld(World world) {
@@ -213,7 +213,7 @@ public final class HandleManager {
         }
     }
 
-    // ── internals ───────────────────────────────────────────────────────────────────────────────
+    // internals
 
     /** Sweep orphaned auto-placed handles per loaded chunk rather than walking the whole-world entity index
      * (that stalls the main thread in decoration-heavy worlds and crosses regions on Folia — R-PERF-006).
@@ -312,7 +312,7 @@ public final class HandleManager {
     }
 
     /**
-     * 使用预获取的实体列表查找手柄家具，避免在 Folia 区域线程上调用 getNearbyEntities。
+     * Find handle furniture using a pre-fetched entity list, avoiding getNearbyEntities on Folia region threads.
      */
     private Collection<BukkitFurniture> findHandleFurniture(World world, Location handleLoc, List<Entity> entities) {
         List<BukkitFurniture> result = new ArrayList<>();
@@ -342,7 +342,7 @@ public final class HandleManager {
         return result;
     }
 
-    /** 从 BlockPos 所在 chunk 获取实体列表，chunk 未加载时返回空列表。 */
+    /** Get entity list from the chunk containing BlockPos. Returns empty list if chunk is not loaded. */
     private List<Entity> getChunkEntities(World world, BlockPos pos) {
         if (world == null || pos == null) return List.of();
         int cx = pos.x() >> 4;
@@ -351,7 +351,7 @@ public final class HandleManager {
         return java.util.Arrays.asList(world.getChunkAt(cx, cz).getEntities());
     }
 
-    /** 从 Location 所在 chunk 获取实体列表，chunk 未加载时返回空列表。 */
+    /** Get entity list from the chunk containing Location. Returns empty list if chunk is not loaded. */
     private List<Entity> getChunkEntities(World world, Location loc) {
         if (world == null || loc == null) return List.of();
         int cx = loc.getBlockX() >> 4;

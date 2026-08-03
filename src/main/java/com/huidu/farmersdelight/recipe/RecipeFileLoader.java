@@ -56,7 +56,7 @@ final class RecipeFileLoader {
     }
 
     /**
-     * @param reconcileWithBundled when true, recipe ids present in the jar but absent from the file on disk
+     * reconcileWithBundled when true, recipe ids present in the jar but absent from the file on disk
      *                             are reported (and merged in when the admin opted in). Pass false for the
      *                             in-game recipe editor: it loads the file only to write it straight back,
      *                             and a merge there would re-add the very entry an admin just deleted.

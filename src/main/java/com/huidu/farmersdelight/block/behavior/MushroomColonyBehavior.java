@@ -4,11 +4,11 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.event.FarmersDelightHarvestEvent;
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.Constants;
-import com.huidu.farmersdelight.util.CraftEngineAdapter;
+import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
-import com.huidu.farmersdelight.util.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
@@ -41,35 +41,14 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class MushroomColonyBehavior extends BlockBehavior implements BonemealableBlock, RandomTickBlock {
+public class MushroomColonyBehavior extends FarmersDelightBlockBehavior implements BonemealableBlock, RandomTickBlock {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
         return false;
     }
 
-    @Override
-    public void fallOn(Object thisBlock, Object[] args) {
-    }
-
-    @Override
-    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
-    }
-    private static final Map<Key, MushroomColonyBehavior> BEHAVIORS = new ConcurrentHashMap<>();
-
-    private final Property<Integer> ageProperty;
-    private final int maxAge;
-    private final float growSpeed;
-    private final int minGrowLight;
-    private final int bonemealMinAgeBonus;
-    private final int bonemealMaxAgeBonus;
-    private final Set<Key> harvestToolTags;
-    private final Set<String> harvestToolItems;
-    private final SoilRuleSupport.SoilRules growSoilRules;
-    private final String mushroomItemId;
-
-    private MushroomColonyBehavior(
-            BlockDefinition block,
+    private record Config(
             Property<Integer> ageProperty,
             int maxAge,
             float growSpeed,
@@ -80,67 +59,53 @@ public class MushroomColonyBehavior extends BlockBehavior implements Bonemealabl
             Set<String> harvestToolItems,
             SoilRuleSupport.SoilRules growSoilRules,
             String mushroomItemId
-    ) {
+    ) {}
+
+    private static final Map<Key, MushroomColonyBehavior> BEHAVIORS = new ConcurrentHashMap<>();
+
+    private final Config config;
+
+    private MushroomColonyBehavior(BlockDefinition block, Config config) {
         super(block);
-        this.ageProperty = ageProperty;
-        this.maxAge = maxAge;
-        this.growSpeed = growSpeed;
-        this.minGrowLight = minGrowLight;
-        this.bonemealMinAgeBonus = bonemealMinAgeBonus;
-        this.bonemealMaxAgeBonus = bonemealMaxAgeBonus;
-        this.harvestToolTags = harvestToolTags;
-        this.harvestToolItems = harvestToolItems;
-        this.growSoilRules = growSoilRules;
-        this.mushroomItemId = mushroomItemId;
+        this.config = config;
     }
 
     @SuppressWarnings("unchecked")
-    public static final BlockBehaviorFactory<MushroomColonyBehavior> FACTORY = new BlockBehaviorFactory<>() {
-        @Override
-        public MushroomColonyBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
-            Map<String, Object> arguments = section != null ? section.values() : Map.of();
-            // The age is not optional: it carries how many mushrooms the colony holds, so without it the
-            // colony reads as empty and can never be harvested, while growth and bone meal fail on every
-            // write. A block that declares this behavior without an int age property aborts its own load
-            // here, naming the property, instead of loading a colony that silently does nothing. The
-            // property name stays configurable, but an unresolvable configured name is now an error
-            // rather than a silent fall back to the default name.
-            String path = section != null ? section.path() : Constants.BEHAVIOR_MUSHROOM_COLONY;
-            String agePropertyName = BehaviorArgParser.getString(arguments, "age-property", "age");
-            Property<Integer> ageProperty =
-                    BlockBehaviorFactory.getProperty(path, block, agePropertyName, Integer.class);
+    public static final BlockBehaviorFactory<MushroomColonyBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+        Map<String, Object> arguments = section != null ? section.values() : Map.of();
+        // The age is not optional: it carries how many mushrooms the colony holds, so without it the
+        // colony reads as empty and can never be harvested, while growth and bone meal fail on every
+        // write. A block that declares this behavior without an int age property aborts its own load
+        // here, naming the property, instead of loading a colony that silently does nothing. The
+        // property name stays configurable, but an unresolvable configured name is now an error
+        // rather than a silent fall back to the default name.
+        String path = section != null ? section.path() : Constants.BEHAVIOR_MUSHROOM_COLONY;
+        String agePropertyName = BehaviorArgParser.getString(arguments, "age-property", "age");
+        Property<Integer> ageProperty =
+                BlockBehaviorFactory.getProperty(path, block, agePropertyName, Integer.class);
 
-            int maxAge = BehaviorArgParser.hasArgument(arguments, "max-age")
-                    ? BehaviorArgParser.getInt(arguments, "max-age", 3)
-                    : BehaviorArgParser.inferMaxIntegerValue(ageProperty, 3);
-            float growSpeed = BehaviorArgParser.getFloat(arguments, "grow-speed", 0.25f);
-            int minGrowLight = BehaviorArgParser.getInt(arguments, "light-requirement", 0);
-            int bonemealMinAgeBonus = BehaviorArgParser.getInt(arguments, "bonemeal-min-age-bonus", 1);
-            int bonemealMaxAgeBonus = BehaviorArgParser.getInt(arguments, "bonemeal-max-age-bonus", 2);
-            if (bonemealMaxAgeBonus < bonemealMinAgeBonus) {
-                bonemealMaxAgeBonus = bonemealMinAgeBonus;
-            }
-            Set<Key> harvestToolTags = SoilRuleSupport.parseKeys(arguments, "harvest-tool-tags");
-            Set<String> harvestToolItems = parseConfiguredItemIds(arguments, "harvest-tool-items");
-            SoilRuleSupport.SoilRules growSoilRules = parseGrowSoilRules(arguments);
-            String mushroomItemId = BehaviorArgParser.getString(arguments, "mushroom-type", "");
-
-            MushroomColonyBehavior behavior = new MushroomColonyBehavior(
-                    block,
-                    ageProperty,
-                    maxAge,
-                    growSpeed,
-                    minGrowLight,
-                    bonemealMinAgeBonus,
-                    bonemealMaxAgeBonus,
-                    harvestToolTags,
-                    harvestToolItems,
-                    growSoilRules,
-                    mushroomItemId
-            );
-            BEHAVIORS.put(block.id(), behavior);
-            return behavior;
+        int maxAge = BehaviorArgParser.hasArgument(arguments, "max-age")
+                ? BehaviorArgParser.getInt(arguments, "max-age", 3)
+                : BehaviorArgParser.inferMaxIntegerValue(ageProperty, 3);
+        float growSpeed = BehaviorArgParser.getFloat(arguments, "grow-speed", 0.25f);
+        int minGrowLight = BehaviorArgParser.getInt(arguments, "light-requirement", 0);
+        int bonemealMinAgeBonus = BehaviorArgParser.getInt(arguments, "bonemeal-min-age-bonus", 1);
+        int bonemealMaxAgeBonus = BehaviorArgParser.getInt(arguments, "bonemeal-max-age-bonus", 2);
+        if (bonemealMaxAgeBonus < bonemealMinAgeBonus) {
+            bonemealMaxAgeBonus = bonemealMinAgeBonus;
         }
+        Set<Key> harvestToolTags = SoilRuleSupport.parseKeys(arguments, "harvest-tool-tags");
+        Set<String> harvestToolItems = parseConfiguredItemIds(arguments, "harvest-tool-items");
+        SoilRuleSupport.SoilRules growSoilRules = parseGrowSoilRules(arguments);
+        String mushroomItemId = BehaviorArgParser.getString(arguments, "mushroom-type", "");
+
+        MushroomColonyBehavior behavior = new MushroomColonyBehavior(block, new Config(
+                ageProperty, maxAge, growSpeed, minGrowLight,
+                bonemealMinAgeBonus, bonemealMaxAgeBonus,
+                harvestToolTags, harvestToolItems, growSoilRules, mushroomItemId
+        ));
+        BEHAVIORS.put(block.id(), behavior);
+        return behavior;
     };
 
     public static MushroomColonyBehavior getBehavior(Key blockId) {
@@ -168,7 +133,7 @@ public class MushroomColonyBehavior extends BlockBehavior implements Bonemealabl
         if (state == null || state.isEmpty()) {
             return 0;
         }
-        Integer value = state.getNullable(ageProperty);
+        Integer value = state.getNullable(config.ageProperty());
         return value != null ? value : 0;
     }
 
@@ -199,7 +164,7 @@ public class MushroomColonyBehavior extends BlockBehavior implements Bonemealabl
             return InteractionResult.PASS;
         }
 
-        ItemStack mushroomDrop = ItemUtils.createItem(mushroomItemId);
+        ItemStack mushroomDrop = ItemUtils.createItem(config.mushroomItemId());
         if (mushroomDrop == null || mushroomDrop.getType().isAir()) {
             return InteractionResult.PASS;
         }
@@ -215,13 +180,13 @@ public class MushroomColonyBehavior extends BlockBehavior implements Bonemealabl
 
         if (shearsHarvest) {
             mushroomDrop.setAmount(1);
-            ImmutableBlockState nextState = state.with(ageProperty, Math.max(0, currentAge - 1));
+            ImmutableBlockState nextState = state.with(config.ageProperty(), Math.max(0, currentAge - 1));
             CraftEngineBlocks.place(block.getLocation(), nextState, false);
             world.playSound(loc, Sound.ENTITY_SHEEP_SHEAR, 1.0f, 1.0f);
             spawnHarvestParticles(world, loc, 3, 0.1, 0.001);
         } else {
             mushroomDrop.setAmount(currentAge);
-            ImmutableBlockState resetState = state.with(ageProperty, 0);
+            ImmutableBlockState resetState = state.with(config.ageProperty(), 0);
             CraftEngineBlocks.place(block.getLocation(), resetState, false);
             // Mirrors original MushroomColonyBlock: knife harvest plays the block's break sound
             // (colony copies vanilla mushroom = SoundType.GRASS) rather than a crop-growth sound.
@@ -248,7 +213,7 @@ public class MushroomColonyBehavior extends BlockBehavior implements Bonemealabl
      * particle texture is taken from the matching vanilla mushroom block for a mushroom-colored burst.
      */
     private void spawnHarvestParticles(World world, Location loc, int count, double offset, double speed) {
-        Material particleMaterial = mushroomItemId != null && mushroomItemId.contains("red")
+        Material particleMaterial = config.mushroomItemId() != null && config.mushroomItemId().contains("red")
                 ? Material.RED_MUSHROOM_BLOCK : Material.BROWN_MUSHROOM_BLOCK;
         world.spawnParticle(Particle.BLOCK, loc, count, offset, offset, offset, speed, particleMaterial.createBlockData());
     }
@@ -284,7 +249,7 @@ public class MushroomColonyBehavior extends BlockBehavior implements Bonemealabl
             return true;
         }
 
-        for (Key harvestToolTag : harvestToolTags) {
+        for (Key harvestToolTag : config.harvestToolTags()) {
             if (ItemUtils.matchesVanillaItemTag(item, harvestToolTag, Collections.emptySet(), Collections.emptySet())) {
                 return true;
             }
@@ -311,7 +276,7 @@ public class MushroomColonyBehavior extends BlockBehavior implements Bonemealabl
         String customId = ItemUtils.getCustomItemId(item);
         if (customId != null) {
             if (specificItemId == null || specificItemId.equalsIgnoreCase(customId)) {
-                if (harvestToolItems.contains(customId)) {
+                if (config.harvestToolItems().contains(customId)) {
                     return true;
                 }
             }
@@ -320,7 +285,7 @@ public class MushroomColonyBehavior extends BlockBehavior implements Bonemealabl
         String vanillaItemId = ItemUtils.getVanillaMaterialItemId(item);
         if (vanillaItemId != null) {
             if (specificItemId == null || specificItemId.equalsIgnoreCase(vanillaItemId)) {
-                if (harvestToolItems.contains(vanillaItemId)) {
+                if (config.harvestToolItems().contains(vanillaItemId)) {
                     return true;
                 }
             }
@@ -350,7 +315,7 @@ public class MushroomColonyBehavior extends BlockBehavior implements Bonemealabl
         if (args.length < 3) return false;
         ImmutableBlockState state = BlockStateUtils.getOptionalCustomBlockState(args[2]).orElse(null);
         if (state == null || state.isEmpty()) return false;
-        return getAge(state) < maxAge;
+        return getAge(state) < config.maxAge();
     }
 
     @Override
@@ -374,22 +339,22 @@ public class MushroomColonyBehavior extends BlockBehavior implements Bonemealabl
         if (state == null || state.isEmpty()) return;
 
         int currentAge = getAge(state);
-        if (currentAge >= maxAge) return;
+        if (currentAge >= config.maxAge()) return;
 
         World world = CraftEngineAdapter.toWorld(args[0]);
         BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
         if (world == null || pos == null) return;
 
-        int increase = ThreadLocalRandom.current().nextInt(bonemealMinAgeBonus, bonemealMaxAgeBonus + 1);
-        int newAge = Math.min(maxAge, currentAge + increase);
-        ImmutableBlockState newState = state.with(ageProperty, newAge);
+        int increase = ThreadLocalRandom.current().nextInt(config.bonemealMinAgeBonus(), config.bonemealMaxAgeBonus() + 1);
+        int newAge = Math.min(config.maxAge(), currentAge + increase);
+        ImmutableBlockState newState = state.with(config.ageProperty(), newAge);
         Block block = world.getBlockAt(pos.x(), pos.y(), pos.z());
         CraftEngineBlocks.place(block.getLocation(), newState, false);
     }
 
     @Override
     public boolean canRandomlyTick(ImmutableBlockState state) {
-        return getAge(state) < maxAge;
+        return getAge(state) < config.maxAge();
     }
 
     @Override
@@ -404,7 +369,7 @@ public class MushroomColonyBehavior extends BlockBehavior implements Bonemealabl
         }
 
         int currentAge = getAge(state);
-        if (currentAge >= maxAge) {
+        if (currentAge >= config.maxAge()) {
             return;
         }
 
@@ -415,17 +380,17 @@ public class MushroomColonyBehavior extends BlockBehavior implements Bonemealabl
         }
 
         Block block = world.getBlockAt(pos.x(), pos.y(), pos.z());
-        if (growSoilRules.isConfigured() && !SoilRuleSupport.matches(block.getRelative(0, -1, 0), growSoilRules)) {
+        if (config.growSoilRules().isConfigured() && !SoilRuleSupport.matches(block.getRelative(0, -1, 0), config.growSoilRules())) {
             return;
         }
-        if (minGrowLight > 0 && block.getLightLevel() < minGrowLight) {
+        if (config.minGrowLight() > 0 && block.getLightLevel() < config.minGrowLight()) {
             return;
         }
-        if (ThreadLocalRandom.current().nextFloat() >= growSpeed) {
+        if (ThreadLocalRandom.current().nextFloat() >= config.growSpeed()) {
             return;
         }
 
-        ImmutableBlockState newState = state.with(ageProperty, currentAge + 1);
+        ImmutableBlockState newState = state.with(config.ageProperty(), currentAge + 1);
         CraftEngineBlocks.place(block.getLocation(), newState, false);
     }
 

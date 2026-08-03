@@ -19,7 +19,7 @@ import java.util.Map;
  * container. Keeping the two behaviors separate leaves the storage behavior untouched and lets the
  * composite dispatch container calls to it exactly as before.
  */
-public class BasketBlockBehavior extends BlockBehavior implements EntityBlock {
+public class BasketBlockBehavior extends FarmersDelightBlockBehavior implements EntityBlock {
 
     // The reference BasketBlockEntity waits eight ticks after each successful pickup (setCooldown(8)).
     public static final int DEFAULT_TRANSFER_COOLDOWN = 8;
@@ -33,16 +33,13 @@ public class BasketBlockBehavior extends BlockBehavior implements EntityBlock {
         this.eject = eject;
     }
 
-    public static final BlockBehaviorFactory<BasketBlockBehavior> FACTORY = new BlockBehaviorFactory<>() {
-        @Override
-        public BasketBlockBehavior create(BlockDefinition block, ConfigSection section) {
-            Map<String, Object> arguments = section != null ? section.values() : Map.of();
-            int cooldown = Math.max(1, BehaviorArgParser.getInt(arguments, "transfer-cooldown", DEFAULT_TRANSFER_COOLDOWN));
-            // When on, the basket pushes its contents into a container it faces; when off it only collects
-            // dropped items. Collection is always on. Defaults to on so an existing basket gains the behavior.
-            boolean eject = BehaviorArgParser.getBoolean(arguments, "eject", true);
-            return new BasketBlockBehavior(block, cooldown, eject);
-        }
+    public static final BlockBehaviorFactory<BasketBlockBehavior> FACTORY = (BlockDefinition block, ConfigSection section) -> {
+        Map<String, Object> arguments = section != null ? section.values() : Map.of();
+        int cooldown = Math.max(1, BehaviorArgParser.getInt(arguments, "transfer-cooldown", DEFAULT_TRANSFER_COOLDOWN));
+        // When on, the basket pushes its contents into a container it faces; when off it only collects
+        // dropped items. Collection is always on. Defaults to on so an existing basket gains the behavior.
+        boolean eject = BehaviorArgParser.getBoolean(arguments, "eject", true);
+        return new BasketBlockBehavior(block, cooldown, eject);
     };
 
     @Override
@@ -59,11 +56,4 @@ public class BasketBlockBehavior extends BlockBehavior implements EntityBlock {
         return false;
     }
 
-    @Override
-    public void fallOn(Object thisBlock, Object[] args) {
-    }
-
-    @Override
-    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
-    }
 }

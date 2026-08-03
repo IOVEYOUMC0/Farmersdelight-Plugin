@@ -340,6 +340,55 @@ items:
       fallback:
         type: minecraft:model
         path: ${__NAMESPACE__}:block/canvas_rug
+  farmersdelight:canvas_rug_no_north_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_no_north
+  farmersdelight:canvas_rug_no_south_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_no_south
+  farmersdelight:canvas_rug_no_east_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_no_east
+  farmersdelight:canvas_rug_no_west_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_no_west
+  farmersdelight:canvas_rug_no_north_south_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_no_north_south
+  farmersdelight:canvas_rug_no_east_west_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_no_east_west
+  farmersdelight:canvas_rug_surrounded_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_base
   farmersdelight:safety_net:
     data:
       item-name: <!i><lang:block.farmersdelight.safety_net>
@@ -464,9 +513,107 @@ furniture:
     loot:
       template: default:loot_table/self
     variants:
-      ground:
+      standalone:
         elements:
         - item: farmersdelight:canvas_rug_elements
+          position: 0,0.435,0
+          translation: 0,0.0625,0
+          scale: 1.001
+        hitboxes:
+        - position: 0,0,0
+          type: interaction
+          width: 1
+          height: 0.1
+          blocks-building: true
+          interactive: false
+          invisible: true
+      no_north:
+        elements:
+        - item: farmersdelight:canvas_rug_no_north_elements
+          position: 0,0.435,0
+          translation: 0,0.0625,0
+          scale: 1.001
+        hitboxes:
+        - position: 0,0,0
+          type: interaction
+          width: 1
+          height: 0.1
+          blocks-building: true
+          interactive: false
+          invisible: true
+      no_south:
+        elements:
+        - item: farmersdelight:canvas_rug_no_south_elements
+          position: 0,0.435,0
+          translation: 0,0.0625,0
+          scale: 1.001
+        hitboxes:
+        - position: 0,0,0
+          type: interaction
+          width: 1
+          height: 0.1
+          blocks-building: true
+          interactive: false
+          invisible: true
+      no_east:
+        elements:
+        - item: farmersdelight:canvas_rug_no_east_elements
+          position: 0,0.435,0
+          translation: 0,0.0625,0
+          scale: 1.001
+        hitboxes:
+        - position: 0,0,0
+          type: interaction
+          width: 1
+          height: 0.1
+          blocks-building: true
+          interactive: false
+          invisible: true
+      no_west:
+        elements:
+        - item: farmersdelight:canvas_rug_no_west_elements
+          position: 0,0.435,0
+          translation: 0,0.0625,0
+          scale: 1.001
+        hitboxes:
+        - position: 0,0,0
+          type: interaction
+          width: 1
+          height: 0.1
+          blocks-building: true
+          interactive: false
+          invisible: true
+      no_north_south:
+        elements:
+        - item: farmersdelight:canvas_rug_no_north_south_elements
+          position: 0,0.435,0
+          translation: 0,0.0625,0
+          scale: 1.001
+        hitboxes:
+        - position: 0,0,0
+          type: interaction
+          width: 1
+          height: 0.1
+          blocks-building: true
+          interactive: false
+          invisible: true
+      no_east_west:
+        elements:
+        - item: farmersdelight:canvas_rug_no_east_west_elements
+          position: 0,0.435,0
+          translation: 0,0.0625,0
+          scale: 1.001
+        hitboxes:
+        - position: 0,0,0
+          type: interaction
+          width: 1
+          height: 0.1
+          blocks-building: true
+          interactive: false
+          invisible: true
+      surrounded:
+        elements:
+        - item: farmersdelight:canvas_rug_surrounded_elements
           position: 0,0.435,0
           translation: 0,0.0625,0
           scale: 1.001

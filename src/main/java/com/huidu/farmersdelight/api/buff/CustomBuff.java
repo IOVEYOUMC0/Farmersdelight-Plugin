@@ -8,18 +8,18 @@ import org.jetbrains.annotations.ApiStatus;
  * are FarmersDelight's Comfort / Nourishment and Brewin' And Chewin's Tipsy / Sweet Heart / Raging /
  * Intoxication, which keep their own per-player state maps that vanilla milk_bucket can't see.
  *
- * <p>Register implementations through CustomBuffRegistry#register during your plugin's
+ * Register implementations through CustomBuffRegistry#register during your plugin's
  * onEnable. FarmersDelight's central milk-consume listener will then route:
- * <ul>
- *   <li>minecraft:milk_bucket → remove every active registered buff from the drinker
- *       (vanilla "milk wipes all" semantics, extended to custom state);</li>
- *   <li>farmersdelight:milk_bottle → remove exactly one active buff, preferring entries with
- *       isLowPriority() returning false so the original mod's
- *       brewinandchewin:low_priority/milk_bottle tag semantics carry over.</li>
- * </ul>
+ * 
+ *   - minecraft:milk_bucket → remove every active registered buff from the drinker
+ *       (vanilla "milk wipes all" semantics, extended to custom state);
+ *   - farmersdelight:milk_bottle → remove exactly one active buff, preferring entries with
+ *       #isLowPriority() returning false so the original mod's
+ *       brewinandchewin:low_priority/milk_bottle tag semantics carry over.
+ * 
  *
- * <p>Implementations must be idempotent: remove(Player) on a player without the buff is a
- * no-op, and isActive(Player) returns false both before activation and after removal.
+ * Implementations must be idempotent: #remove(Player) on a player without the buff is a
+ * no-op, and #isActive(Player) returns false both before activation and after removal.
  */
 @ApiStatus.OverrideOnly
 public interface CustomBuff {
@@ -35,7 +35,7 @@ public interface CustomBuff {
      *  PlayerItemConsumeEvent, which runs on the consuming player's thread. */
     void remove(Player player);
 
-    /** Grant this buff to player at level (1-based, mirroring level(Player):
+    /** Grant this buff to player at level (1-based, mirroring #level(Player):
      *  1 = baseline / amp 0) for durationSeconds. Powers admin grant tooling (the
      *  /fd buff give command) so every registered buff can be handed out through the registry
      *  without the command knowing each addon's apply API. Return true when the buff was applied,
@@ -55,7 +55,7 @@ public interface CustomBuff {
 
     /** Current effective level for player — 1-based (1 = baseline / amp 0,
      *  2 = amp 1, …), or 0 when inactive. Powers HUD placeholders that show
-     *  the buff's current strength. Default: returns 1 when isActive(Player) is true,
+     *  the buff's current strength. Default: returns 1 when #isActive(Player) is true,
      *  0 otherwise. */
     default int level(Player player) {
         return isActive(player) ? 1 : 0;
@@ -70,7 +70,7 @@ public interface CustomBuff {
 
     /** Translatable lang key for the buff's display name (e.g. "buff.farmersdelight.comfort").
      *  Used by HUD placeholders that print the buff name. Default: empty string (the placeholder will
-     *  fall back to the buff's id()). */
+     *  fall back to the buff's #id()). */
     default String nameKey() {
         return "";
     }
@@ -80,16 +80,16 @@ public interface CustomBuff {
      *  servers. FarmersDelight's central persistence lifecycle calls this on quit while the buff's
      *  in-memory state is still intact. Store under your own namespaced PDC keys.
      *
-     *  <p>Default no-op — implement only for buffs that should survive a relog; genuinely ephemeral
+     *  Default no-op — implement only for buffs that should survive a relog; genuinely ephemeral
      *  effects can stay in-memory. An inactive buff should remove its keys so no stale entry lingers. */
     default void saveState(Player player) {
     }
 
-    /** Restore this buff's state onto player from wherever saveState(Player) wrote it.
+    /** Restore this buff's state onto player from wherever #saveState(Player) wrote it.
      *  FarmersDelight calls this on join and once more after a short (configurable) delay, so that
      *  whole-profile sync plugins which apply the synced PDC a moment after join are still caught.
      *
-     *  <p>MUST be gap-filling: if the buff is already active (from the immediate restore, or a dose the
+     *  MUST be gap-filling: if the buff is already active (from the immediate restore, or a dose the
      *  player gained since joining), leave it untouched — otherwise the retry would clobber live state.
      *  Default no-op. */
     default void restoreState(Player player) {

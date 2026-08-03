@@ -57,8 +57,8 @@ public final class FarmersDelightItems {
      * server-side-resolved .fallback(...) text so clients whose pack lacks the lang entry
      * still see a readable name (server default locale) rather than the raw item.ns.id key.
      *
-     * <p>Use for lore lines / chat broadcasts persisted on an ItemStack or sent to many
-     * viewers, where displayNameOf(ItemStack, Player) would freeze the text to one player's
+     * Use for lore lines / chat broadcasts persisted on an ItemStack or sent to many
+     * viewers, where Player) would freeze the text to one player's
      * locale. An anvil-renamed name is honoured as-is.
      */
     public static Component translatableDisplayNameOf(ItemStack item) {
@@ -66,11 +66,11 @@ public final class FarmersDelightItems {
     }
 
     /**
-     * Same as translatableDisplayNameOf(ItemStack) but ignores any player-applied anvil rename
+     * Same as #translatableDisplayNameOf(ItemStack) but ignores any player-applied anvil rename
      * — the visible name follows each viewer's client locale via Component.translatable(key),
      * with a server-resolved .fallback(...) so missing-pack clients still see readable text.
      *
-     * <p>Use for lore lines persisted on an ItemStack where the embedded item name should
+     * Use for lore lines persisted on an ItemStack where the embedded item name should
      * switch with each viewer's language but must not freeze to one player's anvil typo.
      */
     public static Component translatableDisplayNameOfNoAnvilOf(ItemStack item) {
@@ -83,7 +83,7 @@ public final class FarmersDelightItems {
      * fully baked here so every client renders the same characters regardless of its own locale or
      * resource-pack state.
      *
-     * <p>Use for lore lines persisted on an ItemStack when the visible name must match the
+     * Use for lore lines persisted on an ItemStack when the visible name must match the
      * server language (and stay stable across viewers) rather than the receiver's client locale.
      */
     public static Component serverDisplayNameOf(ItemStack item) {
@@ -146,7 +146,7 @@ public final class FarmersDelightItems {
 
     /**
      * Builds a GUI icon from itemId (CraftEngine custom item or vanilla material) with a rendered name
-     * and lore (see applyDisplay). Returns null when itemId can't be resolved.
+     * and lore (see #applyDisplay). Returns null when itemId can't be resolved.
      */
     public static ItemStack buildIcon(String itemId, String nameTemplate, List<String> loreTemplates,
                                       Player viewer, Map<String, String> placeholders) {

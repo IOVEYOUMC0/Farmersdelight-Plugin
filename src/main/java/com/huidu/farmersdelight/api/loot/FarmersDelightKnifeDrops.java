@@ -34,17 +34,17 @@ public final class FarmersDelightKnifeDrops {
      * Registers (or replaces) the knife drop rule for entityType. Replaces the built-in rule
      * for that type if one exists — there is one rule per entity type, not a list.
      *
-     * @param entityType        Bukkit EntityType name, case-insensitive ("pig", "COW")
-     * @param normalItemId      item id to drop, "ns:id"; "minecraft:air" or null disables the drop
-     * @param burningItemId     item id to drop instead when the entity dies on fire, or null to always
+     * entityType Bukkit EntityType name, case-insensitive ("pig", "COW")
+     * normalItemId item id to drop, "ns:id"; "minecraft:air" or null disables the drop
+     * burningItemId item id to drop instead when the entity dies on fire, or null to always
      *                          use normalItemId
-     * @param chance            base drop probability, 0..1
-     * @param lootingMultiplier added to chance per Looting level on the killing tool; 0 to ignore Looting
-     * @param toolItems         item ids that count as the harvesting tool; empty or null falls back to
+     * chance base drop probability, 0..1
+     * lootingMultiplier added to chance per Looting level on the killing tool; 0 to ignore Looting
+     * toolItems item ids that count as the harvesting tool; empty or null falls back to
      *                          the globally configured knife item list
-     * @param toolTags          item tag ids ("#ns:tag" style ids without the hash) that count as the
+     * toolTags item tag ids ("#ns:tag" style ids without the hash) that count as the
      *                          harvesting tool; empty or null falls back to the global knife tag list
-     * @return false when FarmersDelight is unavailable or entityType is null/blank
+     * false when FarmersDelight is unavailable or entityType is null/blank
      */
     public static boolean register(String entityType, String normalItemId, String burningItemId,
                                    double chance, double lootingMultiplier,

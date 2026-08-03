@@ -29,7 +29,7 @@ import java.util.function.Function;
  *       level: 1        # optional, 1-based
  * </pre>
  *
- * <p>The buff itself (state, stacking, persistence, bossbar) is owned by EffectManager; this
+ * The buff itself (state, stacking, persistence, bossbar) is owned by EffectManager; this
  * function only reads the config and forwards to FarmersDelightFoodEffects. It runs during the
  * consume event on the eating player's own thread, which is where the effect must be applied.
  */

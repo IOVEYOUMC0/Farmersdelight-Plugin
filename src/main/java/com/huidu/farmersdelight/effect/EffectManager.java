@@ -2,16 +2,19 @@ package com.huidu.farmersdelight.effect;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.buff.BuffBossbar;
+import com.huidu.farmersdelight.api.text.FarmersDelightText;
 import com.huidu.farmersdelight.util.CompatAttributes;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import org.bukkit.GameRule;
 import org.bukkit.NamespacedKey;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffectType;
 
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -25,110 +28,149 @@ public final class EffectManager {
     private static final int DEFAULT_COMFORT_HEAL_INTERVAL_TICKS = 80;
     private static final double DEFAULT_COMFORT_HEAL_AMOUNT = 1.0D;
 
-    // Bossbar styles for the two FD buffs. Volatile + setters so /fd reload can mutate them without
-    // touching the per-tick push path. Defaults match the original NamedTextColor mapping
-    // (Nourishment GREEN, Comfort BLUE).
-    private static volatile BossBar.Color nourishmentBarColor = BossBar.Color.GREEN;
-    private static volatile BossBar.Overlay nourishmentBarOverlay = BossBar.Overlay.PROGRESS;
-    private static volatile BossBar.Color comfortBarColor = BossBar.Color.BLUE;
-    private static volatile BossBar.Overlay comfortBarOverlay = BossBar.Overlay.PROGRESS;
+    // Internal types
 
-    /** Apply the per-buff bossbar visual from FD's buff.display.styles config section. Called on
-     *  enable AND on /fd reload so colour edits land immediately. section may be null (defaults retained). */
-    public static void applyBossbarStyles(org.bukkit.configuration.ConfigurationSection section) {
-        if (section == null) return;
-        org.bukkit.configuration.ConfigurationSection n = section.getConfigurationSection("nourishment");
-        if (n != null) {
-            nourishmentBarColor = com.huidu.farmersdelight.api.buff.BuffBossbar.parseColor(n.getString("color"), BossBar.Color.GREEN);
-            nourishmentBarOverlay = com.huidu.farmersdelight.api.buff.BuffBossbar.parseOverlay(n.getString("overlay"), BossBar.Overlay.PROGRESS);
+    /** Metadata + runtime-stylable properties for Comfort and Nourishment buffs. */
+    private enum BuffKind {
+        COMFORT(
+            "farmersdelight:comfort_ticks", "farmersdelight:comfort_initial_ticks",
+            "farmersdelight:comfort", "buff.farmersdelight.comfort.title",
+            BossBar.Color.BLUE, BossBar.Overlay.PROGRESS
+        ),
+        NOURISHMENT(
+            "farmersdelight:nourishment_ticks", "farmersdelight:nourishment_initial_ticks",
+            "farmersdelight:nourishment", "buff.farmersdelight.nourishment.title",
+            BossBar.Color.GREEN, BossBar.Overlay.PROGRESS
+        );
+
+        final NamespacedKey pdcDurationKey;
+        final NamespacedKey pdcInitialKey;
+        final NamespacedKey bossbarKey;
+        final String titleKey;
+        volatile BossBar.Color barColor;
+        volatile BossBar.Overlay barOverlay;
+
+        BuffKind(String pdcDur, String pdcInit, String bbKey, String titleKey,
+                 BossBar.Color defColor, BossBar.Overlay defOverlay) {
+            this.pdcDurationKey = Objects.requireNonNull(NamespacedKey.fromString(pdcDur));
+            this.pdcInitialKey = Objects.requireNonNull(NamespacedKey.fromString(pdcInit));
+            this.bossbarKey = Objects.requireNonNull(NamespacedKey.fromString(bbKey));
+            this.titleKey = titleKey;
+            this.barColor = defColor;
+            this.barOverlay = defOverlay;
         }
-        org.bukkit.configuration.ConfigurationSection c = section.getConfigurationSection("comfort");
-        if (c != null) {
-            comfortBarColor = com.huidu.farmersdelight.api.buff.BuffBossbar.parseColor(c.getString("color"), BossBar.Color.BLUE);
-            comfortBarOverlay = com.huidu.farmersdelight.api.buff.BuffBossbar.parseOverlay(c.getString("overlay"), BossBar.Overlay.PROGRESS);
+
+        Component title(int durationTicks) {
+            return FarmersDelightText.translatable(
+                titleKey,
+                FarmersDelightText.formatDuration(Math.max(0, durationTicks) / 20));
         }
     }
-    // Real ticks elapsed between effect-task passes. Mirrors EffectListener's resolved tick interval
-    // so durations (stored in real ticks) decrement by the actual elapsed ticks and self-correct.
+
+    /** Holds one Buff's state: remaining ticks, initial ticks, and level. */
+    private record BuffState(int duration, int initial, int level) {
+        boolean isActive() { return duration > 0; }
+        static final BuffState EMPTY = new BuffState(0, 0, 1);
+    }
+
+    // Public key aliases (for external compatibility)
+
+    public static final NamespacedKey KEY_NOURISHMENT = BuffKind.NOURISHMENT.bossbarKey;
+    public static final NamespacedKey KEY_COMFORT = BuffKind.COMFORT.bossbarKey;
+
+    // Unified state storage
+
+    private static final Map<UUID, EnumMap<BuffKind, BuffState>> playerBuffs = new ConcurrentHashMap<>();
+
+    private static EnumMap<BuffKind, BuffState> ensurePlayer(UUID playerId) {
+        return playerBuffs.computeIfAbsent(playerId, k -> {
+            EnumMap<BuffKind, BuffState> map = new EnumMap<>(BuffKind.class);
+            for (BuffKind k2 : BuffKind.values()) map.put(k2, BuffState.EMPTY);
+            return map;
+        });
+    }
+
+    private static BuffState getBuff(UUID playerId, BuffKind kind) {
+        EnumMap<BuffKind, BuffState> buffs = playerBuffs.get(playerId);
+        if (buffs == null) return BuffState.EMPTY;
+        return buffs.getOrDefault(kind, BuffState.EMPTY);
+    }
+
+    private static void putBuff(UUID playerId, BuffKind kind, BuffState state) {
+        ensurePlayer(playerId).put(kind, state);
+    }
+
+    // Bossbar styles
+
+    /** Apply per-Buff Bossbar visuals from FD's buff.display.styles config section.
+     *  Called on enable and /fd reload so color edits take effect immediately. section may be null (keep defaults). */
+    public static void applyBossbarStyles(ConfigurationSection section) {
+        if (section == null) return;
+        updateStyle(section, "nourishment", BuffKind.NOURISHMENT);
+        updateStyle(section, "comfort", BuffKind.COMFORT);
+    }
+
+    private static void updateStyle(ConfigurationSection section, String key, BuffKind kind) {
+        ConfigurationSection s = section.getConfigurationSection(key);
+        if (s == null) return;
+        kind.barColor = BuffBossbar.parseColor(s.getString("color"), kind.barColor);
+        kind.barOverlay = BuffBossbar.parseOverlay(s.getString("overlay"), kind.barOverlay);
+    }
+
+    // Tick interval: the actual elapsed ticks of EffectListener's resolved tick interval,
+    // used so durations (stored in real ticks) decrement by real elapsed ticks and self-correct.
     private static int tickInterval() {
         return (int) EffectListener.tickInterval();
     }
 
-    private static final Map<UUID, Integer> comfortDurations = new ConcurrentHashMap<>();
-    private static final Map<UUID, Integer> nourishmentDurations = new ConcurrentHashMap<>();
-    // Parallel "initial duration" maps — needed so the buff bossbar can render progress as
-    // remaining/initial rather than against a hard-coded max. Updated to the larger value when an
-    // overlapping dose is applied; removed alongside the duration map.
-    private static final Map<UUID, Integer> comfortInitial = new ConcurrentHashMap<>();
-    private static final Map<UUID, Integer> nourishmentInitial = new ConcurrentHashMap<>();
-    // Effect level (1-based; 1 = baseline / amp 0). Drives the vanilla-style stacking rule and the
-    // "II"/"III" suffix on the display. Absent entry == level 1. Removed alongside the duration map.
-    private static final Map<UUID, Integer> comfortLevels = new ConcurrentHashMap<>();
-    private static final Map<UUID, Integer> nourishmentLevels = new ConcurrentHashMap<>();
+    private EffectManager() {}
 
-    public static final NamespacedKey KEY_NOURISHMENT = Objects.requireNonNull(NamespacedKey.fromString("farmersdelight:nourishment"));
-    public static final NamespacedKey KEY_COMFORT = Objects.requireNonNull(NamespacedKey.fromString("farmersdelight:comfort"));
-
-    // PDC keys mirroring each buff's remaining + initial ticks onto the player entity so the effect
-    // survives relog / restart, and rides HuskSync-style whole-PDC sync across a proxy network.
-    private static final NamespacedKey PDC_COMFORT = Objects.requireNonNull(NamespacedKey.fromString("farmersdelight:comfort_ticks"));
-    private static final NamespacedKey PDC_COMFORT_INITIAL = Objects.requireNonNull(NamespacedKey.fromString("farmersdelight:comfort_initial_ticks"));
-    private static final NamespacedKey PDC_NOURISHMENT = Objects.requireNonNull(NamespacedKey.fromString("farmersdelight:nourishment_ticks"));
-    private static final NamespacedKey PDC_NOURISHMENT_INITIAL = Objects.requireNonNull(NamespacedKey.fromString("farmersdelight:nourishment_initial_ticks"));
-
-    // Title now interpolates the remaining time via the "<name> [%s]" pattern, so each title is built
-    // inline per push with the player's current seconds-left. Translatable + server fallback applied
-    // in FarmersDelightText.translatable so packs without the lang entry still show readable text.
-    private static Component titleNourishment(int durationTicks) {
-        return com.huidu.farmersdelight.api.text.FarmersDelightText.translatable(
-                "buff.farmersdelight.nourishment.title",
-                com.huidu.farmersdelight.api.text.FarmersDelightText.formatDuration(Math.max(0, durationTicks) / 20));
-    }
-
-    private static Component titleComfort(int durationTicks) {
-        return com.huidu.farmersdelight.api.text.FarmersDelightText.translatable(
-                "buff.farmersdelight.comfort.title",
-                com.huidu.farmersdelight.api.text.FarmersDelightText.formatDuration(Math.max(0, durationTicks) / 20));
-    }
-
-    private EffectManager() {
-    }
+    // Apply Buff
 
     public static void applyComfort(Player player, int durationSeconds) {
-        applyComfort(player, durationSeconds, 1);
+        applyBuff(player, BuffKind.COMFORT, durationSeconds, 1);
     }
 
-    /**
-     * Applies the Comfort effect at level (1-based) for durationSeconds, using the vanilla
-     * potion stacking rule: a higher level replaces the active effect and refreshes its duration; an equal
-     * level extends to whichever remaining time is longer; a lower level is ignored while a stronger Comfort
-     * is active. (These effects aren't chainable, so a masked weaker dose isn't stored to resume later.)
-     */
+    /** Apply Comfort at the given level (1-based) for durationSeconds seconds,
+     *  using vanilla potion stacking rules: higher level replaces and refreshes duration; same level picks longer;
+     *  lower level ignored when a stronger effect is active. */
     public static void applyComfort(Player player, int durationSeconds, int level) {
-        if (!com.huidu.farmersdelight.api.buff.CustomBuffRegistry.isSystemEnabled()) {
-            return;
-        }
+        applyBuff(player, BuffKind.COMFORT, durationSeconds, level);
+    }
+
+    public static void applyNourishment(Player player, int durationSeconds) {
+        applyBuff(player, BuffKind.NOURISHMENT, durationSeconds, 1);
+    }
+
+    /** Apply Nourishment at the given level (1-based) for durationSeconds seconds,
+     *  stacking rules same as #applyComfort(int, int, int). */
+    public static void applyNourishment(Player player, int durationSeconds, int level) {
+        applyBuff(player, BuffKind.NOURISHMENT, durationSeconds, level);
+    }
+
+    private static void applyBuff(Player player, BuffKind kind, int durationSeconds, int level) {
+        if (!com.huidu.farmersdelight.api.buff.CustomBuffRegistry.isSystemEnabled()) return;
         UUID playerId = player.getUniqueId();
         int lvl = Math.max(1, level);
-        int currentDuration = comfortDurations.getOrDefault(playerId, 0);
-        int currentLevel = currentDuration > 0 ? comfortLevels.getOrDefault(playerId, 1) : 0;
-        int[] result = stack(currentDuration, currentLevel, durationSeconds * 20, lvl);
-        if (result == null) {
-            return; // weaker dose while a stronger effect is active
-        }
-        comfortDurations.put(playerId, result[0]);
-        comfortLevels.put(playerId, result[1]);
-        if (currentDuration <= 0 || lvl > currentLevel) {
-            comfortInitial.put(playerId, result[0]); // fresh / stronger dose resets the progress bar
+        BuffState current = getBuff(playerId, kind);
+        int[] result = stack(current.duration(), current.level(), durationSeconds * 20, lvl);
+        if (result == null) return; // Weaker dose, ignored when a stronger effect is active
+        int newInitial;
+        if (current.duration() <= 0 || lvl > current.level()) {
+            newInitial = result[0]; // New / stronger dose resets progress bar
         } else {
-            comfortInitial.merge(playerId, result[0], Math::max);
+            newInitial = Math.max(current.initial(), result[0]);
         }
+        putBuff(playerId, kind, new BuffState(result[0], newInitial, result[1]));
         EffectListener.trackPlayer(player);
+        if (kind == BuffKind.NOURISHMENT) {
+            var advMgr = FarmersDelightPlugin.getInstance().getAdvancementManager();
+            if (advMgr != null) advMgr.award(player, "eat_nourishing_food");
+        }
     }
 
-    /** Vanilla-style stack of an incoming (durationTicks, level) dose onto the active one. Returns the new
-     *  [durationTicks, level], or null when the incoming dose is weaker than the active one
-     *  (and therefore ignored). */
+    /** Vanilla-style stacking: overlay the incoming (durationTicks, level) dose onto the active effect.
+     *  Returns new [durationTicks, level], or null (and ignores) if the incoming dose is weaker. */
     private static int[] stack(int currentDuration, int currentLevel, int incomingTicks, int incomingLevel) {
         if (currentDuration <= 0 || incomingLevel > currentLevel) {
             return new int[]{incomingTicks, incomingLevel};
@@ -139,148 +181,75 @@ public final class EffectManager {
         return null;
     }
 
-    /**
-     * Applies or refreshes the nourishment effect.
-     *
-     * @param player the target player
-     * @param durationSeconds duration in seconds
-     */
-    public static void applyNourishment(Player player, int durationSeconds) {
-        applyNourishment(player, durationSeconds, 1);
-    }
+    // Query / Remove
 
-    /**
-     * Applies or refreshes the nourishment effect at level (1-based), using the same vanilla stacking
-     * rule as applyComfort(Player, int, int).
-     */
-    public static void applyNourishment(Player player, int durationSeconds, int level) {
-        if (!com.huidu.farmersdelight.api.buff.CustomBuffRegistry.isSystemEnabled()) {
-            return;
-        }
-        UUID playerId = player.getUniqueId();
-        int lvl = Math.max(1, level);
-        int currentDuration = nourishmentDurations.getOrDefault(playerId, 0);
-        int currentLevel = currentDuration > 0 ? nourishmentLevels.getOrDefault(playerId, 1) : 0;
-        int[] result = stack(currentDuration, currentLevel, durationSeconds * 20, lvl);
-        if (result == null) {
-            return;
-        }
-        nourishmentDurations.put(playerId, result[0]);
-        nourishmentLevels.put(playerId, result[1]);
-        if (currentDuration <= 0 || lvl > currentLevel) {
-            nourishmentInitial.put(playerId, result[0]);
-        } else {
-            nourishmentInitial.merge(playerId, result[0], Math::max);
-        }
-        EffectListener.trackPlayer(player);
-        // Award whenever nourishment is applied or refreshed (AdvancementManager guards against
-        // re-awarding already-granted advancements).
-        var advancementManager = FarmersDelightPlugin.getInstance().getAdvancementManager();
-        if (advancementManager != null) {
-            advancementManager.award(player, "eat_nourishing_food");
-        }
-    }
-
-    /**
-     * Returns whether the player currently has the nourishment effect.
-     */
     public static boolean hasNourishment(Player player) {
-        return getNourishmentDuration(player) > 0;
+        return hasBuff(player, BuffKind.NOURISHMENT);
     }
 
     public static boolean hasComfort(Player player) {
-        return getComfortDuration(player) > 0;
+        return hasBuff(player, BuffKind.COMFORT);
+    }
+
+    private static boolean hasBuff(Player player, BuffKind kind) {
+        return getBuff(player.getUniqueId(), kind).isActive();
     }
 
     public static void removeComfort(Player player) {
-        UUID playerId = player.getUniqueId();
-        comfortDurations.remove(playerId);
-        comfortInitial.remove(playerId);
-        if (player.isOnline()) {
-            BuffBossbar.hide(FarmersDelightPlugin.getInstance(), player, KEY_COMFORT);
-        }
-        checkAndUntrack(player);
+        removeBuff(player, BuffKind.COMFORT);
     }
 
-    /**
-     * Removes the nourishment effect from the player.
-     */
     public static void removeNourishment(Player player) {
+        removeBuff(player, BuffKind.NOURISHMENT);
+    }
+
+    private static void removeBuff(Player player, BuffKind kind) {
         UUID playerId = player.getUniqueId();
-        nourishmentDurations.remove(playerId);
-        nourishmentInitial.remove(playerId);
+        putBuff(playerId, kind, BuffState.EMPTY);
         if (player.isOnline()) {
-            BuffBossbar.hide(FarmersDelightPlugin.getInstance(), player, KEY_NOURISHMENT);
+            BuffBossbar.hide(FarmersDelightPlugin.getInstance(), player, kind.bossbarKey);
         }
         checkAndUntrack(player);
     }
 
-    /**
-     * Stops tracking a player that no longer has any active custom effect.
-     */
+    /** Stop tracking the player when they no longer have any active custom effects. */
     private static void checkAndUntrack(Player player) {
         if (!hasComfort(player) && !hasNourishment(player)) {
             EffectListener.untrackPlayer(player.getUniqueId());
         }
     }
 
-    /**
-     * Updates remaining durations and applies in-game nourishment behavior.
-     */
+    // Tick
+
+    /** Update remaining durations and apply in-game buff behavior. */
     public static void tick(Player player) {
-        if (player == null || !player.isValid() || !player.isOnline() || player.isDead()) {
-            return;
-        }
-        // Buff master switch. The reload path also cancels the ticker, so this only covers a pass that was
-        // already in flight when the switch went off.
+        if (player == null || !player.isValid() || !player.isOnline() || player.isDead()) return;
         if (!com.huidu.farmersdelight.api.buff.CustomBuffRegistry.isSystemEnabled()) {
             EffectListener.untrackPlayer(player.getUniqueId());
             return;
         }
-
         try {
             UUID playerId = player.getUniqueId();
-            int comfortDuration = comfortDurations.getOrDefault(playerId, 0);
-            int nourishmentDuration = nourishmentDurations.getOrDefault(playerId, 0);
-
-            if (comfortDuration <= 0 && nourishmentDuration <= 0) {
+            EnumMap<BuffKind, BuffState> buffs = playerBuffs.get(playerId);
+            if (buffs == null || buffs.values().stream().noneMatch(BuffState::isActive)) {
                 EffectListener.untrackPlayer(playerId);
                 return;
             }
-
-            if (comfortDuration > 0) {
-                tickComfort(player, comfortDuration);
-                if (player.isValid()) {
-                    int newDuration = comfortDuration - tickInterval();
-                    if (newDuration > 0) {
-                        comfortDurations.put(playerId, newDuration);
-                    } else {
-                        comfortDurations.remove(playerId);
-                        comfortInitial.remove(playerId);
-                    }
-                }
-            }
-
-            if (nourishmentDuration > 0) {
-                tickNourishment(player);
-            }
-            if (player.isValid() && nourishmentDuration > 0) {
-                int newDuration = nourishmentDuration - tickInterval();
-                if (newDuration > 0) {
-                    nourishmentDurations.put(playerId, newDuration);
-                } else {
-                    nourishmentDurations.remove(playerId);
-                    nourishmentInitial.remove(playerId);
-                }
-            }
-
             int interval = tickInterval();
-            if (comfortDuration <= interval && nourishmentDuration <= interval) {
+            for (BuffKind kind : BuffKind.values()) {
+                BuffState state = buffs.get(kind);
+                if (!state.isActive()) continue;
+                if (kind == BuffKind.COMFORT) tickComfort(player, state.duration());
+                else if (kind == BuffKind.NOURISHMENT) tickNourishment(player);
+                if (!player.isValid()) break;
+                int newDuration = state.duration() - interval;
+                buffs.put(kind, newDuration > 0
+                    ? new BuffState(newDuration, state.initial(), state.level())
+                    : BuffState.EMPTY);
+            }
+            if (buffs.values().stream().noneMatch(BuffState::isActive)) {
                 EffectListener.untrackPlayer(playerId);
             }
-
-            // Bossbar feed — push current state every tick this method runs. Tick rate is the effect
-            // task's configured interval (default 4 ticks = 5 Hz), plenty for a smooth progress bar.
             pushBossbar(player, playerId);
         } catch (Exception e) {
             EffectListener.untrackPlayer(player.getUniqueId());
@@ -291,81 +260,53 @@ public final class EffectManager {
         if (!BuffBossbar.isEnabled()) return;
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin == null) return;
-
-        int nourish = nourishmentDurations.getOrDefault(playerId, 0);
-        if (nourish > 0) {
-            int initial = Math.max(nourish, nourishmentInitial.getOrDefault(playerId, nourish));
-            BuffBossbar.update(plugin, player, KEY_NOURISHMENT,
-                    titleNourishment(nourish),
-                    Math.min(1F, (float) nourish / initial),
-                    nourishmentBarColor, nourishmentBarOverlay);
-        } else {
-            BuffBossbar.hide(plugin, player, KEY_NOURISHMENT);
-        }
-
-        int comfort = comfortDurations.getOrDefault(playerId, 0);
-        if (comfort > 0) {
-            int initial = Math.max(comfort, comfortInitial.getOrDefault(playerId, comfort));
-            BuffBossbar.update(plugin, player, KEY_COMFORT,
-                    titleComfort(comfort),
-                    Math.min(1F, (float) comfort / initial),
-                    comfortBarColor, comfortBarOverlay);
-        } else {
-            BuffBossbar.hide(plugin, player, KEY_COMFORT);
+        for (BuffKind kind : BuffKind.values()) {
+            BuffState state = getBuff(playerId, kind);
+            if (state.isActive()) {
+                int initial = Math.max(state.duration(), state.initial());
+                BuffBossbar.update(plugin, player, kind.bossbarKey,
+                    kind.title(state.duration()),
+                    Math.min(1F, (float) state.duration() / initial),
+                    kind.barColor, kind.barOverlay);
+            } else {
+                BuffBossbar.hide(plugin, player, kind.bossbarKey);
+            }
         }
     }
 
+    // Cleanup
+
     public static void clearPlayer(Player player) {
-        if (player != null) {
-            UUID playerId = player.getUniqueId();
-            comfortDurations.remove(playerId);
-            nourishmentDurations.remove(playerId);
-            comfortInitial.remove(playerId);
-            nourishmentInitial.remove(playerId);
-            comfortLevels.remove(playerId);
-            nourishmentLevels.remove(playerId);
-            // Hide both bars — caller is typically PlayerQuit which would also clear via BuffBossbar's
-            // own quit listener, but a manual remove() call (e.g. /effect clear) shouldn't leave a bar.
-            if (player.isOnline()) {
-                BuffBossbar.hide(FarmersDelightPlugin.getInstance(), player, KEY_NOURISHMENT);
-                BuffBossbar.hide(FarmersDelightPlugin.getInstance(), player, KEY_COMFORT);
+        if (player == null) return;
+        UUID playerId = player.getUniqueId();
+        playerBuffs.remove(playerId);
+        if (player.isOnline()) {
+            for (BuffKind kind : BuffKind.values()) {
+                BuffBossbar.hide(FarmersDelightPlugin.getInstance(), player, kind.bossbarKey);
             }
         }
     }
 
     public static void clearAll() {
-        comfortDurations.clear();
-        nourishmentDurations.clear();
-        comfortInitial.clear();
-        nourishmentInitial.clear();
-        comfortLevels.clear();
-        nourishmentLevels.clear();
+        playerBuffs.clear();
     }
 
-    // Each buff persists its own slice via the CustomBuff.saveState / restoreState hooks (wired in
-    // EffectListener), so FD's Comfort / Nourishment go through the exact same central lifecycle as any
-    // addon buff. On a network that syncs the whole PDC (HuskSync etc.) these also carry across servers.
+    // PDC persistence
 
-    /** Mirror Comfort's remaining + initial ticks into the player's PDC (inactive → keys removed). */
     public static void saveComfortToPdc(Player player) {
-        if (player == null) {
-            return;
-        }
-        UUID playerId = player.getUniqueId();
-        PersistentDataContainer pdc = player.getPersistentDataContainer();
-        writeOrRemove(pdc, PDC_COMFORT, comfortDurations.get(playerId));
-        writeOrRemove(pdc, PDC_COMFORT_INITIAL, comfortInitial.get(playerId));
+        saveBuffToPdc(player, BuffKind.COMFORT);
     }
 
-    /** Mirror Nourishment's remaining + initial ticks into the player's PDC (inactive → keys removed). */
     public static void saveNourishmentToPdc(Player player) {
-        if (player == null) {
-            return;
-        }
-        UUID playerId = player.getUniqueId();
+        saveBuffToPdc(player, BuffKind.NOURISHMENT);
+    }
+
+    private static void saveBuffToPdc(Player player, BuffKind kind) {
+        if (player == null) return;
+        BuffState state = getBuff(player.getUniqueId(), kind);
         PersistentDataContainer pdc = player.getPersistentDataContainer();
-        writeOrRemove(pdc, PDC_NOURISHMENT, nourishmentDurations.get(playerId));
-        writeOrRemove(pdc, PDC_NOURISHMENT_INITIAL, nourishmentInitial.get(playerId));
+        writeOrRemove(pdc, kind.pdcDurationKey, state.isActive() ? state.duration() : null);
+        writeOrRemove(pdc, kind.pdcInitialKey, state.isActive() ? state.initial() : null);
     }
 
     private static void writeOrRemove(PersistentDataContainer pdc, NamespacedKey key, Integer value) {
@@ -376,90 +317,58 @@ public final class EffectManager {
         }
     }
 
-    /** Restore Comfort's remaining ticks from the player's PDC. Gap-filling: leaves an already-active
-     *  Comfort untouched, so the immediate-join call and the delayed retry are both safe and never
-     *  overwrite a dose the player gained since joining. The PDC copy is left in place (overwritten on
-     *  the next quit) so a crash mid-session doesn't drop the buff. Returns true if Comfort is
-     *  active afterwards (so the caller can start tracking). */
     public static boolean restoreComfortFromPdc(Player player) {
-        if (player == null) {
-            return false;
-        }
-        UUID playerId = player.getUniqueId();
-        if (comfortDurations.getOrDefault(playerId, 0) > 0) {
-            return true;
-        }
-        PersistentDataContainer pdc = player.getPersistentDataContainer();
-        Integer comfort = pdc.get(PDC_COMFORT, PersistentDataType.INTEGER);
-        if (comfort != null && comfort > 0) {
-            comfortDurations.put(playerId, comfort);
-            Integer initial = pdc.get(PDC_COMFORT_INITIAL, PersistentDataType.INTEGER);
-            comfortInitial.put(playerId, initial != null && initial >= comfort ? initial : comfort);
-            return true;
-        }
-        return false;
+        return restoreBuffFromPdc(player, BuffKind.COMFORT);
     }
 
-    /** Restore Nourishment's remaining ticks from the player's PDC. Gap-filling — see
-     *  restoreComfortFromPdc. Returns true if Nourishment is active afterwards. */
     public static boolean restoreNourishmentFromPdc(Player player) {
-        if (player == null) {
-            return false;
-        }
+        return restoreBuffFromPdc(player, BuffKind.NOURISHMENT);
+    }
+
+    /** Restore buff remaining ticks from player PDC. Gap-fill: if the buff is already active, keep it as-is.
+     *  Returns whether the buff is active after restoration (so callers can start tracking). */
+    private static boolean restoreBuffFromPdc(Player player, BuffKind kind) {
+        if (player == null) return false;
         UUID playerId = player.getUniqueId();
-        if (nourishmentDurations.getOrDefault(playerId, 0) > 0) {
-            return true;
-        }
+        if (getBuff(playerId, kind).isActive()) return true;
         PersistentDataContainer pdc = player.getPersistentDataContainer();
-        Integer nourishment = pdc.get(PDC_NOURISHMENT, PersistentDataType.INTEGER);
-        if (nourishment != null && nourishment > 0) {
-            nourishmentDurations.put(playerId, nourishment);
-            Integer initial = pdc.get(PDC_NOURISHMENT_INITIAL, PersistentDataType.INTEGER);
-            nourishmentInitial.put(playerId, initial != null && initial >= nourishment ? initial : nourishment);
+        Integer duration = pdc.get(kind.pdcDurationKey, PersistentDataType.INTEGER);
+        if (duration != null && duration > 0) {
+            Integer initial = pdc.get(kind.pdcInitialKey, PersistentDataType.INTEGER);
+            int init = (initial != null && initial >= duration) ? initial : duration;
+            ensurePlayer(playerId).put(kind, new BuffState(duration, init, 1));
             return true;
         }
         return false;
     }
 
-    private static int getComfortDuration(Player player) {
-        if (player == null) {
-            return 0;
-        }
-        return comfortDurations.getOrDefault(player.getUniqueId(), 0);
-    }
+    // Remaining seconds
 
-    private static int getNourishmentDuration(Player player) {
-        if (player == null) {
-            return 0;
-        }
-        return nourishmentDurations.getOrDefault(player.getUniqueId(), 0);
-    }
-
-    /** Seconds left on player's Comfort buff (rounded up), or 0 when inactive.
-     *  Backs the %farmersdelight_buff_*% placeholder family. */
+    /** Comfort buff remaining seconds (ceiling), 0 when inactive.
+     *  Provides data for the %farmersdelight_buff_*% placeholder family. */
     public static int comfortRemainingSeconds(Player player) {
-        int ticks = getComfortDuration(player);
-        return ticks <= 0 ? 0 : (int) Math.max(1, (ticks + 19L) / 20L);
+        return remainingSeconds(player, BuffKind.COMFORT);
     }
 
-    /** Seconds left on player's Nourishment buff (rounded up), or 0 when inactive. */
+    /** Nourishment buff remaining seconds (ceiling), 0 when inactive. */
     public static int nourishmentRemainingSeconds(Player player) {
-        int ticks = getNourishmentDuration(player);
+        return remainingSeconds(player, BuffKind.NOURISHMENT);
+    }
+
+    private static int remainingSeconds(Player player, BuffKind kind) {
+        if (player == null) return 0;
+        int ticks = getBuff(player.getUniqueId(), kind).duration();
         return ticks <= 0 ? 0 : (int) Math.max(1, (ticks + 19L) / 20L);
     }
 
-    /**
-     * Nourishment reduces exhaustion unless hunger-based natural regeneration is active.
-     */
+    // Tick game logic
+
+    /** Nourishment reduces exhaustion, unless hunger-based natural regeneration is active. */
     private static void tickNourishment(Player player) {
-        if (player.isDead()) {
-            return;
-        }
+        if (player.isDead()) return;
 
         var maxHealthAttr = player.getAttribute(CompatAttributes.MAX_HEALTH);
-        if (maxHealthAttr == null) {
-            return;
-        }
+        if (maxHealthAttr == null) return;
 
         boolean naturalRegen = Boolean.TRUE.equals(player.getWorld().getGameRuleValue(GameRule.NATURAL_REGENERATION));
         boolean isHurt = player.getHealth() < maxHealthAttr.getValue();
@@ -471,21 +380,13 @@ public final class EffectManager {
     }
 
     private static void tickComfort(Player player, int durationTicks) {
-        if (player.isDead() || player.hasPotionEffect(PotionEffectType.REGENERATION)) {
-            return;
-        }
-        if (player.getSaturation() > 0.0F) {
-            return;
-        }
+        if (player.isDead() || player.hasPotionEffect(PotionEffectType.REGENERATION)) return;
+        if (player.getSaturation() > 0.0F) return;
         int healIntervalTicks = getComfortHealIntervalTicks();
-        if (healIntervalTicks <= 0 || durationTicks % healIntervalTicks != 0) {
-            return;
-        }
+        if (healIntervalTicks <= 0 || durationTicks % healIntervalTicks != 0) return;
 
         var maxHealthAttr = player.getAttribute(CompatAttributes.MAX_HEALTH);
-        if (maxHealthAttr == null) {
-            return;
-        }
+        if (maxHealthAttr == null) return;
         double maxHealth = maxHealthAttr.getValue();
         if (player.getHealth() < maxHealth) {
             player.setHealth(Math.min(player.getHealth() + getComfortHealAmount(), maxHealth));
@@ -495,8 +396,8 @@ public final class EffectManager {
     private static int getComfortHealIntervalTicks() {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         return plugin == null
-                ? DEFAULT_COMFORT_HEAL_INTERVAL_TICKS
-                : Math.max(0, plugin.getConfigInt(DEFAULT_COMFORT_HEAL_INTERVAL_TICKS,
+            ? DEFAULT_COMFORT_HEAL_INTERVAL_TICKS
+            : Math.max(0, plugin.getConfigInt(DEFAULT_COMFORT_HEAL_INTERVAL_TICKS,
                 "buff.comfort.heal-interval-ticks",
                 "comfort-foods.heal-interval-ticks"));
     }
@@ -504,10 +405,9 @@ public final class EffectManager {
     private static double getComfortHealAmount() {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         return plugin == null
-                ? DEFAULT_COMFORT_HEAL_AMOUNT
-                : Math.max(0, plugin.getConfigDouble(DEFAULT_COMFORT_HEAL_AMOUNT,
+            ? DEFAULT_COMFORT_HEAL_AMOUNT
+            : Math.max(0, plugin.getConfigDouble(DEFAULT_COMFORT_HEAL_AMOUNT,
                 "buff.comfort.heal-amount",
                 "comfort-foods.heal-amount"));
     }
-
 }

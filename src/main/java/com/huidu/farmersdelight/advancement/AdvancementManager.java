@@ -29,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * UltimateAdvancementAPI-based advancement backend: a single farmersdelight advancement tab built in code.
- * award/awardCriteria/revoke/hasAdvancement are the public entry points called by
+ * #award/#awardCriteria/#revoke/#hasAdvancement are the public entry points called by
  * event listeners. Titles/descriptions are localized per-client via LocalizedAdvancementDisplay.
  */
 public class AdvancementManager {

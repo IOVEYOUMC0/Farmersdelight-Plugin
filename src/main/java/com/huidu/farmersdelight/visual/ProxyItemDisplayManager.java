@@ -32,7 +32,17 @@ import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -80,7 +90,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
     private final Set<ProxyDisplay> pendingSync = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean pendingSyncScheduled = new AtomicBoolean();
 
-    // ── Debug metrics ──────────────────────────────────────────────────
+    // Debug metrics
     // Counters wired into the create/update/destroy + per-viewer packet paths so a debug build can
     // measure (a) how many real packets actually go out for what business activity and (b) how often
     // the text-diff short-circuit fires. All counters are reset on plugin reload (see reload()).
@@ -1021,7 +1031,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         return new DisplaySpec(location, itemStack, spec.itemTransform(), spec.transformation());
     }
 
-    /** Snapshot of business counters since the last resetDebugStats() call. One-line-per-metric
+    /** Snapshot of business counters since the last #resetDebugStats() call. One-line-per-metric
      *  format so /fd debugtools status (and profile) can pipe straight to chat. */
     public List<String> debugStats() {
         long elapsedMs = Math.max(1L, System.currentTimeMillis() - debugStatsResetEpochMs);

@@ -12,12 +12,12 @@ import java.util.List;
  * the three lists are parallel and always the same length — one entry per grilling slot, indexed the
  * same way the stove tracks them. Nothing here writes back.
  *
- * @param location       the stove's block location (block-aligned corner)
- * @param items          per-slot food; a null entry means an empty slot
- * @param progressTicks  per-slot ticks of progress accumulated
- * @param cookTimeTicks  per-slot ticks the slot's item needs in total
- * @param lit            whether the stove is burning; an unlit stove makes no progress
- * @param blockedAbove   whether a collision shape above the stove blocks the grilling area
+ * location the stove's block location (block-aligned corner)
+ * items per-slot food; a null entry means an empty slot
+ * progressTicks per-slot ticks of progress accumulated
+ * cookTimeTicks per-slot ticks the slot's item needs in total
+ * lit whether the stove is burning; an unlit stove makes no progress
+ * blockedAbove whether a collision shape above the stove blocks the grilling area
  */
 @ApiStatus.Experimental
 public record StoveSnapshot(Location location,

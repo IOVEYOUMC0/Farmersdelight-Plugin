@@ -1,6 +1,11 @@
 package com.huidu.farmersdelight.util;
 
-import org.bukkit.*;
+import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
+import org.bukkit.Sound;
+import org.bukkit.SoundCategory;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 
 import java.util.List;
@@ -15,7 +20,7 @@ public final class SoundUtils {
      * doubles as the negative cache for keys absent from the registry — e.g. CraftEngine
      * resourcepack sounds like the stove crackle, which the Bukkit registry can never contain).
      * The registry is frozen at server bootstrap, so entries cannot go stale; the reload-time
-     * clearCache() hook exists for pattern uniformity with the other config caches.
+     * #clearCache() hook exists for pattern uniformity with the other config caches.
      * The size cap guards against a caller passing unbounded dynamic strings.
      */
     private static final Map<String, Object> RESOLUTION_CACHE = new ConcurrentHashMap<>();
@@ -52,14 +57,14 @@ public final class SoundUtils {
     }
 
     /** Plays a sound only to the given viewers (already distance-filtered), one packet per viewer — no
-     *  world.playSound full-world recipient walk. Shares the resolution cache with play. */
+     *  world.playSound full-world recipient walk. Shares the resolution cache with #play. */
     public static void play(List<Player> viewers, Location location, String soundKey, Sound fallback, float volume, float pitch) {
         if (viewers.isEmpty() || location == null) {
             return;
         }
         if (soundKey == null || soundKey.isBlank()) {
-            for (int i = 0; i < viewers.size(); i++) {
-                viewers.get(i).playSound(location, fallback, volume, pitch);
+            for (Player viewer : viewers) {
+                viewer.playSound(location, fallback, volume, pitch);
             }
             return;
         }
@@ -71,19 +76,19 @@ public final class SoundUtils {
             }
         }
         if (resolved instanceof Sound sound) {
-            for (int i = 0; i < viewers.size(); i++) {
-                viewers.get(i).playSound(location, sound, volume, pitch);
+            for (Player viewer : viewers) {
+                viewer.playSound(location, sound, volume, pitch);
             }
         } else {
             String soundName = (String) resolved;
-            for (int i = 0; i < viewers.size(); i++) {
-                viewers.get(i).playSound(location, soundName, SoundCategory.BLOCKS, volume, pitch);
+            for (Player viewer : viewers) {
+                viewer.playSound(location, soundName, SoundCategory.BLOCKS, volume, pitch);
             }
         }
     }
 
     /** Plays a sound to a single player at the given location, resolving the config sound key against the
-     *  Bukkit registry with a resourcepack-sound string fallback. Shares the resolution cache with play. */
+     *  Bukkit registry with a resourcepack-sound string fallback. Shares the resolution cache with #play. */
     public static void play(Player player, Location location, String soundKey, Sound fallback, SoundCategory category, float volume, float pitch) {
         if (player == null || location == null) {
             return;

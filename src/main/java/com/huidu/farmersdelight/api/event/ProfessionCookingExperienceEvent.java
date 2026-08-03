@@ -34,13 +34,13 @@ public class ProfessionCookingExperienceEvent extends Event {
     }
 
     /**
-     * @param playerId       the credited player's unique id
-     * @param playerName     the credited player's name (may be null)
-     * @param source         the station: "cooking_pot", "skillet", "stove", "cutting_board", or an
+     * playerId the credited player's unique id
+     * playerName the credited player's name (may be null)
+     * source the station: "cooking_pot", "skillet", "stove", "cutting_board", or an
      *                       addon's own id
-     * @param result         what was produced; cloned in and out
-     * @param baseExperience the experience the station is crediting, before any config multiplier
-     * @param location       the station's block location; cloned in and out, null when the caller has
+     * result what was produced; cloned in and out
+     * baseExperience the experience the station is crediting, before any config multiplier
+     * location the station's block location; cloned in and out, null when the caller has
      *                       no block context
      */
     public ProfessionCookingExperienceEvent(UUID playerId, String playerName, String source, ItemStack result,

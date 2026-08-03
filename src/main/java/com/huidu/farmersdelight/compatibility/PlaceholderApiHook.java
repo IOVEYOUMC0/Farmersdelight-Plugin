@@ -19,21 +19,21 @@ import java.util.Optional;
  * Comfort / Nourishment and Brewin' And Chewin's Tipsy / Sweet Heart / Raging / Intoxication, plus
  * anything addons register) so HUD plugins (BetterHud, MythicHud, etc.) can render them per player.
  *
- * <p>Placeholder shape (all under the farmersdelight identifier):
- * <ul>
- *   <li>%farmersdelight_buff_<ns>_<id>_active% → 1 / 0</li>
- *   <li>%farmersdelight_buff_<ns>_<id>_level%  → effective level (0 when inactive)</li>
- *   <li>%farmersdelight_buff_<ns>_<id>_time%   → remaining seconds (0 when inactive)</li>
- *   <li>%farmersdelight_buff_<ns>_<id>_time_fmt% → m:ss (or h:mm:ss past an hour)</li>
- *   <li>%farmersdelight_buff_<ns>_<id>_name%   → translated display name (server locale)</li>
- *   <li>%farmersdelight_buff_count%            → number of active buffs on the player</li>
- * </ul>
+ * Placeholder shape (all under the farmersdelight identifier):
+ * 
+ *   - %farmersdelight_buff_<ns>_<id>_active% → 1 / 0
+ *   - %farmersdelight_buff_<ns>_<id>_level%  → effective level (0 when inactive)
+ *   - %farmersdelight_buff_<ns>_<id>_time%   → remaining seconds (0 when inactive)
+ *   - %farmersdelight_buff_<ns>_<id>_time_fmt% → m:ss (or h:mm:ss past an hour)
+ *   - %farmersdelight_buff_<ns>_<id>_name%   → translated display name (server locale)
+ *   - %farmersdelight_buff_count%            → number of active buffs on the player
+ * 
  *
- * <p><ns>_<id> mirrors the registered buff id with the colon replaced by an underscore — so
+ * <ns>_<id> mirrors the registered buff id with the colon replaced by an underscore — so
  * brewinandchewin:tipsy becomes brewinandchewin_tipsy. Returns the empty string for
  * unknown buff ids and "0" for any sub-key on an inactive buff.
  *
- * <p>Registered automatically when PlaceholderAPI is present on plugin enable; absence is silently
+ * Registered automatically when PlaceholderAPI is present on plugin enable; absence is silently
  * skipped (the dependency is soft).
  */
 public final class PlaceholderApiHook extends PlaceholderExpansion {
@@ -50,11 +50,13 @@ public final class PlaceholderApiHook extends PlaceholderExpansion {
     }
 
     @Override
+    @SuppressWarnings("UnstableApiUsage")
     public @NotNull String getAuthor() {
         return String.join(", ", plugin.getPluginMeta().getAuthors());
     }
 
     @Override
+    @SuppressWarnings("UnstableApiUsage")
     public @NotNull String getVersion() {
         return plugin.getPluginMeta().getVersion();
     }

@@ -179,13 +179,20 @@ final class RecipeDetailRenderer {
 
     void drawCuttingBoardDetail(CuttingBoardRecipe recipe, RecipeViewGuiConfig.RecipeDetailConfig detailConfig, Player player) {
         if (detailConfig.getInputSlot() >= 0) {
-            ItemStack inputItem = recipe.getInputDisplay().clone();
-            ItemMeta inputMeta = inputItem.getItemMeta();
-            inputMeta.displayName(gui.itemNameComponent(inputItem, player).colorIfAbsent(NamedTextColor.RED));
-            inputMeta.lore(formatIngredientDetailLoreLines(recipe.getInput(), player,
-                    gui.tr("gui.recipe.input", NamedTextColor.GRAY)));
-            inputItem.setItemMeta(inputMeta);
-            gui.inventory.setItem(detailConfig.getInputSlot(), inputItem);
+            RecipeIngredient input = recipe.getInput();
+            if (input instanceof RecipeIngredient.Tag || input instanceof RecipeIngredient.Choice) {
+                // 多选项输入（标签/或选）需注册动画槽位以支持轮播显示，否则只会显示第一个匹配物品
+                ItemStack inputDisplay = gui.createIngredientDisplay(input, player, detailConfig.getInputSlot());
+                gui.inventory.setItem(detailConfig.getInputSlot(), inputDisplay);
+            } else {
+                ItemStack inputItem = recipe.getInputDisplay().clone();
+                ItemMeta inputMeta = inputItem.getItemMeta();
+                inputMeta.displayName(gui.itemNameComponent(inputItem, player).colorIfAbsent(NamedTextColor.RED));
+                inputMeta.lore(formatIngredientDetailLoreLines(input, player,
+                        gui.tr("gui.recipe.input", NamedTextColor.GRAY)));
+                inputItem.setItemMeta(inputMeta);
+                gui.inventory.setItem(detailConfig.getInputSlot(), inputItem);
+            }
         }
 
         if (detailConfig.getToolSlot() >= 0) {

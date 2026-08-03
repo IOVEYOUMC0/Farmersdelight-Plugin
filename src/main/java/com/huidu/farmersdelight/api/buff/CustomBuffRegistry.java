@@ -22,7 +22,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * onDisable. Registration is idempotent by CustomBuff.id() — re-registering with the same id replaces
  * the previous entry, which matches what a /plugman reload would naturally do.
  *
- * <p>Iteration is COW-snapshot based, so reads (the consume listener) and writes (a plugin enabling
+ * Iteration is COW-snapshot based, so reads (the consume listener) and writes (a plugin enabling
  * mid-game) don't lock against each other.
  *
  * The registry also raises FarmersDelightBuffChangeEvent on real level transitions — see

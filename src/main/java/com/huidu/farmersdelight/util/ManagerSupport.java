@@ -6,7 +6,9 @@ import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.*;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.function.BiConsumer;
 
 public final class ManagerSupport {
@@ -90,8 +92,19 @@ public final class ManagerSupport {
         if (!world.isChunkLoaded(chunkX, chunkZ)) {
             return out;
         }
+        // Compute squared distance by hand to avoid allocating a Location per candidate. Same world is
+        // already guaranteed below, so this is equivalent to distanceSquared.
+        double cx = center.getX();
+        double cy = center.getY();
+        double cz = center.getZ();
         for (Player p : world.getChunkAt(chunkX, chunkZ).getPlayersSeeingChunk()) {
-            if (p.getWorld() == world && p.getLocation().distanceSquared(center) <= distanceSquared) {
+            if (p.getWorld() != world) {
+                continue;
+            }
+            double dx = p.getX() - cx;
+            double dy = p.getY() - cy;
+            double dz = p.getZ() - cz;
+            if (dx * dx + dy * dy + dz * dz <= distanceSquared) {
                 out.add(p);
             }
         }
@@ -105,8 +118,8 @@ public final class ManagerSupport {
      *  before. Data is null — these hot-path particles (SMOKE/FLAME/configured smoke) carry none. */
     public static void spawnParticleFor(List<Player> viewers, Particle particle, double x, double y, double z,
                                         int count, double offsetX, double offsetY, double offsetZ, double extra) {
-        for (int i = 0; i < viewers.size(); i++) {
-            viewers.get(i).spawnParticle(particle, x, y, z, count, offsetX, offsetY, offsetZ, extra, null, false);
+        for (Player viewer : viewers) {
+            viewer.spawnParticle(particle, x, y, z, count, offsetX, offsetY, offsetZ, extra, null, false);
         }
     }
 }

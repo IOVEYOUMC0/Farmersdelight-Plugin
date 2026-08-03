@@ -3,7 +3,7 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.RopeBlockBehavior;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
-import com.huidu.farmersdelight.util.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockInteractEvent;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockPlaceEvent;
@@ -272,6 +272,7 @@ public class RopeBlockListener implements Listener {
         }
     }
 
+    @SuppressWarnings("UnstableApiUsage")
     private void indexRopesInChunk(World world, int chunkX, int chunkZ) {
         CEWorld ceWorld = CustomBlockUtils.getCEWorld(world);
         if (ceWorld == null) {

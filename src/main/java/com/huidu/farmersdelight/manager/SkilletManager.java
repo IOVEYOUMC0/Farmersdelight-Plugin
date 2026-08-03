@@ -1,6 +1,13 @@
 package com.huidu.farmersdelight.manager;
 
-import com.huidu.farmersdelight.util.*;
+import com.huidu.farmersdelight.util.ManagerSupport;
+import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.SoundUtils;
+import com.huidu.farmersdelight.util.BlockPosKey;
+import com.huidu.farmersdelight.util.CampfireRecipeCache;
+import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.compat.DisplayTransformUtils;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior;
@@ -10,7 +17,12 @@ import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.configuration.ConfigurationSection;
@@ -23,7 +35,16 @@ import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -490,7 +511,7 @@ public class SkilletManager {
     public ItemStack insertHopperInput(Location location, ItemStack item) {
         Location normalized = ManagerSupport.normalize(location);
         if (normalized == null || item == null) {
-            return item == null ? null : item.clone();
+            return ItemUtils.cloneOrNull(item);
         }
         if (!isSkilletBlock(normalized) || !isValidHopperInput(item)) {
             return item.clone();

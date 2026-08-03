@@ -1,7 +1,7 @@
 package com.huidu.farmersdelight.item.behavior;
 
 import com.huidu.farmersdelight.util.CustomBlockUtils;
-import com.huidu.farmersdelight.util.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.util.VanillaAdvancements;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.block.BukkitBlockManager;
@@ -49,7 +49,7 @@ import java.util.Optional;
  *       rules:
  *         - target: farmersdelight:rich_soil_farmland
  *           block:  farmersdelight:rich_wheat
- * </pre>
+ * }</pre>
  *
  * Both target and block are namespaced ids. Vanilla blocks are matched as
  * minecraft:<material_name_lowercase>.

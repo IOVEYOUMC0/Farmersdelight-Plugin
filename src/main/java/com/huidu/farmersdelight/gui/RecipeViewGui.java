@@ -25,19 +25,27 @@ import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
-import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class RecipeViewGui implements InventoryHolder {
+public class RecipeViewGui extends AbstractInventoryGui {
 
     private static final Map<UUID, RecipeViewGui> activeGuis = new ConcurrentHashMap<>();
     private static volatile boolean listenerRegistered = false;
@@ -74,18 +82,13 @@ public class RecipeViewGui implements InventoryHolder {
         RECIPE_DETAIL
     }
 
-    private final FarmersDelightPlugin plugin;
-    private final UUID playerId;
-    private final Player player;
     final RecipeViewGuiConfig config;
-    Inventory inventory;
     private GuiState state = GuiState.MAIN_MENU;
     private int currentPage = 0;
     private volatile String selectedRecipeId = null;
     private boolean cookingPotMode = true;
     private boolean craftableOnly = false;
     private GuiState recipeBackState = GuiState.COOKING_POT_LIST;
-    volatile boolean closed = false;
     volatile int currentToolIndex = 0;
     private volatile int currentToolPreviewIndex = 0;
     private int toolSwitchTicks = 0;
@@ -106,7 +109,6 @@ public class RecipeViewGui implements InventoryHolder {
     // so the per-tick / redraw flow never repeats a cross-region block read.
     private boolean recipeGroupResolved;
     private String cachedRecipeGroupId;
-    private final Consumer<Void> tickCallback;
     private boolean ignoreNextClose = false;
     private FillButtonState fillButtonState = FillButtonState.READY;
     // Detail-to-detail navigation history: clicking a linked recipe (an ingredient/result that is itself
@@ -128,9 +130,7 @@ public class RecipeViewGui implements InventoryHolder {
     }
 
     public RecipeViewGui(FarmersDelightPlugin plugin, Player player, boolean fromCookingPot, Location cookingPotLocation) {
-        this.plugin = plugin;
-        this.playerId = player.getUniqueId();
-        this.player = player;
+        super(plugin, player);
         this.fromCookingPot = fromCookingPot;
         this.cookingPotLocation = cookingPotLocation;
         this.config = getOrCreateConfig();
@@ -150,18 +150,19 @@ public class RecipeViewGui implements InventoryHolder {
         } else {
             initialTitle = resolveMenuTitle("main-menu", null, config.getMainMenu().getTitle(), Map.of());
         }
-        this.inventory = Bukkit.createInventory(this, 54, coloredTitle(initialTitle));
-        
-        this.tickCallback = v -> {
-            if (!closed && state == GuiState.RECIPE_DETAIL) {
-                if (cookingPotMode) {
-                    tickCookingPotProcessBar();
-                } else {
-                    tickToolSwitch();
-                }
-                tickIngredientSwitch();
+        this.inventory = Bukkit.createInventory(this, 54, coloredComponent(initialTitle));
+    }
+
+    @Override
+    protected void onTick() {
+        if (!closed && state == GuiState.RECIPE_DETAIL) {
+            if (cookingPotMode) {
+                tickCookingPotProcessBar();
+            } else {
+                tickToolSwitch();
             }
-        };
+            tickIngredientSwitch();
+        }
     }
 
     private RecipeViewGuiConfig getOrCreateConfig() {
@@ -208,20 +209,7 @@ public class RecipeViewGui implements InventoryHolder {
     }
 
     public void open(Player player) {
-        closed = false;
-
-        RecipeViewGui existingGui = activeGuis.get(player.getUniqueId());
-        if (existingGui != null && !existingGui.closed) {
-            existingGui.close();
-        }
-
-        ensureListenerRegistered();
-        activeGuis.put(player.getUniqueId(), this);
-
-        refresh(player);
-        player.openInventory(inventory);
-
-        GuiTickManager.getInstance(plugin).registerCallback(player, tickCallback);
+        doOpen(() -> refresh(player));
     }
 
     public void openCookingPotRecipes(Player player) {
@@ -382,7 +370,7 @@ public class RecipeViewGui implements InventoryHolder {
     private void drawMainMenu(Player player) {
         RecipeViewGuiConfig.MainMenuConfig menuConfig = config.getMainMenu();
         inventory = Bukkit.createInventory(this, menuConfig.getSize(),
-                coloredTitle(resolveMenuTitle("main-menu", null, menuConfig.getTitle(), Map.of())));
+                coloredComponent(resolveMenuTitle("main-menu", null, menuConfig.getTitle(), Map.of())));
 
         fillBackground(menuConfig);
 
@@ -430,7 +418,7 @@ public class RecipeViewGui implements InventoryHolder {
         titlePlaceholders.put("page", String.valueOf(currentPage + 1));
         titlePlaceholders.put("total", String.valueOf(totalPages));
         String title = resolveMenuTitle("recipe-list", "level_1", listConfig.getTitle(), titlePlaceholders);
-        inventory = Bukkit.createInventory(this, listConfig.getSize(), coloredTitle(title));
+        inventory = Bukkit.createInventory(this, listConfig.getSize(), coloredComponent(title));
 
         fillBackground(listConfig);
 
@@ -439,7 +427,7 @@ public class RecipeViewGui implements InventoryHolder {
         String locale = player == null ? "default" : player.locale().toString().toLowerCase(Locale.ROOT);
         String cacheKeyPrefix = isCookingPot
                 ? "pot|" + getActiveCookingPotRecipeGroup() + '|' + config.getRecipeListMaxPreviewIngredients() + '|'
-                : "board|";
+                : "board|" + config.getRecipeListMaxPreviewIngredients() + '|';
 
         int startIndex = currentPage * itemsPerPage;
         for (int i = 0; i < recipeSlots.size(); i++) {
@@ -569,7 +557,7 @@ public class RecipeViewGui implements InventoryHolder {
             levelKey = "level_2_pot";
         }
         String title = resolveMenuTitle(menuKey, levelKey, detailConfig.getTitle(), titlePlaceholders);
-        inventory = Bukkit.createInventory(this, detailConfig.getSize(), coloredTitle(title));
+        inventory = Bukkit.createInventory(this, detailConfig.getSize(), coloredComponent(title));
         if (resetAnimations) {
             resetDetailAnimations();
             currentToolPreviewIndex = 0;
@@ -693,7 +681,7 @@ public class RecipeViewGui implements InventoryHolder {
     private ItemStack createToolPreviewItem(Key toolKey) {
         List<ItemStack> previewOptions = resolveToolPreviewOptions(toolKey);
         if (!previewOptions.isEmpty()) {
-            return previewOptions.get(0).clone();
+            return previewOptions.getFirst().clone();
         }
 
         return new ItemStack(Material.IRON_AXE);
@@ -722,28 +710,58 @@ public class RecipeViewGui implements InventoryHolder {
             return previewOptions;
         }
 
-        ItemStack fallback = switch (toolKey.toString()) {
-            case "farmersdelight:knives" -> createKnifePreviewItem();
-            case "farmersdelight:axe_dig", "farmersdelight:axe_strip", "minecraft:axes" -> new ItemStack(Material.IRON_AXE);
-            case "farmersdelight:pickaxe_dig" -> new ItemStack(Material.IRON_PICKAXE);
-            case "farmersdelight:shovel_dig", "minecraft:shovels" -> new ItemStack(Material.IRON_SHOVEL);
-            case "minecraft:shears" -> new ItemStack(Material.SHEARS);
-            default -> RecipeIngredientIcons.createItemFromKey(toolKey);
-        };
-        if (isDisplayableItem(fallback)) {
-            previewOptions.add(fallback);
+        // 兜底：已知工具标签按配置/原版物品生成预览，返回多个物品以支持轮播
+        switch (toolKey.toString()) {
+            case "farmersdelight:knives" -> previewOptions.addAll(createKnifePreviewItems());
+            case "farmersdelight:axe_dig", "farmersdelight:axe_strip", "minecraft:axes" -> previewOptions.addAll(createVanillaToolPreviewItems("_axe"));
+            case "farmersdelight:pickaxe_dig" -> previewOptions.addAll(createVanillaToolPreviewItems("_pickaxe"));
+            case "farmersdelight:shovel_dig", "minecraft:shovels" -> previewOptions.addAll(createVanillaToolPreviewItems("_shovel"));
+            case "minecraft:shears" -> previewOptions.add(new ItemStack(Material.SHEARS));
+            default -> {
+                ItemStack item = RecipeIngredientIcons.createItemFromKey(toolKey);
+                if (isDisplayableItem(item)) {
+                    previewOptions.add(item);
+                }
+            }
         }
         return previewOptions;
     }
 
-    private ItemStack createKnifePreviewItem() {
+    /** 从配置获取所有已注册的小刀物品用于工具轮播预览 */
+    private List<ItemStack> createKnifePreviewItems() {
+        List<ItemStack> knives = new ArrayList<>();
         for (String knifeId : plugin.getConfigStringList("knife-items.items", "drops.knife-items.items", "knife-config.items")) {
             ItemStack knife = RecipeIngredientIcons.createItemFromKey(Key.of(knifeId));
-            if (knife != null && knife.getType() != Material.BARRIER && !knife.getType().isAir()) {
-                return knife;
+            if (isDisplayableItem(knife)) {
+                knives.add(knife);
             }
         }
-        return new ItemStack(Material.IRON_SWORD);
+        if (knives.isEmpty()) {
+            knives.add(new ItemStack(Material.IRON_SWORD));
+        }
+        return knives;
+    }
+
+    /** 从原版物品注册表收集匹配指定后缀的工具物品（如 _axe 收集所有斧头） */
+    private List<ItemStack> createVanillaToolPreviewItems(String suffix) {
+        List<ItemStack> items = new ArrayList<>();
+        for (Material material : Material.values()) {
+            if (!material.isItem()) continue;
+            String name = material.name();
+            if (name.endsWith(suffix.toUpperCase(Locale.ROOT))) {
+                items.add(new ItemStack(material));
+            }
+        }
+        if (items.isEmpty()) {
+            // 回退：至少显示一个铁质工具
+            items.add(switch (suffix) {
+                case "_axe" -> new ItemStack(Material.IRON_AXE);
+                case "_pickaxe" -> new ItemStack(Material.IRON_PICKAXE);
+                case "_shovel" -> new ItemStack(Material.IRON_SHOVEL);
+                default -> new ItemStack(Material.IRON_AXE);
+            });
+        }
+        return items;
     }
 
     private List<ItemStack> createTaggedToolPreviewItems(Key toolKey) {
@@ -780,7 +798,7 @@ public class RecipeViewGui implements InventoryHolder {
     }
 
     private String applyTitlePlaceholders(String title, Map<String, String> placeholders) {
-        String result = "界面";
+        String result = "GUI";
         if (title != null) {
             result = title;
         }
@@ -923,13 +941,26 @@ public class RecipeViewGui implements InventoryHolder {
         List<Component> lore = new ArrayList<>();
         lore.add(tr("gui.recipe.tool_line", NamedTextColor.GRAY,
                 formatToolListComponent(recipe.getTools(), player).colorIfAbsent(NamedTextColor.YELLOW)));
+        // 显示输入材料类型信息，让玩家不点详情也能知道是否有多种可选物品
+        appendCuttingBoardInputLore(lore, recipe.getInput(), player);
         lore.add(tr("gui.recipe.results_label", NamedTextColor.GRAY));
-        for (CuttingBoardRecipe.ResultEntry result : recipe.getResults()) {
+        int maxPreview = config.getRecipeListMaxPreviewIngredients();
+        List<CuttingBoardRecipe.ResultEntry> results = recipe.getResults();
+        int displayed = Math.min(results.size(), maxPreview);
+        for (int i = 0; i < displayed; i++) {
+            CuttingBoardRecipe.ResultEntry result = results.get(i);
             Component line = itemNameComponent(result.item(), player).colorIfAbsent(NamedTextColor.WHITE);
             if (result.chance() < 1.0d) {
                 line = line.append(Component.text(" (" + (int) Math.round(result.chance() * 100) + "%)", NamedTextColor.GRAY));
             }
             lore.add(colored("&8- ").append(line));
+            if (config.isShowIngredientIds()) {
+                lore.add(colored("&7  " + RecipeIngredientIcons.buildIngredientDisplayKey(result.item())));
+            }
+        }
+        int remaining = results.size() - displayed;
+        if (remaining > 0) {
+            lore.add(tr("gui.recipe.more_items", NamedTextColor.GRAY, remaining));
         }
         lore.add(Component.text(""));
         lore.add(tr("gui.recipe.click_to_view", NamedTextColor.YELLOW));
@@ -939,12 +970,21 @@ public class RecipeViewGui implements InventoryHolder {
         return input;
     }
 
+    /** 在列表预览中显示砧板配方的输入材料类型（标签/或选），格式对齐厨锅的配料显示 */
+    private void appendCuttingBoardInputLore(List<Component> lore, RecipeIngredient input, Player player) {
+        if (input instanceof RecipeIngredient.Item) {
+            return; // 单个物品直接从图标即可识别，无需额外显示
+        }
+        // Tag/Choice 输入：与厨锅配料同样的紧凑格式，列出匹配物品名称
+        appendCompactIngredientLore(lore, input, player);
+    }
+
     private void appendCompactIngredientLore(List<Component> lore, RecipeIngredient ingredient, Player player) {
         List<Component> lines = formatCompactIngredientLoreLines(ingredient, player);
         if (lines.isEmpty()) {
             return;
         }
-        lore.add(colored("&8- ").append(lines.get(0).colorIfAbsent(NamedTextColor.WHITE)));
+        lore.add(colored("&8- ").append(lines.getFirst().colorIfAbsent(NamedTextColor.WHITE)));
         for (int i = 1; i < lines.size(); i++) {
             lore.add(colored("&8  ").append(lines.get(i).colorIfAbsent(NamedTextColor.WHITE)));
         }
@@ -1061,7 +1101,7 @@ public class RecipeViewGui implements InventoryHolder {
             animatedIngredientSlots.put(slot, options);
             animatedIngredientIndices.put(slot, 0);
             animatedIngredientDefinitions.put(slot, ingredient);
-            return createAnimatedIngredientDisplay(ingredient, options.get(0), options, player);
+            return createAnimatedIngredientDisplay(ingredient, options.getFirst(), options, player);
         }
 
         return createIngredientPlaceholderDisplay(ingredient, player);
@@ -1341,7 +1381,7 @@ public class RecipeViewGui implements InventoryHolder {
         return Text.deserialize(text).decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE);
     }
 
-    private Component coloredTitle(String text) {
+    private Component coloredComponent(String text) {
         String resolved = "";
         if (text != null) {
             resolved = text;
@@ -1351,11 +1391,6 @@ public class RecipeViewGui implements InventoryHolder {
         }
         String normalized = resolved.replaceAll("&(?=[0-9a-fk-orA-FK-OR])", "\u00A7");
         return LEGACY.deserialize(normalized);
-    }
-
-    @Override
-    public Inventory getInventory() {
-        return inventory;
     }
 
     void onClick(InventoryClickEvent event) {
@@ -1374,19 +1409,6 @@ public class RecipeViewGui implements InventoryHolder {
             case COOKING_POT_LIST -> handleCookingPotListClick(player, slot);
             case CUTTING_BOARD_LIST -> handleCuttingBoardListClick(player, slot);
             case RECIPE_DETAIL -> handleRecipeDetailClick(player, slot, event.isShiftClick());
-        }
-    }
-
-    void onDrag(InventoryDragEvent event) {
-        if (event.getView().getTopInventory().getHolder() != this) {
-            return;
-        }
-
-        for (int rawSlot : event.getRawSlots()) {
-            if (rawSlot >= 0 && rawSlot < event.getView().getTopInventory().getSize()) {
-                event.setCancelled(true);
-                return;
-            }
         }
     }
 
@@ -2274,22 +2296,15 @@ public class RecipeViewGui implements InventoryHolder {
                 .replace("{world}", player.getWorld().getName());
     }
 
-    void onClose(InventoryCloseEvent event) {
+    @Override
+    public void onClose(InventoryCloseEvent event) {
         if (event.getView().getTopInventory().getHolder() != this) return;
         if (closed) return;
         if (ignoreNextClose) {
             ignoreNextClose = false;
             return;
         }
-
-        close();
-        activeGuis.remove(event.getPlayer().getUniqueId());
-    }
-
-    void close() {
-        if (closed) return;
-        closed = true;
-        GuiTickManager.getInstance(plugin).unregisterCallback(tickCallback);
+        super.onClose(event);
     }
 
     private record ConfiguredCommand(String command, boolean console) {
@@ -2309,7 +2324,13 @@ public class RecipeViewGui implements InventoryHolder {
             
             var blockBehavior = CookingPotBlockBehavior.getBlockBehavior(cookingPotLocation);
             if (blockBehavior == null) return;
-            
+
+            // Re-check permission + land protection before re-opening: this is a fresh GUI open just like a
+            // direct interaction, and access may have changed since the pot was first opened.
+            if (!blockBehavior.canPlayerOpen(player, cookingPotLocation.getBlock())) {
+                return;
+            }
+
             CookingPotGui gui = new CookingPotGui(plugin, blockEntity, blockBehavior, world, cookingPotLocation);
             gui.open(player);
         }, 1L);
@@ -2343,7 +2364,23 @@ public class RecipeViewGui implements InventoryHolder {
         }
     }
 
-    private void ensureListenerRegistered() {
+    @Override
+    protected AbstractInventoryGui findExistingGui(UUID playerId) {
+        return activeGuis.get(playerId);
+    }
+
+    @Override
+    protected void putActiveGui(UUID playerId, AbstractInventoryGui gui) {
+        activeGuis.put(playerId, (RecipeViewGui) gui);
+    }
+
+    @Override
+    protected void removeFromActiveGuis(UUID playerId) {
+        activeGuis.remove(playerId);
+    }
+
+    @Override
+    protected void ensureListenerRegistered() {
         if (listenerRegistered) return;
         synchronized (RecipeViewGui.class) {
             if (listenerRegistered) return;

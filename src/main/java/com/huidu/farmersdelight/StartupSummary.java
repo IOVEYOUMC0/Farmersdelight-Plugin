@@ -53,8 +53,12 @@ final class StartupSummary {
         AdvancementManager advancements = plugin.getAdvancementManager();
 
         int cookingPotRecipes = cookingPot == null ? 0 : cookingPot.getRecipeCount();
+        int cookingPotExternal = cookingPot == null ? 0 : cookingPot.getExternalRecipeCount();
+        int fdCookingPot = cookingPotRecipes - cookingPotExternal;
         int customPotRecipes = cookingPot == null ? 0 : cookingPot.getCustomRecipeCount();
         int cuttingBoardRecipes = cuttingBoard == null ? 0 : cuttingBoard.getRecipeCount();
+        int cuttingBoardExternal = cuttingBoard == null ? 0 : cuttingBoard.getExternalRecipeCount();
+        int fdCuttingBoard = cuttingBoardRecipes - cuttingBoardExternal;
         int dropRules = knifeDrops == null ? 0 : knifeDrops.getDropRuleCount();
         int petFoodCount = petFoods == null ? 0 : petFoods.getTemptFoodCount();
         int advancementCount = advancements == null ? 0 : advancements.getLoadedCount();
@@ -64,14 +68,19 @@ final class StartupSummary {
         int addonAdvancementCount = plugin.getAddonAdvancementRegistry().getLoadedAdvancementCount();
         int items = warmedItems;
 
-        String counts = cookingPotRecipes + "/" + customPotRecipes + "/" + cuttingBoardRecipes + "/"
+        String counts = cookingPotRecipes + "/" + cookingPotExternal + "/" + customPotRecipes + "/"
+                + cuttingBoardRecipes + "/" + cuttingBoardExternal + "/"
                 + dropRules + "/" + petFoodCount + "/" + advancementCount + "/" + addonAdvancementCount
                 + "/" + items;
 
         Object[] args = {
                 "cooking_pot", cookingPotRecipes,
+                "fd_pot", fdCookingPot,
+                "cooking_pot_addon", cookingPotExternal,
                 "custom_pot", customPotRecipes,
                 "cutting_board", cuttingBoardRecipes,
+                "fd_board", fdCuttingBoard,
+                "cutting_board_addon", cuttingBoardExternal,
                 "drop_rules", dropRules,
                 "pet_foods", petFoodCount,
                 "advancements", advancementCount,

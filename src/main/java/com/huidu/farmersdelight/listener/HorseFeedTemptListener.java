@@ -7,7 +7,12 @@ import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
-import org.bukkit.entity.*;
+import org.bukkit.World;
+import org.bukkit.entity.AbstractHorse;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Mob;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerItemHeldEvent;
@@ -15,6 +20,8 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -32,22 +39,22 @@ public class HorseFeedTemptListener implements Listener {
     private final Map<UUID, Player> activeTempterPlayers = new ConcurrentHashMap<>();
     private final Map<UUID, PetFoodConfig.PetFoodDefinition> activeTemptDefinitions = new ConcurrentHashMap<>();
     private final Map<String, PetFoodConfig.PetFoodDefinition> temptFoods = new ConcurrentHashMap<>();
-    // Written by loadConfig on the reload path, read by the tick pass and by the item-held / swap-hand
-    // handlers on region threads, so it needs the happens-before edge.
+    // Written by loadConfig on the reload path, read by the tick loop and item-swap/offhand handlers
+    // on region threads, so a happens-before edge is required.
     private volatile boolean enabled;
-    // Written by loadConfig on the reload path, read only by restartTask on that same path when the
-    // repeating task is created, never by the task body — no cross-thread read, so no volatile needed.
+    // Written by loadConfig on the reload path, read only by restartTask on the same path when
+    // creating the repeating task — never read by the task body, so no volatile needed.
     private long tickInterval;
-    // Written by loadConfig on the reload path, read by the tick pass on the scheduler thread, so it
-    // needs the happens-before edge.
+    // Written by loadConfig on the reload path, read by the tick loop on the scheduler thread,
+    // so a happens-before edge is required.
     private volatile int tickBudget;
-    // Read and written only inside tickTemptGoals, which is the single repeating task body.
+    // Written and read exclusively within tickTemptGoals, which is the sole repeating task body.
     private int tickCursor;
     private volatile PluginTask task;
-    // Structural-change generation of activeTempterPlayers. tickTemptGoals caches an indexable snapshot from it,
-    // skipping a per-cycle List.copyOf when membership is unchanged (the common case). The generation is mutated by
-    // multiple threads (region threads), hence AtomicLong; the snapshot cache is read/written only in the single-threaded
-    // tickTemptGoals, hence a plain field.
+    // Structural-change generation for activeTempterPlayers. tickTemptGoals caches an indexable snapshot
+    // from it, skipping List.copyOf per iteration when the membership hasn't changed (the common case).
+    // The generation is mutated by multiple threads (region threads), so AtomicLong is used; the cached
+    // snapshot is read/written only by the single-threaded tickTemptGoals, so a plain field suffices.
     private final java.util.concurrent.atomic.AtomicLong tempterGeneration = new java.util.concurrent.atomic.AtomicLong();
     private java.util.List<Map.Entry<UUID, Player>> cachedTempterSnapshot = java.util.List.of();
     private long cachedTempterSnapshotGeneration = -1L;
@@ -99,11 +106,11 @@ public class HorseFeedTemptListener implements Listener {
 
         for (Map.Entry<String, PetFoodConfig.PetFoodDefinition> entry : config.getFoodDefinitions().entrySet()) {
             PetFoodConfig.PetFoodDefinition definition = entry.getValue();
-            if (!definition.temptEnabled) {
+            if (!definition.tempt().enabled()) {
                 continue;
             }
             temptFoods.put(entry.getKey().toLowerCase(Locale.ROOT), definition);
-            shortestInterval = Math.min(shortestInterval, definition.temptTickInterval);
+            shortestInterval = Math.min(shortestInterval, definition.tempt().tickInterval());
         }
 
         enabled = !temptFoods.isEmpty();
@@ -117,7 +124,7 @@ public class HorseFeedTemptListener implements Listener {
         }
     }
 
-    /** Number of pet foods with tempting enabled, for the consolidated startup summary. */
+    /** Number of pet foods with tempt enabled, for the combined startup summary. */
     public int getTemptFoodCount() {
         return temptFoods.size();
     }
@@ -136,9 +143,9 @@ public class HorseFeedTemptListener implements Listener {
         }
     }
 
-    // The following three methods centrally maintain the parallel collections activeTempterPlayers /
-    // activeTemptDefinitions, both avoiding scattered consistency errors and being the sole generation-change point for the
-    // tickTemptGoals snapshot cache.
+    // The three methods below maintain the activeTempterPlayers / activeTemptDefinitions parallel
+    // collections centrally, both to avoid scattered consistency bugs and as the sole mutation point
+    // for tickTemptGoals' snapshot cache generation.
     private void addTempter(UUID playerId, Player player, PetFoodConfig.PetFoodDefinition definition) {
         activeTempterPlayers.put(playerId, player);
         activeTemptDefinitions.put(playerId, definition);
@@ -162,10 +169,10 @@ public class HorseFeedTemptListener implements Listener {
         }
     }
 
-    // A server with no tempt-enabled pet food pays nothing for these two hot handlers: without the gate
-    // every hotbar scroll and every offhand swap dispatched a region task just for refreshTemptStatus to
-    // find the feature off. The inner !enabled check in refreshTemptStatus stays as the authority — it
-    // covers the config-reload race where the feature is disabled between dispatch and run.
+    // When no tempt-enabled pet food exists, these two hot-path handlers are no-ops: without this guard,
+    // every hotbar scroll and every offhand swap would schedule a region task for refreshTemptStatus only
+    // to discover that the feature is off. The !enabled check inside refreshTemptStatus stays as the
+    // authority — it covers the config-reload race where the feature is toggled between schedule and run.
     @EventHandler
     public void onItemHeld(PlayerItemHeldEvent event) {
         if (!enabled) return;
@@ -189,7 +196,8 @@ public class HorseFeedTemptListener implements Listener {
         if (!enabled) return;
         if (activeTempterPlayers.isEmpty()) return;
 
-        // Rebuild the indexable snapshot only on structural membership change (generation change); otherwise reuse the cache to avoid a per-cycle List.copyOf.
+        // Rebuild the indexable snapshot only when membership changes (generation bump); otherwise reuse
+        // the cache so we avoid List.copyOf on every iteration.
         long generation = tempterGeneration.get();
         if (cachedTempterSnapshotGeneration != generation) {
             cachedTempterSnapshot = java.util.List.copyOf(activeTempterPlayers.entrySet());
@@ -199,9 +207,9 @@ public class HorseFeedTemptListener implements Listener {
         int size = snapshot.size();
         int budget = Math.min(tickBudget, size);
         int start = tickCursor >= size ? 0 : tickCursor;
-        // Resolve once per pass: on Paper/Spigot the repeating task is already on the main thread, so
-        // we can call tickTemptPlayer directly and skip the per-tempter runForEntity task allocation
-        // (which on Folia is needed for region-thread safety, on Paper is just overhead).
+        // Resolve once per loop: on Paper/Spigot the repeating task is already on the main thread,
+        // so we can call tickTemptPlayer directly and skip the runForEntity task allocation per tempter
+        // (on Folia it's required for region-thread safety, on Paper it's just overhead).
         boolean folia = plugin.scheduler().isFolia();
 
         for (int processed = 0; processed < budget; processed++) {
@@ -224,9 +232,9 @@ public class HorseFeedTemptListener implements Listener {
                             scheduledTempterTicks.remove(playerId);
                         }
                     }, () -> {
-                        // When the player is retired the finally block does not run, so the guard must be
-                        // cleared in the retired callback; otherwise scheduledTempterTicks holds the UUID
-                        // forever and the tempt feature stays permanently disabled for that player.
+                        // When the player is retired the finally block won't execute, so the retirement
+                        // callback must clear the guard; otherwise scheduledTempterTicks would hold the
+                        // UUID forever, permanently disabling tempt for that player.
                         scheduledTempterTicks.remove(playerId);
                     });
                 } catch (RuntimeException e) {
@@ -234,7 +242,7 @@ public class HorseFeedTemptListener implements Listener {
                     removeTempter(playerId);
                 }
             } else {
-                // Paper/Spigot: already on the main thread — call directly, no task allocation.
+                // Paper/Spigot: already on the main thread — call directly, no task allocation needed.
                 try {
                     tickTemptPlayer(playerId, player);
                 } catch (RuntimeException e) {
@@ -275,19 +283,42 @@ public class HorseFeedTemptListener implements Listener {
             return;
         }
 
-        // player.getLocation() already returns a fresh copy and the scheduled task only reads it, so
-        // sharing a single snapshot is safe; no need to clone per nearby mob.
+        // player.getLocation() already returns a new copy, and the scheduled task only reads it,
+        // so sharing a single snapshot is safe; no need to clone per nearby entity.
         Location targetLocation = player.getLocation();
-        Set<EntityType> wantedTypes = definition.entities;
-        for (Entity nearby : player.getNearbyEntities(definition.temptRange, definition.temptRange, definition.temptRange)) {
-            // Filter by configured tempt EntityType set BEFORE region-scheduling. Without this gate, every
-            // Mob in the temptRange box (sheep / cows / random hostiles next to a horse-feeding player)
-            // incurred a runForEntity dispatch that the per-mob tryMoveToLocation would then drop on the
-            // type check — wasting a Folia region task per irrelevant mob per tick.
+        Set<EntityType> wantedTypes = definition.entities();
+        PetFoodConfig.TemptSettings tempt = definition.tempt();
+        double rangeSq = tempt.rangeSquared();
+        for (Entity nearby : getChunkEntitiesInRange(targetLocation, tempt.range())) {
+            if (nearby.getLocation().distanceSquared(targetLocation) > rangeSq) continue;
+            // Filter by the configured tempt EntityType set before region dispatch. Without this guard,
+            // every unrelated entity (sheep/cows/random hostile) within temptRange would produce a
+            // runForEntity dispatch, and each mob's tryMoveToLocation would discard it at the type
+            // check — wasting one Folia region task per tick, per unrelated entity.
             if (nearby instanceof Mob mob && wantedTypes.contains(mob.getType())) {
                 scheduleMobTempt(mob, playerId, targetLocation, definition);
             }
         }
+    }
+
+    // Scan chunk entity lists instead of getNearbyEntities to avoid blocking on Folia region threads.
+    // Since the tempt range is bounded (configurable, default 10), we iterate loaded chunks within range.
+    private static List<Entity> getChunkEntitiesInRange(Location center, double range) {
+        World world = center.getWorld();
+        if (world == null) return List.of();
+        int minCX = (center.getBlockX() - (int) Math.ceil(range)) >> 4;
+        int maxCX = (center.getBlockX() + (int) Math.ceil(range)) >> 4;
+        int minCZ = (center.getBlockZ() - (int) Math.ceil(range)) >> 4;
+        int maxCZ = (center.getBlockZ() + (int) Math.ceil(range)) >> 4;
+        List<Entity> result = new ArrayList<>();
+        for (int cx = minCX; cx <= maxCX; cx++) {
+            for (int cz = minCZ; cz <= maxCZ; cz++) {
+                if (world.isChunkLoaded(cx, cz)) {
+                    result.addAll(List.of(world.getChunkAt(cx, cz).getEntities()));
+                }
+            }
+        }
+        return result;
     }
 
     private void scheduleMobTempt(Mob mob, UUID playerId, Location targetLocation, PetFoodConfig.PetFoodDefinition definition) {
@@ -297,10 +328,10 @@ public class HorseFeedTemptListener implements Listener {
             } catch (RuntimeException ignored) {
             }
         } else {
-            // Paper/Spigot: already on the main thread (tickTemptPlayer was called directly), so invoke
-            // the move directly. Saves one BukkitTask allocation per nearby mob per tempter pass — in a
-            // large animal farm (100+ horses next to a feeding player) this avoids 100+ task allocations
-            // per tick interval.
+            // Paper/Spigot: already on the main thread (tickTemptPlayer is called directly), so call
+            // movement logic directly. Saves one BukkitTask allocation per nearby entity per tempter
+            // per tick — in large animal farms (100+ horses next to a feeding player), this avoids
+            // 100+ task allocations per tick interval.
             try {
                 tryMoveToLocation(mob, playerId, targetLocation, definition);
             } catch (RuntimeException ignored) {
@@ -315,17 +346,18 @@ public class HorseFeedTemptListener implements Listener {
         if (!targetLocation.getWorld().equals(mob.getWorld())) {
             return;
         }
-        if (mob.getLocation().distanceSquared(targetLocation) > definition.temptRangeSquared) {
+        PetFoodConfig.TemptSettings tempt = definition.tempt();
+        if (mob.getLocation().distanceSquared(targetLocation) > tempt.rangeSquared()) {
             return;
         }
-        if (definition.temptIgnoreOwnedTamed && mob.getTarget() == null
+        if (tempt.ignoreOwnedTamed() && mob.getTarget() == null
                 && mob instanceof AbstractHorse horse && horse.isTamed()
                 && horse.getOwner() != null && playerId.equals(horse.getOwner().getUniqueId())) {
             return;
         }
 
         try {
-            mob.getPathfinder().moveTo(targetLocation, definition.temptMoveSpeed);
+            mob.getPathfinder().moveTo(targetLocation, tempt.moveSpeed());
         } catch (Throwable ignored) {
         }
     }

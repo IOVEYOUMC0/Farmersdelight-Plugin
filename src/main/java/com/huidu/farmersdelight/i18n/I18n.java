@@ -4,7 +4,6 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.config.ConfigFileUpdater;
 import com.huidu.farmersdelight.util.Text;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.TranslatableComponent;
 import net.kyori.adventure.translation.GlobalTranslator;
 import net.momirealms.craftengine.core.plugin.config.Config;
 import net.momirealms.craftengine.core.plugin.locale.TranslationManager;
@@ -38,7 +37,7 @@ public class I18n {
 
     /**
      * Immutable snapshot of the locale lookup state: locales, currentLocale, and defaultLocale are always consistent.
-     * Reload replaces only the single volatile state reference wholesale, so readers see either the complete old
+     * Reload replaces only the single volatile #state reference wholesale, so readers see either the complete old
      * snapshot or the complete new one, avoiding clear()/put() corrupting the underlying HashMap while a region thread reads it
      * (which could cause wrong results, NPEs, or a region thread spinning forever on a corrupted bucket chain).
      */
@@ -360,7 +359,7 @@ public class I18n {
             return bundled;
         }
 
-        // CraftEngine 翻译（直接调用公开 API，不再用反射）
+        // CraftEngine translation via public API (no reflection)
         try {
             String ceResult = craftEngineTranslate(key, locale);
             if (ceResult != null && !ceResult.equals(key)) {
@@ -369,7 +368,7 @@ public class I18n {
         } catch (LinkageError ignored) {
         }
 
-        // Adventure 全局翻译器（原版 Minecraft 翻译 key）
+        // Adventure GlobalTranslator for vanilla Minecraft translation keys
         try {
             java.util.Locale loc = locale != null && !locale.isEmpty()
                     ? java.util.Locale.forLanguageTag(locale.replace('_', '-'))
@@ -386,7 +385,7 @@ public class I18n {
     }
 
     /**
-     * 通过 CraftEngine 的公开 API 翻译，不再使用反射。
+     * Translate via CraftEngine public API without reflection.
      */
     private static String craftEngineTranslate(String key, String locale) {
         try {
@@ -588,7 +587,7 @@ public class I18n {
         return com.huidu.farmersdelight.util.ItemUtils.translate(key, state.defaultLocale());
     }
 
-    /** serverText(String) formatted with positional %s args and wrapped in a
+    /** #serverText(String) formatted with positional %s args and wrapped in a
      *  Component.text. Falls back to the unformatted text if the args don't match the placeholders.
      *  Args that are themselves Component get serialized through plain-text first so colored
      *  sub-components are not silently dropped (the result is a flat text Component anyway). */

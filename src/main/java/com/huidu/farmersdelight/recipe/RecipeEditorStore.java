@@ -41,7 +41,7 @@ public final class RecipeEditorStore {
     }
 
     /**
-     * @param customGroupId when null or blank, writes to the default cooking-pot recipe group; otherwise
+     * customGroupId when null or blank, writes to the default cooking-pot recipe group; otherwise
      *                      writes to the custom cooking-pot recipe group id.
      */
     public boolean saveCookingPotRecipe(CookingPotRecipe recipe, String customGroupId) {
@@ -112,7 +112,7 @@ public final class RecipeEditorStore {
             tools.add(RecipeSerializer.serializeTool(tool));
         }
         if (tools.size() == 1) {
-            body.put("tool", tools.get(0));
+            body.put("tool", tools.getFirst());
         } else if (!tools.isEmpty()) {
             body.put("tools", tools);
         }
@@ -172,7 +172,7 @@ public final class RecipeEditorStore {
             Files.createDirectories(parent);
         }
         Path temp = targetPath.resolveSibling(target.getName() + ".tmp");
-        Files.write(temp, content.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(temp, content, StandardCharsets.UTF_8);
         try {
             Files.move(temp, targetPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException atomicFailure) {

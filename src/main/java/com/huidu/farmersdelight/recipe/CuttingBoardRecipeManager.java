@@ -9,7 +9,16 @@ import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 public class CuttingBoardRecipeManager {
 
@@ -35,10 +44,11 @@ public class CuttingBoardRecipeManager {
     // Caches CraftEngine's vanillaItemIdsByTag result per tag so matchesTaggedItem doesn't re-stream
     // the full vanilla tag membership on every cutting click (mirrors CookingPotRecipeManager).
     // Cleared in loadRecipes(). Concurrent: read on Folia region/entity threads.
-    private final Map<Key, Set<String>> vanillaItemIdsByTagCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private final VanillaTagItemIdCache vanillaItemIdsByTagCache;
 
     public CuttingBoardRecipeManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
+        this.vanillaItemIdsByTagCache = new VanillaTagItemIdCache(plugin);
     }
 
     public void loadRecipes() {
@@ -108,23 +118,6 @@ public class CuttingBoardRecipeManager {
         // Invalidate the recipe-list GUI display cache: this republish path (incl. addon register/
         // unregister) bypasses RecipeViewGui.clearConfigCache.
         com.huidu.farmersdelight.gui.RecipeViewGui.clearRecipeDisplayCache();
-    }
-
-    private Set<String> getVanillaItemIdsByTag(Key tagKey) {
-        if (tagKey == null) {
-            return Set.of();
-        }
-        return vanillaItemIdsByTagCache.computeIfAbsent(tagKey, key -> {
-            var craftEngine = plugin.getCraftEngine();
-            if (craftEngine == null || craftEngine.itemManager() == null) {
-                return Set.of();
-            }
-            Set<String> itemIds = new HashSet<>();
-            for (var itemId : craftEngine.itemManager().vanillaItemIdsByTag(key)) {
-                itemIds.add(itemId.toString());
-            }
-            return itemIds.isEmpty() ? Set.of() : Collections.unmodifiableSet(itemIds);
-        });
     }
 
     private CuttingBoardRecipe parseRecipe(String id, ConfigurationSection section) {
@@ -231,21 +224,7 @@ public class CuttingBoardRecipeManager {
     }
 
     private RecipeIngredient parseIngredient(String str) {
-        String[] choiceParts = str.split("\\|");
-        if (choiceParts.length > 1) {
-            List<RecipeIngredient> options = new ArrayList<>();
-            for (String part : choiceParts) {
-                String trimmed = part.trim();
-                if (!trimmed.isEmpty()) {
-                    options.add(RecipeParsingSupport.parseSimpleItemOrTag(trimmed));
-                }
-            }
-            if (options.isEmpty()) {
-                throw new IllegalArgumentException("Choice ingredient must contain at least one option");
-            }
-            return options.size() == 1 ? options.get(0) : new RecipeIngredient.Choice(options);
-        }
-        return RecipeParsingSupport.parseSimpleItemOrTag(str);
+        return RecipeParsingSupport.parseChoice(str, RecipeParsingSupport::parseSimpleItemOrTag);
     }
 
     private CuttingBoardRecipe.ToolRequirement parseTool(String str) {
@@ -440,13 +419,13 @@ public class CuttingBoardRecipeManager {
             return excludedTags.stream().map(Key::toString).noneMatch(itemTags::contains);
         }
 
-        boolean matchesBase = vanillaId != null && (getVanillaItemIdsByTag(tagKey).contains(vanillaId)
+        boolean matchesBase = vanillaId != null && (vanillaItemIdsByTagCache.getIds(tagKey).contains(vanillaId)
                 || ItemUtils.matchesVanillaItemTag(item, tagKey, excludedItems, excludedTags));
         if (!matchesBase) {
             return false;
         }
         return excludedTags.stream().noneMatch(excludedTag ->
-                vanillaId != null && getVanillaItemIdsByTag(excludedTag).contains(vanillaId));
+                vanillaId != null && vanillaItemIdsByTagCache.getIds(excludedTag).contains(vanillaId));
     }
 
     public Map<String, CuttingBoardRecipe> getRecipes() {
@@ -459,6 +438,10 @@ public class CuttingBoardRecipeManager {
 
     public int getRecipeCount() {
         return recipes.size();
+    }
+
+    public int getExternalRecipeCount() {
+        return externalRecipes.size();
     }
 
     public CuttingBoardRecipe getRecipe(String id) {

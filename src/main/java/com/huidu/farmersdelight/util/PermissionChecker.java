@@ -5,9 +5,9 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * 集中管理玩家的权限检查。
- * 所有行为类（BlockBehavior）和事件监听器中的权限验证统一通过此类进行，
- * 当玩家无权限时自动发送 ActionBar 提示消息。
+ * Centralized permission checks for players.
+ * All BlockBehavior and listener permission validation routes through this class,
+ * which sends an ActionBar denial message when a player lacks permission.
  */
 public final class PermissionChecker {
 
@@ -15,11 +15,11 @@ public final class PermissionChecker {
     }
 
     /**
-     * 检查玩家是否拥有指定权限，若无权限则发送提示。
+     * Check if the player has the given permission, sending a denial message if not.
      *
-     * @param player     目标玩家
-     * @param permission 权限节点（如 "farmersdelight.use.cooking_pot"）
-     * @return true 表示有权限，false 表示无权限（已发送提示）
+     * player     target player
+     * permission the permission node (e.g. farmersdelight.use.cooking_pot)
+     * return true if permitted, false if denied (message sent)
      */
     public static boolean check(@NotNull Player player, @NotNull String permission) {
         if (permission.isEmpty()) {
@@ -33,11 +33,11 @@ public final class PermissionChecker {
     }
 
     /**
-     * 检查玩家是否拥有指定权限，不发送提示。
+     * Check if the player has the given permission without sending a message.
      *
-     * @param player     目标玩家
-     * @param permission 权限节点
-     * @return true 表示有权限
+     * player     target player
+     * permission the permission node
+     * return true if permitted
      */
     public static boolean has(@NotNull Player player, @NotNull String permission) {
         return permission.isEmpty() || player.hasPermission(permission);

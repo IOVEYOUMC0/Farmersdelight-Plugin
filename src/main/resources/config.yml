@@ -8,14 +8,29 @@
 # Affects plugin logs, console text and text with no player context; player GUI/messages still prefer the player client language.
 language: ''
 
+# Enchantments added by FarmersDelight. Each enchantment has its own enabled toggle.
+# If an enchantment-conflict plugin (EcoEnchants, AdvancedEnchantments, Zenchantments etc.)
+# is detected on startup, the plugin disables its own version and logs a warning.
+# Set to true to force-enable FarmersDelight's version anyway.
+enchantments:
+  backstabbing:
+    enabled: true
+
 # Debug logging. Off by default, not needed on a normal server.
-# enabled=true is only the master switch; an empty categories outputs no per-category debug logs.
-# Recommended only when troubleshooting, with specific categories such as cooking_pot, stove, skillet, tray.
-# The startup category restores the per-subsystem boot lines (language files, block behaviors, tick manager,
-# proxy displays, pet foods, advancements, warmup, datapack writes) that a normal boot folds into the two
-# summary lines; the recipe and loot categories do the same for per-recipe-type and drop-rule counts.
-# Everything in those categories is also written at FINE, so raising the logger level surfaces it without
-# turning debug on. To temporarily output all categories, set categories to all or *.
+# enabled=true is the master switch; an empty categories list outputs no per-category logs.
+# Available categories and their purpose:
+#   startup    - Boot sequence details (i18n, behaviors, tick manager, PAPI, advancements, datapack writes, etc.)
+#   recipe     - Per-recipe-type load counts
+#   loot       - Knife drop rule and loot injection details
+#   cooking_pot - Cooking pot behavior
+#   stove      - Stove behavior
+#   skillet    - Skillet behavior
+#   tray       - Tray behavior
+#   gui        - GUI rendering
+#   interact   - Player interaction events
+#   config     - Config file integrity checks
+#   resource   - Resource auto-completion details (+ added / = skipped)
+# Set to ["all"] or ["*"] to temporarily enable every category.
 debug:
   enabled: false
   categories: []
@@ -133,6 +148,11 @@ cutting-board:
   # true = only items with a cutting recipe or tools can be placed on the board, all others rejected; false = any item allowed (default).
   # Detection matches cutting/tool logic, compatible with vanilla and CraftEngine custom items.
   recipe-only-placement: false
+
+  # true = a dispenser facing a cutting board uses the dispensed item as a cutting tool on the board's stored
+  # item (results drop, the tool takes durability and is kept in the dispenser). A dispenser facing a board
+  # never ejects its item. Set false to restore vanilla dispenser behavior in front of cutting boards.
+  dispenser-behavior: true
 
   sounds:
     # Volume and pitch when retrieving a board item by hand.

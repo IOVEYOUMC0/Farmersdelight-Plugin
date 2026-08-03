@@ -17,17 +17,17 @@ import java.util.Set;
  * disable, load, unload or reload a registered plugin name at runtime. Tells the sender the plugin
  * does not support live management and to /stop + restart instead.
  *
- * <p>This addresses the failure mode where CraftEngine + per-chunk block entities + scheduler tasks
+ * This addresses the failure mode where CraftEngine + per-chunk block entities + scheduler tasks
  * keep references into the plugin's classloader: once the classloader closes, every late-bound
  * lambda / event delivery throws NoClassDefFoundError. Detecting and refusing the command
  * up front is cleaner than waiting for onDisable to scream a warning after the damage is
  * already in flight.
  *
- * <p>Vanilla /reload bypasses this guard (it's a core command, not a plugin command); the
+ * Vanilla /reload bypasses this guard (it's a core command, not a plugin command); the
  * plugin's onEnable should still install a JVM-lifetime reload guard (e.g. a system property) so
  * the second onEnable call self-disables.
  *
- * <p>Register one instance per plugin with the exact plugin name as it appears in plugin.yml.
+ * Register one instance per plugin with the exact plugin name as it appears in plugin.yml.
  */
 public final class PluginManagerGuard implements Listener {
 

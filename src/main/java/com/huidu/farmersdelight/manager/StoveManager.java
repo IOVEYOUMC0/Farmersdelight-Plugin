@@ -4,13 +4,25 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior;
 import com.huidu.farmersdelight.config.CuttingBoardDisplayConfig;
 import com.huidu.farmersdelight.i18n.I18n;
-import com.huidu.farmersdelight.util.*;
+import com.huidu.farmersdelight.util.ManagerSupport;
+import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.SoundUtils;
+import com.huidu.farmersdelight.util.BlockPosKey;
+import com.huidu.farmersdelight.util.CampfireRecipeCache;
+import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.compat.DisplayTransformUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.NamespacedKey;
@@ -26,7 +38,15 @@ import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -753,7 +773,7 @@ public class StoveManager {
     }
 
     /**
-     * Burn poll — runs every BURN_PERIOD_TICKS ticks for the manager's whole lifetime, NOT
+     * Burn poll — runs every #BURN_PERIOD_TICKS ticks for the manager's whole lifetime, NOT
      * gated on the cooking tracker. Stoves are placed lit by default but only enter the cooking tick
      * once they hold food (or load with saved data), so an empty lit stove was never ticked and never
      * burned anyone — the bug this replaces. Mirrors the vanilla block-level stepOn/entityInside burn:
@@ -809,6 +829,7 @@ public class StoveManager {
      * creative/spectator are exempt (vanilla isSteppingCarefully + inherent creative immunity).
      * Damage amount / whether burning is enabled come from the stove's behavior config. The per-entity
      * invulnerability cooldown rate-limits the actual hit, so polling every few ticks yields ~2 dmg/sec. */
+    @SuppressWarnings("UnstableApiUsage")
     private void tryBurnEntityOnStove(LivingEntity entity) {
         Location loc = entity.getLocation();
         World world = loc.getWorld();
@@ -847,7 +868,7 @@ public class StoveManager {
     // Registry.DAMAGE_TYPE is deprecated (since 1.20.6) but not for removal, so it stays stable. The suggested
     // replacement goes through the ApiStatus.Experimental RegistryKey API; using the deprecated-but-stable
     // accessor (already wrapped in try/catch with a HOT_FLOOR fallback) is the more version-robust choice.
-    @SuppressWarnings("deprecation")
+    @SuppressWarnings({"deprecation", "UnstableApiUsage"})
     private DamageType stoveBurnDamageType() {
         DamageType type = this.stoveBurnType;
         if (type == null) {
@@ -1022,8 +1043,19 @@ public class StoveManager {
         List<Player> nearbyViewers = NEARBY_VIEWER_SCRATCH.get();
         nearbyViewers.clear();
         double viewDsq = effectViewerDistance * effectViewerDistance;
+        // Compute squared distance by hand to avoid allocating a Location per candidate. Same world is
+        // already guaranteed below, so this is equivalent to distanceSquared.
+        double cx = location.getX();
+        double cy = location.getY();
+        double cz = location.getZ();
         for (Player p : seeingPlayers) {
-            if (p.getWorld() == world && p.getLocation().distanceSquared(location) <= viewDsq) {
+            if (p.getWorld() != world) {
+                continue;
+            }
+            double dx = p.getX() - cx;
+            double dy = p.getY() - cy;
+            double dz = p.getZ() - cz;
+            if (dx * dx + dy * dy + dz * dz <= viewDsq) {
                 nearbyViewers.add(p);
             }
         }

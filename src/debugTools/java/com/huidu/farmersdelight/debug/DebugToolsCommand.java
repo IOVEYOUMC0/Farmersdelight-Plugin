@@ -9,13 +9,24 @@ import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.manager.SkilletManager;
 import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.manager.TickManager;
+import com.huidu.farmersdelight.recipe.CookingPotRecipeManager;
+import com.huidu.farmersdelight.recipe.CuttingBoardRecipeManager;
+import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.ManagerSupport;
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import net.kyori.adventure.translation.GlobalTranslator;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
+import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
+import net.momirealms.craftengine.core.item.Item;
+import net.momirealms.craftengine.core.item.component.DataComponentKeys;
+import net.momirealms.craftengine.core.plugin.locale.TranslationManager;
+import net.momirealms.craftengine.libraries.nbt.CompoundTag;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -50,8 +61,12 @@ public final class DebugToolsCommand {
     private static final int DEFAULT_MAX_PLACE_COUNT = 65536;
     private static final int DEFAULT_PROFILE_TICKS = 200;
     private static final int MAX_PROFILE_TICKS = 12_000;
-    private static final List<String> ACTIONS = List.of("place", "activate", "status", "profile", "undo");
-    private static final List<String> TARGETS = List.of("cooking_pot", "skillet", "stove", "stove_blocked", "all");
+    private static final List<String> ACTIONS = List.of("place", "activate", "status", "profile", "undo",
+            "inspect", "item", "recipe", "i18n");
+    private static final List<String> TARGETS = List.of("cooking_pot", "skillet", "stove", "stove_blocked",
+            "cutting_board", "basket", "all");
+    // Basket has no Constants block-id entry (only a behavior constant); its block id equals its behavior id.
+    private static final String BLOCK_BASKET = "farmersdelight:basket";
     private static final List<String> PROFILE_DURATIONS = List.of("100", "200", "600", "1200");
     private static final int UNDO_HISTORY_LIMIT = 8;
     private static final Deque<List<UndoEntry>> UNDO_HISTORY = new ArrayDeque<>();
@@ -79,6 +94,10 @@ public final class DebugToolsCommand {
             case "status", "stats" -> status(player);
             case "profile", "sample" -> profile(player, args);
             case "undo" -> undo(player);
+            case "inspect", "look" -> inspect(player, args);
+            case "item", "hand", "held" -> dumpHeldItem(player, args);
+            case "recipe", "recipes" -> recipeValidate(player);
+            case "i18n", "lang" -> i18nResolve(player, args);
             default -> sendUsage(player);
         }
     }
@@ -87,12 +106,20 @@ public final class DebugToolsCommand {
         if (args.length == 2) {
             return complete(ACTIONS, args[1]);
         }
-        if (args.length == 3 && args.length > 1) {
+        if (args.length == 3) {
             String action = normalize(args[1]);
             if ("profile".equals(action) || "sample".equals(action)) {
                 return complete(PROFILE_DURATIONS, args[2]);
             }
-            if ("status".equals(action) || "stats".equals(action) || "undo".equals(action)) {
+            if ("item".equals(action) || "hand".equals(action) || "held".equals(action)) {
+                return complete(List.of("offhand"), args[2]);
+            }
+            if ("recipe".equals(action) || "recipes".equals(action)) {
+                return complete(List.of("validate"), args[2]);
+            }
+            if ("status".equals(action) || "stats".equals(action) || "undo".equals(action)
+                    || "inspect".equals(action) || "look".equals(action)
+                    || "i18n".equals(action) || "lang".equals(action)) {
                 return List.of();
             }
             List<String> targets = new ArrayList<>(TARGETS);
@@ -301,6 +328,347 @@ public final class DebugToolsCommand {
         player.sendMessage(MINI_MESSAGE.deserialize("<green>Debug undo restored " + restored + " blocks.</green>"));
     }
 
+    // Read-only diagnostics: inspect a block, dump a held item, validate recipes, trace a translation key.
+
+    /** Dumps the CraftEngine custom block the player looks at (falling back to the block underfoot). */
+    private void inspect(Player player, String[] args) {
+        Integer requested = parseOptionalInt(args, 2, 6);
+        int distance = requested == null ? 6 : clamp(requested, 1, 64);
+        Block hit = player.getTargetBlockExact(distance);
+        Block target = (hit != null && !hit.getType().isAir())
+                ? hit
+                : player.getLocation().getBlock().getRelative(BlockFace.DOWN);
+        Location location = target.getLocation();
+        // The custom-block / block-entity / manager-snapshot reads below are documented region-thread-only on
+        // Folia, so the whole dump (and the reply to the player) runs on the region that owns the target block —
+        // the same pattern profile() uses. On Paper this executes inline.
+        plugin.scheduler().runAt(location, () -> dumpBlock(player, target));
+    }
+
+    private void dumpBlock(Player player, Block target) {
+        Location location = target.getLocation();
+        String coords = target.getWorld().getName() + " " + location.getBlockX() + ","
+                + location.getBlockY() + "," + location.getBlockZ();
+
+        ImmutableBlockState state = CustomBlockUtils.getState(target);
+        if (state == null || state.isEmpty()) {
+            player.sendMessage(MINI_MESSAGE.deserialize("<yellow>Inspect: no CraftEngine custom block at "
+                    + coords + " (bukkit " + target.getType() + ").</yellow>"));
+            return;
+        }
+
+        String id = CustomBlockUtils.getId(state);
+        player.sendMessage(MINI_MESSAGE.deserialize("<green>Inspect</green> <gray>" + id + " @ " + coords + "</gray>"));
+        player.sendMessage(MINI_MESSAGE.deserialize("<gray>bukkit-material:</gray> " + target.getType()));
+
+        String props = describeProperties(state);
+        player.sendMessage(MINI_MESSAGE.deserialize("<gray>properties:</gray> " + (props.isEmpty() ? "(none)" : props)));
+        player.sendMessage(MINI_MESSAGE.deserialize("<gray>behaviors:</gray> " + describeBehaviors(state)));
+
+        boolean definitionBE = state.hasBlockEntity();
+        boolean runtimeBE = false;
+        World world = target.getWorld();
+        BlockPosKey posKey = new BlockPosKey(location);
+        var ceWorld = CustomBlockUtils.getCEWorld(world);
+        if (ceWorld != null) {
+            try {
+                runtimeBE = ceWorld.getBlockEntityAtIfLoaded(posKey.toBlockPos()) != null;
+            } catch (Exception ignored) {
+            }
+        }
+        player.sendMessage(MINI_MESSAGE.deserialize("<gray>block-entity:</gray> definition=" + definitionBE
+                + ", runtime=" + (runtimeBE ? "present" : "none")));
+
+        dumpCookingPotContents(player, world, location, posKey);
+        dumpStoveContents(player, location);
+        dumpSkilletContents(player, location);
+
+        Block below = target.getRelative(BlockFace.DOWN);
+        boolean heat = plugin.getHeatSourceConfig().isHeatSource(below);
+        player.sendMessage(MINI_MESSAGE.deserialize("<gray>heat-below:</gray> " + below.getType()
+                + " -> heat=" + heat));
+
+        TickManager tickManager = plugin.getTickManager();
+        if (tickManager != null) {
+            player.sendMessage(MINI_MESSAGE.deserialize("<gray>global active-blocks:</gray> "
+                    + tickManager.getPerformanceSnapshot().currentActiveBlocks()));
+        }
+    }
+
+    private String describeProperties(ImmutableBlockState state) {
+        StringBuilder builder = new StringBuilder();
+        for (Property<?> property : state.getProperties()) {
+            if (builder.length() > 0) {
+                builder.append(", ");
+            }
+            builder.append(property.name()).append('=').append(CustomBlockUtils.getPropertyString(state, property.name()));
+        }
+        return builder.toString();
+    }
+
+    /** Behavior class name(s). A composite block exposes its children via a private array; single-behavior
+     *  blocks return the concrete behavior directly, so the array read is expected to fail there — the concrete
+     *  class name is the fallback, not an error. */
+    private String describeBehaviors(ImmutableBlockState state) {
+        var behavior = state.behavior();
+        if (behavior == null) {
+            return "(none)";
+        }
+        try {
+            Object array = getField(behavior, "behaviors");
+            if (array instanceof Object[] behaviors) {
+                StringBuilder builder = new StringBuilder(behavior.getClass().getSimpleName()).append("[ ");
+                for (int i = 0; i < behaviors.length; i++) {
+                    if (i > 0) {
+                        builder.append(", ");
+                    }
+                    builder.append(behaviors[i] == null ? "null" : behaviors[i].getClass().getSimpleName());
+                }
+                return builder.append(" ]").toString();
+            }
+        } catch (ReflectiveOperationException notComposite) {
+            // Single-behavior block: no 'behaviors' field, fall through to the concrete class name.
+        }
+        return behavior.getClass().getSimpleName();
+    }
+
+    private void dumpCookingPotContents(Player player, World world, Location location, BlockPosKey posKey) {
+        if (!CookingPotBlockBehavior.isCookingPotBlock(world, posKey)
+                && !isPlacedCustomBlock(location, Constants.BLOCK_COOKING_POT)) {
+            return;
+        }
+        CookingPotBlockEntity entity = CookingPotBlockBehavior.getBlockEntity(location);
+        if (entity == null) {
+            player.sendMessage(MINI_MESSAGE.deserialize("<gray>pot contents:</gray> (no block-entity)"));
+            return;
+        }
+        var recipe = entity.getCurrentRecipe();
+        player.sendMessage(MINI_MESSAGE.deserialize("<gray>pot contents:</gray> stored=" + entity.hasStoredContents()
+                + ", input=" + entity.hasInput()
+                + ", progress=" + entity.getCookingProgress() + "/" + entity.getCookingDuration()
+                + ", comparator=" + entity.getComparatorOutput()
+                + ", recipe=" + (recipe == null ? "(none)" : recipe.getId())));
+        player.sendMessage(MINI_MESSAGE.deserialize("<gray>pot inputs:</gray> ")
+                .append(Component.text(entity.debugInputSummary())));
+    }
+
+    private void dumpStoveContents(Player player, Location location) {
+        StoveManager manager = plugin.getStoveManager();
+        if (manager == null || !manager.isStoveStateBlock(location)) {
+            return;
+        }
+        var snapshot = manager.snapshot(location);
+        if (snapshot == null) {
+            return;
+        }
+        StringBuilder slots = new StringBuilder();
+        var items = snapshot.items();
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i) != null) {
+                slots.append(" [").append(i).append("] ").append(shortItem(items.get(i)))
+                        .append(' ').append(Math.round(snapshot.progressFraction(i) * 100)).append('%');
+            }
+        }
+        player.sendMessage(MINI_MESSAGE.deserialize("<gray>stove contents:</gray> lit=" + snapshot.lit()
+                + ", blockedAbove=" + snapshot.blockedAbove() + ", slots=" + snapshot.occupiedSlots() + slots));
+    }
+
+    private void dumpSkilletContents(Player player, Location location) {
+        SkilletManager manager = plugin.getSkilletManager();
+        if (manager == null) {
+            return;
+        }
+        var snapshot = manager.snapshot(location);
+        if (snapshot == null) {
+            return;
+        }
+        player.sendMessage(MINI_MESSAGE.deserialize("<gray>skillet contents:</gray> stored="
+                + shortItem(snapshot.storedItem())
+                + ", recipe=" + (snapshot.recipeId() == null ? "(none)" : snapshot.recipeId())
+                + ", progress=" + snapshot.progressTicks() + "/" + snapshot.cookTimeTicks()
+                + ", heated=" + snapshot.heated() + ", fireAspect=" + snapshot.fireAspectLevel()));
+    }
+
+    private String shortItem(ItemStack stack) {
+        if (stack == null || stack.getType().isAir()) {
+            return "empty";
+        }
+        String id = ItemUtils.resolveItemId(stack);
+        return (id == null ? stack.getType().name() : id) + " x" + stack.getAmount();
+    }
+
+    /** Dumps the identity FarmersDelight's matcher sees for the held stack. */
+    private void dumpHeldItem(Player player, String[] args) {
+        boolean offhand = args.length >= 3 && normalize(args[2]).startsWith("off");
+        ItemStack held = offhand
+                ? player.getInventory().getItemInOffHand()
+                : player.getInventory().getItemInMainHand();
+        if (held == null || held.getType().isAir()) {
+            player.sendMessage(MINI_MESSAGE.deserialize("<yellow>You are not holding an item"
+                    + (offhand ? " in your off hand." : ".") + "</yellow>"));
+            return;
+        }
+
+        player.sendMessage(MINI_MESSAGE.deserialize("<green>Item</green> <gray>(" + (offhand ? "off hand" : "main hand") + ")</gray>"));
+        player.sendMessage(MINI_MESSAGE.deserialize("<gray>material:</gray> " + held.getType()
+                + "  <gray>count:</gray> " + held.getAmount() + "/" + held.getMaxStackSize()));
+
+        try {
+            if (!ItemUtils.isAnyCustomItemLoaded()) {
+                player.sendMessage(MINI_MESSAGE.deserialize("<gray>ce-id:</gray> (CraftEngine items not loaded yet)"));
+                return;
+            }
+            String ceId = ItemUtils.getCustomItemId(held);
+            player.sendMessage(MINI_MESSAGE.deserialize("<gray>ce-id:</gray> " + (ceId == null ? "(vanilla)" : ceId)
+                    + "  <gray>resolved-id:</gray> " + ItemUtils.resolveItemId(held)
+                    + "  <gray>custom:</gray> " + ItemUtils.isCustomItem(held)));
+            List<String> tags = ItemUtils.getAllItemTagIds(held);
+            player.sendMessage(MINI_MESSAGE.deserialize("<gray>tags:</gray> "
+                    + (tags.isEmpty() ? "(none)" : String.join(", ", tags))));
+            dumpComponent(player, held, DataComponentKeys.CUSTOM_DATA, "custom_data");
+            dumpComponent(player, held, DataComponentKeys.BLOCK_ENTITY_DATA, "block_entity_data");
+        } catch (RuntimeException | LinkageError e) {
+            player.sendMessage(MINI_MESSAGE.deserialize("<red>CE identity unavailable: "
+                    + e.getClass().getSimpleName() + "</red>"));
+        }
+    }
+
+    private void dumpComponent(Player player, ItemStack item, net.momirealms.craftengine.core.util.Key componentKey, String label) {
+        try {
+            Item wrapped = BukkitItemManager.instance().wrap(item.clone());
+            CompoundTag tag = CustomBlockUtils.getComponentCompound(wrapped, componentKey);
+            if (tag == null) {
+                player.sendMessage(MINI_MESSAGE.deserialize("<gray>" + label + ":</gray> (absent)"));
+                return;
+            }
+            String text = tag.toString();
+            if (text.length() > 512) {
+                text = text.substring(0, 512) + "…(truncated)";
+            }
+            // The NBT text may contain '<' / '>' — append it as a literal component so MiniMessage does not parse it.
+            player.sendMessage(MINI_MESSAGE.deserialize("<gray>" + label + ":</gray> ").append(Component.text(text)));
+        } catch (Exception unreadable) {
+            player.sendMessage(MINI_MESSAGE.deserialize("<gray>" + label + ":</gray> (unreadable)"));
+        }
+    }
+
+    /** Scans every loaded cooking-pot and cutting-board recipe for ingredient item ids / tags that no longer
+     *  resolve to a real item — the class of typo that loads with no startup warning (e.g. wild_carrots). */
+    private void recipeValidate(Player player) {
+        boolean ceReady = ItemUtils.isAnyCustomItemLoaded();
+        List<String> issues = new ArrayList<>();
+
+        int potCount = 0;
+        CookingPotRecipeManager potManager = plugin.getCookingPotRecipes();
+        java.util.Set<String> seenPotIds = new java.util.HashSet<>();
+        if (potManager != null) {
+            for (var recipe : potManager.getAllRecipes()) {
+                if (!seenPotIds.add(recipe.getId())) {
+                    continue;
+                }
+                potCount++;
+                for (RecipeIngredient ingredient : recipe.getIngredients()) {
+                    checkIngredient(potManager, "cooking_pot", recipe.getId(), ingredient, ceReady, issues);
+                }
+            }
+        }
+
+        int boardCount = 0;
+        CuttingBoardRecipeManager boardManager = plugin.getCuttingBoardRecipes();
+        if (boardManager != null) {
+            for (var recipe : boardManager.getSortedRecipes()) {
+                boardCount++;
+                checkIngredient(potManager, "cutting_board", recipe.getId(), recipe.getInput(), ceReady, issues);
+            }
+        }
+
+        player.sendMessage(MINI_MESSAGE.deserialize("<green>Recipe validation</green> <gray>scanned " + potCount
+                + " cooking-pot + " + boardCount + " cutting-board recipes (" + (potCount + boardCount) + " total)</gray>"));
+        for (String line : issues) {
+            player.sendMessage(MINI_MESSAGE.deserialize(line));
+        }
+        if (issues.isEmpty()) {
+            player.sendMessage(MINI_MESSAGE.deserialize("<green>No unresolved item ids found.</green>"));
+        } else {
+            player.sendMessage(MINI_MESSAGE.deserialize("<yellow>" + issues.size()
+                    + " issue(s). Recipes that failed to PARSE at load are logged separately as 'recipe.load_failed'.</yellow>"));
+        }
+    }
+
+    /** Adds a report line for each unresolvable item id / empty tag the ingredient references. Recurses into
+     *  Choice options; item ids are tested with createItem (null == unresolvable), tags with membership. */
+    private void checkIngredient(CookingPotRecipeManager tagResolver, String kind, String recipeId,
+                                 RecipeIngredient ingredient, boolean ceReady, List<String> issues) {
+        if (ingredient instanceof RecipeIngredient.Item item) {
+            if (ItemUtils.createItem(item.key()) == null) {
+                issues.add("<red>[" + kind + "] " + recipeId + "</red> <gray>unresolved ingredient</gray> <yellow>"
+                        + item.key() + "</yellow>");
+            }
+        } else if (ingredient instanceof RecipeIngredient.Tag tag) {
+            // Only meaningful once CraftEngine has loaded its items; before that every custom tag looks empty.
+            if (!ceReady || tagResolver == null) {
+                return;
+            }
+            boolean empty;
+            try {
+                empty = tagResolver.getVanillaItemIdsByTag(tag.key()).isEmpty()
+                        && plugin.getCraftEngine().itemManager().itemIdsByTag(tag.key()).isEmpty();
+            } catch (Throwable cannotResolve) {
+                return;
+            }
+            if (empty) {
+                issues.add("<red>[" + kind + "] " + recipeId + "</red> <gray>tag resolves to 0 items</gray> <yellow>#"
+                        + tag.key() + "</yellow>");
+            }
+        } else if (ingredient instanceof RecipeIngredient.Choice choice) {
+            for (RecipeIngredient option : choice.options()) {
+                checkIngredient(tagResolver, kind, recipeId, option, ceReady, issues);
+            }
+        }
+    }
+
+    /** Shows what each translation layer returns for a key so an English-fallback / missing-key can be traced. */
+    private void i18nResolve(Player player, String[] args) {
+        if (args.length < 3) {
+            player.sendMessage(MINI_MESSAGE.deserialize("<yellow>/fd debugtools i18n <key> [locale]</yellow>"));
+            return;
+        }
+        String key = args[2];
+        String locale = args.length >= 4 ? normalize(args[3]) : "en_us";
+        java.util.Locale loc = java.util.Locale.forLanguageTag(locale.replace('_', '-'));
+        player.sendMessage(MINI_MESSAGE.deserialize("<green>i18n</green> <gray>key=" + key + " locale=" + locale + "</gray>"));
+
+        String fd = I18n.get(key, locale);
+        sendLayer(player, "I18n.get", fd, fd.equals(key));
+
+        try {
+            String cePlain = TranslationManager.instance().plainTranslation(key, loc);
+            sendLayer(player, "CraftEngine.plain", cePlain, cePlain == null || cePlain.equals(key));
+        } catch (LinkageError | RuntimeException e) {
+            player.sendMessage(MINI_MESSAGE.deserialize("<gray>CraftEngine.plain:</gray> <red>unavailable ("
+                    + e.getClass().getSimpleName() + ")</red>"));
+        }
+
+        try {
+            Component rendered = GlobalTranslator.render(Component.translatable(key), loc);
+            String plain = PlainTextComponentSerializer.plainText().serialize(rendered);
+            sendLayer(player, "Adventure", plain, plain.equals(key));
+        } catch (Exception e) {
+            player.sendMessage(MINI_MESSAGE.deserialize("<gray>Adventure:</gray> <red>error</red>"));
+        }
+    }
+
+    private void sendLayer(Player player, String layer, String value, boolean absent) {
+        Component line = MINI_MESSAGE.deserialize("<gray>" + layer + ":</gray> ")
+                .append(Component.text(value == null ? "null" : value,
+                        absent ? net.kyori.adventure.text.format.NamedTextColor.RED
+                                : net.kyori.adventure.text.format.NamedTextColor.WHITE));
+        if (absent) {
+            line = line.append(Component.text(" (absent/key)", net.kyori.adventure.text.format.NamedTextColor.DARK_GRAY));
+        }
+        player.sendMessage(line);
+    }
+
     private PlaceResult placeOne(Player player, Location location, String target, int index) {
         boolean placed = false;
         boolean activated = false;
@@ -356,6 +724,16 @@ public final class DebugToolsCommand {
                 activated = true;
                 target = "stove";
             }
+        } else if (isCuttingBoardTarget(target)) {
+            // Passive block: just place it. No heat source and nothing to activate.
+            UndoEntry blockUndo = captureUndo(location);
+            placed = placeBlock(location, Constants.BLOCK_CUTTING_BOARD, false);
+            rememberIfChanged(undoEntries, blockUndo);
+        } else if (isBasketTarget(target)) {
+            // Passive block: the vacuum controller ticks on its own once placed, so no activation step.
+            UndoEntry blockUndo = captureUndo(location);
+            placed = placeBlock(location, BLOCK_BASKET, false);
+            rememberIfChanged(undoEntries, blockUndo);
         }
         return new PlaceResult(placed, activated, activated ? target : null, undoEntries);
     }
@@ -798,17 +1176,6 @@ public final class DebugToolsCommand {
         return CraftEngineBlocks.place(location, state, playSound);
     }
 
-    private void ensureLitStove(Location location) {
-        if (!isPlacedCustomBlock(location, Constants.BLOCK_STOVE)) {
-            return;
-        }
-        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(location.getBlock());
-        if (state == null || state.isEmpty() || Boolean.TRUE.equals(getBooleanState(state, "fire"))) {
-            return;
-        }
-        CraftEngineBlocks.place(location, withBooleanState(state, "fire", true), false);
-    }
-
     private boolean hasHeatSourceBelow(Location location) {
         if (location == null || location.getWorld() == null) {
             return false;
@@ -862,7 +1229,16 @@ public final class DebugToolsCommand {
 
     private boolean isBuiltInTarget(String target) {
         return isCookingPotTarget(target) || isSkilletTarget(target)
-                || isStoveTarget(target) || isBlockedStoveTarget(target);
+                || isStoveTarget(target) || isBlockedStoveTarget(target)
+                || isCuttingBoardTarget(target) || isBasketTarget(target);
+    }
+
+    private boolean isCuttingBoardTarget(String target) {
+        return "cutting_board".equals(target) || "board".equals(target) || "cuttingboard".equals(target);
+    }
+
+    private boolean isBasketTarget(String target) {
+        return "basket".equals(target);
     }
 
     private boolean isCookingPotTarget(String target) {
@@ -947,7 +1323,7 @@ public final class DebugToolsCommand {
 
     private void sendUsage(CommandSender sender) {
         sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools place <cooking_pot|skillet|stove|stove_blocked|all> [count] [spacing] [layers]</yellow>"
+                "<yellow>/fd debugtools place <cooking_pot|skillet|stove|stove_blocked|cutting_board|basket|all> [count] [spacing] [layers]</yellow>"
         ));
         sender.sendMessage(MINI_MESSAGE.deserialize(
                 "<yellow>/fd debugtools activate <cooking_pot|skillet|stove|all></yellow>"
@@ -958,6 +1334,18 @@ public final class DebugToolsCommand {
         sender.sendMessage(MINI_MESSAGE.deserialize(
                 "<yellow>/fd debugtools profile [ticks]</yellow> <gray>- sample TickManager cost, default "
                         + DEFAULT_PROFILE_TICKS + " ticks</gray>"
+        ));
+        sender.sendMessage(MINI_MESSAGE.deserialize(
+                "<yellow>/fd debugtools inspect [distance]</yellow> <gray>- dump the CE block you look at / stand on</gray>"
+        ));
+        sender.sendMessage(MINI_MESSAGE.deserialize(
+                "<yellow>/fd debugtools item [offhand]</yellow> <gray>- dump the held item's CE id / tags / components</gray>"
+        ));
+        sender.sendMessage(MINI_MESSAGE.deserialize(
+                "<yellow>/fd debugtools recipe validate</yellow> <gray>- scan recipes for unresolvable item ids</gray>"
+        ));
+        sender.sendMessage(MINI_MESSAGE.deserialize(
+                "<yellow>/fd debugtools i18n <key> [locale]</yellow> <gray>- trace a translation key through each layer</gray>"
         ));
     }
 

@@ -1,0 +1,20 @@
+{
+  "description": {
+    "translate": "enchantment.farmersdelight.backstabbing",
+    "fallback": "Backstabbing"
+  },
+  "supported_items": "#farmersdelight:enchantable/knife",
+  "weight": 5,
+  "max_level": 3,
+  "min_cost": {
+    "base": 15,
+    "per_level_above_first": 9
+  },
+  "max_cost": {
+    "base": 50,
+    "per_level_above_first": 8
+  },
+  "anvil_cost": 2,
+  "slots": ["mainhand"],
+  "effects": {}
+}

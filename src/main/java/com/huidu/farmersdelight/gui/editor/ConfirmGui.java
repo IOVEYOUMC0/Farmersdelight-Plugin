@@ -1,60 +1,61 @@
 package com.huidu.farmersdelight.gui.editor;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.gui.AbstractInventoryGui;
 import com.huidu.farmersdelight.gui.GuiConfig;
 import com.huidu.farmersdelight.gui.RecipeViewGuiConfig;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
-import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * A generic confirm/cancel screen driven by the gui.yml layout (slot types confirm, cancel,
  * info, background). Closing the screen (pressing ESC) is treated as a cancel.
  */
-public final class ConfirmGui implements EditorGui {
+public final class ConfirmGui extends AbstractInventoryGui implements EditorGui {
 
-    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacyAmpersand();
-    private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
-
-    private final FarmersDelightPlugin plugin;
-    private final Player player;
     private final RecipeViewGuiConfig.BaseConfig config;
     private final Map<String, String> infoPlaceholders;
     private final Runnable onConfirm;
     private final Runnable onCancel;
-    private final Inventory inventory;
     private boolean acted = false;
 
     public ConfirmGui(FarmersDelightPlugin plugin, Player player, RecipeViewGuiConfig.BaseConfig config,
                       Map<String, String> infoPlaceholders, Runnable onConfirm, Runnable onCancel) {
-        this.plugin = plugin;
-        this.player = player;
+        super(plugin, player);
         this.config = config;
         this.infoPlaceholders = infoPlaceholders == null ? Map.of() : infoPlaceholders;
         this.onConfirm = onConfirm;
         this.onCancel = onCancel;
-        this.inventory = plugin.getServer().createInventory(this, config.getSize(), title(config.getTitle()));
+        this.inventory = plugin.getServer().createInventory(this, config.getSize(), EditorGui.coloredComponent(config.getTitle()));
     }
 
     public void open() {
-        RecipeEditorListener.ensureRegistered(plugin);
-        render();
-        player.openInventory(inventory);
+        doOpen(this::render);
     }
 
     @Override
-    public @NotNull Inventory getInventory() {
-        return inventory;
+    protected AbstractInventoryGui findExistingGui(UUID playerId) {
+        return null;
+    }
+
+    @Override
+    protected void putActiveGui(UUID playerId, AbstractInventoryGui gui) {
+    }
+
+    @Override
+    protected void removeFromActiveGuis(UUID playerId) {
+    }
+
+    @Override
+    protected void ensureListenerRegistered() {
+        RecipeEditorListener.ensureRegistered(plugin);
     }
 
     private void render() {
@@ -87,6 +88,7 @@ public final class ConfirmGui implements EditorGui {
 
     @Override
     public void handleClose(InventoryCloseEvent event) {
+        super.close();
         if (acted) {
             return;
         }
@@ -100,13 +102,5 @@ public final class ConfirmGui implements EditorGui {
             item = config.getItem("background");
         }
         return item == null ? new ItemStack(Material.AIR) : item.createItem(new HashMap<>(placeholders));
-    }
-
-    private static Component title(String title) {
-        String resolved = title == null ? "" : title;
-        if (resolved.contains("<") && resolved.contains(">")) {
-            return MINI_MESSAGE.deserialize(resolved);
-        }
-        return LEGACY.deserialize(resolved.replaceAll("&(?=[0-9a-fk-orA-FK-OR])", "§"));
     }
 }

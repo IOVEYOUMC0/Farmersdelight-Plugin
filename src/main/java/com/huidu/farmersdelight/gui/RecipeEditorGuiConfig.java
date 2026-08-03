@@ -83,7 +83,7 @@ public final class RecipeEditorGuiConfig {
     }
 
     /**
-     * @return the editor layout for the given custom pot group (returns the default layout when the group is
+     * the editor layout for the given custom pot group (returns the default layout when the group is
      *         null/blank or has no dedicated config section); returns null when no editor config section is configured at all.
      */
     @Nullable

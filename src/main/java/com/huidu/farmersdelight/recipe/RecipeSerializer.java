@@ -15,7 +15,7 @@ import java.util.Set;
  * (i.e. the inverse of RecipeParsingSupport and the managers' parseRecipe methods).
  *
  * The string conversions here are pure functions (no Bukkit/CraftEngine state), so round-trip
- * consistency can be verified by unit tests. Item resolution (itemIdString(ItemStack)) is the only
+ * consistency can be verified by unit tests. Item resolution (#itemIdString(ItemStack)) is the only
  * method that touches CraftEngine, which is why it is split out separately.
  */
 public final class RecipeSerializer {

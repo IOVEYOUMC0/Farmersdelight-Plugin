@@ -28,16 +28,16 @@ import java.util.concurrent.ConcurrentHashMap;
  * bar line), tab_footer (player-list footer). Any combination may run at once; default is
  * boss bar only.
  *
- * <p>The boss bar channel has two layout modes (config-driven):
- * <ul>
- *   <li>stacked — every active buff shows its own bossbar simultaneously (vanilla style).</li>
- *   <li>rotating — only one bar visible at a time, advances every
- *       buff.display.rotation-interval-ticks.</li>
- * </ul>
+ * The boss bar channel has two layout modes (config-driven):
+ * 
+ *   - stacked — every active buff shows its own bossbar simultaneously (vanilla style).
+ *   - rotating — only one bar visible at a time, advances every
+ *       buff.display.rotation-interval-ticks.
+ * 
  * The action bar / tab footer always list every active buff (joined on one line / one per line).
  *
- * <p>Lifecycle: created in FarmersDelightPlugin#onEnable; start kicks off the
- * rotation tick (no-op in stacked mode). stop hides every bar then clears state.
+ * Lifecycle: created in FarmersDelightPlugin#onEnable; #start kicks off the
+ * rotation tick (no-op in stacked mode). #stop hides every bar then clears state.
  * PlayerQuitEvent also flushes per-player bars so the map can't grow on long-running servers.
  */
 public final class BuffBossbarManager implements Listener {
@@ -59,13 +59,13 @@ public final class BuffBossbarManager implements Listener {
      * A place the active-buff state can be rendered. Any combination may be enabled at once via
      * buff.display.channels, so an admin can route around another plugin that already occupies a
      * given channel (that plugin's boss bar / action bar / tab footer).
-     * <ul>
-     *   <li>BOSSBAR — one boss bar per buff, laid out per LayoutMode.</li>
-     *   <li>ACTIONBAR — every active buff joined onto the action bar line, auto-refreshed so
-     *       it does not fade.</li>
-     *   <li>TAB_FOOTER — active buffs listed in the player-list (TAB) footer; only the footer
-     *       is touched, never the header.</li>
-     * </ul>
+     * 
+     *   - BOSSBAR — one boss bar per buff, laid out per LayoutMode.
+     *   - ACTIONBAR — every active buff joined onto the action bar line, auto-refreshed so
+     *       it does not fade.
+     *   - TAB_FOOTER — active buffs listed in the player-list (TAB) footer; only the footer
+     *       is touched, never the header.
+     * 
      */
     public enum Channel {
         BOSSBAR, ACTIONBAR, TAB_FOOTER;

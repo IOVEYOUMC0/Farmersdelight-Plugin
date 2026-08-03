@@ -304,7 +304,7 @@ public final class RecipeDiscoveryManager {
         }
         if (recipeIds.size() == 1) {
             player.sendMessage(I18n.getComponent("recipe-discovery.unlocked", player,
-                    Map.of("recipe", recipeIds.get(0))));
+                    Map.of("recipe", recipeIds.getFirst())));
         } else {
             player.sendMessage(I18n.getComponent("recipe-discovery.unlocked-multi", player,
                     Map.of("count", String.valueOf(recipeIds.size()))));

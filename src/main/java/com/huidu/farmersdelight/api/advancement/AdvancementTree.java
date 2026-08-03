@@ -11,7 +11,7 @@ import java.util.Map;
 
 /**
  * Fluent builder for an addon advancement tab. Describe the tree as plain data — exactly one root plus child
- * advancements — then call register(). FarmersDelight builds the UltimateAdvancementAPI tab (and
+ * advancements — then call #register(). FarmersDelight builds the UltimateAdvancementAPI tab (and
  * rebuilds it across /fd reload); no UAA types are involved.
  *
  * Titles/descriptions are client translation keys (resolved from the client's resource pack), or literal text
@@ -48,7 +48,7 @@ public final class AdvancementTree {
 
     /**
      * Adds a multi-task (criteria-counting) child advancement: it completes when every named criterion is
-     * granted via FarmersDelightAdvancements#awardCriteria(String, org.bukkit.entity.Player, String, String).
+     * granted via org.bukkit.entity.Player, String, String).
      */
     public AdvancementTree multiTask(String id, String parentId, ItemStack icon, String title,
                                      String description, String frame, float x, float y, List<String> criteria) {

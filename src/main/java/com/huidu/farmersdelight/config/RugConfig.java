@@ -14,12 +14,12 @@ import java.util.logging.Logger;
  * underneath (white_carpet by default) is what actually stops the player from sinking to floor level
  * and lets items rest on the rug.
  *
- * <p>A CE custom <i>block</i> can't supply that collision itself: a custom block's collision equals
+ * A CE custom <i>block</i> can't supply that collision itself: a custom block's collision equals
  * the collision of the vanilla state its appearance maps to, and none of CraftEngine's remappable
  * states is carpet-shaped — the thin ones (tripwire / pressure_plate / sapling) have no collision at
  * all and every collision-bearing one is a full cube. Hence the underlying-block approach.
  *
- * <p>Config shape (a rugs: section of config.yml):
+ * Config shape (a rugs: section of config.yml):
  * <pre>
  * rugs:
  *   "farmersdelight:canvas_rug":
@@ -31,9 +31,9 @@ import java.util.logging.Logger;
  * configurable, so a pack can swap white_carpet for any other thin walkable block, or register brand
  * new rug ids without touching code.
  *
- * <p>Instances are built fully, then published once to a volatile field (see
+ * Instances are built fully, then published once to a volatile field (see
  * FarmersDelightPlugin); region-thread readers in RugListener therefore never observe
- * a half-filled config. The internal maps are never mutated after loadFromConfig returns.
+ * a half-filled config. The internal maps are never mutated after #loadFromConfig returns.
  */
 public class RugConfig {
 

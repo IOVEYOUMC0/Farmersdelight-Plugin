@@ -11,7 +11,16 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.ToIntFunction;
 
@@ -29,7 +38,7 @@ public class CookingPotRecipeManager {
     private volatile List<CookingPotRecipe> sortedRecipes = List.of();
     private volatile Map<String, List<CookingPotRecipe>> sortedCustomRecipes = Map.of();
     private volatile Map<String, List<CookingPotRecipe>> sortedCustomOnlyRecipes = Map.of();
-    private final Map<Key, Set<String>> vanillaItemIdsByTagCache = new ConcurrentHashMap<>();
+    private final VanillaTagItemIdCache vanillaItemIdsByTagCache;
     // LRU access-order LinkedHashMap mutates internal state on get(), so concurrent reads from
     // multiple region threads (Folia) would corrupt the doubly-linked list. Wrap in synchronizedMap;
     // callers MUST synchronize externally when iterating (currently no iteration happens).
@@ -66,6 +75,7 @@ public class CookingPotRecipeManager {
 
     public CookingPotRecipeManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
+        this.vanillaItemIdsByTagCache = new VanillaTagItemIdCache(plugin);
     }
 
     public void loadRecipes() {
@@ -285,25 +295,7 @@ public class CookingPotRecipeManager {
     }
 
     private RecipeIngredient parseIngredient(String str) {
-        String[] choiceParts = str.split("\\|");
-        if (choiceParts.length > 1) {
-            List<RecipeIngredient> options = new ArrayList<>();
-            for (String choicePart : choiceParts) {
-                String trimmed = choicePart.trim();
-                if (!trimmed.isEmpty()) {
-                    options.add(parseSingleIngredient(trimmed));
-                }
-            }
-            if (options.isEmpty()) {
-                throw new IllegalArgumentException("Choice ingredient must contain at least one option");
-            }
-            if (options.size() == 1) {
-                return options.get(0);
-            }
-            return new RecipeIngredient.Choice(options);
-        }
-
-        return parseSingleIngredient(str.trim());
+        return RecipeParsingSupport.parseChoice(str, option -> parseSingleIngredient(option.trim()));
     }
 
     private RecipeIngredient parseSingleIngredient(String str) {
@@ -572,7 +564,7 @@ public class CookingPotRecipeManager {
 
     /** Internal variant for callers that have already filtered out nulls/airs (e.g. the matchPass
      *  loop, which only ever sees the nonEmptyInputs list built once at the top of
-     *  matchRecipe(List, ItemStack, String)). Skips the per-call ArrayList allocation the
+     *  ItemStack, String)). Skips the per-call ArrayList allocation the
      *  public matchRecipe does for safety. */
     private boolean matchRecipePrefiltered(CookingPotRecipe recipe, List<ItemStack> nonEmptyInputs, boolean exactSlots) {
         // Unit budget per filled slot. The exact pass mirrors the mod's CookingPotRecipe.matches, which pairs
@@ -598,7 +590,7 @@ public class CookingPotRecipeManager {
      * Containment test for the recipe-list "craftable only" filter: does the supplied item pool (typically the
      * player's whole inventory plus the pot's current inputs) hold enough of every required ingredient,
      * ignoring unrelated items? This is deliberately NOT the real cook question. The real cook feeds the pot's
-     * own &lt;=6 input slots into matchRecipe / canCraft, whose lenient pass rejects any
+     * own &lt;=6 input slots into #matchRecipe / #canCraft, whose lenient pass rejects any
      * filled slot the recipe cannot use; a real inventory always has such slots, so that path always answers
      * "no". Here the unit budget stays each stack's amount so a single stack covers several units, but the
      * slot-count and foreign-slot gates are dropped. Container presence is checked by the caller.
@@ -667,20 +659,7 @@ public class CookingPotRecipeManager {
     }
 
     public Set<String> getVanillaItemIdsByTag(Key tagKey) {
-        if (tagKey == null) {
-            return Set.of();
-        }
-        return vanillaItemIdsByTagCache.computeIfAbsent(tagKey, key -> {
-            var craftEngine = plugin.getCraftEngine();
-            if (craftEngine == null || craftEngine.itemManager() == null) {
-                return Set.of();
-            }
-            Set<String> itemIds = new HashSet<>();
-            for (var itemId : craftEngine.itemManager().vanillaItemIdsByTag(key)) {
-                itemIds.add(itemId.toString());
-            }
-            return itemIds.isEmpty() ? Set.of() : Collections.unmodifiableSet(itemIds);
-        });
+        return vanillaItemIdsByTagCache.getIds(tagKey);
     }
 
     private String getItemKey(ItemStack item) {
@@ -743,6 +722,10 @@ public class CookingPotRecipeManager {
 
     public int getRecipeCount() {
         return recipes.size();
+    }
+
+    public int getExternalRecipeCount() {
+        return externalRecipes.size();
     }
 
     /** Total recipes across every custom pot group. A recipe id declared by several groups counts once per

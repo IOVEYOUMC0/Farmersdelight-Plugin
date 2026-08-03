@@ -143,23 +143,23 @@ public final class WorldDataConfig {
     /**
      * One trade the mod contributes to a vanilla listing pool.
      *
-     * @param profession       villager profession id path, null for wandering trader offers
-     * @param level            villager level whose pool the listing joins, 0 for wandering trader offers
-     * @param ingredient       item id the player hands over
-     * @param ingredientAmount how many of it
-     * @param result           item id the player receives
-     * @param resultAmount     how many of it
-     * @param maxUses          trades before the offer locks until restock
-     * @param villagerXp       merchant experience the trade awards
-     * @param priceMultiplier  vanilla demand/reputation price multiplier
-     * @param chance           probability this listing wins one draw from its pool
+     * profession villager profession id path, null for wandering trader offers
+     * level villager level whose pool the listing joins, 0 for wandering trader offers
+     * ingredient item id the player hands over
+     * ingredientAmount how many of it
+     * result item id the player receives
+     * resultAmount how many of it
+     * maxUses trades before the offer locks until restock
+     * villagerXp merchant experience the trade awards
+     * priceMultiplier vanilla demand/reputation price multiplier
+     * chance probability this listing wins one draw from its pool
      */
     public record TradeOffer(String profession, int level, String ingredient, int ingredientAmount,
                              String result, int resultAmount, int maxUses, int villagerXp,
                              float priceMultiplier, double chance) {
     }
 
-    // ── defaults ─────────────────────────────────────────────────────────────────────────────────────
+    // defaults
 
     private static WorldDataConfig createDefaults() {
         return new WorldDataConfig(defaultBuilder());
@@ -268,7 +268,7 @@ public final class WorldDataConfig {
                 "farmersdelight:onion", 1, 1, 12, 0.05f, wanderingChance));
     }
 
-    // ── config parsing ───────────────────────────────────────────────────────────────────────────────
+    // config parsing
 
     private static void applyComposting(Builder builder, ConfigurationSection section, JavaPlugin plugin) {
         if (section == null) {

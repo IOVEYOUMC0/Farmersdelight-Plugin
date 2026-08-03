@@ -1,23 +1,19 @@
 package com.huidu.farmersdelight.gui.editor;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.gui.AbstractInventoryGui;
 import com.huidu.farmersdelight.gui.GuiConfig;
 import com.huidu.farmersdelight.gui.RecipeViewGuiConfig;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.recipe.RecipeSerializer;
 import com.huidu.farmersdelight.util.ItemUtils;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
-import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -25,6 +21,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
@@ -32,28 +29,20 @@ import java.util.function.Consumer;
  * 0 options clears the ingredient, 1 option produces a plain item, 2 or more produce a choice. Layout and
  * text come from the recipe-choice-builder-gui section of gui.yml.
  */
-public final class ChoiceBuilderGui implements EditorGui {
+public final class ChoiceBuilderGui extends AbstractInventoryGui implements EditorGui {
 
-    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacyAmpersand();
-    private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
-
-    private final FarmersDelightPlugin plugin;
-    private final Player player;
     private final RecipeViewGuiConfig.BaseConfig config;
     private final int displayIndex;
     private final Consumer<RecipeIngredient> onConfirm;
     private final Runnable onCancel;
     private final List<Integer> optionSlots;
     private final ItemStack[] options;
-    private final Inventory inventory;
     private boolean acted = false;
-    private boolean closed = false;
 
     public ChoiceBuilderGui(FarmersDelightPlugin plugin, Player player, RecipeViewGuiConfig.BaseConfig config,
                             int displayIndex, @Nullable RecipeIngredient current,
                             Consumer<RecipeIngredient> onConfirm, Runnable onCancel) {
-        this.plugin = plugin;
-        this.player = player;
+        super(plugin, player);
         this.config = config;
         this.displayIndex = displayIndex;
         this.onConfirm = onConfirm;
@@ -61,7 +50,7 @@ public final class ChoiceBuilderGui implements EditorGui {
         this.optionSlots = config.getSlotsByType("option");
         this.options = new ItemStack[Math.max(1, optionSlots.size())];
         initFrom(current);
-        this.inventory = plugin.getServer().createInventory(this, config.getSize(), coloredTitle(config.getTitle()));
+        this.inventory = plugin.getServer().createInventory(this, config.getSize(), EditorGui.coloredComponent(config.getTitle()));
     }
 
     private void initFrom(@Nullable RecipeIngredient current) {
@@ -83,14 +72,25 @@ public final class ChoiceBuilderGui implements EditorGui {
     }
 
     public void open() {
-        RecipeEditorListener.ensureRegistered(plugin);
-        render();
-        player.openInventory(inventory);
+        doOpen(this::render);
     }
 
     @Override
-    public @NotNull Inventory getInventory() {
-        return inventory;
+    protected AbstractInventoryGui findExistingGui(UUID playerId) {
+        return null;
+    }
+
+    @Override
+    protected void putActiveGui(UUID playerId, AbstractInventoryGui gui) {
+    }
+
+    @Override
+    protected void removeFromActiveGuis(UUID playerId) {
+    }
+
+    @Override
+    protected void ensureListenerRegistered() {
+        RecipeEditorListener.ensureRegistered(plugin);
     }
 
     private void render() {
@@ -159,7 +159,7 @@ public final class ChoiceBuilderGui implements EditorGui {
                 return;
             case "cancel":
                 acted = true;
-                closed = true;
+                super.close();
                 clearCursor();
                 onCancel.run();
                 return;
@@ -169,7 +169,7 @@ public final class ChoiceBuilderGui implements EditorGui {
 
     @Override
     public void handleClose(InventoryCloseEvent event) {
-        closed = true;
+        super.close();
         clearCursor();
         if (!acted) {
             acted = true;
@@ -188,12 +188,12 @@ public final class ChoiceBuilderGui implements EditorGui {
         if (chosen.isEmpty()) {
             result = null;
         } else if (chosen.size() == 1) {
-            result = chosen.get(0);
+            result = chosen.getFirst();
         } else {
             result = new RecipeIngredient.Choice(chosen);
         }
         acted = true;
-        closed = true;
+        super.close();
         clearCursor();
         onConfirm.accept(result);
     }
@@ -214,13 +214,5 @@ public final class ChoiceBuilderGui implements EditorGui {
         ItemStack copy = source.clone();
         copy.setAmount(1);
         return copy;
-    }
-
-    private static Component coloredTitle(String title) {
-        String resolved = title == null ? "" : title;
-        if (resolved.contains("<") && resolved.contains(">")) {
-            return MINI_MESSAGE.deserialize(resolved);
-        }
-        return LEGACY.deserialize(resolved.replaceAll("&(?=[0-9a-fk-orA-FK-OR])", "§"));
     }
 }

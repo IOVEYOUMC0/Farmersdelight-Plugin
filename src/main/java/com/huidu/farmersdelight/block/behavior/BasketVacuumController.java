@@ -35,12 +35,13 @@ import java.util.Map;
  */
 public final class BasketVacuumController extends BlockEntityController {
 
+    /** 空闲冷却 tick 数：当篮子无事可做时跳过后续检测，避免空闲篮子每 tick 重复跑昂贵的红石检测和满箱扫描 */
+    private static final int NO_OP_COOLDOWN = 10;
     private final int transferCooldownTicks;
-    // Whether the basket pushes its contents into a container it faces. Collection is unconditional.
+    // 篮子是否将内容物推入面向的容器。收集始终无条件执行。
     private final boolean eject;
-    // Read and written only on the block entity's own region tick thread (the CraftEngine sync
-    // block-entity ticker), so it needs no cross-thread synchronization. Starts negative to match the
-    // reference basket, which begins ready to collect.
+    // 仅在方块实体自己的区域 tick 线程上读写（CraftEngine 同步方块实体 ticker），因此无需跨线程同步。
+    // 初始为负数以匹配原版篮子，原版篮子启动时即准备收集。
     private int transferCooldown = -1;
 
     public BasketVacuumController(BlockEntity blockEntity, int transferCooldownTicks, boolean eject) {
@@ -78,6 +79,7 @@ public final class BasketVacuumController extends BlockEntityController {
         // for block ticking, so it is region-safe on Folia and needs no ownership guard.
         Block ownBlock = world.getBlockAt(pos.x(), pos.y(), pos.z());
         if (ownBlock.isBlockIndirectlyPowered()) {
+            this.transferCooldown = NO_OP_COOLDOWN;
             return;
         }
 
@@ -114,17 +116,22 @@ public final class BasketVacuumController extends BlockEntityController {
                 // branch below.
                 if (ejectOneItem(inventory, target)) {
                     this.transferCooldown = this.transferCooldownTicks;
+                } else {
+                    this.transferCooldown = NO_OP_COOLDOWN;
                 }
                 return;
             }
         }
 
         if (isFull(inventory)) {
+            this.transferCooldown = NO_OP_COOLDOWN;
             return;
         }
 
         if (collectItems(world, pos, facing, inventory)) {
             this.transferCooldown = this.transferCooldownTicks;
+        } else {
+            this.transferCooldown = NO_OP_COOLDOWN;
         }
     }
 
@@ -223,23 +230,22 @@ public final class BasketVacuumController extends BlockEntityController {
         double maxY = pos.y() + 1 + Math.max(0, ry);
         double maxZ = pos.z() + 1 + Math.max(0, rz);
 
-        // 使用 chunk 实体列表扫描，避免 Folia 区域线程上调用 getNearbyEntities
-        int cx = pos.x() >> 4;
-        int cz = pos.z() >> 4;
-        List<Entity> entities = new java.util.ArrayList<>();
-        if (world.isChunkLoaded(cx, cz)) {
-            java.util.Collections.addAll(entities, world.getChunkAt(cx, cz).getEntities());
-        }
-        if (includeFaced && (rx != 0 || rz != 0)) {
-            int fcx = (pos.x() + rx) >> 4;
-            int fcz = (pos.z() + rz) >> 4;
-            if ((fcx != cx || fcz != cz) && world.isChunkLoaded(fcx, fcz)) {
-                java.util.Collections.addAll(entities, world.getChunkAt(fcx, fcz).getEntities());
-            }
+        // Query only the vacuum box for dropped items, not the whole chunk's entity list. getNearbyEntities is
+        // spatially filtered (via the server's entity slices) and returns only Item entities in range, so a
+        // chunk dense with custom-block display entities no longer costs a full entity wrap+copy every scan.
+        // The box stays inside the basket's own cell (plus the faced cell only when it is region-owned), so on
+        // Folia it never reaches into an unowned region; a region-ownership rejection at a chunk edge is caught
+        // and the scan is skipped for this tick.
+        org.bukkit.util.BoundingBox box = new org.bukkit.util.BoundingBox(minX, minY, minZ, maxX, maxY, maxZ);
+        java.util.Collection<Entity> entities;
+        try {
+            entities = world.getNearbyEntities(box, entity -> entity instanceof Item);
+        } catch (Exception regionRejected) {
+            return false;
         }
 
         for (Entity entity : entities) {
-            if (!(entity instanceof Item item)) continue;
+            Item item = (Item) entity;
             if (!item.isValid() || item.isDead()) {
                 continue;
             }

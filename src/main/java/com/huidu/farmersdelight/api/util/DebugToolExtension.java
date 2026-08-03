@@ -10,10 +10,10 @@ import java.util.List;
  * Extension point for /fd debugtools. An addon (e.g. Brewin' And Chewin') implements this
  * interface to plug a new <em>target</em> (like keg) into the existing command. FarmersDelight
  * itself only ships when built with -PdebugTools=true; the registry is otherwise dormant and
- * the extension's place/activate/status are simply never invoked.
+ * the extension's #place/#activate/#status are simply never invoked.
  *
- * <p>Register an instance once at plugin enable via
- * DebugToolRegistry#register(DebugToolExtension). The name() becomes the target
+ * Register an instance once at plugin enable via
+ * DebugToolRegistry#register(DebugToolExtension). The #name() becomes the target
  * keyword in /fd debugtools place <name> ....
  */
 @ApiStatus.OverrideOnly
@@ -27,11 +27,11 @@ public interface DebugToolExtension {
      * pattern is the extension's choice; FD's built-in implementations use grid = ceil(sqrt(count))
      * with spacing between cells and layers stacked vertically.
      *
-     * <p>Call undo.capture(loc) BEFORE mutating each target block so the placement can be
+     * Call undo.capture(loc) BEFORE mutating each target block so the placement can be
      * reverted by /fd debugtools undo. Captures that don't end up changing state are silently
      * no-op'd on undo.
      *
-     * @return how many blocks actually went into the world (≤ count × layers).
+     * how many blocks actually went into the world (≤ count × layers).
      */
     int place(Player player, Location origin, int count, int spacing, int layers, UndoSink undo);
 

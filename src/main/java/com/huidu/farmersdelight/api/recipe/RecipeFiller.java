@@ -20,6 +20,17 @@ public interface RecipeFiller {
     boolean fill(Player player, ViewableRecipe recipe);
 
     /**
+     * Fills like the cooking pot's fill button, reporting the outcome so the recipe book can mirror FD's
+     * button feedback (filled / missing ingredients / station full). When fillAll is true the whole recipe is
+     * pulled (a shift-click), otherwise one of each ingredient is moved. The default adapts the boolean
+     * fill: a legacy filler that only implements fill still works, just without the richer states. Only the
+     * FILLED outcome should reopen the station GUI; the others stay on the book so the feedback is visible.
+     */
+    default FillOutcome fillDetailed(Player player, ViewableRecipe recipe, boolean fillAll) {
+        return fill(player, recipe) ? FillOutcome.FILLED : FillOutcome.NOTHING;
+    }
+
+    /**
      * Called when the player clicks "back" on the top-level page of a book opened from this station.
      * Reopen the originating station GUI and return true to go back there; return false (the default) to
      * let the book simply close. Lets a keg/station's recipe book return to the station, not the desktop.

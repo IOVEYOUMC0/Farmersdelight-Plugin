@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * A registrable recipe type contributed by an addon (e.g. the keg's fermenting recipes). Registered via
  * FarmersDelightApi.registerRecipeType, it appears as a category in the generic recipe book and,
- * if it provides an editor(), is editable through the generic editor.
+ * if it provides an #editor(), is editable through the generic editor.
  *
  * Lives in the name-stable api package; uses only Bukkit / Adventure / api types.
  */
@@ -28,7 +28,7 @@ public interface RecipeType {
     /** Current snapshot of this type's recipes. */
     List<ViewableRecipe> recipes();
 
-    /** Finds one recipe by id; defaults to scanning recipes(). */
+    /** Finds one recipe by id; defaults to scanning #recipes(). */
     default ViewableRecipe recipe(String id) {
         if (id == null) {
             return null;
@@ -55,7 +55,7 @@ public interface RecipeType {
         return null;
     }
 
-    /** This type's own recipe-DETAIL page layout (see listLayout()). Null = use the shared book.
+    /** This type's own recipe-DETAIL page layout (see #listLayout()). Null = use the shared book.
      * A custom detail layout can place ViewableRecipe#displaySlots() roles (fluid, return, …). */
     default RecipeBookLayout detailLayout() {
         return null;

@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.gui.recipebook;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
+import com.huidu.farmersdelight.api.recipe.FillOutcome;
 import com.huidu.farmersdelight.api.recipe.JumpTarget;
 import com.huidu.farmersdelight.api.recipe.RecipeBookLayout;
 import com.huidu.farmersdelight.api.recipe.RecipeFiller;
@@ -96,7 +97,7 @@ public final class RecipeBookGui implements InventoryHolder {
         List<RecipeType> types = FarmersDelightApi.get().recipeTypes();
         if (types.size() == 1) {
             gui.singleType = true;
-            gui.drawList(types.get(0), 0);
+            gui.drawList(types.getFirst(), 0);
         } else {
             gui.drawMenu();
         }
@@ -190,7 +191,7 @@ public final class RecipeBookGui implements InventoryHolder {
         }
         public ItemStack button(String role) {
             ItemStack item = layout.decorations().get(role);
-            return item == null ? null : item.clone();
+            return ItemUtils.cloneOrNull(item);
         }
     }
 
@@ -559,7 +560,36 @@ public final class RecipeBookGui implements InventoryHolder {
         }
     }
 
-    void handleClick(Player player, int rawSlot) {
+    /** Mirrors FD's fill-button feedback in the recipe book: a successful fill hands off to the station's
+     *  filler (which reopens its own GUI), while missing-ingredient / station-full outcomes stay on the book
+     *  and tell the player why. */
+    private void applyFillOutcome(Player player, FillOutcome outcome, RenderSpec cfg) {
+        String statusKey = switch (outcome) {
+            case MISSING_INGREDIENTS -> "gui.recipe.missing_ingredients";
+            case INVENTORY_FULL -> "gui.recipe.inventory_full";
+            // FILLED reopens the station via the filler; NOTHING has no reason to show.
+            case FILLED, NOTHING -> null;
+        };
+        if (statusKey == null) {
+            return;
+        }
+        // Show the status ON the fill button (matching FD's cooking-pot fill button) rather than a chat line:
+        // append the status as a lore line to the fill item and re-place it. It reverts on the next detail draw.
+        int fillSlot = cfg.firstSlotByType("fill");
+        ItemStack fillItem = cfg.button("fill");
+        if (fillSlot >= 0 && fillItem != null) {
+            org.bukkit.inventory.meta.ItemMeta meta = fillItem.getItemMeta();
+            if (meta != null) {
+                List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
+                lore.add(Text.deserialize(I18n.get(statusKey, player)));
+                meta.lore(lore);
+                fillItem.setItemMeta(meta);
+            }
+            inventory.setItem(fillSlot, fillItem);
+        }
+    }
+
+    void handleClick(Player player, int rawSlot, boolean shiftClick) {
         this.viewer = player;
         RecipeBookGuiConfig config = config();
         switch (view) {
@@ -625,8 +655,8 @@ public final class RecipeBookGui implements InventoryHolder {
                     back(player);
                 } else if (rawSlot == cfg.firstSlotByType("fill") && filler != null) {
                     ViewableRecipe recipe = type.recipe(recipeId);
-                    if (recipe != null && !filler.fill(player, recipe)) {
-                        player.sendMessage(Text.deserialize(I18n.get("gui.recipe.missing_ingredients", player)));
+                    if (recipe != null) {
+                        applyFillOutcome(player, filler.fillDetailed(player, recipe, shiftClick), cfg);
                     }
                 } else {
                     tryJump(player, cfg, rawSlot);

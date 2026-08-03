@@ -99,7 +99,7 @@ public final class RecipeBookGuiConfig {
 
         public int firstSlotByType(String type) {
             List<Integer> slots = slotsByType(type);
-            return slots.isEmpty() ? -1 : slots.get(0);
+            return slots.isEmpty() ? -1 : slots.getFirst();
         }
 
         /** Renders static chrome (background, decoration, close/back, etc.) into every layout slot whose type

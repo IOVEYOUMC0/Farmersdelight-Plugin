@@ -5,7 +5,7 @@ package com.huidu.farmersdelight.block.behavior;
  * runtime stove logic is now handled entirely by
  * com.huidu.farmersdelight.manager.StoveManager (which maintains its own
  * com.huidu.farmersdelight.util.CampfireRecipeCache). Only the static
- * clearRecipeCache() hook is kept, since the reload/disable flow still references it.
+ * #clearRecipeCache() hook is kept, since the reload/disable flow still references it.
  */
 @Deprecated(forRemoval = false)
 public final class StoveCookingBlockEntity {
