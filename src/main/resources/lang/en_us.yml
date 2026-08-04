@@ -162,7 +162,7 @@ console:
     startup_reason: "startup"
     enchantment:
       backstabbing:
-        auto_disabled: "An enchantment plugin was detected; FarmersDelight's own Backstabbing enchantment has been automatically disabled. Set enchantments.backstabbing.enabled: true in config.yml to force-enable it."
+        auto_disabled: "An enchantment plugin was detected; FarmersDelight's own Backstabbing enchantment has been automatically disabled. Set enchantments.compatibility.auto-disable-on-conflict: false only after confirming there is no overlapping enchantment."
     config_summary: "{label}: scheduler={scheduler}, cutting-board mode={mode}, hopper={hopper}, cooking-pot-hopper={cooking_pot_hopper}, cutting-board-hopper={cutting_board_hopper}, skillet-hopper={skillet_hopper}, advancements={advancements}"
     content_summary: "Content ready: {cooking_pot} cooking pot (FD {fd_pot} + {cooking_pot_addon} addon, {custom_pot} custom) and {cutting_board} cutting board (FD {fd_board} + {cutting_board_addon} addon) recipes, {drop_rules} mob drop rules, {pet_foods} pet foods, {advancements} advancements (+{addon_advancements} from addons)."
     content_summary_warmed: "Content ready: {cooking_pot} cooking pot (FD {fd_pot} + {cooking_pot_addon} addon, {custom_pot} custom) and {cutting_board} cutting board (FD {fd_board} + {cutting_board_addon} addon) recipes, {drop_rules} mob drop rules, {pet_foods} pet foods, {advancements} advancements (+{addon_advancements} from addons), {warm_items} CraftEngine items warmed in {warm_ms}ms."

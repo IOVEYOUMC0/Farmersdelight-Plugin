@@ -162,7 +162,7 @@ console:
     startup_reason: "启动"
     enchantment:
       backstabbing:
-        auto_disabled: "检测到已安装的附魔插件，FarmersDelight 自己的背刺附魔已自动禁用。如需启用请在 config.yml 中设置 enchantments.backstabbing.enabled: true。"
+        auto_disabled: "检测到已安装的附魔插件，FarmersDelight 自己的背刺附魔已自动禁用。仅在确认没有同类附魔后，将 enchantments.compatibility.auto-disable-on-conflict 设为 false。"
     config_summary: "{label}：scheduler={scheduler}, cutting-board mode={mode}, hopper={hopper}, cooking-pot-hopper={cooking_pot_hopper}, cutting-board-hopper={cutting_board_hopper}, skillet-hopper={skillet_hopper}, advancements={advancements}"
     content_summary: "内容已就绪：{cooking_pot} 个厨锅配方（FD {fd_pot}、附属 {cooking_pot_addon}、自定义 {custom_pot}）、{cutting_board} 个砧板配方（FD {fd_board}、附属 {cutting_board_addon}），{drop_rules} 条生物掉落规则，{pet_foods} 种宠物食物，{advancements} 个进度（另有附属的 {addon_advancements} 个）。"
     content_summary_warmed: "内容已就绪：{cooking_pot} 个厨锅配方（FD {fd_pot}、附属 {cooking_pot_addon}、自定义 {custom_pot}）、{cutting_board} 个砧板配方（FD {fd_board}、附属 {cutting_board_addon}），{drop_rules} 条生物掉落规则，{pet_foods} 种宠物食物，{advancements} 个进度（另有附属的 {addon_advancements} 个），已预热 {warm_items} 个 CraftEngine 物品，耗时 {warm_ms}ms。"

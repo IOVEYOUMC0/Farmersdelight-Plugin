@@ -85,10 +85,10 @@ public class EffectListener implements Listener {
             @Override public boolean isActive(Player player) { return EffectManager.hasComfort(player); }
             @Override public void remove(Player player) { EffectManager.removeComfort(player); }
             @Override public boolean apply(Player player, int level, int durationSeconds) {
-                EffectManager.applyComfort(player, durationSeconds);
+                EffectManager.applyComfort(player, durationSeconds, level);
                 return true;
             }
-            @Override public int level(Player player) { return EffectManager.hasComfort(player) ? 1 : 0; }
+            @Override public int level(Player player) { return EffectManager.comfortLevel(player); }
             @Override public int remainingSeconds(Player player) { return EffectManager.comfortRemainingSeconds(player); }
             @Override public String nameKey() { return "buff.farmersdelight.comfort"; }
             @Override public void saveState(Player player) { EffectManager.saveComfortToPdc(player); }
@@ -101,10 +101,10 @@ public class EffectListener implements Listener {
             @Override public boolean isActive(Player player) { return EffectManager.hasNourishment(player); }
             @Override public void remove(Player player) { EffectManager.removeNourishment(player); }
             @Override public boolean apply(Player player, int level, int durationSeconds) {
-                EffectManager.applyNourishment(player, durationSeconds);
+                EffectManager.applyNourishment(player, durationSeconds, level);
                 return true;
             }
-            @Override public int level(Player player) { return EffectManager.hasNourishment(player) ? 1 : 0; }
+            @Override public int level(Player player) { return EffectManager.nourishmentLevel(player); }
             @Override public int remainingSeconds(Player player) { return EffectManager.nourishmentRemainingSeconds(player); }
             @Override public String nameKey() { return "buff.farmersdelight.nourishment"; }
             @Override public void saveState(Player player) { EffectManager.saveNourishmentToPdc(player); }

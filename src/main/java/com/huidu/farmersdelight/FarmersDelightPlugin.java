@@ -21,8 +21,10 @@ import com.huidu.farmersdelight.listener.CraftEngineWatchdogListener;
 import com.huidu.farmersdelight.listener.CropInteractProtectionListener;
 import com.huidu.farmersdelight.listener.CuttingBoardDispenseListener;
 import com.huidu.farmersdelight.listener.CuttingBoardInteractListener;
+import com.huidu.farmersdelight.listener.EnchantmentDatapackInstaller;
 import com.huidu.farmersdelight.listener.FoodEatListener;
 import com.huidu.farmersdelight.listener.HorseFeedTemptListener;
+import com.huidu.farmersdelight.listener.KnifeEnchantFilter;
 import com.huidu.farmersdelight.listener.PetFoodListener;
 import com.huidu.farmersdelight.listener.RecipeDiscoveryListener;
 import com.huidu.farmersdelight.listener.RicePlantListener;
@@ -38,6 +40,7 @@ import com.huidu.farmersdelight.command.FarmersDelightCommand;
 import com.huidu.farmersdelight.config.ContainerReturnConfig;
 import com.huidu.farmersdelight.config.CookingPotExperienceRewardConfig;
 import com.huidu.farmersdelight.config.CuttingBoardDisplayConfig;
+import com.huidu.farmersdelight.config.EnchantmentSettings;
 import com.huidu.farmersdelight.config.HeatSourceConfig;
 import com.huidu.farmersdelight.config.RugConfig;
 import com.huidu.farmersdelight.config.PetFoodConfig;
@@ -119,6 +122,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private PluginTask pendingCraftEngineReloadTask;
     private PluginTask pendingDatapackReloadTask;
     private PluginTask pendingDatapackSyncRetryTask;
+    private org.bukkit.command.Command registeredBaseCommand;
     private String pendingDatapackReloadReason;
     private String pendingDatapackSyncRetryReason;
 
@@ -146,6 +150,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private AchievementListener achievementListener;
     private EffectListener effectListener;
     private BackstabListener backstabListener;
+    private KnifeEnchantFilter knifeEnchantFilter;
+    private EnchantmentDatapackInstaller enchantmentDatapackInstaller;
     private final com.huidu.farmersdelight.config.ConfigBootstrap configBootstrap = new com.huidu.farmersdelight.config.ConfigBootstrap(this);
     // Collects the per-subsystem content counts into the single summary line a healthy boot prints.
     private final StartupSummary startupSummary = new StartupSummary(this);
@@ -168,6 +174,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private volatile StrawDropConfig strawDropConfig;
     private volatile PetFoodConfig petFoodConfig;
     private volatile ContainerReturnConfig containerReturnConfig;
+    private volatile EnchantmentSettings enchantmentSettings = EnchantmentSettings.defaults();
     private volatile boolean backstabEnchantmentEnabled;
     private volatile CuttingBoardDisplayConfig cuttingBoardDisplayConfig;
     private volatile CuttingBoardDisplayConfig skilletDisplayConfig;
@@ -584,24 +591,15 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(new RichSoilHoeListener(this), this);
         getServer().getPluginManager().registerEvents(new CropInteractProtectionListener(), this);
 
-        // 背刺附魔：检测已安装的附魔插件，有冲突则禁用自己的版本
         backstabListener = new BackstabListener(this);
-        if (backstabEnchantmentEnabled && isEnchantmentPluginPresent()) {
-            backstabEnchantmentEnabled = false;
-            I18n.logWarning("enchantment.backstabbing.auto_disabled");
-        }
-        backstabListener.setEnabled(backstabEnchantmentEnabled);
         getServer().getPluginManager().registerEvents(backstabListener, this);
 
-        // 小刀附魔台过滤器：移除精准采集（mining_loot 标签带来的副作用）
-        getServer().getPluginManager().registerEvents(
-                new com.huidu.farmersdelight.listener.KnifeEnchantFilter(this), this);
+        knifeEnchantFilter = new KnifeEnchantFilter(this);
+        getServer().getPluginManager().registerEvents(knifeEnchantFilter, this);
 
-        // 背刺附魔数据包——独立于战利品注入数据包
-        com.huidu.farmersdelight.listener.EnchantmentDatapackInstaller enchantInstaller =
-                new com.huidu.farmersdelight.listener.EnchantmentDatapackInstaller(this);
-        enchantInstaller.installToAllWorlds();
-        getServer().getPluginManager().registerEvents(enchantInstaller, this);
+        enchantmentDatapackInstaller = new EnchantmentDatapackInstaller(this);
+        enchantmentDatapackInstaller.installToAllWorlds();
+        getServer().getPluginManager().registerEvents(enchantmentDatapackInstaller, this);
 
         // Composting chances, furnace burn times and villager / wandering trader trades (world-data section).
         getServer().getPluginManager().registerEvents(
@@ -642,6 +640,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             }
         };
         getServer().getCommandMap().register("farmersdelight", "FarmersDelight", base);
+        registeredBaseCommand = base;
 
         // Both the content counts and the CraftEngine state figures are only meaningful once CraftEngine has
         // finished loading. When FarmersDelight enables first (the usual order) neither is reported here and
@@ -712,6 +711,16 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // from listener code will hit NoClassDefFoundError. Pulling listeners off the bus first
         // makes the rest of the shutdown order independent of vanilla event timing.
         runDisableStep("plugin.disable_step_unregister_listeners", () -> HandlerList.unregisterAll((org.bukkit.plugin.Plugin) this));
+
+        runDisableStep("plugin.disable_step_unregister_command", () -> {
+            org.bukkit.command.Command command = registeredBaseCommand;
+            registeredBaseCommand = null;
+            if (command != null) {
+                org.bukkit.command.CommandMap commandMap = getServer().getCommandMap();
+                commandMap.getKnownCommands().entrySet().removeIf(entry -> entry.getValue() == command);
+                command.unregister(commandMap);
+            }
+        });
 
         runDisableStep("plugin.disable_step_stop_tick_manager", () -> {
             if (tickManager != null) {
@@ -1162,7 +1171,13 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         boolean previousAdvancementsEnabled = advancementsEnabled;
         loadConfigs();
         if (backstabListener != null) {
-            backstabListener.setEnabled(backstabEnchantmentEnabled);
+            backstabListener.reload(enchantmentSettings, backstabEnchantmentEnabled);
+        }
+        if (knifeEnchantFilter != null) {
+            knifeEnchantFilter.reload(enchantmentSettings, backstabEnchantmentEnabled);
+        }
+        if (enchantmentDatapackInstaller != null) {
+            enchantmentDatapackInstaller.installToAllWorlds();
         }
         if (reloadLanguages) {
             I18n.reload();
@@ -1311,8 +1326,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // Mirror the switch into the addon-facing registry so its entry points can degrade to no-ops
         // without reaching back through the plugin singleton from an addon thread.
         com.huidu.farmersdelight.api.buff.CustomBuffRegistry.setSystemEnabled(buffSystemEnabled);
-        // 背刺附魔：自动检测附魔插件，有冲突则默认关，用户可手动启用
-        backstabEnchantmentEnabled = getConfig().getBoolean("enchantments.backstabbing.enabled", true);
+        EnchantmentSettings loadedEnchantments = EnchantmentSettings.load(
+                getConfig().getConfigurationSection("enchantments"));
+        enchantmentSettings = loadedEnchantments;
+        backstabEnchantmentEnabled = resolveBackstabbingCompatibility(loadedEnchantments);
         // Re-read on every reload so a debug switch edited in config.yml takes effect; the enable path
         // has already read it once, earlier, for the startup lines that precede this method.
         loadDebugFlags();
@@ -1674,6 +1691,14 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     public Set<String> getKnifeTagIds() {
         return knifeTagIds;
+    }
+
+    public EnchantmentSettings getEnchantmentSettings() {
+        return enchantmentSettings;
+    }
+
+    public boolean isBackstabEnchantmentEnabled() {
+        return backstabEnchantmentEnabled;
     }
 
     private YamlConfiguration loadGuiConfig() {
@@ -2085,22 +2110,17 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
     }
 
-    /**
-     * 检测是否已安装可能冲突的附魔插件。
-     * 这些插件通常有自己的背刺/增伤附魔，避免重复注册。
-     */
-    private static boolean isEnchantmentPluginPresent() {
-        String[] knownPlugins = {
-            "EcoEnchants", "AdvancedEnchantments", "ExcellentEnchants",
-            "EnchantsSquared", "AeEnchants", "Zenchantments",
-            "ElementalEnchants", "EnchantmentSolution"
-        };
-        for (String name : knownPlugins) {
-            if (org.bukkit.Bukkit.getPluginManager().getPlugin(name) != null) {
-                return true;
+    private boolean resolveBackstabbingCompatibility(EnchantmentSettings settings) {
+        if (!settings.isBackstabbingConfigured() || !settings.conflict().autoDisableOnConflict()) {
+            return settings.isBackstabbingConfigured();
+        }
+        for (String pluginName : settings.conflict().plugins()) {
+            if (getServer().getPluginManager().getPlugin(pluginName) != null) {
+                I18n.logWarning("enchantment.backstabbing.auto_disabled");
+                return false;
             }
         }
-        return false;
+        return true;
     }
 
 }

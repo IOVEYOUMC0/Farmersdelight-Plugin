@@ -15,7 +15,12 @@ import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
+import org.bukkit.event.player.PlayerItemConsumeEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.ItemStack;
@@ -36,6 +41,7 @@ public class HorseFeedTemptListener implements Listener {
 
     private final FarmersDelightPlugin plugin;
     private final Set<UUID> scheduledTempterTicks = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> scheduledTemptRefreshes = ConcurrentHashMap.newKeySet();
     private final Map<UUID, Player> activeTempterPlayers = new ConcurrentHashMap<>();
     private final Map<UUID, PetFoodConfig.PetFoodDefinition> activeTemptDefinitions = new ConcurrentHashMap<>();
     private final Map<String, PetFoodConfig.PetFoodDefinition> temptFoods = new ConcurrentHashMap<>();
@@ -83,6 +89,7 @@ public class HorseFeedTemptListener implements Listener {
         }
         clearTempters();
         scheduledTempterTicks.clear();
+        scheduledTemptRefreshes.clear();
         if (!enabled) {
             return;
         }
@@ -97,6 +104,7 @@ public class HorseFeedTemptListener implements Listener {
         }
         clearTempters();
         scheduledTempterTicks.clear();
+        scheduledTemptRefreshes.clear();
     }
 
     private void loadConfig(boolean logSummary) {
@@ -186,10 +194,41 @@ public class HorseFeedTemptListener implements Listener {
     }
 
     @EventHandler
+    public void onDropItem(PlayerDropItemEvent event) {
+        if (!enabled) return;
+        refreshTemptStatusNextTick(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onConsumeItem(PlayerItemConsumeEvent event) {
+        if (!enabled) return;
+        refreshTemptStatusNextTick(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (!enabled || !(event.getWhoClicked() instanceof Player player)) return;
+        refreshTemptStatusNextTick(player);
+    }
+
+    @EventHandler
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (!enabled || !(event.getWhoClicked() instanceof Player player)) return;
+        refreshTemptStatusNextTick(player);
+    }
+
+    @EventHandler
+    public void onPickupItem(EntityPickupItemEvent event) {
+        if (!enabled || !(event.getEntity() instanceof Player player)) return;
+        refreshTemptStatusNextTick(player);
+    }
+
+    @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         UUID playerId = event.getPlayer().getUniqueId();
         removeTempter(playerId);
         scheduledTempterTicks.remove(playerId);
+        scheduledTemptRefreshes.remove(playerId);
     }
 
     private void tickTemptGoals() {
@@ -277,7 +316,18 @@ public class HorseFeedTemptListener implements Listener {
             return;
         }
 
+        // Commands and other plugins can replace the held stack without a Bukkit inventory event. The
+        // periodic validation is the final authority and prevents a stale entry from scanning forever.
+        PetFoodConfig.PetFoodDefinition heldDefinition = getHeldTemptFood(player).orElse(null);
+        if (heldDefinition == null) {
+            removeTempter(playerId);
+            return;
+        }
         PetFoodConfig.PetFoodDefinition definition = activeTemptDefinitions.get(playerId);
+        if (!heldDefinition.equals(definition)) {
+            activeTemptDefinitions.put(playerId, heldDefinition);
+            definition = heldDefinition;
+        }
         if (definition == null || player.getGameMode() == GameMode.SPECTATOR || player.isDead()) {
             removeTempter(playerId);
             return;
@@ -363,13 +413,22 @@ public class HorseFeedTemptListener implements Listener {
     }
 
     private void refreshTemptStatusNextTick(Player player) {
+        UUID playerId = player.getUniqueId();
+        if (!scheduledTemptRefreshes.add(playerId)) {
+            return;
+        }
         try {
-            plugin.scheduler().runForEntity(player, () -> {
-                if (player.isOnline()) {
-                    refreshTemptStatus(player);
+            plugin.scheduler().runLaterForEntity(player, () -> {
+                try {
+                    if (player.isOnline()) {
+                        refreshTemptStatus(player);
+                    }
+                } finally {
+                    scheduledTemptRefreshes.remove(playerId);
                 }
-            });
+            }, 1L);
         } catch (RuntimeException ignored) {
+            scheduledTemptRefreshes.remove(playerId);
         }
     }
 

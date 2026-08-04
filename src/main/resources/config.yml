@@ -9,12 +9,105 @@
 language: ''
 
 # Enchantments added by FarmersDelight. Each enchantment has its own enabled toggle.
-# If an enchantment-conflict plugin (EcoEnchants, AdvancedEnchantments, Zenchantments etc.)
-# is detected on startup, the plugin disables its own version and logs a warning.
-# Set to true to force-enable FarmersDelight's version anyway.
+# Knife enchantments. Registry properties (weight, valid cost range, conflicts and anvil cost)
+# are read from Paper at runtime; these lists only decide what FarmersDelight knives may receive.
 enchantments:
+  enabled: true
+  compatibility:
+    # Prevent duplicate custom-enchantment registration when a known enchantment plugin is installed.
+    # Set this to false only when that plugin is configured not to provide an overlapping enchantment.
+    auto-disable-on-conflict: true
+    plugins:
+      - EcoEnchants
+      - AdvancedEnchantments
+      - ExcellentEnchants
+      - EnchantsSquared
+      - AeEnchants
+      - Zenchantments
+      - ElementalEnchants
+      - EnchantmentSolution
+
+  table:
+    enabled: true
+    # true replaces the three offers with vanilla-style rolls from the list below.
+    # false keeps vanilla/other-plugin offers and appends a compatible configured roll.
+    override-offers: true
+    append-chance: 1.0
+    allow-enchanted-items: false
+    default-enchantability: 12
+    # Per-item overrides. If absent, the item's ENCHANTABLE component is used, then default-enchantability.
+    item-enchantability:
+      "farmersdelight:flint_knife": 5
+      "farmersdelight:iron_knife": 14
+      "farmersdelight:golden_knife": 22
+      "farmersdelight:diamond_knife": 10
+      "farmersdelight:netherite_knife": 15
+    # $backstabbing resolves to backstabbing.id, so changing the custom ID needs no duplicate edits.
+    enchantments:
+      - minecraft:sharpness
+      - minecraft:smite
+      - minecraft:bane_of_arthropods
+      - minecraft:unbreaking
+      - minecraft:fire_aspect
+      - minecraft:knockback
+      - minecraft:looting
+      - minecraft:efficiency
+      - minecraft:fortune
+      - $backstabbing
+
+  anvil:
+    enabled: true
+    conflict-penalty: 1
+    minimum-repair-cost: 1
+    enchantments:
+      - minecraft:sharpness
+      - minecraft:smite
+      - minecraft:bane_of_arthropods
+      - minecraft:unbreaking
+      - minecraft:fire_aspect
+      - minecraft:knockback
+      - minecraft:looting
+      - minecraft:efficiency
+      - minecraft:fortune
+      - minecraft:mending
+      - $backstabbing
+
   backstabbing:
     enabled: true
+    id: farmersdelight:backstabbing
+    definition:
+      weight: 5
+      max-level: 3
+      min-cost-base: 15
+      min-cost-per-level: 9
+      max-cost-base: 50
+      max-cost-per-level: 8
+      anvil-cost: 2
+      slots:
+        - mainhand
+      supported-items-tag: farmersdelight:enchantable/knife
+      # CraftEngine knives use vanilla sword base materials, so an empty registry tag avoids exposing
+      # Backstabbing to ordinary swords. The listeners add it only to items matched by knife-items below.
+      supported-items: []
+      fallback-name: Backstabbing
+    combat:
+      players-only: true
+      require-knife: true
+      multiplier-base: 1.4
+      multiplier-per-level: 0.2
+      behind-dot-threshold: -0.5
+      minimum-horizontal-distance: 0.001
+      sound: minecraft:entity.player.attack.crit
+      sound-volume: 1.0
+      sound-pitch: 1.0
+      sound-location: target
+
+  datapack:
+    enabled: true
+    directory: farmersdelight_enchant
+    # Minecraft 1.21.4 data-pack format. Change only when targeting a different server version.
+    pack-format: 61
+    description: FarmersDelight configurable enchantments
 
 # Debug logging. Off by default, not needed on a normal server.
 # enabled=true is the master switch; an empty categories list outputs no per-category logs.

@@ -445,15 +445,19 @@ public final class FarmersDelightApi {
             return;
         }
         ItemStack resultCopy = result == null ? null : result.clone();
-        plugin.scheduler().runAt(location, () -> {
-            if (baseExperience > 0.0D && plugin.shouldDropCookingPotVanillaExperience()
-                    && location != null && location.getWorld() != null) {
-                dropExperienceOrbs(location.getWorld(), location, baseExperience);
-            }
+        Location locationCopy = location == null ? null : location.clone();
+        if (baseExperience > 0.0D && plugin.shouldDropCookingPotVanillaExperience()
+                && locationCopy != null && locationCopy.getWorld() != null) {
+            plugin.scheduler().runAt(locationCopy, () ->
+                    dropExperienceOrbs(locationCopy.getWorld(), locationCopy, baseExperience));
+        }
+        // The player may be in a different Folia region than the crafting station, or teleport before
+        // execution. Keep all player-owned integrations and the player event on the entity scheduler.
+        plugin.scheduler().runForEntity(player, () -> {
             plugin.awardCookingPotAuraSkillsExperience(player, baseExperience);
             Bukkit.getPluginManager().callEvent(new ProfessionCookingExperienceEvent(
                     player.getUniqueId(), player.getName(), source, resultCopy, (float) baseExperience,
-                    location));
+                    locationCopy));
         });
     }
 

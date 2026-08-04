@@ -1,68 +1,427 @@
 package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.config.EnchantmentSettings;
 import com.huidu.farmersdelight.util.ItemUtils;
-import net.momirealms.craftengine.core.util.Key;
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
+import org.bukkit.NamespacedKey;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.enchantments.EnchantmentOffer;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.enchantment.EnchantItemEvent;
 import org.bukkit.event.enchantment.PrepareItemEnchantEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.inventory.PrepareAnvilEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.EnchantmentStorageMeta;
+import org.bukkit.inventory.meta.ItemMeta;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * 小刀附魔台注入器：以原版附魔权重概率为 CE 小刀添加时运附魔选项。
- * <p>
- * 由于 CE 自定义物品的 ID 在原版数据包加载时尚未注册，无法通过原版标签链
- * 让小刀获得时运。此监听器在附魔台生成选项后，以时运的原版权重（2，约 14%）
- * 概率将末尾选项替换为时运，使用附魔台位置种子确保同一次附魔结果一致。
+ * Configurable enchantment-table and anvil support for CraftEngine knives.
+ *
+ * <p>Unlike the old fixed Fortune/backstabbing rolls, selection follows the vanilla modified-level
+ * algorithm.  Weight, level cost bounds, conflicts and anvil cost come from Paper's live enchantment
+ * registry, so datapack and third-party enchantments require no Java-side cost table.</p>
  */
 public final class KnifeEnchantFilter implements Listener {
 
-    private static final Key KNIFE_TAG = Key.of("farmersdelight", "knives");
-    private static final int FORTUNE_MAX_LEVEL = 3;
-    /** 时运权重 2，剑类附魔总权重约 40 → 单槽概率 ~5%，三槽累计约 14% */
-    private static final int FORTUNE_WEIGHT = 2;
-    private static final int TOTAL_WEIGHT = 40;
+    private final FarmersDelightPlugin plugin;
+    private final Map<UUID, PreparedOffers> preparedOffers = new ConcurrentHashMap<>();
+    private volatile EnchantmentSettings settings = EnchantmentSettings.defaults();
+    private volatile List<Enchantment> tableEnchantments = List.of();
+    private volatile Set<Enchantment> anvilEnchantments = Set.of();
 
     public KnifeEnchantFilter(FarmersDelightPlugin plugin) {
+        this.plugin = plugin;
+        reload(plugin.getEnchantmentSettings(), plugin.isBackstabEnchantmentEnabled());
+    }
+
+    public void reload(EnchantmentSettings newSettings, boolean backstabbingEnabled) {
+        settings = newSettings == null ? EnchantmentSettings.defaults() : newSettings;
+        tableEnchantments = resolveEnchantments(settings.table().enchantments(), backstabbingEnabled);
+        anvilEnchantments = Set.copyOf(resolveEnchantments(settings.anvil().enchantments(), backstabbingEnabled));
+        preparedOffers.clear();
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPrepareEnchant(PrepareItemEnchantEvent event) {
-        if (!ItemUtils.hasCustomItemTag(event.getItem(), KNIFE_TAG)) return;
+        UUID playerId = event.getEnchanter().getUniqueId();
+        preparedOffers.remove(playerId);
 
-        var offers = event.getOffers();
-        int silkTouchIdx = -1;
-        boolean hasFortune = false;
-
-        for (int i = 0; i < offers.length; i++) {
-            if (offers[i] == null) continue;
-            Enchantment ench = offers[i].getEnchantment();
-            if (ench == Enchantment.SILK_TOUCH) {
-                silkTouchIdx = i;
-            } else if (ench == Enchantment.FORTUNE) {
-                hasFortune = true;
-            }
+        EnchantmentSettings current = settings;
+        EnchantmentSettings.Table table = current.table();
+        ItemStack item = event.getItem();
+        if (!current.enabled() || !table.enabled() || !isKnife(item) || tableEnchantments.isEmpty()) {
+            return;
         }
-
-        if (hasFortune) {
-            if (silkTouchIdx >= 0) {
-                offers[silkTouchIdx] = null;
-            }
+        if (!table.allowEnchantedItems() && !item.getEnchantments().isEmpty()) {
             return;
         }
 
-        // 按时运权重概率决定是否注入，种子 = 附魔台位置 ^ 物品，同一次附魔台结果一致
-        long seed = event.getEnchantBlock().hashCode() ^ event.getItem().hashCode();
-        if (new Random(seed).nextInt(TOTAL_WEIGHT) >= FORTUNE_WEIGHT) return;
+        Player player = event.getEnchanter();
+        int seed = player.getEnchantmentSeed();
+        int bonus = Math.min(event.getEnchantmentBonus(), 15);
+        Random costRandom = new Random(seed);
+        int[] costs = new int[3];
+        @SuppressWarnings("unchecked")
+        Map<Enchantment, Integer>[] choices = (Map<Enchantment, Integer>[]) new Map<?, ?>[3];
+        int enchantability = enchantability(item, table);
+        EnchantmentOffer[] offers = event.getOffers();
 
-        int targetSlot = silkTouchIdx >= 0 ? silkTouchIdx : offers.length - 1;
-        int level = Math.min(event.getEnchantmentBonus() / 6 + 1, FORTUNE_MAX_LEVEL);
-        if (level < 1) level = 1;
-        int cost = 15 + level * 9;
-        offers[targetSlot] = new EnchantmentOffer(Enchantment.FORTUNE, level, cost);
+        for (int slot = 0; slot < choices.length; slot++) {
+            costs[slot] = calculateSlotCost(costRandom, slot, bonus);
+            if (costs[slot] < slot + 1) {
+                costs[slot] = 0;
+            }
+            choices[slot] = costs[slot] <= 0
+                    ? Map.of()
+                    : selectEnchantments(tableEnchantments, costs[slot], new Random((long) seed + slot), enchantability);
+
+            if (table.overrideOffers() && offers != null && slot < offers.length) {
+                if (choices[slot].isEmpty()) {
+                    offers[slot] = null;
+                } else {
+                    Map.Entry<Enchantment, Integer> first = choices[slot].entrySet().iterator().next();
+                    offers[slot] = new EnchantmentOffer(first.getKey(), first.getValue(), costs[slot]);
+                }
+            }
+        }
+
+        preparedOffers.put(playerId, PreparedOffers.capture(event, choices));
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onEnchantItem(EnchantItemEvent event) {
+        EnchantmentSettings current = settings;
+        EnchantmentSettings.Table table = current.table();
+        if (!current.enabled() || !table.enabled() || !isKnife(event.getItem())) {
+            return;
+        }
+
+        int button = event.whichButton();
+        PreparedOffers prepared = preparedOffers.remove(event.getEnchanter().getUniqueId());
+        Map<Enchantment, Integer> selected = prepared == null ? Map.of() : prepared.selection(event, button);
+        if (selected.isEmpty() && button >= 0 && button < 3) {
+            int enchantability = enchantability(event.getItem(), table);
+            selected = selectEnchantments(
+                    tableEnchantments,
+                    event.getExpLevelCost(),
+                    new Random((long) event.getEnchanter().getEnchantmentSeed() + button),
+                    enchantability
+            );
+        }
+        if (selected.isEmpty()) {
+            return;
+        }
+
+        Map<Enchantment, Integer> additions = event.getEnchantsToAdd();
+        if (table.overrideOffers()) {
+            additions.clear();
+            additions.putAll(selected);
+            return;
+        }
+        if (table.appendChance() < 1.0D
+                && ThreadLocalRandom.current().nextDouble() >= table.appendChance()) {
+            return;
+        }
+        for (Map.Entry<Enchantment, Integer> entry : selected.entrySet()) {
+            if (!conflictsWithAny(entry.getKey(), additions.keySet())) {
+                additions.merge(entry.getKey(), entry.getValue(), Math::max);
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onPrepareAnvil(PrepareAnvilEvent event) {
+        EnchantmentSettings current = settings;
+        EnchantmentSettings.Anvil anvil = current.anvil();
+        if (!current.enabled() || !anvil.enabled() || anvilEnchantments.isEmpty()) {
+            return;
+        }
+
+        ItemStack first = event.getInventory().getFirstItem();
+        ItemStack second = event.getInventory().getSecondItem();
+        if (isEmpty(first) || isEmpty(second) || !isKnife(first)) {
+            return;
+        }
+        ItemMeta secondMeta = second.getItemMeta();
+        if (!(secondMeta instanceof EnchantmentStorageMeta storage) || storage.getStoredEnchants().isEmpty()) {
+            return;
+        }
+
+        ItemStack vanillaResult = event.getResult();
+        ItemStack result = isEmpty(vanillaResult) ? first.clone() : vanillaResult.clone();
+        ItemMeta resultMeta = result.getItemMeta();
+        if (resultMeta == null) {
+            return;
+        }
+
+        Map<Enchantment, Integer> original = first.getEnchantments();
+        Set<Enchantment> present = new LinkedHashSet<>(original.keySet());
+        Map<Enchantment, Integer> merged = new LinkedHashMap<>();
+        int addedCost = 0;
+        for (Map.Entry<Enchantment, Integer> entry : storage.getStoredEnchants().entrySet()) {
+            Enchantment enchantment = entry.getKey();
+            if (!anvilEnchantments.contains(enchantment)) {
+                continue;
+            }
+            if (conflictsWithAnyExcept(enchantment, present, enchantment)) {
+                addedCost += anvil.conflictPenalty();
+                continue;
+            }
+
+            int oldLevel = original.getOrDefault(enchantment, 0);
+            int bookLevel = entry.getValue();
+            int level = oldLevel == bookLevel && oldLevel < enchantment.getMaxLevel()
+                    ? oldLevel + 1
+                    : Math.max(oldLevel, bookLevel);
+            level = Math.min(level, enchantment.getMaxLevel());
+            if (level <= oldLevel) {
+                continue;
+            }
+            if (result.getEnchantmentLevel(enchantment) >= level) {
+                present.add(enchantment);
+                continue;
+            }
+            merged.put(enchantment, level);
+            present.add(enchantment);
+            addedCost += Math.max(0, enchantment.getAnvilCost()) * level;
+        }
+        if (merged.isEmpty()) {
+            return;
+        }
+
+        for (Map.Entry<Enchantment, Integer> entry : merged.entrySet()) {
+            resultMeta.addEnchant(entry.getKey(), entry.getValue(), true);
+        }
+        result.setItemMeta(resultMeta);
+        event.setResult(result);
+
+        int repairCost = Math.max(anvil.minimumRepairCost(), event.getView().getRepairCost() + addedCost);
+        Player player = (Player) event.getView().getPlayer();
+        var view = event.getView();
+        plugin.scheduler().runLaterForEntity(player, () -> {
+            var openView = player.getOpenInventory();
+            if (player.isOnline()
+                    && openView instanceof org.bukkit.inventory.view.AnvilView openAnvilView
+                    && openView.getTopInventory().equals(view.getTopInventory())) {
+                openAnvilView.setRepairCost(repairCost);
+            }
+        }, 1L);
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        preparedOffers.remove(event.getPlayer().getUniqueId());
+    }
+
+    @EventHandler
+    public void onClose(InventoryCloseEvent event) {
+        if (event.getInventory().getType() == InventoryType.ENCHANTING) {
+            preparedOffers.remove(event.getPlayer().getUniqueId());
+        }
+    }
+
+    static int calculateSlotCost(Random random, int slot, int bonus) {
+        int base = random.nextInt(8) + 1 + (bonus >> 1) + random.nextInt(bonus + 1);
+        return switch (slot) {
+            case 0 -> Math.max(base / 3, 1);
+            case 1 -> base * 2 / 3 + 1;
+            case 2 -> Math.max(base, bonus * 2);
+            default -> base;
+        };
+    }
+
+    static int modifyLevel(Random random, int level, int enchantability) {
+        int spread = Math.max(1, enchantability / 4 + 1);
+        int modified = level + 1 + random.nextInt(spread) + random.nextInt(spread);
+        float variance = (random.nextFloat() + random.nextFloat() - 1.0F) * 0.15F;
+        return Math.max(1, Math.round(modified * (1.0F + variance)));
+    }
+
+    private static Map<Enchantment, Integer> selectEnchantments(
+            List<Enchantment> allowed,
+            int offeredLevel,
+            Random random,
+            int enchantability
+    ) {
+        Map<Enchantment, Integer> selected = new LinkedHashMap<>();
+        if (allowed.isEmpty() || offeredLevel < 1) {
+            return selected;
+        }
+
+        int modifiedLevel = modifyLevel(random, offeredLevel, enchantability);
+        List<Candidate> candidates = candidates(allowed, modifiedLevel);
+        Candidate first = chooseWeighted(candidates, random);
+        if (first == null) {
+            return selected;
+        }
+        selected.put(first.enchantment(), first.level());
+
+        while (random.nextInt(50) <= modifiedLevel) {
+            candidates.removeIf(candidate -> selected.containsKey(candidate.enchantment())
+                    || conflictsWithAny(candidate.enchantment(), selected.keySet()));
+            Candidate next = chooseWeighted(candidates, random);
+            if (next == null) {
+                break;
+            }
+            selected.put(next.enchantment(), next.level());
+            modifiedLevel /= 2;
+        }
+        return selected;
+    }
+
+    private static List<Candidate> candidates(List<Enchantment> allowed, int modifiedLevel) {
+        List<Candidate> candidates = new ArrayList<>();
+        for (Enchantment enchantment : allowed) {
+            for (int level = enchantment.getMaxLevel(); level >= enchantment.getStartLevel(); level--) {
+                if (modifiedLevel >= enchantment.getMinModifiedCost(level)
+                        && modifiedLevel <= enchantment.getMaxModifiedCost(level)) {
+                    candidates.add(new Candidate(enchantment, level, Math.max(1, enchantment.getWeight())));
+                    break;
+                }
+            }
+        }
+        return candidates;
+    }
+
+    private static Candidate chooseWeighted(List<Candidate> candidates, Random random) {
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        int totalWeight = candidates.stream().mapToInt(Candidate::weight).sum();
+        int value = random.nextInt(Math.max(1, totalWeight));
+        for (Candidate candidate : candidates) {
+            value -= candidate.weight();
+            if (value < 0) {
+                return candidate;
+            }
+        }
+        return candidates.getLast();
+    }
+
+    private int enchantability(ItemStack item, EnchantmentSettings.Table table) {
+        Set<String> itemIds = ItemUtils.getItemIds(item);
+        Integer configured = table.configuredEnchantabilityFor(itemIds);
+        if (configured != null) {
+            return configured;
+        }
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null && meta.hasEnchantable() && meta.getEnchantable() > 0) {
+            return meta.getEnchantable();
+        }
+        return table.defaultEnchantability();
+    }
+
+    private boolean isKnife(ItemStack item) {
+        if (isEmpty(item)) {
+            return false;
+        }
+        for (String itemId : ItemUtils.getItemIds(item)) {
+            if (plugin.isKnifeItemId(itemId)) {
+                return true;
+            }
+        }
+        Set<String> configuredTags = plugin.getKnifeTagIds();
+        for (String tagId : ItemUtils.getItemTagIds(item)) {
+            if (configuredTags.contains(tagId.toLowerCase(java.util.Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<Enchantment> resolveEnchantments(List<String> configured, boolean backstabbingEnabled) {
+        Set<Enchantment> resolved = new LinkedHashSet<>();
+        String backstabbingId = settings.backstabbing().id();
+        var registry = RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT);
+        for (String configuredId : configured) {
+            String id = "$backstabbing".equals(configuredId) ? backstabbingId : configuredId;
+            if (!backstabbingEnabled && id.equals(backstabbingId)) {
+                continue;
+            }
+            NamespacedKey key = NamespacedKey.fromString(id);
+            if (key == null) {
+                continue;
+            }
+            Enchantment enchantment = registry.get(key);
+            if (enchantment != null) {
+                resolved.add(enchantment);
+            } else if (!id.equals(backstabbingId)) {
+                plugin.getLogger().warning("Unknown configured enchantment: " + id);
+            }
+        }
+        return List.copyOf(resolved);
+    }
+
+    private static boolean conflictsWithAny(Enchantment enchantment, Set<Enchantment> existing) {
+        return conflictsWithAnyExcept(enchantment, existing, null);
+    }
+
+    private static boolean conflictsWithAnyExcept(
+            Enchantment enchantment,
+            Set<Enchantment> existing,
+            Enchantment ignored
+    ) {
+        for (Enchantment other : existing) {
+            if (other.equals(ignored) || other.equals(enchantment)) {
+                continue;
+            }
+            if (other.conflictsWith(enchantment) || enchantment.conflictsWith(other)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isEmpty(ItemStack item) {
+        return item == null || item.isEmpty();
+    }
+
+    private record Candidate(Enchantment enchantment, int level, int weight) {
+    }
+
+    private record PreparedOffers(UUID worldId, int x, int y, int z, ItemStack item,
+                                  Map<Enchantment, Integer>[] choices) {
+        static PreparedOffers capture(PrepareItemEnchantEvent event, Map<Enchantment, Integer>[] choices) {
+            var location = event.getEnchantBlock().getLocation();
+            UUID worldId = location.getWorld() == null ? null : location.getWorld().getUID();
+            return new PreparedOffers(worldId, location.getBlockX(), location.getBlockY(), location.getBlockZ(),
+                    event.getItem().clone(), choices.clone());
+        }
+
+        Map<Enchantment, Integer> selection(EnchantItemEvent event, int button) {
+            if (button < 0 || button >= choices.length) {
+                return Map.of();
+            }
+            var location = event.getEnchantBlock().getLocation();
+            if (location.getWorld() == null
+                    || !location.getWorld().getUID().equals(worldId)
+                    || location.getBlockX() != x
+                    || location.getBlockY() != y
+                    || location.getBlockZ() != z
+                    || !item.isSimilar(event.getItem())) {
+                return Map.of();
+            }
+            Map<Enchantment, Integer> selected = choices[button];
+            return selected == null ? Map.of() : selected;
+        }
     }
 }

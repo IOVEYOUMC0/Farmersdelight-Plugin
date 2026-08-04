@@ -33,27 +33,29 @@ public final class EffectManager {
     /** Metadata + runtime-stylable properties for Comfort and Nourishment buffs. */
     private enum BuffKind {
         COMFORT(
-            "farmersdelight:comfort_ticks", "farmersdelight:comfort_initial_ticks",
+            "farmersdelight:comfort_ticks", "farmersdelight:comfort_initial_ticks", "farmersdelight:comfort_level",
             "farmersdelight:comfort", "buff.farmersdelight.comfort.title",
             BossBar.Color.BLUE, BossBar.Overlay.PROGRESS
         ),
         NOURISHMENT(
-            "farmersdelight:nourishment_ticks", "farmersdelight:nourishment_initial_ticks",
+            "farmersdelight:nourishment_ticks", "farmersdelight:nourishment_initial_ticks", "farmersdelight:nourishment_level",
             "farmersdelight:nourishment", "buff.farmersdelight.nourishment.title",
             BossBar.Color.GREEN, BossBar.Overlay.PROGRESS
         );
 
         final NamespacedKey pdcDurationKey;
         final NamespacedKey pdcInitialKey;
+        final NamespacedKey pdcLevelKey;
         final NamespacedKey bossbarKey;
         final String titleKey;
         volatile BossBar.Color barColor;
         volatile BossBar.Overlay barOverlay;
 
-        BuffKind(String pdcDur, String pdcInit, String bbKey, String titleKey,
+        BuffKind(String pdcDur, String pdcInit, String pdcLevel, String bbKey, String titleKey,
                  BossBar.Color defColor, BossBar.Overlay defOverlay) {
             this.pdcDurationKey = Objects.requireNonNull(NamespacedKey.fromString(pdcDur));
             this.pdcInitialKey = Objects.requireNonNull(NamespacedKey.fromString(pdcInit));
+            this.pdcLevelKey = Objects.requireNonNull(NamespacedKey.fromString(pdcLevel));
             this.bossbarKey = Objects.requireNonNull(NamespacedKey.fromString(bbKey));
             this.titleKey = titleKey;
             this.barColor = defColor;
@@ -146,6 +148,20 @@ public final class EffectManager {
      *  stacking rules same as #applyComfort(int, int, int). */
     public static void applyNourishment(Player player, int durationSeconds, int level) {
         applyBuff(player, BuffKind.NOURISHMENT, durationSeconds, level);
+    }
+
+    public static int comfortLevel(Player player) {
+        return buffLevel(player, BuffKind.COMFORT);
+    }
+
+    public static int nourishmentLevel(Player player) {
+        return buffLevel(player, BuffKind.NOURISHMENT);
+    }
+
+    private static int buffLevel(Player player, BuffKind kind) {
+        if (player == null) return 0;
+        BuffState state = getBuff(player.getUniqueId(), kind);
+        return state.isActive() ? Math.max(1, state.level()) : 0;
     }
 
     private static void applyBuff(Player player, BuffKind kind, int durationSeconds, int level) {
@@ -307,6 +323,7 @@ public final class EffectManager {
         PersistentDataContainer pdc = player.getPersistentDataContainer();
         writeOrRemove(pdc, kind.pdcDurationKey, state.isActive() ? state.duration() : null);
         writeOrRemove(pdc, kind.pdcInitialKey, state.isActive() ? state.initial() : null);
+        writeOrRemove(pdc, kind.pdcLevelKey, state.isActive() ? state.level() : null);
     }
 
     private static void writeOrRemove(PersistentDataContainer pdc, NamespacedKey key, Integer value) {
@@ -336,7 +353,9 @@ public final class EffectManager {
         if (duration != null && duration > 0) {
             Integer initial = pdc.get(kind.pdcInitialKey, PersistentDataType.INTEGER);
             int init = (initial != null && initial >= duration) ? initial : duration;
-            ensurePlayer(playerId).put(kind, new BuffState(duration, init, 1));
+            Integer storedLevel = pdc.get(kind.pdcLevelKey, PersistentDataType.INTEGER);
+            int level = storedLevel == null ? 1 : Math.max(1, storedLevel);
+            ensurePlayer(playerId).put(kind, new BuffState(duration, init, level));
             return true;
         }
         return false;

@@ -46,7 +46,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
@@ -57,13 +56,15 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
 
     private final FarmersDelightPlugin plugin;
     private final BukkitNetworkManager networkManager;
-    private final AtomicInteger nextEntityId = new AtomicInteger(2_000_000);
     private final Map<Integer, ProxyDisplay> displays = new ConcurrentHashMap<>();
-    // Index of display ids by (world, chunk) so onChunkUnload removes a chunk's displays in O(displays
-    // in that chunk) instead of scanning the whole map. FD displays are anchored to a block, so a
-    // display never changes chunk after creation — the index only needs add-on-create / remove-on-destroy.
+    // Index of display ids by (world, chunk) so unload and player-centric visibility queries touch only
+    // relevant displays. Addon API updates can move a display, so updateDisplay re-indexes atomically.
     private final Map<UUID, Map<Long, Set<Integer>>> displaysByChunk = new ConcurrentHashMap<>();
     private final Map<UUID, Player> onlinePlayers = new ConcurrentHashMap<>();
+    // Reverse viewer index keeps player-centric Folia sync and quit/world cleanup O(visible displays)
+    // instead of scanning every proxy display on the server.
+    private final Map<UUID, Set<Integer>> visibleDisplaysByPlayer = new ConcurrentHashMap<>();
+    private final Set<UUID> scheduledPlayerSyncs = ConcurrentHashMap.newKeySet();
     private final AtomicLong displaySnapshotVersion = new AtomicLong();
     private volatile List<ProxyDisplay> displaySnapshot = List.of();
     private volatile long displaySnapshotCachedVersion = -1L;
@@ -73,8 +74,8 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
     // sync tasks. R-CONC-002.
     private volatile PluginTask syncTask;
     private final Object syncTaskLock = new Object();
-    private double viewDistance = DEFAULT_VIEW_DISTANCE;
-    private double viewDistanceSquared = DEFAULT_VIEW_DISTANCE * DEFAULT_VIEW_DISTANCE;
+    private volatile double viewDistance = DEFAULT_VIEW_DISTANCE;
+    private volatile double viewDistanceSquared = DEFAULT_VIEW_DISTANCE * DEFAULT_VIEW_DISTANCE;
     // Display ViewRange metadata: the client renders the display within ~ViewRange × 64 blocks. Derived
     // from the send distance so the client's render cutoff tracks the server's send cutoff — otherwise a
     // raised view-distance would send displays the client (ViewRange fixed at 1.0 ≈ 64) refuses to draw.
@@ -131,6 +132,16 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         return networkManager != null;
     }
 
+    private int allocateEntityId() {
+        int entityId;
+        do {
+            // CraftEngine exposes Minecraft's actual global entity counter. Reserving IDs from the same
+            // allocator prevents packet-only displays from ever colliding with real or CE entities.
+            entityId = EntityUtils.ENTITY_COUNTER.incrementAndGet();
+        } while (displays.containsKey(entityId));
+        return entityId;
+    }
+
     public void reload() {
         viewDistance = Math.max(8.0D, plugin.getConfig().getDouble(
                 "performance.proxy-item-display-view-distance", DEFAULT_VIEW_DISTANCE));
@@ -158,7 +169,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
 
         try {
             DisplaySpec normalizedSpec = normalize(spec);
-            int entityId = nextEntityId.getAndIncrement();
+            int entityId = allocateEntityId();
             UUID entityUuid = UUID.randomUUID();
             Object spawnPacket = createItemSpawnPacket(entityId, entityUuid, normalizedSpec);
             Object metadataPacket = createItemMetadataPacket(entityId, normalizedSpec);
@@ -196,7 +207,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         }
 
         TextDisplaySpec normalizedSpec = normalizeText(spec);
-        int entityId = nextEntityId.getAndIncrement();
+        int entityId = allocateEntityId();
         UUID entityUuid = UUID.randomUUID();
         Object spawnPacket = createTextSpawnPacket(entityId, entityUuid, normalizedSpec);
         Object metadataPacket = createTextMetadataPacket(entityId, normalizedSpec);
@@ -274,10 +285,6 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
             logDisplayBuildFailure("update", spec, t);
             return false;
         }
-        display.itemSpec = normalizedSpec;
-        display.spawnPacket = newSpawnPacket;
-        display.metadataPacket = newMetadataPacket;
-        display.spawnPackets = List.of(display.spawnPacket, display.metadataPacket);
         // Only send a position (teleport) packet when the display actually moved. FD's item displays are
         // stationary in-slot — a cutting-board carve/count change updates the item + metadata, never
         // x/y/z — so this drops a redundant position packet per update. Mirrors updateText's null-position
@@ -286,6 +293,23 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
                 && sameDisplayPosition(previousSpec.location(), normalizedSpec.location())
                 ? null
                 : createPositionPacket(entityId, normalizedSpec.location());
+        synchronized (display) {
+            // destroyDisplay removes from the map before taking this monitor. Abort if it won the race;
+            // otherwise destroy waits and will de-index the new location after this update completes.
+            if (displays.get(entityId) != display) {
+                return false;
+            }
+            if (!sameDisplayChunk(previousSpec.location(), normalizedSpec.location())) {
+                unindexDisplayAt(entityId, previousSpec.location());
+            }
+            display.itemSpec = normalizedSpec;
+            display.spawnPacket = newSpawnPacket;
+            display.metadataPacket = newMetadataPacket;
+            display.spawnPackets = List.of(display.spawnPacket, display.metadataPacket);
+            if (!sameDisplayChunk(previousSpec.location(), normalizedSpec.location())) {
+                indexDisplayAt(entityId, normalizedSpec.location());
+            }
+        }
         sendUpdateForAllViewers(display, positionPacket, display.metadataPacket);
         queueSync(display);
         itemUpdateCount.incrementAndGet();
@@ -302,11 +326,20 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
                 && a.getZ() == b.getZ();
     }
 
+    static boolean sameDisplayChunk(Location a, Location b) {
+        return a != null && b != null && a.getWorld() != null && b.getWorld() != null
+                && a.getWorld().getUID().equals(b.getWorld().getUID())
+                && (a.getBlockX() >> 4) == (b.getBlockX() >> 4)
+                && (a.getBlockZ() >> 4) == (b.getBlockZ() >> 4);
+    }
+
     @Override
     public void destroyDisplay(int entityId) {
         ProxyDisplay removed = displays.remove(entityId);
         if (removed != null) {
-            unindexDisplay(removed);
+            synchronized (removed) {
+                unindexDisplay(removed);
+            }
             markDisplaySnapshotDirty();
             destroyForAllViewers(removed);
             destroyCount.incrementAndGet();
@@ -319,17 +352,23 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
     }
 
     private void indexDisplay(ProxyDisplay display) {
-        Location loc = display.location();
+        indexDisplayAt(display.entityId, display.location());
+    }
+
+    private void indexDisplayAt(int entityId, Location loc) {
         if (loc.getWorld() == null) {
             return;
         }
         displaysByChunk.computeIfAbsent(loc.getWorld().getUID(), k -> new ConcurrentHashMap<>())
                 .computeIfAbsent(chunkKeyOf(loc), k -> ConcurrentHashMap.newKeySet())
-                .add(display.entityId);
+                .add(entityId);
     }
 
     private void unindexDisplay(ProxyDisplay display) {
-        Location loc = display.location();
+        unindexDisplayAt(display.entityId, display.location());
+    }
+
+    private void unindexDisplayAt(int entityId, Location loc) {
         if (loc.getWorld() == null) {
             return;
         }
@@ -340,7 +379,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         long chunkKey = chunkKeyOf(loc);
         Set<Integer> ids = byChunk.get(chunkKey);
         if (ids != null) {
-            ids.remove(display.entityId);
+            ids.remove(entityId);
             if (ids.isEmpty()) {
                 byChunk.remove(chunkKey, ids);
             }
@@ -397,6 +436,8 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         }
         displaysByChunk.clear();
         pendingSync.clear();
+        visibleDisplaysByPlayer.clear();
+        scheduledPlayerSyncs.clear();
         // Re-seed instead of leaving the map empty: cleanup() is also reachable from the /fd cleanup
         // command while the manager keeps running, and this map only refills on join/teleport/respawn
         // events. An empty map would make viewer eviction paths (stale-viewer destroy, update fan-out)
@@ -508,6 +549,11 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
             return;
         }
 
+        if (plugin.scheduler().isFolia()) {
+            scheduleSyncForAllPlayers();
+            return;
+        }
+
         List<ProxyDisplay> snapshot = getDisplaySnapshot();
         int size = snapshot.size();
         if (size == 0) {
@@ -559,7 +605,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
             return;
         }
 
-        scheduleDisplayForPlayers(display);
+        scheduleSyncForAllPlayers();
     }
 
     /** Queues a display for a coalesced visibility sync one tick later. Bursts of creates/updates in
@@ -582,6 +628,11 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         if (pendingSync.isEmpty()) {
             return;
         }
+        if (plugin.scheduler().isFolia()) {
+            pendingSync.clear();
+            scheduleSyncForAllPlayers();
+            return;
+        }
         Map<ChunkKey, Collection<Player>> memo = plugin.scheduler().isFolia() ? null : new HashMap<>();
         for (Iterator<ProxyDisplay> it = pendingSync.iterator(); it.hasNext(); ) {
             ProxyDisplay display = it.next();
@@ -595,25 +646,32 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
     private record ChunkKey(World world, int x, int z) {
     }
 
-    private void scheduleDisplayForPlayers(ProxyDisplay display) {
-        if (displays.get(display.entityId) != display) {
-            return;
-        }
-        World displayWorld = display.location().getWorld();
-        if (displayWorld == null) {
-            return;
-        }
-        for (Player player : onlinePlayers.values()) {
-            // Cheap pre-filter: skip players in other worlds before paying the per-player scheduling cost.
-            // syncDisplayForPlayer still rechecks distance on the player's own thread.
-            if (player == null || !displayWorld.equals(player.getWorld())) {
+    private void scheduleSyncForAllPlayers() {
+        for (Map.Entry<UUID, Player> entry : onlinePlayers.entrySet()) {
+            UUID playerId = entry.getKey();
+            Player player = entry.getValue();
+            if (player == null) {
+                continue;
+            }
+            if (!scheduledPlayerSyncs.add(playerId)) {
                 continue;
             }
             try {
-                plugin.scheduler().runForEntity(player, () -> syncDisplayForPlayer(display, player));
+                plugin.scheduler().runForEntity(player, () -> {
+                    try {
+                        syncPlayer(player);
+                    } finally {
+                        scheduledPlayerSyncs.remove(playerId);
+                    }
+                }, () -> {
+                    scheduledPlayerSyncs.remove(playerId);
+                    onlinePlayers.remove(playerId);
+                    clearViewer(playerId);
+                });
             } catch (RuntimeException e) {
-                onlinePlayers.remove(player.getUniqueId());
-                display.viewers.remove(player.getUniqueId());
+                scheduledPlayerSyncs.remove(playerId);
+                onlinePlayers.remove(playerId);
+                clearViewer(playerId);
             }
         }
     }
@@ -623,10 +681,54 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
             return;
         }
 
-        onlinePlayers.put(player.getUniqueId(), player);
-        for (ProxyDisplay display : displays.values()) {
-            syncDisplayForPlayer(display, player);
+        UUID playerId = player.getUniqueId();
+        onlinePlayers.put(playerId, player);
+        Set<Integer> candidates = collectCandidateDisplayIds(player);
+        for (Integer entityId : candidates) {
+            ProxyDisplay display = displays.get(entityId);
+            if (display != null) {
+                syncDisplayForPlayer(display, player);
+            }
         }
+
+        Set<Integer> visible = visibleDisplaysByPlayer.get(playerId);
+        if (visible == null || visible.isEmpty()) {
+            return;
+        }
+        for (Integer entityId : new HashSet<>(visible)) {
+            ProxyDisplay display = displays.get(entityId);
+            if (display == null) {
+                removeVisibleDisplay(playerId, entityId);
+            } else if (!candidates.contains(entityId) && display.viewers.contains(playerId)) {
+                destroyForViewer(player, display);
+            }
+        }
+    }
+
+    private Set<Integer> collectCandidateDisplayIds(Player player) {
+        World world = player.getWorld();
+        Map<Long, Set<Integer>> byChunk = displaysByChunk.get(world.getUID());
+        if (byChunk == null || byChunk.isEmpty()) {
+            return Set.of();
+        }
+        Location playerLocation = player.getLocation();
+        int centerX = playerLocation.getBlockX() >> 4;
+        int centerZ = playerLocation.getBlockZ() >> 4;
+        int radius = candidateChunkRadius(viewDistance);
+        Set<Integer> candidates = new HashSet<>();
+        for (int x = centerX - radius; x <= centerX + radius; x++) {
+            for (int z = centerZ - radius; z <= centerZ + radius; z++) {
+                Set<Integer> ids = byChunk.get(((long) x << 32) | (z & 0xffffffffL));
+                if (ids != null) {
+                    candidates.addAll(ids);
+                }
+            }
+        }
+        return candidates;
+    }
+
+    static int candidateChunkRadius(double distance) {
+        return Math.max(1, (int) Math.ceil(Math.max(0.0D, distance) / 16.0D));
     }
 
     private void syncDisplayForPlayer(ProxyDisplay display, Player player) {
@@ -637,6 +739,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         if (playerId == null || !onlinePlayers.containsKey(playerId)) {
             if (playerId != null) {
                 display.viewers.remove(playerId);
+                removeVisibleDisplay(playerId, display.entityId);
             }
             return;
         }
@@ -683,8 +786,8 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         if (world == null || !Objects.equals(player.getWorld(), world)) {
             return false;
         }
-        // On Folia this method runs on the PLAYER's region thread (scheduleDisplayForPlayers ->
-        // runForEntity(player)). The display's chunk may belong to a different region, and touching it there
+        // On Folia this method runs on the player's entity scheduler. The display's chunk may belong to a
+        // different region, and touching it there
         // (isChunkLoaded / getChunkAt) trips Folia's region-owner check and throws. shouldViewerSeeDisplay,
         // called right after this, already bounds visibility by distance without any chunk access and itself
         // skips its isChunkLoaded probe on Folia — so on Folia skip the chunk-tracking gate and let that
@@ -761,6 +864,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
                 destroyForViewer(player, display);
             } else {
                 it.remove();
+                removeVisibleDisplay(viewerId, display.entityId);
             }
         }
     }
@@ -796,6 +900,8 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
             }
             user.sendPackets(display.spawnPackets, false);
             display.viewers.add(player.getUniqueId());
+            visibleDisplaysByPlayer.computeIfAbsent(player.getUniqueId(), ignored -> ConcurrentHashMap.newKeySet())
+                    .add(display.entityId);
             viewerSpawnPacketCount.incrementAndGet();
         } catch (Exception e) {
             plugin.getLogger().warning(I18n.formatConsole("visual.proxy_spawn_failed",
@@ -818,7 +924,9 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
                     "player", player.getName(),
                     "error", e.getMessage()));
         } finally {
-            display.viewers.remove(player.getUniqueId());
+            UUID playerId = player.getUniqueId();
+            display.viewers.remove(playerId);
+            removeVisibleDisplay(playerId, display.entityId);
         }
     }
 
@@ -835,6 +943,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
                         });
                     } catch (RuntimeException e) {
                         display.viewers.remove(viewerId);
+                        removeVisibleDisplay(viewerId, display.entityId);
                         onlinePlayers.remove(viewerId);
                     }
                 } else {
@@ -842,6 +951,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
                 }
             } else {
                 display.viewers.remove(viewerId);
+                removeVisibleDisplay(viewerId, display.entityId);
             }
         }
     }
@@ -859,6 +969,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
                         });
                     } catch (RuntimeException e) {
                         display.viewers.remove(viewerId);
+                        removeVisibleDisplay(viewerId, display.entityId);
                         onlinePlayers.remove(viewerId);
                     }
                 } else {
@@ -866,6 +977,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
                 }
             } else {
                 display.viewers.remove(viewerId);
+                removeVisibleDisplay(viewerId, display.entityId);
             }
         }
     }
@@ -874,7 +986,9 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         try {
             NetWorkUser user = networkManager.getOnlineUser(player.getUniqueId());
             if (user == null || !user.isOnline()) {
-                display.viewers.remove(player.getUniqueId());
+                UUID playerId = player.getUniqueId();
+                display.viewers.remove(playerId);
+                removeVisibleDisplay(playerId, display.entityId);
                 return;
             }
             if (positionPacket == null) {
@@ -1002,8 +1116,26 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         if (playerId == null) {
             return;
         }
-        for (ProxyDisplay display : displays.values()) {
-            display.viewers.remove(playerId);
+        Set<Integer> visible = visibleDisplaysByPlayer.remove(playerId);
+        if (visible == null) {
+            return;
+        }
+        for (Integer entityId : visible) {
+            ProxyDisplay display = displays.get(entityId);
+            if (display != null) {
+                display.viewers.remove(playerId);
+            }
+        }
+    }
+
+    private void removeVisibleDisplay(UUID playerId, int entityId) {
+        Set<Integer> visible = visibleDisplaysByPlayer.get(playerId);
+        if (visible == null) {
+            return;
+        }
+        visible.remove(entityId);
+        if (visible.isEmpty()) {
+            visibleDisplaysByPlayer.remove(playerId, visible);
         }
     }
 
