@@ -23,6 +23,7 @@ import net.momirealms.craftengine.core.block.behavior.EntityBlock;
 import net.momirealms.craftengine.core.block.behavior.WorldlyContainerHolder;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.block.entity.BlockEntityController;
+import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.util.Direction;
@@ -61,6 +62,8 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
     public static final int SLOT_CONTAINER = 7;
     public static final int SLOT_OUTPUT = 8;
     public static final int INVENTORY_SIZE = 9;
+    /** 方块属性名：控制托盘/手柄 entity_renderer 显示 (none / tray / handle)。 */
+    public static final String SUPPORT_PROPERTY = "support";
 
     private static final Map<UUID, Map<BlockPosKey, CookingPotBlockEntity>> worldBlockEntities = new ConcurrentHashMap<>();
     // Per-chunk index of block entity positions in the authoritative map: worldId -> (chunkKey -> set of posKeys).
@@ -110,7 +113,8 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
             String customDataKey,
             CookingPotLayout layout,
             String customRecipeGroupId,
-            String titleOverride
+            String titleOverride,
+            Property<String> supportProperty
     ) {}
 
     private final Config config;
@@ -332,6 +336,11 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
 
     public String getCustomDataKey() {
         return config.customDataKey();
+    }
+
+    /** support 方块属性（none / tray / handle），控制 entity_renderer 显示。 */
+    public Property<String> getSupportProperty() {
+        return config.supportProperty();
     }
 
     public CookingPotLayout getLayout() {
@@ -765,6 +774,12 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         CookingPotLayout layoutResolved = layout != null ? layout : CookingPotLayout.DEFAULT;
         String recipeGroupResolved = normalizeBlank(customRecipeGroupId);
         String titleResolved = normalizeBlank(titleOverride);
+        Property<String> supportProperty = BlockBehaviorFactory.getOptionalProperty(block, SUPPORT_PROPERTY, String.class);
+        if (supportProperty == null) {
+            FarmersDelightPlugin.getInstance().getLogger()
+                    .warning("[FarmersDelight] Block " + block.id() + " is missing the 'support' property"
+                            + " — tray and handle entity_renderer switching is disabled for this block.");
+        }
         return new CookingPotBlockBehavior(block, new Config(
                 permission,
                 openWhileSneaking,
@@ -778,7 +793,8 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
                 customDataKey,
                 layoutResolved,
                 recipeGroupResolved,
-                titleResolved
+                titleResolved,
+                supportProperty
         ));
     };
 
@@ -890,8 +906,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
             return false;
         }
 
-        CookingPotBlockEntity.TakenMeal takenMeal = blockEntity.useHeldContainerOnPendingMeal(heldItem);
-        ItemStack meal = takenMeal == null ? null : takenMeal.item();
+        ItemStack meal = blockEntity.useHeldContainerOnPendingMeal(player, heldItem);
         if (meal == null || meal.getType().isAir()) {
             return false;
         }
@@ -910,13 +925,8 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         }
 
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (takenMeal.experience() > 0.0D) {
-            if (plugin.shouldDropCookingPotVanillaExperience()) {
-                blockEntity.dropExperience(world, takenMeal.experience());
-            }
-            plugin.awardCookingPotAuraSkillsExperience(player, takenMeal.experience());
-        }
-        plugin.callCookingPotExperienceEvent(player, meal, takenMeal.experience());
+        blockEntity.awardUsedRecipes(player);
+        plugin.callCookingPotExperienceEvent(player, meal, 0.0D);
 
         saveBlockEntityData(world, posKey);
         world.playSound(posKey.toLocation(world), Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.0f);

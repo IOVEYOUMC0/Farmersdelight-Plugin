@@ -12,7 +12,6 @@ import com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.TallCropBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.WildRiceBlockBehavior;
 import com.huidu.farmersdelight.listener.AchievementListener;
-import com.huidu.farmersdelight.listener.AutoTrayFurnitureListener;
 import com.huidu.farmersdelight.listener.BackstabListener;
 import com.huidu.farmersdelight.listener.BlockBreakListener;
 import com.huidu.farmersdelight.listener.BlockPlaceListener;
@@ -31,10 +30,10 @@ import com.huidu.farmersdelight.listener.RicePlantListener;
 import com.huidu.farmersdelight.listener.RichSoilHoeListener;
 import com.huidu.farmersdelight.listener.RopeBlockListener;
 import com.huidu.farmersdelight.listener.RugListener;
-import com.huidu.farmersdelight.listener.SkilletAttackSoundListener;
 import com.huidu.farmersdelight.listener.SkilletPlaceListener;
 import com.huidu.farmersdelight.listener.StrawDropListener;
 import com.huidu.farmersdelight.listener.TatamiBreakListener;
+import com.huidu.farmersdelight.tool.ToolAttackListener;
 import com.huidu.farmersdelight.listener.UpperHalfLootRelayListener;
 import com.huidu.farmersdelight.command.FarmersDelightCommand;
 import com.huidu.farmersdelight.config.ContainerReturnConfig;
@@ -370,6 +369,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             int items = com.huidu.farmersdelight.util.ItemUtils.warmItems("farmersdelight");
             com.huidu.farmersdelight.block.behavior.TomatoVineBlockBehavior.warmAll();
             CookingPotGui.warm(this);
+            warmRecipeIngredientIcons();
             long ms = (System.nanoTime() - start) / 1_000_000L;
             // The item count and duration are produced here and nowhere else; the consolidated summary
             // reads them back once the rest of the counts are final.
@@ -381,6 +381,32 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // Addons prime their own caches now that FD's are warm (see FarmersDelightWarmupEvent).
         org.bukkit.Bukkit.getPluginManager().callEvent(
                 new com.huidu.farmersdelight.api.event.FarmersDelightWarmupEvent(reason));
+    }
+
+    /**
+     * Pre-resolve all tag and choice ingredient options so the first recipe-view GUI open does not
+     * trigger expensive CE tag scans on the main thread.
+     */
+    private void warmRecipeIngredientIcons() {
+        if (cookingPotRecipeManager != null) {
+            for (var recipe : cookingPotRecipeManager.getAllRecipes()) {
+                for (var ingredient : recipe.getIngredients()) {
+                    com.huidu.farmersdelight.gui.RecipeIngredientIcons.resolveIngredientOptions(ingredient);
+                }
+            }
+        }
+        if (cuttingBoardRecipeManager != null) {
+            for (var recipe : cuttingBoardRecipeManager.getRecipes().values()) {
+                if (recipe.getInput() != null) {
+                    com.huidu.farmersdelight.gui.RecipeIngredientIcons.resolveIngredientOptions(recipe.getInput());
+                }
+                for (var tool : recipe.getTools()) {
+                    if (tool != null && tool.getKey() != null) {
+                        com.huidu.farmersdelight.gui.RecipeIngredientIcons.createItemFromKey(tool.getKey());
+                    }
+                }
+            }
+        }
     }
 
     private void refreshAdvancementSystem(boolean reloading) {
@@ -431,6 +457,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         com.huidu.farmersdelight.registry.BehaviorRegistrar.registerBlockBehaviors();
         com.huidu.farmersdelight.registry.BehaviorRegistrar.registerItemBehaviors();
         com.huidu.farmersdelight.registry.BehaviorRegistrar.registerFunctions();
+        // 向 CE 注册 farmersdelight:tool settings modifier，必须在 CE 解析 items YAML 前完成
+        com.huidu.farmersdelight.tool.ToolRegistry.register();
         // Register the WorldGuard custom region flag here (onLoad): WG locks its FlagRegistry once it
         // enables, so this must run during the load phase. No-op if WorldGuard is absent.
         ProtectionCompat.registerFlags();
@@ -492,6 +520,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         ProtectionCompat.init(this);
 
         loadConfigs();
+        com.huidu.farmersdelight.tool.ToolRegistry.refresh();
         logStartupSummary();
 
         knifeDropHandler = new KnifeDropHandler(this);
@@ -531,7 +560,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(blockPlaceListener, this);
         BlockPlaceListener.reloadMushroomSupportCache(this);
         getServer().getPluginManager().registerEvents(new SkilletPlaceListener(), this);
-        getServer().getPluginManager().registerEvents(new SkilletAttackSoundListener(), this);
+        getServer().getPluginManager().registerEvents(new ToolAttackListener(), this);
         getServer().getPluginManager().registerEvents(new CuttingBoardInteractListener(), this);
         getServer().getPluginManager().registerEvents(new CuttingBoardDispenseListener(this), this);
 
@@ -572,17 +601,16 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         skilletManager = new SkilletManager(this);
         trayManager = new TrayManager(this);
         handleManager = new HandleManager(this);
+        // 延迟清理旧版家具实体（等待区块加载完成）
+        scheduler().runLater(() -> {
+            if (trayManager != null) trayManager.cleanupLegacyFurnitureEntities();
+        }, 100L);
         buffBossbarManager = new BuffBossbarManager(this);
         buffBossbarManager.applyConfig(getFirstConfigSection("buff.display", "bossbar"), buffSystemEnabled);
         com.huidu.farmersdelight.effect.EffectManager.applyBossbarStyles(
                 getFirstConfigSection("buff.display.styles", "bossbar.styles"));
         getServer().getPluginManager().registerEvents(buffBossbarManager, this);
         buffBossbarManager.start();
-        for (org.bukkit.World world : getServer().getWorlds()) {
-            handleManager.trackWorld(world);
-        }
-        getServer().getPluginManager().registerEvents(new AutoTrayFurnitureListener(this), this);
-
         ropeBlockListener = new RopeBlockListener(this);
         getServer().getPluginManager().registerEvents(ropeBlockListener, this);
         getServer().getPluginManager().registerEvents(new TatamiBreakListener(), this);
@@ -672,7 +700,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 System.setProperty("bstats.relocatecheck", "false");
                 new org.bstats.bukkit.Metrics(this, BSTATS_PLUGIN_ID);
             } catch (Throwable t) {
-                getLogger().warning("Failed to start bStats metrics: " + t.getMessage());
+                I18n.logWarning("bstats_failed", "error", t.getMessage());
             }
         }
 
@@ -981,9 +1009,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     @org.bukkit.event.EventHandler
     public void onWorldLoad(WorldLoadEvent event) {
-        if (handleManager != null) {
-            handleManager.trackWorld(event.getWorld());
-        }
         if (!startupSyncCompleted) {
             return;
         }
@@ -1124,6 +1149,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             // block-state pool has its real occupancy, so this is where both summary lines belong.
             reportContentSummaryWhenReady();
             CraftEngineStateUsageMonitor.logRealStateUsage(this, I18n.formatConsole("plugin.craftengine_reload_reason"));
+            com.huidu.farmersdelight.tool.ToolRegistry.refresh();
         }, 1L);
     }
 
@@ -1170,6 +1196,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         configBootstrap.migrateConfigKeys();
         boolean previousAdvancementsEnabled = advancementsEnabled;
         loadConfigs();
+        com.huidu.farmersdelight.tool.ToolRegistry.refresh();
         if (backstabListener != null) {
             backstabListener.reload(enchantmentSettings, backstabEnchantmentEnabled);
         }
@@ -1198,6 +1225,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
         if (handleManager != null) {
             handleManager.reload();
+        }
+        // 重载时也清理一次旧实体
+        if (trayManager != null) {
+            trayManager.cleanupLegacyFurnitureEntities();
         }
         if (stoveManager != null) {
             stoveManager.reloadConfig();
@@ -2111,16 +2142,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     private boolean resolveBackstabbingCompatibility(EnchantmentSettings settings) {
-        if (!settings.isBackstabbingConfigured() || !settings.conflict().autoDisableOnConflict()) {
-            return settings.isBackstabbingConfigured();
-        }
-        for (String pluginName : settings.conflict().plugins()) {
-            if (getServer().getPluginManager().getPlugin(pluginName) != null) {
-                I18n.logWarning("enchantment.backstabbing.auto_disabled");
-                return false;
-            }
-        }
-        return true;
+        return settings.isBackstabbingConfigured();
     }
 
 }

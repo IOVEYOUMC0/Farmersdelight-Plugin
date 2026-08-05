@@ -68,9 +68,14 @@ public final class CampfireRecipeCache {
         List<CampfireRecipe> recipes = new ArrayList<>();
         Iterator<Recipe> it = Bukkit.recipeIterator();
         while (it.hasNext()) {
-            Recipe recipe = it.next();
-            if (recipe instanceof CampfireRecipe campfireRecipe) {
-                recipes.add(campfireRecipe);
+            try {
+                Recipe recipe = it.next();
+                if (recipe instanceof CampfireRecipe campfireRecipe) {
+                    recipes.add(campfireRecipe);
+                }
+            } catch (Exception ignored) {
+                // Skip recipes that fail to deserialize (e.g. a ShapedRecipe with an empty result
+                // registered by another plugin, or a broken datapack recipe).
             }
         }
         byMaterial.set(buildMaterialBucket(recipes));

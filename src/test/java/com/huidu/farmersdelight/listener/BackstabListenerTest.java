@@ -12,17 +12,20 @@ class BackstabListenerTest {
     void detectsAttackerBehindTargetOnHorizontalPlane() {
         Vector facingSouth = new Vector(0, 0, 1);
 
-        assertTrue(BackstabListener.isBehind(facingSouth, new Vector(0, 5, -2), -0.5D, 0.000001D));
-        assertFalse(BackstabListener.isBehind(facingSouth, new Vector(0, 0, 2), -0.5D, 0.000001D));
-        assertFalse(BackstabListener.isBehind(facingSouth, new Vector(2, 0, 0), -0.5D, 0.000001D));
+        assertTrue(BackstabListener.isBehind(facingSouth, new Vector(0, 5, -2)));
+        assertFalse(BackstabListener.isBehind(facingSouth, new Vector(0, 0, 2)));
+        assertFalse(BackstabListener.isBehind(facingSouth, new Vector(2, 0, 0)));
     }
 
     @Test
-    void rejectsCoincidentPositionsAndHonorsConfiguredThreshold() {
+    void rejectsCoincidentPositionsAndDetectsBehindWithinThreshold() {
         Vector facing = new Vector(0, 0, 1);
 
-        assertFalse(BackstabListener.isBehind(facing, new Vector(0, 0, 0), -0.5D, 0.01D));
-        assertTrue(BackstabListener.isBehind(facing, new Vector(1, 0, -1), -0.5D, 0.01D));
-        assertFalse(BackstabListener.isBehind(facing, new Vector(1, 0, -1), -0.8D, 0.01D));
+        // Same position → not behind
+        assertFalse(BackstabListener.isBehind(facing, new Vector(0, 0, 0)));
+        // 45° behind right → dot ≈ -0.707 < -0.5 → behind
+        assertTrue(BackstabListener.isBehind(facing, new Vector(1, 0, -1)));
+        // 45° in front right → dot ≈ 0.707 → not behind
+        assertFalse(BackstabListener.isBehind(facing, new Vector(1, 0, 1)));
     }
 }

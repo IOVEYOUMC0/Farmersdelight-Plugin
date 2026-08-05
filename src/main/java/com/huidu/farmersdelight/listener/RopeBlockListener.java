@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.RopeBlockBehavior;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
@@ -338,11 +339,12 @@ public class RopeBlockListener implements Listener {
             // be read leaves its ropes outside the index, which silently reinstates the stale-index
             // defect this rebuild exists to fix. The skip still has to happen, but not in silence.
             if (PALETTE_FAILURE_LOGGED.compareAndSet(false, true)) {
-                plugin.getLogger().warning("Could not read the block palette of section y="
-                        + section.sectionY() + " in chunk " + chunkX + "," + chunkZ + " of world "
-                        + world.getName() + "; ropes in it are not indexed, so their connected textures"
-                        + " will not refresh until that chunk reloads. Reported once per server start."
-                        + " Cause: " + unreadablePalette);
+                I18n.logWarning("rope.palette_read_failed",
+                        "section_y", section.sectionY(),
+                        "chunk_x", chunkX,
+                        "chunk_z", chunkZ,
+                        "world", world.getName(),
+                        "error", unreadablePalette);
             }
             return false;
         }

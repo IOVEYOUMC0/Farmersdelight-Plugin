@@ -158,6 +158,10 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
             return InteractionResult.PASS;
         }
 
+        if (isEquippable(mainHand)) {
+            return InteractionResult.PASS;
+        }
+
         if (mainHand == null || mainHand.getType().isAir()) {
             return InteractionResult.PASS;
         }
@@ -242,6 +246,21 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
             return null;
         }
         return plugin.getStoveManager();
+    }
+
+    /**
+     * Returns true when the item can be equipped (armor, elytra, shield, horse armor, wolf armor).
+     * Guards against the stove consuming player equipment as a cooking ingredient when the
+     * right-click triggers a vanilla armor swap.
+     */
+    public static boolean isEquippable(ItemStack item) {
+        if (item == null) return false;
+        Material type = item.getType();
+        String name = type.name();
+        return name.endsWith("_HELMET") || name.endsWith("_CHESTPLATE")
+                || name.endsWith("_LEGGINGS") || name.endsWith("_BOOTS")
+                || name.contains("HORSE_ARMOR") || name.contains("WOLF_ARMOR")
+                || type == Material.ELYTRA || type == Material.SHIELD;
     }
 
     /**

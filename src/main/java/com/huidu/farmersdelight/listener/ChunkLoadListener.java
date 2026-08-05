@@ -128,16 +128,7 @@ public class ChunkLoadListener implements Listener {
             return;
         }
         plugin.scheduler().runAt(world, chunkX, chunkZ, () -> {
-            if (world == null || !world.isChunkLoaded(chunkX, chunkZ)) {
-                return;
-            }
-            List<Entity> entities = Arrays.asList(world.getChunkAt(chunkX, chunkZ).getEntities());
-            if (trayManager != null) {
-                trayManager.cleanupInvalidAutoTraysIn(world, entities);
-            }
-            if (handleManager != null) {
-                handleManager.sweepOrphansIn(world, entities);
-            }
+            // 托盘/手柄现在通过 entity_renderer 管理，不再需要清理家具实体
         });
     }
 

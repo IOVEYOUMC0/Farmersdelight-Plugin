@@ -346,6 +346,14 @@ public class StoveManager {
     }
 
     public boolean handleInteract(Player player, Block block, ItemStack itemInHand) {
+        if (itemInHand == null || itemInHand.getType().isAir()) {
+            return false;
+        }
+        // Inner defense: never consume equippable items as cooking ingredients, even if the
+        // CraftEngine useOnBlock PASSTHROUGH path didn't catch them (armor-swap timing race).
+        if (StoveCookingBlockBehavior.isEquippable(itemInHand)) {
+            return false;
+        }
         Location location = ManagerSupport.normalize(block.getLocation());
         // One-shot user-click path, often before any StoveData exists — an uncached check is exact
         // semantics and computes a single collision shape.
@@ -355,9 +363,6 @@ public class StoveManager {
         }
 
         StoveData stove = getOrLoadStove(location);
-        if (itemInHand == null || itemInHand.getType().isAir()) {
-            return false;
-        }
 
         CookingRecipe<?> recipe = findCampfireRecipe(itemInHand);
         if (recipe == null) {

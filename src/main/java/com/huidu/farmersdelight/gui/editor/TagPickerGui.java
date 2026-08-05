@@ -48,7 +48,9 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
     private int page = 0;
     private Key chosenTag;
     private List<ItemStack> members = List.of();
+    private List<String> availableTags = List.of();
     private final Set<String> excludedItemIds = new LinkedHashSet<>();
+    private final Set<String> excludedTagIds = new LinkedHashSet<>();
 
     private boolean acted = false;
 
@@ -93,7 +95,7 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
     }
 
     private void render() {
-        int total = mode == Mode.SELECT ? tagIds.size() : members.size();
+        int total = mode == Mode.SELECT ? tagIds.size() : members.size() + availableTags.size();
         int per = Math.max(1, entrySlots.size());
         int start = page * per;
 
@@ -129,16 +131,35 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
             lore(display, tr("gui.editor.tag.select_hint"));
             return display;
         }
-        ItemStack member = members.get(dataIndex).clone();
-        member.setAmount(1);
-        boolean excluded = excludedItemIds.contains(ItemUtils.resolveItemId(member));
-        if (excluded) {
-            glow(member);
-            lore(member, tr("gui.editor.tag.member_excluded"));
-        } else {
-            lore(member, tr("gui.editor.tag.member_included"));
+        // EXCLUDE mode: items first, then tags
+        if (dataIndex < members.size()) {
+            ItemStack member = members.get(dataIndex).clone();
+            member.setAmount(1);
+            boolean excluded = excludedItemIds.contains(ItemUtils.resolveItemId(member));
+            if (excluded) {
+                glow(member);
+                lore(member, tr("gui.editor.tag.member_excluded"));
+            } else {
+                lore(member, tr("gui.editor.tag.member_included"));
+            }
+            return member;
         }
-        return member;
+        // Tag entry
+        int tagIdx = dataIndex - members.size();
+        if (tagIdx < availableTags.size()) {
+            String tagId = availableTags.get(tagIdx);
+            ItemStack display = new ItemStack(Material.NAME_TAG);
+            named(display, "&b#" + tagId);
+            boolean excluded = excludedTagIds.contains(tagId);
+            if (excluded) {
+                glow(display);
+                lore(display, tr("gui.editor.tag.tag_excluded"));
+            } else {
+                lore(display, tr("gui.editor.tag.tag_included"));
+            }
+            return display;
+        }
+        return configItem("background");
     }
 
     @Override
@@ -164,7 +185,7 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
         if (type == null) {
             return;
         }
-        int total = mode == Mode.SELECT ? tagIds.size() : members.size();
+        int total = mode == Mode.SELECT ? tagIds.size() : members.size() + availableTags.size();
         switch (type) {
             case "entry" -> {
                 int idx = entrySlots.indexOf(slot);
@@ -179,11 +200,22 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
                     } else {
                         finish(new RecipeIngredient.Tag(tag));
                     }
-                } else {
+                } else if (dataIndex < members.size()) {
+                    // Item entry
                     String id = ItemUtils.resolveItemId(members.get(dataIndex));
                     if (id != null) {
                         if (!excludedItemIds.remove(id)) {
                             excludedItemIds.add(id);
+                        }
+                        render();
+                    }
+                } else {
+                    // Tag entry
+                    int tagIdx = dataIndex - members.size();
+                    if (tagIdx < availableTags.size()) {
+                        String tagId = availableTags.get(tagIdx);
+                        if (!excludedTagIds.remove(tagId)) {
+                            excludedTagIds.add(tagId);
                         }
                         render();
                     }
@@ -214,7 +246,7 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
                     for (String id : excludedItemIds) {
                         excluded.add(Key.of(id));
                     }
-                    finish(new RecipeIngredient.Tag(chosenTag, Set.copyOf(excluded), Set.of()));
+                    finish(new RecipeIngredient.Tag(chosenTag, Set.copyOf(excluded), excludedTags()));
                 }
             }
             case "cancel" -> {
@@ -231,7 +263,9 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
     private void enterExcludeMode(Key tag) {
         chosenTag = tag;
         excludedItemIds.clear();
+        excludedTagIds.clear();
         members = resolveMembers(tag);
+        availableTags = resolveExcludableTags(tag);
         mode = Mode.EXCLUDE;
         page = 0;
         render();
@@ -254,6 +288,31 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
             }
         }
         return new ArrayList<>(unique.values());
+    }
+
+    /**
+     * Collects all tags that the member items belong to (excluding the chosen tag),
+     * so the user can toggle them as excluded tags.
+     */
+    private List<String> resolveExcludableTags(Key chosen) {
+        Set<String> tags = new LinkedHashSet<>();
+        String chosenStr = chosen.toString();
+        for (ItemStack member : members) {
+            for (String tagId : ItemUtils.getAllItemTagIds(member)) {
+                if (!tagId.equals(chosenStr)) {
+                    tags.add(tagId);
+                }
+            }
+        }
+        return new ArrayList<>(tags);
+    }
+
+    private Set<Key> excludedTags() {
+        Set<Key> tags = new LinkedHashSet<>();
+        for (String id : excludedTagIds) {
+            tags.add(Key.of(id));
+        }
+        return tags;
     }
 
     private void finish(RecipeIngredient ingredient) {
@@ -280,7 +339,8 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
         }
         return item.createItem(Map.of(
                 "tag", chosenTag == null ? "-" : chosenTag.toString(),
-                "excluded", String.valueOf(excludedItemIds.size())));
+                "excluded", String.valueOf(excludedItemIds.size()),
+                "excluded_tags", String.valueOf(excludedTagIds.size())));
     }
 
     private ItemStack configItem(String key) {

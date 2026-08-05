@@ -19,6 +19,7 @@ import net.momirealms.craftengine.core.block.behavior.EntityBlock;
 import net.momirealms.craftengine.core.block.behavior.WorldlyContainerHolder;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.block.entity.BlockEntityController;
+import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.CEWorld;
@@ -41,21 +42,33 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
         return false;
     }
 
+    /** 方块属性名：控制托盘 entity_renderer 显示。 */
+    public static final String SUPPORT_PROPERTY = "support";
+
     private final String addFoodSound;
     private final String sizzleSound;
+    private final Property<Boolean> supportProperty;
     private int controllerId;
 
     public static final BlockBehaviorFactory<SkilletBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         String addFoodSound = BehaviorArgParser.getArgumentString(arguments, "add-food-sound", Constants.SOUND_SKILLET_ADD_FOOD);
         String sizzleSound = BehaviorArgParser.getArgumentString(arguments, "sizzle-sound", Constants.SOUND_SKILLET_SIZZLE);
-        return new SkilletBlockBehavior(block, addFoodSound, sizzleSound);
+        Property<Boolean> supportProperty = BlockBehaviorFactory.getOptionalProperty(block, SUPPORT_PROPERTY, Boolean.class);
+        if (supportProperty == null) {
+            FarmersDelightPlugin.getInstance().getLogger()
+                    .warning("[FarmersDelight] Block " + block.id() + " is missing the 'support' property"
+                            + " — tray entity_renderer switching is disabled for this block.");
+        }
+        return new SkilletBlockBehavior(block, addFoodSound, sizzleSound, supportProperty);
     };
 
-    private SkilletBlockBehavior(BlockDefinition block, String addFoodSound, String sizzleSound) {
+    private SkilletBlockBehavior(BlockDefinition block, String addFoodSound, String sizzleSound,
+                                  Property<Boolean> supportProperty) {
         super(block);
         this.addFoodSound = addFoodSound;
         this.sizzleSound = sizzleSound;
+        this.supportProperty = supportProperty;
     }
 
     public String getAddFoodSound() {
@@ -64,6 +77,11 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
 
     public String getSizzleSound() {
         return sizzleSound;
+    }
+
+    /** support 方块属性，控制托盘 entity_renderer 显示。 */
+    public Property<Boolean> getSupportProperty() {
+        return supportProperty;
     }
 
     @Override
@@ -120,6 +138,10 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
         }
 
         if (player.isSneaking() && isSkilletItem(mainHand)) {
+            return InteractionResult.PASS;
+        }
+
+        if (isEquippable(mainHand)) {
             return InteractionResult.PASS;
         }
 
@@ -226,6 +248,21 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
             return null;
         }
         return plugin.getSkilletManager();
+    }
+
+    /**
+     * Returns true when the item can be equipped (armor, elytra, shield, horse armor, wolf armor).
+     * Guards against the skillet consuming player equipment as a cooking ingredient when the
+     * right-click triggers a vanilla armor swap.
+     */
+    public static boolean isEquippable(ItemStack item) {
+        if (item == null) return false;
+        Material type = item.getType();
+        String name = type.name();
+        return name.endsWith("_HELMET") || name.endsWith("_CHESTPLATE")
+                || name.endsWith("_LEGGINGS") || name.endsWith("_BOOTS")
+                || name.contains("HORSE_ARMOR") || name.contains("WOLF_ARMOR")
+                || type == Material.ELYTRA || type == Material.SHIELD;
     }
 
     private boolean isSkilletItem(ItemStack itemStack) {

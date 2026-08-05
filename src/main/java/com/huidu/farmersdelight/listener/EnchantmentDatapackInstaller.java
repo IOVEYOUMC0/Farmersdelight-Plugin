@@ -18,8 +18,24 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 
-/** Writes the configured backstabbing definition as a normal Minecraft datapack. */
+/** Writes the bundled backstab enchantment datapack into each world's datapacks directory */
 public final class EnchantmentDatapackInstaller implements Listener {
+
+    /** Hardcoded datapack metadata previously read from the config datapack section */
+    private static final String DATAPACK_DIRECTORY = "farmersdelight_enchant";
+    private static final int PACK_FORMAT = 48;
+    private static final String PACK_DESCRIPTION = "FarmersDelight configurable enchantments";
+
+    /** Backstab definition values, kept in sync with the bundled datapack/enchantment/ */
+    private static final int MIN_COST_BASE = 15;
+    private static final int MIN_COST_PER_LEVEL = 9;
+    private static final int MAX_COST_BASE = 50;
+    private static final int MAX_COST_PER_LEVEL = 8;
+    private static final int ANVIL_COST = 2;
+    private static final String FALLBACK_NAME = "Backstabbing";
+    private static final List<String> SLOTS = List.of("mainhand");
+    private static final String SUPPORTED_ITEMS_TAG = "farmersdelight:enchantable/knife";
+    private static final List<String> SUPPORTED_ITEMS = List.of();
 
     private final FarmersDelightPlugin plugin;
 
@@ -27,7 +43,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
         this.plugin = plugin;
     }
 
-    /** Installs or updates generated files in every loaded world. */
+    /** Installs or updates the generated datapack files into every loaded world. */
     public void installToAllWorlds() {
         EnchantmentSettings settings = plugin.getEnchantmentSettings();
         if (!shouldInstall(settings)) {
@@ -35,7 +51,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
         }
         List<World> worlds = Bukkit.getWorlds();
         if (worlds.isEmpty()) {
-            plugin.getLogger().warning("[FarmersDelight] No loaded worlds — enchantment datapack will install when a world loads");
+            I18n.logWarning("enchantment_datapack_no_worlds");
             return;
         }
         int changedWorlds = 0;
@@ -59,7 +75,6 @@ public final class EnchantmentDatapackInstaller implements Listener {
 
     private boolean shouldInstall(EnchantmentSettings settings) {
         return settings.enabled()
-                && settings.datapack().enabled()
                 && plugin.isBackstabEnchantmentEnabled()
                 && settings.backstabbing().enabled();
     }
@@ -67,24 +82,22 @@ public final class EnchantmentDatapackInstaller implements Listener {
     private boolean installToWorld(World world, EnchantmentSettings settings) {
         Path datapackDir = getWorldRoot(world)
                 .resolve("datapacks")
-                .resolve(settings.datapack().directory());
+                .resolve(DATAPACK_DIRECTORY);
         try {
-            EnchantmentSettings.Backstabbing backstabbing = settings.backstabbing();
-            EnchantmentSettings.Backstabbing.Definition definition = backstabbing.definition();
-            NamespacedId enchantmentId = NamespacedId.parse(backstabbing.id());
-            NamespacedId supportedTag = NamespacedId.parse(definition.supportedItemsTag());
+            NamespacedId enchantmentId = NamespacedId.parse(settings.backstabbing().id());
+            NamespacedId supportedTag = NamespacedId.parse(SUPPORTED_ITEMS_TAG);
 
             List<GeneratedFile> generated = List.of(
-                    new GeneratedFile(datapackDir.resolve("pack.mcmeta"), renderPackMetadata(settings.datapack())),
+                    new GeneratedFile(datapackDir.resolve("pack.mcmeta"), renderPackMetadata()),
                     new GeneratedFile(datapackDir.resolve("data")
                             .resolve(enchantmentId.namespace())
                             .resolve("enchantment")
-                            .resolve(enchantmentId.path() + ".json"), renderDefinition(backstabbing)),
+                            .resolve(enchantmentId.path() + ".json"), renderDefinition(settings.backstabbing())),
                     new GeneratedFile(datapackDir.resolve("data")
                             .resolve(supportedTag.namespace())
                             .resolve("tags")
                             .resolve("item")
-                            .resolve(supportedTag.path() + ".json"), renderSupportedItems(definition.supportedItems()))
+                            .resolve(supportedTag.path() + ".json"), renderSupportedItems())
             );
 
             int changed = 0;
@@ -99,9 +112,8 @@ public final class EnchantmentDatapackInstaller implements Listener {
             }
             return changed > 0;
         } catch (Exception exception) {
-            plugin.getLogger().log(java.util.logging.Level.SEVERE,
-                    "[FarmersDelight] Enchantment datapack install FAILED (world=" + world.getName()
-                            + "): " + exception.getMessage(), exception);
+            I18n.logWarning("enchantment_datapack_install_failed",
+                    "world", world.getName(), "error", exception.getMessage());
             return false;
         }
     }
@@ -113,20 +125,19 @@ public final class EnchantmentDatapackInstaller implements Listener {
         plugin.getLogger().warning("==================================================================");
     }
 
-    static String renderPackMetadata(EnchantmentSettings.Datapack datapack) {
+    static String renderPackMetadata() {
         return "{\n"
                 + "  \"pack\": {\n"
-                + "    \"pack_format\": " + datapack.packFormat() + ",\n"
-                + "    \"description\": \"" + json(datapack.description()) + "\"\n"
+                + "    \"pack_format\": " + PACK_FORMAT + ",\n"
+                + "    \"description\": \"" + json(PACK_DESCRIPTION) + "\"\n"
                 + "  }\n"
                 + "}\n";
     }
 
     static String renderDefinition(EnchantmentSettings.Backstabbing backstabbing) {
-        EnchantmentSettings.Backstabbing.Definition definition = backstabbing.definition();
         NamespacedId id = NamespacedId.parse(backstabbing.id());
         StringBuilder slots = new StringBuilder();
-        for (String slot : definition.slots()) {
+        for (String slot : SLOTS) {
             if (!slots.isEmpty()) {
                 slots.append(", ");
             }
@@ -135,24 +146,24 @@ public final class EnchantmentDatapackInstaller implements Listener {
         return "{\n"
                 + "  \"description\": {\n"
                 + "    \"translate\": \"enchantment." + json(id.namespace()) + "." + json(id.path()) + "\",\n"
-                + "    \"fallback\": \"" + json(definition.fallbackName()) + "\"\n"
+                + "    \"fallback\": \"" + json(FALLBACK_NAME) + "\"\n"
                 + "  },\n"
-                + "  \"supported_items\": \"#" + json(definition.supportedItemsTag()) + "\",\n"
-                + "  \"weight\": " + definition.weight() + ",\n"
-                + "  \"max_level\": " + definition.maxLevel() + ",\n"
-                + "  \"min_cost\": {\"base\": " + definition.minCostBase()
-                + ", \"per_level_above_first\": " + definition.minCostPerLevel() + "},\n"
-                + "  \"max_cost\": {\"base\": " + definition.maxCostBase()
-                + ", \"per_level_above_first\": " + definition.maxCostPerLevel() + "},\n"
-                + "  \"anvil_cost\": " + definition.anvilCost() + ",\n"
+                + "  \"supported_items\": \"#" + json(SUPPORTED_ITEMS_TAG) + "\",\n"
+                + "  \"weight\": " + backstabbing.definition().weight() + ",\n"
+                + "  \"max_level\": " + backstabbing.definition().maxLevel() + ",\n"
+                + "  \"min_cost\": {\"base\": " + MIN_COST_BASE
+                + ", \"per_level_above_first\": " + MIN_COST_PER_LEVEL + "},\n"
+                + "  \"max_cost\": {\"base\": " + MAX_COST_BASE
+                + ", \"per_level_above_first\": " + MAX_COST_PER_LEVEL + "},\n"
+                + "  \"anvil_cost\": " + ANVIL_COST + ",\n"
                 + "  \"slots\": [" + slots + "],\n"
                 + "  \"effects\": {}\n"
                 + "}\n";
     }
 
-    static String renderSupportedItems(List<String> items) {
+    static String renderSupportedItems() {
         StringBuilder values = new StringBuilder();
-        for (String item : items) {
+        for (String item : SUPPORTED_ITEMS) {
             if (!values.isEmpty()) {
                 values.append(",\n");
             }

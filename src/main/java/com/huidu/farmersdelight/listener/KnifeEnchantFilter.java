@@ -2,9 +2,14 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.config.EnchantmentSettings;
+import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.tool.ToolAttackListener;
+import com.huidu.farmersdelight.tool.ToolData;
+import com.huidu.farmersdelight.tool.ToolRegistry;
 import com.huidu.farmersdelight.util.ItemUtils;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
+import io.papermc.paper.registry.tag.TagKey;
 import org.bukkit.NamespacedKey;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.enchantments.EnchantmentOffer;
@@ -31,16 +36,18 @@ import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Configurable enchantment-table and anvil support for CraftEngine knives.
  *
- * <p>Unlike the old fixed Fortune/backstabbing rolls, selection follows the vanilla modified-level
- * algorithm.  Weight, level cost bounds, conflicts and anvil cost come from Paper's live enchantment
- * registry, so datapack and third-party enchantments require no Java-side cost table.</p>
+ * <p>Follows the vanilla modified-level algorithm. Weight, level cost bounds, conflicts and anvil cost
+ * come from Paper's live enchantment registry. Anvil enchantments auto-inherit the table list plus mending.</p>
  */
 public final class KnifeEnchantFilter implements Listener {
+
+    /** Hardcoded anvil tuning values previously exposed as config knobs. */
+    private static final int ANVIL_CONFLICT_PENALTY = 1;
+    private static final int ANVIL_MINIMUM_REPAIR_COST = 1;
 
     private final FarmersDelightPlugin plugin;
     private final Map<UUID, PreparedOffers> preparedOffers = new ConcurrentHashMap<>();
@@ -56,7 +63,15 @@ public final class KnifeEnchantFilter implements Listener {
     public void reload(EnchantmentSettings newSettings, boolean backstabbingEnabled) {
         settings = newSettings == null ? EnchantmentSettings.defaults() : newSettings;
         tableEnchantments = resolveEnchantments(settings.table().enchantments(), backstabbingEnabled);
-        anvilEnchantments = Set.copyOf(resolveEnchantments(settings.anvil().enchantments(), backstabbingEnabled));
+        // 铁砧自动继承附魔台列表 + 经验修补
+        Set<Enchantment> anvilSet = new LinkedHashSet<>(tableEnchantments);
+        Enchantment mending = RegistryAccess.registryAccess()
+                .getRegistry(RegistryKey.ENCHANTMENT)
+                .get(NamespacedKey.minecraft("mending"));
+        if (mending != null) {
+            anvilSet.add(mending);
+        }
+        anvilEnchantments = Set.copyOf(anvilSet);
         preparedOffers.clear();
     }
 
@@ -69,9 +84,6 @@ public final class KnifeEnchantFilter implements Listener {
         EnchantmentSettings.Table table = current.table();
         ItemStack item = event.getItem();
         if (!current.enabled() || !table.enabled() || !isKnife(item) || tableEnchantments.isEmpty()) {
-            return;
-        }
-        if (!table.allowEnchantedItems() && !item.getEnchantments().isEmpty()) {
             return;
         }
 
@@ -137,10 +149,7 @@ public final class KnifeEnchantFilter implements Listener {
             additions.putAll(selected);
             return;
         }
-        if (table.appendChance() < 1.0D
-                && ThreadLocalRandom.current().nextDouble() >= table.appendChance()) {
-            return;
-        }
+        // 非覆盖模式总是附加（100% 概率）
         for (Map.Entry<Enchantment, Integer> entry : selected.entrySet()) {
             if (!conflictsWithAny(entry.getKey(), additions.keySet())) {
                 additions.merge(entry.getKey(), entry.getValue(), Math::max);
@@ -151,8 +160,7 @@ public final class KnifeEnchantFilter implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPrepareAnvil(PrepareAnvilEvent event) {
         EnchantmentSettings current = settings;
-        EnchantmentSettings.Anvil anvil = current.anvil();
-        if (!current.enabled() || !anvil.enabled() || anvilEnchantments.isEmpty()) {
+        if (!current.enabled() || !current.anvilEnabled() || anvilEnchantments.isEmpty()) {
             return;
         }
 
@@ -183,7 +191,7 @@ public final class KnifeEnchantFilter implements Listener {
                 continue;
             }
             if (conflictsWithAnyExcept(enchantment, present, enchantment)) {
-                addedCost += anvil.conflictPenalty();
+                addedCost += ANVIL_CONFLICT_PENALTY;
                 continue;
             }
 
@@ -214,7 +222,7 @@ public final class KnifeEnchantFilter implements Listener {
         result.setItemMeta(resultMeta);
         event.setResult(result);
 
-        int repairCost = Math.max(anvil.minimumRepairCost(), event.getView().getRepairCost() + addedCost);
+        int repairCost = Math.max(ANVIL_MINIMUM_REPAIR_COST, event.getView().getRepairCost() + addedCost);
         Player player = (Player) event.getView().getPlayer();
         var view = event.getView();
         plugin.scheduler().runLaterForEntity(player, () -> {
@@ -318,10 +326,12 @@ public final class KnifeEnchantFilter implements Listener {
     }
 
     private int enchantability(ItemStack item, EnchantmentSettings.Table table) {
-        Set<String> itemIds = ItemUtils.getItemIds(item);
-        Integer configured = table.configuredEnchantabilityFor(itemIds);
-        if (configured != null) {
-            return configured;
+        String customId = ItemUtils.getCustomItemId(item);
+        if (customId != null) {
+            ToolData toolData = ToolRegistry.get(customId).orElse(null);
+            if (toolData != null && toolData.enchantability() > 0) {
+                return toolData.enchantability();
+            }
         }
         ItemMeta meta = item.getItemMeta();
         if (meta != null && meta.hasEnchantable() && meta.getEnchantable() > 0) {
@@ -333,6 +343,10 @@ public final class KnifeEnchantFilter implements Listener {
     private boolean isKnife(ItemStack item) {
         if (isEmpty(item)) {
             return false;
+        }
+        // 检查所有 farmersdelight:tool 物品（刀具 + 煎锅等）
+        if (ToolAttackListener.resolveToolData(item) != null) {
+            return true;
         }
         for (String itemId : ItemUtils.getItemIds(item)) {
             if (plugin.isKnifeItemId(itemId)) {
@@ -357,6 +371,35 @@ public final class KnifeEnchantFilter implements Listener {
             if (!backstabbingEnabled && id.equals(backstabbingId)) {
                 continue;
             }
+
+            // Tag syntax: entries starting with # are expanded as enchantment tags
+            if (id.startsWith("#")) {
+                String tagName = id.substring(1);
+                NamespacedKey tagKey = NamespacedKey.fromString(tagName);
+                if (tagKey == null) {
+                    I18n.logWarning("enchantment.invalid_tag_key", "tag", tagName);
+                    continue;
+                }
+                try {
+                    var tagged = registry.getTag(TagKey.create(RegistryKey.ENCHANTMENT, tagKey));
+                    if (tagged != null) {
+                        for (var entry : tagged) {
+                            Enchantment ench = registry.getOrThrow(entry);
+                            if (ench.getKey().asString().equals(backstabbingId) && !backstabbingEnabled) {
+                                continue;
+                            }
+                            resolved.add(ench);
+                        }
+                    } else {
+                        I18n.logWarning("enchantment.unknown_tag", "tag", tagName);
+                    }
+                } catch (Exception e) {
+                    I18n.logWarning("enchantment.tag_resolve_failed", "tag", tagName, "error", e.getMessage());
+                }
+                continue;
+            }
+
+            // Single enchantment ID
             NamespacedKey key = NamespacedKey.fromString(id);
             if (key == null) {
                 continue;
@@ -365,7 +408,7 @@ public final class KnifeEnchantFilter implements Listener {
             if (enchantment != null) {
                 resolved.add(enchantment);
             } else if (!id.equals(backstabbingId)) {
-                plugin.getLogger().warning("Unknown configured enchantment: " + id);
+                I18n.logWarning("enchantment.unknown", "id", id);
             }
         }
         return List.copyOf(resolved);

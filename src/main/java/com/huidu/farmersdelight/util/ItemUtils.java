@@ -20,6 +20,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -41,6 +42,9 @@ public final class ItemUtils {
     // on CE/config reload so redefined items rebuild.
     private static final Map<Key, ItemStack> itemBuildCache = new ConcurrentHashMap<>();
     private static final List<Material> ITEM_MATERIALS = new ArrayList<>();
+    // Pre-built reverse index: material → all vanilla item-tag IDs it belongs to.
+    // Replaces the O(n) getAllItemTagIds iteration over every registered tag per call.
+    private static final Map<Material, List<String>> MATERIAL_TAG_INDEX = new ConcurrentHashMap<>();
 
     private static final PlainTextComponentSerializer PLAIN_TEXT = PlainTextComponentSerializer.plainText();
     private static final Pattern L10N_PATTERN = Pattern.compile("<(?:l10n|i18n)[:;]([^>]+)>");
@@ -171,9 +175,12 @@ public final class ItemUtils {
         return built;
     }
 
-    /** Drops the memoized CE item builds so a CE/config reload rebuilds them from the new definitions. */
+    /** Drops all memoized caches so a CE/config reload rebuilds them from refreshed definitions. */
     public static void clearItemCache() {
         itemBuildCache.clear();
+        vanillaTagCache.clear();
+        vanillaItemTagResolveCache.clear();
+        MATERIAL_TAG_INDEX.clear();
     }
 
     /**
@@ -716,14 +723,39 @@ public final class ItemUtils {
             return List.of();
         }
         java.util.LinkedHashSet<String> tags = new java.util.LinkedHashSet<>(getItemTagIds(item));
-        for (Tag<Material> tag : Bukkit.getTags("items", Material.class)) {
-            if (tag.isTagged(item.getType())) {
-                tags.add(tag.getKey().toString());
-            }
+        ensureMaterialTagIndex();
+        List<String> vanillaTags = MATERIAL_TAG_INDEX.get(item.getType());
+        if (vanillaTags != null) {
+            tags.addAll(vanillaTags);
         }
         List<String> sorted = new ArrayList<>(tags);
         sorted.sort(String::compareTo);
         return sorted;
+    }
+
+    /**
+     * Lazily builds a Material → List&lt;tagId&gt; reverse index from all registered vanilla item
+     * tags so getAllItemTagIds() is O(1) per call instead of O(tags × materials).
+     */
+    private static void ensureMaterialTagIndex() {
+        if (!MATERIAL_TAG_INDEX.isEmpty()) {
+            return;
+        }
+        synchronized (MATERIAL_TAG_INDEX) {
+            if (!MATERIAL_TAG_INDEX.isEmpty()) {
+                return;
+            }
+            for (Tag<Material> tag : Bukkit.getTags("items", Material.class)) {
+                String tagId = tag.getKey().toString();
+                Collection<Material> taggedMaterials = tag.getValues();
+                if (taggedMaterials.isEmpty()) {
+                    continue;
+                }
+                for (Material material : taggedMaterials) {
+                    MATERIAL_TAG_INDEX.computeIfAbsent(material, k -> new ArrayList<>()).add(tagId);
+                }
+            }
+        }
     }
 
     public static boolean matchesCustomOrVanillaTag(ItemStack item, String tagId) {

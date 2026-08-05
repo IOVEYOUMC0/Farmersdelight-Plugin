@@ -21,6 +21,15 @@ import java.util.Locale;
 /** Applies the configurable positional damage effect of the backstabbing enchantment. */
 public final class BackstabListener implements Listener {
 
+    /** 硬编码战斗微调值，之前暴露为可配置项 */
+    private static final double BEHIND_DOT_THRESHOLD = -0.5D;
+    private static final double MINIMUM_HORIZONTAL_DISTANCE = 0.001D;
+    private static final double MINIMUM_HORIZONTAL_DISTANCE_SQUARED =
+            MINIMUM_HORIZONTAL_DISTANCE * MINIMUM_HORIZONTAL_DISTANCE;
+    private static final String SOUND = "minecraft:entity.player.attack.crit";
+    private static final float SOUND_VOLUME = 1.0F;
+    private static final float SOUND_PITCH = 1.0F;
+
     private final FarmersDelightPlugin plugin;
     private volatile EnchantmentSettings.Backstabbing settings;
     private volatile boolean enabled;
@@ -40,7 +49,7 @@ public final class BackstabListener implements Listener {
         backstabEnchantment = null;
     }
 
-    /** Kept for addon/source compatibility; config reloads should use reload. */
+    /** Kept for addon/source compatibility; config reloads should use reload(). */
     public void setEnabled(boolean enabled) {
         this.enabled = enabled && settings != null && settings.enabled();
     }
@@ -70,21 +79,13 @@ public final class BackstabListener implements Listener {
             return;
         }
         int level = weapon.getEnchantmentLevel(enchantment);
-        if (level <= 0 || !isBehindTarget(target, attacker, combat.behindDotThreshold(),
-                combat.minimumHorizontalDistanceSquared())) {
+        if (level <= 0 || !isBehindTarget(target, attacker)) {
             return;
         }
 
         event.setDamage(event.getDamage() * combat.multiplier(level));
-        LivingEntity soundOwner = combat.soundLocation() == EnchantmentSettings.SoundLocation.ATTACKER
-                ? attacker
-                : target;
-        soundOwner.getWorld().playSound(
-                soundOwner.getLocation(),
-                combat.sound(),
-                combat.soundVolume(),
-                combat.soundPitch()
-        );
+        // 音效始终在目标位置播放
+        target.getWorld().playSound(target.getLocation(), SOUND, SOUND_VOLUME, SOUND_PITCH);
     }
 
     private Enchantment resolveEnchantment(String id) {
@@ -115,28 +116,20 @@ public final class BackstabListener implements Listener {
         return false;
     }
 
-    static boolean isBehindTarget(
-            LivingEntity target,
-            LivingEntity attacker,
-            double threshold,
-            double minimumDistanceSquared
-    ) {
+    static boolean isBehindTarget(LivingEntity target, LivingEntity attacker) {
         return isBehind(
                 target.getLocation().getDirection(),
-                attacker.getLocation().toVector().subtract(target.getLocation().toVector()),
-                threshold,
-                minimumDistanceSquared
+                attacker.getLocation().toVector().subtract(target.getLocation().toVector())
         );
     }
 
-    static boolean isBehind(Vector targetFacing, Vector targetToAttacker, double threshold,
-                            double minimumDistanceSquared) {
+    static boolean isBehind(Vector targetFacing, Vector targetToAttacker) {
         Vector horizontalFacing = targetFacing.clone().setY(0);
         Vector horizontalOffset = targetToAttacker.clone().setY(0);
         if (horizontalFacing.lengthSquared() < 1.0E-12
-                || horizontalOffset.lengthSquared() < minimumDistanceSquared) {
+                || horizontalOffset.lengthSquared() < MINIMUM_HORIZONTAL_DISTANCE_SQUARED) {
             return false;
         }
-        return horizontalFacing.normalize().dot(horizontalOffset.normalize()) < threshold;
+        return horizontalFacing.normalize().dot(horizontalOffset.normalize()) < BEHIND_DOT_THRESHOLD;
     }
 }

@@ -1,10 +1,10 @@
 items:
   farmersdelight:flint_knife:
-    material: wooden_sword
+    material: nether_brick
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
       item-name: <!i><lang:item.farmersdelight.flint_knife>
-      max-damage: 131
+      max-stack-size: 1
       hide-tooltip:
       - attribute_modifiers
       attribute-modifiers:
@@ -23,13 +23,18 @@ items:
         - <!i><dark_green>  2.5 <lang:attribute.name.attack_damage></dark_green>
         - <!i><dark_green>  2.0 <lang:attribute.name.attack_speed></dark_green>
     settings:
+      farmersdelight:tool:
+        max-durability: 131
+        enchantability: 5
+        attack-sound: minecraft:entity.player.attack.sweep
       tags:
       - farmersdelight:knives
   farmersdelight:iron_knife:
-    material: iron_sword
+    material: nether_brick
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
       item-name: <!i><lang:item.farmersdelight.iron_knife>
+      max-stack-size: 1
       hide-tooltip:
       - attribute_modifiers
       attribute-modifiers:
@@ -48,13 +53,18 @@ items:
         - <!i><dark_green>  3.5 <lang:attribute.name.attack_damage></dark_green>
         - <!i><dark_green>  2.0 <lang:attribute.name.attack_speed></dark_green>
     settings:
+      farmersdelight:tool:
+        max-durability: 250
+        enchantability: 14
+        attack-sound: minecraft:entity.player.attack.sweep
       tags:
       - farmersdelight:knives
   farmersdelight:golden_knife:
-    material: golden_sword
+    material: nether_brick
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
       item-name: <!i><lang:item.farmersdelight.golden_knife>
+      max-stack-size: 1
       hide-tooltip:
       - attribute_modifiers
       attribute-modifiers:
@@ -73,13 +83,18 @@ items:
         - <!i><dark_green>  1.5 <lang:attribute.name.attack_damage></dark_green>
         - <!i><dark_green>  2.0 <lang:attribute.name.attack_speed></dark_green>
     settings:
+      farmersdelight:tool:
+        max-durability: 32
+        enchantability: 22
+        attack-sound: minecraft:entity.player.attack.sweep
       tags:
       - farmersdelight:knives
   farmersdelight:diamond_knife:
-    material: diamond_sword
+    material: nether_brick
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
       item-name: <!i><lang:item.farmersdelight.diamond_knife>
+      max-stack-size: 1
       hide-tooltip:
       - attribute_modifiers
       attribute-modifiers:
@@ -98,12 +113,18 @@ items:
         - <!i><dark_green>  4.5 <lang:attribute.name.attack_damage></dark_green>
         - <!i><dark_green>  2.0 <lang:attribute.name.attack_speed></dark_green>
     settings:
+      farmersdelight:tool:
+        max-durability: 1561
+        enchantability: 10
+        attack-sound: minecraft:entity.player.attack.sweep
       tags:
       - farmersdelight:knives
   farmersdelight:netherite_knife:
-    material: netherite_sword
+    material: nether_brick
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
+      components:
+        minecraft:max_stack_size: 1
       item-name: <!i><lang:item.farmersdelight.netherite_knife>
       hide-tooltip:
       - attribute_modifiers
@@ -123,6 +144,10 @@ items:
         - <!i><dark_green>  5.5 <lang:attribute.name.attack_damage></dark_green>
         - <!i><dark_green>  2.0 <lang:attribute.name.attack_speed></dark_green>
     settings:
+      farmersdelight:tool:
+        max-durability: 2031
+        enchantability: 15
+        attack-sound: minecraft:entity.player.attack.sweep
       tags:
       - farmersdelight:knives
 recipes:

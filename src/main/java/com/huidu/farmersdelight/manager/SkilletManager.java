@@ -16,6 +16,7 @@ import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
+import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
@@ -307,6 +308,12 @@ public class SkilletManager {
     }
 
     public boolean handleInteract(Player player, Block block, ItemStack itemInHand, EquipmentSlot hand) {
+        // Inner defense: never consume equippable items as cooking ingredients, even if the
+        // CraftEngine useOnBlock PASSTHROUGH path didn't catch them (armor-swap timing race).
+        if (itemInHand != null && !itemInHand.getType().isAir()
+                && SkilletBlockBehavior.isEquippable(itemInHand)) {
+            return false;
+        }
         Location location = ManagerSupport.normalize(block.getLocation());
         SkilletData skillet = getOrLoadSkillet(location);
         ensurePlacedSkilletState(skillet);
@@ -1210,7 +1217,10 @@ public class SkilletManager {
         int z = location.getBlockZ();
         Block blockBelow = world.getBlockAt(x, y - 1, z);
 
-        if (plugin.getHeatSourceConfig().isHeatSource(blockBelow)) {
+        // Pre-fetch the CE state of blockBelow once, then share it across isHeatSource
+        // and isConductor to avoid two independent CE lookups on the same block.
+        ImmutableBlockState belowState = CraftEngineBlocks.getCustomBlockState(blockBelow);
+        if (plugin.getHeatSourceConfig().isHeatSource(blockBelow, belowState)) {
             return true;
         }
 
@@ -1218,7 +1228,7 @@ public class SkilletManager {
             return false;
         }
 
-        if (plugin.getHeatSourceConfig().isConductor(blockBelow)) {
+        if (plugin.getHeatSourceConfig().isConductor(blockBelow, belowState)) {
             Block blockTwoBelow = world.getBlockAt(x, y - 2, z);
             return plugin.getHeatSourceConfig().isHeatSource(blockTwoBelow);
         }

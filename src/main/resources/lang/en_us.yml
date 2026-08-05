@@ -84,6 +84,8 @@ gui:
       select_hint: "&7Left: use this tag &8| &7Right: edit exclusions"
       member_included: "&7Click: exclude this item from the tag"
       member_excluded: "&cExcluded &7(click to restore)"
+      tag_included: "&7Click: exclude this tag"
+      tag_excluded: "&cTag excluded &7(click to restore)"
 console:
   bac:
     enabled: "Brewin' And Chewin' (CraftEngine addon) enabled."
@@ -162,7 +164,16 @@ console:
     startup_reason: "startup"
     enchantment:
       backstabbing:
-        auto_disabled: "An enchantment plugin was detected; FarmersDelight's own Backstabbing enchantment has been automatically disabled. Set enchantments.compatibility.auto-disable-on-conflict: false only after confirming there is no overlapping enchantment."
+        auto_disabled: "Detected enchantment plugin {plugin}, enchantment registration disabled. To enable, manually turn it on in the config file."
+      unknown: "Unknown enchantment: {id}"
+      invalid_tag_key: "Invalid enchantment tag key: {tag}"
+      unknown_tag: "Unknown enchantment tag: {tag}"
+      tag_resolve_failed: "Failed to resolve enchantment tag {tag}: {error}"
+    tool:
+      invalid_durability: "farmersdelight:tool has no max-durability or it is 0 — item will have no durability"
+      zero_enchantability: "farmersdelight:tool enchantability is 0 — item cannot be enchanted at table"
+      stack_size_forced: "Tool item configured with max-stack-size={size} but damageable items must be unstackable. Forcing to 1"
+      loaded: "Loaded {count} tool item(s)"
     config_summary: "{label}: scheduler={scheduler}, cutting-board mode={mode}, hopper={hopper}, cooking-pot-hopper={cooking_pot_hopper}, cutting-board-hopper={cutting_board_hopper}, skillet-hopper={skillet_hopper}, advancements={advancements}"
     content_summary: "Content ready: {cooking_pot} cooking pot (FD {fd_pot} + {cooking_pot_addon} addon, {custom_pot} custom) and {cutting_board} cutting board (FD {fd_board} + {cutting_board_addon} addon) recipes, {drop_rules} mob drop rules, {pet_foods} pet foods, {advancements} advancements (+{addon_advancements} from addons)."
     content_summary_warmed: "Content ready: {cooking_pot} cooking pot (FD {fd_pot} + {cooking_pot_addon} addon, {custom_pot} custom) and {cutting_board} cutting board (FD {fd_board} + {cutting_board_addon} addon) recipes, {drop_rules} mob drop rules, {pet_foods} pet foods, {advancements} advancements (+{addon_advancements} from addons), {warm_items} CraftEngine items warmed in {warm_ms}ms."
@@ -192,6 +203,16 @@ console:
     enchantment_datapack_disabled: "Enchantment datapack install disabled; backstab enchantment won't be injected into enchanting table."
     enchantment_datapack_written: "Wrote {count} enchantment datapack file(s) to {dir}"
     enchantment_datapack_install_failed: "Failed to install enchantment datapack to world {world}: {error}"
+    enchantment_datapack_no_worlds: "No loaded worlds — enchantment datapack will install when a world loads"
+    loot_datapack_no_worlds: "No loaded worlds — loot datapack will install when a world loads"
+    loot_datapack_debug_skipped: "[FarmersDelight] = {path}"
+    loot_datapack_debug_added: "[FarmersDelight] + {path}"
+    loot_datapack_debug_summary: "[FarmersDelight] Loot datapack: +{count} new, ={skipped} skipped -> {dir}"
+    resource_debug_skipped: "[FarmersDelight] = {path}"
+    resource_debug_added: "[FarmersDelight] + {path}"
+    resource_debug_completion: "[FarmersDelight] Resource completion: +{count} new, ={skipped} skipped"
+    resource_debug_first_install: "[FarmersDelight] First install: {count} files -> {dir}"
+    bstats_failed: "Failed to start bStats metrics: {error}"
     handle_place_failed: "Failed to place cooking_pot_handle furniture at {anchor}: {error}"
     recipe_save_failed: "Failed to save recipe file {file}: {error}"
     recipe_bundled_save_failed: "Failed to save bundled recipe file {file}: {error}"
@@ -258,10 +279,20 @@ console:
     editor_missing_custom_pot_gui: "No recipe-editor-cooking-pot-guis entry for custom pot '{id}'; using the default editor layout."
     invalid_count: "Invalid count for recipe: {error}"
     invalid_chance: "Invalid chance for recipe: {error}"
+  worlddata:
+    composting_invalid_item: "world-data.composting.items: not an item id: {id}"
+    composting_invalid_chance: "world-data.composting.items.{id}: chance must be between 0.0 and 1.0"
+    fuel_invalid_item: "world-data.furnace-fuel.items: not an item id: {id}"
+    fuel_invalid_burn_time: "world-data.furnace-fuel.items.{id}: burn time must be a positive tick count"
+    villager_trades_no_profession: "world-data.trades.villager.trades: entry without a profession"
+    trades_invalid_entry: "{path}: entry needs a valid ingredient and result item id"
+  rope:
+    palette_read_failed: "Could not read the block palette of section y={section_y} in chunk {chunk_x},{chunk_z} of world {world}; ropes in it are not indexed, so their connected textures will not refresh until that chunk reloads. Reported once per server start. Cause: {error}"
   visual:
     proxy_spawn_failed: "Failed to spawn CE proxy item display {entity} for {player}: {error}"
     proxy_destroy_failed: "Failed to destroy CE proxy item display {entity} for {player}: {error}"
     proxy_update_failed: "Failed to update CE proxy item display {entity} for {player}: {error}"
+    item_display_no_client_item: "Item display for {type} has no renderable client item (wrap returned empty)"
   tick:
     started: "TickManager started with interval {interval} ticks"
     stopped: "TickManager stopped"

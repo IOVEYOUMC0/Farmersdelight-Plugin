@@ -46,7 +46,7 @@ public final class FarmersDelightApi {
      * absent, so a call throws NoSuchMethodError — treat a caught NoSuchMethodError (or
      * NoSuchFieldError) as "revision 0, pre-versioning".
      */
-    private static final int API_VERSION = 1;
+    private static final int API_VERSION = 2;
 
     /**
      * Feature ids answered by hasFeature(String). An id is added here in the same release that
@@ -337,6 +337,40 @@ public final class FarmersDelightApi {
     public boolean isConductor(Block block) {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         return plugin != null && block != null && plugin.getHeatSourceConfig().isConductor(block);
+    }
+
+    /**
+     * Registers a vanilla block as a heat source so the cooking pot recognises it at runtime,
+     * without a server restart. Addons call this in their onEnable or when dynamic
+     * blocks are placed. Block id must be a vanilla minecraft:name id.
+     */
+    public void registerHeatSource(String vanillaBlockId) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin != null) {
+            plugin.getHeatSourceConfig().addVanillaBlock(vanillaBlockId);
+        }
+    }
+
+    /**
+     * Registers a vanilla block as a heat conductor so it passes heat from a source below it
+     * to a workstation above.
+     */
+    public void registerConductor(String vanillaBlockId) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin != null) {
+            plugin.getHeatSourceConfig().addVanillaConductor(vanillaBlockId);
+        }
+    }
+
+    /**
+     * Registers a CraftEngine custom block tag as a heat source. Use the tag key
+     * (e.g. "myaddon:heat_sources") — blocks carrying that tag are treated as heat sources.
+     */
+    public void registerCustomHeatSourceTag(String tagId) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin != null && tagId != null && !tagId.isBlank()) {
+            plugin.getHeatSourceConfig().addCustomBlockTag(net.momirealms.craftengine.core.util.Key.of(tagId));
+        }
     }
 
     // Packet item displays

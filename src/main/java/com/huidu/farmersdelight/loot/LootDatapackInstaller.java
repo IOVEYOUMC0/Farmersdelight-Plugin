@@ -46,12 +46,12 @@ public final class LootDatapackInstaller implements Listener {
     /** Install into every currently loaded world. Call from onEnable. */
     public void installToAllWorlds() {
         if (!installEnabled) {
-            plugin.getLogger().info("[FarmersDelight] Loot datapack install disabled (config: loot-injection.install-datapack=false)");
+            I18n.logInfo("loot_datapack_disabled");
             return;
         }
         var worlds = Bukkit.getWorlds();
         if (worlds.isEmpty()) {
-            plugin.getLogger().warning("[FarmersDelight] No loaded worlds — loot datapack will install when a world loads");
+            I18n.logWarning("loot_datapack_no_worlds");
             return;
         }
         int installed = 0;
@@ -110,10 +110,10 @@ public final class LootDatapackInstaller implements Listener {
                     Path dest = datapackDir.resolve(relative);
                     if (!freshInstall && Files.exists(dest)) {
                         skipped++;
-                        if (debug) plugin.getLogger().info("[FarmersDelight] = " + relative);
+                        if (debug) I18n.logInfo("loot_datapack_debug_skipped", "path", relative);
                         continue;
                     }
-                    if (debug) plugin.getLogger().info("[FarmersDelight] + " + relative);
+                    if (debug) I18n.logInfo("loot_datapack_debug_added", "path", relative);
                     Path parent = dest.getParent();
                     if (parent != null) Files.createDirectories(parent);
                     try (InputStream in = jar.getInputStream(entry)) {
@@ -122,7 +122,7 @@ public final class LootDatapackInstaller implements Listener {
                     count++;
                 }
                 if (debug) {
-                    plugin.getLogger().info("[FarmersDelight] 战利品数据包: +" + count + " new, =" + skipped + " skipped -> " + datapackDir);
+                    I18n.logInfo("loot_datapack_debug_summary", "count", count, "skipped", skipped, "dir", datapackDir.toString());
                 }
                 if (count > 0) {
                     I18n.logDetail("startup", "plugin.loot_datapack_written", "count", count, "dir", datapackDir);
@@ -133,8 +133,7 @@ public final class LootDatapackInstaller implements Listener {
                 return count > 0;
             }
         } catch (Exception e) {
-            plugin.getLogger().log(java.util.logging.Level.SEVERE,
-                    "[FarmersDelight] Loot datapack install FAILED (world=" + world.getName() + "): " + e.getMessage(), e);
+            I18n.logWarning("loot_datapack_install_failed", "world", world.getName(), "error", e.getMessage());
             return false;
         }
     }
@@ -149,8 +148,8 @@ public final class LootDatapackInstaller implements Listener {
     }
 
     /**
-     * 获取真正的世界根目录（含 level.dat）。在维度分离存储结构下，
-     * World#getWorldFolder() 返回的是维度子文件夹，需要向上查找。
+     * Returns the real world root directory (containing level.dat). In dimension-separated storage,
+     * World#getWorldFolder() returns the dimension subfolder, so we walk up to find the parent.
      */
     private static Path getWorldRoot(World world) {
         Path folder = world.getWorldFolder().toPath();

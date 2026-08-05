@@ -31,6 +31,11 @@ public class I18n {
 
     private static final Pattern LOCALE_PATTERN = Pattern.compile("^[a-z]{2}(_[a-z]{2})?$");
     private static final String FALLBACK_LOCALE = "zh_cn";
+    private static final String ENGLISH_FALLBACK = "en_us";
+    private static final String[] DEFAULT_LANGUAGES = {"zh_cn", "en_us"};
+    private static final String LANG_RESOURCE_PREFIX = "lang/";
+    private static final String BACKUP_DATE_FORMAT = "yyyyMMdd-HHmmss";
+    private static final String CONSOLE_KEY_PREFIX = "console.";
     
     private static FarmersDelightPlugin plugin;
     private static volatile LocaleState state = new LocaleState(Map.of(), null, FALLBACK_LOCALE);
@@ -101,7 +106,7 @@ public class I18n {
     private static volatile String lastLoggedLocaleSignature;
 
     private static void saveDefaultLanguages() {
-        String[] defaultLangs = {"zh_cn", "en_us"};
+        String[] defaultLangs = DEFAULT_LANGUAGES;
         
         File langFolder = new File(plugin.getDataFolder(), "lang");
         if (!langFolder.exists()) {

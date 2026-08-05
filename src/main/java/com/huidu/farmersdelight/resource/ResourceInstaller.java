@@ -92,13 +92,13 @@ public final class ResourceInstaller {
             if (Files.exists(targetPath)) {
                 skippedFiles++;
                 if (debug) {
-                    plugin.getLogger().info("[FarmersDelight] = " + relativePath);
+                    I18n.logInfo("resource_debug_skipped", "path", relativePath);
                 }
                 continue;
             }
 
             if (debug) {
-                plugin.getLogger().info("[FarmersDelight] + " + relativePath);
+                I18n.logInfo("resource_debug_added", "path", relativePath);
             }
             Files.createDirectories(Objects.requireNonNull(targetPath.getParent(), "targetPath parent"));
             Path tempFile = Files.createTempFile(targetPath.getParent(), "fd-ce-resource-", ".tmp");
@@ -122,7 +122,7 @@ public final class ResourceInstaller {
             }
         }
         if (debug) {
-            plugin.getLogger().info("[FarmersDelight] 资源补齐: +" + copiedFiles + " 新文件, =" + skippedFiles + " 已存在");
+            I18n.logInfo("resource_debug_completion", "count", copiedFiles, "skipped", skippedFiles);
         }
         return copiedFiles;
     }
@@ -145,7 +145,7 @@ public final class ResourceInstaller {
                 String relativePath = resourcePath.substring(resourceRoot.length() + 1);
                 Path targetPath = resolveSafeChild(tempRoot, relativePath);
                 if (debug) {
-                    plugin.getLogger().info("[FarmersDelight] + " + relativePath);
+                    I18n.logInfo("resource_debug_added", "path", relativePath);
                 }
                 Files.createDirectories(Objects.requireNonNull(targetPath.getParent(), "targetPath parent"));
                 try (InputStream inputStream = plugin.getResource(resourcePath)) {
@@ -164,7 +164,7 @@ public final class ResourceInstaller {
             }
             moved = true;
             if (debug) {
-                plugin.getLogger().info("[FarmersDelight] 资源首次安装: " + copiedFiles + " 个文件 -> " + targetRoot);
+                I18n.logInfo("resource_debug_first_install", "count", copiedFiles, "dir", targetRoot.toString());
             }
             return copiedFiles;
         } finally {

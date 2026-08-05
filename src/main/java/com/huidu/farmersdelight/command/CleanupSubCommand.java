@@ -34,10 +34,7 @@ final class CleanupSubCommand extends SubCommand {
         }
 
         int trays = 0;
-        var trayManager = plugin.getTrayManager();
-        if (trayManager != null) {
-            trays = trayManager.cleanupInvalidAutoTrays();
-        }
+        // 托盘现在通过 entity_renderer 管理，不再需要清理家具实体
 
         // Same hook style as FarmersDelightReloadEvent — addons (BAC etc.) clean their own orphan
         // state in step and report counts back via event.addRemoved().

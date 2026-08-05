@@ -36,8 +36,30 @@ public final class ChoiceBuilderGui extends AbstractInventoryGui implements Edit
     private final Consumer<RecipeIngredient> onConfirm;
     private final Runnable onCancel;
     private final List<Integer> optionSlots;
-    private final ItemStack[] options;
+    private final IngredientEntry[] options;
     private boolean acted = false;
+
+    private record IngredientEntry(RecipeIngredient ingredient, ItemStack display) {
+        static IngredientEntry of(RecipeIngredient ingredient) {
+            if (ingredient instanceof RecipeIngredient.Item item) {
+                ItemStack stack = ItemUtils.createItem(item.key().toString());
+                if (stack != null && !stack.getType().isAir()) {
+                    stack.setAmount(1);
+                    return new IngredientEntry(ingredient, stack);
+                }
+            }
+            if (ingredient instanceof RecipeIngredient.Tag tag) {
+                ItemStack display = new ItemStack(Material.NAME_TAG);
+                var meta = display.getItemMeta();
+                if (meta != null) {
+                    meta.displayName(net.kyori.adventure.text.Component.text(RecipeSerializer.serializeIngredient(tag)));
+                    display.setItemMeta(meta);
+                }
+                return new IngredientEntry(ingredient, display);
+            }
+            return null;
+        }
+    }
 
     public ChoiceBuilderGui(FarmersDelightPlugin plugin, Player player, RecipeViewGuiConfig.BaseConfig config,
                             int displayIndex, @Nullable RecipeIngredient current,
@@ -48,7 +70,7 @@ public final class ChoiceBuilderGui extends AbstractInventoryGui implements Edit
         this.onConfirm = onConfirm;
         this.onCancel = onCancel;
         this.optionSlots = config.getSlotsByType("option");
-        this.options = new ItemStack[Math.max(1, optionSlots.size())];
+        this.options = new IngredientEntry[Math.max(1, optionSlots.size())];
         initFrom(current);
         this.inventory = plugin.getServer().createInventory(this, config.getSize(), EditorGui.coloredComponent(config.getTitle()));
     }
@@ -61,12 +83,9 @@ public final class ChoiceBuilderGui extends AbstractInventoryGui implements Edit
             sources.add(current);
         }
         for (int i = 0; i < options.length && i < sources.size(); i++) {
-            if (sources.get(i) instanceof RecipeIngredient.Item item) {
-                ItemStack stack = ItemUtils.createItem(item.key().toString());
-                if (stack != null && !stack.getType().isAir()) {
-                    stack.setAmount(1);
-                    options[i] = stack;
-                }
+            IngredientEntry entry = IngredientEntry.of(sources.get(i));
+            if (entry != null) {
+                options[i] = entry;
             }
         }
     }
@@ -98,8 +117,8 @@ public final class ChoiceBuilderGui extends AbstractInventoryGui implements Edit
             String type = config.getSlotType(i);
             if ("option".equals(type)) {
                 int idx = optionSlots.indexOf(i);
-                ItemStack item = idx >= 0 && idx < options.length ? options[idx] : null;
-                inventory.setItem(i, item == null ? configItem("option", Map.of()) : item.clone());
+                IngredientEntry entry = idx >= 0 && idx < options.length ? options[idx] : null;
+                inventory.setItem(i, entry == null ? configItem("option", Map.of()) : entry.display().clone());
             } else if ("info".equals(type)) {
                 inventory.setItem(i, configItem("info", Map.of("index", String.valueOf(displayIndex))));
             } else {
@@ -138,13 +157,24 @@ public final class ChoiceBuilderGui extends AbstractInventoryGui implements Edit
                     return;
                 }
                 boolean hasCursorItem = cursor != null && !cursor.getType().isAir();
+                if (hasCursorItem && click.isRightClick()) {
+                    // Right-click with cursor → pick tag for this slot
+                    ItemStack source = cleanCopy(cursor);
+                    clearCursor();
+                    openTagPicker(idx, source);
+                    return;
+                }
                 if (hasCursorItem) {
-                    options[idx] = cleanCopy(cursor);
+                    options[idx] = IngredientEntry.of(
+                            new RecipeIngredient.Item(Key.of(RecipeSerializer.itemIdString(cursor))));
                     clearCursor();
                 } else if (click.isRightClick()) {
                     options[idx] = null;
                 } else if (options[idx] != null) {
-                    player.setItemOnCursor(cleanCopy(options[idx]));
+                    IngredientEntry existing = options[idx];
+                    if (existing.ingredient() instanceof RecipeIngredient.Item) {
+                        player.setItemOnCursor(cleanCopy(existing.display()));
+                    }
                     options[idx] = null;
                 }
                 render();
@@ -179,9 +209,9 @@ public final class ChoiceBuilderGui extends AbstractInventoryGui implements Edit
 
     private void confirm() {
         List<RecipeIngredient> chosen = new ArrayList<>();
-        for (ItemStack option : options) {
-            if (option != null && !option.getType().isAir()) {
-                chosen.add(new RecipeIngredient.Item(Key.of(RecipeSerializer.itemIdString(option))));
+        for (IngredientEntry entry : options) {
+            if (entry != null) {
+                chosen.add(entry.ingredient());
             }
         }
         RecipeIngredient result;
@@ -200,6 +230,30 @@ public final class ChoiceBuilderGui extends AbstractInventoryGui implements Edit
 
     private void clearCursor() {
         player.setItemOnCursor(null);
+    }
+
+    private void openTagPicker(int idx, ItemStack source) {
+        RecipeViewGuiConfig.BaseConfig pickerConfig =
+                plugin.getRecipeEditorGuiConfig().getTagPickerConfig();
+        if (pickerConfig == null) return;
+        List<String> tags = ItemUtils.getAllItemTagIds(source);
+        if (tags.isEmpty()) return;
+        closed = true;
+        new TagPickerGui(plugin, player, pickerConfig, source, tags,
+                ingredient -> {
+                    IngredientEntry entry = IngredientEntry.of(ingredient);
+                    if (entry != null) {
+                        options[idx] = entry;
+                    }
+                    reopen();
+                },
+                this::reopen).open();
+    }
+
+    private void reopen() {
+        closed = false;
+        render();
+        player.openInventory(inventory);
     }
 
     private ItemStack configItem(String key, Map<String, String> placeholders) {

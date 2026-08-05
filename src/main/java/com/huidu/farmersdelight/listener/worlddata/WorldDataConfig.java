@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.listener.worlddata;
 
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -291,13 +292,12 @@ public final class WorldDataConfig {
                 continue;
             }
             if (!ItemUtils.isValidItemId(itemId)) {
-                plugin.getLogger().warning("world-data.composting.items: not an item id: " + itemId);
+                I18n.logWarning("worlddata.composting_invalid_item", "id", itemId);
                 continue;
             }
             double chance = items.getDouble(itemId, -1.0D);
             if (chance < 0.0D || chance > 1.0D) {
-                plugin.getLogger().warning("world-data.composting.items." + itemId
-                        + ": chance must be between 0.0 and 1.0");
+                I18n.logWarning("worlddata.composting_invalid_chance", "id", itemId);
                 continue;
             }
             builder.compost(itemId, (float) chance);
@@ -323,13 +323,12 @@ public final class WorldDataConfig {
                 continue;
             }
             if (!ItemUtils.isValidItemId(itemId)) {
-                plugin.getLogger().warning("world-data.furnace-fuel.items: not an item id: " + itemId);
+                I18n.logWarning("worlddata.fuel_invalid_item", "id", itemId);
                 continue;
             }
             int ticks = items.getInt(itemId, 0);
             if (ticks <= 0) {
-                plugin.getLogger().warning("world-data.furnace-fuel.items." + itemId
-                        + ": burn time must be a positive tick count");
+                I18n.logWarning("worlddata.fuel_invalid_burn_time", "id", itemId);
                 continue;
             }
             builder.fuel(itemId, ticks);
@@ -348,7 +347,7 @@ public final class WorldDataConfig {
         for (Map<?, ?> raw : section.getMapList("trades")) {
             String profession = string(raw.get("profession"));
             if (profession == null) {
-                plugin.getLogger().warning("world-data.trades.villager.trades: entry without a profession");
+                I18n.logWarning("worlddata.villager_trades_no_profession");
                 continue;
             }
             int level = number(raw.get("level"), 1).intValue();
@@ -384,7 +383,7 @@ public final class WorldDataConfig {
         String ingredient = string(raw.get("ingredient"));
         String result = string(raw.get("result"));
         if (!ItemUtils.isValidItemId(ingredient) || !ItemUtils.isValidItemId(result)) {
-            plugin.getLogger().warning(path + ": entry needs a valid ingredient and result item id");
+            I18n.logWarning("worlddata.trades_invalid_entry", "path", path);
             return null;
         }
         int ingredientAmount = Math.max(1, number(raw.get("ingredient-amount"), 1).intValue());

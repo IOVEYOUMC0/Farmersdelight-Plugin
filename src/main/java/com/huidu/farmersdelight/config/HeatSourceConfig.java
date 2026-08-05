@@ -194,6 +194,14 @@ public class HeatSourceConfig {
     }
 
     public boolean isHeatSource(Block block) {
+        return isHeatSource(block, null);
+    }
+
+    /**
+     * Variant that reuses a pre-fetched ImmutableBlockState so the caller (e.g. TickManager) can
+     * share one CE lookup across both isHeatSource and isConductor for the same block.
+     */
+    public boolean isHeatSource(Block block, ImmutableBlockState preFetchedState) {
         Material blockType = block.getType();
 
         if (vanillaBlocks.contains(blockType)) {
@@ -213,7 +221,9 @@ public class HeatSourceConfig {
             }
         }
 
-        ImmutableBlockState customState = CraftEngineBlocks.getCustomBlockState(block);
+        ImmutableBlockState customState = preFetchedState != null
+                ? preFetchedState
+                : CraftEngineBlocks.getCustomBlockState(block);
         if (customState != null && !customState.isEmpty()) {
             for (CustomBlockStateMatcher stateMatcher : customBlockStates) {
                 if (stateMatcher.matches(customState)) {
@@ -233,11 +243,20 @@ public class HeatSourceConfig {
     }
 
     public boolean isConductor(Block block) {
+        return isConductor(block, null);
+    }
+
+    /**
+     * Variant that reuses a pre-fetched ImmutableBlockState — see isHeatSource(Block, ImmutableBlockState).
+     */
+    public boolean isConductor(Block block, ImmutableBlockState preFetchedState) {
         if (conductors.contains(block.getType())) {
             return true;
         }
 
-        ImmutableBlockState customState = CraftEngineBlocks.getCustomBlockState(block);
+        ImmutableBlockState customState = preFetchedState != null
+                ? preFetchedState
+                : CraftEngineBlocks.getCustomBlockState(block);
         if (customState != null && !customState.isEmpty()) {
             Set<Key> blockTags = customState.settings().tags();
             for (Key tag : conductorTags) {

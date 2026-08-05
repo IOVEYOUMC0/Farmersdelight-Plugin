@@ -965,7 +965,7 @@ public final class DebugToolsCommand {
         if (location == null || plugin.getTrayManager() == null) {
             return;
         }
-        plugin.getTrayManager().queueTraySync(location);
+        plugin.getTrayManager().checkAndPlaceTray(location);
     }
 
     private void verifyCookingPotFilled(Location location) {

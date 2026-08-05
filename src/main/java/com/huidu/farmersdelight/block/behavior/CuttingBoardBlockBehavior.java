@@ -37,6 +37,7 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.util.Vector;
@@ -1093,19 +1094,23 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         }
 
         if (player.getGameMode() != GameMode.CREATIVE) {
-            if (tool.getItemMeta() instanceof Damageable damageable && !damageable.isUnbreakable()) {
-                // Use the item's effective max durability (CraftEngine custom knives carry a custom
-                // max_damage component); fall back to the vanilla material durability only when that component
-                // is missing. Skip indestructible items (maxDamage <= 0) so they aren't destroyed on the first cut.
-                int maxDamage = damageable.hasMaxDamage() ? damageable.getMaxDamage() : tool.getType().getMaxDurability();
-                if (maxDamage > 0) {
-                    int currentDamage = damageable.getDamage();
-                    if (currentDamage + 1 >= maxDamage) {
-                        tool.setAmount(0);
-                        player.playSound(location, Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
-                    } else {
-                        damageable.setDamage(currentDamage + 1);
-                        tool.setItemMeta(damageable);
+            if (com.huidu.farmersdelight.tool.ToolAttackListener.resolveToolData(tool) != null) {
+                com.huidu.farmersdelight.tool.ToolAttackListener.consumeDurability(tool, player.getLocation());
+            } else if (tool.getItemMeta() instanceof Damageable damageable && !damageable.isUnbreakable()) {
+                if (damageable.hasEnchant(Enchantment.UNBREAKING)
+                        && ThreadLocalRandom.current().nextInt(damageable.getEnchantLevel(Enchantment.UNBREAKING) + 1) > 0) {
+                    // Unbreaking spared the tool — skip to the rest of the processing
+                } else {
+                    int maxDamage = damageable.hasMaxDamage() ? damageable.getMaxDamage() : tool.getType().getMaxDurability();
+                    if (maxDamage > 0) {
+                        int currentDamage = damageable.getDamage();
+                        if (currentDamage + 1 >= maxDamage) {
+                            tool.setAmount(0);
+                            player.playSound(location, Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
+                        } else {
+                            damageable.setDamage(currentDamage + 1);
+                            tool.setItemMeta(damageable);
+                        }
                     }
                 }
             }
@@ -1196,16 +1201,23 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
 
             // A dispenser has no creative exemption, so its tool always takes durability, exactly like a
             // survival player's. A broken tool is emptied; the caller then clears the dispenser slot.
-            if (tool.getItemMeta() instanceof Damageable damageable && !damageable.isUnbreakable()) {
-                int maxDamage = damageable.hasMaxDamage() ? damageable.getMaxDamage() : tool.getType().getMaxDurability();
-                if (maxDamage > 0) {
-                    int currentDamage = damageable.getDamage();
-                    if (currentDamage + 1 >= maxDamage) {
-                        tool.setAmount(0);
-                        world.playSound(effectLocation, Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
-                    } else {
-                        damageable.setDamage(currentDamage + 1);
-                        tool.setItemMeta(damageable);
+            if (com.huidu.farmersdelight.tool.ToolAttackListener.resolveToolData(tool) != null) {
+                com.huidu.farmersdelight.tool.ToolAttackListener.consumeDurability(tool, effectLocation);
+            } else if (tool.getItemMeta() instanceof Damageable damageable && !damageable.isUnbreakable()) {
+                if (damageable.hasEnchant(Enchantment.UNBREAKING)
+                        && ThreadLocalRandom.current().nextInt(damageable.getEnchantLevel(Enchantment.UNBREAKING) + 1) > 0) {
+                    // Unbreaking spared the tool
+                } else {
+                    int maxDamage = damageable.hasMaxDamage() ? damageable.getMaxDamage() : tool.getType().getMaxDurability();
+                    if (maxDamage > 0) {
+                        int currentDamage = damageable.getDamage();
+                        if (currentDamage + 1 >= maxDamage) {
+                            tool.setAmount(0);
+                            world.playSound(effectLocation, Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
+                        } else {
+                            damageable.setDamage(currentDamage + 1);
+                            tool.setItemMeta(damageable);
+                        }
                     }
                 }
             }

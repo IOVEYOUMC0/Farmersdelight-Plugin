@@ -59,6 +59,10 @@ public class TickManager {
     }
     private final Map<ActiveBlock, Long> lastProcessedTicks = new ConcurrentHashMap<>();
     private final Map<ActiveBlock, Long> progressDisplayLastUpdateTicks = new ConcurrentHashMap<>();
+    // Heat source checking is expensive (930ms total per profiler — two isHeatSource + isConductor calls
+    // per pot per tick). Block-below heat sources rarely change; skip the per-tick re-check.
+    private final Map<ActiveBlock, Long> heatSourceLastCheckTicks = new ConcurrentHashMap<>();
+    private static final int HEAT_SOURCE_CHECK_INTERVAL_TICKS = 10;
     private final Set<ActiveBlock> scheduledActiveBlocks = ConcurrentHashMap.newKeySet();
     private volatile List<ActiveBlock> activeBlockSnapshot = List.of();
     private volatile int activeCookingPotCount;
@@ -186,6 +190,7 @@ public class TickManager {
         pendingChanges.clear();
         lastProcessedTicks.clear();
         progressDisplayLastUpdateTicks.clear();
+        heatSourceLastCheckTicks.clear();
         scheduledActiveBlocks.clear();
 
         I18n.logDetail("startup", "tick.stopped");
@@ -371,6 +376,7 @@ public class TickManager {
                     changed |= activeBlocks.remove(change.block());
                     lastProcessedTicks.remove(change.block());
                     progressDisplayLastUpdateTicks.remove(change.block());
+                    heatSourceLastCheckTicks.remove(change.block());
                     scheduledActiveBlocks.remove(change.block());
                 }
             }
@@ -624,14 +630,23 @@ public class TickManager {
         }
 
         Block blockBelow = world.getBlockAt(posKey.x(), posKey.y() - 1, posKey.z());
-        boolean hasHeat = plugin.getHeatSourceConfig().isHeatSource(blockBelow);
+        boolean hasHeat;
 
-        // Only fetch the block two below when the block below is actually a conductor — the previous
-        // order fetched blockTwoBelow unconditionally on !hasHeat, wasting a getBlockAt whenever the
-        // block below wasn't a conductor (the common case: solid stone, dirt, etc.).
-        if (!hasHeat && plugin.getHeatSourceConfig().isConductor(blockBelow)) {
-            Block blockTwoBelow = world.getBlockAt(posKey.x(), posKey.y() - 2, posKey.z());
-            hasHeat = plugin.getHeatSourceConfig().isHeatSource(blockTwoBelow);
+        Long lastHeatCheck = heatSourceLastCheckTicks.get(activeBlock);
+        long currentTickForHeat = getCurrentTick();
+        if (lastHeatCheck != null && currentTickForHeat - lastHeatCheck < HEAT_SOURCE_CHECK_INTERVAL_TICKS) {
+            hasHeat = entity.hasHeatSource();
+        } else {
+            // Pre-fetch the CE state of blockBelow once, then share it across isHeatSource
+            // and isConductor to avoid two independent CraftEngineBlocks.getCustomBlockState()
+            // calls on the same block.
+            ImmutableBlockState belowState = CraftEngineBlocks.getCustomBlockState(blockBelow);
+            hasHeat = plugin.getHeatSourceConfig().isHeatSource(blockBelow, belowState);
+            if (!hasHeat && plugin.getHeatSourceConfig().isConductor(blockBelow, belowState)) {
+                Block blockTwoBelow = world.getBlockAt(posKey.x(), posKey.y() - 2, posKey.z());
+                hasHeat = plugin.getHeatSourceConfig().isHeatSource(blockTwoBelow);
+            }
+            heatSourceLastCheckTicks.put(activeBlock, currentTickForHeat);
         }
 
         entity.setHasHeatSource(hasHeat);
@@ -692,6 +707,7 @@ public class TickManager {
 
     private void unregisterCookingPotBlock(ActiveBlock activeBlock, World world, BlockPosKey posKey) {
         progressDisplayLastUpdateTicks.remove(activeBlock);
+        heatSourceLastCheckTicks.remove(activeBlock);
         markInactive(world, posKey, BlockType.COOKING_POT);
     }
 

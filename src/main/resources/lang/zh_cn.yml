@@ -84,6 +84,8 @@ gui:
       select_hint: "&7左键: 使用此标签 &8| &7右键: 编辑排除项"
       member_included: "&7点击: 从该标签中排除此物品"
       member_excluded: "&c已排除 &7(点击恢复)"
+      tag_included: "&7点击: 排除此标签"
+      tag_excluded: "&c标签已排除 &7(点击恢复)"
 console:
   bac:
     enabled: "Brewin' And Chewin'（CraftEngine 附属）已启用。"
@@ -162,7 +164,16 @@ console:
     startup_reason: "启动"
     enchantment:
       backstabbing:
-        auto_disabled: "检测到已安装的附魔插件，FarmersDelight 自己的背刺附魔已自动禁用。仅在确认没有同类附魔后，将 enchantments.compatibility.auto-disable-on-conflict 设为 false。"
+        auto_disabled: "检测到附魔插件 {plugin}，已禁用附魔注册，若需启用请手动在配置文件处开启。"
+      unknown: "未知附魔：{id}"
+      invalid_tag_key: "无效的附魔标签键：{tag}"
+      unknown_tag: "未知附魔标签：{tag}"
+      tag_resolve_failed: "解析附魔标签 {tag} 失败：{error}"
+    tool:
+      invalid_durability: "farmersdelight:tool 缺少 max-durability 或值为 0，该物品将没有耐久"
+      zero_enchantability: "farmersdelight:tool 的 enchantability 为 0，该物品无法在附魔台附魔"
+      stack_size_forced: "工具物品配置的 max-stack-size 为 {size}，但可损伤物品必须不可堆叠，已强制设为 1"
+      loaded: "已加载 {count} 个工具物品配置"
     config_summary: "{label}：scheduler={scheduler}, cutting-board mode={mode}, hopper={hopper}, cooking-pot-hopper={cooking_pot_hopper}, cutting-board-hopper={cutting_board_hopper}, skillet-hopper={skillet_hopper}, advancements={advancements}"
     content_summary: "内容已就绪：{cooking_pot} 个厨锅配方（FD {fd_pot}、附属 {cooking_pot_addon}、自定义 {custom_pot}）、{cutting_board} 个砧板配方（FD {fd_board}、附属 {cutting_board_addon}），{drop_rules} 条生物掉落规则，{pet_foods} 种宠物食物，{advancements} 个进度（另有附属的 {addon_advancements} 个）。"
     content_summary_warmed: "内容已就绪：{cooking_pot} 个厨锅配方（FD {fd_pot}、附属 {cooking_pot_addon}、自定义 {custom_pot}）、{cutting_board} 个砧板配方（FD {fd_board}、附属 {cutting_board_addon}），{drop_rules} 条生物掉落规则，{pet_foods} 种宠物食物，{advancements} 个进度（另有附属的 {addon_advancements} 个），已预热 {warm_items} 个 CraftEngine 物品，耗时 {warm_ms}ms。"
@@ -192,6 +203,16 @@ console:
     enchantment_datapack_disabled: "配置中已禁用附魔数据包安装；背刺附魔不会注入附魔台。"
     enchantment_datapack_written: "已写入 {count} 个附魔数据包文件到 {dir}"
     enchantment_datapack_install_failed: "向世界 {world} 安装附魔数据包失败：{error}"
+    enchantment_datapack_no_worlds: "没有已加载的世界——附魔数据包将在世界加载时安装"
+    loot_datapack_no_worlds: "没有已加载的世界——战利品数据包将在世界加载时安装"
+    loot_datapack_debug_skipped: "[FarmersDelight] = {path}"
+    loot_datapack_debug_added: "[FarmersDelight] + {path}"
+    loot_datapack_debug_summary: "[FarmersDelight] 战利品数据包：+{count} 新文件, ={skipped} 已存在 -> {dir}"
+    resource_debug_skipped: "[FarmersDelight] = {path}"
+    resource_debug_added: "[FarmersDelight] + {path}"
+    resource_debug_completion: "[FarmersDelight] 资源补齐：+{count} 新文件, ={skipped} 已存在"
+    resource_debug_first_install: "[FarmersDelight] 资源首次安装：{count} 个文件 -> {dir}"
+    bstats_failed: "启动 bStats 统计失败：{error}"
     handle_place_failed: "在 {anchor} 放置 cooking_pot_handle 家具失败：{error}"
     recipe_save_failed: "保存配方文件 {file} 失败：{error}"
     recipe_bundled_save_failed: "保存内置配方文件 {file} 失败：{error}"
@@ -258,10 +279,20 @@ console:
     editor_missing_custom_pot_gui: "自定义厨锅 '{id}' 没有对应的 recipe-editor-cooking-pot-guis 配置,改用默认编辑器布局。"
     invalid_count: "配方中的 count 无效：{error}"
     invalid_chance: "配方中的 chance 无效：{error}"
+  worlddata:
+    composting_invalid_item: "world-data.composting.items: 不是物品 ID：{id}"
+    composting_invalid_chance: "world-data.composting.items.{id}: 概率必须介于 0.0 和 1.0 之间"
+    fuel_invalid_item: "world-data.furnace-fuel.items: 不是物品 ID：{id}"
+    fuel_invalid_burn_time: "world-data.furnace-fuel.items.{id}: 燃烧时间必须为正整数 tick"
+    villager_trades_no_profession: "world-data.trades.villager.trades: 条目缺少 profession"
+    trades_invalid_entry: "{path}: 条目需要有效的 ingredient 和 result 物品 ID"
+  rope:
+    palette_read_failed: "无法读取世界 {world} 区块 {chunk_x},{chunk_z} 中 section y={section_y} 的方块调色板；其中的绳索未编入索引，其连接纹理在该区块重新加载前无法刷新。单次启动仅报告一次。原因：{error}"
   visual:
     proxy_spawn_failed: "为玩家 {player} 生成 CE 代理 ItemDisplay {entity} 失败：{error}"
     proxy_destroy_failed: "为玩家 {player} 销毁 CE 代理 ItemDisplay {entity} 失败：{error}"
     proxy_update_failed: "为玩家 {player} 更新 CE 代理 ItemDisplay {entity} 失败：{error}"
+    item_display_no_client_item: "{type} 的物品展示没有可渲染的客户端物品（wrap 返回空）"
   tick:
     started: "TickManager 已启动，间隔 {interval} tick"
     stopped: "TickManager 已停止"

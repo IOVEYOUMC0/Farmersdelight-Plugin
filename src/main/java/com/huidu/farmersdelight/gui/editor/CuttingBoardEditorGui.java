@@ -194,6 +194,10 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
 
         switch (type) {
             case "input":
+                if (click.isShiftClick()) {
+                    openChoiceBuilder(displayIndex(slot, "input"));
+                    return;
+                }
                 if (hasCursorItem) {
                     if (click.isRightClick()) {
                         ItemStack source = cleanCopy(cursor);
@@ -201,10 +205,17 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
                         openTagPicker(source);
                         return;
                     }
-                    input = new RecipeIngredient.Item(Key.of(RecipeSerializer.itemIdString(cursor)));
+                    input = appendOption(input, new RecipeIngredient.Item(Key.of(RecipeSerializer.itemIdString(cursor))));
                     clearCursor();
                 } else if (click.isRightClick()) {
+                    if (input instanceof RecipeIngredient.Choice) {
+                        openChoiceBuilder(displayIndex(slot, "input"));
+                        return;
+                    }
                     input = null;
+                } else if (input instanceof RecipeIngredient.Choice) {
+                    openChoiceBuilder(displayIndex(slot, "input"));
+                    return;
                 } else if (input instanceof RecipeIngredient.Item item) {
                     ItemStack pickedUp = ItemUtils.createItem(item.key().toString());
                     player.setItemOnCursor(pickedUp != null && !pickedUp.getType().isAir() ? cleanCopy(pickedUp) : null);
@@ -218,6 +229,12 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
                     return;
                 }
                 if (hasCursorItem) {
+                    if (click.isRightClick()) {
+                        ItemStack source = cleanCopy(cursor);
+                        clearCursor();
+                        openToolTagPicker(idx, source);
+                        return;
+                    }
                     tools[idx] = new CuttingBoardRecipe.ToolRequirement(Key.of(RecipeSerializer.itemIdString(cursor)));
                     clearCursor();
                 } else if (click.isRightClick()) {
@@ -381,6 +398,74 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
                 this::reopen).open();
     }
 
+    private void openToolTagPicker(int idx, ItemStack source) {
+        RecipeViewGuiConfig.BaseConfig pickerConfig = plugin.getRecipeEditorGuiConfig().getTagPickerConfig();
+        if (pickerConfig == null) {
+            player.sendMessage(Component.translatable("gui.editor.feedback.advanced_coming")
+                    .color(NamedTextColor.YELLOW));
+            return;
+        }
+        List<String> tags = ItemUtils.getAllItemTagIds(source);
+        if (tags.isEmpty()) {
+            player.sendMessage(Component.translatable("gui.editor.feedback.no_tags")
+                    .color(NamedTextColor.RED));
+            return;
+        }
+        closed = true;
+        new TagPickerGui(plugin, player, pickerConfig, source, tags,
+                ingredient -> {
+                    if (ingredient instanceof RecipeIngredient.Tag tag) {
+                        tools[idx] = new CuttingBoardRecipe.ToolRequirement(
+                                tag.key(), tag.excludedItems(), tag.excludedTags());
+                    }
+                    reopen();
+                },
+                this::reopen).open();
+    }
+
+    private void openChoiceBuilder(int displayIndex) {
+        RecipeViewGuiConfig.BaseConfig choiceConfig = plugin.getRecipeEditorGuiConfig().getChoiceBuilderConfig();
+        if (choiceConfig == null) {
+            return;
+        }
+        closed = true;
+        new ChoiceBuilderGui(plugin, player, choiceConfig, displayIndex,
+                input,
+                ingredient -> {
+                    input = ingredient;
+                    reopen();
+                },
+                this::reopen).open();
+    }
+
+    private int displayIndex(int slot, String type) {
+        return switch (type) {
+            case "input" -> 1;
+            case "tool" -> toolSlots.indexOf(slot) + 1;
+            default -> 1;
+        };
+    }
+
+    private RecipeIngredient appendOption(RecipeIngredient current, RecipeIngredient added) {
+        if (current == null) {
+            return added;
+        }
+        List<RecipeIngredient> options = new ArrayList<>();
+        if (current instanceof RecipeIngredient.Choice choice) {
+            options.addAll(choice.options());
+        } else {
+            options.add(current);
+        }
+        for (RecipeIngredient option : options) {
+            if (RecipeSerializer.serializeIngredient(option)
+                    .equals(RecipeSerializer.serializeIngredient(added))) {
+                return current;
+            }
+        }
+        options.add(added);
+        return new RecipeIngredient.Choice(options);
+    }
+
     void reopen() {
         closed = false;
         render();
@@ -426,6 +511,9 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
         }
         if (ingredient instanceof RecipeIngredient.Tag tag) {
             return named(new ItemStack(Material.NAME_TAG), RecipeSerializer.serializeIngredient(tag));
+        }
+        if (ingredient instanceof RecipeIngredient.Choice) {
+            return named(new ItemStack(Material.KNOWLEDGE_BOOK), RecipeSerializer.serializeIngredient(ingredient));
         }
         return new ItemStack(Material.BARRIER);
     }

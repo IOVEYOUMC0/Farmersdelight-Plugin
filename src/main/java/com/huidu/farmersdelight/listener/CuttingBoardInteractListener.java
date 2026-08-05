@@ -29,7 +29,7 @@ public class CuttingBoardInteractListener implements Listener {
         if (!CustomBlockUtils.hasBehavior(event.blockState(), CuttingBoardBlockBehavior.class)) return;
 
         Block block = event.bukkitBlock();
-        BlockPosKey posKey = new BlockPosKey(block.getLocation());
+        BlockPosKey posKey = new BlockPosKey(block.getX(), block.getY(), block.getZ());
         if (!PermissionChecker.check(player, "farmersdelight.use.cutting_board")) {
             return;
         }

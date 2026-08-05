@@ -131,7 +131,7 @@ public final class FarmersDelightBlocks {
         }
         World world = block.getWorld();
         CuttingBoardBlockEntity entity =
-                CuttingBoardBlockBehavior.getBlockEntity(world, new BlockPosKey(block.getLocation()));
+                CuttingBoardBlockBehavior.getBlockEntity(world, new BlockPosKey(block.getX(), block.getY(), block.getZ()));
         if (entity == null) {
             return null;
         }

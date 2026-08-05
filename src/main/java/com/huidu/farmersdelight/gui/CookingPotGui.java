@@ -599,11 +599,10 @@ public class CookingPotGui extends AbstractInventoryGui {
                 return;
             }
 
-            CookingPotBlockEntity.TakenMeal meal = takeOutputFromSlot(rawSlot, requestedAmount);
-            ItemStack outputItem = meal == null ? null : meal.item();
+            ItemStack outputItem = takeOutputFromSlot(player, rawSlot, requestedAmount);
             if (outputItem != null && !outputItem.getType().isAir()) {
                 deliverOutputToPlayer(event, player, outputItem);
-                applyOutputExperienceReward(player, outputItem, meal.experience());
+                applyOutputExperienceReward(player, outputItem);
                 player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.0f);
                 Bukkit.getPluginManager().callEvent(new com.huidu.farmersdelight.api.event.FarmersDelightProduceEvent(
                         player.getUniqueId(), "cooking_pot", outputItem, cookingPotLocation));
@@ -1309,26 +1308,17 @@ public class CookingPotGui extends AbstractInventoryGui {
         return Math.min(rightClick ? 1 : currentOutput.getAmount(), availableCursorSpace);
     }
 
-    private CookingPotBlockEntity.TakenMeal takeOutputFromSlot(int guiSlot, int requestedAmount) {
+    private ItemStack takeOutputFromSlot(Player player, int guiSlot, int requestedAmount) {
         Integer entitySlot = slotMapping.get(guiSlot);
         if (entitySlot == null) {
             return null;
         }
-        return blockEntity.takeOutputSlotPortionForDelivery(entitySlot, requestedAmount);
+        return blockEntity.takeOutputSlotPortionForDelivery(player, entitySlot, requestedAmount);
     }
 
-    private void applyOutputExperienceReward(Player player, ItemStack result, double experience) {
-        if (experience <= 0.0D) {
-            plugin.callCookingPotExperienceEvent(player, result, experience);
-            return;
-        }
-        if (plugin.shouldDropCookingPotVanillaExperience()) {
-            // The output-take click event runs on the player's region thread, but the experience orb must spawn at the pot;
-            // calling world.spawn cross-region on Folia throws, so dispatch to the pot's own region (same as heat-source reads).
-            plugin.scheduler().runAt(cookingPotLocation, () -> blockEntity.dropExperience(world, experience));
-        }
-        plugin.awardCookingPotAuraSkillsExperience(player, experience);
-        plugin.callCookingPotExperienceEvent(player, result, experience);
+    private void applyOutputExperienceReward(Player player, ItemStack result) {
+        blockEntity.awardUsedRecipes(player);
+        plugin.callCookingPotExperienceEvent(player, result, 0.0D);
     }
 
     private void deliverOutputToPlayer(InventoryClickEvent event, Player player, ItemStack meal) {

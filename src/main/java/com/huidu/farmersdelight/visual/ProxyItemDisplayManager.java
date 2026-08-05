@@ -1050,8 +1050,8 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         } else if (spec.itemStack() != null && !spec.itemStack().getType().isAir()) {
             // The display item could not be wrapped into a client item, so the entity would render empty.
             // Surface it rather than showing a silently invisible display.
-            plugin.getLogger().warning("Item display for " + spec.itemStack().getType().name()
-                    + " has no renderable client item (wrap returned empty)");
+            I18n.logWarning("visual.item_display_no_client_item",
+                    "type", spec.itemStack().getType().name());
         }
 
         var transformation = spec.transformation();

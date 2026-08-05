@@ -22,20 +22,10 @@ class EnchantmentDatapackInstallerTest {
 
     @Test
     void emptySupportedItemsTagDoesNotLeakBackstabbingToVanillaSwords() {
-        String json = EnchantmentDatapackInstaller.renderSupportedItems(java.util.List.of());
+        String json = EnchantmentDatapackInstaller.renderSupportedItems();
 
         assertTrue(json.contains("\"replace\": true"));
         assertTrue(json.contains("\"values\": []"));
         assertFalse(json.contains("minecraft:iron_sword"));
-    }
-
-    @Test
-    void packMetadataEscapesOperatorText() {
-        EnchantmentSettings.Datapack datapack = new EnchantmentSettings.Datapack(
-                true, "safe", 61, "quoted \"line\"\nnext");
-        String json = EnchantmentDatapackInstaller.renderPackMetadata(datapack);
-
-        assertTrue(json.contains("\"pack_format\": 61"));
-        assertTrue(json.contains("quoted \\\"line\\\"\\nnext"));
     }
 }

@@ -44,7 +44,8 @@ public final class CuttingBoardDispenseListener implements Listener {
         }
         Block target = dispenser.getRelative(directional.getFacing());
         World world = target.getWorld();
-        BlockPosKey boardPos = new BlockPosKey(target.getLocation());
+        // Use int coordinates directly to skip the Location allocation per event.
+        BlockPosKey boardPos = new BlockPosKey(target.getX(), target.getY(), target.getZ());
         if (!CuttingBoardBlockBehavior.isCuttingBoardBlock(world, boardPos)) {
             return;
         }

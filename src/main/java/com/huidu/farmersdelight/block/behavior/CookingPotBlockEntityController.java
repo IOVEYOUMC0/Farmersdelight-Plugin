@@ -24,10 +24,10 @@ import net.momirealms.craftengine.libraries.nbt.CompoundTag;
 import net.momirealms.craftengine.libraries.nbt.ListTag;
 import net.momirealms.craftengine.libraries.nbt.Tag;
 import net.momirealms.craftengine.proxy.bukkit.craftbukkit.inventory.CraftInventoryProxy;
+import org.bukkit.World;
 import org.bukkit.entity.HumanEntity;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
-import org.bukkit.World;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
@@ -51,9 +51,6 @@ public final class CookingPotBlockEntityController extends BlockEntityController
 
     private static final String DATA_VERSION = "data_version";
     private static final String ITEMS = "items";
-    private static final String SLOT_EXPERIENCE = "slot_experience";
-    private static final String SLOT = "slot";
-    private static final String EXPERIENCE = "experience";
     private static final String COOKING_PROGRESS = "cooking_progress";
     private static final String COOKING_DURATION = "cooking_duration";
     private static final String MEAL_CONTAINER = "meal_container";
@@ -61,13 +58,14 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     private final CookingPotBlockBehavior behavior;
     private final CookingPotLayout layout;
     private final Item[] items;
-    private final double[] slotExperience;
     private final boolean[] dirtySlots;
     // The entity value each slot's shadow was last read from (refreshFromEntity). Lets writeToEntity tell a
     // local hopper in-place grow (shadow changed, entity still equals this baseline) apart from a concurrent
     // entity write by another region's GUI viewer (entity no longer equals this baseline) — so it persists
     // the grow but never clobbers the concurrent write with a stale shadow.
     private final ItemStack[] entityBaseline;
+    // Original Bukkit ItemStacks for non-CE items (e.g. MMOItems), preserved through CE wrap/unwrap.
+    private final ItemStack[] nonCeOriginal;
     private final Object container;
     private final Inventory inventory;
     private ItemStack mealContainer;
@@ -92,9 +90,9 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         this.behavior = behavior;
         this.layout = behavior != null ? behavior.getLayout() : CookingPotLayout.DEFAULT;
         this.items = new Item[this.layout.size()];
-        this.slotExperience = new double[this.layout.size()];
         this.dirtySlots = new boolean[this.layout.size()];
         this.entityBaseline = new ItemStack[this.layout.size()];
+        this.nonCeOriginal = new ItemStack[this.layout.size()];
         Arrays.fill(this.items, Item.empty());
         this.container = CraftEngine.instance().platform().createContainer(this);
         this.inventory = CraftInventoryProxy.INSTANCE.newInstance(this.container);
@@ -132,16 +130,6 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         data.putInt(DATA_VERSION, VersionHelper.WORLD_VERSION);
         synchronized (entity.getLock()) {
             data.put(ITEMS, ItemStackUtils.saveBukkitItemsAsListTag(entity.getInventoryInternal()));
-            ListTag experienceTag = new ListTag();
-            for (int i = 0; i < entity.getInventorySize(); i++) {
-                double experience = entity.getSlotExperience(i);
-                if (experience <= 0.0D) continue;
-                CompoundTag slotTag = new CompoundTag();
-                slotTag.putInt(SLOT, i);
-                slotTag.putDouble(EXPERIENCE, experience);
-                experienceTag.add(slotTag);
-            }
-            data.put(SLOT_EXPERIENCE, experienceTag);
         }
         data.putInt(COOKING_PROGRESS, entity.getCookingProgress());
         data.putInt(COOKING_DURATION, entity.getCookingDuration());
@@ -230,15 +218,6 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         }
         for (int i = 0; i < entity.getInventorySize(); i++) {
             entity.setInventorySlot(i, items[i]);
-            entity.setSlotExperience(i, 0.0D);
-        }
-
-        ListTag experienceTag = Optional.ofNullable(data.getList(SLOT_EXPERIENCE)).orElseGet(ListTag::new);
-        for (int i = 0; i < experienceTag.size(); i++) {
-            CompoundTag slotTag = experienceTag.getCompound(i);
-            int slot = slotTag.getInt(SLOT, -1);
-            if (slot < 0 || slot >= entity.getInventorySize()) continue;
-            entity.setSlotExperience(slot, slotTag.getDouble(EXPERIENCE, 0.0D));
         }
 
         entity.setCookingProgress(data.getInt(COOKING_PROGRESS, 0));
@@ -300,9 +279,9 @@ public final class CookingPotBlockEntityController extends BlockEntityController
             }
             ItemStack entitySlot = entity.getInventorySlot(i);
             this.items[i] = normalize(BukkitItemManager.instance().wrap(entitySlot));
-            this.slotExperience[i] = entity.getSlotExperience(i);
-            // getInventorySlot returns a fresh copy, so this baseline stays stable against later
-            // setInventorySlot writes; writeToEntity compares the live entity slot against it.
+            this.nonCeOriginal[i] = ItemUtils.isCustomItem(entitySlot) ? null : entitySlot.clone();
+            // getInventorySlot 返回一份新的拷贝，因此此基线在后续的
+            // setInventorySlot 写入时保持稳定；writeToEntity 会对比实体槽位与基线。
             this.entityBaseline[i] = entitySlot;
         }
         if (!hasDirtySlots) {
@@ -325,20 +304,10 @@ public final class CookingPotBlockEntityController extends BlockEntityController
 
         ItemStack[] bukkitItems = new ItemStack[this.items.length];
         for (int i = 0; i < this.items.length; i++) {
-            bukkitItems[i] = asBukkitStack(this.items[i]);
+            bukkitItems[i] = nonCeOriginal[i] != null ? adjustCount(nonCeOriginal[i], this.items[i])
+                    : asBukkitStack(this.items[i]);
         }
         data.put(ITEMS, ItemStackUtils.saveBukkitItemsAsListTag(bukkitItems));
-
-        ListTag experienceTag = new ListTag();
-        for (int i = 0; i < this.slotExperience.length; i++) {
-            double experience = this.slotExperience[i];
-            if (experience <= 0.0D) continue;
-            CompoundTag slotTag = new CompoundTag();
-            slotTag.putInt(SLOT, i);
-            slotTag.putDouble(EXPERIENCE, experience);
-            experienceTag.add(slotTag);
-        }
-        data.put(SLOT_EXPERIENCE, experienceTag);
 
         data.putInt(COOKING_PROGRESS, this.cookingProgress);
         data.putInt(COOKING_DURATION, this.cookingDuration);
@@ -367,7 +336,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
                 boolean slotDirty = this.allSlotsDirty || this.dirtySlots[i];
                 ItemStack entityNow = entity.getInventorySlot(i);
                 // Non-dirty slot with no local change: nothing to write.
-                if (!slotDirty && itemStacksEqual(asBukkitStack(this.items[i]), entityNow)) {
+                if (!slotDirty && itemStacksEqual(toBukkitPreserving(i), entityNow)) {
                     continue;
                 }
                 // A local change is pending: a hopper setItem/removeItem (dirty slot) or a hopper in-place
@@ -380,15 +349,11 @@ public final class CookingPotBlockEntityController extends BlockEntityController
                 // cross-region viewer.
                 if (!itemStacksEqual(this.entityBaseline[i], entityNow)) {
                     this.items[i] = normalize(BukkitItemManager.instance().wrap(entityNow));
-                    this.slotExperience[i] = entity.getSlotExperience(i);
+                    this.nonCeOriginal[i] = ItemUtils.isCustomItem(entityNow) ? null : entityNow.clone();
                     this.entityBaseline[i] = entityNow;
                     continue;
                 }
-                entity.setInventorySlot(i, asBukkitStack(this.items[i]));
-                if (this.items[i].isEmpty()) {
-                    this.slotExperience[i] = 0.0D;
-                }
-                entity.setSlotExperience(i, this.slotExperience[i]);
+                entity.setInventorySlot(i, toBukkitPreserving(i));
             }
             clearDirtySlots();
         }
@@ -412,6 +377,24 @@ public final class CookingPotBlockEntityController extends BlockEntityController
 
     private ItemStack asBukkitStack(Item item) {
         return item == null || item.isEmpty() ? null : ItemStackUtils.getBukkitStack(item.minecraftItem());
+    }
+
+    /** Convert CE Item back to Bukkit, preferring the preserved original for non-CE items. */
+    private ItemStack toBukkitPreserving(int slot) {
+        if (this.nonCeOriginal[slot] != null) {
+            return adjustCount(this.nonCeOriginal[slot], this.items[slot]);
+        }
+        return asBukkitStack(this.items[slot]);
+    }
+
+    /** Returns a clone of the original Bukkit stack with count adjusted to match the CE Item. */
+    private static ItemStack adjustCount(ItemStack original, Item ceItem) {
+        if (original == null || ceItem == null || ceItem.isEmpty()) return null;
+        int ceCount = ceItem.count();
+        if (ceCount <= 0) return null;
+        ItemStack result = original.clone();
+        result.setAmount(ceCount);
+        return result;
     }
 
     private static boolean itemStacksEqual(ItemStack a, ItemStack b) {
@@ -452,13 +435,14 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     }
 
     private ItemStack insertBukkitStackIntoControllerSlot(int slot, ItemStack stack) {
-        ItemStack existing = asBukkitStack(this.items[slot]);
+        ItemStack existing = toBukkitPreserving(slot);
         ItemStack pending = stack.clone();
         if (existing == null || existing.getType().isAir()) {
             int moved = Math.min(pending.getAmount(), Math.min(pending.getMaxStackSize(), this.maxStackSize));
             ItemStack placed = pending.clone();
             placed.setAmount(moved);
             setItem(slot, BukkitItemManager.instance().wrap(placed));
+            this.nonCeOriginal[slot] = ItemUtils.isCustomItem(placed) ? null : placed.clone();
             pending.setAmount(pending.getAmount() - moved);
             return pending.getAmount() <= 0 ? null : pending;
         }
@@ -542,11 +526,8 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         if (item.count() <= count) {
             result = item;
             this.items[slot] = Item.empty();
-            this.slotExperience[slot] = 0.0D;
         } else {
             result = item.copyWithCount(count);
-            double extractedExperience = (this.slotExperience[slot] * count) / item.count();
-            this.slotExperience[slot] = Math.max(0.0D, this.slotExperience[slot] - extractedExperience);
             item.shrink(count);
         }
         markDirty(slot);
@@ -565,8 +546,6 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         }
 
         this.items[slot] = Item.empty();
-        this.slotExperience[slot] = 0.0D;
-        // Persist this removal so refreshFromEntity won't restore it from the entity.
         markDirty(slot);
         this.setChanged();
         return item;
@@ -579,7 +558,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         }
         this.items[slot] = normalize(item);
         if (this.items[slot].isEmpty()) {
-            this.slotExperience[slot] = 0.0D;
+            this.nonCeOriginal[slot] = null;
         }
         if (!this.items[slot].isEmpty()) {
             int cappedStackSize = Math.min(this.maxStackSize, this.items[slot].maxStackSize());
@@ -628,7 +607,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     @Override
     public void clearContent() {
         Arrays.fill(this.items, Item.empty());
-        Arrays.fill(this.slotExperience, 0.0D);
+        Arrays.fill(this.nonCeOriginal, null);
         this.mealContainer = null;
         this.cookingProgress = 0;
         this.cookingDuration = 200;

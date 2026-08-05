@@ -222,6 +222,10 @@ public class MushroomColonyBehavior extends FarmersDelightBlockBehavior implemen
         if (player.getGameMode() == GameMode.CREATIVE) {
             return;
         }
+        if (com.huidu.farmersdelight.tool.ToolAttackListener.resolveToolData(item) != null) {
+            com.huidu.farmersdelight.tool.ToolAttackListener.consumeDurability(item, player.getLocation());
+            return;
+        }
         if (!(item.getItemMeta() instanceof Damageable damageable) || damageable.isUnbreakable()) {
             return;
         }
