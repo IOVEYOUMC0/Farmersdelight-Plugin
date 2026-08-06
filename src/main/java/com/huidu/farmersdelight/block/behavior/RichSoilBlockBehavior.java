@@ -2,7 +2,7 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.Constants;
-import com.huidu.farmersdelight.util.CraftEngineAdapter;
+import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
@@ -22,19 +22,11 @@ import org.bukkit.block.BlockFace;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class RichSoilBlockBehavior extends BlockBehavior {
+public class RichSoilBlockBehavior extends FarmersDelightBlockBehavior {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
         return false;
-    }
-
-    @Override
-    public void fallOn(Object thisBlock, Object[] args) {
-    }
-
-    @Override
-    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
     }
 
     private final float boostChance;
@@ -57,7 +49,6 @@ public class RichSoilBlockBehavior extends BlockBehavior {
         this.unaffectedBlocks = unaffectedBlocks;
     }
 
-    /** Blocks this rich soil's boost must skip. The rich soil farmland reads it when it configures no list of its own. */
     public ConfiguredBlockSet unaffectedBlocks() {
         return unaffectedBlocks;
     }
@@ -70,16 +61,13 @@ public class RichSoilBlockBehavior extends BlockBehavior {
         return redMushroomColonyId;
     }
 
-    public static final BlockBehaviorFactory<RichSoilBlockBehavior> FACTORY = new BlockBehaviorFactory<>() {
-        @Override
-        public RichSoilBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
-            Map<String, Object> arguments = section != null ? section.values() : Map.of();
-            float chance = BehaviorArgParser.getFloat(arguments, "boost-chance", 0.08f);
-            String brownId = BehaviorArgParser.getStringStrict(arguments, "brown-mushroom-colony", "farmersdelight:brown_mushroom_colony");
-            String redId = BehaviorArgParser.getStringStrict(arguments, "red-mushroom-colony", "farmersdelight:red_mushroom_colony");
-            ConfiguredBlockSet unaffected = ConfiguredBlockSet.parse(arguments.get("unaffected-blocks"));
-            return new RichSoilBlockBehavior(block, chance, Key.of(brownId), Key.of(redId), unaffected);
-        }
+    public static final BlockBehaviorFactory<RichSoilBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+        Map<String, Object> arguments = section != null ? section.values() : Map.of();
+        float chance = BehaviorArgParser.getFloat(arguments, "boost-chance", 0.08f);
+        String brownId = BehaviorArgParser.getStringStrict(arguments, "brown-mushroom-colony", "farmersdelight:brown_mushroom_colony");
+        String redId = BehaviorArgParser.getStringStrict(arguments, "red-mushroom-colony", "farmersdelight:red_mushroom_colony");
+        ConfiguredBlockSet unaffected = ConfiguredBlockSet.parse(arguments.get("unaffected-blocks"));
+        return new RichSoilBlockBehavior(block, chance, Key.of(brownId), Key.of(redId), unaffected);
     };
 
     @Override
@@ -137,12 +125,6 @@ public class RichSoilBlockBehavior extends BlockBehavior {
         return true;
     }
 
-    /**
-     * The colony's age 0 state, or null when the configured colony block declares no integer age property.
-     * Falling back to the colony's default state there would hand out a fully grown, immediately harvestable
-     * colony for every mushroom the soil converts, so the conversion is skipped instead and the mushroom is
-     * left standing.
-     */
     @SuppressWarnings("unchecked")
     private static ImmutableBlockState colonyAgeZero(BlockDefinition colony) {
         Property<?> property = colony.getProperty("age");

@@ -1,0 +1,67 @@
+{
+	"format_version": "1.21.11",
+	"credit": "Made with Blockbench",
+	"parent": "block/block",
+	"render_type": "minecraft:cutout",
+	"textures": {
+		"particle": "farmersdelight:block/cooking_pot_side",
+		"tray_top": "farmersdelight:block/heating_tray_top",
+		"tray_side": "farmersdelight:block/heating_tray_side"
+	},
+	"elements": [
+		{
+			"name": "grate",
+			"from": [0, -0.001, 0],
+			"to": [16, -0.001, 16],
+			"faces": {
+				"up": {"uv": [0, 0, 16, 16], "texture": "#tray_top"},
+				"down": {"uv": [0, 0, 16, 16], "texture": "#tray_top", "cullface": "down"}
+			}
+		},
+		{
+			"name": "north_legs",
+			"from": [0, -16, 0],
+			"to": [16, 0, 0],
+			"faces": {
+				"north": {"uv": [0, 0, 16, 16], "texture": "#tray_side"},
+				"south": {"uv": [0, 0, 16, 16], "texture": "#tray_side"}
+			}
+		},
+		{
+			"name": "south_legs",
+			"from": [0, -16, 16],
+			"to": [16, 0, 16],
+			"faces": {
+				"north": {"uv": [0, 0, 16, 16], "texture": "#tray_side"},
+				"south": {"uv": [0, 0, 16, 16], "texture": "#tray_side"}
+			}
+		},
+		{
+			"name": "east_legs",
+			"from": [16, -16, 0],
+			"to": [16, 0, 16],
+			"faces": {
+				"east": {"uv": [0, 0, 16, 16], "texture": "#tray_side"},
+				"west": {"uv": [0, 0, 16, 16], "texture": "#tray_side"}
+			}
+		},
+		{
+			"name": "west_legs",
+			"from": [0, -16, 0],
+			"to": [0, 0, 16],
+			"faces": {
+				"east": {"uv": [0, 0, 16, 16], "texture": "#tray_side"},
+				"west": {"uv": [0, 0, 16, 16], "texture": "#tray_side"}
+			}
+		}
+	],
+	"groups": [
+		{
+			"name": "tray",
+			"origin": [8, 8, 8],
+			"scope": 0,
+			"color": 0,
+			"children": [0, 1, 2, 3, 4]
+		}
+	]
+}

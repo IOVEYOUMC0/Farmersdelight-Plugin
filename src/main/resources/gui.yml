@@ -152,12 +152,12 @@ recipe-view-gui:
         hide-tooltip: true
         name: " "
       cooking_pot:
-        material: CAULDRON
+        item: "farmersdelight:cooking_pot"
         name: "<gold><lang:gui.recipe.cooking_pot>"
         lore:
           - "<gray><lang:gui.recipe.cooking_pot_lore>"
       cutting_board:
-        material: BAMBOO_MOSAIC
+        item: "farmersdelight:cutting_board"
         name: "<yellow><lang:gui.recipe.cutting_board>"
         lore:
           - "<gray><lang:gui.recipe.cutting_board_lore>"

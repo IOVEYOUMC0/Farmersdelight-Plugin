@@ -1,14 +1,12 @@
 package com.huidu.farmersdelight.gui.editor;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.gui.AbstractInventoryGui;
 import com.huidu.farmersdelight.gui.GuiConfig;
 import com.huidu.farmersdelight.gui.RecipeViewGuiConfig;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.Text;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.util.UniqueKey;
 import org.bukkit.Material;
@@ -17,11 +15,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
-import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.inventory.ItemFlag;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -29,62 +25,63 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 
-/**
- * A two-page picker for selecting a tag ingredient. The first page lists every tag the source item belongs to; left-click
- * uses that tag directly, right-click opens the second page, which lists the tag's member items for the player to
- * toggle exclusions. Layout and text come from the recipe-tag-picker-gui section of gui.yml.
- */
-public final class TagPickerGui implements EditorGui {
-
-    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacyAmpersand();
-    private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
+public final class TagPickerGui extends AbstractInventoryGui implements EditorGui {
 
     private enum Mode { SELECT, EXCLUDE }
 
-    private final FarmersDelightPlugin plugin;
-    private final Player player;
     private final RecipeViewGuiConfig.BaseConfig config;
     private final ItemStack sourceItem;
     private final List<String> tagIds;
     private final Consumer<RecipeIngredient> onConfirm;
     private final Runnable onCancel;
     private final List<Integer> entrySlots;
-    private final Inventory inventory;
 
     private Mode mode = Mode.SELECT;
     private int page = 0;
     private Key chosenTag;
     private List<ItemStack> members = List.of();
+    private List<String> availableTags = List.of();
     private final Set<String> excludedItemIds = new LinkedHashSet<>();
+    private final Set<String> excludedTagIds = new LinkedHashSet<>();
 
     private boolean acted = false;
-    private boolean closed = false;
 
     public TagPickerGui(FarmersDelightPlugin plugin, Player player, RecipeViewGuiConfig.BaseConfig config,
                         ItemStack sourceItem, List<String> tagIds,
                         Consumer<RecipeIngredient> onConfirm, Runnable onCancel) {
-        this.plugin = plugin;
-        this.player = player;
+        super(plugin, player);
         this.config = config;
         this.sourceItem = sourceItem.clone();
         this.tagIds = List.copyOf(tagIds);
         this.onConfirm = onConfirm;
         this.onCancel = onCancel;
         this.entrySlots = config.getSlotsByType("entry");
-        this.inventory = plugin.getServer().createInventory(this, config.getSize(), coloredTitle(config.getTitle()));
+        this.inventory = plugin.getServer().createInventory(this, config.getSize(), EditorGui.coloredComponent(config.getTitle()));
     }
 
     public void open() {
-        RecipeEditorListener.ensureRegistered(plugin);
-        render();
-        player.openInventory(inventory);
+        doOpen(this::render);
     }
 
     @Override
-    public @NotNull Inventory getInventory() {
-        return inventory;
+    protected AbstractInventoryGui findExistingGui(UUID playerId) {
+        return null;
+    }
+
+    @Override
+    protected void putActiveGui(UUID playerId, AbstractInventoryGui gui) {
+    }
+
+    @Override
+    protected void removeFromActiveGuis(UUID playerId) {
+    }
+
+    @Override
+    protected void ensureListenerRegistered() {
+        RecipeEditorListener.ensureRegistered(plugin);
     }
 
     private int pageCount(int total) {
@@ -93,7 +90,7 @@ public final class TagPickerGui implements EditorGui {
     }
 
     private void render() {
-        int total = mode == Mode.SELECT ? tagIds.size() : members.size();
+        int total = mode == Mode.SELECT ? tagIds.size() : members.size() + availableTags.size();
         int per = Math.max(1, entrySlots.size());
         int start = page * per;
 
@@ -129,16 +126,35 @@ public final class TagPickerGui implements EditorGui {
             lore(display, tr("gui.editor.tag.select_hint"));
             return display;
         }
-        ItemStack member = members.get(dataIndex).clone();
-        member.setAmount(1);
-        boolean excluded = excludedItemIds.contains(ItemUtils.resolveItemId(member));
-        if (excluded) {
-            glow(member);
-            lore(member, tr("gui.editor.tag.member_excluded"));
-        } else {
-            lore(member, tr("gui.editor.tag.member_included"));
+        // EXCLUDE mode: items first, then tags
+        if (dataIndex < members.size()) {
+            ItemStack member = members.get(dataIndex).clone();
+            member.setAmount(1);
+            boolean excluded = excludedItemIds.contains(ItemUtils.resolveItemId(member));
+            if (excluded) {
+                glow(member);
+                lore(member, tr("gui.editor.tag.member_excluded"));
+            } else {
+                lore(member, tr("gui.editor.tag.member_included"));
+            }
+            return member;
         }
-        return member;
+        // Tag entry
+        int tagIdx = dataIndex - members.size();
+        if (tagIdx < availableTags.size()) {
+            String tagId = availableTags.get(tagIdx);
+            ItemStack display = new ItemStack(Material.NAME_TAG);
+            named(display, "&b#" + tagId);
+            boolean excluded = excludedTagIds.contains(tagId);
+            if (excluded) {
+                glow(display);
+                lore(display, tr("gui.editor.tag.tag_excluded"));
+            } else {
+                lore(display, tr("gui.editor.tag.tag_included"));
+            }
+            return display;
+        }
+        return configItem("background");
     }
 
     @Override
@@ -164,7 +180,7 @@ public final class TagPickerGui implements EditorGui {
         if (type == null) {
             return;
         }
-        int total = mode == Mode.SELECT ? tagIds.size() : members.size();
+        int total = mode == Mode.SELECT ? tagIds.size() : members.size() + availableTags.size();
         switch (type) {
             case "entry" -> {
                 int idx = entrySlots.indexOf(slot);
@@ -179,11 +195,22 @@ public final class TagPickerGui implements EditorGui {
                     } else {
                         finish(new RecipeIngredient.Tag(tag));
                     }
-                } else {
+                } else if (dataIndex < members.size()) {
+                    // Item entry
                     String id = ItemUtils.resolveItemId(members.get(dataIndex));
                     if (id != null) {
                         if (!excludedItemIds.remove(id)) {
                             excludedItemIds.add(id);
+                        }
+                        render();
+                    }
+                } else {
+                    // Tag entry
+                    int tagIdx = dataIndex - members.size();
+                    if (tagIdx < availableTags.size()) {
+                        String tagId = availableTags.get(tagIdx);
+                        if (!excludedTagIds.remove(tagId)) {
+                            excludedTagIds.add(tagId);
                         }
                         render();
                     }
@@ -214,12 +241,12 @@ public final class TagPickerGui implements EditorGui {
                     for (String id : excludedItemIds) {
                         excluded.add(Key.of(id));
                     }
-                    finish(new RecipeIngredient.Tag(chosenTag, Set.copyOf(excluded), Set.of()));
+                    finish(new RecipeIngredient.Tag(chosenTag, Set.copyOf(excluded), excludedTags()));
                 }
             }
             case "cancel" -> {
                 acted = true;
-                closed = true;
+                super.close();
                 clearCursor();
                 onCancel.run();
             }
@@ -231,7 +258,9 @@ public final class TagPickerGui implements EditorGui {
     private void enterExcludeMode(Key tag) {
         chosenTag = tag;
         excludedItemIds.clear();
+        excludedTagIds.clear();
         members = resolveMembers(tag);
+        availableTags = resolveExcludableTags(tag);
         mode = Mode.EXCLUDE;
         page = 0;
         render();
@@ -256,16 +285,37 @@ public final class TagPickerGui implements EditorGui {
         return new ArrayList<>(unique.values());
     }
 
+    private List<String> resolveExcludableTags(Key chosen) {
+        Set<String> tags = new LinkedHashSet<>();
+        String chosenStr = chosen.toString();
+        for (ItemStack member : members) {
+            for (String tagId : ItemUtils.getAllItemTagIds(member)) {
+                if (!tagId.equals(chosenStr)) {
+                    tags.add(tagId);
+                }
+            }
+        }
+        return new ArrayList<>(tags);
+    }
+
+    private Set<Key> excludedTags() {
+        Set<Key> tags = new LinkedHashSet<>();
+        for (String id : excludedTagIds) {
+            tags.add(Key.of(id));
+        }
+        return tags;
+    }
+
     private void finish(RecipeIngredient ingredient) {
         acted = true;
-        closed = true;
+        super.close();
         clearCursor();
         onConfirm.accept(ingredient);
     }
 
     @Override
     public void handleClose(InventoryCloseEvent event) {
-        closed = true;
+        super.close();
         clearCursor();
         if (!acted) {
             acted = true;
@@ -280,7 +330,8 @@ public final class TagPickerGui implements EditorGui {
         }
         return item.createItem(Map.of(
                 "tag", chosenTag == null ? "-" : chosenTag.toString(),
-                "excluded", String.valueOf(excludedItemIds.size())));
+                "excluded", String.valueOf(excludedItemIds.size()),
+                "excluded_tags", String.valueOf(excludedTagIds.size())));
     }
 
     private ItemStack configItem(String key) {
@@ -328,13 +379,5 @@ public final class TagPickerGui implements EditorGui {
         ItemStack copy = source.clone();
         copy.setAmount(1);
         return copy;
-    }
-
-    private static Component coloredTitle(String title) {
-        String resolved = title == null ? "" : title;
-        if (resolved.contains("<") && resolved.contains(">")) {
-            return MINI_MESSAGE.deserialize(resolved);
-        }
-        return LEGACY.deserialize(resolved.replaceAll("&(?=[0-9a-fk-orA-FK-OR])", "§"));
     }
 }

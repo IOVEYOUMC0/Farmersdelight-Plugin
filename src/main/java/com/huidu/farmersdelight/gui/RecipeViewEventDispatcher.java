@@ -8,11 +8,6 @@ import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
-/**
- * Routes inventory events to the RecipeViewGui that owns the open top inventory, and closes a player's
- * GUI on quit. A single shared instance is registered once via RecipeViewGui.ensureListenerRegistered.
- * Extracted from RecipeViewGui so the dispatch wiring is a focused top-level class.
- */
 public final class RecipeViewEventDispatcher implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST)

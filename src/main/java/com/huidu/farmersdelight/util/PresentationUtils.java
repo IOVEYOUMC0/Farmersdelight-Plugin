@@ -11,12 +11,6 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Renders a template string into an Adventure Component: substitutes string placeholders, resolves
- * <l10n:>/<lang:> translation tags for a viewer, resolves CraftEngine <image:ns:id>
- * and <shift:N> glyph tags into image-font output, then parses MiniMessage + legacy color codes.
- * Component placeholders (e.g. an item display name) can be spliced in directly.
- */
 public final class PresentationUtils {
 
     private static final Pattern SHIFT_TAG = Pattern.compile("<shift:(-?\\d+)>");
@@ -44,7 +38,6 @@ public final class PresentationUtils {
         return spliceComponents(text, components);
     }
 
-    /** Resolves CraftEngine <shift:N> and <image:ns:id> tags into image-font MiniMessage output. */
     public static String resolveGlyphTags(String input) {
         if (input == null || input.isEmpty()) {
             return "";
@@ -52,7 +45,6 @@ public final class PresentationUtils {
         return replaceImageTags(replaceShiftTags(input));
     }
 
-    /** A single horizontal pixel-shift glyph (CraftEngine offset font), or empty when unavailable. */
     public static String shift(int pixels) {
         try {
             BukkitCraftEngine ce = BukkitCraftEngine.instance();
@@ -65,7 +57,6 @@ public final class PresentationUtils {
         return "";
     }
 
-    /** The image-font MiniMessage output for a CraftEngine image glyph id, or empty when unresolved. */
     public static String imageGlyph(String glyphId) {
         if (glyphId == null) {
             return "";
@@ -107,7 +98,6 @@ public final class PresentationUtils {
         return buffer.toString();
     }
 
-    /** Parses text as MiniMessage, splicing each {key} occurrence with its Component value. */
     private static Component spliceComponents(String text, Map<String, Component> components) {
         Component out = Component.empty();
         int i = 0;

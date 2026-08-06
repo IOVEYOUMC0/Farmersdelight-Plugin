@@ -11,14 +11,18 @@ import com.huidu.farmersdelight.util.VanillaAdvancements;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.RiceCropRules;
-import com.huidu.farmersdelight.util.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockBreakEvent;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.util.Key;
-import org.bukkit.*;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.Sound;
+import org.bukkit.SoundGroup;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
@@ -517,19 +521,18 @@ public class RicePlantListener implements Listener {
 
     private void removeRicePlant(Block block, ImmutableBlockState state) {
         if (isUpperRiceHalf(state)) {
-            block.setType(Material.AIR, false);
+            CraftEngineBlocks.remove(block);
             return;
         }
 
         Block upperBlock = block.getRelative(BlockFace.UP);
         if (isRiceBlock(upperBlock)) {
-            upperBlock.setType(Material.AIR, false);
+            CraftEngineBlocks.remove(upperBlock);
         }
+        CraftEngineBlocks.remove(block);
         if (RiceCropRules.isValidSoil(block.getRelative(BlockFace.DOWN))) {
             block.setType(Material.WATER, false);
             scheduleWaterRestoreCheck(block);
-        } else {
-            block.setType(Material.AIR, false);
         }
     }
 
@@ -581,7 +584,7 @@ public class RicePlantListener implements Listener {
 
         Block upperBlock = brokenBlock.getRelative(BlockFace.UP);
         if (isWildRiceBlock(upperBlock)) {
-            upperBlock.setType(Material.AIR, false);
+            CraftEngineBlocks.remove(upperBlock);
         }
 
         if (getWildRiceBehavior().isValidSoil(brokenBlock.getRelative(BlockFace.DOWN))) {
@@ -595,11 +598,10 @@ public class RicePlantListener implements Listener {
             return;
         }
 
+        CraftEngineBlocks.remove(lowerBlock);
         if (getWildRiceBehavior().isValidSoil(lowerBlock.getRelative(BlockFace.DOWN))) {
             lowerBlock.setType(Material.WATER, false);
             scheduleWaterRestoreCheck(lowerBlock);
-        } else {
-            lowerBlock.setType(Material.AIR, false);
         }
     }
 
@@ -647,7 +649,9 @@ public class RicePlantListener implements Listener {
             return;
         }
 
-        if (isRiceBlock(upperBlock) || upperBlock.getType() == Material.TRIPWIRE) {
+        if (isRiceBlock(upperBlock)) {
+            CraftEngineBlocks.remove(upperBlock);
+        } else if (upperBlock.getType() == Material.TRIPWIRE) {
             upperBlock.setType(Material.AIR, false);
         }
     }
@@ -655,20 +659,19 @@ public class RicePlantListener implements Listener {
     private void removeWildRicePlant(Block block, ImmutableBlockState state) {
         String half = getPropertyString(state, "half");
         if ("upper".equalsIgnoreCase(half)) {
-            block.setType(Material.AIR, false);
+            CraftEngineBlocks.remove(block);
             return;
         }
 
         Block upperBlock = block.getRelative(BlockFace.UP);
         if (isWildRiceBlock(upperBlock)) {
-            upperBlock.setType(Material.AIR, false);
+            CraftEngineBlocks.remove(upperBlock);
         }
 
+        CraftEngineBlocks.remove(block);
         if (getWildRiceBehavior().isValidSoil(block.getRelative(BlockFace.DOWN))) {
             block.setType(Material.WATER, false);
             scheduleWaterRestoreCheck(block);
-        } else {
-            block.setType(Material.AIR, false);
         }
     }
 

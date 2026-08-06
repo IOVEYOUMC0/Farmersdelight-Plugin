@@ -21,19 +21,10 @@ import java.util.Enumeration;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-/**
- * Installs FarmersDelight's loot-injection datapack into each world's datapacks/ folder.
- * The bundled datapack overrides vanilla chest / mob / grass loot tables to inject CraftEngine
- * custom items (via the craftengine:item loot pool entry type registered by CraftEngine).
- *
- * <p>Installs idempotently: skips worlds where the datapack folder already exists, so admin
- * customisations are preserved across plugin updates. Newly placed datapacks require a server
- * restart or /reload to be picked up by vanilla — that's intentional and logged loudly.
- */
 public final class LootDatapackInstaller implements Listener {
 
-    private static final String DATAPACK_NAME = "farmersdelight_loot";
-    private static final String RESOURCE_PREFIX = "datapack/";
+    private static final String DATAPACK_NAME = "farmersdelight";
+    private static final String RESOURCE_PREFIX = "datapack/loot/";
 
     private final FarmersDelightPlugin plugin;
     private final boolean installEnabled;
@@ -43,14 +34,21 @@ public final class LootDatapackInstaller implements Listener {
         this.installEnabled = plugin.getConfig().getBoolean("loot-injection.install-datapack", true);
     }
 
-    /** Install into every currently loaded world. Call from onEnable. */
     public void installToAllWorlds() {
         if (!installEnabled) {
-            I18n.logDetail("startup", "plugin.loot_datapack_disabled");
+            I18n.logInfo("loot_datapack_disabled");
+            return;
+        }
+        var worlds = Bukkit.getWorlds();
+        if (worlds.isEmpty()) {
+            I18n.logWarning("loot_datapack_no_worlds");
             return;
         }
         int installed = 0;
-        for (World world : Bukkit.getWorlds()) {
+        for (World world : worlds) {
+            if (!plugin.isDatapackWorldAllowed(world)) {
+                continue;
+            }
             if (installToWorld(world)) installed++;
         }
         if (installed > 0) {
@@ -60,6 +58,9 @@ public final class LootDatapackInstaller implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onWorldLoad(WorldLoadEvent event) {
+        if (!plugin.isDatapackWorldAllowed(event.getWorld())) {
+            return;
+        }
         // Cover newly-created / runtime-loaded worlds (e.g. Multiverse) — same idempotent install path.
         // A world that actually receives files here needs the same restart notice the startup path prints:
         // the per-world write itself only reaches the startup detail channel, so without this banner an
@@ -70,8 +71,6 @@ public final class LootDatapackInstaller implements Listener {
         }
     }
 
-    /** Restart notice for worlds that just received datapack files. Stays at WARNING: until vanilla loads
-     *  the datapack the loot injections silently do nothing, which is worth interrupting the console for. */
     private void printRestartBanner(int worlds) {
         plugin.getLogger().warning("==================================================================");
         plugin.getLogger().warning(" Installed FarmersDelight loot datapack into " + worlds + " world(s).");
@@ -81,19 +80,19 @@ public final class LootDatapackInstaller implements Listener {
         plugin.getLogger().warning("==================================================================");
     }
 
-    /** @return true only if files were actually written this call. A world whose datapack was already
-     *  complete returns false, so the restart banner stays quiet on a boot that changed nothing. */
     private boolean installToWorld(World world) {
-        Path datapackDir = world.getWorldFolder().toPath().resolve("datapacks").resolve(DATAPACK_NAME);
+        Path datapackDir = getWorldRoot(world).resolve("datapacks").resolve(DATAPACK_NAME);
         // Fresh install → copy everything. Existing install → only ADD files that are missing (e.g. a
         // newly-bundled stove_burn damage type after a plugin update), never overwriting files the admin
         // may have edited. Mirrors FarmersDelight's CraftEngine-resource auto-completion.
         boolean freshInstall = !Files.exists(datapackDir);
+        boolean debug = plugin.isDebugEnabled("startup");
         try {
             Files.createDirectories(datapackDir);
             try (JarFile jar = openOwnJar()) {
                 Enumeration<JarEntry> entries = jar.entries();
                 int count = 0;
+                int skipped = 0;
                 while (entries.hasMoreElements()) {
                     JarEntry entry = entries.nextElement();
                     if (entry.isDirectory()) continue;
@@ -101,13 +100,21 @@ public final class LootDatapackInstaller implements Listener {
                     if (!name.startsWith(RESOURCE_PREFIX)) continue;
                     String relative = name.substring(RESOURCE_PREFIX.length());
                     Path dest = datapackDir.resolve(relative);
-                    if (!freshInstall && Files.exists(dest)) continue;
+                    if (!freshInstall && Files.exists(dest)) {
+                        skipped++;
+                        if (debug) I18n.logInfo("loot_datapack_debug_skipped", "path", relative);
+                        continue;
+                    }
+                    if (debug) I18n.logInfo("loot_datapack_debug_added", "path", relative);
                     Path parent = dest.getParent();
                     if (parent != null) Files.createDirectories(parent);
                     try (InputStream in = jar.getInputStream(entry)) {
                         Files.copy(in, dest, StandardCopyOption.REPLACE_EXISTING);
                     }
                     count++;
+                }
+                if (debug) {
+                    I18n.logInfo("loot_datapack_debug_summary", "count", count, "skipped", skipped, "dir", datapackDir.toString());
                 }
                 if (count > 0) {
                     I18n.logDetail("startup", "plugin.loot_datapack_written", "count", count, "dir", datapackDir);
@@ -117,8 +124,8 @@ public final class LootDatapackInstaller implements Listener {
                 // where every bundled file was already on disk changed nothing and must stay silent.
                 return count > 0;
             }
-        } catch (IOException e) {
-            I18n.logSevere("plugin.loot_datapack_install_failed", "world", world.getName(), "error", e.getMessage());
+        } catch (Exception e) {
+            I18n.logWarning("loot_datapack_install_failed", "world", world.getName(), "error", e.getMessage());
             return false;
         }
     }
@@ -130,5 +137,13 @@ public final class LootDatapackInstaller implements Listener {
         } catch (URISyntaxException e) {
             throw new IOException("Could not resolve plugin jar location: " + location, e);
         }
+    }
+
+    private static Path getWorldRoot(World world) {
+        Path folder = world.getWorldFolder().toPath();
+        while (folder != null && !Files.exists(folder.resolve("level.dat"))) {
+            folder = folder.getParent();
+        }
+        return folder != null ? folder : world.getWorldFolder().toPath();
     }
 }

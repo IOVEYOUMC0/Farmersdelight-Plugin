@@ -283,11 +283,6 @@ public final class CustomBlockUtils {
         return parseFacing(value.toString());
     }
 
-    /**
-     * Property value by name: exact-name lookup first (CE's sorted-map get, no allocation), falling
-     * back to the case-insensitive property scan for oddly-cased config names. No Property reference
-     * is cached, so a CE reload swapping property instances cannot leave a stale handle behind.
-     */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static Object getPropertyValue(ImmutableBlockState state, String propertyName) {
         Property property = state.getProperty(propertyName);
@@ -302,12 +297,6 @@ public final class CustomBlockUtils {
         return null;
     }
 
-    /**
-     * Six-way facing including UP and DOWN, for blocks whose facing is a full direction property (the
-     * basket, placed with the vanilla FACING convention). getFacing collapses to the four horizontal
-     * faces because its display-pipeline callers only rotate around the vertical axis; this variant
-     * keeps the vertical faces, so a value of null means the state carries no facing at all.
-     */
     public static BlockFace getFullFacing(ImmutableBlockState state) {
         if (state == null || state.isEmpty()) {
             return null;

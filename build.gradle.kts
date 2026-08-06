@@ -24,11 +24,11 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
     compileOnly("org.jetbrains:annotations:26.1.0")
-    compileOnly("net.momirealms:craft-engine-core:26.7")
-    compileOnly("net.momirealms:craft-engine-bukkit:26.7")
-    compileOnly("net.momirealms:craft-engine-bukkit-proxy:26.7")
+    compileOnly("net.momirealms:craft-engine-core:26.7.4")
+    compileOnly("net.momirealms:craft-engine-bukkit:26.7.4")
+    compileOnly("net.momirealms:craft-engine-bukkit-proxy:26.7.4")
     compileOnly("me.clip:placeholderapi:2.11.6")
     // AntiGriefLib: unified protection facade over 24+ land/claim plugins (MIT). Bundled by shadowJar (not
     // relocated — Bukkit plugin classloaders are isolated, so the package cannot clash with another plugin's).
@@ -42,12 +42,20 @@ dependencies {
     implementation("org.bstats:bstats-bukkit:3.1.0")
     // UltimateAdvancementAPI: separate server plugin; vendored only for offline compile against its API.
     compileOnly(files("libs/UltimateAdvancementAPI-Plugin-2.8.0-folia.jar"))
-    testImplementation("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
+    testImplementation("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
     testImplementation("net.momirealms:craft-engine-core:26.7")
     testImplementation("net.momirealms:craft-engine-bukkit:26.7")
     testImplementation("net.momirealms:craft-engine-bukkit-proxy:26.7")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+configurations.all {
+    resolutionStrategy {
+        // Force patched transitive dependency versions for compilation only; they are not bundled.
+        force("org.codehaus.plexus:plexus-utils:4.0.3")
+        force("org.apache.commons:commons-lang3:3.18.0")
+    }
 }
 
 val obfuscateBuild = providers.gradleProperty("obfuscate")

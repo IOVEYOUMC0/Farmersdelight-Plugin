@@ -166,8 +166,10 @@ items:
       item-name: <!i><lang:block.farmersdelight.cooking_pot>
     model: farmersdelight:block/cooking_pot_bail
   farmersdelight:skillet:
-    material: iron_sword
+    material: nether_brick
     data:
+      components:
+        minecraft:max_stack_size: 1
       item-name: <!i><lang:block.farmersdelight.skillet>
       hide-tooltip:
       - attribute_modifiers
@@ -192,6 +194,12 @@ items:
         - <!i><dark_green>  8 <lang:attribute.name.attack_damage></dark_green>
         - <!i><dark_green>  0.9 <lang:attribute.name.attack_speed></dark_green>
         - <!i><blue>  +1 <lang:attribute.name.attack_knockback></blue>
+    settings:
+      farmersdelight:sword:
+        max-durability: 250
+        enchantability: 14
+        attack-sound: farmersdelight:item.skillet.attack.strong
+        attack-sound-weak: farmersdelight:item.skillet.attack.weak
     model: farmersdelight:item/skillet
   farmersdelight:cutting_board:
     data:
@@ -340,6 +348,55 @@ items:
       fallback:
         type: minecraft:model
         path: ${__NAMESPACE__}:block/canvas_rug
+  farmersdelight:canvas_rug_no_north_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_no_north
+  farmersdelight:canvas_rug_no_south_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_no_south
+  farmersdelight:canvas_rug_no_east_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_no_east
+  farmersdelight:canvas_rug_no_west_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_no_west
+  farmersdelight:canvas_rug_no_north_south_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_no_north_south
+  farmersdelight:canvas_rug_no_east_west_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_no_east_west
+  farmersdelight:canvas_rug_surrounded_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_base
   farmersdelight:safety_net:
     data:
       item-name: <!i><lang:block.farmersdelight.safety_net>
@@ -464,9 +521,107 @@ furniture:
     loot:
       template: default:loot_table/self
     variants:
-      ground:
+      standalone:
         elements:
         - item: farmersdelight:canvas_rug_elements
+          position: 0,0.435,0
+          translation: 0,0.0625,0
+          scale: 1.001
+        hitboxes:
+        - position: 0,0,0
+          type: interaction
+          width: 1
+          height: 0.1
+          blocks-building: true
+          interactive: false
+          invisible: true
+      no_north:
+        elements:
+        - item: farmersdelight:canvas_rug_no_north_elements
+          position: 0,0.435,0
+          translation: 0,0.0625,0
+          scale: 1.001
+        hitboxes:
+        - position: 0,0,0
+          type: interaction
+          width: 1
+          height: 0.1
+          blocks-building: true
+          interactive: false
+          invisible: true
+      no_south:
+        elements:
+        - item: farmersdelight:canvas_rug_no_south_elements
+          position: 0,0.435,0
+          translation: 0,0.0625,0
+          scale: 1.001
+        hitboxes:
+        - position: 0,0,0
+          type: interaction
+          width: 1
+          height: 0.1
+          blocks-building: true
+          interactive: false
+          invisible: true
+      no_east:
+        elements:
+        - item: farmersdelight:canvas_rug_no_east_elements
+          position: 0,0.435,0
+          translation: 0,0.0625,0
+          scale: 1.001
+        hitboxes:
+        - position: 0,0,0
+          type: interaction
+          width: 1
+          height: 0.1
+          blocks-building: true
+          interactive: false
+          invisible: true
+      no_west:
+        elements:
+        - item: farmersdelight:canvas_rug_no_west_elements
+          position: 0,0.435,0
+          translation: 0,0.0625,0
+          scale: 1.001
+        hitboxes:
+        - position: 0,0,0
+          type: interaction
+          width: 1
+          height: 0.1
+          blocks-building: true
+          interactive: false
+          invisible: true
+      no_north_south:
+        elements:
+        - item: farmersdelight:canvas_rug_no_north_south_elements
+          position: 0,0.435,0
+          translation: 0,0.0625,0
+          scale: 1.001
+        hitboxes:
+        - position: 0,0,0
+          type: interaction
+          width: 1
+          height: 0.1
+          blocks-building: true
+          interactive: false
+          invisible: true
+      no_east_west:
+        elements:
+        - item: farmersdelight:canvas_rug_no_east_west_elements
+          position: 0,0.435,0
+          translation: 0,0.0625,0
+          scale: 1.001
+        hitboxes:
+        - position: 0,0,0
+          type: interaction
+          width: 1
+          height: 0.1
+          blocks-building: true
+          interactive: false
+          invisible: true
+      surrounded:
+        elements:
+        - item: farmersdelight:canvas_rug_surrounded_elements
           position: 0,0.435,0
           translation: 0,0.0625,0
           scale: 1.001
@@ -499,68 +654,6 @@ furniture:
           height: 1
           blocks-building: false
           can-use-item-on: false
-          interactive: false
-          invisible: true
-  farmersdelight:cooking_pot_handle:
-    settings:
-      item: farmersdelight:cooking_pot_handle
-      sounds:
-        break: minecraft:block.lantern.break
-        place: minecraft:block.lantern.place
-    variants:
-      north:
-        elements:
-        - item: farmersdelight:cooking_pot_handle
-          position: 0,0.5,0
-          translation: 0,0,0
-        hitboxes:
-        - position: 0,0,0
-          type: interaction
-          width: 0.5
-          height: 1
-          blocks-building: false
-          interactive: false
-          invisible: true
-      east:
-        elements:
-        - item: farmersdelight:cooking_pot_handle
-          position: 0,0.5,0
-          translation: 0,0,0
-          yaw: 90
-        hitboxes:
-        - position: 0,0,0
-          type: interaction
-          width: 0
-          height: 0
-          blocks-building: false
-          interactive: false
-          invisible: true
-      south:
-        elements:
-        - item: farmersdelight:cooking_pot_handle
-          position: 0,0.5,0
-          translation: 0,0,0
-          yaw: 180
-        hitboxes:
-        - position: 0,0,0
-          type: interaction
-          width: 0
-          height: 0
-          blocks-building: false
-          interactive: false
-          invisible: true
-      west:
-        elements:
-        - item: farmersdelight:cooking_pot_handle
-          position: 0,0.5,0
-          translation: 0,0,0
-          yaw: 270
-        hitboxes:
-        - position: 0,0,0
-          type: interaction
-          width: 0
-          height: 0
-          blocks-building: false
           interactive: false
           invisible: true
 block:
@@ -1050,35 +1143,134 @@ block:
         facing:
           type: 4-direction
           default: north
+        support:
+          type: string
+          default: none
+          values:
+            - none
+            - tray
+            - handle
       appearances:
-        east:
-          auto-state: cactus
+        east_none:
+          auto-state:
+            type: cactus
+            id: east_cooking_pot
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 90
-        north:
-          auto-state: cactus
+        east_tray:
+          auto-state:
+            type: cactus
+            id: east_cooking_pot
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:tray
+            position: 0.5,-0.5,0.5
+            rotation: -90
+        east_handle:
+          auto-state:
+            type: cactus
+            id: east_cooking_pot
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:cooking_pot_handle
+            rotation: -90
+        north_none:
+          auto-state:
+            type: cactus
+            id: north_cooking_pot
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
-        south:
-          auto-state: cactus
+        north_tray:
+          auto-state:
+            type: cactus
+            id: north_cooking_pot
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:tray
+            position: 0.5,-0.5,0.5
+            rotation: 180
+        north_handle:
+          auto-state:
+            type: cactus
+            id: north_cooking_pot
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:cooking_pot_handle
+            rotation: 180
+        south_none:
+          auto-state:
+            type: cactus
+            id: south_cooking_pot
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 180
-        west:
-          auto-state: cactus
+        south_tray:
+          auto-state:
+            type: cactus
+            id: south_cooking_pot
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:tray
+            position: 0.5,-0.5,0.5
+            rotation: 0
+        south_handle:
+          auto-state:
+            type: cactus
+            id: south_cooking_pot
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:cooking_pot_handle
+            rotation: 0
+        west_none:
+          auto-state:
+            type: cactus
+            id: west_cooking_pot
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 270
+        west_tray:
+          auto-state:
+            type: cactus
+            id: west_cooking_pot
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:tray
+            position: 0.5,-0.5,0.5
+            rotation: 90
+        west_handle:
+          auto-state:
+            type: cactus
+            id: west_cooking_pot
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:cooking_pot_handle
+            rotation: 90
       variants:
-        facing=east:
-          appearance: east
-        facing=north:
-          appearance: north
-        facing=south:
-          appearance: south
-        facing=west:
-          appearance: west
+        facing=north,support=none:
+          appearance: north_none
+        facing=north,support=tray:
+          appearance: north_tray
+        facing=north,support=handle:
+          appearance: north_handle
+        facing=south,support=none:
+          appearance: south_none
+        facing=south,support=tray:
+          appearance: south_tray
+        facing=south,support=handle:
+          appearance: south_handle
+        facing=east,support=none:
+          appearance: east_none
+        facing=east,support=tray:
+          appearance: east_tray
+        facing=east,support=handle:
+          appearance: east_handle
+        facing=west,support=none:
+          appearance: west_none
+        facing=west,support=tray:
+          appearance: west_tray
+        facing=west,support=handle:
+          appearance: west_handle
   farmersdelight:skillet:
     template:
     - farmersdelight:block_loot_template
@@ -1103,35 +1295,74 @@ block:
         facing:
           type: 4-direction
           default: south
+        support:
+          type: boolean
+          default: false
       appearances:
         east:
           state: iron_trapdoor[facing=east,half=bottom,open=false,powered=true,waterlogged=false]
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 270
+        east_support:
+          state: iron_trapdoor[facing=east,half=bottom,open=false,powered=true,waterlogged=false]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:tray
+            position: 0.5,-0.5,0.5
+            rotation: -90
         north:
           state: iron_trapdoor[facing=north,half=bottom,open=false,powered=true,waterlogged=false]
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 180
+        north_support:
+          state: iron_trapdoor[facing=north,half=bottom,open=false,powered=true,waterlogged=false]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:tray
+            position: 0.5,-0.5,0.5
+            rotation: 180
         south:
           state: iron_trapdoor[facing=south,half=bottom,open=false,powered=true,waterlogged=false]
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
+        south_support:
+          state: iron_trapdoor[facing=south,half=bottom,open=false,powered=true,waterlogged=false]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:tray
+            position: 0.5,-0.5,0.5
+            rotation: 0
         west:
           state: iron_trapdoor[facing=west,half=bottom,open=false,powered=true,waterlogged=false]
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 90
+        west_support:
+          state: iron_trapdoor[facing=west,half=bottom,open=false,powered=true,waterlogged=false]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:tray
+            position: 0.5,-0.5,0.5
+            rotation: 90
       variants:
-        facing=east:
-          appearance: east
-        facing=north:
+        facing=north,support=false:
           appearance: north
-        facing=south:
+        facing=north,support=true:
+          appearance: north_support
+        facing=south,support=false:
           appearance: south
-        facing=west:
+        facing=south,support=true:
+          appearance: south_support
+        facing=east,support=false:
+          appearance: east
+        facing=east,support=true: 
+          appearance: east_support
+        facing=west,support=false:
           appearance: west
+        facing=west,support=true: 
+          appearance: west_support
   farmersdelight:cutting_board:
     template:
     - farmersdelight:block_loot_template
@@ -1167,21 +1398,21 @@ block:
           state: heavy_weighted_pressure_plate[power=2]
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
-            y: 90
+            y: 270
         north:
           state: heavy_weighted_pressure_plate[power=3]
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
+            y: 180
         south:
           state: heavy_weighted_pressure_plate[power=4]
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
-            y: 180
         west:
           state: heavy_weighted_pressure_plate[power=5]
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
-            y: 270
+            y: 90
       variants:
         facing=east:
           appearance: east
@@ -1245,7 +1476,7 @@ block:
             x: 90
             y: 270
         up:
-          auto-state: non_tintable_leaves
+          state: composter[level=7]
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
         down:
@@ -1627,6 +1858,7 @@ block-state-mappings:
   farmland[moisture=4]: farmland[moisture=0]
   farmland[moisture=5]: farmland[moisture=0]
   farmland[moisture=6]: farmland[moisture=0]
+  composter[level=7]: composter[level=6]
 recipes:
   farmersdelight:organic_compost:
     type: shapeless

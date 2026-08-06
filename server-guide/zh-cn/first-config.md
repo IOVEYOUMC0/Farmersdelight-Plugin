@@ -41,15 +41,17 @@ buff:
 ## 效果：饱足 / 舒适（Nourishment / Comfort）
 
 ```yaml
-buff:
-  nourishment:
-    enabled: true
-  comfort:
-    enabled: false
+events:
+  - on: consume
+    functions:
+      - type: farmersdelight:nourishment
+        duration: 180
 ```
 
-饱足（吃列表里的食物会暂停饥饿流失）默认开启；舒适默认关闭，和原模组一致。两者各有一份「食物 → 持续时间」列表。
-改食物列表前，先看管理员 Wiki 的 *Effects (Comfort / Nourishment)* 一节。
+食物与 Buff 的关联现在写在对应物品的 CraftEngine 配置中。使用 `farmersdelight:nourishment` 或
+`farmersdelight:comfort` 作为 `on: consume` 函数，`duration` 单位为秒。内置关联位于
+`plugins/CraftEngine/resources/farmersdelight/configuration/items.yml`；全局 Buff 显示、持久化和舒适回血参数仍在
+`plugins/FarmersDelight/config.yml`。
 
 ## 漏斗交互
 
@@ -98,8 +100,8 @@ advancements:
 
 ## 更深的开关在哪
 
-性能预算、粒子 / 音效、显示偏移、热源、生物额外掉落、宠物食物、村民 / 流浪商人交易、堆肥与熔炉燃料值，都在 `config.yml`
-里带行内注释，并在管理员 Wiki 中有文档。第一天基本用不到。
+性能预算、粒子 / 音效、显示偏移、热源、生物额外掉落、村民 / 流浪商人交易、堆肥与熔炉燃料值位于 `config.yml`。
+宠物食物和食物 Buff 关联位于 CraftEngine 物品配置中。两个配置文件都带说明，并在管理员 Wiki 中有文档。第一天基本用不到。
 
 ## 下一步
 

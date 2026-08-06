@@ -17,11 +17,6 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Generic recipe editor backed by a RecipeEditor: editable item slots + result, numeric-field
- * buttons (left +, right -), a result-count button, and save/delete/cancel. Persists by handing an
- * EditableRecipe back to the addon's editor.
- */
 public final class RecipeEditorView implements InventoryHolder {
 
     private static final int RESULT_SLOT = 16;
@@ -109,7 +104,6 @@ public final class RecipeEditorView implements InventoryHolder {
         return false;
     }
 
-    /** Handles clicks on the control buttons; returns true if the click was a control (and consumed). */
     boolean handleButton(Player player, int rawSlot, boolean rightClick) {
         if (rawSlot == RESULT_COUNT_SLOT) {
             draft.setResultCount(Math.max(1, draft.resultCount() + (rightClick ? -1 : 1)));

@@ -15,18 +15,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Decides which advancements of a tab stay in the tree when the CraftEngine content they depend on has been
- * deleted from the configuration, and re-parents the survivors so the tab is still a connected tree.
- *
- * Configuration lives under the advancements section of config.yml:
- * auto-disable-missing (master switch, default true), force-enable and force-disable (id lists, default empty).
- * Precedence is force-disable, then force-enable, then automatic detection. Ids in the two lists may be written
- * bare (master_chef) or tab-qualified (farmersdelight:master_chef).
- *
- * The gate never removes the root, and resolveParents refuses to return anything but a fully connected tree, so
- * a wrong requirement can at worst hide a leaf — it can never empty the tab.
- */
 final class AdvancementGate {
 
     private static final String PATH_AUTO_DISABLE = "advancements.auto-disable-missing";
@@ -45,7 +33,6 @@ final class AdvancementGate {
         this.forceDisable = forceDisable;
     }
 
-    /** Reads the gate settings for one tab. Falls back to "keep everything" when the plugin is unavailable. */
     static AdvancementGate fromConfig(FarmersDelightPlugin plugin, String tab) {
         if (plugin == null) {
             return new AdvancementGate(tab, false, Set.of(), Set.of());
@@ -81,7 +68,6 @@ final class AdvancementGate {
         return ids;
     }
 
-    /** True when the advancement (or criterion) keeps its place in the tree. */
     boolean keeps(String id, ContentRequirement requirement) {
         if (matches(forceDisable, id)) {
             return false;
@@ -103,11 +89,6 @@ final class AdvancementGate {
         return ids.contains(lower) || ids.contains(tab.toLowerCase(Locale.ROOT) + ":" + lower);
     }
 
-    /**
-     * Maps every kept advancement to its nearest kept ancestor, so hiding a middle node re-attaches its children
-     * further up instead of orphaning them. Returns null when the outcome is not a single tree rooted at rootId;
-     * callers treat that as "build the full ungated tab instead".
-     */
     static Map<String, String> resolveParents(String rootId, Map<String, String> declaredParents, Set<String> kept) {
         if (rootId == null || !kept.contains(rootId)) {
             return null;
@@ -141,11 +122,6 @@ final class AdvancementGate {
         return resolved;
     }
 
-    /**
-     * Orders the kept ids so every advancement comes after the parent it will be built against, which is what
-     * the UltimateAdvancementAPI constructors require. Returns null when some node cannot be reached from the
-     * root (an unknown or cyclic parent), leaving the caller to decide what to build instead.
-     */
     static List<String> buildOrder(String rootId, Map<String, String> parents, Set<String> kept) {
         if (rootId == null || !kept.contains(rootId)) {
             return null;
@@ -171,10 +147,6 @@ final class AdvancementGate {
         return placed.size() == kept.size() ? order : null;
     }
 
-    /**
-     * Logs the ids that changed side since the previous build, so an advancement never disappears from (or
-     * reappears in) the tab silently. Returns the set to remember for the next comparison.
-     */
     static Set<String> logChanges(String tab, Set<String> previousGatedOff, Set<String> gatedOff) {
         // Keep the declaration order so repeated builds produce identical log lines.
         Set<String> current = Collections.unmodifiableSet(new LinkedHashSet<>(gatedOff));
@@ -205,15 +177,6 @@ final class AdvancementGate {
         return current;
     }
 
-    /**
-     * Drops the criteria whose CraftEngine content is gone, so one deleted item cannot leave a multi-task
-     * advancement permanently one subtask short. Returns the full list unchanged (with a warning) when every
-     * criterion would be dropped: a multi-task advancement with no criteria at all cannot even be registered.
-     *
-     * Gated on the same autoDisable flag as node-level gating: the admin switch that turns automatic removal
-     * off has to hold for subtasks too, and a requirement evaluated before the CraftEngine registries are
-     * populated reads every criterion as missing content.
-     */
     List<String> filterCriteria(String advancementId, List<String> criteria,
                                 Map<String, ContentRequirement> requirements) {
         if (!autoDisable || criteria == null || criteria.isEmpty()) {
@@ -241,11 +204,6 @@ final class AdvancementGate {
         return keptCriteria;
     }
 
-    /**
-     * Warns about force-enable / force-disable entries that match no advancement in this tab, so a typo does not
-     * fail silently. A bare id applies to every registered tab, so an entry meant for another tab is reported
-     * here too; writing entries tab-qualified avoids that.
-     */
     void warnUnknownConfiguredIds(Iterable<String> declaredIds) {
         if (forceEnable.isEmpty() && forceDisable.isEmpty()) {
             return;
@@ -271,7 +229,6 @@ final class AdvancementGate {
         }
     }
 
-    /** Lists the gated-off ids in declaration order so repeated builds log identical text. */
     static Set<String> orderedGatedOff(List<String> declarationOrder, Set<String> kept) {
         Set<String> gatedOff = new LinkedHashSet<>();
         for (String id : declarationOrder) {

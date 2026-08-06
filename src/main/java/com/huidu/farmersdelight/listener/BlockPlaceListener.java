@@ -243,6 +243,11 @@ public class BlockPlaceListener implements Listener {
 
         ImmutableBlockState state = CustomBlockUtils.getState(blockLocation);
 
+        if (CustomBlockUtils.hasBehavior(state, com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior.class)
+                && plugin.getStoveManager() != null) {
+            plugin.getStoveManager().trackBurnStove(blockLocation);
+        }
+
         if (CustomBlockUtils.hasBehavior(state, CuttingBoardBlockBehavior.class)) {
             ensureCuttingBoardRuntimeEntity(blockLocation);
         }

@@ -5,16 +5,12 @@ import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
-import net.momirealms.craftengine.bukkit.entity.projectile.BukkitProjectileManager;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Projectile;
-import org.bukkit.entity.Raider;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.CraftItemEvent;
 import org.bukkit.event.inventory.SmithItemEvent;
@@ -45,26 +41,6 @@ public class AchievementListener implements Listener {
     public void onSmithItem(SmithItemEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         handleCraftedItem(player, event.getCurrentItem());
-    }
-
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
-        if (!(event.getDamager() instanceof Projectile projectile)) return;
-        if (!(event.getEntity() instanceof Raider)) return;
-        if (!(projectile.getShooter() instanceof Player player)) return;
-
-        BukkitProjectileManager projectileManager = BukkitProjectileManager.instance();
-        if (projectileManager == null) return;
-
-        String customItemId = projectileManager.projectileByEntityId(projectile.getEntityId())
-                .map(customProjectile -> customProjectile.item().id().toString())
-                .orElse(null);
-        if (Constants.ITEM_ROTTEN_TOMATO.equals(customItemId)) {
-            AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
-            if (am != null) {
-                am.award(player, "hit_raider_with_rotten_tomato");
-            }
-        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)

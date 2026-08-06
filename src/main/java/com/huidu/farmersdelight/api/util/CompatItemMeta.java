@@ -6,16 +6,6 @@ import org.jetbrains.annotations.ApiStatus;
 
 import java.lang.reflect.Method;
 
-/**
- * Applies the item_model component when the running server supports it, and is a no-op otherwise. The
- * ItemMeta setItemModel method exists only on Minecraft 1.21.4 and newer; on 1.21 / 1.21.1 the method
- * is absent, so the call is routed through reflection and skipped when unavailable. This lets a
- * plugin compile against and run on 1.21 while still honouring the component on newer servers.
- *
- * This is the single implementation shared by FarmersDelight and its addons; addons should call
- * these methods instead of keeping their own copy. Use isSupported when the caller needs a different
- * fallback (e.g. custom model data) on servers without the component.
- */
 @ApiStatus.NonExtendable
 public final class CompatItemMeta {
 

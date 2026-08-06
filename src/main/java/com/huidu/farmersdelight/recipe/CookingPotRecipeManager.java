@@ -11,7 +11,16 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.ToIntFunction;
 
@@ -29,7 +38,7 @@ public class CookingPotRecipeManager {
     private volatile List<CookingPotRecipe> sortedRecipes = List.of();
     private volatile Map<String, List<CookingPotRecipe>> sortedCustomRecipes = Map.of();
     private volatile Map<String, List<CookingPotRecipe>> sortedCustomOnlyRecipes = Map.of();
-    private final Map<Key, Set<String>> vanillaItemIdsByTagCache = new ConcurrentHashMap<>();
+    private final VanillaTagItemIdCache vanillaItemIdsByTagCache;
     // LRU access-order LinkedHashMap mutates internal state on get(), so concurrent reads from
     // multiple region threads (Folia) would corrupt the doubly-linked list. Wrap in synchronizedMap;
     // callers MUST synchronize externally when iterating (currently no iteration happens).
@@ -66,6 +75,7 @@ public class CookingPotRecipeManager {
 
     public CookingPotRecipeManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
+        this.vanillaItemIdsByTagCache = new VanillaTagItemIdCache(plugin);
     }
 
     public void loadRecipes() {
@@ -87,6 +97,25 @@ public class CookingPotRecipeManager {
                     indexContainer(newValidContainerKeys, recipe);
                 });
         loadCustomRecipes(config, newCustomRecipes, newCustomIngredientToRecipes, newValidContainerKeys);
+
+        // Recipes an addon ships inside a CraftEngine pack (<pack>/farmersdelight/*.yml). Loaded after the
+        // plugin's own file so a pack can never silently replace a built-in recipe, and before the API merge
+        // below so an explicit runtime registration still wins on an id clash. See PackRecipeSource.
+        for (PackRecipeSource.Loaded loaded : PackRecipeSource.load(plugin)) {
+            RecipeFileLoader.loadRecipeSections(plugin, loaded.config(), "cooking_pot_recipes",
+                    "cooking pot [" + loaded.source() + "]",
+                    (recipeId, section) -> {
+                        if (newRecipes.containsKey(recipeId)) {
+                            I18n.logWarning("recipe.pack_duplicate_skipped", "id", recipeId, "source", loaded.source());
+                            return;
+                        }
+                        CookingPotRecipe recipe = parseRecipe(recipeId, section, 6);
+                        newRecipes.put(recipeId, recipe);
+                        indexDefaultRecipe(newIngredientToRecipes, recipeId, recipe);
+                        indexContainer(newValidContainerKeys, recipe);
+                    });
+            loadCustomRecipes(loaded.config(), newCustomRecipes, newCustomIngredientToRecipes, newValidContainerKeys);
+        }
 
         // Merge addon-registered recipes last so they survive reloads (and override file ids on clash).
         for (CookingPotRecipe recipe : externalRecipes.values()) {
@@ -145,6 +174,12 @@ public class CookingPotRecipeManager {
             for (String recipeId : groupSection.getKeys(false)) {
                 ConfigurationSection section = groupSection.getConfigurationSection(recipeId);
                 if (section == null) {
+                    continue;
+                }
+                // A recipe already present in this group was contributed by the plugin's own file or an
+                // earlier pack; a later pack must not replace it silently.
+                if (groupRecipes.containsKey(recipeId)) {
+                    I18n.logWarning("recipe.pack_duplicate_skipped", "id", groupId + "." + recipeId, "source", "custom cooking pot group");
                     continue;
                 }
                 try {
@@ -260,32 +295,7 @@ public class CookingPotRecipeManager {
     }
 
     private RecipeIngredient parseIngredient(String str) {
-        String[] choiceParts = str.split("\\|");
-        if (choiceParts.length > 1) {
-            List<RecipeIngredient> options = new ArrayList<>();
-            for (String choicePart : choiceParts) {
-                String trimmed = choicePart.trim();
-                if (!trimmed.isEmpty()) {
-                    options.add(parseSingleIngredient(trimmed));
-                }
-            }
-            if (options.isEmpty()) {
-                throw new IllegalArgumentException("Choice ingredient must contain at least one option");
-            }
-            if (options.size() == 1) {
-                return options.get(0);
-            }
-            return new RecipeIngredient.Choice(options);
-        }
-
-        return parseSingleIngredient(str.trim());
-    }
-
-    private RecipeIngredient parseSingleIngredient(String str) {
-        if (!str.startsWith("#")) {
-            return RecipeParsingSupport.parseSimpleItemOrTag(str);
-        }
-        return RecipeParsingSupport.parseTagIngredientWithExclusions(str, "ingredient");
+        return RecipeParsingSupport.parseIngredientChoice(str);
     }
 
     private List<String> flattenIngredientKeys(RecipeIngredient ingredient) {
@@ -545,10 +555,6 @@ public class CookingPotRecipeManager {
         return matchRecipePrefiltered(recipe, nonEmpty, exactSlots);
     }
 
-    /** Internal variant for callers that have already filtered out nulls/airs (e.g. the matchPass
-     *  loop, which only ever sees the nonEmptyInputs list built once at the top of
-     *  matchRecipe(List, ItemStack, String)). Skips the per-call ArrayList allocation the
-     *  public matchRecipe does for safety. */
     private boolean matchRecipePrefiltered(CookingPotRecipe recipe, List<ItemStack> nonEmptyInputs, boolean exactSlots) {
         // Unit budget per filled slot. The exact pass mirrors the mod's CookingPotRecipe.matches, which pairs
         // filled input STACKS against ingredients (RecipeMatcher.findMatches over the stack list) and then
@@ -569,15 +575,6 @@ public class CookingPotRecipeManager {
         return recipe != null && matchesContainer(recipe, container) && matchRecipe(recipe, inputs);
     }
 
-    /**
-     * Containment test for the recipe-list "craftable only" filter: does the supplied item pool (typically the
-     * player's whole inventory plus the pot's current inputs) hold enough of every required ingredient,
-     * ignoring unrelated items? This is deliberately NOT the real cook question. The real cook feeds the pot's
-     * own &lt;=6 input slots into matchRecipe / canCraft, whose lenient pass rejects any
-     * filled slot the recipe cannot use; a real inventory always has such slots, so that path always answers
-     * "no". Here the unit budget stays each stack's amount so a single stack covers several units, but the
-     * slot-count and foreign-slot gates are dropped. Container presence is checked by the caller.
-     */
     public boolean containsIngredientsFor(CookingPotRecipe recipe, List<ItemStack> available) {
         if (recipe == null) {
             return false;
@@ -642,20 +639,7 @@ public class CookingPotRecipeManager {
     }
 
     public Set<String> getVanillaItemIdsByTag(Key tagKey) {
-        if (tagKey == null) {
-            return Set.of();
-        }
-        return vanillaItemIdsByTagCache.computeIfAbsent(tagKey, key -> {
-            var craftEngine = plugin.getCraftEngine();
-            if (craftEngine == null || craftEngine.itemManager() == null) {
-                return Set.of();
-            }
-            Set<String> itemIds = new HashSet<>();
-            for (var itemId : craftEngine.itemManager().vanillaItemIdsByTag(key)) {
-                itemIds.add(itemId.toString());
-            }
-            return itemIds.isEmpty() ? Set.of() : Collections.unmodifiableSet(itemIds);
-        });
+        return vanillaItemIdsByTagCache.getIds(tagKey);
     }
 
     private String getItemKey(ItemStack item) {
@@ -671,15 +655,6 @@ public class CookingPotRecipeManager {
         return Collections.unmodifiableMap(recipes);
     }
 
-    /**
-     * Every cooking-pot recipe the manager knows: the default set plus the own recipes of each custom
-     * group. Callers that must reason about all displayable recipes (recipe discovery, audits) need this
-     * because a group's recipes never appear in the default map, only in the group-merged views.
-     *
-     * A recipe id declared by several groups yields one entry per declaring group, so consumers that key
-     * by id should de-duplicate. Read-only: each volatile field is snapshotted once into a local and the
-     * published maps are never mutated in place, so the walk sees one consistent generation.
-     */
     public List<CookingPotRecipe> getAllRecipes() {
         Map<String, CookingPotRecipe> defaultRecipes = this.recipes;
         Map<String, Map<String, CookingPotRecipe>> groupedRecipes = this.customRecipes;
@@ -720,8 +695,10 @@ public class CookingPotRecipeManager {
         return recipes.size();
     }
 
-    /** Total recipes across every custom pot group. A recipe id declared by several groups counts once per
-     *  declaring group, matching how the groups are stored and how many recipes were actually parsed. */
+    public int getExternalRecipeCount() {
+        return externalRecipes.size();
+    }
+
     public int getCustomRecipeCount() {
         int count = 0;
         for (Map<String, CookingPotRecipe> groupRecipes : customRecipes.values()) {
@@ -748,11 +725,6 @@ public class CookingPotRecipeManager {
         loadRecipes();
     }
 
-    /**
-     * Registers (or replaces) an addon-supplied cooking pot recipe at runtime and republishes the recipe
-     * maps. The recipe is retained across /fd reload. Ingredient specs use the same syntax as the
-     * recipe files ("ns:id", "#ns:tag", "a|b" choices); result carries its own amount.
-     */
     public void registerExternalRecipe(String id, List<String> ingredientSpecs, ItemStack container,
                                        ItemStack result, float experience, int cookTime, String category) {
         if (id == null || id.isBlank()) {
@@ -776,14 +748,12 @@ public class CookingPotRecipeManager {
         scheduleExternalRepublish();
     }
 
-    /** Removes a previously registered addon recipe and republishes. */
     public void unregisterExternalRecipe(String id) {
         if (id != null && externalRecipes.remove(id) != null) {
             scheduleExternalRepublish();
         }
     }
 
-    /** Coalesces external-recipe republishing to the next tick (one loadRecipes() per batch). */
     private void scheduleExternalRepublish() {
         if (externalRepublishScheduled) {
             return;

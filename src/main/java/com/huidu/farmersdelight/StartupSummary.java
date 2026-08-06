@@ -7,18 +7,6 @@ import com.huidu.farmersdelight.loot.KnifeDropHandler;
 import com.huidu.farmersdelight.recipe.CookingPotRecipeManager;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipeManager;
 
-/**
- * Collects the per-subsystem content counts into the single console line a healthy boot prints instead of
- * one line per subsystem. Counts are pulled from the managers at report time rather than pushed by them,
- * so no subsystem has to know a summary exists and no state is threaded through unrelated classes.
- *
- * Reporting is driven from the point where the last count becomes final: the tail of the CraftEngine
- * readiness pass (recipes, advancements and the item warmup all complete there). The same call also runs
- * at the end of onEnable for the case where CraftEngine is already up, so exactly one of the two wins.
- * A later pass whose counts are unchanged is demoted to the startup detail channel; a pass that genuinely
- * changes a count (an addon registering recipes, a reload picking up edited files) reports again at INFO
- * because the new totals are news.
- */
 final class StartupSummary {
 
     private final FarmersDelightPlugin plugin;
@@ -53,8 +41,12 @@ final class StartupSummary {
         AdvancementManager advancements = plugin.getAdvancementManager();
 
         int cookingPotRecipes = cookingPot == null ? 0 : cookingPot.getRecipeCount();
+        int cookingPotExternal = cookingPot == null ? 0 : cookingPot.getExternalRecipeCount();
+        int fdCookingPot = cookingPotRecipes - cookingPotExternal;
         int customPotRecipes = cookingPot == null ? 0 : cookingPot.getCustomRecipeCount();
         int cuttingBoardRecipes = cuttingBoard == null ? 0 : cuttingBoard.getRecipeCount();
+        int cuttingBoardExternal = cuttingBoard == null ? 0 : cuttingBoard.getExternalRecipeCount();
+        int fdCuttingBoard = cuttingBoardRecipes - cuttingBoardExternal;
         int dropRules = knifeDrops == null ? 0 : knifeDrops.getDropRuleCount();
         int petFoodCount = petFoods == null ? 0 : petFoods.getTemptFoodCount();
         int advancementCount = advancements == null ? 0 : advancements.getLoadedCount();
@@ -64,14 +56,19 @@ final class StartupSummary {
         int addonAdvancementCount = plugin.getAddonAdvancementRegistry().getLoadedAdvancementCount();
         int items = warmedItems;
 
-        String counts = cookingPotRecipes + "/" + customPotRecipes + "/" + cuttingBoardRecipes + "/"
+        String counts = cookingPotRecipes + "/" + cookingPotExternal + "/" + customPotRecipes + "/"
+                + cuttingBoardRecipes + "/" + cuttingBoardExternal + "/"
                 + dropRules + "/" + petFoodCount + "/" + advancementCount + "/" + addonAdvancementCount
                 + "/" + items;
 
         Object[] args = {
                 "cooking_pot", cookingPotRecipes,
+                "fd_pot", fdCookingPot,
+                "cooking_pot_addon", cookingPotExternal,
                 "custom_pot", customPotRecipes,
                 "cutting_board", cuttingBoardRecipes,
+                "fd_board", fdCuttingBoard,
+                "cutting_board_addon", cuttingBoardExternal,
                 "drop_rules", dropRules,
                 "pet_foods", petFoodCount,
                 "advancements", advancementCount,

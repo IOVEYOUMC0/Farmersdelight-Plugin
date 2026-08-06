@@ -27,39 +27,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-/**
- * Keeps a config file an operator already has in step with the one the running build ships: renames paths
- * that moved, deletes paths nothing reads any more, and fills in settings that a later version introduced,
- * leaving every value the operator set exactly as it was.
- *
- * This is the machinery only. What to rename, what to retire and which sections list content instead of
- * settings is data, and comes from the caller as a ConfigUpdatePolicy. Nothing here logs and nothing here
- * decides when to write: the update returns a ConfigUpdateReport and the caller reports it in its own
- * words and writes the file if it wants to. That split is what lets one plugin and its addons share the
- * behaviour without sharing a voice, a language file or a set of config tables.
- *
- * A plugin with several files bootstraps each of them with its own policy; the class holds no state.
- */
 public final class ConfigFileUpdater {
 
     private ConfigFileUpdater() {
     }
 
-    /**
-     * Applies the dump settings a user-facing YAML file is written with, and must be called on the
-     * configuration right before YamlConfiguration.save / saveToString.
-     *
-     * Bukkit's YAML dumper defaults to a line width of 80 characters, so any value longer than that is
-     * folded across several physical lines when the file is rewritten. Item id lists, message templates and
-     * long descriptions then come back as multi-line blocks that are hard to read and easy to break by hand.
-     * An effectively unlimited width keeps one value on one line. The indent is pinned to 2 spaces so a
-     * rewritten file matches the bundled files, and comment parsing stays on so the header documentation and
-     * the per-key comments survive the load/save round trip.
-     *
-     * Saving still goes through Bukkit's own YamlConfiguration, which is what preserves comments and
-     * ConfigurationSerializable values; this only adjusts its dump options. Anything that is not a
-     * YamlConfiguration has no such options and is left alone.
-     */
     public static void tidy(FileConfiguration configuration) {
         if (!(configuration instanceof YamlConfiguration yaml)) {
             return;
@@ -70,18 +42,6 @@ public final class ConfigFileUpdater {
         options.parseComments(true);
     }
 
-    /**
-     * Runs the whole update against one file in the only order that is correct, and returns what it did.
-     *
-     * Renaming runs first: a rename is skipped when the new path is already set, so filling in the bundled
-     * defaults first would plant the new path, make every rename a no-op and silently drop the values the
-     * operator had configured under the old name. Retired keys are dropped next, after a rename has moved a
-     * value to its current path and before the merge writes anything, so a setting nothing reads is not
-     * carried forward again. The additive merge runs last.
-     *
-     * Neither argument is written to disk here. The caller writes existing when the report says something
-     * changed, having called tidy on it first.
-     */
     public static ConfigUpdateReport applyTo(ConfigurationSection bundled, ConfigurationSection existing,
                                              ConfigUpdatePolicy policy) {
         List<ConfigKeyRename> migrated = applyMigrations(existing, policy.migrations());
@@ -90,18 +50,6 @@ public final class ConfigFileUpdater {
         return new ConfigUpdateReport(migrated, retired, added);
     }
 
-    /**
-     * Brings a plugin's own config.yml up to date and writes it back, doing every step in the order they have to
-     * run. Use this rather than the individual steps unless the plugin needs to interleave something between
-     * them: the steps are order-dependent, and a caller that saves without pinning the dump options first gets a
-     * file whose long values are folded across several lines the first time it is rewritten.
-     *
-     * Nothing is written when nothing changed. A copy of the file is taken before the rewrite because the same
-     * pass that adds settings also deletes values the operator wrote; if that copy cannot be written the update
-     * still goes ahead and the reason is carried on the report.
-     *
-     * Returns what changed so the caller can report it in its own wording and its own language files.
-     */
     public static ConfigUpdateReport updateMainConfig(Plugin plugin, ConfigUpdatePolicy policy)
             throws IOException, InvalidConfigurationException {
         YamlConfiguration bundled = readBundledYaml(plugin, "config.yml");
@@ -124,13 +72,6 @@ public final class ConfigFileUpdater {
         return new ConfigUpdateReport(report.migratedKeys(), report.retiredKeys(), report.addedKeys(), backupError);
     }
 
-    /**
-     * Moves the value at each rename's old path to its new path and clears the old path. A rename whose new
-     * path is already set is skipped, so a file that has been updated by hand keeps the value it carries
-     * there. Returns the renames that actually moved something, in the order they were applied.
-     *
-     * A section is recreated key by key at the new path; comments are not carried across a rename.
-     */
     public static List<ConfigKeyRename> applyMigrations(ConfigurationSection config,
                                                         List<ConfigKeyRename> migrations) {
         List<ConfigKeyRename> applied = new ArrayList<>();
@@ -157,6 +98,19 @@ public final class ConfigFileUpdater {
         return true;
     }
 
+    public static boolean copyPathIfMissing(ConfigurationSection config, String sourcePath, String targetPath) {
+        if (config.isSet(targetPath) || !config.isSet(sourcePath)) {
+            return false;
+        }
+        ConfigurationSection sourceSection = config.getConfigurationSection(sourcePath);
+        if (sourceSection != null) {
+            copySection(sourceSection, config.createSection(targetPath));
+        } else {
+            config.set(targetPath, config.get(sourcePath));
+        }
+        return true;
+    }
+
     private static void copySection(ConfigurationSection source, ConfigurationSection target) {
         for (String key : source.getKeys(false)) {
             ConfigurationSection child = source.getConfigurationSection(key);
@@ -168,12 +122,6 @@ public final class ConfigFileUpdater {
         }
     }
 
-    /**
-     * Deletes the given paths from the configuration and returns the ones that were actually there, in the
-     * order they were listed. Uses the same presence test the renames use, so both agree on what the
-     * operator's file carries. This discards values the operator wrote, so a caller that owns the file
-     * should keep a copy of it before it writes the result.
-     */
     public static List<String> removeKeys(ConfigurationSection config, List<String> paths) {
         List<String> removed = new ArrayList<>();
         for (String path : paths) {
@@ -185,13 +133,6 @@ public final class ConfigFileUpdater {
         return removed;
     }
 
-    /**
-     * Walks every key of the bundled configuration and sets the ones the operator's configuration does not
-     * have, together with the comment that documents them. Values already present are never overwritten, so
-     * key paths and operator choices stay exactly as they were. Entries of the given registry sections are
-     * skipped once the operator's file has that section. Returns the number of value keys added; sections
-     * themselves are not counted.
-     */
     public static int copyMissingKeys(ConfigurationSection bundled, ConfigurationSection existing,
                                       List<String> registrySections) {
         int added = 0;
@@ -245,11 +186,6 @@ public final class ConfigFileUpdater {
         return added;
     }
 
-    /**
-     * True when the key is a descendant of a registry section the operator's file already had, in which case
-     * a missing entry means the operator removed it rather than that the entry is new. The section node
-     * itself is never suppressed, so a section the operator does not have is still created.
-     */
     private static boolean isSuppressedRegistryEntry(String key, List<String> registrySections,
                                                      Set<String> sectionsOperatorAlreadyHad) {
         for (String section : registrySections) {
@@ -270,11 +206,6 @@ public final class ConfigFileUpdater {
         }
     }
 
-    /**
-     * Loads a YAML resource bundled in the plugin jar. Returns null when the jar has no such resource, which
-     * is the one outcome that is not an error: a build may legitimately not ship the file. Malformed content
-     * is raised so the caller can report it in its own words.
-     */
     public static YamlConfiguration readBundledYaml(Plugin plugin, String resourcePath)
             throws IOException, InvalidConfigurationException {
         try (InputStream stream = plugin.getResource(resourcePath)) {
@@ -289,10 +220,6 @@ public final class ConfigFileUpdater {
         }
     }
 
-    /**
-     * Loads a YAML file from disk as UTF-8, without Bukkit's jar-default layer. A file the plugin does not
-     * own its getConfig for, such as a second config file, is read this way.
-     */
     public static YamlConfiguration readYamlFile(Path file) throws IOException, InvalidConfigurationException {
         YamlConfiguration configuration = new YamlConfiguration();
         try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8)) {
@@ -301,10 +228,6 @@ public final class ConfigFileUpdater {
         return configuration;
     }
 
-    /**
-     * Keeps a timestamped copy of a file next to it, named file.yyyyMMdd-HHmmss.bak. Two backups taken in
-     * the same second collapse into one file rather than piling up.
-     */
     public static void backup(Path file) throws IOException {
         String fileName = file.getFileName().toString();
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
@@ -312,11 +235,6 @@ public final class ConfigFileUpdater {
         Files.copy(file, file.resolveSibling(backupName), StandardCopyOption.REPLACE_EXISTING);
     }
 
-    /**
-     * True when the file on disk cannot be trusted and should be replaced from the jar: it does not parse as
-     * YAML, it cannot be read at all, or it contains the Unicode replacement character, which is what a file
-     * saved in the wrong encoding leaves behind.
-     */
     public static boolean needsRestore(Path file) {
         if (!isYamlReadable(file)) {
             return true;
@@ -337,11 +255,6 @@ public final class ConfigFileUpdater {
         }
     }
 
-    /**
-     * Writes a resource bundled in the plugin jar to a file on disk, atomically. The resource must decode as
-     * UTF-8, and a YAML resource must parse, so a broken build cannot overwrite a working file with rubbish.
-     * With replace false an existing target is an error rather than being overwritten.
-     */
     public static void installBundledResource(Plugin plugin, String resourcePath, Path targetPath, boolean replace)
             throws IOException {
         try (InputStream inputStream = plugin.getResource(resourcePath)) {
@@ -386,11 +299,6 @@ public final class ConfigFileUpdater {
         }
     }
 
-    /**
-     * Writes text to a file through a temporary file in the same directory and an atomic move, so a crash
-     * or a full disk leaves the previous file intact rather than a half-written one. Falls back to a plain
-     * move on a filesystem that cannot move atomically. With replace false an existing target is an error.
-     */
     public static void writeStringAtomically(Path targetPath, String content, boolean replace) throws IOException {
         Path parent = targetPath.getParent();
         if (parent != null) {

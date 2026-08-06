@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.listener.worlddata;
 
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -10,18 +11,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- * Composting chances, furnace burn times and villager / wandering trader trade offers.
- *
- * Every value is taken from the mod's generated data: data/neoforge/data_maps/item/compostables.json,
- * data/neoforge/data_maps/item/furnace_fuels.json and common/event/VillagerEvents.java. The defaults below
- * reproduce those files exactly, so the feature works on a config that predates these sections; a config
- * that DOES carry a section replaces the matching default list wholesale, so removing an entry there
- * disables it instead of being merged back in.
- *
- * Read from region threads (block interaction, furnace tick, villager trade acquisition) and rebuilt from
- * the global thread on reload, so the published instance is volatile and never mutated after publication.
- */
 public final class WorldDataConfig {
 
     private static volatile WorldDataConfig instance = createDefaults();
@@ -48,15 +37,10 @@ public final class WorldDataConfig {
         this.wanderingTrades = List.copyOf(builder.wanderingTrades);
     }
 
-    /** The published configuration. Never null: falls back to the mod-faithful defaults before the first load. */
     public static WorldDataConfig get() {
         return instance;
     }
 
-    /**
-     * Rebuilds the configuration from config.yml and publishes it. Called once from the plugin's config
-     * load path so both startup and every reload variant pick the new values up.
-     */
     public static void reload(JavaPlugin plugin) {
         Builder builder = defaultBuilder();
         ConfigurationSection root = plugin.getConfig().getConfigurationSection("world-data");
@@ -81,7 +65,6 @@ public final class WorldDataConfig {
         return compostingEnabled;
     }
 
-    /** The composting chance for an item id, or null when the item is not one of the mod's compostables. */
     public Float compostChance(String itemId) {
         return itemId == null ? null : compostChances.get(itemId.toLowerCase(Locale.ROOT));
     }
@@ -94,7 +77,6 @@ public final class WorldDataConfig {
         return fuelEnabled;
     }
 
-    /** The furnace burn time in ticks for an item id, or null when the item is not one of the mod's fuels. */
     public Integer fuelTime(String itemId) {
         return itemId == null ? null : fuelTimes.get(itemId.toLowerCase(Locale.ROOT));
     }
@@ -107,7 +89,6 @@ public final class WorldDataConfig {
         return villagerTradesEnabled;
     }
 
-    /** The offers configured for one profession id path and villager level. */
     public List<TradeOffer> villagerTradesFor(String professionPath, int level) {
         if (professionPath == null) {
             return List.of();
@@ -128,10 +109,6 @@ public final class WorldDataConfig {
         return wanderingTraderTradesEnabled;
     }
 
-    /**
-     * How many offers a wandering trader draws from the generic pool the mod adds to. Only those draws
-     * compete with the mod's listings; the trader's last offer comes from a separate rare pool.
-     */
     public int wanderingGenericTradeCount() {
         return wanderingGenericTradeCount;
     }
@@ -140,26 +117,12 @@ public final class WorldDataConfig {
         return wanderingTrades;
     }
 
-    /**
-     * One trade the mod contributes to a vanilla listing pool.
-     *
-     * @param profession       villager profession id path, null for wandering trader offers
-     * @param level            villager level whose pool the listing joins, 0 for wandering trader offers
-     * @param ingredient       item id the player hands over
-     * @param ingredientAmount how many of it
-     * @param result           item id the player receives
-     * @param resultAmount     how many of it
-     * @param maxUses          trades before the offer locks until restock
-     * @param villagerXp       merchant experience the trade awards
-     * @param priceMultiplier  vanilla demand/reputation price multiplier
-     * @param chance           probability this listing wins one draw from its pool
-     */
     public record TradeOffer(String profession, int level, String ingredient, int ingredientAmount,
                              String result, int resultAmount, int maxUses, int villagerXp,
                              float priceMultiplier, double chance) {
     }
 
-    // ── defaults ─────────────────────────────────────────────────────────────────────────────────────
+    // defaults
 
     private static WorldDataConfig createDefaults() {
         return new WorldDataConfig(defaultBuilder());
@@ -268,7 +231,7 @@ public final class WorldDataConfig {
                 "farmersdelight:onion", 1, 1, 12, 0.05f, wanderingChance));
     }
 
-    // ── config parsing ───────────────────────────────────────────────────────────────────────────────
+    // config parsing
 
     private static void applyComposting(Builder builder, ConfigurationSection section, JavaPlugin plugin) {
         if (section == null) {
@@ -291,13 +254,12 @@ public final class WorldDataConfig {
                 continue;
             }
             if (!ItemUtils.isValidItemId(itemId)) {
-                plugin.getLogger().warning("world-data.composting.items: not an item id: " + itemId);
+                I18n.logWarning("worlddata.composting_invalid_item", "id", itemId);
                 continue;
             }
             double chance = items.getDouble(itemId, -1.0D);
             if (chance < 0.0D || chance > 1.0D) {
-                plugin.getLogger().warning("world-data.composting.items." + itemId
-                        + ": chance must be between 0.0 and 1.0");
+                I18n.logWarning("worlddata.composting_invalid_chance", "id", itemId);
                 continue;
             }
             builder.compost(itemId, (float) chance);
@@ -323,13 +285,12 @@ public final class WorldDataConfig {
                 continue;
             }
             if (!ItemUtils.isValidItemId(itemId)) {
-                plugin.getLogger().warning("world-data.furnace-fuel.items: not an item id: " + itemId);
+                I18n.logWarning("worlddata.fuel_invalid_item", "id", itemId);
                 continue;
             }
             int ticks = items.getInt(itemId, 0);
             if (ticks <= 0) {
-                plugin.getLogger().warning("world-data.furnace-fuel.items." + itemId
-                        + ": burn time must be a positive tick count");
+                I18n.logWarning("worlddata.fuel_invalid_burn_time", "id", itemId);
                 continue;
             }
             builder.fuel(itemId, ticks);
@@ -348,7 +309,7 @@ public final class WorldDataConfig {
         for (Map<?, ?> raw : section.getMapList("trades")) {
             String profession = string(raw.get("profession"));
             if (profession == null) {
-                plugin.getLogger().warning("world-data.trades.villager.trades: entry without a profession");
+                I18n.logWarning("worlddata.villager_trades_no_profession");
                 continue;
             }
             int level = number(raw.get("level"), 1).intValue();
@@ -384,7 +345,7 @@ public final class WorldDataConfig {
         String ingredient = string(raw.get("ingredient"));
         String result = string(raw.get("result"));
         if (!ItemUtils.isValidItemId(ingredient) || !ItemUtils.isValidItemId(result)) {
-            plugin.getLogger().warning(path + ": entry needs a valid ingredient and result item id");
+            I18n.logWarning("worlddata.trades_invalid_entry", "path", path);
             return null;
         }
         int ingredientAmount = Math.max(1, number(raw.get("ingredient-amount"), 1).intValue());

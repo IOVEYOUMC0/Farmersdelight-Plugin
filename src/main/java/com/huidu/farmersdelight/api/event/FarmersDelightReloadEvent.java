@@ -4,10 +4,6 @@ import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.ApiStatus;
 
-/**
- * Fired after FarmersDelight finishes a full reload (configs, recipes, language). Addons can listen to
- * re-read their own configuration in step with the main plugin.
- */
 @ApiStatus.NonExtendable
 public class FarmersDelightReloadEvent extends Event {
 
@@ -19,7 +15,6 @@ public class FarmersDelightReloadEvent extends Event {
         this.reason = reason;
     }
 
-    /** A short identifier for what triggered the reload (may be null). */
     public String getReason() {
         return reason;
     }

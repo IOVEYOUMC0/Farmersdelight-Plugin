@@ -6,7 +6,9 @@ import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.*;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.function.BiConsumer;
 
 public final class ManagerSupport {
@@ -70,16 +72,6 @@ public final class ManagerSupport {
         return Math.max(0.0D, Math.min(1.0D, value));
     }
 
-    /**
-     * Collects the chunk-tracked players within distanceSquared of center into
-     * out (cleared first) and returns it. Candidates come from Paper's chunk-tracked player
-     * set (maintained O(1) off the chunk holder) rather than a full-world scan; a non-empty result
-     * means at least one player is close. One walk of
-     * the chunk-tracked set (typically &lt;10) serves both the gate and the subsequent targeted sends,
-     * so a hot broadcast can emit via player.spawnParticle/playSound to this list instead of
-     * world.spawnParticle/playSound, which re-walks the whole world player list per call (R-PERF-006).
-     * Effect-only path: obeys CORRECTNESS-CAVEAT (never gate correctness on this).
-     */
     public static List<Player> collectNearbyPlayers(World world, Location center, double distanceSquared, List<Player> out) {
         out.clear();
         if (world == null || center == null) {
@@ -90,23 +82,29 @@ public final class ManagerSupport {
         if (!world.isChunkLoaded(chunkX, chunkZ)) {
             return out;
         }
+        // Compute squared distance by hand to avoid allocating a Location per candidate. Same world is
+        // already guaranteed below, so this is equivalent to distanceSquared.
+        double cx = center.getX();
+        double cy = center.getY();
+        double cz = center.getZ();
         for (Player p : world.getChunkAt(chunkX, chunkZ).getPlayersSeeingChunk()) {
-            if (p.getWorld() == world && p.getLocation().distanceSquared(center) <= distanceSquared) {
+            if (p.getWorld() != world) {
+                continue;
+            }
+            double dx = p.getX() - cx;
+            double dy = p.getY() - cy;
+            double dz = p.getZ() - cz;
+            if (dx * dx + dy * dy + dz * dz <= distanceSquared) {
                 out.add(p);
             }
         }
         return out;
     }
 
-    /** Emits a particle only to the given viewers (already distance-filtered), one packet per viewer —
-     *  no world.spawnParticle full-world recipient walk. Passes force = false explicitly so the
-     *  packet matches world.spawnParticle's default on this server (verified force=false → 32-block
-     *  range in CraftWorld/NMS): particles respect a viewer's reduced-particle client setting exactly as
-     *  before. Data is null — these hot-path particles (SMOKE/FLAME/configured smoke) carry none. */
     public static void spawnParticleFor(List<Player> viewers, Particle particle, double x, double y, double z,
                                         int count, double offsetX, double offsetY, double offsetZ, double extra) {
-        for (int i = 0; i < viewers.size(); i++) {
-            viewers.get(i).spawnParticle(particle, x, y, z, count, offsetX, offsetY, offsetZ, extra, null, false);
+        for (Player viewer : viewers) {
+            viewer.spawnParticle(particle, x, y, z, count, offsetX, offsetY, offsetZ, extra, null, false);
         }
     }
 }

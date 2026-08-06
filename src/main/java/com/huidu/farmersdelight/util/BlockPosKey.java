@@ -4,21 +4,9 @@ import net.momirealms.craftengine.core.world.BlockPos;
 import org.bukkit.Location;
 import org.bukkit.World;
 
-import java.util.Objects;
+import java.util.Optional;
 
-public final class BlockPosKey {
-
-    private final int x;
-    private final int y;
-    private final int z;
-    private final int hashCode;
-
-    public BlockPosKey(int x, int y, int z) {
-        this.x = x;
-        this.y = y;
-        this.z = z;
-        this.hashCode = Objects.hash(x, y, z);
-    }
+public record BlockPosKey(int x, int y, int z) {
 
     public BlockPosKey(BlockPos pos) {
         this(pos.x(), pos.y(), pos.z());
@@ -28,33 +16,20 @@ public final class BlockPosKey {
         this(location.getBlockX(), location.getBlockY(), location.getBlockZ());
     }
 
-    public static BlockPosKey fromString(String str) {
-        if (str == null || str.isEmpty()) return null;
+    public static Optional<BlockPosKey> fromString(String str) {
+        if (str == null || str.isEmpty()) return Optional.empty();
         try {
             String[] parts = str.split(",");
             if (parts.length == 3) {
-                return new BlockPosKey(
+                return Optional.of(new BlockPosKey(
                         Integer.parseInt(parts[0].trim()),
                         Integer.parseInt(parts[1].trim()),
                         Integer.parseInt(parts[2].trim())
-                );
+                ));
             }
-        } catch (NumberFormatException e) {
-            return null;
+        } catch (NumberFormatException ignored) {
         }
-        return null;
-    }
-
-    public int x() {
-        return x;
-    }
-
-    public int y() {
-        return y;
-    }
-
-    public int z() {
-        return z;
+        return Optional.empty();
     }
 
     public BlockPos toBlockPos() {
@@ -66,21 +41,7 @@ public final class BlockPosKey {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        BlockPosKey that = (BlockPosKey) o;
-        return x == that.x && y == that.y && z == that.z;
-    }
-
-    @Override
-    public int hashCode() {
-        return hashCode;
-    }
-
-    @Override
     public String toString() {
         return x + "," + y + "," + z;
     }
 }
-

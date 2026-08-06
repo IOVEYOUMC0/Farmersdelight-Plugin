@@ -271,7 +271,6 @@ cooking_pot_recipes:
     ingredients:
       - "farmersdelight:tomato"
       - "farmersdelight:tomato"
-    container: "minecraft:bowl"
     result: "farmersdelight:tomato_sauce"
     experience: 0.35
     cook-time: 100

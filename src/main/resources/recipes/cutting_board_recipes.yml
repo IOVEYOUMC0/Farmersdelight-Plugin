@@ -1,1386 +1,671 @@
-﻿# ========================================
-# Cutting board recipe configuration
-# ========================================
-#
-# Format:
-#   <recipe_id>:
-#     input: <item_id_or_tag>    # tags must be prefixed with #
-#     tool: <item_or_tag>        # tag examples: #farmersdelight:knives, #minecraft:axes
-#                                # item example: minecraft:shears
-#                                # tool exclusion: "#farmersdelight:knives,!namespace:item,!#namespace:tag"
-#     results:                   # output item list
-#       - item: <item_id>
-#         count: <amount>        # optional, default 1
-#         chance: <0.0-1.0>      # optional, default 1.0
-#     sound: <sound_id>          # optional, default entity.sheep.shear
-#     priority: <number>         # optional; when recipes overlap, the higher priority wins
-
 cutting_board_recipes:
-  # ========================================
-  # Basic processing
-  # ========================================
-
   rice_panicle:
-    input: "farmersdelight:rice_panicle"
-    tool: "#farmersdelight:knives"
+    input: farmersdelight:rice_panicle
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:rice"
-      - item: "farmersdelight:straw"
-
+    - item: farmersdelight:rice
+    - item: farmersdelight:straw
   wild_rice:
-    input: "farmersdelight:wild_rice"
-    tool: "#farmersdelight:knives"
+    input: farmersdelight:wild_rice
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:rice"
-      - item: "farmersdelight:straw"
-        chance: 0.5
-
+    - item: farmersdelight:rice
+    - item: farmersdelight:straw
+      chance: 0.5
   raw_pasta:
-    input: "farmersdelight:wheat_dough"
-    tool: "#farmersdelight:knives"
+    input: farmersdelight:wheat_dough
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:raw_pasta"
-
+    - item: farmersdelight:raw_pasta
   wild_tomatoes:
-    input: "farmersdelight:wild_tomatoes"
-    tool: "#farmersdelight:knives"
+    input: farmersdelight:wild_tomatoes
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:tomato_seeds"
-      - item: "farmersdelight:tomato"
-        chance: 0.2
-      - item: "minecraft:green_dye"
-        chance: 0.1
-
+    - item: farmersdelight:tomato_seeds
+    - item: farmersdelight:tomato
+      chance: 0.2
+    - item: minecraft:green_dye
+      chance: 0.1
   wild_cabbages:
-    input: "farmersdelight:wild_cabbages"
-    tool: "#farmersdelight:knives"
+    input: farmersdelight:wild_cabbages
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:cabbage_seeds"
-      - item: "minecraft:yellow_dye"
-        count: 2
-        chance: 0.5
-
+    - item: farmersdelight:cabbage_seeds
+    - item: minecraft:yellow_dye
+      count: 2
+      chance: 0.5
   wild_onions:
-    input: "farmersdelight:wild_onions"
-    tool: "#farmersdelight:knives"
+    input: farmersdelight:wild_onions
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:onion"
-      - item: "minecraft:magenta_dye"
-        count: 2
-      - item: "minecraft:lime_dye"
-        chance: 0.1
-
-  # ========================================
-  # Meat cutting
-  # ========================================
-  
+    - item: farmersdelight:onion
+    - item: minecraft:magenta_dye
+      count: 2
+    - item: minecraft:lime_dye
+      chance: 0.1
   porkchop:
-    input: "minecraft:porkchop"
-    tool: "#farmersdelight:knives"
+    input: minecraft:porkchop
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:bacon"
-        count: 2
-  
+    - item: farmersdelight:bacon
+      count: 2
   beef:
-    input: "minecraft:beef"
-    tool: "#farmersdelight:knives"
+    input: minecraft:beef
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:minced_beef"
-        count: 2
-  
+    - item: farmersdelight:minced_beef
+      count: 2
   chicken:
-    input: "minecraft:chicken"
-    tool: "#farmersdelight:knives"
+    input: minecraft:chicken
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:chicken_cuts"
-        count: 2
-      - item: "minecraft:bone_meal"
-  
+    - item: farmersdelight:chicken_cuts
+      count: 2
+    - item: minecraft:bone_meal
   mutton:
-    input: "minecraft:mutton"
-    tool: "#farmersdelight:knives"
+    input: minecraft:mutton
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:mutton_chops"
-        count: 2
-  
+    - item: farmersdelight:mutton_chops
+      count: 2
   cod:
-    input: "minecraft:cod"
-    tool: "#farmersdelight:knives"
+    input: minecraft:cod
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:cod_slice"
-        count: 2
-      - item: "minecraft:bone_meal"
-  
+    - item: farmersdelight:cod_slice
+      count: 2
+    - item: minecraft:bone_meal
   salmon:
-    input: "minecraft:salmon"
-    tool: "#farmersdelight:knives"
+    input: minecraft:salmon
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:salmon_slice"
-        count: 2
-      - item: "minecraft:bone_meal"
-  
+    - item: farmersdelight:salmon_slice
+      count: 2
+    - item: minecraft:bone_meal
   cooked_porkchop:
-    input: "minecraft:cooked_porkchop"
-    tool: "#farmersdelight:knives"
+    input: minecraft:cooked_porkchop
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:cooked_bacon"
-        count: 2
-  
+    - item: farmersdelight:cooked_bacon
+      count: 2
   cooked_beef:
-    input: "minecraft:cooked_beef"
-    tool: "#farmersdelight:knives"
+    input: minecraft:cooked_beef
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:beef_patty"
-        count: 2
-  
+    - item: farmersdelight:beef_patty
+      count: 2
   cooked_chicken:
-    input: "minecraft:cooked_chicken"
-    tool: "#farmersdelight:knives"
+    input: minecraft:cooked_chicken
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:cooked_chicken_cuts"
-        count: 2
-      - item: "minecraft:bone_meal"
-  
+    - item: farmersdelight:cooked_chicken_cuts
+      count: 2
+    - item: minecraft:bone_meal
   cooked_mutton:
-    input: "minecraft:cooked_mutton"
-    tool: "#farmersdelight:knives"
+    input: minecraft:cooked_mutton
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:cooked_mutton_chops"
-        count: 2
-  
+    - item: farmersdelight:cooked_mutton_chops
+      count: 2
   cooked_cod:
-    input: "minecraft:cooked_cod"
-    tool: "#farmersdelight:knives"
+    input: minecraft:cooked_cod
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:cooked_cod_slice"
-        count: 2
-      - item: "minecraft:bone_meal"
-  
+    - item: farmersdelight:cooked_cod_slice
+      count: 2
+    - item: minecraft:bone_meal
   cooked_salmon:
-    input: "minecraft:cooked_salmon"
-    tool: "#farmersdelight:knives"
+    input: minecraft:cooked_salmon
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:cooked_salmon_slice"
-        count: 2
-      - item: "minecraft:bone_meal"
-  
+    - item: farmersdelight:cooked_salmon_slice
+      count: 2
+    - item: minecraft:bone_meal
   ham:
-    input: "farmersdelight:ham"
-    tool: "#farmersdelight:knives"
+    input: farmersdelight:ham
+    tool: '#farmersdelight:knives'
     results:
-      - item: "minecraft:porkchop"
-        count: 2
-      - item: "minecraft:bone"
-  
+    - item: minecraft:porkchop
+      count: 2
+    - item: minecraft:bone
   smoked_ham:
-    input: "farmersdelight:smoked_ham"
-    tool: "#farmersdelight:knives"
+    input: farmersdelight:smoked_ham
+    tool: '#farmersdelight:knives'
     results:
-      - item: "minecraft:cooked_porkchop"
-        count: 2
-      - item: "minecraft:bone"
-  
-  # ========================================
-  # Vegetables
-  # ========================================
-  
+    - item: minecraft:cooked_porkchop
+      count: 2
+    - item: minecraft:bone
   cabbage:
-    input: "farmersdelight:cabbage"
-    tool: "#farmersdelight:knives"
+    input: farmersdelight:cabbage
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:cabbage_leaf"
-        count: 2
-  
-  # ========================================
-  # Cake and pie slices
-  # ========================================
-  
+    - item: farmersdelight:cabbage_leaf
+      count: 2
   cake:
-    input: "minecraft:cake"
-    tool: "#farmersdelight:knives"
+    input: minecraft:cake
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:cake_slice"
-        count: 7
-  
+    - item: farmersdelight:cake_slice
+      count: 7
   apple_pie:
-    input: "farmersdelight:apple_pie"
-    tool: "#farmersdelight:knives"
+    input: farmersdelight:apple_pie
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:apple_pie_slice"
-        count: 4
-  
+    - item: farmersdelight:apple_pie_slice
+      count: 4
   sweet_berry_cheesecake:
-    input: "farmersdelight:sweet_berry_cheesecake"
-    tool: "#farmersdelight:knives"
+    input: farmersdelight:sweet_berry_cheesecake
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:sweet_berry_cheesecake_slice"
-        count: 4
-  
+    - item: farmersdelight:sweet_berry_cheesecake_slice
+      count: 4
   chocolate_pie:
-    input: "farmersdelight:chocolate_pie"
-    tool: "#farmersdelight:knives"
+    input: farmersdelight:chocolate_pie
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:chocolate_pie_slice"
-        count: 4
-  
-  # ========================================
-  # Roll slices
-  # ========================================
-  
+    - item: farmersdelight:chocolate_pie_slice
+      count: 4
   kelp_roll:
-    input: "farmersdelight:kelp_roll"
-    tool: "#farmersdelight:knives"
+    input: farmersdelight:kelp_roll
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:kelp_roll_slice"
-        count: 3
-  
-  # ========================================
-  # Strip tree bark with an axe
-  # ========================================
-  
+    - item: farmersdelight:kelp_roll_slice
+      count: 3
   oak_log:
-    input: "minecraft:oak_log"
-    tool: "farmersdelight:axe_strip"
+    input: minecraft:oak_log
+    tool: farmersdelight:axe_strip
     results:
-      - item: "minecraft:stripped_oak_log"
-      - item: "farmersdelight:tree_bark"
-    sound: "minecraft:item.axe.strip"
-  
+    - item: minecraft:stripped_oak_log
+    - item: farmersdelight:tree_bark
+    sound: minecraft:item.axe.strip
   oak_wood:
-    input: "minecraft:oak_wood"
-    tool: "farmersdelight:axe_strip"
+    input: minecraft:oak_wood
+    tool: farmersdelight:axe_strip
     results:
-      - item: "minecraft:stripped_oak_wood"
-      - item: "farmersdelight:tree_bark"
-    sound: "minecraft:item.axe.strip"
-  
+    - item: minecraft:stripped_oak_wood
+    - item: farmersdelight:tree_bark
+    sound: minecraft:item.axe.strip
   spruce_log:
-    input: "minecraft:spruce_log"
-    tool: "farmersdelight:axe_strip"
+    input: minecraft:spruce_log
+    tool: farmersdelight:axe_strip
     results:
-      - item: "minecraft:stripped_spruce_log"
-      - item: "farmersdelight:tree_bark"
-    sound: "minecraft:item.axe.strip"
-  
+    - item: minecraft:stripped_spruce_log
+    - item: farmersdelight:tree_bark
+    sound: minecraft:item.axe.strip
   spruce_wood:
-    input: "minecraft:spruce_wood"
-    tool: "farmersdelight:axe_strip"
+    input: minecraft:spruce_wood
+    tool: farmersdelight:axe_strip
     results:
-      - item: "minecraft:stripped_spruce_wood"
-      - item: "farmersdelight:tree_bark"
-    sound: "minecraft:item.axe.strip"
-  
+    - item: minecraft:stripped_spruce_wood
+    - item: farmersdelight:tree_bark
+    sound: minecraft:item.axe.strip
   birch_log:
-    input: "minecraft:birch_log"
-    tool: "farmersdelight:axe_strip"
+    input: minecraft:birch_log
+    tool: farmersdelight:axe_strip
     results:
-      - item: "minecraft:stripped_birch_log"
-      - item: "farmersdelight:tree_bark"
-    sound: "minecraft:item.axe.strip"
-  
+    - item: minecraft:stripped_birch_log
+    - item: farmersdelight:tree_bark
+    sound: minecraft:item.axe.strip
   birch_wood:
-    input: "minecraft:birch_wood"
-    tool: "farmersdelight:axe_strip"
+    input: minecraft:birch_wood
+    tool: farmersdelight:axe_strip
     results:
-      - item: "minecraft:stripped_birch_wood"
-      - item: "farmersdelight:tree_bark"
-    sound: "minecraft:item.axe.strip"
-  
+    - item: minecraft:stripped_birch_wood
+    - item: farmersdelight:tree_bark
+    sound: minecraft:item.axe.strip
   jungle_log:
-    input: "minecraft:jungle_log"
-    tool: "farmersdelight:axe_strip"
+    input: minecraft:jungle_log
+    tool: farmersdelight:axe_strip
     results:
-      - item: "minecraft:stripped_jungle_log"
-      - item: "farmersdelight:tree_bark"
-    sound: "minecraft:item.axe.strip"
-  
+    - item: minecraft:stripped_jungle_log
+    - item: farmersdelight:tree_bark
+    sound: minecraft:item.axe.strip
   jungle_wood:
-    input: "minecraft:jungle_wood"
-    tool: "farmersdelight:axe_strip"
+    input: minecraft:jungle_wood
+    tool: farmersdelight:axe_strip
     results:
-      - item: "minecraft:stripped_jungle_wood"
-      - item: "farmersdelight:tree_bark"
-    sound: "minecraft:item.axe.strip"
-  
+    - item: minecraft:stripped_jungle_wood
+    - item: farmersdelight:tree_bark
+    sound: minecraft:item.axe.strip
   acacia_log:
-    input: "minecraft:acacia_log"
-    tool: "farmersdelight:axe_strip"
+    input: minecraft:acacia_log
+    tool: farmersdelight:axe_strip
     results:
-      - item: "minecraft:stripped_acacia_log"
-      - item: "farmersdelight:tree_bark"
-    sound: "minecraft:item.axe.strip"
-  
+    - item: minecraft:stripped_acacia_log
+    - item: farmersdelight:tree_bark
+    sound: minecraft:item.axe.strip
   acacia_wood:
-    input: "minecraft:acacia_wood"
-    tool: "farmersdelight:axe_strip"
+    input: minecraft:acacia_wood
+    tool: farmersdelight:axe_strip
     results:
-      - item: "minecraft:stripped_acacia_wood"
-      - item: "farmersdelight:tree_bark"
-    sound: "minecraft:item.axe.strip"
-  
+    - item: minecraft:stripped_acacia_wood
+    - item: farmersdelight:tree_bark
+    sound: minecraft:item.axe.strip
   dark_oak_log:
-    input: "minecraft:dark_oak_log"
-    tool: "farmersdelight:axe_strip"
+    input: minecraft:dark_oak_log
+    tool: farmersdelight:axe_strip
     results:
-      - item: "minecraft:stripped_dark_oak_log"
-      - item: "farmersdelight:tree_bark"
-    sound: "minecraft:item.axe.strip"
-  
+    - item: minecraft:stripped_dark_oak_log
+    - item: farmersdelight:tree_bark
+    sound: minecraft:item.axe.strip
   dark_oak_wood:
-    input: "minecraft:dark_oak_wood"
-    tool: "farmersdelight:axe_strip"
+    input: minecraft:dark_oak_wood
+    tool: farmersdelight:axe_strip
     results:
-      - item: "minecraft:stripped_dark_oak_wood"
-      - item: "farmersdelight:tree_bark"
-    sound: "minecraft:item.axe.strip"
-  
+    - item: minecraft:stripped_dark_oak_wood
+    - item: farmersdelight:tree_bark
+    sound: minecraft:item.axe.strip
   mangrove_log:
-    input: "minecraft:mangrove_log"
-    tool: "farmersdelight:axe_strip"
+    input: minecraft:mangrove_log
+    tool: farmersdelight:axe_strip
     results:
-      - item: "minecraft:stripped_mangrove_log"
-      - item: "farmersdelight:tree_bark"
-    sound: "minecraft:item.axe.strip"
-  
+    - item: minecraft:stripped_mangrove_log
+    - item: farmersdelight:tree_bark
+    sound: minecraft:item.axe.strip
   mangrove_wood:
-    input: "minecraft:mangrove_wood"
-    tool: "farmersdelight:axe_strip"
+    input: minecraft:mangrove_wood
+    tool: farmersdelight:axe_strip
     results:
-      - item: "minecraft:stripped_mangrove_wood"
-      - item: "farmersdelight:tree_bark"
-    sound: "minecraft:item.axe.strip"
-  
+    - item: minecraft:stripped_mangrove_wood
+    - item: farmersdelight:tree_bark
+    sound: minecraft:item.axe.strip
   cherry_log:
-    input: "minecraft:cherry_log"
-    tool: "farmersdelight:axe_strip"
+    input: minecraft:cherry_log
+    tool: farmersdelight:axe_strip
     results:
-      - item: "minecraft:stripped_cherry_log"
-      - item: "farmersdelight:tree_bark"
-    sound: "minecraft:item.axe.strip"
-  
+    - item: minecraft:stripped_cherry_log
+    - item: farmersdelight:tree_bark
+    sound: minecraft:item.axe.strip
   cherry_wood:
-    input: "minecraft:cherry_wood"
-    tool: "farmersdelight:axe_strip"
+    input: minecraft:cherry_wood
+    tool: farmersdelight:axe_strip
     results:
-      - item: "minecraft:stripped_cherry_wood"
-      - item: "farmersdelight:tree_bark"
-    sound: "minecraft:item.axe.strip"
-  
+    - item: minecraft:stripped_cherry_wood
+    - item: farmersdelight:tree_bark
+    sound: minecraft:item.axe.strip
   crimson_stem:
-    input: "minecraft:crimson_stem"
-    tool: "farmersdelight:axe_strip"
+    input: minecraft:crimson_stem
+    tool: farmersdelight:axe_strip
     results:
-      - item: "minecraft:stripped_crimson_stem"
-      - item: "farmersdelight:tree_bark"
-    sound: "minecraft:item.axe.strip"
-  
+    - item: minecraft:stripped_crimson_stem
+    - item: farmersdelight:tree_bark
+    sound: minecraft:item.axe.strip
   crimson_hyphae:
-    input: "minecraft:crimson_hyphae"
-    tool: "farmersdelight:axe_strip"
+    input: minecraft:crimson_hyphae
+    tool: farmersdelight:axe_strip
     results:
-      - item: "minecraft:stripped_crimson_hyphae"
-      - item: "farmersdelight:tree_bark"
-    sound: "minecraft:item.axe.strip"
-  
+    - item: minecraft:stripped_crimson_hyphae
+    - item: farmersdelight:tree_bark
+    sound: minecraft:item.axe.strip
   warped_stem:
-    input: "minecraft:warped_stem"
-    tool: "farmersdelight:axe_strip"
+    input: minecraft:warped_stem
+    tool: farmersdelight:axe_strip
     results:
-      - item: "minecraft:stripped_warped_stem"
-      - item: "farmersdelight:tree_bark"
-    sound: "minecraft:item.axe.strip"
-  
+    - item: minecraft:stripped_warped_stem
+    - item: farmersdelight:tree_bark
+    sound: minecraft:item.axe.strip
   warped_hyphae:
-    input: "minecraft:warped_hyphae"
-    tool: "farmersdelight:axe_strip"
-    results:
-      - item: "minecraft:stripped_warped_hyphae"
-      - item: "farmersdelight:tree_bark"
-    sound: "minecraft:item.axe.strip"
-
-  oak_door:
-    input: "minecraft:oak_door"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:oak_planks"
-        chance: 0.75
-
-  oak_trapdoor:
-    input: "minecraft:oak_trapdoor"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:oak_planks"
-        chance: 0.75
-
-  oak_sign:
-    input: "minecraft:oak_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:oak_planks"
-        chance: 0.75
-
-  oak_hanging_sign:
-    input: "minecraft:oak_hanging_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:oak_planks"
-        chance: 0.75
-
-  oak_fence:
-    input: "minecraft:oak_fence"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:oak_planks"
-        chance: 0.75
-
-  oak_fence_gate:
-    input: "minecraft:oak_fence_gate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:oak_planks"
-        chance: 0.75
-
-  oak_pressure_plate:
-    input: "minecraft:oak_pressure_plate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:oak_planks"
-        chance: 0.75
-
-  oak_button:
-    input: "minecraft:oak_button"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:oak_planks"
-        chance: 0.75
-
-  oak_boat:
-    input: "minecraft:oak_boat"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:oak_planks"
-        chance: 0.75
-
-  oak_cabinet:
-    input: "farmersdelight:oak_cabinet"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:oak_planks"
-        chance: 0.75
-
-  spruce_door:
-    input: "minecraft:spruce_door"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:spruce_planks"
-        chance: 0.75
-
-  spruce_trapdoor:
-    input: "minecraft:spruce_trapdoor"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:spruce_planks"
-        chance: 0.75
-
-  spruce_sign:
-    input: "minecraft:spruce_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:spruce_planks"
-        chance: 0.75
-
-  spruce_hanging_sign:
-    input: "minecraft:spruce_hanging_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:spruce_planks"
-        chance: 0.75
-
-  spruce_fence:
-    input: "minecraft:spruce_fence"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:spruce_planks"
-        chance: 0.75
-
-  spruce_fence_gate:
-    input: "minecraft:spruce_fence_gate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:spruce_planks"
-        chance: 0.75
-
-  spruce_pressure_plate:
-    input: "minecraft:spruce_pressure_plate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:spruce_planks"
-        chance: 0.75
-
-  spruce_button:
-    input: "minecraft:spruce_button"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:spruce_planks"
-        chance: 0.75
-
-  spruce_boat:
-    input: "minecraft:spruce_boat"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:spruce_planks"
-        chance: 0.75
-
-  spruce_cabinet:
-    input: "farmersdelight:spruce_cabinet"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:spruce_planks"
-        chance: 0.75
-
-  birch_door:
-    input: "minecraft:birch_door"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:birch_planks"
-        chance: 0.75
-
-  birch_trapdoor:
-    input: "minecraft:birch_trapdoor"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:birch_planks"
-        chance: 0.75
-
-  birch_sign:
-    input: "minecraft:birch_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:birch_planks"
-        chance: 0.75
-
-  birch_hanging_sign:
-    input: "minecraft:birch_hanging_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:birch_planks"
-        chance: 0.75
-
-  birch_fence:
-    input: "minecraft:birch_fence"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:birch_planks"
-        chance: 0.75
-
-  birch_fence_gate:
-    input: "minecraft:birch_fence_gate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:birch_planks"
-        chance: 0.75
-
-  birch_pressure_plate:
-    input: "minecraft:birch_pressure_plate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:birch_planks"
-        chance: 0.75
-
-  birch_button:
-    input: "minecraft:birch_button"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:birch_planks"
-        chance: 0.75
-
-  birch_boat:
-    input: "minecraft:birch_boat"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:birch_planks"
-        chance: 0.75
-
-  birch_cabinet:
-    input: "farmersdelight:birch_cabinet"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:birch_planks"
-        chance: 0.75
-
-  jungle_door:
-    input: "minecraft:jungle_door"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:jungle_planks"
-        chance: 0.75
-
-  jungle_trapdoor:
-    input: "minecraft:jungle_trapdoor"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:jungle_planks"
-        chance: 0.75
-
-  jungle_sign:
-    input: "minecraft:jungle_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:jungle_planks"
-        chance: 0.75
-
-  jungle_hanging_sign:
-    input: "minecraft:jungle_hanging_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:jungle_planks"
-        chance: 0.75
-
-  jungle_fence:
-    input: "minecraft:jungle_fence"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:jungle_planks"
-        chance: 0.75
-
-  jungle_fence_gate:
-    input: "minecraft:jungle_fence_gate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:jungle_planks"
-        chance: 0.75
-
-  jungle_pressure_plate:
-    input: "minecraft:jungle_pressure_plate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:jungle_planks"
-        chance: 0.75
-
-  jungle_button:
-    input: "minecraft:jungle_button"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:jungle_planks"
-        chance: 0.75
-
-  jungle_boat:
-    input: "minecraft:jungle_boat"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:jungle_planks"
-        chance: 0.75
-
-  jungle_cabinet:
-    input: "farmersdelight:jungle_cabinet"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:jungle_planks"
-        chance: 0.75
-
-  acacia_door:
-    input: "minecraft:acacia_door"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:acacia_planks"
-        chance: 0.75
-
-  acacia_trapdoor:
-    input: "minecraft:acacia_trapdoor"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:acacia_planks"
-        chance: 0.75
-
-  acacia_sign:
-    input: "minecraft:acacia_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:acacia_planks"
-        chance: 0.75
-
-  acacia_hanging_sign:
-    input: "minecraft:acacia_hanging_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:acacia_planks"
-        chance: 0.75
-
-  acacia_fence:
-    input: "minecraft:acacia_fence"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:acacia_planks"
-        chance: 0.75
-
-  acacia_fence_gate:
-    input: "minecraft:acacia_fence_gate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:acacia_planks"
-        chance: 0.75
-
-  acacia_pressure_plate:
-    input: "minecraft:acacia_pressure_plate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:acacia_planks"
-        chance: 0.75
-
-  acacia_button:
-    input: "minecraft:acacia_button"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:acacia_planks"
-        chance: 0.75
-
-  acacia_boat:
-    input: "minecraft:acacia_boat"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:acacia_planks"
-        chance: 0.75
-
-  acacia_cabinet:
-    input: "farmersdelight:acacia_cabinet"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:acacia_planks"
-        chance: 0.75
-
-  dark_oak_door:
-    input: "minecraft:dark_oak_door"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:dark_oak_planks"
-        chance: 0.75
-
-  dark_oak_trapdoor:
-    input: "minecraft:dark_oak_trapdoor"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:dark_oak_planks"
-        chance: 0.75
-
-  dark_oak_sign:
-    input: "minecraft:dark_oak_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:dark_oak_planks"
-        chance: 0.75
-
-  dark_oak_hanging_sign:
-    input: "minecraft:dark_oak_hanging_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:dark_oak_planks"
-        chance: 0.75
-
-  dark_oak_fence:
-    input: "minecraft:dark_oak_fence"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:dark_oak_planks"
-        chance: 0.75
-
-  dark_oak_fence_gate:
-    input: "minecraft:dark_oak_fence_gate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:dark_oak_planks"
-        chance: 0.75
-
-  dark_oak_pressure_plate:
-    input: "minecraft:dark_oak_pressure_plate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:dark_oak_planks"
-        chance: 0.75
-
-  dark_oak_button:
-    input: "minecraft:dark_oak_button"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:dark_oak_planks"
-        chance: 0.75
-
-  dark_oak_boat:
-    input: "minecraft:dark_oak_boat"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:dark_oak_planks"
-        chance: 0.75
-
-  dark_oak_cabinet:
-    input: "farmersdelight:dark_oak_cabinet"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:dark_oak_planks"
-        chance: 0.75
-
-  mangrove_door:
-    input: "minecraft:mangrove_door"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:mangrove_planks"
-        chance: 0.75
-
-  mangrove_trapdoor:
-    input: "minecraft:mangrove_trapdoor"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:mangrove_planks"
-        chance: 0.75
-
-  mangrove_sign:
-    input: "minecraft:mangrove_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:mangrove_planks"
-        chance: 0.75
-
-  mangrove_hanging_sign:
-    input: "minecraft:mangrove_hanging_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:mangrove_planks"
-        chance: 0.75
-
-  mangrove_fence:
-    input: "minecraft:mangrove_fence"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:mangrove_planks"
-        chance: 0.75
-
-  mangrove_fence_gate:
-    input: "minecraft:mangrove_fence_gate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:mangrove_planks"
-        chance: 0.75
-
-  mangrove_pressure_plate:
-    input: "minecraft:mangrove_pressure_plate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:mangrove_planks"
-        chance: 0.75
-
-  mangrove_button:
-    input: "minecraft:mangrove_button"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:mangrove_planks"
-        chance: 0.75
-
-  mangrove_boat:
-    input: "minecraft:mangrove_boat"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:mangrove_planks"
-        chance: 0.75
-
-  mangrove_cabinet:
-    input: "farmersdelight:mangrove_cabinet"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:mangrove_planks"
-        chance: 0.75
-
-  cherry_door:
-    input: "minecraft:cherry_door"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:cherry_planks"
-        chance: 0.75
-
-  cherry_trapdoor:
-    input: "minecraft:cherry_trapdoor"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:cherry_planks"
-        chance: 0.75
-
-  cherry_sign:
-    input: "minecraft:cherry_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:cherry_planks"
-        chance: 0.75
-
-  cherry_hanging_sign:
-    input: "minecraft:cherry_hanging_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:cherry_planks"
-        chance: 0.75
-
-  cherry_fence:
-    input: "minecraft:cherry_fence"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:cherry_planks"
-        chance: 0.75
-
-  cherry_fence_gate:
-    input: "minecraft:cherry_fence_gate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:cherry_planks"
-        chance: 0.75
-
-  cherry_pressure_plate:
-    input: "minecraft:cherry_pressure_plate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:cherry_planks"
-        chance: 0.75
-
-  cherry_button:
-    input: "minecraft:cherry_button"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:cherry_planks"
-        chance: 0.75
-
-  cherry_boat:
-    input: "minecraft:cherry_boat"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:cherry_planks"
-        chance: 0.75
-
-  cherry_cabinet:
-    input: "farmersdelight:cherry_cabinet"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:cherry_planks"
-        chance: 0.75
-
-  crimson_door:
-    input: "minecraft:crimson_door"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:crimson_planks"
-        chance: 0.75
-
-  crimson_trapdoor:
-    input: "minecraft:crimson_trapdoor"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:crimson_planks"
-        chance: 0.75
-
-  crimson_sign:
-    input: "minecraft:crimson_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:crimson_planks"
-        chance: 0.75
-
-  crimson_hanging_sign:
-    input: "minecraft:crimson_hanging_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:crimson_planks"
-        chance: 0.75
-
-  crimson_fence:
-    input: "minecraft:crimson_fence"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:crimson_planks"
-        chance: 0.75
-
-  crimson_fence_gate:
-    input: "minecraft:crimson_fence_gate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:crimson_planks"
-        chance: 0.75
-
-  crimson_pressure_plate:
-    input: "minecraft:crimson_pressure_plate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:crimson_planks"
-        chance: 0.75
-
-  crimson_button:
-    input: "minecraft:crimson_button"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:crimson_planks"
-        chance: 0.75
-
-  crimson_cabinet:
-    input: "farmersdelight:crimson_cabinet"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:crimson_planks"
-        chance: 0.75
-
-  warped_door:
-    input: "minecraft:warped_door"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:warped_planks"
-        chance: 0.75
-
-  warped_trapdoor:
-    input: "minecraft:warped_trapdoor"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:warped_planks"
-        chance: 0.75
-
-  warped_sign:
-    input: "minecraft:warped_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:warped_planks"
-        chance: 0.75
-
-  warped_hanging_sign:
-    input: "minecraft:warped_hanging_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:warped_planks"
-        chance: 0.75
-
-  warped_fence:
-    input: "minecraft:warped_fence"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:warped_planks"
-        chance: 0.75
-
-  warped_fence_gate:
-    input: "minecraft:warped_fence_gate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:warped_planks"
-        chance: 0.75
-
-  warped_pressure_plate:
-    input: "minecraft:warped_pressure_plate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:warped_planks"
-        chance: 0.75
-
-  warped_button:
-    input: "minecraft:warped_button"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:warped_planks"
-        chance: 0.75
-
-  warped_cabinet:
-    input: "farmersdelight:warped_cabinet"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:warped_planks"
-        chance: 0.75
-
-  bamboo_door:
-    input: "minecraft:bamboo_door"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:bamboo_planks"
-        chance: 0.75
-
-  bamboo_trapdoor:
-    input: "minecraft:bamboo_trapdoor"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:bamboo_planks"
-        chance: 0.75
-
-  bamboo_sign:
-    input: "minecraft:bamboo_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:bamboo_planks"
-        chance: 0.75
-
-  bamboo_hanging_sign:
-    input: "minecraft:bamboo_hanging_sign"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:bamboo_planks"
-        chance: 0.75
-
-  bamboo_fence:
-    input: "minecraft:bamboo_fence"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:bamboo_planks"
-        chance: 0.75
-
-  bamboo_fence_gate:
-    input: "minecraft:bamboo_fence_gate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:bamboo_planks"
-        chance: 0.75
-
-  bamboo_pressure_plate:
-    input: "minecraft:bamboo_pressure_plate"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:bamboo_planks"
-        chance: 0.75
-
-  bamboo_button:
-    input: "minecraft:bamboo_button"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:bamboo_planks"
-        chance: 0.75
-
-  bamboo_raft:
-    input: "minecraft:bamboo_raft"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:bamboo_planks"
-        chance: 0.75
-
-  bamboo_cabinet:
-    input: "farmersdelight:bamboo_cabinet"
-    tool: "farmersdelight:axe_dig"
-    results:
-      - item: "minecraft:bamboo_planks"
-        chance: 0.75
-
+    input: minecraft:warped_hyphae
+    tool: farmersdelight:axe_strip
+    results:
+    - item: minecraft:stripped_warped_hyphae
+    - item: farmersdelight:tree_bark
+    sound: minecraft:item.axe.strip
   bamboo_block:
-    input: "minecraft:bamboo_block"
-    tool: "farmersdelight:axe_strip"
+    input: minecraft:bamboo_block
+    tool: farmersdelight:axe_strip
     results:
-      - item: "minecraft:stripped_bamboo_block"
-      - item: "farmersdelight:straw"
-    sound: "minecraft:item.axe.strip"
-  
-  # ========================================
-  # Other
-  # ========================================
-
+    - item: minecraft:stripped_bamboo_block
+    - item: farmersdelight:straw
+    sound: minecraft:item.axe.strip
   pumpkin:
-    input: "minecraft:pumpkin"
-    tool: "#farmersdelight:knives"
+    input: minecraft:pumpkin
+    tool: '#farmersdelight:knives'
     results:
-      - item: "farmersdelight:pumpkin_slice"
-        count: 4
-  
+    - item: farmersdelight:pumpkin_slice
+      count: 4
   melon:
-    input: "minecraft:melon"
-    tool: "#farmersdelight:knives"
+    input: minecraft:melon
+    tool: '#farmersdelight:knives'
     results:
-      - item: "minecraft:melon_slice"
-        count: 9
-  
+    - item: minecraft:melon_slice
+      count: 9
   saddle:
-    input: "minecraft:saddle"
-    tool: "minecraft:shears"
+    input: minecraft:saddle
+    tool: minecraft:shears
     results:
-      - item: "minecraft:leather"
-        count: 2
-      - item: "minecraft:iron_nugget"
-        count: 2
-        chance: 0.5
-  
+    - item: minecraft:leather
+      count: 2
+    - item: minecraft:iron_nugget
+      count: 2
+      chance: 0.5
   leather_boots:
-    input: "minecraft:leather_boots"
-    tool: "minecraft:shears"
+    input: minecraft:leather_boots
+    tool: minecraft:shears
     results:
-      - item: "minecraft:leather"
-  
+    - item: minecraft:leather
   leather_helmet:
-    input: "minecraft:leather_helmet"
-    tool: "minecraft:shears"
+    input: minecraft:leather_helmet
+    tool: minecraft:shears
     results:
-      - item: "minecraft:leather"
-  
+    - item: minecraft:leather
   leather_chestplate:
-    input: "minecraft:leather_chestplate"
-    tool: "minecraft:shears"
+    input: minecraft:leather_chestplate
+    tool: minecraft:shears
     results:
-      - item: "minecraft:leather"
-  
+    - item: minecraft:leather
   leather_leggings:
-    input: "minecraft:leather_leggings"
-    tool: "minecraft:shears"
+    input: minecraft:leather_leggings
+    tool: minecraft:shears
     results:
-      - item: "minecraft:leather"
-  
+    - item: minecraft:leather
   leather_horse_armor:
-    input: "minecraft:leather_horse_armor"
-    tool: "minecraft:shears"
+    input: minecraft:leather_horse_armor
+    tool: minecraft:shears
     results:
-      - item: "minecraft:leather"
-        count: 2
-
+    - item: minecraft:leather
+      count: 2
   ink_sac:
-    input: "minecraft:ink_sac"
-    tool: "#farmersdelight:knives"
+    input: minecraft:ink_sac
+    tool: '#farmersdelight:knives'
     results:
-      - item: "minecraft:black_dye"
-        count: 2
-
+    - item: minecraft:black_dye
+      count: 2
   stone:
-    input: "minecraft:stone"
-    tool: "farmersdelight:pickaxe_dig"
+    input: minecraft:stone
+    tool: farmersdelight:pickaxe_dig
     results:
-      - item: "minecraft:cobblestone"
-
+    - item: minecraft:cobblestone
   deepslate:
-    input: "minecraft:deepslate"
-    tool: "farmersdelight:pickaxe_dig"
+    input: minecraft:deepslate
+    tool: farmersdelight:pickaxe_dig
     results:
-      - item: "minecraft:cobbled_deepslate"
-
+    - item: minecraft:cobbled_deepslate
   bricks:
-    input: "minecraft:bricks"
-    tool: "farmersdelight:pickaxe_dig"
+    input: minecraft:bricks
+    tool: farmersdelight:pickaxe_dig
     results:
-      - item: "minecraft:brick"
-        count: 4
-
+    - item: minecraft:brick
+      count: 4
   quartz_block:
-    input: "minecraft:quartz_block"
-    tool: "farmersdelight:pickaxe_dig"
+    input: minecraft:quartz_block
+    tool: farmersdelight:pickaxe_dig
     results:
-      - item: "minecraft:quartz"
-        count: 4
-
+    - item: minecraft:quartz
+      count: 4
   nether_bricks:
-    input: "minecraft:nether_bricks"
-    tool: "farmersdelight:pickaxe_dig"
+    input: minecraft:nether_bricks
+    tool: farmersdelight:pickaxe_dig
     results:
-      - item: "minecraft:nether_brick"
-        count: 4
-
+    - item: minecraft:nether_brick
+      count: 4
   amethyst_block:
-    input: "minecraft:amethyst_block"
-    tool: "farmersdelight:pickaxe_dig"
+    input: minecraft:amethyst_block
+    tool: farmersdelight:pickaxe_dig
     results:
-      - item: "minecraft:amethyst_shard"
-        count: 4
-
+    - item: minecraft:amethyst_shard
+      count: 4
   clay:
-    input: "minecraft:clay"
-    tool: "farmersdelight:shovel_dig"
+    input: minecraft:clay
+    tool: farmersdelight:shovel_dig
     results:
-      - item: "minecraft:clay_ball"
-        count: 4
-
+    - item: minecraft:clay_ball
+      count: 4
   gravel:
-    input: "minecraft:gravel"
-    tool: "farmersdelight:shovel_dig"
+    input: minecraft:gravel
+    tool: farmersdelight:shovel_dig
     results:
-      - item: "minecraft:gravel"
-      - item: "minecraft:flint"
-        chance: 0.1
-  
-  # ========================================
-  # Flowers
-  # ========================================
-  
+    - item: minecraft:gravel
+    - item: minecraft:flint
+      chance: 0.1
   dandelion:
-    input: "minecraft:dandelion"
-    tool: "#farmersdelight:knives"
+    input: minecraft:dandelion
+    tool: '#farmersdelight:knives'
     results:
-      - item: "minecraft:yellow_dye"
-        count: 2
-  
+    - item: minecraft:yellow_dye
+      count: 2
   poppy:
-    input: "minecraft:poppy"
-    tool: "#farmersdelight:knives"
+    input: minecraft:poppy
+    tool: '#farmersdelight:knives'
     results:
-      - item: "minecraft:red_dye"
-        count: 2
-  
+    - item: minecraft:red_dye
+      count: 2
   blue_orchid:
-    input: "minecraft:blue_orchid"
-    tool: "#farmersdelight:knives"
+    input: minecraft:blue_orchid
+    tool: '#farmersdelight:knives'
     results:
-      - item: "minecraft:light_blue_dye"
-        count: 2
-  
+    - item: minecraft:light_blue_dye
+      count: 2
   allium:
-    input: "minecraft:allium"
-    tool: "#farmersdelight:knives"
+    input: minecraft:allium
+    tool: '#farmersdelight:knives'
     results:
-      - item: "minecraft:magenta_dye"
-        count: 2
-  
+    - item: minecraft:magenta_dye
+      count: 2
   azure_bluet:
-    input: "minecraft:azure_bluet"
-    tool: "#farmersdelight:knives"
+    input: minecraft:azure_bluet
+    tool: '#farmersdelight:knives'
     results:
-      - item: "minecraft:light_gray_dye"
-        count: 2
-  
+    - item: minecraft:light_gray_dye
+      count: 2
   red_tulip:
-    input: "minecraft:red_tulip"
-    tool: "#farmersdelight:knives"
+    input: minecraft:red_tulip
+    tool: '#farmersdelight:knives'
     results:
-      - item: "minecraft:red_dye"
-        count: 2
-  
+    - item: minecraft:red_dye
+      count: 2
   orange_tulip:
-    input: "minecraft:orange_tulip"
-    tool: "#farmersdelight:knives"
+    input: minecraft:orange_tulip
+    tool: '#farmersdelight:knives'
     results:
-      - item: "minecraft:orange_dye"
-        count: 2
-  
+    - item: minecraft:orange_dye
+      count: 2
   white_tulip:
-    input: "minecraft:white_tulip"
-    tool: "#farmersdelight:knives"
+    input: minecraft:white_tulip
+    tool: '#farmersdelight:knives'
     results:
-      - item: "minecraft:light_gray_dye"
-        count: 2
-  
+    - item: minecraft:light_gray_dye
+      count: 2
   pink_tulip:
-    input: "minecraft:pink_tulip"
-    tool: "#farmersdelight:knives"
+    input: minecraft:pink_tulip
+    tool: '#farmersdelight:knives'
     results:
-      - item: "minecraft:pink_dye"
-        count: 2
-  
+    - item: minecraft:pink_dye
+      count: 2
   oxeye_daisy:
-    input: "minecraft:oxeye_daisy"
-    tool: "#farmersdelight:knives"
+    input: minecraft:oxeye_daisy
+    tool: '#farmersdelight:knives'
     results:
-      - item: "minecraft:light_gray_dye"
-        count: 2
-  
+    - item: minecraft:light_gray_dye
+      count: 2
   cornflower:
-    input: "minecraft:cornflower"
-    tool: "#farmersdelight:knives"
+    input: minecraft:cornflower
+    tool: '#farmersdelight:knives'
     results:
-      - item: "minecraft:blue_dye"
-        count: 2
-  
+    - item: minecraft:blue_dye
+      count: 2
   lily_of_the_valley:
-    input: "minecraft:lily_of_the_valley"
-    tool: "#farmersdelight:knives"
+    input: minecraft:lily_of_the_valley
+    tool: '#farmersdelight:knives'
     results:
-      - item: "minecraft:white_dye"
-        count: 2
-  
+    - item: minecraft:white_dye
+      count: 2
   wither_rose:
-    input: "minecraft:wither_rose"
-    tool: "#farmersdelight:knives"
+    input: minecraft:wither_rose
+    tool: '#farmersdelight:knives'
     results:
-      - item: "minecraft:black_dye"
-        count: 2
-  
+    - item: minecraft:black_dye
+      count: 2
   torchflower:
-    input: "minecraft:torchflower"
-    tool: "#farmersdelight:knives"
+    input: minecraft:torchflower
+    tool: '#farmersdelight:knives'
     results:
-      - item: "minecraft:orange_dye"
-        count: 2
+    - item: minecraft:orange_dye
+      count: 2
+  acacia_chest_boat:
+    input: minecraft:acacia_chest_boat
+    tool: '#minecraft:hoes'
+    results:
+    - item: minecraft:acacia_boat
+    - item: minecraft:chest
+  acacia_furniture:
+    input: minecraft:acacia_door|minecraft:acacia_trapdoor|minecraft:acacia_sign|minecraft:acacia_hanging_sign|minecraft:acacia_fence|minecraft:acacia_fence_gate|minecraft:acacia_pressure_plate|minecraft:acacia_button|minecraft:acacia_boat|farmersdelight:acacia_cabinet
+    tool: farmersdelight:axe_dig
+    results:
+    - item: minecraft:acacia_planks
+      chance: 0.75
+  bamboo_chest_raft:
+    input: minecraft:bamboo_chest_raft
+    tool: '#minecraft:hoes'
+    results:
+    - item: minecraft:bamboo_raft
+    - item: minecraft:chest
+  bamboo_furniture:
+    input: minecraft:bamboo_door|minecraft:bamboo_trapdoor|minecraft:bamboo_sign|minecraft:bamboo_hanging_sign|minecraft:bamboo_fence|minecraft:bamboo_fence_gate|minecraft:bamboo_pressure_plate|minecraft:bamboo_button|minecraft:bamboo_raft|farmersdelight:bamboo_cabinet
+    tool: farmersdelight:axe_dig
+    results:
+    - item: minecraft:bamboo_planks
+      chance: 0.75
+  birch_chest_boat:
+    input: minecraft:birch_chest_boat
+    tool: '#minecraft:hoes'
+    results:
+    - item: minecraft:birch_boat
+    - item: minecraft:chest
+  birch_furniture:
+    input: minecraft:birch_door|minecraft:birch_trapdoor|minecraft:birch_sign|minecraft:birch_hanging_sign|minecraft:birch_fence|minecraft:birch_fence_gate|minecraft:birch_pressure_plate|minecraft:birch_button|minecraft:birch_boat|farmersdelight:birch_cabinet
+    tool: farmersdelight:axe_dig
+    results:
+    - item: minecraft:birch_planks
+      chance: 0.75
+  cherry_chest_boat:
+    input: minecraft:cherry_chest_boat
+    tool: '#minecraft:hoes'
+    results:
+    - item: minecraft:cherry_boat
+    - item: minecraft:chest
+  cherry_furniture:
+    input: minecraft:cherry_door|minecraft:cherry_trapdoor|minecraft:cherry_sign|minecraft:cherry_hanging_sign|minecraft:cherry_fence|minecraft:cherry_fence_gate|minecraft:cherry_pressure_plate|minecraft:cherry_button|minecraft:cherry_boat|farmersdelight:cherry_cabinet
+    tool: farmersdelight:axe_dig
+    results:
+    - item: minecraft:cherry_planks
+      chance: 0.75
+  chest_minecart:
+    input: minecraft:chest_minecart
+    tool: '#minecraft:hoes'
+    results:
+    - item: minecraft:minecart
+    - item: minecraft:chest
+  crimson_furniture:
+    input: minecraft:crimson_door|minecraft:crimson_trapdoor|minecraft:crimson_sign|minecraft:crimson_hanging_sign|minecraft:crimson_fence|minecraft:crimson_fence_gate|minecraft:crimson_pressure_plate|minecraft:crimson_button|farmersdelight:crimson_cabinet
+    tool: farmersdelight:axe_dig
+    results:
+    - item: minecraft:crimson_planks
+      chance: 0.75
+  dark_oak_chest_boat:
+    input: minecraft:dark_oak_chest_boat
+    tool: '#minecraft:hoes'
+    results:
+    - item: minecraft:dark_oak_boat
+    - item: minecraft:chest
+  dark_oak_furniture:
+    input: minecraft:dark_oak_door|minecraft:dark_oak_trapdoor|minecraft:dark_oak_sign|minecraft:dark_oak_hanging_sign|minecraft:dark_oak_fence|minecraft:dark_oak_fence_gate|minecraft:dark_oak_pressure_plate|minecraft:dark_oak_button|minecraft:dark_oak_boat|farmersdelight:dark_oak_cabinet
+    tool: farmersdelight:axe_dig
+    results:
+    - item: minecraft:dark_oak_planks
+      chance: 0.75
+  furnace_minecart:
+    input: minecraft:furnace_minecart
+    tool: '#minecraft:hoes'
+    results:
+    - item: minecraft:minecart
+    - item: minecraft:furnace
+  hopper_minecart:
+    input: minecraft:hopper_minecart
+    tool: '#minecraft:hoes'
+    results:
+    - item: minecraft:minecart
+    - item: minecraft:hopper
+  jungle_chest_boat:
+    input: minecraft:jungle_chest_boat
+    tool: '#minecraft:hoes'
+    results:
+    - item: minecraft:jungle_boat
+    - item: minecraft:chest
+  jungle_furniture:
+    input: minecraft:jungle_door|minecraft:jungle_trapdoor|minecraft:jungle_sign|minecraft:jungle_hanging_sign|minecraft:jungle_fence|minecraft:jungle_fence_gate|minecraft:jungle_pressure_plate|minecraft:jungle_button|minecraft:jungle_boat|farmersdelight:jungle_cabinet
+    tool: farmersdelight:axe_dig
+    results:
+    - item: minecraft:jungle_planks
+      chance: 0.75
+  leather_armor:
+    input: minecraft:leather_helmet|minecraft:leather_chestplate|minecraft:leather_leggings|minecraft:leather_boots
+    tool: minecraft:shears
+    results:
+    - item: minecraft:leather
+  mangrove_chest_boat:
+    input: minecraft:mangrove_chest_boat
+    tool: '#minecraft:hoes'
+    results:
+    - item: minecraft:mangrove_boat
+    - item: minecraft:chest
+  mangrove_furniture:
+    input: minecraft:mangrove_door|minecraft:mangrove_trapdoor|minecraft:mangrove_sign|minecraft:mangrove_hanging_sign|minecraft:mangrove_fence|minecraft:mangrove_fence_gate|minecraft:mangrove_pressure_plate|minecraft:mangrove_button|minecraft:mangrove_boat|farmersdelight:mangrove_cabinet
+    tool: farmersdelight:axe_dig
+    results:
+    - item: minecraft:mangrove_planks
+      chance: 0.75
+  oak_chest_boat:
+    input: minecraft:oak_chest_boat
+    tool: '#minecraft:hoes'
+    results:
+    - item: minecraft:oak_boat
+    - item: minecraft:chest
+  oak_furniture:
+    input: minecraft:oak_door|minecraft:oak_trapdoor|minecraft:oak_sign|minecraft:oak_hanging_sign|minecraft:oak_fence|minecraft:oak_fence_gate|minecraft:oak_pressure_plate|minecraft:oak_button|minecraft:oak_boat|farmersdelight:oak_cabinet
+    tool: farmersdelight:axe_dig
+    results:
+    - item: minecraft:oak_planks
+      chance: 0.75
+  spruce_chest_boat:
+    input: minecraft:spruce_chest_boat
+    tool: '#minecraft:hoes'
+    results:
+    - item: minecraft:spruce_boat
+    - item: minecraft:chest
+  spruce_furniture:
+    input: minecraft:spruce_door|minecraft:spruce_trapdoor|minecraft:spruce_sign|minecraft:spruce_hanging_sign|minecraft:spruce_fence|minecraft:spruce_fence_gate|minecraft:spruce_pressure_plate|minecraft:spruce_button|minecraft:spruce_boat|farmersdelight:spruce_cabinet
+    tool: farmersdelight:axe_dig
+    results:
+    - item: minecraft:spruce_planks
+      chance: 0.75
+  tnt_minecart:
+    input: minecraft:tnt_minecart
+    tool: '#minecraft:hoes'
+    results:
+    - item: minecraft:minecart
+    - item: minecraft:tnt
+  warped_furniture:
+    input: minecraft:warped_door|minecraft:warped_trapdoor|minecraft:warped_sign|minecraft:warped_hanging_sign|minecraft:warped_fence|minecraft:warped_fence_gate|minecraft:warped_pressure_plate|minecraft:warped_button|farmersdelight:warped_cabinet
+    tool: farmersdelight:axe_dig
+    results:
+    - item: minecraft:warped_planks
+      chance: 0.75
+  brown_mushroom_colony:
+    input: farmersdelight:brown_mushroom_colony
+    tool: '#farmersdelight:knives'
+    results:
+    - item: minecraft:brown_mushroom
+      count: 5
+  red_mushroom_colony:
+    input: farmersdelight:red_mushroom_colony
+    tool: '#farmersdelight:knives'
+    results:
+    - item: minecraft:red_mushroom
+      count: 5
+  pumpkin_pie:
+    input: minecraft:pumpkin_pie
+    tool: '#farmersdelight:knives'
+    results:
+    - item: farmersdelight:pumpkin_pie_slice
+      count: 4

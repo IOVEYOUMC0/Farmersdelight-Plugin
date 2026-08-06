@@ -20,13 +20,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Resolves recipe ingredients (item / tag / choice) into the display item icons the recipe GUIs show,
- * with the item-build and tag/choice option caches. Extracted from RecipeViewGui so the
- * icon-building concern (and its caches) lives in one focused place. All methods are stateless w.r.t. a
- * GUI session — they depend only on the recipe ingredient, the (bootstrap-frozen) item registries, and
- * these caches — so they are static. Callers get clones; the caches are cleared on config/recipe reload.
- */
 public final class RecipeIngredientIcons {
 
     // Item build cache. Values are cloned in and out so callers can freely mutate the returned meta.
@@ -41,14 +34,12 @@ public final class RecipeIngredientIcons {
     private RecipeIngredientIcons() {
     }
 
-    /** Clears every icon/option cache. Called on config and recipe reload. */
     public static void clearCaches() {
         itemCache.clear();
         tagOptionsCache.clear();
         choiceOptionsCache.clear();
     }
 
-    /** Clears just the item build cache (used by the reload paths that also clear the GUI item cache). */
     public static void clearItemCache() {
         itemCache.clear();
     }
@@ -134,7 +125,6 @@ public final class RecipeIngredientIcons {
         return copy;
     }
 
-    /** Full count of cached tag options (same source as the preview), shown as "matches: N". */
     public static int resolveTagIngredientOptionsSize(RecipeIngredient.Tag tagIngredient) {
         return tagOptionsCache.computeIfAbsent(tagIngredient, RecipeIngredientIcons::computeTagIngredientOptions).size();
     }

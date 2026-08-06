@@ -3,7 +3,7 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.util.ItemUtils;
-import com.huidu.farmersdelight.util.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;

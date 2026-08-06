@@ -7,7 +7,9 @@ import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CookingDebugLog;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
-import com.huidu.farmersdelight.util.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.PermissionChecker;
+import io.papermc.paper.datacomponent.DataComponentTypes;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
@@ -16,6 +18,7 @@ import net.momirealms.craftengine.core.block.behavior.EntityBlock;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.block.entity.BlockEntityController;
 import net.momirealms.craftengine.core.block.property.Property;
+import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
@@ -29,23 +32,14 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
 
-public class StoveCookingBlockBehavior extends BlockBehavior implements EntityBlock {
+public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior implements EntityBlock {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
         return false;
     }
 
-    @Override
-    public void fallOn(Object thisBlock, Object[] args) {
-    }
-
-    @Override
-    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
-    }
-
     public static final int SLOT_COUNT = 6;
-    /** Name of the boolean block state property that carries the stove's lit state. */
     public static final String FIRE_PROPERTY = "fire";
     // Resolved once at construction from the block definition this behavior belongs to, so the handle can
     // never go stale: a /ce reload rebuilds the definition and its Property instances together with this
@@ -80,11 +74,6 @@ public class StoveCookingBlockBehavior extends BlockBehavior implements EntityBl
         }
     };
 
-    /**
-     * Whether the given state of this behavior's block has its fire lit. The property is guaranteed present
-     * by construction; a state from a different block definition yields no value and reads as not lit, so a
-     * mismatch stops cooking and stops burning rather than leaving the stove permanently on.
-     */
     public boolean isLit(ImmutableBlockState state) {
         if (state == null || state.isEmpty()) {
             return false;
@@ -139,7 +128,9 @@ public class StoveCookingBlockBehavior extends BlockBehavior implements EntityBl
         World world = player.getWorld();
         BlockPos pos = context.getClickedPos();
         Block block = world.getBlockAt(pos.x(), pos.y(), pos.z());
-        ItemStack mainHand = player.getInventory().getItemInMainHand();
+        ItemStack heldItem = context.getHand() == InteractionHand.OFF_HAND
+                ? player.getInventory().getItemInOffHand()
+                : player.getInventory().getItemInMainHand();
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         StoveManager manager = getManager();
         if (plugin == null || manager == null) {
@@ -147,35 +138,40 @@ public class StoveCookingBlockBehavior extends BlockBehavior implements EntityBl
         }
 
         if (plugin.isDebugEnabled("stove")) {
-            logDebug(player, block, mainHand, manager.findRecipeId(mainHand));
+            logDebug(player, block, heldItem, manager.findRecipeId(heldItem));
+        }
+        if (!PermissionChecker.check(player, "farmersdelight.use.stove")) {
+            return InteractionResult.PASS;
         }
         if (!ProtectionCompat.canUse(player, block, ProtectionCompat.Feature.STOVE)
                 || !ProtectionCompat.canBuild(player, block, ProtectionCompat.Feature.STOVE)) {
             return InteractionResult.PASS;
         }
 
+        if (isStateChangeItem(heldItem)) {
+            return InteractionResult.PASS;
+        }
+
+        if (isEquippable(heldItem)) {
+            // Passing through lets vanilla equip the held armor after CraftEngine has processed the stove
+            // interaction. Cancel this before the sneak bypass too, and for either hand, so a second
+            // right-click cannot consume the replaced piece.
+            return InteractionResult.SUCCESS_AND_CANCEL;
+        }
+
         if (player.isSneaking()) {
             return InteractionResult.PASS;
         }
 
-        if (isStateChangeItem(mainHand)) {
+        if (heldItem == null || heldItem.getType().isAir()) {
             return InteractionResult.PASS;
         }
 
-        if (!player.hasPermission("farmersdelight.use.stove")) {
-            player.sendActionBar(I18n.getComponent("general.no_permission", player));
-            return InteractionResult.FAIL;
-        }
-
-        if (mainHand == null || mainHand.getType().isAir()) {
+        if (!manager.canCook(heldItem)) {
             return InteractionResult.PASS;
         }
 
-        if (!manager.canCook(mainHand)) {
-            return InteractionResult.PASS;
-        }
-
-        if (manager.handleInteract(player, block, mainHand)) {
+        if (manager.handleInteract(player, block, heldItem)) {
             player.updateInventory();
             return InteractionResult.SUCCESS_AND_CANCEL;
         }
@@ -253,12 +249,16 @@ public class StoveCookingBlockBehavior extends BlockBehavior implements EntityBl
         return plugin.getStoveManager();
     }
 
-    /**
-     * Items the block's own configuration handles as a lit-state change, so the cooking path must let them
-     * through untouched. Kept in step with the right_click events on farmersdelight:stove: flint and steel and
-     * fire charge light it, a shovel or a water bucket puts it out. A potion is not one of them - the reference
-     * mod only extinguishes on a shovel dig or a water bucket.
-     */
+    @SuppressWarnings("UnstableApiUsage")
+    public static boolean isEquippable(ItemStack item) {
+        if (item == null) return false;
+        return isEquippable(item.getType(), item.hasData(DataComponentTypes.EQUIPPABLE));
+    }
+
+    static boolean isEquippable(Material type, boolean hasEquippableComponent) {
+        return type == Material.SHIELD || hasEquippableComponent;
+    }
+
     public static boolean isStateChangeItem(ItemStack itemStack) {
         if (itemStack == null || itemStack.getType().isAir()) {
             return false;
@@ -271,6 +271,7 @@ public class StoveCookingBlockBehavior extends BlockBehavior implements EntityBl
                 || type.name().endsWith("_SHOVEL");
     }
 
+    @SuppressWarnings("UnstableApiUsage")
     private void logDebug(Player player, Block clickedBlock, ItemStack item, String recipeId) {
         String resolvedItemId = CookingDebugLog.resolveItemId(item);
         Material material = Material.AIR;

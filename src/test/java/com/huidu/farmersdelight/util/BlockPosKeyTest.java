@@ -4,13 +4,13 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BlockPosKeyTest {
 
     @Test
     void parsesCommaSeparatedCoordinates() {
-        BlockPosKey key = BlockPosKey.fromString("10, 64, -3");
+        BlockPosKey key = BlockPosKey.fromString("10, 64, -3").orElseThrow();
 
         assertEquals(10, key.x());
         assertEquals(64, key.y());
@@ -20,10 +20,10 @@ class BlockPosKeyTest {
 
     @Test
     void rejectsInvalidCoordinateStrings() {
-        assertNull(BlockPosKey.fromString(null));
-        assertNull(BlockPosKey.fromString(""));
-        assertNull(BlockPosKey.fromString("1,2"));
-        assertNull(BlockPosKey.fromString("1,two,3"));
+        assertTrue(BlockPosKey.fromString(null).isEmpty());
+        assertTrue(BlockPosKey.fromString("").isEmpty());
+        assertTrue(BlockPosKey.fromString("1,2").isEmpty());
+        assertTrue(BlockPosKey.fromString("1,two,3").isEmpty());
     }
 
     @Test

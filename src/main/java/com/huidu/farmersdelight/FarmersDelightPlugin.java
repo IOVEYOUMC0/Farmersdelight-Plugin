@@ -2,12 +2,46 @@ package com.huidu.farmersdelight;
 
 import com.huidu.farmersdelight.advancement.AddonAdvancementRegistry;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
-import com.huidu.farmersdelight.block.behavior.*;
-import com.huidu.farmersdelight.listener.*;
+import com.huidu.farmersdelight.api.block.CuttingBoardInteractionMode;
+import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.MushroomColonyBehavior;
+import com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.SkilletBlockEntity;
+import com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.TallCropBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.WildRiceBlockBehavior;
+import com.huidu.farmersdelight.listener.AchievementListener;
+import com.huidu.farmersdelight.listener.BackstabListener;
+import com.huidu.farmersdelight.listener.BlockBreakListener;
+import com.huidu.farmersdelight.listener.BlockPlaceListener;
+import com.huidu.farmersdelight.listener.ChunkLoadListener;
+import com.huidu.farmersdelight.listener.CraftEngineWatchdogListener;
+import com.huidu.farmersdelight.listener.CropInteractProtectionListener;
+import com.huidu.farmersdelight.listener.CuttingBoardDispenseListener;
+import com.huidu.farmersdelight.listener.CuttingBoardInteractListener;
+import com.huidu.farmersdelight.listener.EnchantmentDatapackInstaller;
+import com.huidu.farmersdelight.listener.FoodEatListener;
+import com.huidu.farmersdelight.listener.HorseFeedTemptListener;
+import com.huidu.farmersdelight.listener.KnifeEnchantFilter;
+import com.huidu.farmersdelight.listener.PetFoodListener;
+import com.huidu.farmersdelight.listener.RecipeDiscoveryListener;
+import com.huidu.farmersdelight.listener.RicePlantListener;
+import com.huidu.farmersdelight.listener.RichSoilHoeListener;
+import com.huidu.farmersdelight.listener.RottenTomatoListener;
+import com.huidu.farmersdelight.listener.RopeBlockListener;
+import com.huidu.farmersdelight.listener.RugListener;
+import com.huidu.farmersdelight.listener.SkilletPlaceListener;
+import com.huidu.farmersdelight.listener.StrawDropListener;
+import com.huidu.farmersdelight.listener.TatamiBreakListener;
+import com.huidu.farmersdelight.tool.ToolAttackListener;
+import com.huidu.farmersdelight.listener.UpperHalfLootRelayListener;
 import com.huidu.farmersdelight.command.FarmersDelightCommand;
 import com.huidu.farmersdelight.config.ContainerReturnConfig;
 import com.huidu.farmersdelight.config.CookingPotExperienceRewardConfig;
 import com.huidu.farmersdelight.config.CuttingBoardDisplayConfig;
+import com.huidu.farmersdelight.config.DatapackWorldWhitelist;
+import com.huidu.farmersdelight.config.EnchantmentSettings;
 import com.huidu.farmersdelight.config.HeatSourceConfig;
 import com.huidu.farmersdelight.config.RugConfig;
 import com.huidu.farmersdelight.config.PetFoodConfig;
@@ -35,7 +69,7 @@ import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.InteractionDebouncer;
 import com.huidu.farmersdelight.util.ItemUtils;
-import com.huidu.farmersdelight.util.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import com.huidu.farmersdelight.util.scheduler.SchedulerAdapter;
 import com.huidu.farmersdelight.visual.ProxyItemDisplayManager;
@@ -47,7 +81,6 @@ import net.momirealms.craftengine.bukkit.world.BukkitWorldManager;
 import net.momirealms.craftengine.core.world.CEWorld;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
@@ -64,7 +97,15 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Properties;
+import java.util.Set;
+import java.util.UUID;
 import java.util.logging.Level;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
@@ -78,6 +119,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private volatile boolean startupSyncCompleted = false;
     private volatile boolean datapackSyncQueued = false;
     private volatile boolean datapackRemovalQueued = false;
+    private volatile DatapackWorldWhitelist datapackWorldWhitelist =
+            DatapackWorldWhitelist.from(List.of(), null);
     private PluginTask pendingCraftEngineReloadTask;
     private PluginTask pendingDatapackReloadTask;
     private PluginTask pendingDatapackSyncRetryTask;
@@ -107,6 +150,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private HorseFeedTemptListener horseFeedTemptListener;
     private AchievementListener achievementListener;
     private EffectListener effectListener;
+    private BackstabListener backstabListener;
+    private KnifeEnchantFilter knifeEnchantFilter;
+    private EnchantmentDatapackInstaller enchantmentDatapackInstaller;
     private final com.huidu.farmersdelight.config.ConfigBootstrap configBootstrap = new com.huidu.farmersdelight.config.ConfigBootstrap(this);
     // Collects the per-subsystem content counts into the single summary line a healthy boot prints.
     private final StartupSummary startupSummary = new StartupSummary(this);
@@ -129,6 +175,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private volatile StrawDropConfig strawDropConfig;
     private volatile PetFoodConfig petFoodConfig;
     private volatile ContainerReturnConfig containerReturnConfig;
+    private volatile EnchantmentSettings enchantmentSettings = EnchantmentSettings.defaults();
+    private volatile boolean backstabEnchantmentEnabled;
     private volatile CuttingBoardDisplayConfig cuttingBoardDisplayConfig;
     private volatile CuttingBoardDisplayConfig skilletDisplayConfig;
     private volatile CuttingBoardDisplayConfig stoveDisplayConfig;
@@ -153,7 +201,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private double cookingPotProgressDisplayLookDotThreshold = 0.95D;
     private int cookingPotProgressDisplayUpdateIntervalTicks = 8;
     private int cookingPotProgressDisplayDisableAboveActivePots = 512;
-    private String cuttingBoardInteractionMode;
+    private CuttingBoardInteractionMode cuttingBoardInteractionMode;
     private boolean hopperInteractionsEnabled;
     private boolean cookingPotHopperInteractionsEnabled;
     private boolean cuttingBoardHopperInteractionsEnabled;
@@ -213,8 +261,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return advancementsEnabled;
     }
 
-    /** Master switch for the buff system: custom buff effects, their ticker, every display channel and the
-     *  /fd buff subcommand. False means no buff is applied, ticked or drawn anywhere. */
     public boolean isBuffSystemEnabled() {
         return buffSystemEnabled;
     }
@@ -247,18 +293,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         refreshAdvancementSystem(reloading);
     }
 
-    /**
-     * Rebuilds the rope and rug position indexes for chunks that were already loaded when their listeners
-     * registered — those chunks never fire the load events the indexes are normally filled from, and in
-     * practice they are the spawn area, which often never unloads. Both indexes decide whether a rope or rug
-     * is there at all, so a chunk missing from them loses rope texture refreshes and leaves orphaned rug
-     * furniture behind when the block under it goes.
-     *
-     * Gated on CraftEngine readiness like every other content-dependent startup step: CraftEngine fills its
-     * world and furniture registries in a deferred pass after its own enable, so both sweeps find nothing when
-     * they run before it and the CraftEngine readiness pass runs them instead. Both sweeps re-add entries
-     * idempotently, so running them again on a later pass is harmless.
-     */
     private void indexLoadedChunkContentWhenReady() {
         if (!areCraftEngineItemsReady()) {
             return;
@@ -271,34 +305,18 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
     }
 
-    /** Runs warmUp(String) only once CE items are loaded; otherwise defers to the CE-reload path. */
     private void warmUpWhenReady(String reason) {
         if (areCraftEngineItemsReady()) {
             warmUp(reason);
         }
     }
 
-    /**
-     * Prints the consolidated content summary once every count in it is meaningful. Before CraftEngine has
-     * loaded its items the recipe, advancement and warmup counts are all still zero, so the summary is
-     * skipped entirely and the CraftEngine readiness pass reports instead. A later pass whose counts are
-     * unchanged is demoted to the startup detail channel by the summary itself.
-     *
-     * Public so the recipe managers can re-report after a republish they drive themselves, such as the
-     * coalesced batch that follows addon recipe registration.
-     */
     public void reportContentSummaryWhenReady() {
         if (areCraftEngineItemsReady()) {
             startupSummary.report();
         }
     }
 
-    /**
-     * Requests one content summary after the current tick's recipe republishes have all finished. Each recipe
-     * manager coalesces its own republish independently, so two managers reacting to the same addon
-     * registration would otherwise each report and the second would print a line the first had already made
-     * stale. Collapsing the request here means N managers in one tick produce one summary.
-     */
     public void requestContentSummary() {
         if (contentSummaryRequested) {
             return;
@@ -310,19 +328,13 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }, 1L);
     }
 
-    /**
-     * Pre-builds FarmersDelight's CraftEngine item stacks and primes the GUI / behavior caches so the first
-     * in-game interaction does not pay CraftEngine's one-time global item-build inits (ASM proxies, MiniMessage
-     * setup) or a burst of cold item builds. Pure computation — no world/entity/region access — so it is safe on
-     * whichever (global) thread this runs. Best-effort: any failure is logged and never blocks enable/reload.
-     * Ends by firing com.huidu.farmersdelight.api.event.FarmersDelightWarmupEvent so addons warm their own.
-     */
     private void warmUp(String reason) {
         try {
             long start = System.nanoTime();
             int items = com.huidu.farmersdelight.util.ItemUtils.warmItems("farmersdelight");
             com.huidu.farmersdelight.block.behavior.TomatoVineBlockBehavior.warmAll();
             CookingPotGui.warm(this);
+            warmRecipeIngredientIcons();
             long ms = (System.nanoTime() - start) / 1_000_000L;
             // The item count and duration are produced here and nowhere else; the consolidated summary
             // reads them back once the rest of the counts are final.
@@ -334,6 +346,28 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // Addons prime their own caches now that FD's are warm (see FarmersDelightWarmupEvent).
         org.bukkit.Bukkit.getPluginManager().callEvent(
                 new com.huidu.farmersdelight.api.event.FarmersDelightWarmupEvent(reason));
+    }
+
+    private void warmRecipeIngredientIcons() {
+        if (cookingPotRecipeManager != null) {
+            for (var recipe : cookingPotRecipeManager.getAllRecipes()) {
+                for (var ingredient : recipe.getIngredients()) {
+                    com.huidu.farmersdelight.gui.RecipeIngredientIcons.resolveIngredientOptions(ingredient);
+                }
+            }
+        }
+        if (cuttingBoardRecipeManager != null) {
+            for (var recipe : cuttingBoardRecipeManager.getRecipes().values()) {
+                if (recipe.getInput() != null) {
+                    com.huidu.farmersdelight.gui.RecipeIngredientIcons.resolveIngredientOptions(recipe.getInput());
+                }
+                for (var tool : recipe.getTools()) {
+                    if (tool != null && tool.getKey() != null) {
+                        com.huidu.farmersdelight.gui.RecipeIngredientIcons.createItemFromKey(tool.getKey());
+                    }
+                }
+            }
+        }
     }
 
     private void refreshAdvancementSystem(boolean reloading) {
@@ -384,18 +418,20 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         com.huidu.farmersdelight.registry.BehaviorRegistrar.registerBlockBehaviors();
         com.huidu.farmersdelight.registry.BehaviorRegistrar.registerItemBehaviors();
         com.huidu.farmersdelight.registry.BehaviorRegistrar.registerFunctions();
+        // Register the farmersdelight:sword settings modifier before CraftEngine parses item YAML files.
+        com.huidu.farmersdelight.tool.ToolRegistry.register();
+        // Register the farmersdelight:pet_food settings modifier before CraftEngine parses item YAML files.
+        PetFoodConfig.setLogger(getLogger());
+        PetFoodConfig.registerCraftEngineSetting();
         // Register the WorldGuard custom region flag here (onLoad): WG locks its FlagRegistry once it
         // enables, so this must run during the load phase. No-op if WorldGuard is absent.
         ProtectionCompat.registerFlags();
     }
 
-    /** JVM-lifetime guard against /reload + hot disable. System properties survive plugin classloader
-     *  recreation, so re-enabling within the same JVM session can be detected and refused. */
     private static final String RELOAD_GUARD_PROPERTY = "farmersdelight.enabled.in.this.jvm";
     private boolean enabledSuccessfully = false;
 
-    // bStats plugin id from https://bstats.org (register the plugin there, then paste its numeric id here).
-    // TODO: replace the placeholder with FarmersDelight's real bStats id before publishing.
+    // FarmersDelight's bStats plugin id.
     private static final int BSTATS_PLUGIN_ID = 32571;
 
     @Override
@@ -445,6 +481,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         ProtectionCompat.init(this);
 
         loadConfigs();
+        com.huidu.farmersdelight.tool.ToolRegistry.refresh();
         logStartupSummary();
 
         knifeDropHandler = new KnifeDropHandler(this);
@@ -484,8 +521,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(blockPlaceListener, this);
         BlockPlaceListener.reloadMushroomSupportCache(this);
         getServer().getPluginManager().registerEvents(new SkilletPlaceListener(), this);
-        getServer().getPluginManager().registerEvents(new SkilletAttackSoundListener(), this);
+        getServer().getPluginManager().registerEvents(new ToolAttackListener(), this);
+        getServer().getPluginManager().registerEvents(new RottenTomatoListener(this), this);
         getServer().getPluginManager().registerEvents(new CuttingBoardInteractListener(), this);
+        getServer().getPluginManager().registerEvents(new CuttingBoardDispenseListener(this), this);
 
         strawDropListener = new StrawDropListener(this);
         getServer().getPluginManager().registerEvents(strawDropListener, this);
@@ -493,7 +532,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(new RicePlantListener(this), this);
         getServer().getPluginManager().registerEvents(new UpperHalfLootRelayListener(), this);
 
-        // Awards master_chef criteria when eating FD dishes, and applies comfort/nourishment effects when enabled in config.
+        // Awards master_chef criteria and preserves addon/legacy food registrations. Built-in food buffs run as CE functions.
         foodEatListener = new FoodEatListener(this);
         getServer().getPluginManager().registerEvents(foodEatListener, this);
 
@@ -524,17 +563,16 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         skilletManager = new SkilletManager(this);
         trayManager = new TrayManager(this);
         handleManager = new HandleManager(this);
+        // Delay legacy furniture cleanup until chunk loading has completed.
+        scheduler().runLater(() -> {
+            if (trayManager != null) trayManager.cleanupLegacyFurnitureEntities();
+        }, 100L);
         buffBossbarManager = new BuffBossbarManager(this);
         buffBossbarManager.applyConfig(getFirstConfigSection("buff.display", "bossbar"), buffSystemEnabled);
         com.huidu.farmersdelight.effect.EffectManager.applyBossbarStyles(
                 getFirstConfigSection("buff.display.styles", "bossbar.styles"));
         getServer().getPluginManager().registerEvents(buffBossbarManager, this);
         buffBossbarManager.start();
-        for (org.bukkit.World world : getServer().getWorlds()) {
-            handleManager.trackWorld(world);
-        }
-        getServer().getPluginManager().registerEvents(new AutoTrayFurnitureListener(this), this);
-
         ropeBlockListener = new RopeBlockListener(this);
         getServer().getPluginManager().registerEvents(ropeBlockListener, this);
         getServer().getPluginManager().registerEvents(new TatamiBreakListener(), this);
@@ -542,6 +580,16 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(rugListener, this);
         getServer().getPluginManager().registerEvents(new RichSoilHoeListener(this), this);
         getServer().getPluginManager().registerEvents(new CropInteractProtectionListener(), this);
+
+        backstabListener = new BackstabListener(this);
+        getServer().getPluginManager().registerEvents(backstabListener, this);
+
+        knifeEnchantFilter = new KnifeEnchantFilter(this);
+        getServer().getPluginManager().registerEvents(knifeEnchantFilter, this);
+
+        enchantmentDatapackInstaller = new EnchantmentDatapackInstaller(this);
+        enchantmentDatapackInstaller.installToAllWorlds();
+        getServer().getPluginManager().registerEvents(enchantmentDatapackInstaller, this);
 
         // Composting chances, furnace burn times and villager / wandering trader trades (world-data section).
         getServer().getPluginManager().registerEvents(
@@ -570,18 +618,12 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         scheduler.run(() -> startupSyncCompleted = true);
 
         FarmersDelightCommand commandHandler = new FarmersDelightCommand(this);
-        org.bukkit.command.Command base = new org.bukkit.command.Command("farmersdelight",
-                "Main FarmersDelight command", "/farmersdelight [recipe|reload|help]", List.of("fd")) {
-            @Override
-            public boolean execute(CommandSender sender, String label, String[] args) {
-                return commandHandler.onCommand(sender, this, label, args);
-            }
-            @Override
-            public java.util.List<String> tabComplete(CommandSender sender, String alias, String[] args) {
-                return commandHandler.onTabComplete(sender, this, alias, args);
-            }
-        };
-        getServer().getCommandMap().register("farmersdelight", "FarmersDelight", base);
+        org.bukkit.command.PluginCommand baseCommand = getCommand("farmersdelight");
+        if (baseCommand == null) {
+            throw new IllegalStateException("Command farmersdelight is missing from plugin.yml");
+        }
+        baseCommand.setExecutor(commandHandler);
+        baseCommand.setTabCompleter(commandHandler);
 
         // Both the content counts and the CraftEngine state figures are only meaningful once CraftEngine has
         // finished loading. When FarmersDelight enables first (the usual order) neither is reported here and
@@ -613,7 +655,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 System.setProperty("bstats.relocatecheck", "false");
                 new org.bstats.bukkit.Metrics(this, BSTATS_PLUGIN_ID);
             } catch (Throwable t) {
-                getLogger().warning("Failed to start bStats metrics: " + t.getMessage());
+                I18n.logWarning("bstats_failed", "error", t.getMessage());
             }
         }
 
@@ -912,9 +954,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     @org.bukkit.event.EventHandler
     public void onWorldLoad(WorldLoadEvent event) {
-        if (handleManager != null) {
-            handleManager.trackWorld(event.getWorld());
-        }
         if (!startupSyncCompleted) {
             return;
         }
@@ -968,7 +1007,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             return;
         }
         org.bukkit.World primaryWorld = getPrimaryWorld();
-        if (primaryWorld == null) {
+        if (primaryWorld == null || !isDatapackWorldAllowed(primaryWorld)) {
             return;
         }
         datapackSyncQueued = true;
@@ -1055,6 +1094,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             // block-state pool has its real occupancy, so this is where both summary lines belong.
             reportContentSummaryWhenReady();
             CraftEngineStateUsageMonitor.logRealStateUsage(this, I18n.formatConsole("plugin.craftengine_reload_reason"));
+            com.huidu.farmersdelight.tool.ToolRegistry.refresh();
         }, 1L);
     }
 
@@ -1070,6 +1110,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         StoveCookingBlockBehavior.clearRecipeCache();
         clearLegacySkilletRecipeCache();
         BlockPlaceListener.reloadMushroomSupportCache(this);
+        loadPetFoodConfig();
+        if (horseFeedTemptListener != null) {
+            horseFeedTemptListener.reload();
+        }
 
         if (stoveManager != null) {
             stoveManager.reloadConfig();
@@ -1092,15 +1136,22 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         reloadAll();
     }
 
-    /** Shared reload body for reloadAll / reloadMainConfigOnly: config defaults, cache clears,
-     * and every manager reload. The only differences the callers layer on are whether language files reload
-     * (reloadLanguages) and whether recipe reload + the reload event follow. */
     private void reloadCommon(boolean reloadLanguages) {
         configBootstrap.ensureConfigDefaults();
         reloadConfig();
         configBootstrap.migrateConfigKeys();
         boolean previousAdvancementsEnabled = advancementsEnabled;
         loadConfigs();
+        com.huidu.farmersdelight.tool.ToolRegistry.refresh();
+        if (backstabListener != null) {
+            backstabListener.reload(enchantmentSettings, backstabEnchantmentEnabled);
+        }
+        if (knifeEnchantFilter != null) {
+            knifeEnchantFilter.reload(enchantmentSettings, backstabEnchantmentEnabled);
+        }
+        if (enchantmentDatapackInstaller != null) {
+            enchantmentDatapackInstaller.installToAllWorlds();
+        }
         if (reloadLanguages) {
             I18n.reload();
         }
@@ -1120,6 +1171,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
         if (handleManager != null) {
             handleManager.reload();
+        }
+        // Clean legacy entities again after a reload.
+        if (trayManager != null) {
+            trayManager.cleanupLegacyFurnitureEntities();
         }
         if (stoveManager != null) {
             stoveManager.reloadConfig();
@@ -1219,17 +1274,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         I18n.logInfo("plugin.advancement_data_reloaded");
     }
 
-    /**
-     * Reads the debug switch and its category list into the fields logDetail consults. Separated from the
-     * rest of loadConfigs because several demoted startup lines are emitted before the main config load
-     * runs, and they can only reach the console through their debug category if these two fields are
-     * already populated. Called from onLoad (after the config file is ensured on disk) and from both
-     * paths that run the config bootstrap: plugin enable and the shared reload body.
-     *
-     * Reading only needs config.yml to exist on disk, which ensureConfigDefaults guarantees, so this is
-     * safe at every call site including onLoad. No key migration touches the debug section, so running it
-     * before migrateConfigKeys reads the same values as running it after.
-     */
     private void loadDebugFlags() {
         debugEnabled = getConfig().getBoolean("debug", false)
                 || getConfig().getBoolean("debug.enabled", false);
@@ -1243,11 +1287,22 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     private void loadConfigs() {
         advancementsEnabled = getConfig().getBoolean("advancements.enabled", true);
+        String primaryWorldName = getConfiguredPrimaryLevelName();
+        if (primaryWorldName == null || primaryWorldName.isBlank()) {
+            org.bukkit.World primaryWorld = getPrimaryWorld();
+            primaryWorldName = primaryWorld != null ? primaryWorld.getName() : null;
+        }
+        datapackWorldWhitelist = DatapackWorldWhitelist.from(
+                getConfig().getStringList("datapacks.world-whitelist"), primaryWorldName);
         // No legacy path: buff.enabled is new, and a config that predates it has the buff system on.
         buffSystemEnabled = getConfigBoolean(true, "buff.enabled");
         // Mirror the switch into the addon-facing registry so its entry points can degrade to no-ops
         // without reaching back through the plugin singleton from an addon thread.
         com.huidu.farmersdelight.api.buff.CustomBuffRegistry.setSystemEnabled(buffSystemEnabled);
+        EnchantmentSettings loadedEnchantments = EnchantmentSettings.load(
+                getConfig().getConfigurationSection("enchantments"));
+        enchantmentSettings = loadedEnchantments;
+        backstabEnchantmentEnabled = resolveBackstabbingCompatibility(loadedEnchantments);
         // Re-read on every reload so a debug switch edited in config.yml takes effect; the enable path
         // has already read it once, earlier, for the startup lines that precede this method.
         loadDebugFlags();
@@ -1312,12 +1367,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
         strawDropConfig = newStrawDropConfig;
 
-        ConfigurationSection petFoodSection = getConfig().getConfigurationSection("pet-foods");
-        PetFoodConfig newPetFoodConfig = new PetFoodConfig();
-        if (petFoodSection != null) {
-            newPetFoodConfig.loadFromConfig(petFoodSection);
-        }
-        petFoodConfig = newPetFoodConfig;
+        loadPetFoodConfig();
 
         ConfigurationSection containerReturnSection = getFirstConfigSection("container-returns", "cooking-pot.container-returns");
         ContainerReturnConfig newContainerReturnConfig = new ContainerReturnConfig();
@@ -1366,7 +1416,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         cookingPotExperienceRewardConfig = new CookingPotExperienceRewardConfig();
         cookingPotExperienceRewardConfig.loadFromConfig(
                 getFirstConfigSection("experience-reward", "cooking-pot.experience-reward"));
-        cuttingBoardInteractionMode = normalizeCuttingBoardInteractionMode(
+        cuttingBoardInteractionMode = CuttingBoardInteractionMode.parse(
                 getConfig().getString("cutting-board.interaction-mode", "stacking")
         );
         hopperInteractionsEnabled = getConfig().getBoolean("hopper-interactions.enabled", true);
@@ -1389,25 +1439,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         com.huidu.farmersdelight.listener.worlddata.WorldDataConfig.reload(this);
     }
 
-    /**
-     * True when the admin's file itself sets the path.
-     *
-     * Bukkit attaches the jar's config.yml to getConfig() as the default configuration, and plain
-     * contains(path) reports a path as present when only that default has it. Every getter below walks a
-     * chain of paths for a setting that moved, so with plain contains the current path would always match
-     * and the older paths would never be consulted: an admin whose file still uses the old name would
-     * silently get the bundled default instead of the value they set. Passing ignoreDefault=true asks only
-     * the loaded file, which is what makes the fallback chain mean anything. Same reason the config merge
-     * uses contains(key, true).
-     */
     private boolean configFileHas(String path) {
         return getConfig().contains(path, true);
     }
 
-    /**
-     * The section at the first of the given paths the admin's file actually has, or null when it has none of
-     * them. Callers pass the current path first and every path the section previously lived at after it.
-     */
     public ConfigurationSection getFirstConfigSection(String... paths) {
         for (String path : paths) {
             if (!configFileHas(path)) {
@@ -1448,11 +1483,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return defaultValue;
     }
 
-    /**
-     * String list read through the same current-path-first, old-path-fallback chain as the scalar getters,
-     * for a setting whose path moved. Returns the list at the first path the file actually has, and an empty
-     * list when it has none of them.
-     */
     public List<String> getConfigStringList(String... paths) {
         for (String path : paths) {
             if (configFileHas(path)) {
@@ -1495,20 +1525,23 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     public boolean isCuttingBoardOffhandInteractionsAllowed() {
-        return "offhand".equals(cuttingBoardInteractionMode);
+        return cuttingBoardInteractionMode == CuttingBoardInteractionMode.OFFHAND;
     }
 
     public boolean isCuttingBoardStackingEnabled() {
-        return "stacking".equals(cuttingBoardInteractionMode);
+        return cuttingBoardInteractionMode == CuttingBoardInteractionMode.STACKING;
     }
 
-    public String getCuttingBoardInteractionMode() {
+    public CuttingBoardInteractionMode getCuttingBoardInteractionMode() {
         return cuttingBoardInteractionMode;
     }
 
-    /** When true, only items with a cutting-board recipe (or tools) may be placed on the board. */
     public boolean isCuttingBoardRecipeOnlyPlacement() {
         return getConfig().getBoolean("cutting-board.recipe-only-placement", false);
+    }
+
+    public boolean isCuttingBoardDispenserBehaviorEnabled() {
+        return getConfig().getBoolean("cutting-board.dispenser-behavior", true);
     }
 
     public boolean isCookingPotHopperInteractionsEnabled() {
@@ -1603,6 +1636,24 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     public Set<String> getKnifeTagIds() {
         return knifeTagIds;
+    }
+
+    public EnchantmentSettings getEnchantmentSettings() {
+        return enchantmentSettings;
+    }
+
+    public boolean isBackstabEnchantmentEnabled() {
+        return backstabEnchantmentEnabled;
+    }
+
+    private void loadPetFoodConfig() {
+        PetFoodConfig newPetFoodConfig = new PetFoodConfig();
+        newPetFoodConfig.loadFromCraftEngine();
+        ConfigurationSection legacySection = getConfig().getConfigurationSection("pet-foods");
+        if (legacySection != null) {
+            newPetFoodConfig.mergeFromConfig(legacySection);
+        }
+        petFoodConfig = newPetFoodConfig;
     }
 
     private YamlConfiguration loadGuiConfig() {
@@ -1711,7 +1762,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return heatSourceConfig;
     }
 
-    /** Never null: falls back to a defaults-only config if loadConfigs() hasn't run yet. */
     public RugConfig getRugConfig() {
         RugConfig config = rugConfig;
         if (config == null) {
@@ -1722,13 +1772,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return config;
     }
 
-    /**
-     * Loads rugs.yml from FarmersDelight's CraftEngine resource folder
-     * (plugins/CraftEngine/resources/farmersdelight/rugs.yml) — it sits at the pack root, a
-     * sibling of configuration/, so CraftEngine (which only scans configuration/) never
-     * tries to parse it, yet admins find it right beside the other rug definitions. Returns null if the
-     * file is absent (first startup before the bundled release, or deleted) — callers keep the defaults.
-     */
     private ConfigurationSection loadRugConfigSection() {
         Path pluginsFolder = getDataFolder().toPath().getParent();
         if (pluginsFolder == null) return null;
@@ -1858,9 +1901,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return skilletManager;
     }
 
-    /** Gathers every proxy display id still referenced by a live block owner (stove / skillet / cutting
-     *  board / cooking-pot text). /fd cleanup removes only displays NOT in this set — orphans —
-     *  so legitimate, in-use visuals are never touched. */
     public java.util.Set<Integer> collectLiveDisplayIds() {
         java.util.Set<Integer> liveIds = new java.util.HashSet<>();
         if (stoveManager != null) {
@@ -1878,8 +1918,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return advancementManager;
     }
 
-    /** Lazily-created registry of addon advancement tabs (see FarmersDelightAdvancements). Never null;
-     * synchronized so concurrent first calls create only one instance. */
     public synchronized AddonAdvancementRegistry getAddonAdvancementRegistry() {
         if (addonAdvancementRegistry == null) {
             addonAdvancementRegistry = new AddonAdvancementRegistry(this);
@@ -1937,15 +1975,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         ), 0.0F);
     }
 
-    private String normalizeCuttingBoardInteractionMode(String value) {
-        String mode = value == null ? "stacking" : value.trim().toLowerCase(Locale.ROOT);
-        if (!mode.equals("stacking") && !mode.equals("offhand")) {
-            I18n.logWarning("plugin.invalid_cutting_board_mode", "value", value);
-            return "stacking";
-        }
-        return mode;
-    }
-
     private void logStartupSummary() {
         logConfigSummary(I18n.formatConsole("plugin.startup_config"));
     }
@@ -1954,7 +1983,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         I18n.logInfo("plugin.config_summary",
                 "label", label,
                 "scheduler", scheduler != null && scheduler.isFolia() ? "folia" : "bukkit",
-                "mode", cuttingBoardInteractionMode,
+                "mode", cuttingBoardInteractionMode.configKey(),
                 "hopper", hopperInteractionsEnabled,
                 "cooking_pot_hopper", cookingPotHopperInteractionsEnabled,
                 "cutting_board_hopper", cuttingBoardHopperInteractionsEnabled,
@@ -1964,6 +1993,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     public TickManager getTickManager() {
         return tickManager;
+    }
+
+    public boolean isDatapackWorldAllowed(org.bukkit.World world) {
+        return world != null && this.datapackWorldWhitelist.allows(world.getName());
     }
 
     private org.bukkit.World getPrimaryWorld() {
@@ -2021,6 +2054,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             getLogger().fine(I18n.formatConsole("plugin.server_properties_read_failed", "error", e.getMessage()));
             return null;
         }
+    }
+
+    private boolean resolveBackstabbingCompatibility(EnchantmentSettings settings) {
+        return settings.isBackstabbingConfigured();
     }
 
 }

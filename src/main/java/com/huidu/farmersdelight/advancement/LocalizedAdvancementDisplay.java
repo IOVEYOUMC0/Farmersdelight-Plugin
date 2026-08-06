@@ -7,15 +7,6 @@ import net.md_5.bungee.api.chat.TranslatableComponent;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
-/**
- * Advancement display whose title/description use resource-pack translation keys rather than
- * server-side fixed strings, so each client renders them in its own language. Only the (non-NMS)
- * Component getters are overridden here; the patched UltimateAdvancementAPI reads them for the GUI, toast, and chat.
- *
- * BaseComponent / TranslatableComponent are Bungee Chat API and deprecated upstream; UAA's
- * AdvancementDisplay.getChatTitle/Description signatures lock us into BaseComponent[] return
- * types, so deprecation is suppressed at each use site.
- */
 public class LocalizedAdvancementDisplay extends AdvancementDisplay {
 
     private final String titleKey;

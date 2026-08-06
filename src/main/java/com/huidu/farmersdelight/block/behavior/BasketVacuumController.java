@@ -9,6 +9,7 @@ import net.momirealms.craftengine.core.block.entity.BlockEntityController;
 import net.momirealms.craftengine.core.block.entity.tick.BlockEntityTicker;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.CEWorld;
+import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -16,30 +17,18 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Item;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.util.BoundingBox;
 
+import java.util.List;
 import java.util.Map;
 
-/**
- * Adds the vacuum behavior of Farmer's Delight's basket on top of CraftEngine's simple_storage_block
- * container. The storage block already supplies the 27-slot GUI, comparator output, hopper I/O,
- * drop-on-break and the six-way facing state; this controller only pulls dropped item entities from the
- * cell the basket faces (its own cell plus one block toward the facing direction) into that same
- * inventory, mirroring the reference BasketBlockEntity.pushItemsTick.
- *
- * The tick is driven by CraftEngine's per-block-entity ticker (registered when the chunk activates and
- * removed when the block is broken or the chunk unloads), which runs every game tick on the region that
- * owns the block regardless of whether a viewer has the GUI open. This is the direct analog of the mod's
- * BlockEntityTicker and avoids the container's own scheduled tick, which only runs while a viewer is open.
- */
 public final class BasketVacuumController extends BlockEntityController {
 
+    private static final int NO_OP_COOLDOWN = 10;
     private final int transferCooldownTicks;
-    // Whether the basket pushes its contents into a container it faces. Collection is unconditional.
+    // Controls whether the basket pushes contents into the container it faces. Collection always runs.
     private final boolean eject;
-    // Read and written only on the block entity's own region tick thread (the CraftEngine sync
-    // block-entity ticker), so it needs no cross-thread synchronization. Starts negative to match the
-    // reference basket, which begins ready to collect.
+    // Access is confined to the block entity's region tick thread, so cross-thread synchronization is unnecessary.
+    // Start negative to match the original basket, which is ready to collect immediately after startup.
     private int transferCooldown = -1;
 
     public BasketVacuumController(BlockEntity blockEntity, int transferCooldownTicks, boolean eject) {
@@ -77,6 +66,7 @@ public final class BasketVacuumController extends BlockEntityController {
         // for block ticking, so it is region-safe on Folia and needs no ownership guard.
         Block ownBlock = world.getBlockAt(pos.x(), pos.y(), pos.z());
         if (ownBlock.isBlockIndirectlyPowered()) {
+            this.transferCooldown = NO_OP_COOLDOWN;
             return;
         }
 
@@ -113,26 +103,25 @@ public final class BasketVacuumController extends BlockEntityController {
                 // branch below.
                 if (ejectOneItem(inventory, target)) {
                     this.transferCooldown = this.transferCooldownTicks;
+                } else {
+                    this.transferCooldown = NO_OP_COOLDOWN;
                 }
                 return;
             }
         }
 
         if (isFull(inventory)) {
+            this.transferCooldown = NO_OP_COOLDOWN;
             return;
         }
 
         if (collectItems(world, pos, facing, inventory)) {
             this.transferCooldown = this.transferCooldownTicks;
+        } else {
+            this.transferCooldown = NO_OP_COOLDOWN;
         }
     }
 
-    /**
-     * The live inventory of a vanilla container occupying the given cell, or null when that cell holds no
-     * container. The block state is read without a snapshot so writes go through the real block entity,
-     * which persists them and updates the container's comparator output. The caller has already confirmed
-     * the cell is owned by the current region.
-     */
     private static Inventory facedContainerInventory(World world, int x, int y, int z) {
         org.bukkit.block.BlockState facedState = world.getBlockAt(x, y, z).getState(false);
         if (facedState instanceof org.bukkit.block.Container container) {
@@ -141,12 +130,6 @@ public final class BasketVacuumController extends BlockEntityController {
         return null;
     }
 
-    /**
-     * Moves a single item from the first occupied basket slot whose contents the target accepts, matching
-     * the hopper cadence of one item per successful transfer. Returns true when an item moved so the
-     * caller applies the transfer cooldown, false when nothing could be inserted (empty basket or the
-     * target rejected every stack).
-     */
     private static boolean ejectOneItem(Inventory source, Inventory target) {
         ItemStack[] contents = source.getStorageContents();
         for (int slot = 0; slot < contents.length; slot++) {
@@ -173,8 +156,6 @@ public final class BasketVacuumController extends BlockEntityController {
         return false;
     }
 
-    /** The 27-slot inventory owned by the sibling simple_storage_block controller, or null when the block
-     *  entity is no longer valid. */
     private Inventory storageInventory() {
         Inventory[] holder = new Inventory[1];
         this.blockEntity.controller.let(SimpleStorageBlockEntityController.class, c -> holder[0] = c.inventory());
@@ -193,12 +174,6 @@ public final class BasketVacuumController extends BlockEntityController {
         return true;
     }
 
-    /**
-     * Scans the collection area (own cell plus one cell toward facing) for dropped item entities and
-     * inserts them into the basket inventory, mirroring Basket.collectItems: an item fully absorbed is
-     * removed and stops the scan (returning true so the caller applies the cooldown); a partial merge
-     * updates the item entity and the scan continues without claiming a successful transfer.
-     */
     private boolean collectItems(World world, BlockPos pos, BlockFace facing, Inventory inventory) {
         int fx = facing.getModX();
         int fy = facing.getModY();
@@ -221,13 +196,37 @@ public final class BasketVacuumController extends BlockEntityController {
         double maxX = pos.x() + 1 + Math.max(0, rx);
         double maxY = pos.y() + 1 + Math.max(0, ry);
         double maxZ = pos.z() + 1 + Math.max(0, rz);
-        BoundingBox area = new BoundingBox(minX, minY, minZ, maxX, maxY, maxZ);
 
-        for (Entity entity : world.getNearbyEntities(area, candidate -> candidate instanceof Item)) {
+        // Query only the vacuum box for dropped items, not the whole chunk's entity list. getNearbyEntities is
+        // spatially filtered (via the server's entity slices) and returns only Item entities in range, so a
+        // chunk dense with custom-block display entities no longer costs a full entity wrap+copy every scan.
+        // The box stays inside the basket's own cell (plus the faced cell only when it is region-owned), so on
+        // Folia it never reaches into an unowned region; a region-ownership rejection at a chunk edge is caught
+        // and the scan is skipped for this tick.
+        org.bukkit.util.BoundingBox box = new org.bukkit.util.BoundingBox(minX, minY, minZ, maxX, maxY, maxZ);
+        java.util.Collection<Entity> entities;
+        try {
+            entities = world.getNearbyEntities(box, entity -> entity instanceof Item);
+        } catch (Exception regionRejected) {
+            return false;
+        }
+
+        for (Entity entity : entities) {
             Item item = (Item) entity;
             if (!item.isValid() || item.isDead()) {
                 continue;
             }
+            // Leave permanently un-pickuppable drops alone: a pickup delay pinned to the never-pickup
+            // sentinel marks items other plugins spawn as ground decoration or mechanic markers, which the
+            // basket should not swallow. Normal drops carry a short delay that counts down, so they are still
+            // collected like the reference mod and vanilla hoppers.
+            if (item.getPickupDelay() >= Short.MAX_VALUE) {
+                continue;
+            }
+            Location eloc = item.getLocation();
+            if (eloc.getX() < minX || eloc.getX() > maxX
+                    || eloc.getY() < minY || eloc.getY() > maxY
+                    || eloc.getZ() < minZ || eloc.getZ() > maxZ) continue;
             ItemStack stack = item.getItemStack();
             if (stack == null || stack.getType().isAir()) {
                 continue;

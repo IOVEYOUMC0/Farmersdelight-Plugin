@@ -48,10 +48,10 @@ public class PetFoodListener implements Listener {
         PetFoodConfig.PetFoodDefinition definition = config.getFoodDefinition(customItemId);
         if (definition == null) return;
         
-        if (!definition.entities.contains(entity.getType())) return;
+        if (!definition.entities().contains(entity.getType())) return;
 
-        // PlayerInteractEntityEvent fires once per hand. If the same pet food is held in both hands,
-        // debounce by (player, entity) so a single right-click doesn't consume/apply the food twice.
+        // PlayerInteractEntityEvent fires once per hand. When both hands hold the same pet food,
+        // debounce by (player, entity) so a single right-click doesn't consume/apply food twice.
         if (!InteractionDebouncer.tryAcquire(player.getUniqueId(), entity.getLocation())) {
             event.setCancelled(true);
             return;
@@ -63,7 +63,7 @@ public class PetFoodListener implements Listener {
     }
 
     private boolean handlePetFood(Player player, LivingEntity entity, ItemStack item, PetFoodConfig.PetFoodDefinition definition) {
-        if (definition.requireTamed) {
+        if (definition.requireTamed()) {
             if (entity instanceof Tameable tameable) {
                 if (!tameable.isTamed()) return false;
             } else if (entity instanceof AbstractHorse horse) {
@@ -73,14 +73,14 @@ public class PetFoodListener implements Listener {
         
         if (entity.isDead()) return false;
         
-        if (definition.restoreHealth) {
+        if (definition.restoreHealth()) {
             var maxHealthAttr = entity.getAttribute(CompatAttributes.MAX_HEALTH);
             if (maxHealthAttr != null) {
                 entity.setHealth(maxHealthAttr.getValue());
             }
         }
         
-        for (PetFoodConfig.EffectDefinition effect : definition.effects) {
+        for (PetFoodConfig.EffectDefinition effect : definition.effects()) {
             entity.addPotionEffect(new PotionEffect(
                     effect.type(),
                     effect.duration(),
@@ -90,12 +90,13 @@ public class PetFoodListener implements Listener {
             ));
         }
         
-        if (definition.sound != null) {
-            entity.getWorld().playSound(entity.getLocation(), definition.sound, definition.soundVolume, definition.soundPitch);
+        PetFoodConfig.FeedVisual visual = definition.visual();
+        if (visual.sound() != null) {
+            entity.getWorld().playSound(entity.getLocation(), visual.sound(), visual.volume(), visual.pitch());
         }
         
-        if (definition.particles) {
-            spawnParticles(entity, definition.particleType, definition.particleCount);
+        if (visual.particles()) {
+            spawnParticles(entity, visual.particleType(), visual.particleCount());
         }
         
         if (player.getGameMode() != GameMode.CREATIVE) {
@@ -132,4 +133,3 @@ public class PetFoodListener implements Listener {
         }
     }
 }
-

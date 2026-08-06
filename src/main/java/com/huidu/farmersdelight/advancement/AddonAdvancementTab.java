@@ -26,12 +26,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * A single addon-defined UltimateAdvancementAPI tab, built from plain AdvancementDef data (no UAA types
- * leak to the addon). Mirrors AdvancementManager's tree-building and grant/check logic, but the tree is
- * data-driven and the tab name is supplied by the addon. Titles/descriptions are client translation keys (or
- * plain literal text, which clients render verbatim when the key is unknown), matching FarmersDelight's own tab.
- */
 public final class AddonAdvancementTab {
 
     private final Plugin plugin;
@@ -61,13 +55,10 @@ public final class AddonAdvancementTab {
         return tab != null && tab.isInitialised();
     }
 
-    /** Number of advancements currently built into this tab, for the consolidated startup summary.
-     *  Zero once dispose has torn the tab down, and zero for a tab whose build failed. */
     public int getLoadedCount() {
         return byId.size();
     }
 
-    /** Builds (or rebuilds) the UAA tab from the definitions. Returns false on any failure. */
     public boolean load() {
         try {
             UltimateAdvancementAPI api = UltimateAdvancementAPI.getInstance(plugin);
@@ -167,7 +158,6 @@ public final class AddonAdvancementTab {
                 currentGatedOff));
     }
 
-    /** Names the definitions that stop the tab from being a tree: unknown parents first, cycles otherwise. */
     private static String unresolvedIds(Map<String, AdvancementDef> defsById) {
         StringBuilder unresolved = new StringBuilder();
         for (AdvancementDef def : defsById.values()) {
@@ -178,7 +168,6 @@ public final class AddonAdvancementTab {
         return unresolved.length() == 0 ? "cyclic parent chain" : unresolved.toString().trim();
     }
 
-    /** Builds a multi-task advancement, dropping the subtasks whose CraftEngine content is gone. */
     private MultiTasksAdvancement buildMulti(AdvancementDef def, Advancement parent, AdvancementGate gate) {
         List<String> criteria = gate == null
                 ? def.criteria()
@@ -224,9 +213,6 @@ public final class AddonAdvancementTab {
         }
     }
 
-    /** Re-grant the root and re-show the tab to a player after a rebuild. Recreating the UAA tab (e.g. on
-     *  /ce reload) drops it from online clients; mirroring the on-join path here keeps the tab visible for
-     *  players already online instead of vanishing until they rejoin or re-trigger an award. */
     public void resyncPlayer(Player player) {
         if (tab == null || !tab.isInitialised() || player == null) {
             return;

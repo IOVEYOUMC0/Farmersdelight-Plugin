@@ -7,31 +7,12 @@ import net.momirealms.craftengine.core.util.Key;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * The CraftEngine content one advancement (or one criterion of a multi-task advancement) needs in order to be
- * obtainable at all. Derived from what actually awards the advancement — the trigger site — not from its icon.
- *
- * ALWAYS covers everything a server owner cannot delete from the CraftEngine configuration: vanilla-driven,
- * item/block-tag-driven, plugin-config-driven, and behavior-keyed triggers (a behavior only ever runs because
- * some block declares it, so the trigger disappears together with its own configuration and never leaves a
- * dangling requirement on one id).
- *
- * ANY_ITEM / ANY_BLOCK / ANY_ITEM_OR_BLOCK are satisfied while at least one of the listed ids is still loaded,
- * which expresses both a hard single-id dependency (one id) and an "any of these" trigger (several ids).
- *
- * Unknown or unresolvable ids count as present: over-reporting presence only restores the ungated behaviour,
- * while under-reporting it would hide content that still works.
- */
 public record ContentRequirement(Kind kind, List<String> ids) {
 
     public enum Kind {
-        /** Not tied to any deletable CraftEngine id. */
         ALWAYS,
-        /** Satisfied while any listed id is a loaded CraftEngine item. */
         ANY_ITEM,
-        /** Satisfied while any listed id is a loaded CraftEngine block. */
         ANY_BLOCK,
-        /** Satisfied while any listed id is a loaded CraftEngine item or block. */
         ANY_ITEM_OR_BLOCK
     }
 
@@ -53,7 +34,6 @@ public record ContentRequirement(Kind kind, List<String> ids) {
         return new ContentRequirement(Kind.ANY_BLOCK, Arrays.asList(ids));
     }
 
-    /** Requirement for ids whose kind is not known (the addon-facing form): item or block both count. */
     public static ContentRequirement anyItemOrBlock(List<String> ids) {
         if (ids == null || ids.isEmpty()) {
             return ALWAYS;
@@ -61,7 +41,6 @@ public record ContentRequirement(Kind kind, List<String> ids) {
         return new ContentRequirement(Kind.ANY_ITEM_OR_BLOCK, ids);
     }
 
-    /** True when the content this requirement guards is still loaded. */
     public boolean isSatisfied() {
         if (kind == Kind.ALWAYS || ids.isEmpty()) {
             return true;

@@ -1,6 +1,21 @@
 package com.huidu.farmersdelight.registry;
 
-import com.huidu.farmersdelight.block.behavior.*;
+import com.huidu.farmersdelight.block.behavior.BasketBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.MushroomColonyBehavior;
+import com.huidu.farmersdelight.block.behavior.OrganicCompostBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.RichSoilBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.RichSoilFarmlandBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.RopeBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.TallCropBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.TatamiPairingBehavior;
+import com.huidu.farmersdelight.block.behavior.TomatoVineBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.UpperHalfLootRelayBehavior;
+import com.huidu.farmersdelight.block.behavior.WildPlantBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.WildRiceBlockBehavior;
 import com.huidu.farmersdelight.effect.FoodBuffFunction;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.item.behavior.ConditionalBlockPlantingItemBehavior;
@@ -17,11 +32,6 @@ import net.momirealms.craftengine.core.plugin.context.function.FunctionFactory;
 import net.momirealms.craftengine.core.registry.BuiltInRegistries;
 import net.momirealms.craftengine.core.util.Key;
 
-/**
- * Registers FarmersDelight's CraftEngine block and item behavior factories. Extracted from the plugin
- * main class so the (verbose, append-only) registration list lives in one focused place. Registration
- * is idempotent: a factory is only registered if its key isn't already present, so re-invocation is safe.
- */
 public final class BehaviorRegistrar {
 
     private BehaviorRegistrar() {
@@ -54,8 +64,6 @@ public final class BehaviorRegistrar {
         registerItemBehavior(Constants.ITEM_BEHAVIOR_CONDITIONAL_PLANTING, ConditionalBlockPlantingItemBehavior.FACTORY);
     }
 
-    /** Registers FD's custom CraftEngine event functions so a food item can grant an FD buff directly in
-     *  its own config via events: on: consume: functions: - type: farmersdelight:comfort|nourishment. */
     public static void registerFunctions() {
         registerFunction("farmersdelight:comfort",
                 FoodBuffFunction.factory(FoodBuffFunction.Kind.COMFORT, CommonConditions::fromConfig));

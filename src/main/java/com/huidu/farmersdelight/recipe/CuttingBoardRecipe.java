@@ -36,9 +36,22 @@ public record CuttingBoardRecipe(String id, RecipeIngredient input, ItemStack in
         return priority;
     }
 
-    public record ToolRequirement(Key key, Set<Key> excludedItems, Set<Key> excludedTags) {
+    public record ToolRequirement(Key key, boolean tag, Set<Key> excludedItems, Set<Key> excludedTags) {
         public ToolRequirement(Key key) {
-            this(key, Set.of(), Set.of());
+            this(key, false, Set.of(), Set.of());
+        }
+
+        public ToolRequirement(Key key, Set<Key> excludedItems, Set<Key> excludedTags) {
+            this(key, false, excludedItems, excludedTags);
+        }
+
+        public ToolRequirement(Key key, boolean tag) {
+            this(key, tag, Set.of(), Set.of());
+        }
+
+        public ToolRequirement {
+            excludedItems = Set.copyOf(excludedItems);
+            excludedTags = Set.copyOf(excludedTags);
         }
 
         public Key getKey() {
@@ -51,6 +64,16 @@ public record CuttingBoardRecipe(String id, RecipeIngredient input, ItemStack in
 
         public Set<Key> getExcludedTags() {
             return excludedTags;
+        }
+
+        public boolean isTag() {
+            return tag;
+        }
+
+        public RecipeIngredient asIngredient() {
+            return tag
+                    ? new RecipeIngredient.Tag(key, excludedItems, excludedTags)
+                    : new RecipeIngredient.Item(key);
         }
     }
 

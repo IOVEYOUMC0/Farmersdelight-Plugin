@@ -1,23 +1,19 @@
 package com.huidu.farmersdelight.gui.editor;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.gui.AbstractInventoryGui;
 import com.huidu.farmersdelight.gui.GuiConfig;
 import com.huidu.farmersdelight.gui.RecipeViewGuiConfig;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.recipe.RecipeSerializer;
 import com.huidu.farmersdelight.util.ItemUtils;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
-import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -25,43 +21,53 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Consumer;
 
-/**
- * A pure-GUI builder for "choice" type ingredients (a|b|c). Each filled item slot is one option. On confirm:
- * 0 options clears the ingredient, 1 option produces a plain item, 2 or more produce a choice. Layout and
- * text come from the recipe-choice-builder-gui section of gui.yml.
- */
-public final class ChoiceBuilderGui implements EditorGui {
+public final class ChoiceBuilderGui extends AbstractInventoryGui implements EditorGui {
 
-    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacyAmpersand();
-    private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
-
-    private final FarmersDelightPlugin plugin;
-    private final Player player;
     private final RecipeViewGuiConfig.BaseConfig config;
     private final int displayIndex;
     private final Consumer<RecipeIngredient> onConfirm;
     private final Runnable onCancel;
     private final List<Integer> optionSlots;
-    private final ItemStack[] options;
-    private final Inventory inventory;
+    private final IngredientEntry[] options;
     private boolean acted = false;
-    private boolean closed = false;
+
+    private record IngredientEntry(RecipeIngredient ingredient, ItemStack display) {
+        static IngredientEntry of(RecipeIngredient ingredient) {
+            if (ingredient instanceof RecipeIngredient.Item item) {
+                ItemStack stack = ItemUtils.createItem(item.key().toString());
+                if (stack != null && !stack.getType().isAir()) {
+                    stack.setAmount(1);
+                    return new IngredientEntry(ingredient, stack);
+                }
+            }
+            if (ingredient instanceof RecipeIngredient.Tag tag) {
+                ItemStack display = new ItemStack(Material.NAME_TAG);
+                var meta = display.getItemMeta();
+                if (meta != null) {
+                    meta.displayName(net.kyori.adventure.text.Component.text(RecipeSerializer.serializeIngredient(tag)));
+                    display.setItemMeta(meta);
+                }
+                return new IngredientEntry(ingredient, display);
+            }
+            return null;
+        }
+    }
 
     public ChoiceBuilderGui(FarmersDelightPlugin plugin, Player player, RecipeViewGuiConfig.BaseConfig config,
                             int displayIndex, @Nullable RecipeIngredient current,
                             Consumer<RecipeIngredient> onConfirm, Runnable onCancel) {
-        this.plugin = plugin;
-        this.player = player;
+        super(plugin, player);
         this.config = config;
         this.displayIndex = displayIndex;
         this.onConfirm = onConfirm;
         this.onCancel = onCancel;
         this.optionSlots = config.getSlotsByType("option");
-        this.options = new ItemStack[Math.max(1, optionSlots.size())];
+        this.options = new IngredientEntry[Math.max(1, optionSlots.size())];
         initFrom(current);
-        this.inventory = plugin.getServer().createInventory(this, config.getSize(), coloredTitle(config.getTitle()));
+        this.inventory = plugin.getServer().createInventory(this, config.getSize(), EditorGui.coloredComponent(config.getTitle()));
     }
 
     private void initFrom(@Nullable RecipeIngredient current) {
@@ -72,25 +78,33 @@ public final class ChoiceBuilderGui implements EditorGui {
             sources.add(current);
         }
         for (int i = 0; i < options.length && i < sources.size(); i++) {
-            if (sources.get(i) instanceof RecipeIngredient.Item item) {
-                ItemStack stack = ItemUtils.createItem(item.key().toString());
-                if (stack != null && !stack.getType().isAir()) {
-                    stack.setAmount(1);
-                    options[i] = stack;
-                }
+            IngredientEntry entry = IngredientEntry.of(sources.get(i));
+            if (entry != null) {
+                options[i] = entry;
             }
         }
     }
 
     public void open() {
-        RecipeEditorListener.ensureRegistered(plugin);
-        render();
-        player.openInventory(inventory);
+        doOpen(this::render);
     }
 
     @Override
-    public @NotNull Inventory getInventory() {
-        return inventory;
+    protected AbstractInventoryGui findExistingGui(UUID playerId) {
+        return null;
+    }
+
+    @Override
+    protected void putActiveGui(UUID playerId, AbstractInventoryGui gui) {
+    }
+
+    @Override
+    protected void removeFromActiveGuis(UUID playerId) {
+    }
+
+    @Override
+    protected void ensureListenerRegistered() {
+        RecipeEditorListener.ensureRegistered(plugin);
     }
 
     private void render() {
@@ -98,8 +112,8 @@ public final class ChoiceBuilderGui implements EditorGui {
             String type = config.getSlotType(i);
             if ("option".equals(type)) {
                 int idx = optionSlots.indexOf(i);
-                ItemStack item = idx >= 0 && idx < options.length ? options[idx] : null;
-                inventory.setItem(i, item == null ? configItem("option", Map.of()) : item.clone());
+                IngredientEntry entry = idx >= 0 && idx < options.length ? options[idx] : null;
+                inventory.setItem(i, entry == null ? configItem("option", Map.of()) : entry.display().clone());
             } else if ("info".equals(type)) {
                 inventory.setItem(i, configItem("info", Map.of("index", String.valueOf(displayIndex))));
             } else {
@@ -138,13 +152,24 @@ public final class ChoiceBuilderGui implements EditorGui {
                     return;
                 }
                 boolean hasCursorItem = cursor != null && !cursor.getType().isAir();
+                if (hasCursorItem && click.isRightClick()) {
+                    // Right-click with cursor → pick tag for this slot
+                    ItemStack source = cleanCopy(cursor);
+                    clearCursor();
+                    openTagPicker(idx, source);
+                    return;
+                }
                 if (hasCursorItem) {
-                    options[idx] = cleanCopy(cursor);
+                    options[idx] = IngredientEntry.of(
+                            new RecipeIngredient.Item(Key.of(RecipeSerializer.itemIdString(cursor))));
                     clearCursor();
                 } else if (click.isRightClick()) {
                     options[idx] = null;
                 } else if (options[idx] != null) {
-                    player.setItemOnCursor(cleanCopy(options[idx]));
+                    IngredientEntry existing = options[idx];
+                    if (existing.ingredient() instanceof RecipeIngredient.Item) {
+                        player.setItemOnCursor(cleanCopy(existing.display()));
+                    }
                     options[idx] = null;
                 }
                 render();
@@ -159,7 +184,7 @@ public final class ChoiceBuilderGui implements EditorGui {
                 return;
             case "cancel":
                 acted = true;
-                closed = true;
+                super.close();
                 clearCursor();
                 onCancel.run();
                 return;
@@ -169,7 +194,7 @@ public final class ChoiceBuilderGui implements EditorGui {
 
     @Override
     public void handleClose(InventoryCloseEvent event) {
-        closed = true;
+        super.close();
         clearCursor();
         if (!acted) {
             acted = true;
@@ -179,27 +204,51 @@ public final class ChoiceBuilderGui implements EditorGui {
 
     private void confirm() {
         List<RecipeIngredient> chosen = new ArrayList<>();
-        for (ItemStack option : options) {
-            if (option != null && !option.getType().isAir()) {
-                chosen.add(new RecipeIngredient.Item(Key.of(RecipeSerializer.itemIdString(option))));
+        for (IngredientEntry entry : options) {
+            if (entry != null) {
+                chosen.add(entry.ingredient());
             }
         }
         RecipeIngredient result;
         if (chosen.isEmpty()) {
             result = null;
         } else if (chosen.size() == 1) {
-            result = chosen.get(0);
+            result = chosen.getFirst();
         } else {
             result = new RecipeIngredient.Choice(chosen);
         }
         acted = true;
-        closed = true;
+        super.close();
         clearCursor();
         onConfirm.accept(result);
     }
 
     private void clearCursor() {
         player.setItemOnCursor(null);
+    }
+
+    private void openTagPicker(int idx, ItemStack source) {
+        RecipeViewGuiConfig.BaseConfig pickerConfig =
+                plugin.getRecipeEditorGuiConfig().getTagPickerConfig();
+        if (pickerConfig == null) return;
+        List<String> tags = ItemUtils.getAllItemTagIds(source);
+        if (tags.isEmpty()) return;
+        closed = true;
+        new TagPickerGui(plugin, player, pickerConfig, source, tags,
+                ingredient -> {
+                    IngredientEntry entry = IngredientEntry.of(ingredient);
+                    if (entry != null) {
+                        options[idx] = entry;
+                    }
+                    reopen();
+                },
+                this::reopen).open();
+    }
+
+    private void reopen() {
+        closed = false;
+        render();
+        player.openInventory(inventory);
     }
 
     private ItemStack configItem(String key, Map<String, String> placeholders) {
@@ -214,13 +263,5 @@ public final class ChoiceBuilderGui implements EditorGui {
         ItemStack copy = source.clone();
         copy.setAmount(1);
         return copy;
-    }
-
-    private static Component coloredTitle(String title) {
-        String resolved = title == null ? "" : title;
-        if (resolved.contains("<") && resolved.contains(">")) {
-            return MINI_MESSAGE.deserialize(resolved);
-        }
-        return LEGACY.deserialize(resolved.replaceAll("&(?=[0-9a-fk-orA-FK-OR])", "§"));
     }
 }

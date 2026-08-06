@@ -333,5 +333,7 @@
   "buff.farmersdelight.nourishment": "Nourishment",
   "buff.farmersdelight.nourishment.title": "Nourishment [%s]",
   "buff.farmersdelight.comfort": "Comfort",
-  "buff.farmersdelight.comfort.title": "Comfort [%s]"
+  "buff.farmersdelight.comfort.title": "Comfort [%s]",
+  "enchantment.farmersdelight.backstabbing": "Backstabbing",
+  "enchantment.farmersdelight.backstabbing.desc": "Deals extra damage when attacking from behind."
 }

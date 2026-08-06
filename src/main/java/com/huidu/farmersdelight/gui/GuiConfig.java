@@ -12,7 +12,6 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -116,7 +115,7 @@ public class GuiConfig {
     }
 
     public static GuiConfig fromConfig(ConfigurationSection section) {
-        String title = section.getString("title", "界面");
+        String title = section.getString("title", "GUI");
         String titleLayoutOffset = section.getString("title-layout.craftengine.offset", "");
         String titleLayoutIcon = section.getString("title-layout.craftengine.icon", "");
         boolean fillersEnabled = section.getBoolean("fillers-enabled", true);
@@ -207,6 +206,7 @@ public class GuiConfig {
         }
     }
 
+    @SuppressWarnings("UnstableApiUsage")
     private static void warnConfig(String key, Object... placeholders) {
         String message = I18n.formatNamedArgs(key, placeholders);
         com.huidu.farmersdelight.FarmersDelightPlugin plugin =
@@ -744,11 +744,7 @@ public class GuiConfig {
             if (customModelData == null) {
                 return;
             }
-            try {
-                Method setter = meta.getClass().getMethod("setCustomModelData", Integer.class);
-                setter.invoke(meta, customModelData);
-            } catch (ReflectiveOperationException ignored) {
-            }
+            meta.setCustomModelData(customModelData);
         }
 
         private void applyItemModel(ItemMeta meta, String itemModel) {

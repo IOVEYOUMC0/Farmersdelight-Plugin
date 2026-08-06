@@ -52,6 +52,7 @@ public final class Constants {
     public static final String BEHAVIOR_RICH_SOIL = "farmersdelight:rich_soil";
     public static final String BEHAVIOR_RICH_SOIL_FARMLAND = "farmersdelight:rich_soil_farmland";
     public static final String ITEM_BEHAVIOR_CONDITIONAL_PLANTING = "farmersdelight:conditional_block_planting";
+    public static final String ITEM_SETTING_PET_FOOD = "farmersdelight:pet_food";
     public static final String BLOCK_RICH_SOIL_FARMLAND = "farmersdelight:rich_soil_farmland";
     public static final String ITEM_ORGANIC_COMPOST = "farmersdelight:organic_compost";
     public static final String ITEM_RICH_SOIL = "farmersdelight:rich_soil";

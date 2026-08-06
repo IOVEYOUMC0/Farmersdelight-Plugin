@@ -12,15 +12,6 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 
-/**
- * Un-pairs the surviving half of a paired tatami when its partner is removed, by resetting any adjacent paired
- * tatami whose facing points at the broken block. This is the authoritative reset: it runs on the guaranteed
- * block-break events (so it does not depend on the engine dispatching updateShape / neighborChanged to a custom
- * block, which proved unreliable in-game), and it keys on the surviving neighbor's live state plus the known
- * broken position rather than re-reading the broken block (whose custom state CraftEngine may already have
- * cleared). CraftEngine's CustomBlockBreakEvent carries the captured block state, so the tatami is identified
- * reliably; the vanilla and explosion events are fallbacks for removal causes CraftEngine does not wrap.
- */
 public class TatamiBreakListener implements Listener {
     private static final String TATAMI_BLOCK_ID = "farmersdelight:tatami";
 

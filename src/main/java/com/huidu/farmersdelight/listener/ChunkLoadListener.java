@@ -26,7 +26,11 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
 
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Deque;
+import java.util.List;
+import java.util.Map;
 
 public class ChunkLoadListener implements Listener {
 
@@ -106,17 +110,6 @@ public class ChunkLoadListener implements Listener {
         sweepOrphanFurnitureInChunk(world, chunkX, chunkZ);
     }
 
-    /**
-     * Runs the tray and handle orphan sweeps over ONE walk of the chunk's entity list. Both sweeps used
-     * to fetch and iterate that list separately, paying the chunk entity lookup twice per chunk load for
-     * two filters over the same entities.
-     *
-     * The sweeps stay unconditional: both exist precisely to remove furniture whose owning block is gone,
-     * so gating them on an owner being present would defeat their purpose. Order is preserved (trays,
-     * then handles) and both run on the region owning the chunk, which on Paper is the calling thread.
-     * Sharing one snapshot is safe because the tray sweep only removes tray furniture, which the handle
-     * sweep rejects anyway — by furniture id, and by the registry lookup returning null once removed.
-     */
     private void sweepOrphanFurnitureInChunk(World world, int chunkX, int chunkZ) {
         TrayManager trayManager = plugin.getTrayManager();
         HandleManager handleManager = plugin.getHandleManager();
@@ -124,16 +117,7 @@ public class ChunkLoadListener implements Listener {
             return;
         }
         plugin.scheduler().runAt(world, chunkX, chunkZ, () -> {
-            if (world == null || !world.isChunkLoaded(chunkX, chunkZ)) {
-                return;
-            }
-            List<Entity> entities = Arrays.asList(world.getChunkAt(chunkX, chunkZ).getEntities());
-            if (trayManager != null) {
-                trayManager.cleanupInvalidAutoTraysIn(world, entities);
-            }
-            if (handleManager != null) {
-                handleManager.sweepOrphansIn(world, entities);
-            }
+            // Trays and handles now use entity_renderer, so furniture entity cleanup is unnecessary.
         });
     }
 
