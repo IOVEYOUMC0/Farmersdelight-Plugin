@@ -1,6 +1,13 @@
 package com.huidu.farmersdelight.manager;
 
-import com.huidu.farmersdelight.util.*;
+import com.huidu.farmersdelight.util.ManagerSupport;
+import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.SoundUtils;
+import com.huidu.farmersdelight.util.BlockPosKey;
+import com.huidu.farmersdelight.util.CampfireRecipeCache;
+import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.compat.DisplayTransformUtils;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior;
@@ -9,8 +16,14 @@ import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
+import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.configuration.ConfigurationSection;
@@ -23,7 +36,16 @@ import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -262,8 +284,6 @@ public class SkilletManager {
         return created;
     }
 
-    /** Adds every proxy display id this manager's tracked skillets still reference, so /fd cleanup
-     *  can leave live skillet visuals alone and remove only orphans. */
     public void collectLiveDisplayIds(java.util.Set<Integer> out) {
         for (SkilletData skillet : skillets.values()) {
             out.addAll(skillet.displayEntityIds);
@@ -286,6 +306,12 @@ public class SkilletManager {
     }
 
     public boolean handleInteract(Player player, Block block, ItemStack itemInHand, EquipmentSlot hand) {
+        // Inner defense: never consume equippable items as cooking ingredients, even if the
+        // CraftEngine useOnBlock PASSTHROUGH path didn't catch them (armor-swap timing race).
+        if (itemInHand != null && !itemInHand.getType().isAir()
+                && SkilletBlockBehavior.isEquippable(itemInHand)) {
+            return false;
+        }
         Location location = ManagerSupport.normalize(block.getLocation());
         SkilletData skillet = getOrLoadSkillet(location);
         ensurePlacedSkilletState(skillet);
@@ -432,13 +458,6 @@ public class SkilletManager {
         return skillet.storedItem.clone();
     }
 
-    /**
-     * Read-only snapshot of the tracked skillet at location for the api station-query facade, or null
-     * when nothing is tracked there. Taken under the SkilletData monitor so a concurrent interact or
-     * break cannot split the stored item from the progress counters; the heat flag is probed live
-     * rather than read from the tick cache so a caller that has just placed a heat source sees it.
-     * Must be called on the region thread owning location, because the heat probe reads blocks.
-     */
     public com.huidu.farmersdelight.api.block.SkilletSnapshot snapshot(Location location) {
         Location normalized = ManagerSupport.normalize(location);
         if (normalized == null) {
@@ -490,7 +509,7 @@ public class SkilletManager {
     public ItemStack insertHopperInput(Location location, ItemStack item) {
         Location normalized = ManagerSupport.normalize(location);
         if (normalized == null || item == null) {
-            return item == null ? null : item.clone();
+            return ItemUtils.cloneOrNull(item);
         }
         if (!isSkilletBlock(normalized) || !isValidHopperInput(item)) {
             return item.clone();
@@ -628,9 +647,6 @@ public class SkilletManager {
         breakSkillet(blockLocation, dropLocation, true);
     }
 
-    /** Applies parked controller data (a chunk-cache passivation snapshot, or a deferred load) back into the
-     *  manager entry, so a caller that reads the entry right after — a break that drops the stored food — sees
-     *  it instead of a blank entry whose state still sits in the controller's pendingSaveData. */
     private void flushControllerPendingData(Location location) {
         if (location == null || location.getWorld() == null) return;
         CustomBlockUtils.notifyControllerChanged(location.getWorld(), new BlockPosKey(location),
@@ -760,7 +776,6 @@ public class SkilletManager {
         }
     }
 
-    /** Stashes the skillet's exported state into its CE controller; false when the controller is unreachable. */
     private boolean passivateToController(World world, Location location) {
         boolean[] stashed = {false};
         CustomBlockUtils.notifyControllerChanged(world, new BlockPosKey(location),
@@ -773,7 +788,6 @@ public class SkilletManager {
         return loadSkillet(world, new BlockPosKey(pos), data);
     }
 
-    /** Returns whether the saved data was consumed; false keeps it parked on the controller for a retry. */
     public boolean loadSkillet(World world, BlockPosKey posKey, Map<String, Object> data) {
         if (world == null || posKey == null || data == null) return true;
 
@@ -886,7 +900,6 @@ public class SkilletManager {
         return result;
     }
 
-    /** Whether any tracked skillets exist (cheap check, no location list allocation). */
     public boolean hasTrackedSkillets() {
         return !skillets.isEmpty();
     }
@@ -1189,7 +1202,10 @@ public class SkilletManager {
         int z = location.getBlockZ();
         Block blockBelow = world.getBlockAt(x, y - 1, z);
 
-        if (plugin.getHeatSourceConfig().isHeatSource(blockBelow)) {
+        // Pre-fetch the CE state of blockBelow once, then share it across isHeatSource
+        // and isConductor to avoid two independent CE lookups on the same block.
+        ImmutableBlockState belowState = CraftEngineBlocks.getCustomBlockState(blockBelow);
+        if (plugin.getHeatSourceConfig().isHeatSource(blockBelow, belowState)) {
             return true;
         }
 
@@ -1197,7 +1213,7 @@ public class SkilletManager {
             return false;
         }
 
-        if (plugin.getHeatSourceConfig().isConductor(blockBelow)) {
+        if (plugin.getHeatSourceConfig().isConductor(blockBelow, belowState)) {
             Block blockTwoBelow = world.getBlockAt(x, y - 2, z);
             return plugin.getHeatSourceConfig().isHeatSource(blockTwoBelow);
         }

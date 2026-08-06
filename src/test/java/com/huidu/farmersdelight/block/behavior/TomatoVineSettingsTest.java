@@ -9,12 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * The grouped form of the tomato vine settings was added alongside the original flat keys rather than replacing
- * them, because CraftEngine installs a pack's configuration only when the file is absent: a server that already
- * has crops.yml keeps the flat spelling forever and no migration can reach it. These tests hold that promise, so
- * a later change cannot quietly drop the flat form and leave those servers reading defaults.
- */
 class TomatoVineSettingsTest {
 
     private static final String BLOCK_ID = "farmersdelight:tomatoes";

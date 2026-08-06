@@ -20,15 +20,6 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * Pins the config update to the behaviour it had before the machinery moved into api/config.
- *
- * The reference implementation below is the algorithm as it stood in ConfigBootstrap, kept here verbatim
- * and driven by the tables as they were written there. Every case runs both implementations over the same
- * input and compares the rewritten YAML text byte for byte, plus the counts and paths the log lines are
- * built from. A change to the shared machinery that alters any of these is a change to what an operator's
- * file looks like after a startup, and shows up here as a failing case rather than on a live server.
- */
 class ConfigBootstrapEquivalenceTest {
 
     private static final String[][] LEGACY_MIGRATIONS = {
@@ -65,7 +56,6 @@ class ConfigBootstrapEquivalenceTest {
             "heat-sources",
             "drops.straw",
             "straw-drops",
-            "pet-foods",
             "buff.comfort",
             "comfort-foods",
             "buff.nourishment",
@@ -135,7 +125,6 @@ class ConfigBootstrapEquivalenceTest {
         // An operator who disabled content by deleting entries: the merge must not put any of them back.
         clearChildrenButOne(existing, "heat-sources");
         clearChildrenButOne(existing, "drops.mob-extra");
-        clearChildrenButOne(existing, "pet-foods");
         clearChildrenButOne(existing, "world-data.composting.items");
         assertSameResult(existing);
     }
@@ -145,7 +134,6 @@ class ConfigBootstrapEquivalenceTest {
         YamlConfiguration existing = bundledConfig();
         // A section absent altogether is the pre-feature case: the merge fills it in completely.
         existing.set("heat-sources", null);
-        existing.set("pet-foods", null);
         existing.set("world-data.trades.villager", null);
         assertSameResult(existing);
     }
@@ -159,7 +147,6 @@ class ConfigBootstrapEquivalenceTest {
         assertSameResult(existing);
     }
 
-    /** Runs both implementations over identical copies of the input and compares everything observable. */
     private void assertSameResult(YamlConfiguration input) {
         YamlConfiguration bundled = bundledConfig();
 

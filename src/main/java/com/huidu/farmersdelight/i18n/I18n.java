@@ -4,6 +4,9 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.config.ConfigFileUpdater;
 import com.huidu.farmersdelight.util.Text;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.translation.GlobalTranslator;
+import net.momirealms.craftengine.core.plugin.config.Config;
+import net.momirealms.craftengine.core.plugin.locale.TranslationManager;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 
@@ -15,8 +18,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.Path;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
@@ -30,16 +31,15 @@ public class I18n {
 
     private static final Pattern LOCALE_PATTERN = Pattern.compile("^[a-z]{2}(_[a-z]{2})?$");
     private static final String FALLBACK_LOCALE = "zh_cn";
+    private static final String ENGLISH_FALLBACK = "en_us";
+    private static final String[] DEFAULT_LANGUAGES = {"zh_cn", "en_us"};
+    private static final String LANG_RESOURCE_PREFIX = "lang/";
+    private static final String BACKUP_DATE_FORMAT = "yyyyMMdd-HHmmss";
+    private static final String CONSOLE_KEY_PREFIX = "console.";
     
     private static FarmersDelightPlugin plugin;
     private static volatile LocaleState state = new LocaleState(Map.of(), null, FALLBACK_LOCALE);
 
-    /**
-     * Immutable snapshot of the locale lookup state: locales, currentLocale, and defaultLocale are always consistent.
-     * Reload replaces only the single volatile state reference wholesale, so readers see either the complete old
-     * snapshot or the complete new one, avoiding clear()/put() corrupting the underlying HashMap while a region thread reads it
-     * (which could cause wrong results, NPEs, or a region thread spinning forever on a corrupted bucket chain).
-     */
     private record LocaleState(Map<String, YamlConfiguration> locales,
                                YamlConfiguration currentLocale,
                                String defaultLocale) {
@@ -100,7 +100,7 @@ public class I18n {
     private static volatile String lastLoggedLocaleSignature;
 
     private static void saveDefaultLanguages() {
-        String[] defaultLangs = {"zh_cn", "en_us"};
+        String[] defaultLangs = DEFAULT_LANGUAGES;
         
         File langFolder = new File(plugin.getDataFolder(), "lang");
         if (!langFolder.exists()) {
@@ -298,50 +298,13 @@ public class I18n {
 
     private static String selectCraftEngineLocale() {
         try {
-            Class<?> managerClass = Class.forName("net.momirealms.craftengine.core.plugin.locale.TranslationManager");
-            Object manager = managerClass.getMethod("instance").invoke(null);
-            Locale locale = readCraftEngineSelectedLocale(manager);
-            return locale != null ? normalizeLocale(formatLocale(locale), false) : null;
-        } catch (ReflectiveOperationException | LinkageError ignored) {
-            return null;
-        }
-    }
-
-    private static Locale readCraftEngineSelectedLocale(Object manager) {
-        if (manager == null) {
-            return null;
-        }
-        try {
-            Field selectedLocale = manager.getClass().getDeclaredField("selectedLocale");
-            selectedLocale.setAccessible(true);
-            Object value = selectedLocale.get(manager);
-            if (value instanceof Locale locale) {
-                return locale;
+            Locale locale = Config.forcedLocale();
+            if (locale != null) {
+                return normalizeLocale(TranslationManager.formatLocale(locale), false);
             }
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
-        }
-        try {
-            Class<?> configClass = Class.forName("net.momirealms.craftengine.core.plugin.config.Config");
-            Method forcedLocale = configClass.getMethod("forcedLocale");
-            Object value = forcedLocale.invoke(null);
-            if (value instanceof Locale locale) {
-                return locale;
-            }
-        } catch (ReflectiveOperationException | LinkageError ignored) {
+        } catch (LinkageError ignored) {
         }
         return null;
-    }
-
-    private static String formatLocale(Locale locale) {
-        if (locale == null) {
-            return null;
-        }
-        String language = locale.getLanguage();
-        String country = locale.getCountry();
-        if (language == null || language.isBlank()) {
-            return null;
-        }
-        return country == null || country.isBlank() ? language : language + "_" + country;
     }
 
     public static String get(String key) {
@@ -395,7 +358,40 @@ public class I18n {
             return bundled;
         }
 
+        // CraftEngine translation via public API (no reflection)
+        try {
+            String ceResult = craftEngineTranslate(key, locale);
+            if (ceResult != null && !ceResult.equals(key)) {
+                return ceResult;
+            }
+        } catch (LinkageError ignored) {
+        }
+
+        // Adventure GlobalTranslator for vanilla Minecraft translation keys
+        try {
+            java.util.Locale loc = locale != null && !locale.isEmpty()
+                    ? java.util.Locale.forLanguageTag(locale.replace('_', '-'))
+                    : java.util.Locale.getDefault();
+            Component rendered = GlobalTranslator.render(Component.translatable(key), loc);
+            String plain = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(rendered);
+            if (!plain.equals(key)) {
+                return plain;
+            }
+        } catch (Exception ignored) {
+        }
+
         return key;
+    }
+
+    private static String craftEngineTranslate(String key, String locale) {
+        try {
+            Locale loc = locale != null && !locale.isEmpty()
+                    ? Locale.forLanguageTag(locale.replace('_', '-'))
+                    : null;
+            return TranslationManager.instance().plainTranslation(key, loc);
+        } catch (LinkageError ignored) {
+            return null;
+        }
     }
 
     // Jar-bundled language fallback. The jar content is immutable at runtime, so parsed configs are cached for
@@ -445,7 +441,7 @@ public class I18n {
         return get(key, locale);
     }
 
-    private static String getPlayerLocale(Player player) {
+    public static String getPlayerLocale(Player player) {
         try {
             return player.locale().toString().toLowerCase(Locale.ROOT);
         } catch (Exception e) {
@@ -483,13 +479,6 @@ public class I18n {
         }
     }
 
-    /**
-     * Startup / reload detail that a healthy boot does not need on the console: per-subsystem census
-     * counts, "loaded successfully" notices, and steps that legitimately run more than once per
-     * lifecycle. Printed at INFO when the matching debug category is enabled (debug.enabled plus
-     * debug.categories in config.yml), and recorded at FINE otherwise so raising the logger level
-     * still surfaces it. Nothing routed here is ever dropped.
-     */
     public static void logDetail(String category, String key, Object... args) {
         FarmersDelightPlugin pluginInstance = plugin;
         if (pluginInstance == null) {
@@ -570,27 +559,14 @@ public class I18n {
         return Text.deserialize(formatNamed(key, player, placeholders));
     }
 
-    /** Returns a Component.translatable(key) that each player's
-     * client renders from its own resource-pack lang file. Use this for any user-visible GUI text so the
-     * server sends a translation key (not a pre-rendered string) and the player sees their own language
-     * without needing to re-open the GUI when they switch client language. The key must exist in the
-     * resource pack's assets/farmersdelight/lang/<locale>.json. */
     public static Component translatable(String key) {
         return Component.translatable(key);
     }
 
-    /** Plain-text translation in the server's default locale via com.huidu.farmersdelight.util.ItemUtils#translate.
-     *  Walks FD lang files, then CraftEngine's TranslationManager, then Adventure's GlobalTranslator, then
-     *  returns the key itself if nothing has a value. Use for bossbar titles and lore lines where the
-     *  visible text must NOT depend on the receiving client's locale or resource-pack contents. */
     public static String serverText(String key) {
         return com.huidu.farmersdelight.util.ItemUtils.translate(key, state.defaultLocale());
     }
 
-    /** serverText(String) formatted with positional %s args and wrapped in a
-     *  Component.text. Falls back to the unformatted text if the args don't match the placeholders.
-     *  Args that are themselves Component get serialized through plain-text first so colored
-     *  sub-components are not silently dropped (the result is a flat text Component anyway). */
     public static Component serverComponent(String key, Object... args) {
         String resolved = serverText(key);
         if (args == null || args.length == 0) {
@@ -612,11 +588,6 @@ public class I18n {
         return Text.deserialize(formatted);
     }
 
-    /** Component.translatable(key, args) carrying a server-resolved .fallback(...) string,
-     *  so clients whose resource pack lacks the lang entry see readable text in the server's default locale
-     *  instead of the raw key. Non-Component args get wrapped in Component.text(String.valueOf(arg))
-     *  for the client-side render; the fallback string formats the %s placeholders with the args'
-     *  plain-text serialisation. */
     public static Component translatableWithFallback(String key, Object... args) {
         if (args == null) args = new Object[0];
         Component[] argComponents = new Component[args.length];
@@ -646,9 +617,6 @@ public class I18n {
         return Component.translatable(key, argComponents).fallback(fallback);
     }
 
-    /** Translatable with positional %s args. Each arg is wrapped in a Component.text(...)
-     * unless it's already a Component, so colored sub-components pass through unchanged. Order of args must
-     * match the order of %s placeholders in the lang value. */
     public static Component translatable(String key, Object... args) {
         if (args.length == 0) return Component.translatable(key);
         Component[] components = new Component[args.length];

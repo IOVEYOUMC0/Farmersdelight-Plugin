@@ -12,7 +12,14 @@ import com.huidu.farmersdelight.util.ManagerSupport;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Particle;
+import org.bukkit.Registry;
+import org.bukkit.Sound;
+import org.bukkit.SoundCategory;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
@@ -52,6 +59,10 @@ public class TickManager {
     }
     private final Map<ActiveBlock, Long> lastProcessedTicks = new ConcurrentHashMap<>();
     private final Map<ActiveBlock, Long> progressDisplayLastUpdateTicks = new ConcurrentHashMap<>();
+    // Heat source checking is expensive (930ms total per profiler — two isHeatSource + isConductor calls
+    // per pot per tick). Block-below heat sources rarely change; skip the per-tick re-check.
+    private final Map<ActiveBlock, Long> heatSourceLastCheckTicks = new ConcurrentHashMap<>();
+    private static final int HEAT_SOURCE_CHECK_INTERVAL_TICKS = 10;
     private final Set<ActiveBlock> scheduledActiveBlocks = ConcurrentHashMap.newKeySet();
     private volatile List<ActiveBlock> activeBlockSnapshot = List.of();
     private volatile int activeCookingPotCount;
@@ -179,6 +190,7 @@ public class TickManager {
         pendingChanges.clear();
         lastProcessedTicks.clear();
         progressDisplayLastUpdateTicks.clear();
+        heatSourceLastCheckTicks.clear();
         scheduledActiveBlocks.clear();
 
         I18n.logDetail("startup", "tick.stopped");
@@ -364,6 +376,7 @@ public class TickManager {
                     changed |= activeBlocks.remove(change.block());
                     lastProcessedTicks.remove(change.block());
                     progressDisplayLastUpdateTicks.remove(change.block());
+                    heatSourceLastCheckTicks.remove(change.block());
                     scheduledActiveBlocks.remove(change.block());
                 }
             }
@@ -617,14 +630,23 @@ public class TickManager {
         }
 
         Block blockBelow = world.getBlockAt(posKey.x(), posKey.y() - 1, posKey.z());
-        boolean hasHeat = plugin.getHeatSourceConfig().isHeatSource(blockBelow);
+        boolean hasHeat;
 
-        // Only fetch the block two below when the block below is actually a conductor — the previous
-        // order fetched blockTwoBelow unconditionally on !hasHeat, wasting a getBlockAt whenever the
-        // block below wasn't a conductor (the common case: solid stone, dirt, etc.).
-        if (!hasHeat && plugin.getHeatSourceConfig().isConductor(blockBelow)) {
-            Block blockTwoBelow = world.getBlockAt(posKey.x(), posKey.y() - 2, posKey.z());
-            hasHeat = plugin.getHeatSourceConfig().isHeatSource(blockTwoBelow);
+        Long lastHeatCheck = heatSourceLastCheckTicks.get(activeBlock);
+        long currentTickForHeat = getCurrentTick();
+        if (lastHeatCheck != null && currentTickForHeat - lastHeatCheck < HEAT_SOURCE_CHECK_INTERVAL_TICKS) {
+            hasHeat = entity.hasHeatSource();
+        } else {
+            // Pre-fetch the CE state of blockBelow once, then share it across isHeatSource
+            // and isConductor to avoid two independent CraftEngineBlocks.getCustomBlockState()
+            // calls on the same block.
+            ImmutableBlockState belowState = CraftEngineBlocks.getCustomBlockState(blockBelow);
+            hasHeat = plugin.getHeatSourceConfig().isHeatSource(blockBelow, belowState);
+            if (!hasHeat && plugin.getHeatSourceConfig().isConductor(blockBelow, belowState)) {
+                Block blockTwoBelow = world.getBlockAt(posKey.x(), posKey.y() - 2, posKey.z());
+                hasHeat = plugin.getHeatSourceConfig().isHeatSource(blockTwoBelow);
+            }
+            heatSourceLastCheckTicks.put(activeBlock, currentTickForHeat);
         }
 
         entity.setHasHeatSource(hasHeat);
@@ -685,6 +707,7 @@ public class TickManager {
 
     private void unregisterCookingPotBlock(ActiveBlock activeBlock, World world, BlockPosKey posKey) {
         progressDisplayLastUpdateTicks.remove(activeBlock);
+        heatSourceLastCheckTicks.remove(activeBlock);
         markInactive(world, posKey, BlockType.COOKING_POT);
     }
 
@@ -762,9 +785,19 @@ public class TickManager {
         // recipient set for the targeted sends below (R-PERF-006, mirrors StoveManager).
         List<Player> nearbyViewers = NEARBY_VIEWER_SCRATCH.get();
         nearbyViewers.clear();
-        for (int i = 0; i < seeing.size(); i++) {
-            Player p = seeing.get(i);
-            if (p.getWorld() == world && p.getLocation().distanceSquared(center) <= effectViewerDistanceSquared) {
+        // Compute squared distance by hand to avoid allocating a Location per candidate. Same world is
+        // already guaranteed below, so this is equivalent to distanceSquared.
+        double cx = center.getX();
+        double cy = center.getY();
+        double cz = center.getZ();
+        for (Player p : seeing) {
+            if (p.getWorld() != world) {
+                continue;
+            }
+            double dx = p.getX() - cx;
+            double dy = p.getY() - cy;
+            double dz = p.getZ() - cz;
+            if (dx * dx + dy * dy + dz * dz <= effectViewerDistanceSquared) {
                 nearbyViewers.add(p);
             }
         }
@@ -897,7 +930,7 @@ public class TickManager {
     ) {
         return new EffectSpec(
                 section == null ? defaultEnabled : section.getBoolean("enabled", defaultEnabled),
-                resolveParticle(section == null ? null : section.getString("type"), defaultParticle),
+                ManagerSupport.resolveParticle(section == null ? null : section.getString("type"), defaultParticle),
                 section == null ? defaultChance : (float) section.getDouble("chance", defaultChance),
                 Math.max(1, section == null ? defaultCount : section.getInt("count", defaultCount)),
                 section == null ? defaultYOffset : section.getDouble("y-offset", defaultYOffset),
@@ -908,23 +941,6 @@ public class TickManager {
         );
     }
 
-    private Particle resolveParticle(String configured, Particle defaultParticle) {
-        if (configured == null || configured.isBlank()) {
-            return defaultParticle;
-        }
-
-        String normalized = configured.trim();
-        int namespaceSeparator = normalized.indexOf(':');
-        if (namespaceSeparator >= 0 && namespaceSeparator < normalized.length() - 1) {
-            normalized = normalized.substring(namespaceSeparator + 1);
-        }
-
-        try {
-            return Particle.valueOf(normalized.trim().toUpperCase(java.util.Locale.ROOT));
-        } catch (IllegalArgumentException ignored) {
-            return defaultParticle;
-        }
-    }
 
     // Memo of sound resolution keyed on (configured, defaultSound). The vanilla sound registry is frozen
     // at bootstrap, so a given key always resolves the same way; this replaces a per-cooking-pot-per-tick
@@ -978,14 +994,14 @@ public class TickManager {
 
     private void playConfiguredSound(List<Player> viewers, Location location, ResolvedSound sound, float volume, float pitch) {
         if (sound.bukkitSound() != null) {
-            for (int i = 0; i < viewers.size(); i++) {
-                viewers.get(i).playSound(location, sound.bukkitSound(), volume, pitch);
+            for (Player viewer : viewers) {
+                viewer.playSound(location, sound.bukkitSound(), volume, pitch);
             }
             return;
         }
         if (sound.soundKey() != null && !sound.soundKey().isBlank()) {
-            for (int i = 0; i < viewers.size(); i++) {
-                viewers.get(i).playSound(location, sound.soundKey(), SoundCategory.BLOCKS, volume, pitch);
+            for (Player viewer : viewers) {
+                viewer.playSound(location, sound.soundKey(), SoundCategory.BLOCKS, volume, pitch);
             }
         }
     }

@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.gui.editor;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.gui.AbstractInventoryGui;
 import com.huidu.farmersdelight.gui.GuiConfig;
 import com.huidu.farmersdelight.gui.RecipeViewGuiConfig;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
@@ -11,8 +12,6 @@ import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.Text;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
 import org.bukkit.enchantments.Enchantment;
@@ -20,33 +19,22 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
-import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
-/**
- * In-game editor for editing a single cutting-board recipe (input, tools, weighted results, priority). Layout
- * and button text come from the recipe-cutting-board-editor-gui section of gui.yml; chat
- * feedback comes from the gui.editor.* language keys.
- */
-public final class CuttingBoardEditorGui implements EditorGui {
+public final class CuttingBoardEditorGui extends AbstractInventoryGui implements EditorGui {
 
-    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacyAmpersand();
-    private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
     private static final String NONE = "-";
 
-    private final FarmersDelightPlugin plugin;
-    private final Player player;
     private final String recipeId;
     private final boolean editingExisting;
     private final RecipeViewGuiConfig.BaseConfig config;
-    private final Inventory inventory;
 
     private final List<Integer> toolSlots;
     private final List<Integer> resultSlots;
@@ -59,12 +47,9 @@ public final class CuttingBoardEditorGui implements EditorGui {
     private String sound = Constants.SOUND_CUTTING_BOARD_KNIFE;
     private int selectedResult = -1;
 
-    private boolean closed = false;
-
     public CuttingBoardEditorGui(FarmersDelightPlugin plugin, Player player, String recipeId,
                                  CuttingBoardRecipe existing, RecipeViewGuiConfig.BaseConfig config) {
-        this.plugin = plugin;
-        this.player = player;
+        super(plugin, player);
         this.recipeId = recipeId;
         this.editingExisting = existing != null;
         this.config = config;
@@ -76,7 +61,7 @@ public final class CuttingBoardEditorGui implements EditorGui {
         this.resultItems = new ItemStack[Math.max(1, resultSlots.size())];
         this.resultChances = new double[Math.max(1, resultSlots.size())];
 
-        this.inventory = plugin.getServer().createInventory(this, config.getSize(), coloredTitle(config.getTitle()));
+        this.inventory = plugin.getServer().createInventory(this, config.getSize(), EditorGui.coloredComponent(config.getTitle()));
         if (existing != null) {
             loadFrom(existing);
         }
@@ -107,14 +92,25 @@ public final class CuttingBoardEditorGui implements EditorGui {
     }
 
     public void open() {
-        RecipeEditorListener.ensureRegistered(plugin);
-        render();
-        player.openInventory(inventory);
+        doOpen(this::render);
     }
 
     @Override
-    public @NotNull Inventory getInventory() {
-        return inventory;
+    protected AbstractInventoryGui findExistingGui(UUID playerId) {
+        return null;
+    }
+
+    @Override
+    protected void putActiveGui(UUID playerId, AbstractInventoryGui gui) {
+    }
+
+    @Override
+    protected void removeFromActiveGuis(UUID playerId) {
+    }
+
+    @Override
+    protected void ensureListenerRegistered() {
+        RecipeEditorListener.ensureRegistered(plugin);
     }
 
     private void render() {
@@ -193,6 +189,10 @@ public final class CuttingBoardEditorGui implements EditorGui {
 
         switch (type) {
             case "input":
+                if (click.isShiftClick()) {
+                    openChoiceBuilder(displayIndex(slot, "input"));
+                    return;
+                }
                 if (hasCursorItem) {
                     if (click.isRightClick()) {
                         ItemStack source = cleanCopy(cursor);
@@ -200,10 +200,17 @@ public final class CuttingBoardEditorGui implements EditorGui {
                         openTagPicker(source);
                         return;
                     }
-                    input = new RecipeIngredient.Item(Key.of(RecipeSerializer.itemIdString(cursor)));
+                    input = appendOption(input, new RecipeIngredient.Item(Key.of(RecipeSerializer.itemIdString(cursor))));
                     clearCursor();
                 } else if (click.isRightClick()) {
+                    if (input instanceof RecipeIngredient.Choice) {
+                        openChoiceBuilder(displayIndex(slot, "input"));
+                        return;
+                    }
                     input = null;
+                } else if (input instanceof RecipeIngredient.Choice) {
+                    openChoiceBuilder(displayIndex(slot, "input"));
+                    return;
                 } else if (input instanceof RecipeIngredient.Item item) {
                     ItemStack pickedUp = ItemUtils.createItem(item.key().toString());
                     player.setItemOnCursor(pickedUp != null && !pickedUp.getType().isAir() ? cleanCopy(pickedUp) : null);
@@ -217,6 +224,12 @@ public final class CuttingBoardEditorGui implements EditorGui {
                     return;
                 }
                 if (hasCursorItem) {
+                    if (click.isRightClick()) {
+                        ItemStack source = cleanCopy(cursor);
+                        clearCursor();
+                        openToolTagPicker(idx, source);
+                        return;
+                    }
                     tools[idx] = new CuttingBoardRecipe.ToolRequirement(Key.of(RecipeSerializer.itemIdString(cursor)));
                     clearCursor();
                 } else if (click.isRightClick()) {
@@ -277,7 +290,7 @@ public final class CuttingBoardEditorGui implements EditorGui {
                 save();
                 return;
             case "cancel":
-                close();
+                closeEditor();
                 return;
             case "delete":
                 if (editingExisting) {
@@ -290,7 +303,7 @@ public final class CuttingBoardEditorGui implements EditorGui {
 
     @Override
     public void handleClose(InventoryCloseEvent event) {
-        closed = true;
+        super.close();
         clearCursor();
         plugin.scheduler().runLaterForEntity(player, this::clearCursor, 1L);
     }
@@ -320,7 +333,7 @@ public final class CuttingBoardEditorGui implements EditorGui {
             }
         }
         if (toolList.isEmpty()) {
-            toolList.add(new CuttingBoardRecipe.ToolRequirement(Key.of(Constants.TAG_KNIVES)));
+            toolList.add(new CuttingBoardRecipe.ToolRequirement(Key.of(Constants.TAG_KNIVES), true));
         }
 
         CuttingBoardRecipe recipe = new CuttingBoardRecipe(recipeId, input, null, toolList, results, sound, priority);
@@ -328,7 +341,7 @@ public final class CuttingBoardEditorGui implements EditorGui {
             player.sendMessage(Component.translatable("gui.editor.feedback.saved",
                     Component.text(recipeId).color(NamedTextColor.WHITE))
                     .color(NamedTextColor.GREEN));
-            close();
+            closeEditor();
         } else {
             player.sendMessage(Component.translatable("gui.editor.feedback.save_failed")
                     .color(NamedTextColor.RED));
@@ -380,14 +393,82 @@ public final class CuttingBoardEditorGui implements EditorGui {
                 this::reopen).open();
     }
 
+    private void openToolTagPicker(int idx, ItemStack source) {
+        RecipeViewGuiConfig.BaseConfig pickerConfig = plugin.getRecipeEditorGuiConfig().getTagPickerConfig();
+        if (pickerConfig == null) {
+            player.sendMessage(Component.translatable("gui.editor.feedback.advanced_coming")
+                    .color(NamedTextColor.YELLOW));
+            return;
+        }
+        List<String> tags = ItemUtils.getAllItemTagIds(source);
+        if (tags.isEmpty()) {
+            player.sendMessage(Component.translatable("gui.editor.feedback.no_tags")
+                    .color(NamedTextColor.RED));
+            return;
+        }
+        closed = true;
+        new TagPickerGui(plugin, player, pickerConfig, source, tags,
+                ingredient -> {
+                    if (ingredient instanceof RecipeIngredient.Tag tag) {
+                        tools[idx] = new CuttingBoardRecipe.ToolRequirement(
+                                tag.key(), true, tag.excludedItems(), tag.excludedTags());
+                    }
+                    reopen();
+                },
+                this::reopen).open();
+    }
+
+    private void openChoiceBuilder(int displayIndex) {
+        RecipeViewGuiConfig.BaseConfig choiceConfig = plugin.getRecipeEditorGuiConfig().getChoiceBuilderConfig();
+        if (choiceConfig == null) {
+            return;
+        }
+        closed = true;
+        new ChoiceBuilderGui(plugin, player, choiceConfig, displayIndex,
+                input,
+                ingredient -> {
+                    input = ingredient;
+                    reopen();
+                },
+                this::reopen).open();
+    }
+
+    private int displayIndex(int slot, String type) {
+        return switch (type) {
+            case "input" -> 1;
+            case "tool" -> toolSlots.indexOf(slot) + 1;
+            default -> 1;
+        };
+    }
+
+    private RecipeIngredient appendOption(RecipeIngredient current, RecipeIngredient added) {
+        if (current == null) {
+            return added;
+        }
+        List<RecipeIngredient> options = new ArrayList<>();
+        if (current instanceof RecipeIngredient.Choice choice) {
+            options.addAll(choice.options());
+        } else {
+            options.add(current);
+        }
+        for (RecipeIngredient option : options) {
+            if (RecipeSerializer.serializeIngredient(option)
+                    .equals(RecipeSerializer.serializeIngredient(added))) {
+                return current;
+            }
+        }
+        options.add(added);
+        return new RecipeIngredient.Choice(options);
+    }
+
     void reopen() {
         closed = false;
         render();
         player.openInventory(inventory);
     }
 
-    private void close() {
-        closed = true;
+    private void closeEditor() {
+        super.close();
         clearCursor();
         player.closeInventory();
     }
@@ -426,13 +507,18 @@ public final class CuttingBoardEditorGui implements EditorGui {
         if (ingredient instanceof RecipeIngredient.Tag tag) {
             return named(new ItemStack(Material.NAME_TAG), RecipeSerializer.serializeIngredient(tag));
         }
+        if (ingredient instanceof RecipeIngredient.Choice) {
+            return named(new ItemStack(Material.KNOWLEDGE_BOOK), RecipeSerializer.serializeIngredient(ingredient));
+        }
         return new ItemStack(Material.BARRIER);
     }
 
     private ItemStack displayForTool(CuttingBoardRecipe.ToolRequirement tool) {
-        ItemStack stack = ItemUtils.createItem(tool.getKey().toString());
-        if (stack != null && !stack.getType().isAir()) {
-            return stack;
+        if (!tool.isTag()) {
+            ItemStack stack = ItemUtils.createItem(tool.getKey().toString());
+            if (stack != null && !stack.getType().isAir()) {
+                return stack;
+            }
         }
         return named(new ItemStack(Material.NAME_TAG), RecipeSerializer.serializeTool(tool));
     }
@@ -459,14 +545,6 @@ public final class CuttingBoardEditorGui implements EditorGui {
             meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
             stack.setItemMeta(meta);
         }
-    }
-
-    private static Component coloredTitle(String title) {
-        String resolved = title == null ? "" : title;
-        if (resolved.contains("<") && resolved.contains(">")) {
-            return MINI_MESSAGE.deserialize(resolved);
-        }
-        return LEGACY.deserialize(resolved.replaceAll("&(?=[0-9a-fk-orA-FK-OR])", "§"));
     }
 
     private static int clamp(int value, int min, int max) {

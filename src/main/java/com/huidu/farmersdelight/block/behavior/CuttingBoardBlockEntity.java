@@ -2,7 +2,7 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.config.CuttingBoardDisplayConfig;
-import com.huidu.farmersdelight.util.DisplayTransformUtils;
+import com.huidu.farmersdelight.util.compat.DisplayTransformUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
@@ -36,7 +36,6 @@ public class CuttingBoardBlockEntity {
     private int displayedCount;
     private CuttingBoardDisplayConfig.DisplayOverride displayedOverride;
 
-    /** Adds this cutting board's live proxy display ids to out (for orphan-only /fd cleanup). */
     void collectDisplayIds(java.util.Set<Integer> out) {
         out.addAll(displayEntityIds);
     }
@@ -77,12 +76,10 @@ public class CuttingBoardBlockEntity {
         setStoredItem(item, world, posKey, facing, itemCarved);
     }
 
-    /** A normal cutting board uses the flat pose when storing an item. */
     public void setStoredItem(ItemStack item, World world, BlockPosKey posKey, BlockFace facing) {
         setStoredItem(item, world, posKey, facing, CuttingBoardStoredItemPose.FLAT);
     }
 
-    /** Controller sync uses this overload to preserve the manually inserted tool pose. */
     public void setStoredItem(ItemStack item, World world, BlockPosKey posKey, BlockFace facing, boolean itemCarved) {
         setStoredItem(item, world, posKey, facing, CuttingBoardStoredItemPose.fromCarved(itemCarved));
     }
@@ -182,7 +179,7 @@ public class CuttingBoardBlockEntity {
                                     int desiredCount, ItemStack visualItem,
                                     CuttingBoardDisplayConfig.DisplayOverride displayOverride) {
         while (displayEntityIds.size() > desiredCount) {
-            int entityId = displayEntityIds.remove(displayEntityIds.size() - 1);
+            int entityId = displayEntityIds.removeLast();
             if (entityId != NO_DISPLAY) {
                 visualManager.destroyDisplay(entityId);
             }
@@ -329,10 +326,7 @@ public class CuttingBoardBlockEntity {
     }
 
     private ItemStack cloneOrNull(ItemStack item) {
-        if (item == null) {
-            return null;
-        }
-        return item.clone();
+        return com.huidu.farmersdelight.util.ItemUtils.cloneOrNull(item);
     }
 
     private void syncWorldlyContainer() {

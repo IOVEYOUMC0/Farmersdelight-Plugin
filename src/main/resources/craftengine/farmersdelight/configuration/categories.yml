@@ -1,4 +1,4 @@
-﻿categories:
+categories:
   farmersdelight:categories:
     name: <!i><white><l10n:farmersdelight.category.root></white>
     icon: farmersdelight:cooking_pot
@@ -263,5 +263,12 @@
       - farmersdelight:rice_roll_medley_block_leftovers
       - farmersdelight:cooking_pot_handle
       - farmersdelight:canvas_rug_elements
+      - farmersdelight:canvas_rug_no_north_elements
+      - farmersdelight:canvas_rug_no_south_elements
+      - farmersdelight:canvas_rug_no_east_elements
+      - farmersdelight:canvas_rug_no_west_elements
+      - farmersdelight:canvas_rug_no_north_south_elements
+      - farmersdelight:canvas_rug_no_east_west_elements
+      - farmersdelight:canvas_rug_surrounded_elements
       - farmersdelight:full_tatami_mat_elements
       - farmersdelight:half_tatami_mat_elements

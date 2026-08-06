@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RecipeSerializerTest {
@@ -65,8 +66,48 @@ class RecipeSerializerTest {
 
         RecipeParsingSupport.ParsedKey parsed = RecipeParsingSupport.parseKeyWithExclusions(serialized, "tool");
         assertEquals(original.getKey(), parsed.key());
+        assertEquals(original.isTag(), parsed.tag());
         assertEquals(original.getExcludedItems(), parsed.excludedItems());
         assertEquals(original.getExcludedTags(), parsed.excludedTags());
+    }
+
+    @Test
+    void taggedToolRequirementKeepsTagIdentityAndExclusions() {
+        CuttingBoardRecipe.ToolRequirement original = new CuttingBoardRecipe.ToolRequirement(
+                Key.of("farmersdelight:knives"),
+                true,
+                Set.of(Key.of("farmersdelight:flint_knife")),
+                Set.of(Key.of("example:disabled_tools")));
+
+        String serialized = RecipeSerializer.serializeTool(original);
+        assertTrue(serialized.startsWith("#farmersdelight:knives"), serialized);
+
+        RecipeParsingSupport.ParsedKey parsed = RecipeParsingSupport.parseKeyWithExclusions(serialized, "tool");
+        assertTrue(parsed.tag());
+        assertEquals(original.getKey(), parsed.key());
+        assertEquals(original.getExcludedItems(), parsed.excludedItems());
+        assertEquals(original.getExcludedTags(), parsed.excludedTags());
+        assertTrue(original.asIngredient() instanceof RecipeIngredient.Tag);
+    }
+
+    @Test
+    void sharedIngredientChoiceParserPreservesTagExclusions() {
+        RecipeIngredient parsed = RecipeParsingSupport.parseIngredientChoice(
+                "minecraft:carrot|#farmersdelight:vegetables,!minecraft:potato");
+
+        RecipeIngredient.Choice choice = (RecipeIngredient.Choice) parsed;
+        assertEquals(new RecipeIngredient.Item(Key.of("minecraft:carrot")), choice.options().getFirst());
+        RecipeIngredient.Tag tag = (RecipeIngredient.Tag) choice.options().get(1);
+        assertEquals(Key.of("farmersdelight:vegetables"), tag.key());
+        assertEquals(Set.of(Key.of("minecraft:potato")), tag.excludedItems());
+    }
+
+    @Test
+    void cuttingBoardToolParserDistinguishesTagsItemsAndActions() {
+        assertTrue(CuttingBoardRecipeManager.parseTool("#minecraft:hoes").isTag());
+        assertTrue(CuttingBoardRecipeManager.parseTool("farmersdelight:knives").isTag());
+        assertFalse(CuttingBoardRecipeManager.parseTool("minecraft:shears").isTag());
+        assertFalse(CuttingBoardRecipeManager.parseTool("farmersdelight:axe_strip").isTag());
     }
 
     @Test

@@ -15,20 +15,13 @@ import org.bukkit.block.BlockFace;
 import java.util.Map;
 import java.util.Objects;
 
-public class UpperHalfLootRelayBehavior extends BlockBehavior {
+public class UpperHalfLootRelayBehavior extends FarmersDelightBlockBehavior {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
         return false;
     }
 
-    @Override
-    public void fallOn(Object thisBlock, Object[] args) {
-    }
-
-    @Override
-    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
-    }
     private final BlockFace lowerHalfDirection;
     private final boolean requireMatchingLowerHalf;
     private final boolean requireMatchingBlock;

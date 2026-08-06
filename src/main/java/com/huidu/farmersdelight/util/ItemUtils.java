@@ -6,6 +6,9 @@ import net.kyori.adventure.text.TranslatableComponent;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.momirealms.craftengine.bukkit.api.CraftEngineItems;
 import net.momirealms.craftengine.bukkit.item.BukkitItemDefinition;
+import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
+import net.momirealms.craftengine.core.item.Item;
+import net.momirealms.craftengine.core.item.component.DataComponentKeys;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -16,8 +19,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -39,13 +42,9 @@ public final class ItemUtils {
     // on CE/config reload so redefined items rebuild.
     private static final Map<Key, ItemStack> itemBuildCache = new ConcurrentHashMap<>();
     private static final List<Material> ITEM_MATERIALS = new ArrayList<>();
-
-    // Cached CraftEngine TranslationManager reflection handles (resolved once, reused per translate).
-    private static volatile Method ceTranslationInstanceMethod;
-    private static volatile Method cePlainTranslationMethod;
-    private static volatile Method ceMiniMessageTranslationMethod;
-    private static volatile boolean ceTranslationUnavailable;
-    private static volatile boolean cePlainTranslationMissing;
+    // Pre-built reverse index: material → all vanilla item-tag IDs it belongs to.
+    // Replaces the O(n) getAllItemTagIds iteration over every registered tag per call.
+    private static final Map<Material, List<String>> MATERIAL_TAG_INDEX = new ConcurrentHashMap<>();
 
     private static final PlainTextComponentSerializer PLAIN_TEXT = PlainTextComponentSerializer.plainText();
     private static final Pattern L10N_PATTERN = Pattern.compile("<(?:l10n|i18n)[:;]([^>]+)>");
@@ -64,9 +63,6 @@ public final class ItemUtils {
     private ItemUtils() {
     }
 
-    /**
-     * Returns the custom item id; null when the stack is not a CE custom item.
-     */
     public static String getCustomItemId(ItemStack item) {
         if (item == null) return null;
         Key key = CraftEngineItems.getCustomItemId(item);
@@ -96,12 +92,6 @@ public final class ItemUtils {
         return customItemId == null && item.getType().isBlock();
     }
 
-    /**
-     * Creates an item stack from a namespaced item id.
-     *
-     * @param itemId item id in the form namespace:item_name
-     * @return the created item stack; null when the id cannot be resolved
-     */
     public static ItemStack createItem(String itemId) {
         if (isEmptyItemId(itemId)) return null;
 
@@ -127,9 +117,6 @@ public final class ItemUtils {
         return null;
     }
 
-    /** True once CraftEngine has loaded at least one custom item (any namespace). A readiness probe that CE
-     * finished its item-load pass, independent of any specific item id or namespace: unlike probing one item,
-     * this survives an admin deleting that item or repacking the plugin's items under a different namespace. */
     public static boolean isAnyCustomItemLoaded() {
         return !CraftEngineItems.loadedItems().isEmpty();
     }
@@ -142,7 +129,6 @@ public final class ItemUtils {
         return Set.copyOf(item.settings().tags());
     }
 
-    /** True when the item is a CraftEngine custom item that carries the given item tag. */
     public static boolean hasCustomItemTag(ItemStack item, Key tag) {
         if (item == null || tag == null) {
             return false;
@@ -176,18 +162,13 @@ public final class ItemUtils {
         return built;
     }
 
-    /** Drops the memoized CE item builds so a CE/config reload rebuilds them from the new definitions. */
     public static void clearItemCache() {
         itemBuildCache.clear();
+        vanillaTagCache.clear();
+        vanillaItemTagResolveCache.clear();
+        MATERIAL_TAG_INDEX.clear();
     }
 
-    /**
-     * Pre-builds every loaded CE item in namespace once (or all namespaces when null), priming the
-     * item-build cache and paying CraftEngine's one-time global item-build inits (ASM proxies, MiniMessage /
-     * serializer setup) off the first-interaction hot path. Pure computation — safe on the global/main thread.
-     *
-     * @return the number of items successfully built
-     */
     public static int warmItems(String namespace) {
         int built = 0;
         for (Key key : CraftEngineItems.loadedItems().keySet()) {
@@ -201,26 +182,8 @@ public final class ItemUtils {
         return built;
     }
 
-    private static volatile Method saveItemAsTagMethod;
-
-    /**
-     * Serializes a Bukkit item to a CraftEngine NBT tag reflectively. CraftEngine's 
-     * ItemStackUtils.saveBukkitItemAsTag has narrowed its return type across releases (Tag to CompoundTag); a
-     * direct call bakes the return type into the invoke descriptor and throws NoSuchMethodError against a
-     * CraftEngine build whose return type differs. Resolving by name + parameter type tolerates either return type.
-     */
     public static net.momirealms.craftengine.libraries.nbt.Tag saveBukkitItemAsTag(ItemStack item) {
-        try {
-            Method method = saveItemAsTagMethod;
-            if (method == null) {
-                method = net.momirealms.craftengine.bukkit.util.ItemStackUtils.class
-                        .getMethod("saveBukkitItemAsTag", ItemStack.class);
-                saveItemAsTagMethod = method;
-            }
-            return (net.momirealms.craftengine.libraries.nbt.Tag) method.invoke(null, item);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("CraftEngine saveBukkitItemAsTag unavailable", e);
-        }
+        return net.momirealms.craftengine.bukkit.util.ItemStackUtils.saveBukkitItemAsTag(item);
     }
 
     public static boolean isValidItemId(String itemId) {
@@ -258,37 +221,15 @@ public final class ItemUtils {
 
         ItemMeta meta = item.getItemMeta();
         if (meta != null && meta.hasItemName() && meta.itemName() != null) {
-            Component special = resolveSpecialDisplayComponent(meta.itemName(), item, locale);
-            if (special instanceof TranslatableComponent translatable) {
-                return resolveComponentText(translatable, locale);
-            }
-            if (special != null) {
-                return PLAIN_TEXT.serialize(special);
-            }
-            String plain = resolveComponentText(meta.itemName(), locale);
-            if (plain != null && !plain.isBlank()) {
-                String resolved = resolveSpecialDisplayText(plain, item, locale);
-                if (resolved != null) {
-                    return resolved;
-                }
-                return plain;
+            String resolved = resolveNameFromComponent(meta.itemName(), item, locale);
+            if (resolved != null) {
+                return resolved;
             }
         }
         if (meta != null && meta.displayName() != null) {
-            Component special = resolveSpecialDisplayComponent(meta.displayName(), item, locale);
-            if (special instanceof TranslatableComponent translatable) {
-                return resolveComponentText(translatable, locale);
-            }
-            if (special != null) {
-                return PLAIN_TEXT.serialize(special);
-            }
-            String plain = resolveComponentText(meta.displayName(), locale);
-            if (plain != null && !plain.isBlank()) {
-                String resolved = resolveSpecialDisplayText(plain, item, locale);
-                if (resolved != null) {
-                    return resolved;
-                }
-                return plain;
+            String resolved = resolveNameFromComponent(meta.displayName(), item, locale);
+            if (resolved != null) {
+                return resolved;
             }
         }
 
@@ -322,12 +263,31 @@ public final class ItemUtils {
         return humanizeKey(materialName);
     }
 
+    private static String resolveNameFromComponent(Component nameMeta, ItemStack item, String locale) {
+        Component special = resolveSpecialDisplayComponent(nameMeta, item, locale);
+        if (special instanceof TranslatableComponent translatable) {
+            return resolveComponentText(translatable, locale);
+        }
+        if (special != null) {
+            return PLAIN_TEXT.serialize(special);
+        }
+        String plain = resolveComponentText(nameMeta, locale);
+        if (plain != null && !plain.isBlank()) {
+            String resolved = resolveSpecialDisplayText(plain, item, locale);
+            if (resolved != null) {
+                return resolved;
+            }
+            return plain;
+        }
+        return null;
+    }
+
     public static Component getDisplayComponent(ItemStack item, Player player) {
         if (item == null || item.getType().isAir()) {
             return Component.text(I18n.get("gui.recipe.unknown", player));
         }
 
-        String locale = playerLocale(player);
+        String locale = I18n.getPlayerLocale(player);
         Component nameMeta = null;
         ItemMeta meta = item.getItemMeta();
         if (meta != null && meta.hasItemName() && meta.itemName() != null) {
@@ -364,20 +324,6 @@ public final class ItemUtils {
         return Component.text(getDisplayName(item, player));
     }
 
-    /** Returns a purely-translatable display Component for item so the receiving client renders
-     *  it in its own locale via the resource pack lang files. Use this for lore lines that ship to many
-     *  viewers (e.g. the packed-cooking-pot tooltip), where the standard getDisplayComponent —
-     *  which bakes CE items' <l10n:> names to the server's default locale — would freeze the
-     *  text to one language.
-     *
-     *  <p>An anvil-renamed name (set on displayName()) is honoured as-is. Otherwise:
-     *  CE items map to item.<namespace>.<path> (matches the <l10n:> key convention used
-     *  by the project's resource pack); vanilla items use their native translation key.
-     *
-     *  <p>Both branches embed a server-default-locale .fallback(...) so clients whose resource
-     *  pack lacks the lang JSON entry don't see a raw item.farmersdelight.foo key — they render
-     *  the server-resolved text instead. Clients whose pack DOES have the key still get per-locale
-     *  translation. */
     public static Component getTranslatableDisplayComponent(ItemStack item) {
         if (item == null || item.getType().isAir()) {
             return Component.empty();
@@ -398,10 +344,6 @@ public final class ItemUtils {
         return Component.text(item.getType().name());
     }
 
-    /** Same as getTranslatableDisplayComponent(ItemStack) but does NOT honour a player-applied
-     *  anvil rename — always returns the Component.translatable(key).fallback(server-text) for
-     *  the item's CE/vanilla id. Use for lore lines where the embedded item name should follow each
-     *  viewer's client locale yet stay independent of one player's anvil typo. */
     public static Component getTranslatableDisplayComponentNoAnvil(ItemStack item) {
         if (item == null || item.getType().isAir()) {
             return Component.empty();
@@ -417,11 +359,6 @@ public final class ItemUtils {
         return Component.text(item.getType().name());
     }
 
-    /** Display name resolved entirely on the server in the server's default locale. Ignores any
-     *  player-applied anvil rename and never returns a Component.translatable — the text is
-     *  fully baked here so all clients render the same characters regardless of locale or pack state.
-     *  For custom items keys derive from the CE id (item.<ns>.<id>); for vanilla items from
-     *  Material.getItemTranslationKey(). */
     public static Component getServerDisplayComponent(ItemStack item) {
         if (item == null || item.getType().isAir()) {
             return Component.empty();
@@ -443,9 +380,6 @@ public final class ItemUtils {
         return Component.text(translated);
     }
 
-    /** Server-resolved fallback text for a CE item's translation key, used when the receiving client's
-     *  resource pack lacks the key. Falls back to FD's I18n (loaded from lang/<locale>.yml), then
-     *  to a humanised id, never to the raw translation key. */
     private static String translationFallback(String key, String customId) {
         String resolved = I18n.get(key);
         if (resolved != null && !resolved.equals(key) && !resolved.isBlank()) {
@@ -496,110 +430,8 @@ public final class ItemUtils {
         }
     }
 
-    /** Server-resolved plain text for key. Tries FD's I18n (server default locale, then en_us),
-     *  then CraftEngine's TranslationManager, then Adventure's GlobalTranslator; returns
-     *  the key itself when no source has a value. Use this whenever you must NOT depend on the receiving
-     *  client's locale or resource pack (lore lines, bossbar titles, broadcast text). */
     public static String translate(String key, String locale) {
-        String translated;
-        if (locale != null) {
-            translated = I18n.get(key, locale);
-        } else {
-            translated = I18n.get(key);
-        }
-        if (!translated.equals(key)) {
-            return translated;
-        }
-
-        translated = I18n.get(key, "en_us");
-        if (!translated.equals(key)) {
-            return translated;
-        }
-
-        translated = translateViaCraftEngine(key, locale);
-        if (translated != null && !translated.equals(key)) {
-            return translated;
-        }
-
-        try {
-            java.util.Locale loc = locale != null && !locale.isEmpty()
-                    ? java.util.Locale.forLanguageTag(locale.replace('_', '-'))
-                    : java.util.Locale.getDefault();
-            Component rendered = net.kyori.adventure.translation.GlobalTranslator.render(
-                    Component.translatable(key), loc);
-            String plain = PLAIN_TEXT.serialize(rendered);
-            if (!plain.equals(key)) {
-                return plain;
-            }
-        } catch (Exception ignored) {
-        }
-
-        return key;
-    }
-
-    private static String translateViaCraftEngine(String key, String locale) {
-        if (ceTranslationUnavailable) {
-            return null;
-        }
-        try {
-            Method instanceMethod = ceTranslationInstanceMethod;
-            if (instanceMethod == null) {
-                Class<?> translationManagerClass = Class.forName(
-                        "net.momirealms.craftengine.core.plugin.locale.TranslationManager");
-                instanceMethod = translationManagerClass.getMethod("instance");
-                ceTranslationInstanceMethod = instanceMethod;
-            }
-            Object manager = instanceMethod.invoke(null);
-            if (manager == null) {
-                return null;
-            }
-
-            Locale loc = locale != null && !locale.isEmpty()
-                    ? Locale.forLanguageTag(locale.replace('_', '-'))
-                    : null;
-
-            if (!cePlainTranslationMissing) {
-                Method plainTranslation = cePlainTranslationMethod;
-                if (plainTranslation == null) {
-                    try {
-                        plainTranslation = manager.getClass().getMethod(
-                                "plainTranslation", String.class, Locale.class, String[].class);
-                        cePlainTranslationMethod = plainTranslation;
-                    } catch (NoSuchMethodException ignored) {
-                        cePlainTranslationMissing = true;
-                    }
-                }
-                if (plainTranslation != null) {
-                    Object result = plainTranslation.invoke(manager, key, loc, new String[0]);
-                    if (result instanceof String text && !text.equals(key)) {
-                        return text;
-                    }
-                }
-            }
-
-            Method miniMessageTranslation = ceMiniMessageTranslationMethod;
-            if (miniMessageTranslation == null) {
-                miniMessageTranslation = manager.getClass().getMethod(
-                        "miniMessageTranslation", String.class, Locale.class);
-                ceMiniMessageTranslationMethod = miniMessageTranslation;
-            }
-            Object result = miniMessageTranslation.invoke(manager, key, loc);
-            if (result instanceof String text && !text.equals(key)) {
-                return stripMiniMessageTags(text);
-            }
-        } catch (ClassNotFoundException e) {
-            // CraftEngine translation API absent; stop retrying forName on every call.
-            ceTranslationUnavailable = true;
-        } catch (ReflectiveOperationException | LinkageError ignored) {
-        }
-        return null;
-    }
-
-    private static String stripMiniMessageTags(String text) {
-        if (text == null || text.isEmpty()) {
-            return text;
-        }
-        return text.replaceAll("<[^>]+>", "");
+        return I18n.get(key, locale);
     }
 
     private static String resolveSpecialDisplayText(String rawText, ItemStack item, String locale) {
@@ -630,7 +462,8 @@ public final class ItemUtils {
                 return Component.text(translated);
             }
             if (TRANSLATION_KEY_PATTERN.matcher(key).matches()) {
-                return Component.text(humanizeTranslationKey(key));
+                // If the server lacks a translation, send a translatable component for the resource pack to resolve.
+                return Component.translatable(key).fallback(humanizeTranslationKey(key));
             }
         }
 
@@ -649,7 +482,7 @@ public final class ItemUtils {
             if (!translated.equals(key)) {
                 return Component.text(translated);
             }
-            return Component.text(humanizeTranslationKey(key));
+            return Component.translatable(key).fallback(humanizeTranslationKey(key));
         }
 
         if (TRANSLATION_KEY_PATTERN.matcher(normalized).matches()) {
@@ -660,7 +493,7 @@ public final class ItemUtils {
             if (isVanillaClientTranslationKey(normalized)) {
                 return Component.translatable(normalized);
             }
-            return Component.text(humanizeTranslationKey(normalized));
+            return Component.translatable(normalized).fallback(humanizeTranslationKey(normalized));
         }
         return null;
     }
@@ -700,28 +533,11 @@ public final class ItemUtils {
         return "";
     }
 
-    private static String playerLocale(Player player) {
-        if (player == null) {
-            return null;
-        }
-        try {
-            return player.locale().toString().toLowerCase(Locale.ROOT);
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
-    /**
-     * Replaces translation tags (<l10n:key> / <lang:key> / <i18n:key>) in text
-     * with their localized strings for player's locale (falling back to the default/en locale, then the
-     * raw key). Non-tag content is left untouched, so the result can still carry MiniMessage markup. Resolution
-     * goes through the same chain as item names (plugin lang files -> CraftEngine translations -> GlobalTranslator).
-     */
     public static String resolveTranslationTags(String text, Player player) {
         if (text == null || text.isEmpty() || text.indexOf('<') < 0) {
             return text;
         }
-        String locale = playerLocale(player);
+        String locale = I18n.getPlayerLocale(player);
         Matcher matcher = TRANSLATION_TAG_PATTERN.matcher(text);
         StringBuilder out = new StringBuilder();
         while (matcher.find()) {
@@ -850,14 +666,35 @@ public final class ItemUtils {
             return List.of();
         }
         java.util.LinkedHashSet<String> tags = new java.util.LinkedHashSet<>(getItemTagIds(item));
-        for (Tag<Material> tag : Bukkit.getTags("items", Material.class)) {
-            if (tag.isTagged(item.getType())) {
-                tags.add(tag.getKey().toString());
-            }
+        ensureMaterialTagIndex();
+        List<String> vanillaTags = MATERIAL_TAG_INDEX.get(item.getType());
+        if (vanillaTags != null) {
+            tags.addAll(vanillaTags);
         }
         List<String> sorted = new ArrayList<>(tags);
         sorted.sort(String::compareTo);
         return sorted;
+    }
+
+    private static void ensureMaterialTagIndex() {
+        if (!MATERIAL_TAG_INDEX.isEmpty()) {
+            return;
+        }
+        synchronized (MATERIAL_TAG_INDEX) {
+            if (!MATERIAL_TAG_INDEX.isEmpty()) {
+                return;
+            }
+            for (Tag<Material> tag : Bukkit.getTags("items", Material.class)) {
+                String tagId = tag.getKey().toString();
+                Collection<Material> taggedMaterials = tag.getValues();
+                if (taggedMaterials.isEmpty()) {
+                    continue;
+                }
+                for (Material material : taggedMaterials) {
+                    MATERIAL_TAG_INDEX.computeIfAbsent(material, k -> new ArrayList<>()).add(tagId);
+                }
+            }
+        }
     }
 
     public static boolean matchesCustomOrVanillaTag(ItemStack item, String tagId) {
@@ -935,16 +772,47 @@ public final class ItemUtils {
         return item.clone();
     }
 
-    /** True if item is a CraftEngine custom item (not a plain vanilla material). */
+    public static String normalizeBlank(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
     public static boolean isCustomItem(ItemStack item) {
         return getCustomItemId(item) != null;
     }
 
-    /**
-     * The crafting remainder for a single item: the CraftEngine container-return mapping for custom
-     * items, then the vanilla Material#getCraftingRemainingItem(), then the milk/water/lava bucket and
-     * honey-bottle special cases. Returns null when the item leaves no remainder. Mirrors the cooking pot.
-     */
+    public static boolean isContainerNestingHazard(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return false;
+        }
+        if (Constants.BLOCK_COOKING_POT.equals(getCustomItemId(item))) {
+            return true;
+        }
+        // Vanilla containers store their contents in components the block_entity_data probe below cannot see:
+        // shulker boxes keep a block-entity Container (minecraft:container), bundles keep bundle_contents.
+        // Detect both through item meta so a filled shulker/bundle can't smuggle a nested payload into the pot.
+        ItemMeta meta = item.getItemMeta();
+        if (meta instanceof org.bukkit.inventory.meta.BlockStateMeta blockStateMeta
+                && blockStateMeta.getBlockState() instanceof org.bukkit.block.Container) {
+            return true;
+        }
+        if (meta instanceof org.bukkit.inventory.meta.BundleMeta) {
+            return true;
+        }
+        if (!isAnyCustomItemLoaded()) {
+            return false;
+        }
+        try {
+            Item wrapped = BukkitItemManager.instance().wrap(item.clone());
+            return CustomBlockUtils.getComponentCompound(wrapped, DataComponentKeys.BLOCK_ENTITY_DATA) != null;
+        } catch (RuntimeException | LinkageError ignored) {
+            return false;
+        }
+    }
+
     public static ItemStack craftingRemainderOf(ItemStack item) {
         if (item == null || item.getType().isAir()) {
             return null;

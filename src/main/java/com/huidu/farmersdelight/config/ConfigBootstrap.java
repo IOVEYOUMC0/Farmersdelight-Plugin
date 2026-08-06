@@ -12,49 +12,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-/**
- * Prepares the plugin's config.yml / gui.yml on disk: writes the bundled defaults when missing,
- * restores an unreadable/corrupt file from the jar (keeping a timestamped backup), atomically writes
- * a single bundled resource, migrates renamed config keys, and adds settings that newer plugin versions
- * introduced to a config file an admin already has. Extracted from the plugin main class so
- * the config-file bootstrap concern lives in one focused place. Operations run through the plugin's
- * public config API (getConfig / saveConfig / reloadConfig / getResource).
- *
- * The rename/retire/merge machinery itself lives in api/config so addons can run the same update over
- * their own files; what stays here is FarmersDelight's own data (the three tables below), its file
- * handling and its log lines.
- */
 public final class ConfigBootstrap {
 
-    /**
-     * Old path to new path, applied in order. An entry names a whole section as well as a single key: the
-     * migration moves the value at the old path, recursing into child sections, and then clears the old path.
-     *
-     * Order matters where a path is migrated twice. The four legacy drop names below land on
-     * mob-extra-drops / mob-extra-drop-tools, which the entries after them move on to their place under
-     * drops, so a config still using the oldest names is carried across in two hops during the same pass.
-     * The knife list chains the same way: knife-config lands on drops.knife-items, which the entry after
-     * it lifts to the top level.
-     *
-     * A section that moves back to a top-level path it used to have is still listed here. The rename is a
-     * no-op for a file that never left the top level (the migration skips an entry whose new path is
-     * already set), and for a file written while the section was nested it removes the nested copy, so an
-     * admin is not left with the same section under two names.
-     *
-     * Settings that no longer have a reader are retired. A section migration carries every child across, so
-     * a key the bundled file has dropped still arrives in the admin's file and reads like a working setting.
-     * Each retired path is removed from the file and named in the log, so an admin who had tuned it learns
-     * that the value now does nothing instead of finding it sitting next to the settings that still work.
-     * Both legacy and migrated paths are listed: a file the migration reached carries the new path, a file
-     * that already had the new section keeps the old one untouched.
-     *
-     * Registry sections are those whose children are content entries rather than fixed settings. An admin
-     * disables one of these by deleting its entry, so the merge must not restore entries individually; it
-     * only creates the section when the file has none of it yet. Renamed sections are listed under both
-     * names. The new name covers a file the migration has already rewritten; the old name still has to be
-     * honoured because the merge also runs against files the migration could not reach, and dropping it
-     * would let the merge repopulate entries an admin deleted.
-     */
     private static final ConfigUpdatePolicy CONFIG_POLICY = ConfigUpdatePolicy.builder()
             .migrate("knife-drops", "mob-extra-drops")
             .migrate("entity-extra-drops", "mob-extra-drops")
@@ -94,7 +53,6 @@ public final class ConfigBootstrap {
                     "heat-sources",
                     "drops.straw",
                     "straw-drops",
-                    "pet-foods",
                     // Guarded at the parent, not at the foods child: an admin who disables every food by
                     // deleting the whole foods block leaves no foods path for a narrower guard to match, and
                     // the merge would write the bundled entries back one by one. The cost is that a genuinely
@@ -153,20 +111,8 @@ public final class ConfigBootstrap {
         }
     }
 
-    /**
-     * Brings an admin's config.yml and gui.yml up to date with the running plugin version, and must run
-     * before the config values are read into fields.
-     *
-     * The two passes are ordered, not interchangeable. Renaming runs first: a rename is skipped when the new
-     * path is already set, so filling in the bundled defaults first would plant the new path, make every
-     * rename a no-op and silently drop the values the admin had configured under the old name. Only once the
-     * old names have been carried over does the merge fill in the settings that are still absent.
-     *
-     * Retired keys are dropped between the two, after a rename has moved a value to its current path and
-     * before the merge writes the file, so a setting nothing reads is not carried forward again.
-     */
     public void migrateConfigKeys() {
-        boolean changed = false;
+        boolean changed = migrateLegacyEnchantmentGroups();
         List<ConfigKeyRename> migrated =
                 ConfigFileUpdater.applyMigrations(plugin.getConfig(), CONFIG_POLICY.migrations());
         for (ConfigKeyRename rename : migrated) {
@@ -183,11 +129,27 @@ public final class ConfigBootstrap {
         mergeMissingGuiKeys();
     }
 
-    /**
-     * Copies settings that exist in the jar's config.yml but not in the admin's file into the live
-     * configuration, leaving every value the admin already set untouched. Returns the number of settings
-     * added; the caller writes the file.
-     */
+    private boolean migrateLegacyEnchantmentGroups() {
+        boolean tableMigrated = fanOutLegacyEnchantmentPath("table");
+        boolean anvilMigrated = fanOutLegacyEnchantmentPath("anvil");
+        return tableMigrated || anvilMigrated;
+    }
+
+    private boolean fanOutLegacyEnchantmentPath(String childPath) {
+        String sourcePath = "enchantments." + childPath;
+        if (!plugin.getConfig().isSet(sourcePath)) {
+            return false;
+        }
+        for (String group : List.of("knives", "skillet")) {
+            String targetPath = "enchantments.groups." + group + "." + childPath;
+            if (ConfigFileUpdater.copyPathIfMissing(plugin.getConfig(), sourcePath, targetPath)) {
+                I18n.logInfo("plugin.config_key_migrated", "old", sourcePath, "new", targetPath);
+            }
+        }
+        plugin.getConfig().set(sourcePath, null);
+        return true;
+    }
+
     private int mergeMissingConfigKeys() {
         YamlConfiguration bundled = readBundledYaml("config.yml");
         if (bundled == null) {
@@ -207,11 +169,6 @@ public final class ConfigBootstrap {
         }
     }
 
-    /**
-     * Same additive merge for gui.yml. gui.yml is not the plugin's main config, so it is loaded, merged and
-     * written here instead of through saveConfig. It is fed the same registry sections as config.yml, so the
-     * two files cannot drift apart on what counts as a content registry.
-     */
     private void mergeMissingGuiKeys() {
         Path guiPath = plugin.getDataFolder().toPath().resolve("gui.yml");
         if (Files.notExists(guiPath)) {
@@ -245,10 +202,6 @@ public final class ConfigBootstrap {
         }
     }
 
-    /**
-     * Deletes the retired settings from the admin's file and names them in one log line. Returns true when
-     * the file changed, so the caller writes it.
-     */
     private boolean removeRetiredConfigKeys() {
         List<String> removed = ConfigFileUpdater.removeKeys(plugin.getConfig(), CONFIG_POLICY.retiredKeys());
         if (removed.isEmpty()) {
@@ -261,10 +214,6 @@ public final class ConfigBootstrap {
         return true;
     }
 
-    /**
-     * Keeps a timestamped copy before the plugin rewrites a file the admin owns. A failed backup must not
-     * abort the rewrite, so it is reported and the caller continues.
-     */
     private void backupQuietly(Path configPath) {
         try {
             ConfigFileUpdater.backup(configPath);

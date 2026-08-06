@@ -4,13 +4,25 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior;
 import com.huidu.farmersdelight.config.CuttingBoardDisplayConfig;
 import com.huidu.farmersdelight.i18n.I18n;
-import com.huidu.farmersdelight.util.*;
+import com.huidu.farmersdelight.util.ManagerSupport;
+import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.SoundUtils;
+import com.huidu.farmersdelight.util.BlockPosKey;
+import com.huidu.farmersdelight.util.CampfireRecipeCache;
+import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.compat.DisplayTransformUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.NamespacedKey;
@@ -26,7 +38,15 @@ import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -54,6 +74,9 @@ public class StoveManager {
     private final Map<Location, StoveData> stoves = new ConcurrentHashMap<>();
     private final Map<UUID, Set<Location>> stovesByWorld = new ConcurrentHashMap<>();
     private final Map<UUID, Map<Long, Set<Location>>> stovesByChunk = new ConcurrentHashMap<>();
+    // Includes empty stoves as well as cooking stoves. It gates the always-on burn poll and lets each
+    // player task cheaply reject worlds/areas where no loaded stove could possibly burn an entity.
+    private final Map<UUID, Map<Long, Set<Location>>> burnStovesByChunk = new ConcurrentHashMap<>();
     // Blocked-above freshness lives on StoveData (tick-stamp TTL + event invalidation); this constant
     // is the recheck period for non-event shape changes (pistons, falling blocks), ~30s at 20 TPS.
     private static final long BLOCKED_RECHECK_TICKS = 600L;
@@ -153,6 +176,48 @@ public class StoveManager {
         return (((long) chunkX) << 32) ^ (chunkZ & 0xffffffffL);
     }
 
+    public void trackBurnStove(Location location) {
+        Location normalized = ManagerSupport.normalize(location);
+        if (normalized == null || normalized.getWorld() == null) {
+            return;
+        }
+        burnStovesByChunk.computeIfAbsent(normalized.getWorld().getUID(), ignored -> new ConcurrentHashMap<>())
+                .computeIfAbsent(chunkKey(normalized), ignored -> ConcurrentHashMap.newKeySet())
+                .add(normalized);
+    }
+
+    public void untrackBurnStove(Location location) {
+        Location normalized = ManagerSupport.normalize(location);
+        if (normalized == null || normalized.getWorld() == null) {
+            return;
+        }
+        UUID worldId = normalized.getWorld().getUID();
+        Map<Long, Set<Location>> chunks = burnStovesByChunk.get(worldId);
+        if (chunks == null) return;
+        long key = chunkKey(normalized);
+        Set<Location> locations = chunks.get(key);
+        if (locations != null) {
+            locations.remove(normalized);
+            if (locations.isEmpty()) {
+                chunks.remove(key, locations);
+            }
+        }
+        if (chunks.isEmpty()) {
+            burnStovesByChunk.remove(worldId, chunks);
+        }
+    }
+
+    private void untrackBurnStoveChunk(World world, int chunkX, int chunkZ) {
+        if (world == null) return;
+        UUID worldId = world.getUID();
+        Map<Long, Set<Location>> chunks = burnStovesByChunk.get(worldId);
+        if (chunks == null) return;
+        chunks.remove(chunkKey(chunkX, chunkZ));
+        if (chunks.isEmpty()) {
+            burnStovesByChunk.remove(worldId, chunks);
+        }
+    }
+
     private long chunkKey(Location location) {
         return chunkKey(location.getBlockX() >> 4, location.getBlockZ() >> 4);
     }
@@ -239,6 +304,7 @@ public class StoveManager {
     public StoveData getOrCreateStove(Location location) {
         ensureTaskRunning();
         Location normalized = ManagerSupport.normalize(location);
+        trackBurnStove(normalized);
         StoveData existing = stoves.get(normalized);
         if (existing != null) {
             return existing;
@@ -267,8 +333,6 @@ public class StoveManager {
         return created;
     }
 
-    /** Adds every proxy display id this manager's tracked stoves still reference, so /fd cleanup
-     *  can tell a live stove visual from an orphan and leave the live ones alone. */
     public void collectLiveDisplayIds(java.util.Set<Integer> out) {
         for (StoveData stove : stoves.values()) {
             for (int id : stove.displayEntities) {
@@ -280,6 +344,14 @@ public class StoveManager {
     }
 
     public boolean handleInteract(Player player, Block block, ItemStack itemInHand) {
+        if (itemInHand == null || itemInHand.getType().isAir()) {
+            return false;
+        }
+        // Inner defense: never consume equippable items as cooking ingredients, even if the
+        // CraftEngine useOnBlock PASSTHROUGH path didn't catch them (armor-swap timing race).
+        if (StoveCookingBlockBehavior.isEquippable(itemInHand)) {
+            return false;
+        }
         Location location = ManagerSupport.normalize(block.getLocation());
         // One-shot user-click path, often before any StoveData exists — an uncached check is exact
         // semantics and computes a single collision shape.
@@ -289,9 +361,6 @@ public class StoveManager {
         }
 
         StoveData stove = getOrLoadStove(location);
-        if (itemInHand == null || itemInHand.getType().isAir()) {
-            return false;
-        }
 
         CookingRecipe<?> recipe = findCampfireRecipe(itemInHand);
         if (recipe == null) {
@@ -361,9 +430,6 @@ public class StoveManager {
         breakStove(blockLocation, dropLocation, true);
     }
 
-    /** Applies parked controller data (a chunk-cache passivation snapshot, or a deferred load) back into the
-     *  manager entry, so a caller that reads the entry right after — a break that drops the grilling food —
-     *  sees it instead of a blank entry whose state still sits in the controller's pendingSaveData. */
     private void flushControllerPendingData(Location location) {
         if (location == null || location.getWorld() == null) return;
         CustomBlockUtils.notifyControllerChanged(location.getWorld(), new BlockPosKey(location),
@@ -373,6 +439,7 @@ public class StoveManager {
 
     public void breakStove(Location blockLocation, Location dropLocation, boolean shouldDropItems) {
         Location normalized = ManagerSupport.normalize(blockLocation);
+        untrackBurnStove(normalized);
         flushControllerPendingData(normalized);
         StoveData stove = removeTrackedStove(normalized);
         if (stove != null) {
@@ -444,6 +511,7 @@ public class StoveManager {
     }
 
     public void cleanupWorld(UUID worldId) {
+        burnStovesByChunk.remove(worldId);
         Set<Location> locations = stovesByWorld.remove(worldId);
         stovesByChunk.remove(worldId);
         if (locations == null || locations.isEmpty()) {
@@ -468,6 +536,7 @@ public class StoveManager {
         if (world == null) {
             return;
         }
+        untrackBurnStoveChunk(world, minX >> 4, minZ >> 4);
         Map<Long, Set<Location>> worldChunks = stovesByChunk.get(world.getUID());
         Set<Location> locations = worldChunks == null ? null : worldChunks.get(chunkKey(minX >> 4, minZ >> 4));
         if (locations == null || locations.isEmpty()) {
@@ -495,7 +564,6 @@ public class StoveManager {
         }
     }
 
-    /** Stashes the stove's exported state into its CE controller; false when the controller is unreachable. */
     private boolean passivateToController(World world, Location location) {
         boolean[] stashed = {false};
         CustomBlockUtils.notifyControllerChanged(world, new BlockPosKey(location),
@@ -508,7 +576,6 @@ public class StoveManager {
         return loadStove(world, new BlockPosKey(pos), data);
     }
 
-    /** Returns whether the saved data was consumed; false keeps it parked on the controller for a retry. */
     public boolean loadStove(World world, BlockPosKey posKey, Map<String, Object> data) {
         if (world == null || posKey == null || data == null) return true;
 
@@ -520,6 +587,7 @@ public class StoveManager {
             // not destroyed. A genuinely replaced block just carries inert leftover NBT.
             return false;
         }
+        trackBurnStove(location);
         if (stoves.containsKey(ManagerSupport.normalize(location))) {
             // A live entry exists (created by an interaction before this deferred load applied); the live
             // state is newer than the saved snapshot, so consume the snapshot without overwriting it.
@@ -561,13 +629,6 @@ public class StoveManager {
         return true;
     }
 
-    /**
-     * Read-only snapshot of the tracked stove at location for the api station-query facade, or null
-     * when nothing is tracked there. Taken under the StoveData monitor so a concurrent interact cannot
-     * split a slot's item from its progress counters. The lit flag is read from the live custom block
-     * state and the blocked-above flag from the cached probe, so this must be called on the region
-     * thread owning location.
-     */
     public com.huidu.farmersdelight.api.block.StoveSnapshot snapshot(Location location) {
         Location normalized = ManagerSupport.normalize(location);
         if (normalized == null) {
@@ -620,6 +681,7 @@ public class StoveManager {
         stoves.clear();
         stovesByWorld.clear();
         stovesByChunk.clear();
+        burnStovesByChunk.clear();
         scheduledStoveTicks.clear();
         chunkFx.clear();
         tickLocationsSnapshot = List.of();
@@ -752,21 +814,15 @@ public class StoveManager {
         return false;
     }
 
-    /**
-     * Burn poll — runs every BURN_PERIOD_TICKS ticks for the manager's whole lifetime, NOT
-     * gated on the cooking tracker. Stoves are placed lit by default but only enter the cooking tick
-     * once they hold food (or load with saved data), so an empty lit stove was never ticked and never
-     * burned anyone — the bug this replaces. Mirrors the vanilla block-level stepOn/entityInside burn:
-     * any living entity standing on the grilling surface of a lit stove takes fire damage, whether the
-     * stove is tracked or not. Cost is bounded by online-player count (not stove count).
-     */
     private void burnTick() {
+        if (burnStovesByChunk.isEmpty()) return;
         Collection<? extends Player> players = Bukkit.getOnlinePlayers();
         if (players.isEmpty()) return;
         // Mobs are swept every other pass: the per-entity damage-invulnerability window already limits
         // the burn rate, so halving the entity-index scans costs at most one extra poll period of
         // first-contact latency for a mob while players keep the full poll rate.
         boolean sweepMobs = burnMobSweep = !burnMobSweep;
+        Set<UUID> sweptMobIds = sweepMobs ? ConcurrentHashMap.newKeySet() : Set.of();
         boolean folia = plugin.scheduler().isFolia();
         for (Player player : players) {
             if (folia) {
@@ -775,24 +831,31 @@ public class StoveManager {
                 // stays same-region even if they moved or teleported since this poll was queued. runAt pinned the
                 // task to the schedule-time region and threw "Cannot read world asynchronously" once the player
                 // had crossed into another region by the time it ran.
-                plugin.scheduler().runForEntity(player, () -> burnAroundPlayer(player, sweepMobs));
+                plugin.scheduler().runForEntity(player, () -> burnAroundPlayer(player, sweepMobs, sweptMobIds));
             } else {
-                burnAroundPlayer(player, sweepMobs);
+                burnAroundPlayer(player, sweepMobs, sweptMobIds);
             }
         }
     }
 
-    private void burnAroundPlayer(Player player, boolean sweepMobs) {
+    private void burnAroundPlayer(Player player, boolean sweepMobs, Set<UUID> sweptMobIds) {
+        Location playerLocation = player.getLocation();
+        double relevantRadius = sweepMobs ? burnMobRadius + 1.5D : 1.5D;
+        if (!hasBurnStoveNear(playerLocation, relevantRadius)) {
+            return;
+        }
         tryBurnEntityOnStove(player);
         if (!sweepMobs) {
             return;
         }
         // Mobs standing on a stove burn too (vanilla burns any LivingEntity). Bounded to near the player
-        // so this stays cheap; a mob near two players is checked twice but the damage-invulnerability
-        // window collapses that to one hit.
+        // so this stays cheap; sweptMobIds also deduplicates overlap between nearby players.
         boolean folia = plugin.scheduler().isFolia();
-        for (LivingEntity living : player.getWorld().getNearbyLivingEntities(player.getLocation(), burnMobRadius)) {
+        for (LivingEntity living : player.getWorld().getNearbyLivingEntities(playerLocation, burnMobRadius)) {
             if (living instanceof Player) {
+                continue;
+            }
+            if (!sweptMobIds.add(living.getUniqueId())) {
                 continue;
             }
             if (folia) {
@@ -805,10 +868,33 @@ public class StoveManager {
         }
     }
 
-    /** Damages entity if it stands on the grilling surface of a lit stove. Sneaking players and
-     * creative/spectator are exempt (vanilla isSteppingCarefully + inherent creative immunity).
-     * Damage amount / whether burning is enabled come from the stove's behavior config. The per-entity
-     * invulnerability cooldown rate-limits the actual hit, so polling every few ticks yields ~2 dmg/sec. */
+    private boolean hasBurnStoveNear(Location center, double radius) {
+        World world = center.getWorld();
+        if (world == null) return false;
+        Map<Long, Set<Location>> chunks = burnStovesByChunk.get(world.getUID());
+        if (chunks == null || chunks.isEmpty()) return false;
+        int chunkRadius = Math.max(1, (int) Math.ceil(radius / 16.0D));
+        int centerChunkX = center.getBlockX() >> 4;
+        int centerChunkZ = center.getBlockZ() >> 4;
+        double radiusSq = radius * radius;
+        for (int chunkX = centerChunkX - chunkRadius; chunkX <= centerChunkX + chunkRadius; chunkX++) {
+            for (int chunkZ = centerChunkZ - chunkRadius; chunkZ <= centerChunkZ + chunkRadius; chunkZ++) {
+                Set<Location> locations = chunks.get(chunkKey(chunkX, chunkZ));
+                if (locations == null) continue;
+                for (Location stove : locations) {
+                    double dx = center.getX() - (stove.getBlockX() + 0.5D);
+                    double dy = center.getY() - (stove.getBlockY() + 1.0D);
+                    double dz = center.getZ() - (stove.getBlockZ() + 0.5D);
+                    if (dx * dx + dy * dy + dz * dz <= radiusSq) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    @SuppressWarnings("UnstableApiUsage")
     private void tryBurnEntityOnStove(LivingEntity entity) {
         Location loc = entity.getLocation();
         World world = loc.getWorld();
@@ -829,6 +915,7 @@ public class StoveManager {
         if (state == null || state.isEmpty()) return;
         StoveCookingBlockBehavior behavior = CustomBlockUtils.getBehavior(state, StoveCookingBlockBehavior.class);
         if (behavior == null || !behavior.isBurnEnabled()) return;
+        trackBurnStove(stoveBlock.getLocation());
         if (!behavior.isLit(state)) return;
         double amount = behavior.getBurnDamage();
         if (amount <= 0D) return;
@@ -841,13 +928,10 @@ public class StoveManager {
         entity.damage(amount, DamageSource.builder(stoveBurnDamageType()).build());
     }
 
-    /** The custom farmersdelight:stove_burn damage type (from FD's datapack — gives the stove-specific
-     * death message + mob panic + fire/no-knockback tags), resolved once and cached; falls back to
-     * DamageType#HOT_FLOOR when the datapack isn't loaded so the burn always deals damage. */
     // Registry.DAMAGE_TYPE is deprecated (since 1.20.6) but not for removal, so it stays stable. The suggested
     // replacement goes through the ApiStatus.Experimental RegistryKey API; using the deprecated-but-stable
     // accessor (already wrapped in try/catch with a HOT_FLOOR fallback) is the more version-robust choice.
-    @SuppressWarnings("deprecation")
+    @SuppressWarnings({"deprecation", "UnstableApiUsage"})
     private DamageType stoveBurnDamageType() {
         DamageType type = this.stoveBurnType;
         if (type == null) {
@@ -1022,8 +1106,19 @@ public class StoveManager {
         List<Player> nearbyViewers = NEARBY_VIEWER_SCRATCH.get();
         nearbyViewers.clear();
         double viewDsq = effectViewerDistance * effectViewerDistance;
+        // Compute squared distance by hand to avoid allocating a Location per candidate. Same world is
+        // already guaranteed below, so this is equivalent to distanceSquared.
+        double cx = location.getX();
+        double cy = location.getY();
+        double cz = location.getZ();
         for (Player p : seeingPlayers) {
-            if (p.getWorld() == world && p.getLocation().distanceSquared(location) <= viewDsq) {
+            if (p.getWorld() != world) {
+                continue;
+            }
+            double dx = p.getX() - cx;
+            double dy = p.getY() - cy;
+            double dz = p.getZ() - cz;
+            if (dx * dx + dy * dy + dz * dz <= viewDsq) {
                 nearbyViewers.add(p);
             }
         }
@@ -1081,11 +1176,6 @@ public class StoveManager {
         }
     }
 
-    /**
-     * Reads the lit flag off the stove's own behavior, which resolved the fire property when its block
-     * definition loaded. A state with no stove behavior reads as not lit: an unknown stove must not cook
-     * and must not burn whoever stands on it.
-     */
     private boolean isStoveLit(ImmutableBlockState state) {
         StoveCookingBlockBehavior behavior = CustomBlockUtils.getBehavior(state, StoveCookingBlockBehavior.class);
         return behavior != null && behavior.isLit(state);

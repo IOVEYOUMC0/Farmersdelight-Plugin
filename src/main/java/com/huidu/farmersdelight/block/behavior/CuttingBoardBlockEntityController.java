@@ -62,30 +62,31 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
 
     @Override
     public void saveCustomData(CompoundTag tag) {
-        // A passivation snapshot is authoritative while the plugin-side entity is gone; checked before
-        // loadPendingDataIfReady so serializing an unloaded chunk cannot resurrect the entity.
-        if (this.pendingSaveData != null) {
-            tag.put(this.behavior.customDataKey(), this.pendingSaveData);
+        // Never apply pending data or read a Bukkit block here: either can synchronously request the chunk
+        // CraftEngine is currently serializing. A lookup in the already-loaded entity map is safe.
+        CompoundTag data = this.pendingSaveData;
+        if (data != null) {
+            tag.put(this.behavior.customDataKey(), data);
             return;
         }
-        loadPendingDataIfReady();
-        if (this.pendingLoadData != null) {
-            tag.put(this.behavior.customDataKey(), this.pendingLoadData);
+        data = this.pendingLoadData;
+        if (data != null) {
+            tag.put(this.behavior.customDataKey(), data);
             return;
         }
         World world = getBukkitWorld();
         if (world != null) {
-            CuttingBoardBlockEntity entity = CuttingBoardBlockBehavior.getBlockEntity(world, new BlockPosKey(this.blockEntity.pos));
+            CuttingBoardBlockEntity entity = CuttingBoardBlockBehavior.getBlockEntity(world,
+                    new BlockPosKey(this.blockEntity.pos));
             if (entity != null) {
                 refreshFromEntity(entity);
             }
         }
-        CompoundTag data = buildSaveData();
+        data = buildSaveData();
         if (data == null) return;
         tag.put(this.behavior.customDataKey(), data);
     }
 
-    /** Serializes the shadow copy (stored item + carved flag), or null when the board is empty. */
     private CompoundTag buildSaveData() {
         if (this.item == null || this.item.isEmpty()) return null;
 
@@ -98,11 +99,6 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
         return data;
     }
 
-    /**
-     * Snapshots the entity's current state so it survives the plugin-side entity being dropped on chunk
-     * unload. saveCustomData emits the snapshot verbatim and loadPendingDataIfReady re-hydrates from it
-     * when the chunk reloads out of CraftEngine's chunk cache (where loadCustomData never runs).
-     */
     public void passivate(CuttingBoardBlockEntity entity) {
         if (entity == null) {
             return;
@@ -219,7 +215,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
         if (entity != null) {
             refreshFromEntity(entity);
         }
-        setChanged();
+        CustomBlockUtils.markBlockEntityDirty(this.blockEntity);
     }
 
     private void writeToEntity() {

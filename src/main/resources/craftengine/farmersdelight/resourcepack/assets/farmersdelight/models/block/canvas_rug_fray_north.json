@@ -1,0 +1,20 @@
+{
+	"format_version": "1.9.0",
+	"render_type": "minecraft:cutout",
+	"parent": "block/thin_block",
+	"textures": {
+		"particle": "farmersdelight:block/canvas_rug",
+		"fraying": "farmersdelight:block/canvas_rug_fraying"
+	},
+	"elements": [
+		{
+			"name": "north_fraying",
+			"from": [0, 1, -8],
+			"to": [16, 1.1, 0],
+			"faces": {
+				"up": {"uv": [0, 0, 16, 8], "rotation": 180, "texture": "#fraying", "cullface": "north"},
+				"down": {"uv": [0, 8, 16, 0], "rotation": 180, "texture": "#fraying", "cullface": "north"}
+			}
+		}
+	]
+}

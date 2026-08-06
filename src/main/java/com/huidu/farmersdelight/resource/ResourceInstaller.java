@@ -26,13 +26,6 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Stream;
 
-/**
- * Releases the plugin's bundled CraftEngine resource tree (configuration + resourcepack) into
- * plugins/CraftEngine/resources/farmersdelight so CraftEngine can load them. The first release copies
- * the whole tree atomically via a temp directory; later startups only re-complete files that are
- * missing (gated by craftengine-resources.auto-completion). Extracted from the plugin main class so the
- * jar-scanning / atomic-copy file IO lives in one focused place.
- */
 public final class ResourceInstaller {
 
     private static final String CRAFTENGINE_RESOURCE_ROOT = "craftengine/farmersdelight";
@@ -56,20 +49,20 @@ public final class ResourceInstaller {
 
         Path targetRoot = pluginsFolder.resolve(CRAFTENGINE_RESOURCE_TARGET);
         try {
-            int copiedFiles;
+            int changedFiles;
             if (Files.exists(targetRoot)) {
+                changedFiles = 0;
                 // The initial release is unconditional; this toggle only controls whether missing files are re-completed on later startups.
-                if (!plugin.getConfig().getBoolean("craftengine-resources.auto-completion", true)) {
-                    return;
+                if (plugin.getConfig().getBoolean("craftengine-resources.auto-completion", true)) {
+                    changedFiles += copyMissingBundledResourceFiles(CRAFTENGINE_RESOURCE_ROOT, targetRoot);
                 }
-                copiedFiles = copyMissingBundledResourceFiles(CRAFTENGINE_RESOURCE_ROOT, targetRoot);
             } else {
-                copiedFiles = copyBundledResourceDirectory(CRAFTENGINE_RESOURCE_ROOT, targetRoot);
+                changedFiles = copyBundledResourceDirectory(CRAFTENGINE_RESOURCE_ROOT, targetRoot);
             }
-            if (copiedFiles > 0) {
+            if (changedFiles > 0) {
                 I18n.logInfo("plugin.craftengine_resources_released",
                         "path", targetRoot,
-                        "count", copiedFiles);
+                        "count", changedFiles);
             }
         } catch (IOException e) {
             I18n.logWarning("plugin.craftengine_resources_release_failed", "error", e.getMessage());
@@ -82,15 +75,24 @@ public final class ResourceInstaller {
             throw new IOException("No bundled CraftEngine resources found at " + resourceRoot);
         }
 
+        boolean debug = plugin.isDebugEnabled("resource");
         int copiedFiles = 0;
+        int skippedFiles = 0;
         Files.createDirectories(targetRoot);
         for (String resourcePath : resourcePaths) {
             String relativePath = resourcePath.substring(resourceRoot.length() + 1);
             Path targetPath = resolveSafeChild(targetRoot, relativePath);
             if (Files.exists(targetPath)) {
+                skippedFiles++;
+                if (debug) {
+                    I18n.logInfo("resource_debug_skipped", "path", relativePath);
+                }
                 continue;
             }
 
+            if (debug) {
+                I18n.logInfo("resource_debug_added", "path", relativePath);
+            }
             Files.createDirectories(Objects.requireNonNull(targetPath.getParent(), "targetPath parent"));
             Path tempFile = Files.createTempFile(targetPath.getParent(), "fd-ce-resource-", ".tmp");
             boolean moved = false;
@@ -112,6 +114,9 @@ public final class ResourceInstaller {
                 }
             }
         }
+        if (debug) {
+            I18n.logInfo("resource_debug_completion", "count", copiedFiles, "skipped", skippedFiles);
+        }
         return copiedFiles;
     }
 
@@ -121,6 +126,7 @@ public final class ResourceInstaller {
             throw new IOException("No bundled CraftEngine resources found at " + resourceRoot);
         }
 
+        boolean debug = plugin.isDebugEnabled("resource");
         Path parent = Objects.requireNonNull(targetRoot.getParent(), "targetRoot parent");
         Files.createDirectories(parent);
         Path tempRoot = Files.createTempDirectory(parent, targetRoot.getFileName() + "-");
@@ -131,6 +137,9 @@ public final class ResourceInstaller {
             for (String resourcePath : resourcePaths) {
                 String relativePath = resourcePath.substring(resourceRoot.length() + 1);
                 Path targetPath = resolveSafeChild(tempRoot, relativePath);
+                if (debug) {
+                    I18n.logInfo("resource_debug_added", "path", relativePath);
+                }
                 Files.createDirectories(Objects.requireNonNull(targetPath.getParent(), "targetPath parent"));
                 try (InputStream inputStream = plugin.getResource(resourcePath)) {
                     if (inputStream == null) {
@@ -147,6 +156,9 @@ public final class ResourceInstaller {
                 Files.move(tempRoot, targetRoot);
             }
             moved = true;
+            if (debug) {
+                I18n.logInfo("resource_debug_first_install", "count", copiedFiles, "dir", targetRoot.toString());
+            }
             return copiedFiles;
         } finally {
             if (!moved) {
@@ -195,11 +207,6 @@ public final class ResourceInstaller {
         }
     }
 
-    /**
-     * Lists bundled resource files under resourceRoot by scanning the plugin jar's entries.
-     * Returns null (not an empty list) when the plugin is not run from a readable jar file
-     * (e.g. an exploded IDE/test run), so the caller can fall back to classloader-based discovery.
-     */
     private List<String> listJarFileResourceFiles(String resourceRoot) throws IOException {
         if (pluginJar == null || !pluginJar.isFile()) {
             return null;

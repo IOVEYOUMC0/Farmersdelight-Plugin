@@ -3,14 +3,16 @@ package com.huidu.farmersdelight.block.behavior;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.config.HeatSourceConfig;
 import com.huidu.farmersdelight.gui.CookingPotGui;
-import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.manager.TrayManager;
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
-import com.huidu.farmersdelight.util.CraftEngineAdapter;
+import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.PermissionChecker;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.BlockDefinition;
@@ -21,6 +23,7 @@ import net.momirealms.craftengine.core.block.behavior.EntityBlock;
 import net.momirealms.craftengine.core.block.behavior.WorldlyContainerHolder;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.block.entity.BlockEntityController;
+import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.util.Direction;
@@ -48,25 +51,18 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class CookingPotBlockBehavior extends BlockBehavior implements EntityBlock, WorldlyContainerHolder {
+public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior implements EntityBlock, WorldlyContainerHolder {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
         return false;
     }
 
-    @Override
-    public void fallOn(Object thisBlock, Object[] args) {
-    }
-
-    @Override
-    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
-    }
-
     public static final int SLOT_MEAL_DISPLAY = 6;
     public static final int SLOT_CONTAINER = 7;
     public static final int SLOT_OUTPUT = 8;
     public static final int INVENTORY_SIZE = 9;
+    public static final String SUPPORT_PROPERTY = "support";
 
     private static final Map<UUID, Map<BlockPosKey, CookingPotBlockEntity>> worldBlockEntities = new ConcurrentHashMap<>();
     // Per-chunk index of block entity positions in the authoritative map: worldId -> (chunkKey -> set of posKeys).
@@ -95,7 +91,6 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
                         "cooking-pot.place-interaction-cooldown-ms"));
     }
 
-    /** World-scoped key used by the per-pot display caches above. */
     private record DisplayStateKey(UUID worldId, BlockPosKey pos) {
     }
 
@@ -103,23 +98,7 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         return new DisplayStateKey(world.getUID(), posKey);
     }
 
-    private final String permission;
-    private final boolean openWhileSneaking;
-    private final boolean placeTrayOnOpen;
-    private final String boilSound;
-    private final String soupBoilSound;
-    private final Double soundChance;
-    private final Double soundVolume;
-    private final Double soundPitchMin;
-    private final Double soundPitchMax;
-    final String customDataKey;
-    private final CookingPotLayout layout;
-    private final String customRecipeGroupId;
-    private final String titleOverride;
-    private int controllerId;
-
-    private CookingPotBlockBehavior(
-            BlockDefinition block,
+    private record Config(
             String permission,
             boolean openWhileSneaking,
             boolean placeTrayOnOpen,
@@ -132,22 +111,16 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
             String customDataKey,
             CookingPotLayout layout,
             String customRecipeGroupId,
-            String titleOverride
-    ) {
+            String titleOverride,
+            Property<String> supportProperty
+    ) {}
+
+    private final Config config;
+    private int controllerId;
+
+    private CookingPotBlockBehavior(BlockDefinition block, Config config) {
         super(block);
-        this.permission = permission;
-        this.openWhileSneaking = openWhileSneaking;
-        this.placeTrayOnOpen = placeTrayOnOpen;
-        this.boilSound = boilSound;
-        this.soupBoilSound = soupBoilSound;
-        this.soundChance = soundChance;
-        this.soundVolume = soundVolume;
-        this.soundPitchMin = soundPitchMin;
-        this.soundPitchMax = soundPitchMax;
-        this.customDataKey = customDataKey;
-        this.layout = layout != null ? layout : CookingPotLayout.DEFAULT;
-        this.customRecipeGroupId = normalizeBlank(customRecipeGroupId);
-        this.titleOverride = normalizeBlank(titleOverride);
+        this.config = config;
     }
 
     @Override
@@ -268,19 +241,16 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         return Set.of();
     }
 
-    /** Compute the chunk key from block coordinates (high 32 bits = chunkX, low 32 bits = chunkZ). */
     private static long chunkKey(int blockX, int blockZ) {
         return (((long) (blockX >> 4)) << 32) | ((blockZ >> 4) & 0xFFFFFFFFL);
     }
 
-    /** Add a position to the chunk index. Must be called in lockstep with the registration write to worldEntities. */
     private static void indexAdd(UUID worldId, BlockPosKey posKey) {
         chunkIndex.computeIfAbsent(worldId, k -> new ConcurrentHashMap<>())
                 .computeIfAbsent(chunkKey(posKey.x(), posKey.z()), k -> ConcurrentHashMap.newKeySet())
                 .add(posKey);
     }
 
-    /** Remove a position from the chunk index. Must be called in lockstep with the removal write to worldEntities. */
     private static void indexRemove(UUID worldId, BlockPosKey posKey) {
         Map<Long, Set<BlockPosKey>> worldChunks = chunkIndex.get(worldId);
         if (worldChunks == null) return;
@@ -292,10 +262,6 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         if (worldChunks.isEmpty()) chunkIndex.remove(worldId);
     }
 
-    /**
-     * Returns only the cooking pot block entities within the given chunk, avoiding a linear scan of the whole world.
-     * The authoritative map (worldBlockEntities) wins: stale leftover entries in the index that aren't found there are skipped.
-     */
     public static Map<BlockPosKey, CookingPotBlockEntity> getBlockEntitiesInChunk(World world, int chunkX, int chunkZ) {
         Map<BlockPosKey, CookingPotBlockEntity> result = new HashMap<>();
         if (world == null) return result;
@@ -325,7 +291,6 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         return locations;
     }
 
-    /** Whether any tracked cooking pot block entity exists (cheap check, only iterates worlds, allocates no location list). */
     public static boolean hasAnyBlockEntities() {
         for (Map<BlockPosKey, CookingPotBlockEntity> worldEntities : worldBlockEntities.values()) {
             if (!worldEntities.isEmpty()) {
@@ -336,43 +301,47 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
     }
 
     public String getBoilSound() {
-        return boilSound;
+        return config.boilSound();
     }
 
     public String getSoupBoilSound() {
-        return soupBoilSound;
+        return config.soupBoilSound();
     }
 
     public Double getSoundChance() {
-        return soundChance;
+        return config.soundChance();
     }
 
     public Double getSoundVolume() {
-        return soundVolume;
+        return config.soundVolume();
     }
 
     public Double getSoundPitchMin() {
-        return soundPitchMin;
+        return config.soundPitchMin();
     }
 
     public Double getSoundPitchMax() {
-        return soundPitchMax;
+        return config.soundPitchMax();
     }
 
     public String getCustomDataKey() {
-        return customDataKey;
+        return config.customDataKey();
+    }
+
+    public Property<String> getSupportProperty() {
+        return config.supportProperty();
     }
 
     public CookingPotLayout getLayout() {
-        return layout;
+        return config.layout();
     }
 
     public String getCustomRecipeGroupId() {
-        return customRecipeGroupId;
+        return config.customRecipeGroupId();
     }
 
     public String getTitleOverride() {
-        return titleOverride;
+        return config.titleOverride();
     }
 
     public static void removeBlockEntity(World world, BlockPos pos) {
@@ -462,8 +431,6 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         recentPlacements.clear();
     }
 
-    /** Adds every progress-text proxy display id tracked cooking pots still reference, so /fd
-     *  cleanup removes only orphaned displays and leaves live pot progress text alone. */
     public static void collectLiveDisplayIds(java.util.Set<Integer> out) {
         for (Map<BlockPosKey, Integer> displays : worldProgressDisplays.values()) {
             out.addAll(displays.values());
@@ -631,11 +598,6 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         markBlockEntityDirty(world, posKey);
     }
 
-    /**
-     * Chunk-unload save: snapshots the entity into the controller (so the data survives the entity's
-     * removal at MONITOR cleanup and re-hydrates it if the chunk reloads out of CraftEngine's chunk cache),
-     * falling back to the plain save when the controller is unreachable.
-     */
     public static void passivateBlockEntityData(World world, BlockPosKey posKey) {
         if (world == null || posKey == null) return;
         CookingPotBlockEntity entity = getBlockEntity(world, posKey);
@@ -653,12 +615,6 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         }
     }
 
-    /**
-     * Applies any parked controller data (a passivation snapshot left by a chunk-cache reload, or a deferred
-     * startup load) into the plugin-side entity, so callers that read the entity right after — a break/drop
-     * that spills contents, a hopper container read — see the stored contents instead of a blank pot whose
-     * data still sits in the controller's pendingSaveData. Mirrors the flush in getOrCreateBlockEntity.
-     */
     public static void flushPendingControllerData(World world, BlockPosKey posKey) {
         if (world == null || posKey == null) return;
         CookingPotBlockBehavior behavior = getBlockBehavior(posKey.toLocation(world));
@@ -709,7 +665,7 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
 
     private static ItemStack insertThroughFace(Location location, ItemStack item, Direction direction) {
         if (location == null || location.getWorld() == null || item == null || item.getType().isAir()) {
-            return item == null ? null : item.clone();
+            return ItemUtils.cloneOrNull(item);
         }
 
         World world = location.getWorld();
@@ -763,53 +719,59 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         }
     }
 
-    public static final BlockBehaviorFactory<CookingPotBlockBehavior> FACTORY = new BlockBehaviorFactory<CookingPotBlockBehavior>() {
-        @Override
-        public CookingPotBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
-            Map<String, Object> arguments = section != null ? section.values() : Map.of();
-            String permission = BehaviorArgParser.getString(arguments, "permission", "farmersdelight.use.cooking_pot");
-            boolean openWhileSneaking = BehaviorArgParser.getBoolean(arguments, "open-while-sneaking", false);
-            boolean placeTrayOnOpen = BehaviorArgParser.getBoolean(arguments, "place-tray-on-open", true);
-            String boilSound = getNullableString(arguments, "boil-sound");
-            String soupBoilSound = getNullableString(arguments, "soup-boil-sound");
-            Double soundChance = getNullableDouble(arguments, "sound-chance");
-            Double soundVolume = getNullableDouble(arguments, "sound-volume");
-            Double soundPitchMin = getNullableDouble(arguments, "sound-pitch-min");
-            Double soundPitchMax = getNullableDouble(arguments, "sound-pitch-max");
-            String customDataKey = BehaviorArgParser.getString(arguments, "data-key", "farmersdelight:cooking_pot");
-            Map<String, Object> custom = getMap(arguments, "custom");
-            CookingPotLayout layout = CookingPotLayout.DEFAULT;
-            String customRecipeGroupId = null;
-            String titleOverride = null;
-            if (custom != null && !custom.isEmpty()) {
-                int inputSlots = BehaviorArgParser.getInt(custom, "input-slots", CookingPotLayout.DEFAULT.inputSlots().length);
-                int pendingOutputSlots = BehaviorArgParser.getInt(custom, "pending-output-slots", CookingPotLayout.DEFAULT.pendingOutputSlots().length);
-                int outputSlots = BehaviorArgParser.getInt(custom, "output-slots", CookingPotLayout.DEFAULT.outputSlots().length);
-                int containerSlots = BehaviorArgParser.getInt(custom, "container-slots", CookingPotLayout.DEFAULT.containerSlots().length);
-                layout = CookingPotLayout.custom(inputSlots, pendingOutputSlots, outputSlots, containerSlots);
-                customRecipeGroupId = getNullableString(custom, "id");
-                titleOverride = getNullableString(custom, "title");
-                if (titleOverride == null) {
-                    titleOverride = getNullableString(custom, "gui-title");
-                }
+    public static final BlockBehaviorFactory<CookingPotBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+        Map<String, Object> arguments = section != null ? section.values() : Map.of();
+        String permission = BehaviorArgParser.getString(arguments, "permission", "farmersdelight.use.cooking_pot");
+        boolean openWhileSneaking = BehaviorArgParser.getBoolean(arguments, "open-while-sneaking", false);
+        boolean placeTrayOnOpen = BehaviorArgParser.getBoolean(arguments, "place-tray-on-open", true);
+        String boilSound = getNullableString(arguments, "boil-sound");
+        String soupBoilSound = getNullableString(arguments, "soup-boil-sound");
+        Double soundChance = getNullableDouble(arguments, "sound-chance");
+        Double soundVolume = getNullableDouble(arguments, "sound-volume");
+        Double soundPitchMin = getNullableDouble(arguments, "sound-pitch-min");
+        Double soundPitchMax = getNullableDouble(arguments, "sound-pitch-max");
+        String customDataKey = BehaviorArgParser.getString(arguments, "data-key", "farmersdelight:cooking_pot");
+        Map<String, Object> custom = getMap(arguments, "custom");
+        CookingPotLayout layout = CookingPotLayout.DEFAULT;
+        String customRecipeGroupId = null;
+        String titleOverride = null;
+        if (custom != null && !custom.isEmpty()) {
+            int inputSlots = BehaviorArgParser.getInt(custom, "input-slots", CookingPotLayout.DEFAULT.inputSlots().length);
+            int pendingOutputSlots = BehaviorArgParser.getInt(custom, "pending-output-slots", CookingPotLayout.DEFAULT.pendingOutputSlots().length);
+            int outputSlots = BehaviorArgParser.getInt(custom, "output-slots", CookingPotLayout.DEFAULT.outputSlots().length);
+            int containerSlots = BehaviorArgParser.getInt(custom, "container-slots", CookingPotLayout.DEFAULT.containerSlots().length);
+            layout = CookingPotLayout.custom(inputSlots, pendingOutputSlots, outputSlots, containerSlots);
+            customRecipeGroupId = getNullableString(custom, "id");
+            titleOverride = getNullableString(custom, "title");
+            if (titleOverride == null) {
+                titleOverride = getNullableString(custom, "gui-title");
             }
-            return new CookingPotBlockBehavior(
-                    block,
-                    permission,
-                    openWhileSneaking,
-                    placeTrayOnOpen,
-                    boilSound,
-                    soupBoilSound,
-                    soundChance,
-                    soundVolume,
-                    soundPitchMin,
-                    soundPitchMax,
-                    customDataKey,
-                    layout,
-                    customRecipeGroupId,
-                    titleOverride
-            );
         }
+        CookingPotLayout layoutResolved = layout != null ? layout : CookingPotLayout.DEFAULT;
+        String recipeGroupResolved = normalizeBlank(customRecipeGroupId);
+        String titleResolved = normalizeBlank(titleOverride);
+        Property<String> supportProperty = BlockBehaviorFactory.getOptionalProperty(block, SUPPORT_PROPERTY, String.class);
+        if (supportProperty == null) {
+            FarmersDelightPlugin.getInstance().getLogger()
+                    .warning("[FarmersDelight] Block " + block.id() + " is missing the 'support' property"
+                            + " — tray and handle entity_renderer switching is disabled for this block.");
+        }
+        return new CookingPotBlockBehavior(block, new Config(
+                permission,
+                openWhileSneaking,
+                placeTrayOnOpen,
+                boilSound,
+                soupBoilSound,
+                soundChance,
+                soundVolume,
+                soundPitchMin,
+                soundPitchMax,
+                customDataKey,
+                layoutResolved,
+                recipeGroupResolved,
+                titleResolved,
+                supportProperty
+        ));
     };
 
     @Override
@@ -834,20 +796,23 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
             }
         }
 
-        if (bukkitPlayer.isSneaking() && !openWhileSneaking) {
+        if (bukkitPlayer.isSneaking() && !config.openWhileSneaking()) {
+            return InteractionResult.PASS;
+        }
+
+        if (!PermissionChecker.check(bukkitPlayer, config.permission())) {
+            return InteractionResult.PASS;
+        }
+
+        World world = bukkitPlayer.getWorld();
+        Block targetBlock = world.getBlockAt(pos.x(), pos.y(), pos.z());
+        if (!ProtectionCompat.canUse(bukkitPlayer, targetBlock, ProtectionCompat.Feature.COOKING_POT)) {
             return InteractionResult.PASS;
         }
 
         if (isRecentlyPlaced(bukkitPlayer.getWorld(), posKey)) {
             return InteractionResult.PASS;
         }
-
-        if (!permission.isBlank() && !bukkitPlayer.hasPermission(permission)) {
-            bukkitPlayer.sendActionBar(I18n.getComponent("general.no_permission", bukkitPlayer));
-            return InteractionResult.FAIL;
-        }
-
-        World world = bukkitPlayer.getWorld();
         Map<BlockPosKey, CookingPotBlockEntity> worldEntities = worldBlockEntities.computeIfAbsent(
                 world.getUID(), k -> new ConcurrentHashMap<>());
 
@@ -881,7 +846,7 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         }
 
         TrayManager trayManager = FarmersDelightPlugin.getInstance().getTrayManager();
-        if (placeTrayOnOpen && trayManager != null) {
+        if (config.placeTrayOnOpen() && trayManager != null) {
             trayManager.checkAndPlaceTray(world, pos);
         }
 
@@ -897,6 +862,11 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         return InteractionResult.SUCCESS_AND_CANCEL;
     }
 
+    public boolean canPlayerOpen(Player player, Block block) {
+        return PermissionChecker.check(player, config.permission())
+                && ProtectionCompat.canUse(player, block, ProtectionCompat.Feature.COOKING_POT);
+    }
+
     private boolean handleHeldContainerServing(Player player, World world, BlockPosKey posKey, CookingPotBlockEntity blockEntity) {
         ItemStack heldItem = player.getInventory().getItemInMainHand();
         if (heldItem == null || heldItem.getType().isAir()) {
@@ -906,8 +876,7 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
             return false;
         }
 
-        CookingPotBlockEntity.TakenMeal takenMeal = blockEntity.useHeldContainerOnPendingMeal(heldItem);
-        ItemStack meal = takenMeal == null ? null : takenMeal.item();
+        ItemStack meal = blockEntity.useHeldContainerOnPendingMeal(player, heldItem);
         if (meal == null || meal.getType().isAir()) {
             return false;
         }
@@ -926,13 +895,8 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
         }
 
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (takenMeal.experience() > 0.0D) {
-            if (plugin.shouldDropCookingPotVanillaExperience()) {
-                blockEntity.dropExperience(world, takenMeal.experience());
-            }
-            plugin.awardCookingPotAuraSkillsExperience(player, takenMeal.experience());
-        }
-        plugin.callCookingPotExperienceEvent(player, meal, takenMeal.experience());
+        blockEntity.awardUsedRecipes(player);
+        plugin.callCookingPotExperienceEvent(player, meal, 0.0D);
 
         saveBlockEntityData(world, posKey);
         world.playSound(posKey.toLocation(world), Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.0f);
@@ -1092,10 +1056,6 @@ public class CookingPotBlockBehavior extends BlockBehavior implements EntityBloc
     }
 
     private static String normalizeBlank(String value) {
-        if (value == null) {
-            return null;
-        }
-        String trimmed = value.trim();
-        return trimmed.isEmpty() ? null : trimmed;
+        return com.huidu.farmersdelight.util.ItemUtils.normalizeBlank(value);
     }
 }

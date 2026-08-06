@@ -64,9 +64,28 @@ List of blocks that count as a heat source under a pot/skillet. Vanilla material
 * `recipe-only-placement: false` — when true, only items matching a cutting recipe are accepted.
 * `display-overrides:` per-item position/scale/style override for the on-board item display.
 
-### `comfort-foods:` / `nourishment-foods:`
+### CraftEngine food settings and functions
 
-Food → effect duration map. `enabled: false` disables the whole list. `fade-warning-ticks` controls the "fading" chat message at end of duration.
+Built-in pet-food behavior and food-to-buff assignments live with the items in
+`plugins/CraftEngine/resources/farmersdelight/configuration/items.yml`.
+
+```yaml
+settings:
+  farmersdelight:pet_food:
+    entities: [WOLF]
+    require-tamed: true
+    restore-health: true
+
+events:
+  - on: consume
+    functions:
+      - type: farmersdelight:nourishment
+        duration: 180
+```
+
+Use `farmersdelight:comfort` in the same event format for Comfort. The main `config.yml` keeps only global
+buff mechanics, persistence and display settings. Legacy `pet-foods` and food-duration sections remain a
+runtime fallback for upgraded servers, but new content should use the CraftEngine item configuration.
 
 ### `loot-injection.install-datapack:`
 
@@ -156,7 +175,7 @@ Burns any non-sneaking, non-creative entity standing directly above a lit stove.
 
 FD's two custom buffs are tracked in `EffectManager`:
 
-* **Comfort** — periodic auto-heal regardless of hunger level. Heal interval configurable via `comfort-foods.heal-interval-ticks` (0 = disable healing but keep the bossbar / message).
+* **Comfort** — periodic auto-heal regardless of hunger level. Heal interval configurable via `buff.comfort.heal-interval-ticks` (0 = disable healing but keep the display).
 * **Nourishment** — pauses hunger drain (saturation-only healing still applies).
 
 Both are registered as `CustomBuff` entries so vanilla `milk_bucket` (clears all custom buffs) and `farmersdelight:milk_bottle` (clears one — non-low-priority first) work through a unified registry — see below.

@@ -1,7 +1,13 @@
 package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
-import com.huidu.farmersdelight.block.behavior.*;
+import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
+import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntityController;
+import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntity;
+import com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
@@ -102,8 +108,6 @@ public class BlockBreakListener implements Listener {
         plugin.getTrayManager().syncAroundSupportChange(block.getLocation());
     }
 
-    /** Cleanup for a block destroyed by an explosion: contents drop, but a base item that the block's own loot
-     * table also drops (the cooking pot) is left to that loot table to avoid dropping it twice. */
     private void cleanupExplodedBlockAt(org.bukkit.block.Block block) {
         cleanupBlockAt(block, CustomBlockUtils.getState(block), false, true, true);
     }
@@ -227,7 +231,6 @@ public class BlockBreakListener implements Listener {
         ceWorld.dropItemNaturally(new WorldPosition(ceWorld, dropLocation.getX(), dropLocation.getY(), dropLocation.getZ()), wrapped);
     }
 
-    /** Builds the packed cooking pot item's tooltip: the stored meal's name + serving count. */
     private void applyMealLore(ItemStack item, ItemStack meal) {
         org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
         if (meta == null) {

@@ -6,10 +6,11 @@ import com.huidu.farmersdelight.manager.SkilletManager;
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.CookingDebugLog;
 import com.huidu.farmersdelight.util.Constants;
-import com.huidu.farmersdelight.util.CraftEngineAdapter;
+import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
-import com.huidu.farmersdelight.util.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.PermissionChecker;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
@@ -18,6 +19,7 @@ import net.momirealms.craftengine.core.block.behavior.EntityBlock;
 import net.momirealms.craftengine.core.block.behavior.WorldlyContainerHolder;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.block.entity.BlockEntityController;
+import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.CEWorld;
@@ -33,39 +35,39 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
 
-public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock, WorldlyContainerHolder {
+public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements EntityBlock, WorldlyContainerHolder {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
         return false;
     }
 
-    @Override
-    public void fallOn(Object thisBlock, Object[] args) {
-    }
-
-    @Override
-    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
-    }
+    public static final String SUPPORT_PROPERTY = "support";
 
     private final String addFoodSound;
     private final String sizzleSound;
+    private final Property<Boolean> supportProperty;
     private int controllerId;
 
-    public static final BlockBehaviorFactory<SkilletBlockBehavior> FACTORY = new BlockBehaviorFactory<>() {
-        @Override
-        public SkilletBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
-            Map<String, Object> arguments = section != null ? section.values() : Map.of();
-            String addFoodSound = BehaviorArgParser.getArgumentString(arguments, "add-food-sound", Constants.SOUND_SKILLET_ADD_FOOD);
-            String sizzleSound = BehaviorArgParser.getArgumentString(arguments, "sizzle-sound", Constants.SOUND_SKILLET_SIZZLE);
-            return new SkilletBlockBehavior(block, addFoodSound, sizzleSound);
+    public static final BlockBehaviorFactory<SkilletBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+        Map<String, Object> arguments = section != null ? section.values() : Map.of();
+        String addFoodSound = BehaviorArgParser.getArgumentString(arguments, "add-food-sound", Constants.SOUND_SKILLET_ADD_FOOD);
+        String sizzleSound = BehaviorArgParser.getArgumentString(arguments, "sizzle-sound", Constants.SOUND_SKILLET_SIZZLE);
+        Property<Boolean> supportProperty = BlockBehaviorFactory.getOptionalProperty(block, SUPPORT_PROPERTY, Boolean.class);
+        if (supportProperty == null) {
+            FarmersDelightPlugin.getInstance().getLogger()
+                    .warning("[FarmersDelight] Block " + block.id() + " is missing the 'support' property"
+                            + " — tray entity_renderer switching is disabled for this block.");
         }
+        return new SkilletBlockBehavior(block, addFoodSound, sizzleSound, supportProperty);
     };
 
-    private SkilletBlockBehavior(BlockDefinition block, String addFoodSound, String sizzleSound) {
+    private SkilletBlockBehavior(BlockDefinition block, String addFoodSound, String sizzleSound,
+                                  Property<Boolean> supportProperty) {
         super(block);
         this.addFoodSound = addFoodSound;
         this.sizzleSound = sizzleSound;
+        this.supportProperty = supportProperty;
     }
 
     public String getAddFoodSound() {
@@ -74,6 +76,10 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock, 
 
     public String getSizzleSound() {
         return sizzleSound;
+    }
+
+    public Property<Boolean> getSupportProperty() {
+        return supportProperty;
     }
 
     @Override
@@ -121,6 +127,9 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock, 
         if (plugin.isDebugEnabled("skillet")) {
             logDebug(player, block, mainHand, manager.findRecipeId(mainHand));
         }
+        if (!PermissionChecker.check(player, "farmersdelight.use.skillet")) {
+            return InteractionResult.PASS;
+        }
         if (!ProtectionCompat.canUse(player, block, ProtectionCompat.Feature.SKILLET)
                 || !ProtectionCompat.canBuild(player, block, ProtectionCompat.Feature.SKILLET)) {
             return InteractionResult.PASS;
@@ -130,9 +139,8 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock, 
             return InteractionResult.PASS;
         }
 
-        if (!player.hasPermission("farmersdelight.use.skillet")) {
-            player.sendActionBar(I18n.getComponent("general.no_permission", player));
-            return InteractionResult.FAIL;
+        if (isEquippable(mainHand)) {
+            return InteractionResult.PASS;
         }
 
         if (manager.handleInteract(player, block, mainHand, EquipmentSlot.HAND)) {
@@ -240,10 +248,21 @@ public class SkilletBlockBehavior extends BlockBehavior implements EntityBlock, 
         return plugin.getSkilletManager();
     }
 
+    public static boolean isEquippable(ItemStack item) {
+        if (item == null) return false;
+        Material type = item.getType();
+        String name = type.name();
+        return name.endsWith("_HELMET") || name.endsWith("_CHESTPLATE")
+                || name.endsWith("_LEGGINGS") || name.endsWith("_BOOTS")
+                || name.contains("HORSE_ARMOR") || name.contains("WOLF_ARMOR")
+                || type == Material.ELYTRA || type == Material.SHIELD;
+    }
+
     private boolean isSkilletItem(ItemStack itemStack) {
         return itemStack != null && Constants.ITEM_SKILLET.equals(ItemUtils.getCustomItemId(itemStack));
     }
 
+    @SuppressWarnings("UnstableApiUsage")
     private void logDebug(Player player, Block clickedBlock, ItemStack item, String recipeId) {
         String resolvedItemId = CookingDebugLog.resolveItemId(item);
         Material material = Material.AIR;

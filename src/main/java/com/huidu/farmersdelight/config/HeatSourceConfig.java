@@ -12,7 +12,12 @@ import org.bukkit.block.Block;
 import org.bukkit.block.data.Lightable;
 import org.bukkit.configuration.ConfigurationSection;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -189,6 +194,10 @@ public class HeatSourceConfig {
     }
 
     public boolean isHeatSource(Block block) {
+        return isHeatSource(block, null);
+    }
+
+    public boolean isHeatSource(Block block, ImmutableBlockState preFetchedState) {
         Material blockType = block.getType();
 
         if (vanillaBlocks.contains(blockType)) {
@@ -208,7 +217,9 @@ public class HeatSourceConfig {
             }
         }
 
-        ImmutableBlockState customState = CraftEngineBlocks.getCustomBlockState(block);
+        ImmutableBlockState customState = preFetchedState != null
+                ? preFetchedState
+                : CraftEngineBlocks.getCustomBlockState(block);
         if (customState != null && !customState.isEmpty()) {
             for (CustomBlockStateMatcher stateMatcher : customBlockStates) {
                 if (stateMatcher.matches(customState)) {
@@ -228,11 +239,17 @@ public class HeatSourceConfig {
     }
 
     public boolean isConductor(Block block) {
+        return isConductor(block, null);
+    }
+
+    public boolean isConductor(Block block, ImmutableBlockState preFetchedState) {
         if (conductors.contains(block.getType())) {
             return true;
         }
 
-        ImmutableBlockState customState = CraftEngineBlocks.getCustomBlockState(block);
+        ImmutableBlockState customState = preFetchedState != null
+                ? preFetchedState
+                : CraftEngineBlocks.getCustomBlockState(block);
         if (customState != null && !customState.isEmpty()) {
             Set<Key> blockTags = customState.settings().tags();
             for (Key tag : conductorTags) {

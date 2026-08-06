@@ -118,7 +118,6 @@ public final class CuttingBoardDisplayConfig {
         return resolveDisplayItem(storedItem, getOverride(storedItem));
     }
 
-    /** Variant that reuses an already-resolved override, to avoid calling getOverride twice. */
     public ItemStack resolveDisplayItem(ItemStack storedItem, DisplayOverride override) {
         if (storedItem == null || storedItem.getType().isAir()) {
             return null;

@@ -3,7 +3,7 @@ package com.huidu.farmersdelight.block.behavior;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
-import com.huidu.farmersdelight.util.DisplayTransformUtils;
+import com.huidu.farmersdelight.util.compat.DisplayTransformUtils;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import net.momirealms.craftengine.core.world.BlockPos;
 import org.bukkit.Location;
@@ -16,10 +16,6 @@ import org.bukkit.inventory.ItemStack;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * Legacy skillet state model, kept for the recipe-cache helper methods and compatibility with old saved state.
- * Runtime skillet logic is handled by com.huidu.farmersdelight.manager.SkilletManager.
- */
 @Deprecated(forRemoval = false)
 public class SkilletBlockEntity {
 
@@ -235,10 +231,6 @@ public class SkilletBlockEntity {
     // lookups are handled at runtime by SkilletManager.findCampfireRecipe (delegating to CampfireRecipeCache),
     // and this class's version no longer has any live callers.
 
-    /**
-     * This empty implementation is kept for compatibility with the reload/disable flow (FarmersDelightPlugin still calls it).
-     * Since the recipe cache moved to SkilletManager, no state needs clearing here anymore.
-     */
     public static void clearRecipeCache() {
         // No-op: the cache moved to SkilletManager's CampfireRecipeCache.
     }
@@ -288,9 +280,6 @@ public class SkilletBlockEntity {
     }
 
     private ItemStack cloneOrNull(ItemStack item) {
-        if (item == null) {
-            return null;
-        }
-        return item.clone();
+        return com.huidu.farmersdelight.util.ItemUtils.cloneOrNull(item);
     }
 }

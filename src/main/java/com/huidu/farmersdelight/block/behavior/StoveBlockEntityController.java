@@ -9,6 +9,7 @@ import net.momirealms.craftengine.core.block.entity.BlockEntityController;
 import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.item.component.DataComponentKeys;
 import net.momirealms.craftengine.libraries.nbt.CompoundTag;
+import org.bukkit.Location;
 import org.bukkit.World;
 
 import java.util.Map;
@@ -26,19 +27,21 @@ public final class StoveBlockEntityController extends BlockEntityController {
 
     public StoveBlockEntityController(BlockEntity blockEntity) {
         super(blockEntity);
+        updateBurnIndex(true);
     }
 
     @Override
     public void saveCustomData(CompoundTag tag) {
-        // A passivation snapshot is authoritative while the manager entry is gone; checked before
-        // loadPendingDataIfReady so serializing an unloaded chunk cannot resurrect the manager entry.
-        if (this.pendingSaveData != null) {
-            tag.put(DATA_KEY, this.pendingSaveData);
+        // Never apply parked data from a serialization callback. Rehydration may touch the world while its
+        // chunk is being saved; the parked tag is already the exact payload that needs to be persisted.
+        CompoundTag dataTag = this.pendingSaveData;
+        if (dataTag != null) {
+            tag.put(DATA_KEY, dataTag);
             return;
         }
-        loadPendingDataIfReady();
-        if (this.pendingLoadData != null) {
-            tag.put(DATA_KEY, this.pendingLoadData);
+        dataTag = this.pendingLoadData;
+        if (dataTag != null) {
+            tag.put(DATA_KEY, dataTag);
             return;
         }
         StoveManager manager = getManager();
@@ -53,12 +56,6 @@ public final class StoveBlockEntityController extends BlockEntityController {
         tag.put(DATA_KEY, SimpleBlockEntityData.save(data));
     }
 
-    /**
-     * Snapshots the manager's current state for this stove so it survives the manager entry being
-     * dropped on chunk unload (CE serializes by pulling from the manager at HIGHEST, after the entry is
-     * gone). Returns false when the manager or world is unavailable, in which case the caller must keep
-     * the entry so the pull path can still export it.
-     */
     public boolean passivate() {
         StoveManager manager = getManager();
         World world = getBukkitWorld();
@@ -73,6 +70,7 @@ public final class StoveBlockEntityController extends BlockEntityController {
 
     @Override
     public void loadCustomData(CompoundTag tag) {
+        updateBurnIndex(true);
         CompoundTag data = tag.getCompound(DATA_KEY);
         if (data == null) return;
         queueLoadData(data);
@@ -80,12 +78,14 @@ public final class StoveBlockEntityController extends BlockEntityController {
 
     @Override
     public void loadCustomDataFromItem(Item item) {
+        updateBurnIndex(true);
         CompoundTag data = CustomBlockUtils.getNestedComponentCompound(item, DataComponentKeys.BLOCK_ENTITY_DATA, DATA_KEY);
         if (data == null) return;
         queueLoadData(data);
     }
 
     public void loadPendingDataIfReady() {
+        updateBurnIndex(true);
         if (this.applyingPendingLoad) {
             return;
         }
@@ -128,6 +128,26 @@ public final class StoveBlockEntityController extends BlockEntityController {
 
     private World getBukkitWorld() {
         return CustomBlockUtils.getBukkitWorld(this.blockEntity);
+    }
+
+    @Override
+    public void onRemove() {
+        updateBurnIndex(false);
+        super.onRemove();
+    }
+
+    private void updateBurnIndex(boolean present) {
+        StoveManager manager = getManager();
+        World world = getBukkitWorld();
+        if (manager == null || world == null) {
+            return;
+        }
+        Location location = new Location(world, this.blockEntity.pos.x(), this.blockEntity.pos.y(), this.blockEntity.pos.z());
+        if (present) {
+            manager.trackBurnStove(location);
+        } else {
+            manager.untrackBurnStove(location);
+        }
     }
 
     private StoveManager getManager() {

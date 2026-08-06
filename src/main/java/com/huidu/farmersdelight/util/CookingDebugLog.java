@@ -6,14 +6,12 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.Locale;
 
-/**
- * Shared console debug logging used by the stove and skillet cooking behaviors.
- */
 public final class CookingDebugLog {
 
     private CookingDebugLog() {
     }
 
+    @SuppressWarnings("UnstableApiUsage")
     public static void logField(String labelKey, Object value) {
         Bukkit.getLogger().info(I18n.formatConsole("debug.field",
                 "label", I18n.formatConsole(labelKey),

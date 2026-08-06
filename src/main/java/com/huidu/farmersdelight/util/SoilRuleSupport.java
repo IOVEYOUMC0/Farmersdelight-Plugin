@@ -11,7 +11,13 @@ import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class SoilRuleSupport {

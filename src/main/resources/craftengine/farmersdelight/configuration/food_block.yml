@@ -200,6 +200,8 @@ blocks:
     events:
       - on: break
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_block_property
             properties:
               bites: 0
@@ -217,6 +219,8 @@ blocks:
                       count: 1
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             item: "farmersdelight:.*_knife"
             regex: true
@@ -245,6 +249,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             item: "farmersdelight:.*_knife"
             regex: true
@@ -273,6 +279,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             item: "farmersdelight:.*_knife"
             regex: true
@@ -301,6 +309,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             item: "farmersdelight:.*_knife"
             regex: true
@@ -330,6 +340,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: expression  
             expression: "<arg:player.food> < 20"
           - type: inverted
@@ -364,6 +376,8 @@ blocks:
             particles: false
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: expression
             expression: "<arg:player.food> < 20"
           - type: inverted
@@ -398,6 +412,8 @@ blocks:
             particles: false
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: expression
             expression: "<arg:player.food> < 20"
           - type: inverted
@@ -432,6 +448,8 @@ blocks:
             particles: false
       - on: right_click  
         conditions:
+          - type: test_flag
+            flag: interact
           - type: expression
             expression: "<arg:player.food> < 20"
           - type: inverted
@@ -481,6 +499,8 @@ blocks:
     events:
       - on: break
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_block_property
             properties:
               bites: 0
@@ -498,6 +518,8 @@ blocks:
                       count: 1
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             item: "farmersdelight:.*_knife"
             regex: true
@@ -526,6 +548,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             item: "farmersdelight:.*_knife"
             regex: true
@@ -554,6 +578,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             item: "farmersdelight:.*_knife"
             regex: true
@@ -582,6 +608,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             item: "farmersdelight:.*_knife"
             regex: true
@@ -611,6 +639,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: expression  
             expression: "<arg:player.food> < 20"
           - type: inverted
@@ -645,6 +675,8 @@ blocks:
             particles: false
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: expression
             expression: "<arg:player.food> < 20"
           - type: inverted
@@ -679,6 +711,8 @@ blocks:
             particles: false
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: expression
             expression: "<arg:player.food> < 20"
           - type: inverted
@@ -713,6 +747,8 @@ blocks:
             particles: false
       - on: right_click  
         conditions:
+          - type: test_flag
+            flag: interact
           - type: expression
             expression: "<arg:player.food> < 20"
           - type: inverted
@@ -762,6 +798,8 @@ blocks:
     events:
       - on: break
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_block_property
             properties:
               bites: 0
@@ -779,6 +817,8 @@ blocks:
                       count: 1
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             item: "farmersdelight:.*_knife"
             regex: true
@@ -807,6 +847,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             item: "farmersdelight:.*_knife"
             regex: true
@@ -835,6 +877,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             item: "farmersdelight:.*_knife"
             regex: true
@@ -863,6 +907,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             item: "farmersdelight:.*_knife"
             regex: true
@@ -892,6 +938,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: expression  
             expression: "<arg:player.food> < 20"
           - type: inverted
@@ -926,6 +974,8 @@ blocks:
             particles: false
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: expression
             expression: "<arg:player.food> < 20"
           - type: inverted
@@ -960,6 +1010,8 @@ blocks:
             particles: false
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: expression
             expression: "<arg:player.food> < 20"
           - type: inverted
@@ -994,6 +1046,8 @@ blocks:
             particles: false
       - on: right_click  
         conditions:
+          - type: test_flag
+            flag: interact
           - type: expression
             expression: "<arg:player.food> < 20"
           - type: inverted
@@ -1314,6 +1368,8 @@ blocks:
                                 servings: 4
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             id: minecraft:bowl
           - type: match_block_property
@@ -1344,6 +1400,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             id: minecraft:bowl
           - type: match_block_property
@@ -1374,6 +1432,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             id: minecraft:bowl
           - type: match_block_property
@@ -1404,6 +1464,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             id: minecraft:bowl
           - type: match_block_property
@@ -1435,6 +1497,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_block_property
             properties:
               servings: 4
@@ -1656,6 +1720,8 @@ blocks:
     events:
       - on: break
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_block_property
             properties:
               servings: 0
@@ -1673,6 +1739,8 @@ blocks:
                       count: 1
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             id: minecraft:bowl
           - type: match_block_property
@@ -1703,6 +1771,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             id: minecraft:bowl
           - type: match_block_property
@@ -1733,6 +1803,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             id: minecraft:bowl
           - type: match_block_property
@@ -1763,6 +1835,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             id: minecraft:bowl
           - type: match_block_property
@@ -2080,6 +2154,8 @@ blocks:
                                 servings: 4
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             id: minecraft:bowl
           - type: match_block_property
@@ -2110,6 +2186,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             id: minecraft:bowl
           - type: match_block_property
@@ -2140,6 +2218,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             id: minecraft:bowl
           - type: match_block_property
@@ -2170,6 +2250,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             id: minecraft:bowl
           - type: match_block_property
@@ -2201,6 +2283,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_block_property
             properties:
               servings: 4
@@ -2512,6 +2596,8 @@ blocks:
                                 servings: 4
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             id: minecraft:bowl
           - type: match_block_property
@@ -2542,6 +2628,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             id: minecraft:bowl
           - type: match_block_property
@@ -2572,6 +2660,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             id: minecraft:bowl
           - type: match_block_property
@@ -2602,6 +2692,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             id: minecraft:bowl
           - type: match_block_property
@@ -2633,6 +2725,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_block_property
             properties:
               servings: 4
@@ -2965,6 +3059,8 @@ blocks:
                                 servings: 4
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             id: minecraft:bowl
           - type: match_block_property
@@ -2995,6 +3091,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             id: minecraft:bowl
           - type: match_block_property
@@ -3025,6 +3123,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             id: minecraft:bowl
           - type: match_block_property
@@ -3055,6 +3155,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             id: minecraft:bowl
           - type: match_block_property
@@ -3086,6 +3188,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_block_property
             properties:
               servings: 4
@@ -3586,6 +3690,8 @@ blocks:
                                 servings: 8
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_block_property
             properties:
               servings: 0
@@ -3611,6 +3717,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_block_property
             properties:
               servings: 1
@@ -3636,6 +3744,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_block_property
             properties:
               servings: 2
@@ -3661,6 +3771,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_block_property
             properties:
               servings: 3
@@ -3686,6 +3798,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_block_property
             properties:
               servings: 4
@@ -3711,6 +3825,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_block_property
             properties:
               servings: 5
@@ -3736,6 +3852,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_block_property
             properties:
               servings: 6
@@ -3761,6 +3879,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_block_property
             properties:
               servings: 7
@@ -3786,6 +3906,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_block_property
             properties:
               servings: 8
@@ -3815,6 +3937,8 @@ blocks:
     events:
       - on: break
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_block_property
             properties:
               bites: 0
@@ -3832,6 +3956,8 @@ blocks:
                       count: 1
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             item: "farmersdelight:.*_knife"
             regex: true
@@ -3860,6 +3986,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             item: "farmersdelight:.*_knife"
             regex: true
@@ -3888,6 +4016,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             item: "farmersdelight:.*_knife"
             regex: true
@@ -3916,6 +4046,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: match_item
             item: "farmersdelight:.*_knife"
             regex: true
@@ -3945,6 +4077,8 @@ blocks:
           - type: cancel_event
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: expression  
             expression: "<arg:player.food> < 20"
           - type: inverted
@@ -3979,6 +4113,8 @@ blocks:
             particles: false
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: expression
             expression: "<arg:player.food> < 20"
           - type: inverted
@@ -4013,6 +4149,8 @@ blocks:
             particles: false
       - on: right_click
         conditions:
+          - type: test_flag
+            flag: interact
           - type: expression
             expression: "<arg:player.food> < 20"
           - type: inverted
@@ -4047,6 +4185,8 @@ blocks:
             particles: false
       - on: right_click  
         conditions:
+          - type: test_flag
+            flag: interact
           - type: expression
             expression: "<arg:player.food> < 20"
           - type: inverted

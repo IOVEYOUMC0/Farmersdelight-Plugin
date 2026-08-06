@@ -4,7 +4,15 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
-import com.huidu.farmersdelight.util.*;
+import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.SoundUtils;
+import com.huidu.farmersdelight.util.BehaviorArgParser;
+import com.huidu.farmersdelight.util.BlockPosKey;
+import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.PermissionChecker;
+import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -20,31 +28,31 @@ import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.CEWorld;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.util.Vector;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBlock, WorldlyContainerHolder {
+public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior implements EntityBlock, WorldlyContainerHolder {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
         return false;
-    }
-
-    @Override
-    public void fallOn(Object thisBlock, Object[] args) {
-    }
-
-    @Override
-    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
     }
 
     private static final Map<UUID, Map<BlockPosKey, CuttingBoardBlockEntity>> worldBlockEntities = new ConcurrentHashMap<>();
@@ -128,8 +136,6 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         return Set.of();
     }
 
-    /** Adds every proxy display id tracked cutting boards still reference, so /fd cleanup removes
-     *  only orphaned displays and leaves live cutting-board visuals alone. */
     public static void collectLiveDisplayIds(Set<Integer> out) {
         for (Map<BlockPosKey, CuttingBoardBlockEntity> worldEntities : worldBlockEntities.values()) {
             for (CuttingBoardBlockEntity entity : worldEntities.values()) {
@@ -138,19 +144,16 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         }
     }
 
-    /** Computes the chunk key from block coordinates (high 32 bits = chunkX, low 32 bits = chunkZ). */
     private static long chunkKey(int blockX, int blockZ) {
         return (((long) (blockX >> 4)) << 32) | ((blockZ >> 4) & 0xFFFFFFFFL);
     }
 
-    /** Adds a position to the chunk index. Must be called in lockstep with registrations into worldEntities. */
     private static void indexAdd(UUID worldId, BlockPosKey posKey) {
         chunkIndex.computeIfAbsent(worldId, k -> new ConcurrentHashMap<>())
                 .computeIfAbsent(chunkKey(posKey.x(), posKey.z()), k -> ConcurrentHashMap.newKeySet())
                 .add(posKey);
     }
 
-    /** Removes a position from the chunk index. Must be called in lockstep with removals from worldEntities. */
     private static void indexRemove(UUID worldId, BlockPosKey posKey) {
         Map<Long, Set<BlockPosKey>> worldChunks = chunkIndex.get(worldId);
         if (worldChunks == null) return;
@@ -162,10 +165,6 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         if (worldChunks.isEmpty()) chunkIndex.remove(worldId);
     }
 
-    /**
-     * Returns only the cutting board block entities within the given chunk, avoiding a linear scan of the whole world.
-     * The authoritative map (worldBlockEntities) is the source of truth: stale extra entries in the index are skipped if not found there.
-     */
     public static Map<BlockPosKey, CuttingBoardBlockEntity> getBlockEntitiesInChunk(World world, int chunkX, int chunkZ) {
         Map<BlockPosKey, CuttingBoardBlockEntity> result = new HashMap<>();
         if (world == null) return result;
@@ -353,11 +352,6 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         markBlockEntityDirty(world, posKey);
     }
 
-    /**
-     * Chunk-unload save: snapshots the entity into the controller (so the data survives the entity's
-     * removal at MONITOR cleanup and re-hydrates it if the chunk reloads out of CraftEngine's chunk cache),
-     * falling back to the plain save when the controller is unreachable.
-     */
     public static void passivateBlockEntityData(World world, BlockPosKey posKey) {
         if (world == null || posKey == null) return;
         CuttingBoardBlockEntity entity = getBlockEntity(world, posKey);
@@ -375,10 +369,6 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         }
     }
 
-    /**
-     * Applies any pending controller data (deferred startup load, or a passivation snapshot left by a
-     * chunk-cache reload) before callers create a blank entity that would shadow the stored item.
-     */
     public static void flushPendingControllerData(World world, BlockPosKey posKey) {
         if (world == null || posKey == null) return;
         CuttingBoardBlockBehavior behavior = getBlockBehavior(posKey.toLocation(world));
@@ -430,35 +420,32 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
                 || CustomBlockUtils.hasId(block, Constants.BLOCK_CUTTING_BOARD);
     }
 
-    public static final BlockBehaviorFactory<CuttingBoardBlockBehavior> FACTORY = new BlockBehaviorFactory<CuttingBoardBlockBehavior>() {
-        @Override
-        public CuttingBoardBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
-            Map<String, Object> arguments = section != null ? section.values() : Map.of();
-            Property<?> facingProperty = block.getProperty("facing");
+    public static final BlockBehaviorFactory<CuttingBoardBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+        Map<String, Object> arguments = section != null ? section.values() : Map.of();
+        Property<?> facingProperty = block.getProperty("facing");
 
-            List<String> toolTagStrings = getStringList(arguments, "tool-tags");
-            if (toolTagStrings.isEmpty()) {
-                toolTagStrings = List.of(Constants.TAG_KNIVES, Constants.TAG_AXES, Constants.TAG_PICKAXES, Constants.TAG_SHOVELS);
-            }
-
-            List<Key> toolTags = toolTagStrings.stream()
-                    .map(CuttingBoardBlockBehavior::normalizeTagKey)
-                    .toList();
-
-            List<String> toolItemStrings = getStringList(arguments, "tool-items");
-            if (toolItemStrings.isEmpty()) {
-                toolItemStrings = List.of(Constants.ITEM_SHEARS);
-            }
-
-            List<Key> toolItems = toolItemStrings.stream()
-                    .map(Key::of)
-                    .toList();
-
-            String knifeSound = BehaviorArgParser.getArgumentString(arguments, "knife-sound", Constants.SOUND_CUTTING_BOARD_KNIFE);
-            int maxStackAmount = BehaviorArgParser.getInt(arguments, "max-stack-amount", 64);
-            String customDataKey = BehaviorArgParser.getArgumentString(arguments, "data-key", "farmersdelight:cutting_board");
-            return new CuttingBoardBlockBehavior(block, facingProperty, toolTags, toolItems, knifeSound, maxStackAmount, customDataKey);
+        List<String> toolTagStrings = getStringList(arguments, "tool-tags");
+        if (toolTagStrings.isEmpty()) {
+            toolTagStrings = List.of(Constants.TAG_KNIVES, Constants.TAG_AXES, Constants.TAG_PICKAXES, Constants.TAG_SHOVELS);
         }
+
+        List<Key> toolTags = toolTagStrings.stream()
+                .map(CuttingBoardBlockBehavior::normalizeTagKey)
+                .toList();
+
+        List<String> toolItemStrings = getStringList(arguments, "tool-items");
+        if (toolItemStrings.isEmpty()) {
+            toolItemStrings = List.of(Constants.ITEM_SHEARS);
+        }
+
+        List<Key> toolItems = toolItemStrings.stream()
+                .map(Key::of)
+                .toList();
+
+        String knifeSound = BehaviorArgParser.getArgumentString(arguments, "knife-sound", Constants.SOUND_CUTTING_BOARD_KNIFE);
+        int maxStackAmount = BehaviorArgParser.getInt(arguments, "max-stack-amount", 64);
+        String customDataKey = BehaviorArgParser.getArgumentString(arguments, "data-key", "farmersdelight:cutting_board");
+        return new CuttingBoardBlockBehavior(block, facingProperty, toolTags, toolItems, knifeSound, maxStackAmount, customDataKey);
     };
 
     public String getKnifeSound() {
@@ -501,9 +488,8 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
             return InteractionResult.SUCCESS_AND_CANCEL;
         }
 
-        if (!bukkitPlayer.hasPermission("farmersdelight.use.cutting_board")) {
-            bukkitPlayer.sendActionBar(I18n.getComponent("general.no_permission", bukkitPlayer));
-            return InteractionResult.FAIL;
+        if (!PermissionChecker.check(bukkitPlayer, "farmersdelight.use.cutting_board")) {
+            return InteractionResult.PASS;
         }
 
         World world = bukkitPlayer.getWorld();
@@ -532,7 +518,7 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         boolean allowOffhandInteractions = FarmersDelightPlugin.getInstance().isCuttingBoardOffhandInteractionsAllowed();
         boolean stackingEnabled = FarmersDelightPlugin.getInstance().isCuttingBoardStackingEnabled();
         BlockFace facing = getFacing(state);
-        debug("useOnBlock mode=" + FarmersDelightPlugin.getInstance().getCuttingBoardInteractionMode()
+        debug("useOnBlock mode=" + FarmersDelightPlugin.getInstance().getCuttingBoardInteractionMode().configKey()
                 + ", hasItem=" + blockEntity.hasItem()
                 + ", main=" + formatItem(mainHand)
                 + ", off=" + formatItem(offHand)
@@ -698,6 +684,7 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
             try {
                 blockEntity.setStoredItem(null, world, posKey, facing);
             } catch (Throwable ignored) {
+                // display cleanup is best-effort; block removal proceeds regardless
             }
             debug("place rolled back after store failure: " + t);
             return false;
@@ -760,8 +747,8 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
                 try {
                     blockEntity.setStoredItem(stored, world, posKey, facing);
                 } catch (Throwable ignored) {
+                    // display restore is best-effort; the rollback has already restored the item stack
                 }
-                debug("stack rolled back after store failure: " + t);
                 return false;
             }
         }
@@ -939,6 +926,16 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
     public boolean isTool(ItemStack item) {
         if (item == null || item.getType().isAir()) return false;
 
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin.getCuttingBoardRecipes() != null && plugin.getCuttingBoardRecipes().isRecipeTool(item)) {
+            return true;
+        }
+
+        // Vanilla swords are not knives. They are accepted only when a recipe explicitly names one.
+        if (item.getType().name().endsWith("_SWORD")) {
+            return false;
+        }
+
         if (isKnifeTool(item) || isAxeTool(item) || isPickaxeTool(item) || isShovelTool(item) || isConfiguredToolItem(item)) {
             return true;
         }
@@ -954,6 +951,9 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
 
         String vanillaId = "minecraft:" + item.getType().name().toLowerCase(java.util.Locale.ROOT);
         for (Key toolTag : toolTags) {
+            if (!"minecraft".equals(toolTag.namespace())) {
+                continue;
+            }
             var vanillaItems = FarmersDelightPlugin.getInstance().getCraftEngine().itemManager()
                     .vanillaItemIdsByTag(toolTag);
             for (var vanillaItem : vanillaItems) {
@@ -1087,22 +1087,7 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
         }
 
         if (player.getGameMode() != GameMode.CREATIVE) {
-            if (tool.getItemMeta() instanceof Damageable damageable && !damageable.isUnbreakable()) {
-                // Use the item's effective max durability (CraftEngine custom knives carry a custom
-                // max_damage component); fall back to the vanilla material durability only when that component
-                // is missing. Skip indestructible items (maxDamage <= 0) so they aren't destroyed on the first cut.
-                int maxDamage = damageable.hasMaxDamage() ? damageable.getMaxDamage() : tool.getType().getMaxDurability();
-                if (maxDamage > 0) {
-                    int currentDamage = damageable.getDamage();
-                    if (currentDamage + 1 >= maxDamage) {
-                        tool.setAmount(0);
-                        player.playSound(location, Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
-                    } else {
-                        damageable.setDamage(currentDamage + 1);
-                        tool.setItemMeta(damageable);
-                    }
-                }
-            }
+            com.huidu.farmersdelight.tool.ToolAttackListener.consumeDurability(tool, player.getLocation());
         }
 
         if (storedItem.getAmount() > 1) {
@@ -1123,6 +1108,79 @@ public class CuttingBoardBlockBehavior extends BlockBehavior implements EntityBl
     }
 
     
+    public boolean tryDispenserCut(World world, BlockPosKey posKey, BlockFace facing, ItemStack tool) {
+        if (world == null || posKey == null || tool == null || tool.getType().isAir()) {
+            return false;
+        }
+        CuttingBoardBlockEntity blockEntity = getBlockEntity(world, posKey);
+        if (blockEntity == null) {
+            return false;
+        }
+        // Same monitor the player cut takes, so a dispenser and a player can't both grab a clone of the same
+        // stored item and each drop the recipe result.
+        synchronized (blockEntity) {
+            ItemStack storedItem = blockEntity.getStoredItem();
+            if (storedItem == null || storedItem.getType().isAir()) {
+                return false;
+            }
+            ItemStack recipeInput = storedItem.clone();
+            recipeInput.setAmount(1);
+            CuttingBoardRecipe recipe = FarmersDelightPlugin.getInstance().getCuttingBoardRecipes()
+                    .matchRecipe(recipeInput, tool);
+            if (recipe == null) {
+                return false;
+            }
+
+            // Output rolling mirrors processCuttingLocked (one roll per output unit; Fortune raises the keep
+            // chance). Kept as its own path so the dispenser cut carries none of the player-side effects
+            // (action bar, swing, advancement, profession experience) that the manual cut adds.
+            double fortuneBonus = FORTUNE_BONUS_PER_LEVEL
+                    * tool.getEnchantmentLevel(org.bukkit.enchantments.Enchantment.FORTUNE);
+            boolean hasPossibleResult = false;
+            for (CuttingBoardRecipe.ResultEntry resultEntry : recipe.getResults()) {
+                ItemStack configuredResult = resultEntry.item();
+                if (configuredResult == null || configuredResult.getType().isAir() || configuredResult.getAmount() <= 0) {
+                    continue;
+                }
+                hasPossibleResult = true;
+                int outputAmount = configuredResult.getAmount();
+                for (int roll = 0; roll < configuredResult.getAmount(); roll++) {
+                    if (ThreadLocalRandom.current().nextDouble() > resultEntry.chance() + fortuneBonus) {
+                        outputAmount--;
+                    }
+                }
+                if (outputAmount <= 0) {
+                    continue;
+                }
+                ItemStack result = configuredResult.clone();
+                result.setAmount(outputAmount);
+                spawnItemEntity(world, posKey, result, facing);
+            }
+
+            Location effectLocation = posKey.toLocation(world).add(0.5, 0.5, 0.5);
+            if (!hasPossibleResult) {
+                world.playSound(effectLocation, Sound.BLOCK_NOTE_BLOCK_BASS, 0.5f, 0.8f);
+                return true;
+            }
+
+            playCuttingFeedback(world, posKey, storedItem, recipe);
+
+            // A dispenser has no creative exemption, so its tool always takes durability, exactly like a
+            // survival player's. A broken tool is emptied; the caller then clears the dispenser slot.
+            com.huidu.farmersdelight.tool.ToolAttackListener.consumeDurability(tool, effectLocation);
+
+            if (storedItem.getAmount() > 1) {
+                storedItem.setAmount(storedItem.getAmount() - 1);
+                blockEntity.setStoredItem(storedItem, world, posKey, facing);
+                saveBlockEntityData(world, posKey);
+            } else {
+                blockEntity.clearItem();
+                removeStoredData(world, posKey);
+            }
+            return true;
+        }
+    }
+
     private void playCuttingFeedback(World world, BlockPosKey posKey, ItemStack storedItem, CuttingBoardRecipe recipe) {
         if (world == null || posKey == null) {
             return;

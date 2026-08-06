@@ -22,20 +22,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class WildRiceBlockBehavior extends BlockBehavior {
+public class WildRiceBlockBehavior extends FarmersDelightBlockBehavior {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
         return false;
     }
 
-    @Override
-    public void fallOn(Object thisBlock, Object[] args) {
-    }
-
-    @Override
-    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
-    }
     private static final Map<Key, WildRiceBlockBehavior> BEHAVIORS = new ConcurrentHashMap<>();
     private static final SoilRules FALLBACK_SOIL_RULES = new SoilRules(
             Set.of(
@@ -55,7 +48,6 @@ public class WildRiceBlockBehavior extends BlockBehavior {
             Set.of()
     );
 
-    /** Name of the block state property that carries which half of the two-block plant a state is. */
     public static final String HALF_PROPERTY = "half";
 
     // Resolved once at construction from the block definition this behavior belongs to, so the handle can
@@ -192,8 +184,6 @@ public class WildRiceBlockBehavior extends BlockBehavior {
                 && isLowerHalf(lowerState);
     }
 
-    /** The state's half value, or null when the state does not carry this behavior's half property.
-     *  Callers decide what an unreadable half means; none of them may treat it as a lower half. */
     private Object getHalf(ImmutableBlockState state) {
         if (state == null || state.isEmpty()) {
             return null;
