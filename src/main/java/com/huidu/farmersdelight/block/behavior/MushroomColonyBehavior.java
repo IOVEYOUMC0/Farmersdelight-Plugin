@@ -126,9 +126,6 @@ public class MushroomColonyBehavior extends FarmersDelightBlockBehavior implemen
         return getBehavior(state.owner().value().id());
     }
 
-    /** The state's age, or 0 when the state does not carry this behavior's age property. Reads of a
-     *  state belonging to another block definition therefore report an empty colony rather than
-     *  throwing. */
     public int getAge(ImmutableBlockState state) {
         if (state == null || state.isEmpty()) {
             return 0;
@@ -207,11 +204,6 @@ public class MushroomColonyBehavior extends FarmersDelightBlockBehavior implemen
         return InteractionResult.SUCCESS_AND_CANCEL;
     }
 
-    /**
-     * Block-crack particle burst on harvest, mirroring original MushroomColonyBlock (3 particles for a
-     * shears trim, 10 for a knife strip). The colony's own block is a CraftEngine visual proxy, so the
-     * particle texture is taken from the matching vanilla mushroom block for a mushroom-colored burst.
-     */
     private void spawnHarvestParticles(World world, Location loc, int count, double offset, double speed) {
         Material particleMaterial = config.mushroomItemId() != null && config.mushroomItemId().contains("red")
                 ? Material.RED_MUSHROOM_BLOCK : Material.BROWN_MUSHROOM_BLOCK;

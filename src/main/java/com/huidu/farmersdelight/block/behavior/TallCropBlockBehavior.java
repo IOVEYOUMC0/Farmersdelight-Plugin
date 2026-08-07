@@ -212,9 +212,6 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
         return config.maxAgeUpper();
     }
 
-    /** The state's age, or 0 when the state does not carry this behavior's age property. Reads of a
-     *  state belonging to another block definition therefore report an immature crop rather than
-     *  throwing. */
     public int getAge(ImmutableBlockState state) {
         if (state == null || state.isEmpty()) {
             return 0;
@@ -223,10 +220,6 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
         return value != null ? value : 0;
     }
 
-    /** The state's half value, or null when the state does not carry this behavior's half property.
-     *  Null matches neither half, so a state that cannot be classified takes no half-specific action;
-     *  it must never be treated as a lower half, because the lower half's removal handling deletes the
-     *  block above it. */
     public Object getHalf(ImmutableBlockState state) {
         if (state == null || state.isEmpty()) {
             return null;

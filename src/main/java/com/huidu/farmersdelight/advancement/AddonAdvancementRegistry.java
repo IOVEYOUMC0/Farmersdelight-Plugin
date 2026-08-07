@@ -9,14 +9,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Holds addon advancement-tab definitions and manages their UltimateAdvancementAPI lifecycle alongside
- * FarmersDelight's own tab. Definitions persist (so tabs survive /fd reload); actual UAA tabs are
- * (re)built only while the advancement system is ready — after CraftEngine items load and UAA is enabled.
- *
- * The FarmersDelight plugin drives this: #onSystemReady() after its own tab loads, #onSystemDown()
- * when the advancement system is disabled. Addons register through FarmersDelightAdvancements.
- */
 public final class AddonAdvancementRegistry {
 
     private final Plugin plugin;
@@ -28,7 +20,6 @@ public final class AddonAdvancementRegistry {
         this.plugin = plugin;
     }
 
-    /** Stores (or replaces) a tab's definitions and builds it immediately when the system is already up. */
     public boolean register(String tabName, List<AdvancementDef> defs) {
         if (tabName == null || defs == null || defs.isEmpty()) {
             return false;
@@ -40,7 +31,6 @@ public final class AddonAdvancementRegistry {
         return true;
     }
 
-    /** Removes a tab's definitions and disposes its UAA tab. */
     public void unregister(String tabName) {
         if (tabName == null) {
             return;
@@ -52,7 +42,6 @@ public final class AddonAdvancementRegistry {
         }
     }
 
-    /** The built tab for grant/check operations, or null when not currently loaded. */
     public AddonAdvancementTab tab(String tabName) {
         return tabName == null ? null : tabs.get(tabName);
     }
@@ -61,9 +50,6 @@ public final class AddonAdvancementRegistry {
         return ready;
     }
 
-    /** Total advancements across every currently built addon tab, for the consolidated startup summary.
-     *  Counts what is live rather than what is defined, so a tab whose build failed contributes zero and
-     *  a tab that appears or disappears moves the number the summary dedupes on. */
     public int getLoadedAdvancementCount() {
         int total = 0;
         for (AddonAdvancementTab tab : tabs.values()) {
@@ -72,7 +58,6 @@ public final class AddonAdvancementRegistry {
         return total;
     }
 
-    /** Called when FarmersDelight's advancement system becomes ready: (re)build every registered tab. */
     public void onSystemReady() {
         ready = true;
         for (String tabName : definitions.keySet()) {
@@ -91,7 +76,6 @@ public final class AddonAdvancementRegistry {
         }
     }
 
-    /** Called when the advancement system is disabled/unloaded: dispose every built tab (definitions kept). */
     public void onSystemDown() {
         ready = false;
         for (AddonAdvancementTab tab : tabs.values()) {

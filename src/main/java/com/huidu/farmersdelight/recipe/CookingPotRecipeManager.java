@@ -295,14 +295,7 @@ public class CookingPotRecipeManager {
     }
 
     private RecipeIngredient parseIngredient(String str) {
-        return RecipeParsingSupport.parseChoice(str, option -> parseSingleIngredient(option.trim()));
-    }
-
-    private RecipeIngredient parseSingleIngredient(String str) {
-        if (!str.startsWith("#")) {
-            return RecipeParsingSupport.parseSimpleItemOrTag(str);
-        }
-        return RecipeParsingSupport.parseTagIngredientWithExclusions(str, "ingredient");
+        return RecipeParsingSupport.parseIngredientChoice(str);
     }
 
     private List<String> flattenIngredientKeys(RecipeIngredient ingredient) {
@@ -562,10 +555,6 @@ public class CookingPotRecipeManager {
         return matchRecipePrefiltered(recipe, nonEmpty, exactSlots);
     }
 
-    /** Internal variant for callers that have already filtered out nulls/airs (e.g. the matchPass
-     *  loop, which only ever sees the nonEmptyInputs list built once at the top of
-     *  ItemStack, String)). Skips the per-call ArrayList allocation the
-     *  public matchRecipe does for safety. */
     private boolean matchRecipePrefiltered(CookingPotRecipe recipe, List<ItemStack> nonEmptyInputs, boolean exactSlots) {
         // Unit budget per filled slot. The exact pass mirrors the mod's CookingPotRecipe.matches, which pairs
         // filled input STACKS against ingredients (RecipeMatcher.findMatches over the stack list) and then
@@ -586,15 +575,6 @@ public class CookingPotRecipeManager {
         return recipe != null && matchesContainer(recipe, container) && matchRecipe(recipe, inputs);
     }
 
-    /**
-     * Containment test for the recipe-list "craftable only" filter: does the supplied item pool (typically the
-     * player's whole inventory plus the pot's current inputs) hold enough of every required ingredient,
-     * ignoring unrelated items? This is deliberately NOT the real cook question. The real cook feeds the pot's
-     * own &lt;=6 input slots into #matchRecipe / #canCraft, whose lenient pass rejects any
-     * filled slot the recipe cannot use; a real inventory always has such slots, so that path always answers
-     * "no". Here the unit budget stays each stack's amount so a single stack covers several units, but the
-     * slot-count and foreign-slot gates are dropped. Container presence is checked by the caller.
-     */
     public boolean containsIngredientsFor(CookingPotRecipe recipe, List<ItemStack> available) {
         if (recipe == null) {
             return false;
@@ -675,15 +655,6 @@ public class CookingPotRecipeManager {
         return Collections.unmodifiableMap(recipes);
     }
 
-    /**
-     * Every cooking-pot recipe the manager knows: the default set plus the own recipes of each custom
-     * group. Callers that must reason about all displayable recipes (recipe discovery, audits) need this
-     * because a group's recipes never appear in the default map, only in the group-merged views.
-     *
-     * A recipe id declared by several groups yields one entry per declaring group, so consumers that key
-     * by id should de-duplicate. Read-only: each volatile field is snapshotted once into a local and the
-     * published maps are never mutated in place, so the walk sees one consistent generation.
-     */
     public List<CookingPotRecipe> getAllRecipes() {
         Map<String, CookingPotRecipe> defaultRecipes = this.recipes;
         Map<String, Map<String, CookingPotRecipe>> groupedRecipes = this.customRecipes;
@@ -728,8 +699,6 @@ public class CookingPotRecipeManager {
         return externalRecipes.size();
     }
 
-    /** Total recipes across every custom pot group. A recipe id declared by several groups counts once per
-     *  declaring group, matching how the groups are stored and how many recipes were actually parsed. */
     public int getCustomRecipeCount() {
         int count = 0;
         for (Map<String, CookingPotRecipe> groupRecipes : customRecipes.values()) {
@@ -756,11 +725,6 @@ public class CookingPotRecipeManager {
         loadRecipes();
     }
 
-    /**
-     * Registers (or replaces) an addon-supplied cooking pot recipe at runtime and republishes the recipe
-     * maps. The recipe is retained across /fd reload. Ingredient specs use the same syntax as the
-     * recipe files ("ns:id", "#ns:tag", "a|b" choices); result carries its own amount.
-     */
     public void registerExternalRecipe(String id, List<String> ingredientSpecs, ItemStack container,
                                        ItemStack result, float experience, int cookTime, String category) {
         if (id == null || id.isBlank()) {
@@ -784,14 +748,12 @@ public class CookingPotRecipeManager {
         scheduleExternalRepublish();
     }
 
-    /** Removes a previously registered addon recipe and republishes. */
     public void unregisterExternalRecipe(String id) {
         if (id != null && externalRecipes.remove(id) != null) {
             scheduleExternalRepublish();
         }
     }
 
-    /** Coalesces external-recipe republishing to the next tick (one loadRecipes() per batch). */
     private void scheduleExternalRepublish() {
         if (externalRepublishScheduled) {
             return;

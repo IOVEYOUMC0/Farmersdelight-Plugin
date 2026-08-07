@@ -11,14 +11,6 @@ import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 
 import java.util.Map;
 
-/**
- * The item-vacuum half of Farmer's Delight's basket. It is composed alongside CraftEngine's
- * simple_storage_block behavior in the block definition: the storage behavior owns the container (GUI,
- * comparator, hopper I/O, drop-on-break) and the six-way facing state, while this behavior contributes a
- * second block-entity controller whose ticker pulls dropped items from the faced cell into that
- * container. Keeping the two behaviors separate leaves the storage behavior untouched and lets the
- * composite dispatch container calls to it exactly as before.
- */
 public class BasketBlockBehavior extends FarmersDelightBlockBehavior implements EntityBlock {
 
     // The reference BasketBlockEntity waits eight ticks after each successful pickup (setCooldown(8)).

@@ -24,11 +24,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 
-/**
- * A pure-GUI builder for "choice" type ingredients (a|b|c). Each filled item slot is one option. On confirm:
- * 0 options clears the ingredient, 1 option produces a plain item, 2 or more produce a choice. Layout and
- * text come from the recipe-choice-builder-gui section of gui.yml.
- */
 public final class ChoiceBuilderGui extends AbstractInventoryGui implements EditorGui {
 
     private final RecipeViewGuiConfig.BaseConfig config;

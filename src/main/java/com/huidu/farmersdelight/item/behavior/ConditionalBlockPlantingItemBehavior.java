@@ -31,29 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- * Item behavior that picks a CraftEngine block to place based on which block the player right-clicked.
- * Each rule maps a clicked block id (CE custom id or minecraft:<material>) to a CE block id;
- * on click the behavior identifies the clicked block, looks it up in the rules, and places the mapped
- * CE block at the slot adjacent to the clicked face. When no rule matches it returns
- * InteractionResult#PASS, leaving the next behavior — or the unmodified vanilla item logic —
- * to handle the click. So a wheat-seed-style click on plain farmland falls through to vanilla wheat,
- * while a click on a configured custom soil places the configured CE crop instead.
- *
- * YAML:
- * <pre>
- * items:
- *   minecraft:wheat_seeds:
- *     behavior:
- *       type: farmersdelight:conditional_block_planting
- *       rules:
- *         - target: farmersdelight:rich_soil_farmland
- *           block:  farmersdelight:rich_wheat
- * }</pre>
- *
- * Both target and block are namespaced ids. Vanilla blocks are matched as
- * minecraft:<material_name_lowercase>.
- */
 public final class ConditionalBlockPlantingItemBehavior extends ItemBehavior {
 
     public static final ItemBehaviorFactory<ConditionalBlockPlantingItemBehavior> FACTORY = new Factory();
@@ -124,7 +101,6 @@ public final class ConditionalBlockPlantingItemBehavior extends ItemBehavior {
         return InteractionResult.SUCCESS;
     }
 
-    /** CE custom id if the block is a CraftEngine block, else minecraft:<material>. */
     private static Key identifyBlock(Block block) {
         String customId = CustomBlockUtils.getId(block);
         if (customId != null) {

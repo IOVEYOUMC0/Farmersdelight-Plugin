@@ -48,7 +48,6 @@ public class WildRiceBlockBehavior extends FarmersDelightBlockBehavior {
             Set.of()
     );
 
-    /** Name of the block state property that carries which half of the two-block plant a state is. */
     public static final String HALF_PROPERTY = "half";
 
     // Resolved once at construction from the block definition this behavior belongs to, so the handle can
@@ -185,8 +184,6 @@ public class WildRiceBlockBehavior extends FarmersDelightBlockBehavior {
                 && isLowerHalf(lowerState);
     }
 
-    /** The state's half value, or null when the state does not carry this behavior's half property.
-     *  Callers decide what an unreadable half means; none of them may treat it as a lower half. */
     private Object getHalf(ImmutableBlockState state) {
         if (state == null || state.isEmpty()) {
             return null;

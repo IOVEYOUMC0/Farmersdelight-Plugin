@@ -52,7 +52,7 @@ dependencies {
 
 configurations.all {
     resolutionStrategy {
-        // 强制升级传递依赖中的已知漏洞版本（仅编译期，不打包进插件）
+        // Force patched transitive dependency versions for compilation only; they are not bundled.
         force("org.codehaus.plexus:plexus-utils:4.0.3")
         force("org.apache.commons:commons-lang3:3.18.0")
     }

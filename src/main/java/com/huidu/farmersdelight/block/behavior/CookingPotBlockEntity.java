@@ -107,9 +107,6 @@ public class CookingPotBlockEntity {
         return inventoryLock;
     }
 
-    /** Runs action while holding the inventory lock, so a caller can make a compound read-modify-write
-     * (e.g. the GUI's authoritative-state refresh then write-back) atomic against the cook tick, which consumes
-     * ingredients under this same lock. Re-entrant: the block entity's own locked accessors nest safely. */
     public void withInventoryLock(Runnable action) {
         synchronized (inventoryLock) {
             action.run();
@@ -141,7 +138,7 @@ public class CookingPotBlockEntity {
             ItemStack[] oldInventory = this.inventory;
             this.layout = newLayout;
             this.inventory = Arrays.copyOf(oldInventory, newLayout.size());
-            // 替换整个数组视为库存变更；递增版本号使 GUI 重新扫描。
+            // Replacing the entire array is an inventory mutation; bump the version so GUIs rescan it.
             inventoryVersion++;
         }
     }
@@ -213,10 +210,6 @@ public class CookingPotBlockEntity {
         }
     }
 
-    /** Comparator strength for this pot, reproducing the mod's MathUtils.calcRedstoneFromItemHandler over the
-     * full inventory: the per-slot fill fractions are averaged across all slots (inputs, meal, container and
-     * output alike), scaled to 14, floored, and lifted by 1 whenever any slot holds something. An empty pot
-     * reads 0; a pot with a single item in one slot reads 1. */
     public int getComparatorOutput() {
         int occupied = 0;
         float fill = 0.0f;
@@ -322,9 +315,6 @@ public class CookingPotBlockEntity {
         }
     }
 
-    /** Headline meal item for the broken-pot lore + fill bar: prefer the pending-output slot
-     *  (the just-cooked meal still inside the pot), fall back to output when pending is empty.
-     *  Differs from #getMealDisplayItem(), which only ever reads the output slot. */
     public ItemStack getPackedMealDisplayItem() {
         synchronized (inventoryLock) {
             ItemStack pending = getFirstItem(layout.pendingOutputSlots());
@@ -332,7 +322,6 @@ public class CookingPotBlockEntity {
         }
     }
 
-    /** Only checks whether the output slots hold a result, without cloning items (for high-frequency queries like comparator signals). */
     public boolean hasMealDisplayItem() {
         synchronized (inventoryLock) {
             return hasAnyItem(layout.outputSlots());
@@ -370,7 +359,6 @@ public class CookingPotBlockEntity {
         return false;
     }
 
-    /** Counts filled input slots without copying the inventory (for redstone comparator signals). */
     public int countFilledInputSlots() {
         int count = 0;
         synchronized (inventoryLock) {
@@ -546,13 +534,6 @@ public class CookingPotBlockEntity {
         return result;
     }
 
-    /**
-     * Raises FarmersDelightCookStartEvent once for a recipe match that was recorded while the locks
-     * were held. Both entry points that can record one (canCook and finishCooking) call this after
-     * releasing every monitor, so third-party listener code never runs under this block entity's lock.
-     * The pending slot is cleared by the poll, so a recipe is announced exactly once even if both
-     * paths run in the same tick.
-     */
     private void firePendingCookStart() {
         CookingPotRecipe started = pendingCookStart.getAndSet(null);
         if (started == null || !FarmersDelightPlugin.isEnabled0()) {
@@ -578,7 +559,6 @@ public class CookingPotBlockEntity {
         return result;
     }
 
-    /** The body of finishCooking. Callers must hold inventoryLock then cookingLock, in that order. */
     private boolean finishCookingLocked(World world, Location blockLoc) {
         CookingPotRecipe recipe = currentRecipe.get();
         if (recipe == null) {
@@ -674,13 +654,6 @@ public class CookingPotBlockEntity {
         }
     }
 
-    /**
-     * True when the finished result would actually fit somewhere. Mirrors the routing storeCookedResult uses,
-     * without mutating anything. The original mod gates cooking on the same condition, so a pot whose meal slot
-     * is full stops cooking instead of running the timer out and failing to store: without this the pot keeps
-     * re-completing, and the player sees one more portion produced than the slot can hold.
-     * Callers must hold inventoryLock.
-     */
     private boolean hasRoomForResult(CookingPotRecipe recipe) {
         ItemStack result = recipe.getResult();
         if (result == null || result.getType().isAir()) {
@@ -759,9 +732,6 @@ public class CookingPotBlockEntity {
         }
     }
 
-    /** Picks a slot index to charge one consumption unit of ingredient. When preferFresh is
-     * true, skips slots already used in this cook cycle so 2× same-ingredient recipes naturally pull one
-     * from each matching slot. Returns -1 when no slot is eligible (caller falls back to a non-fresh pass). */
     private int pickConsumptionSlot(int[] slots, int[] consume, RecipeIngredient ingredient, boolean preferFresh) {
         for (int idx = 0; idx < slots.length; idx++) {
             if (preferFresh && consume[idx] > 0) continue;
@@ -774,10 +744,6 @@ public class CookingPotBlockEntity {
         return -1;
     }
 
-    /** Pops empty-container remainders (buckets, bottles) out the pot's LEFT side — counter-clockwise of its
-     * facing — with a small horizontal push + upward hop. Freeing the input slot is the point: keeping
-     * remainders in the slot clogs hopper-fed pots. Falls back to dropping at pot center when facing can't
-     * be read (block already gone). */
     private void ejectRemainders(World world, Location blockLoc, List<ItemStack> remainders) {
         BlockFace facing = CustomBlockUtils.getFacing(blockLoc.getBlock());
         BlockFace eject = counterClockwise(facing);
@@ -798,9 +764,6 @@ public class CookingPotBlockEntity {
         }
     }
 
-    /** Bukkit has no built-in BlockFace.counterClockWise(); this returns the horizontal CCW
-     * neighbor, matching Forge's Direction.getCounterClockWise() for N/S/E/W. Null for any
-     * non-horizontal or unknown facing — caller falls back to the centered drop. */
     private static BlockFace counterClockwise(BlockFace facing) {
         if (facing == null) return null;
         return switch (facing) {
@@ -1126,11 +1089,6 @@ public class CookingPotBlockEntity {
         return getAvailableSpace(layout.outputSlots(), item);
     }
 
-    /** True if provided is the container required demands (custom-id match, else
-     *  isSimilar). Unlike #isContainerValid this validates against the passed argument, not
-     *  the mealContainerStack field — needed for the direct-store path where the field is still null
-     *  (a null field made isContainerValid accept ANY item, so a wrong container in a C-slot was
-     *  counted and consumed). required null/air = no requirement (matches anything). */
     private boolean isSameContainer(ItemStack required, ItemStack provided) {
         if (required == null || required.getType().isAir()) return true;
         if (provided == null || provided.getType().isAir()) return false;
@@ -1204,13 +1162,6 @@ public class CookingPotBlockEntity {
         return space;
     }
 
-    /**
-     * Per-slot stack limit, mirroring the original mod's meal-display override: the pending-output
-     * slot (the in-pot meal) holds at least 64 regardless of the item's own max stack size — bowl
-     * foods stack to 16 elsewhere but the pot accumulates 64 servings before cooking stops. Every
-     * other slot uses the item's real limit. The pending slot is display-only in the GUI (clicks are
-     * cancelled) and unreachable by hoppers, so the oversized stack never enters player inventories.
-     */
     private int slotStackLimit(int slot, ItemStack item) {
         int itemMax = Math.max(1, item.getMaxStackSize());
         return layout.isPendingOutputSlot(slot) ? Math.max(64, itemMax) : itemMax;

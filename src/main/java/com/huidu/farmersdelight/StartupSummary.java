@@ -7,18 +7,6 @@ import com.huidu.farmersdelight.loot.KnifeDropHandler;
 import com.huidu.farmersdelight.recipe.CookingPotRecipeManager;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipeManager;
 
-/**
- * Collects the per-subsystem content counts into the single console line a healthy boot prints instead of
- * one line per subsystem. Counts are pulled from the managers at report time rather than pushed by them,
- * so no subsystem has to know a summary exists and no state is threaded through unrelated classes.
- *
- * Reporting is driven from the point where the last count becomes final: the tail of the CraftEngine
- * readiness pass (recipes, advancements and the item warmup all complete there). The same call also runs
- * at the end of onEnable for the case where CraftEngine is already up, so exactly one of the two wins.
- * A later pass whose counts are unchanged is demoted to the startup detail channel; a pass that genuinely
- * changes a count (an addon registering recipes, a reload picking up edited files) reports again at INFO
- * because the new totals are news.
- */
 final class StartupSummary {
 
     private final FarmersDelightPlugin plugin;

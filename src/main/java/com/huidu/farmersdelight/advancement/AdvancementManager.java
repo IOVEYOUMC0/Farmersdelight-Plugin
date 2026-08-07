@@ -27,11 +27,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * UltimateAdvancementAPI-based advancement backend: a single farmersdelight advancement tab built in code.
- * #award/#awardCriteria/#revoke/#hasAdvancement are the public entry points called by
- * event listeners. Titles/descriptions are localized per-client via LocalizedAdvancementDisplay.
- */
 public class AdvancementManager {
 
     private static final String TAB = "farmersdelight";
@@ -40,12 +35,10 @@ public class AdvancementManager {
     private static final String KEY_PREFIX = "farmersdelight.advancement.";
     private static final String ITEM_PREFIX = "farmersdelight:";
 
-    /** Subtasks of plant_all_crops (criterion names emitted by the planting listener). */
     private static final List<String> CROPS = List.of(
             "wheat", "beetroot", "carrot", "potato", "cabbage", "tomato", "onion", "rice", "melon",
             "pumpkin", "sweet_berries", "sugar_cane", "kelp", "cocoa", "nether_wart", "chorus_flower",
             "brown_mushroom", "red_mushroom", "glow_berries");
-    /** Subtasks of master_chef (eaten FD dish ids, without the farmersdelight: prefix). */
     private static final List<String> DISHES = List.of(
             "mixed_salad", "cooked_rice", "bone_broth", "beef_stew", "vegetable_soup", "fish_stew",
             "chicken_soup", "fried_rice", "pumpkin_soup", "baked_cod_stew", "noodle_soup", "onion_soup",
@@ -54,24 +47,13 @@ public class AdvancementManager {
             "squid_ink_pasta", "grilled_salmon", "roast_chicken", "stuffed_pumpkin", "honey_glazed_ham",
             "shepherds_pie", "gleaming_salad");
 
-    /**
-     * Which CraftEngine content each plant_all_crops subtask needs. Only the FarmersDelight crops appear here:
-     * the vanilla ones (wheat, beetroot, carrot, potato, melon, ...) are awarded from BlockPlaceListener's
-     * vanilla Material map and can never be deleted, so they are always kept.
-     */
     private static final Map<String, ContentRequirement> CROP_REQUIREMENTS = Map.of(
             "cabbage", ContentRequirement.anyBlock(Constants.BLOCK_CABBAGES),
             "tomato", ContentRequirement.anyBlock(Constants.BLOCK_BUDDING_TOMATOES, Constants.BLOCK_TOMATOES),
             "onion", ContentRequirement.anyBlock(Constants.BLOCK_ONIONS),
             "rice", ContentRequirement.anyBlock(Constants.BLOCK_RICE));
-    /** Each master_chef subtask is completed by eating the identically named FarmersDelight item. */
     private static final Map<String, ContentRequirement> DISH_REQUIREMENTS = dishRequirements();
 
-    /**
-     * The built-in tab as plain data. Requirements are read off the code that awards each advancement, never off
-     * its icon: an advancement keeps a requirement only when its one trigger is a specific CraftEngine id.
-     * Behavior-keyed, block-tag-keyed, plugin-config-keyed and vanilla-keyed triggers stay ALWAYS.
-     */
     private static final List<NodeSpec> NODES = List.of(
             // Awarded on join, unconditionally.
             node(ROOT_ID, null, "farmersdelight:cooking_pot", Material.BRICKS, AdvancementFrameType.TASK, 0, 0),
@@ -147,8 +129,6 @@ public class AdvancementManager {
         this.plugin = plugin;
     }
 
-    /** Number of advancements in the built tab, for the consolidated startup summary. Zero when a build
-     *  failure discarded the tab. */
     public int getLoadedCount() {
         return byId.size();
     }
@@ -182,14 +162,6 @@ public class AdvancementManager {
         }
     }
 
-    /**
-     * Builds the tab from NODES, leaving out the advancements whose CraftEngine content the server owner has
-     * deleted and re-hanging their children on the nearest surviving ancestor. All presence checks happen here,
-     * on the load/reload path, which is the only point at which CraftEngine's registries are known to be up.
-     *
-     * The gated structure is validated as plain ids before a single advancement object is constructed; anything
-     * short of a fully connected tree falls back to the complete, ungated tab.
-     */
     private void buildTree() {
         AdvancementGate gate = AdvancementGate.fromConfig(plugin, TAB);
 
@@ -251,7 +223,6 @@ public class AdvancementManager {
         gatedOff = AdvancementGate.logChanges(TAB, gatedOff, currentGatedOff);
     }
 
-    /** True when every kept advancement's resolved parent is declared before it, so it is built when needed. */
     private static boolean isBuildableInOrder(List<String> order, Set<String> kept, Map<String, String> parents) {
         Set<String> seen = new HashSet<>();
         for (String id : order) {
@@ -283,7 +254,6 @@ public class AdvancementManager {
         return prefixed;
     }
 
-    /** Builds the CraftEngine item for ceId; uses the vanilla fallback if it can't be resolved. */
     private static ItemStack icon(String ceId, Material fallback) {
         ItemStack item = ceId == null ? null : ItemUtils.createItem(ceId);
         return item != null && !item.getType().isAir() ? item : new ItemStack(fallback);
@@ -300,10 +270,6 @@ public class AdvancementManager {
                 frame, showToast, announceChat, x, y);
     }
 
-    /**
-     * Builds a multi-task advancement, dropping the subtasks whose CraftEngine content is gone so one deleted
-     * item cannot leave the parent permanently one subtask short. A null gate keeps every subtask.
-     */
     private MultiTasksAdvancement multi(NodeSpec spec, ItemStack icon, Advancement parent, AdvancementGate gate) {
         String key = spec.id();
         List<String> criteria = gate == null
@@ -331,10 +297,6 @@ public class AdvancementManager {
         };
     }
 
-    /**
-     * One advancement of the built-in tab as plain data: how it is drawn, where it hangs, its multi-task
-     * subtasks (empty for a plain advancement) and the CraftEngine content its trigger needs.
-     */
     private record NodeSpec(String id, String parentId, String iconId, Material iconFallback,
                             AdvancementFrameType frame, float x, float y,
                             List<String> criteria, ContentRequirement requirement) {
@@ -362,9 +324,6 @@ public class AdvancementManager {
         }
     }
 
-    /** Re-grant the root and re-show the tab to every online player after a rebuild. reload() = dispose() +
-     *  load() recreates the UAA tab, which drops it from online clients; without this, players already online
-     *  lose the tab until they rejoin or earn something. Mirrors AchievementListener.onPlayerJoin. */
     public void resyncOnlinePlayers() {
         if (tab == null || !tab.isInitialised()) {
             return;
@@ -416,7 +375,6 @@ public class AdvancementManager {
         rootAwarded.add(player.getUniqueId());
     }
 
-    /** Clears a player's cached root-advancement grant state (called on quit) to keep the set bounded. */
     public void forgetPlayer(UUID playerId) {
         if (playerId != null) {
             rootAwarded.remove(playerId);

@@ -8,45 +8,17 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.ApiStatus;
 
-/**
- * Per-player buff bossbar display API. Addons (or FD itself) push the live state of an active buff
- * — title, progress 0..1, color, overlay — keyed by a stable NamespacedKey. FD renders all
- * pushed buffs on the admin-configured display channels (boss bar / action bar / tab footer) and
- * boss-bar layout; the addon doesn't choose the channel or layout, the server admin does.
- *
- * Idempotent: calling #update repeatedly for the same (player, key) mutates the
- * existing bossbar; pass a fresh title/progress to refresh. Call #hide when the buff ends.
- * Player quit and FD disable both flush all bars; addons don't have to clean up on quit.
- *
- * Channels, layout and the display toggle live in FD's config.yml under buff.display; the whole buff
- * system also has a master switch at buff.enabled, and either one being off makes every call here a no-op.
- * Per-buff enabled flags (e.g. "hide tipsy bar but show raging") are the addon's concern, not FD's.
- */
 @ApiStatus.NonExtendable
 public final class BuffBossbar {
 
     private BuffBossbar() {
     }
 
-    /** False when FD config has buff.enabled: false or buff.display.enabled: false, or the manager is not
-     *  yet initialised. Cheap guard for addons to skip update calls entirely when disabled. */
     public static boolean isEnabled() {
         BuffBossbarManager manager = manager();
         return manager != null && manager.isEnabled();
     }
 
-    /**
-     * Create or update the bar for (player, key). No-op when the master toggle is off or the
-     * player is offline. Progress is clamped to [0,1].
-     *
-     * owner the addon plugin pushing the update (logged on errors; future per-plugin features)
-     * player the player whose bar to update
-     * key a stable identifier; same key across calls updates the same bar
-     * title the bar's display name (use Component#translatable so each viewer's client renders in its own locale)
-     * progress 0..1; clamped automatically
-     * color BossBar.Color (PINK, BLUE, RED, GREEN, YELLOW, PURPLE, WHITE)
-     * overlay BossBar.Overlay (PROGRESS, NOTCHED_6, NOTCHED_10, NOTCHED_12, NOTCHED_20)
-     */
     public static void update(Plugin owner, Player player, NamespacedKey key,
                               Component title, float progress,
                               BossBar.Color color, BossBar.Overlay overlay) {
@@ -56,8 +28,6 @@ public final class BuffBossbar {
         }
     }
 
-    /** Remove the bar identified by key from player. Safe to call on a key that
-     *  isn't currently shown. */
     public static void hide(Plugin owner, Player player, NamespacedKey key) {
         BuffBossbarManager manager = manager();
         if (manager != null) {
@@ -65,8 +35,6 @@ public final class BuffBossbar {
         }
     }
 
-    /** Remove ALL bars an addon registered for player. Call this when the addon stops
-     *  caring about the player's state (rarely needed — quit + plugin disable flush automatically). */
     public static void hideAll(Plugin owner, Player player) {
         BuffBossbarManager manager = manager();
         if (manager != null) {
@@ -80,10 +48,6 @@ public final class BuffBossbar {
         return BuffBossbarManager.active();
     }
 
-    /** Parse a YAML-friendly color name (case-insensitive, hyphens/underscores OK) to a
-     *  BossBar.Color. Returns fallback when raw is null/blank/unknown — lets
-     *  config loaders accept any of pink / blue / red / green / yellow / purple / white
-     *  without crashing on typos. */
     public static BossBar.Color parseColor(String raw, BossBar.Color fallback) {
         if (raw == null) return fallback;
         String norm = raw.trim().toUpperCase(java.util.Locale.ROOT).replace('-', '_');
@@ -95,9 +59,6 @@ public final class BuffBossbar {
         }
     }
 
-    /** Parse a YAML-friendly overlay name (case-insensitive, hyphens/underscores OK) to a
-     *  BossBar.Overlay. Returns fallback on unknown — accepts
-     *  progress / notched_6 / notched_10 / notched_12 / notched_20. */
     public static BossBar.Overlay parseOverlay(String raw, BossBar.Overlay fallback) {
         if (raw == null) return fallback;
         String norm = raw.trim().toUpperCase(java.util.Locale.ROOT).replace('-', '_');

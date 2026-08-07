@@ -333,8 +333,6 @@ public class StoveManager {
         return created;
     }
 
-    /** Adds every proxy display id this manager's tracked stoves still reference, so /fd cleanup
-     *  can tell a live stove visual from an orphan and leave the live ones alone. */
     public void collectLiveDisplayIds(java.util.Set<Integer> out) {
         for (StoveData stove : stoves.values()) {
             for (int id : stove.displayEntities) {
@@ -432,9 +430,6 @@ public class StoveManager {
         breakStove(blockLocation, dropLocation, true);
     }
 
-    /** Applies parked controller data (a chunk-cache passivation snapshot, or a deferred load) back into the
-     *  manager entry, so a caller that reads the entry right after — a break that drops the grilling food —
-     *  sees it instead of a blank entry whose state still sits in the controller's pendingSaveData. */
     private void flushControllerPendingData(Location location) {
         if (location == null || location.getWorld() == null) return;
         CustomBlockUtils.notifyControllerChanged(location.getWorld(), new BlockPosKey(location),
@@ -569,7 +564,6 @@ public class StoveManager {
         }
     }
 
-    /** Stashes the stove's exported state into its CE controller; false when the controller is unreachable. */
     private boolean passivateToController(World world, Location location) {
         boolean[] stashed = {false};
         CustomBlockUtils.notifyControllerChanged(world, new BlockPosKey(location),
@@ -582,7 +576,6 @@ public class StoveManager {
         return loadStove(world, new BlockPosKey(pos), data);
     }
 
-    /** Returns whether the saved data was consumed; false keeps it parked on the controller for a retry. */
     public boolean loadStove(World world, BlockPosKey posKey, Map<String, Object> data) {
         if (world == null || posKey == null || data == null) return true;
 
@@ -636,13 +629,6 @@ public class StoveManager {
         return true;
     }
 
-    /**
-     * Read-only snapshot of the tracked stove at location for the api station-query facade, or null
-     * when nothing is tracked there. Taken under the StoveData monitor so a concurrent interact cannot
-     * split a slot's item from its progress counters. The lit flag is read from the live custom block
-     * state and the blocked-above flag from the cached probe, so this must be called on the region
-     * thread owning location.
-     */
     public com.huidu.farmersdelight.api.block.StoveSnapshot snapshot(Location location) {
         Location normalized = ManagerSupport.normalize(location);
         if (normalized == null) {
@@ -828,14 +814,6 @@ public class StoveManager {
         return false;
     }
 
-    /**
-     * Burn poll — runs every #BURN_PERIOD_TICKS ticks for the manager's whole lifetime, NOT
-     * gated on the cooking tracker. Stoves are placed lit by default but only enter the cooking tick
-     * once they hold food (or load with saved data), so an empty lit stove was never ticked and never
-     * burned anyone — the bug this replaces. Mirrors the vanilla block-level stepOn/entityInside burn:
-     * any living entity standing on the grilling surface of a lit stove takes fire damage, whether the
-     * stove is tracked or not. The loaded-stove chunk index makes a server with no stoves a constant-time no-op.
-     */
     private void burnTick() {
         if (burnStovesByChunk.isEmpty()) return;
         Collection<? extends Player> players = Bukkit.getOnlinePlayers();
@@ -916,10 +894,6 @@ public class StoveManager {
         return false;
     }
 
-    /** Damages entity if it stands on the grilling surface of a lit stove. Sneaking players and
-     * creative/spectator are exempt (vanilla isSteppingCarefully + inherent creative immunity).
-     * Damage amount / whether burning is enabled come from the stove's behavior config. The per-entity
-     * invulnerability cooldown rate-limits the actual hit, so polling every few ticks yields ~2 dmg/sec. */
     @SuppressWarnings("UnstableApiUsage")
     private void tryBurnEntityOnStove(LivingEntity entity) {
         Location loc = entity.getLocation();
@@ -954,9 +928,6 @@ public class StoveManager {
         entity.damage(amount, DamageSource.builder(stoveBurnDamageType()).build());
     }
 
-    /** The custom farmersdelight:stove_burn damage type (from FD's datapack — gives the stove-specific
-     * death message + mob panic + fire/no-knockback tags), resolved once and cached; falls back to
-     * DamageType#HOT_FLOOR when the datapack isn't loaded so the burn always deals damage. */
     // Registry.DAMAGE_TYPE is deprecated (since 1.20.6) but not for removal, so it stays stable. The suggested
     // replacement goes through the ApiStatus.Experimental RegistryKey API; using the deprecated-but-stable
     // accessor (already wrapped in try/catch with a HOT_FLOOR fallback) is the more version-robust choice.
@@ -1205,11 +1176,6 @@ public class StoveManager {
         }
     }
 
-    /**
-     * Reads the lit flag off the stove's own behavior, which resolved the fire property when its block
-     * definition loaded. A state with no stove behavior reads as not lit: an unknown stove must not cook
-     * and must not burn whoever stands on it.
-     */
     private boolean isStoveLit(ImmutableBlockState state) {
         StoveCookingBlockBehavior behavior = CustomBlockUtils.getBehavior(state, StoveCookingBlockBehavior.class);
         return behavior != null && behavior.isLit(state);

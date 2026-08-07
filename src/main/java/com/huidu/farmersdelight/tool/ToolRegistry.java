@@ -21,9 +21,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Registers the farmersdelight:tool CE ItemSettings modifier and caches per-item config.
- */
 public final class ToolRegistry {
 
     static final CustomItemSettingType<ToolData> KEY = CustomItemSettingType.newType(
@@ -42,7 +39,7 @@ public final class ToolRegistry {
         registered = true;
 
         ItemSettingsModifierType<ItemSettingsModifier> type = new ItemSettingsModifierType<>(
-                Key.of("farmersdelight", "tool"),
+                Key.of("farmersdelight", "sword"),
                 (ItemSettingsModifierFactory<ItemSettingsModifier>) (ConfigValue value) ->
                         (ItemSettingsModifier) settings -> {
                             ToolData data = ToolData.fromConfig(value.getAsSection());

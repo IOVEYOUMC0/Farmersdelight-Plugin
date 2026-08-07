@@ -20,7 +20,6 @@ import static com.huidu.farmersdelight.command.CommandSupport.onlinePlayerNames;
 import static com.huidu.farmersdelight.command.CommandSupport.parsePositiveInt;
 import static com.huidu.farmersdelight.command.CommandSupport.prefixFilter;
 
-/** /fd buff — grants and clears registered custom buffs. Hidden entirely when the buff system is off. */
 final class BuffSubCommand extends SubCommand {
 
     BuffSubCommand(FarmersDelightPlugin plugin) {
@@ -114,8 +113,6 @@ final class BuffSubCommand extends SubCommand {
         }
     }
 
-    /** Resolves a buff token to a registered buff: exact namespaced id first, then the short suffix
-     *  (e.g. comfort → farmersdelight:comfort, tipsy → brewinandchewin:tipsy). */
     private CustomBuff resolveBuff(String token) {
         if (token == null) {
             return null;
@@ -133,8 +130,6 @@ final class BuffSubCommand extends SubCommand {
         return null;
     }
 
-    /** Target = the named online player when given, else the sender when it's a player. Sends the right
-     *  error (offline / player-only) and returns null when unresolved. */
     private Player resolveTarget(CommandSender sender, String[] args, int index) {
         if (args.length > index) {
             Player player = Bukkit.getPlayerExact(args[index]);

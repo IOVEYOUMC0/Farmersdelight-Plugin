@@ -195,7 +195,7 @@ items:
         - <!i><dark_green>  0.9 <lang:attribute.name.attack_speed></dark_green>
         - <!i><blue>  +1 <lang:attribute.name.attack_knockback></blue>
     settings:
-      farmersdelight:tool:
+      farmersdelight:sword:
         max-durability: 250
         enchantability: 14
         attack-sound: farmersdelight:item.skillet.attack.strong

@@ -12,8 +12,6 @@ import java.util.Map;
 
 public final class WorldGuardCompat {
     private static final String WORLD_GUARD_PLUGIN = "WorldGuard";
-    /** Master gate. /rg flag <region> farmersdelight-use deny blocks ALL FarmersDelight custom
-     *  interactions in a region regardless of the per-feature flags below. Default ALLOW = no change. */
     private static final String MASTER_FLAG_NAME = "farmersdelight-use";
 
     // Per-station protection features live on the ProtectionCompat facade; this class maps each to its
@@ -36,13 +34,6 @@ public final class WorldGuardCompat {
     private WorldGuardCompat() {
     }
 
-    /**
-     * Register FarmersDelight's custom region flags with WorldGuard (master + one per ProtectionCompat.Feature).
-     * MUST be called during the plugin load phase (onLoad) -- WorldGuard locks its FlagRegistry the
-     * moment it enables, so a late registration throws. No-op when WorldGuard is not installed. If
-     * another plugin already registered a flag by the same name, the existing StateFlag is reused (WG
-     * persists flag values on regions even across restarts, so reusing keeps admin settings intact).
-     */
     public static void registerFlags() {
         try {
             if (Bukkit.getPluginManager().getPlugin(WORLD_GUARD_PLUGIN) == null) {
@@ -72,8 +63,6 @@ public final class WorldGuardCompat {
         }
     }
 
-    /** Register one StateFlag by name; on FlagConflictException reuse the existing StateFlag. Returns
-     *  the flag instance, or null if it could not be created/reused. */
     private static Object registerStateFlag(Object registry, Class<?> stateFlagClass, Method register,
                                             Method get, String name) {
         try {
@@ -115,8 +104,6 @@ public final class WorldGuardCompat {
         }
     }
 
-    /** Custom flag gate: master flag AND (if a feature is given) the feature's own flag. Each is ALLOW
-     *  when unregistered / WG absent / unset, so a fresh server with no flags set sees no change. */
     private static boolean customAllows(Player player, Location location, ProtectionCompat.Feature feature) {
         Object master = masterFlag;
         if (master != null && !testFlagState(player, location, master)) {
@@ -129,8 +116,6 @@ public final class WorldGuardCompat {
         return flag == null || testFlagState(player, location, flag);
     }
 
-    /** Query one WorldGuard StateFlag at a location for a player. Returns true (allow) on any failure,
-     *  when WG is absent, or when the flag is null -- protection never fails closed on our account. */
     private static boolean testFlagState(Player player, Location location, Object flag) {
         if (player == null || location == null || location.getWorld() == null || flag == null || !isAvailable()) {
             return true;

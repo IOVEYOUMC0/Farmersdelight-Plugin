@@ -10,18 +10,6 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- * Ingredient remainder overrides for the cooking pot.
- *
- * Some ingredients carry a container that vanilla does not report as a crafting remainder: a bucket of fish is
- * not craftable, so the item has no remainder, yet consuming it in a pot should still hand the bucket back.
- * The mod keeps a fixed table for these; this mirrors it and lets servers extend or clear entries from
- * config.yml under cooking-pot.ingredient-remainders (or the top-level ingredient-remainders alias), in the
- * same key/value shape as container-returns.
- *
- * Lookup order in the pot matches the mod: a real crafting remainder wins, and this table only fills the gap
- * for items that have none.
- */
 public final class CookingPotIngredientRemainders {
 
     private static final Map<String, String> DEFAULTS = Map.ofEntries(
@@ -41,9 +29,6 @@ public final class CookingPotIngredientRemainders {
             Map.entry("minecraft:experience_bottle", "minecraft:glass_bottle")
     );
 
-    /** Built table plus the FileConfiguration instance it was built from. JavaPlugin.reloadConfig replaces that
-     *  instance, so an identity mismatch is a reliable, allocation-free "config changed" signal without this
-     *  class having to be registered on the plugin's reload path. */
     private record Snapshot(FileConfiguration source, Map<String, ItemStack> table) {
     }
 
@@ -53,10 +38,6 @@ public final class CookingPotIngredientRemainders {
     private CookingPotIngredientRemainders() {
     }
 
-    /**
-     * Returns the override remainder for the given item, or null when the item has no override. The returned
-     * stack is a fresh copy the caller owns.
-     */
     public static ItemStack getRemainder(ItemStack item, int amount) {
         String itemId = ItemUtils.getVanillaMaterialItemId(item);
         if (itemId == null) {

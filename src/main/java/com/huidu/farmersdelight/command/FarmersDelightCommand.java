@@ -18,11 +18,6 @@ import static com.huidu.farmersdelight.command.CommandSupport.MINI;
 import static com.huidu.farmersdelight.command.CommandSupport.normalize;
 import static com.huidu.farmersdelight.command.CommandSupport.sendNoPermission;
 
-/**
- * The /fd command. This class only dispatches: it resolves the first argument to a registered
- * SubCommand (by name or alias), applies the shared permission/availability gate, and hands off to
- * the subcommand. Each subcommand carries its own logic in its own class.
- */
 public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
 
     private final Map<String, SubCommand> commands = new LinkedHashMap<>();

@@ -132,7 +132,6 @@ public class HorseFeedTemptListener implements Listener {
         }
     }
 
-    /** Number of pet foods with tempt enabled, for the combined startup summary. */
     public int getTemptFoodCount() {
         return temptFoods.size();
     }

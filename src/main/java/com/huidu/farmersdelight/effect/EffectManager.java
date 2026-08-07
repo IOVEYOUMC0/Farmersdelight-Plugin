@@ -20,9 +20,6 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Stores and updates custom food effect state for online players.
- */
 public final class EffectManager {
 
     private static final int DEFAULT_COMFORT_HEAL_INTERVAL_TICKS = 80;
@@ -30,7 +27,6 @@ public final class EffectManager {
 
     // Internal types
 
-    /** Metadata + runtime-stylable properties for Comfort and Nourishment buffs. */
     private enum BuffKind {
         COMFORT(
             "farmersdelight:comfort_ticks", "farmersdelight:comfort_initial_ticks", "farmersdelight:comfort_level",
@@ -69,7 +65,6 @@ public final class EffectManager {
         }
     }
 
-    /** Holds one Buff's state: remaining ticks, initial ticks, and level. */
     private record BuffState(int duration, int initial, int level) {
         boolean isActive() { return duration > 0; }
         static final BuffState EMPTY = new BuffState(0, 0, 1);
@@ -104,8 +99,6 @@ public final class EffectManager {
 
     // Bossbar styles
 
-    /** Apply per-Buff Bossbar visuals from FD's buff.display.styles config section.
-     *  Called on enable and /fd reload so color edits take effect immediately. section may be null (keep defaults). */
     public static void applyBossbarStyles(ConfigurationSection section) {
         if (section == null) return;
         updateStyle(section, "nourishment", BuffKind.NOURISHMENT);
@@ -133,9 +126,6 @@ public final class EffectManager {
         applyBuff(player, BuffKind.COMFORT, durationSeconds, 1);
     }
 
-    /** Apply Comfort at the given level (1-based) for durationSeconds seconds,
-     *  using vanilla potion stacking rules: higher level replaces and refreshes duration; same level picks longer;
-     *  lower level ignored when a stronger effect is active. */
     public static void applyComfort(Player player, int durationSeconds, int level) {
         applyBuff(player, BuffKind.COMFORT, durationSeconds, level);
     }
@@ -144,8 +134,6 @@ public final class EffectManager {
         applyBuff(player, BuffKind.NOURISHMENT, durationSeconds, 1);
     }
 
-    /** Apply Nourishment at the given level (1-based) for durationSeconds seconds,
-     *  stacking rules same as #applyComfort(int, int, int). */
     public static void applyNourishment(Player player, int durationSeconds, int level) {
         applyBuff(player, BuffKind.NOURISHMENT, durationSeconds, level);
     }
@@ -185,8 +173,6 @@ public final class EffectManager {
         }
     }
 
-    /** Vanilla-style stacking: overlay the incoming (durationTicks, level) dose onto the active effect.
-     *  Returns new [durationTicks, level], or null (and ignores) if the incoming dose is weaker. */
     private static int[] stack(int currentDuration, int currentLevel, int incomingTicks, int incomingLevel) {
         if (currentDuration <= 0 || incomingLevel > currentLevel) {
             return new int[]{incomingTicks, incomingLevel};
@@ -228,7 +214,6 @@ public final class EffectManager {
         checkAndUntrack(player);
     }
 
-    /** Stop tracking the player when they no longer have any active custom effects. */
     private static void checkAndUntrack(Player player) {
         if (!hasComfort(player) && !hasNourishment(player)) {
             EffectListener.untrackPlayer(player.getUniqueId());
@@ -237,7 +222,6 @@ public final class EffectManager {
 
     // Tick
 
-    /** Update remaining durations and apply in-game buff behavior. */
     public static void tick(Player player) {
         if (player == null || !player.isValid() || !player.isOnline() || player.isDead()) return;
         if (!com.huidu.farmersdelight.api.buff.CustomBuffRegistry.isSystemEnabled()) {
@@ -342,8 +326,6 @@ public final class EffectManager {
         return restoreBuffFromPdc(player, BuffKind.NOURISHMENT);
     }
 
-    /** Restore buff remaining ticks from player PDC. Gap-fill: if the buff is already active, keep it as-is.
-     *  Returns whether the buff is active after restoration (so callers can start tracking). */
     private static boolean restoreBuffFromPdc(Player player, BuffKind kind) {
         if (player == null) return false;
         UUID playerId = player.getUniqueId();
@@ -363,13 +345,10 @@ public final class EffectManager {
 
     // Remaining seconds
 
-    /** Comfort buff remaining seconds (ceiling), 0 when inactive.
-     *  Provides data for the %farmersdelight_buff_*% placeholder family. */
     public static int comfortRemainingSeconds(Player player) {
         return remainingSeconds(player, BuffKind.COMFORT);
     }
 
-    /** Nourishment buff remaining seconds (ceiling), 0 when inactive. */
     public static int nourishmentRemainingSeconds(Player player) {
         return remainingSeconds(player, BuffKind.NOURISHMENT);
     }
@@ -382,7 +361,6 @@ public final class EffectManager {
 
     // Tick game logic
 
-    /** Nourishment reduces exhaustion, unless hunger-based natural regeneration is active. */
     private static void tickNourishment(Player player) {
         if (player.isDead()) return;
 

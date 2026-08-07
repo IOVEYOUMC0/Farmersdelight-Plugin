@@ -14,10 +14,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * A generic confirm/cancel screen driven by the gui.yml layout (slot types confirm, cancel,
- * info, background). Closing the screen (pressing ESC) is treated as a cancel.
- */
 public final class ConfirmGui extends AbstractInventoryGui implements EditorGui {
 
     private final RecipeViewGuiConfig.BaseConfig config;

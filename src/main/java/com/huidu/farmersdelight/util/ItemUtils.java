@@ -63,9 +63,6 @@ public final class ItemUtils {
     private ItemUtils() {
     }
 
-    /**
-     * Returns the custom item id; null when the stack is not a CE custom item.
-     */
     public static String getCustomItemId(ItemStack item) {
         if (item == null) return null;
         Key key = CraftEngineItems.getCustomItemId(item);
@@ -95,12 +92,6 @@ public final class ItemUtils {
         return customItemId == null && item.getType().isBlock();
     }
 
-    /**
-     * Creates an item stack from a namespaced item id.
-     *
-     * itemId item id in the form namespace:item_name
-     * the created item stack; null when the id cannot be resolved
-     */
     public static ItemStack createItem(String itemId) {
         if (isEmptyItemId(itemId)) return null;
 
@@ -126,9 +117,6 @@ public final class ItemUtils {
         return null;
     }
 
-    /** True once CraftEngine has loaded at least one custom item (any namespace). A readiness probe that CE
-     * finished its item-load pass, independent of any specific item id or namespace: unlike probing one item,
-     * this survives an admin deleting that item or repacking the plugin's items under a different namespace. */
     public static boolean isAnyCustomItemLoaded() {
         return !CraftEngineItems.loadedItems().isEmpty();
     }
@@ -141,7 +129,6 @@ public final class ItemUtils {
         return Set.copyOf(item.settings().tags());
     }
 
-    /** True when the item is a CraftEngine custom item that carries the given item tag. */
     public static boolean hasCustomItemTag(ItemStack item, Key tag) {
         if (item == null || tag == null) {
             return false;
@@ -175,7 +162,6 @@ public final class ItemUtils {
         return built;
     }
 
-    /** Drops all memoized caches so a CE/config reload rebuilds them from refreshed definitions. */
     public static void clearItemCache() {
         itemBuildCache.clear();
         vanillaTagCache.clear();
@@ -183,13 +169,6 @@ public final class ItemUtils {
         MATERIAL_TAG_INDEX.clear();
     }
 
-    /**
-     * Pre-builds every loaded CE item in namespace once (or all namespaces when null), priming the
-     * item-build cache and paying CraftEngine's one-time global item-build inits (ASM proxies, MiniMessage /
-     * serializer setup) off the first-interaction hot path. Pure computation — safe on the global/main thread.
-     *
-     * the number of items successfully built
-     */
     public static int warmItems(String namespace) {
         int built = 0;
         for (Key key : CraftEngineItems.loadedItems().keySet()) {
@@ -203,9 +182,6 @@ public final class ItemUtils {
         return built;
     }
 
-    /**
-     * Serialize a Bukkit item to a CraftEngine NBT tag via CE's ItemStackUtils.
-     */
     public static net.momirealms.craftengine.libraries.nbt.Tag saveBukkitItemAsTag(ItemStack item) {
         return net.momirealms.craftengine.bukkit.util.ItemStackUtils.saveBukkitItemAsTag(item);
     }
@@ -348,20 +324,6 @@ public final class ItemUtils {
         return Component.text(getDisplayName(item, player));
     }
 
-    /** Returns a purely-translatable display Component for item so the receiving client renders
-     *  it in its own locale via the resource pack lang files. Use this for lore lines that ship to many
-     *  viewers (e.g. the packed-cooking-pot tooltip), where the standard #getDisplayComponent —
-     *  which bakes CE items' <l10n:> names to the server's default locale — would freeze the
-     *  text to one language.
-     *
-     *  An anvil-renamed name (set on displayName()) is honoured as-is. Otherwise:
-     *  CE items map to item.<namespace>.<path> (matches the <l10n:> key convention used
-     *  by the project's resource pack); vanilla items use their native translation key.
-     *
-     *  Both branches embed a server-default-locale .fallback(...) so clients whose resource
-     *  pack lacks the lang JSON entry don't see a raw item.farmersdelight.foo key — they render
-     *  the server-resolved text instead. Clients whose pack DOES have the key still get per-locale
-     *  translation. */
     public static Component getTranslatableDisplayComponent(ItemStack item) {
         if (item == null || item.getType().isAir()) {
             return Component.empty();
@@ -382,10 +344,6 @@ public final class ItemUtils {
         return Component.text(item.getType().name());
     }
 
-    /** Same as #getTranslatableDisplayComponent(ItemStack) but does NOT honour a player-applied
-     *  anvil rename — always returns the Component.translatable(key).fallback(server-text) for
-     *  the item's CE/vanilla id. Use for lore lines where the embedded item name should follow each
-     *  viewer's client locale yet stay independent of one player's anvil typo. */
     public static Component getTranslatableDisplayComponentNoAnvil(ItemStack item) {
         if (item == null || item.getType().isAir()) {
             return Component.empty();
@@ -401,11 +359,6 @@ public final class ItemUtils {
         return Component.text(item.getType().name());
     }
 
-    /** Display name resolved entirely on the server in the server's default locale. Ignores any
-     *  player-applied anvil rename and never returns a Component.translatable — the text is
-     *  fully baked here so all clients render the same characters regardless of locale or pack state.
-     *  For custom items keys derive from the CE id (item.<ns>.<id>); for vanilla items from
-     *  Material.getItemTranslationKey(). */
     public static Component getServerDisplayComponent(ItemStack item) {
         if (item == null || item.getType().isAir()) {
             return Component.empty();
@@ -427,9 +380,6 @@ public final class ItemUtils {
         return Component.text(translated);
     }
 
-    /** Server-resolved fallback text for a CE item's translation key, used when the receiving client's
-     *  resource pack lacks the key. Falls back to FD's I18n (loaded from lang/<locale>.yml), then
-     *  to a humanised id, never to the raw translation key. */
     private static String translationFallback(String key, String customId) {
         String resolved = I18n.get(key);
         if (resolved != null && !resolved.equals(key) && !resolved.isBlank()) {
@@ -480,7 +430,6 @@ public final class ItemUtils {
         }
     }
 
-    /** Server-resolved plain text for key. Routes through I18n.get() fallback chain (CraftEngine + Adventure translation built in). */
     public static String translate(String key, String locale) {
         return I18n.get(key, locale);
     }
@@ -513,7 +462,7 @@ public final class ItemUtils {
                 return Component.text(translated);
             }
             if (TRANSLATION_KEY_PATTERN.matcher(key).matches()) {
-                // 服务端找不到翻译时，发送可翻译组件给客户端，利用资源包 lang JSON 完成翻译
+                // If the server lacks a translation, send a translatable component for the resource pack to resolve.
                 return Component.translatable(key).fallback(humanizeTranslationKey(key));
             }
         }
@@ -584,12 +533,6 @@ public final class ItemUtils {
         return "";
     }
 
-    /**
-     * Replaces translation tags (<l10n:key> / <lang:key> / <i18n:key>) in text
-     * with their localized strings for player's locale (falling back to the default/en locale, then the
-     * raw key). Non-tag content is left untouched, so the result can still carry MiniMessage markup. Resolution
-     * goes through the same chain as item names (plugin lang files -> CraftEngine translations -> GlobalTranslator).
-     */
     public static String resolveTranslationTags(String text, Player player) {
         if (text == null || text.isEmpty() || text.indexOf('<') < 0) {
             return text;
@@ -733,10 +676,6 @@ public final class ItemUtils {
         return sorted;
     }
 
-    /**
-     * Lazily builds a Material → List&lt;tagId&gt; reverse index from all registered vanilla item
-     * tags so getAllItemTagIds() is O(1) per call instead of O(tags × materials).
-     */
     private static void ensureMaterialTagIndex() {
         if (!MATERIAL_TAG_INDEX.isEmpty()) {
             return;
@@ -833,7 +772,6 @@ public final class ItemUtils {
         return item.clone();
     }
 
-    /** Normalize null or blank strings to null, otherwise return the trimmed value. */
     public static String normalizeBlank(String value) {
         if (value == null) {
             return null;
@@ -842,19 +780,10 @@ public final class ItemUtils {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    /** True if item is a CraftEngine custom item (not a plain vanilla material). */
     public static boolean isCustomItem(ItemStack item) {
         return getCustomItemId(item) != null;
     }
 
-    /**
-     * True when the item must not be inserted into a cooking pot's input or container slots: a cooking pot
-     * itself (empty or packed), or any item already carrying a stored block-entity inventory (a skillet,
-     * basket, shulker box or other packed container). A cooking pot saves its whole inventory onto the
-     * picked-up item as NBT, so nesting a container inside it lets a player grow that NBT recursively into a
-     * client-crashing "NBT bomb". Plain ingredients and meal containers (bowls, bottles) carry neither marker
-     * and are unaffected.
-     */
     public static boolean isContainerNestingHazard(ItemStack item) {
         if (item == null || item.getType().isAir()) {
             return false;
@@ -884,11 +813,6 @@ public final class ItemUtils {
         }
     }
 
-    /**
-     * The crafting remainder for a single item: the CraftEngine container-return mapping for custom
-     * items, then the vanilla Material#getCraftingRemainingItem(), then the milk/water/lava bucket and
-     * honey-bottle special cases. Returns null when the item leaves no remainder. Mirrors the cooking pot.
-     */
     public static ItemStack craftingRemainderOf(ItemStack item) {
         if (item == null || item.getType().isAir()) {
             return null;

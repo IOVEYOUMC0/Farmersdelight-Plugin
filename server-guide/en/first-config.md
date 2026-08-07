@@ -43,16 +43,17 @@ effects but hide the bars. Full detail: the Admin Wiki's *Effects* and *Buff bos
 ## Effects: Nourishment / Comfort
 
 ```yaml
-buff:
-  nourishment:
-    enabled: true
-  comfort:
-    enabled: false
+events:
+  - on: consume
+    functions:
+      - type: farmersdelight:nourishment
+        duration: 180
 ```
 
-Nourishment (eating listed foods pauses hunger drain) is on by default; Comfort is off by default, matching the
-mod. Each has its own food→duration list. See the Admin Wiki's *Effects (Comfort / Nourishment)* section
-before editing the food lists.
+Food assignments now live in each item's CraftEngine configuration. Use `farmersdelight:nourishment` or
+`farmersdelight:comfort` as an `on: consume` function; `duration` is in seconds. The built-in assignments are in
+`plugins/CraftEngine/resources/farmersdelight/configuration/items.yml`. Global buff display, persistence and
+Comfort healing settings remain in `plugins/FarmersDelight/config.yml`.
 
 ## Hopper interactions
 
@@ -107,9 +108,10 @@ commands/migration notes and the developer *Advancements* page.
 
 ## Where the deeper knobs live
 
-Performance budgets, particle/sound effects, display offsets, heat sources, mob-extra drops, pet foods,
-villager/wandering-trader trades, composting and furnace-fuel values are all in `config.yml` with inline
-comments, and are documented in the Admin Wiki. You will rarely need them on day one.
+Performance budgets, particle/sound effects, display offsets, heat sources, mob-extra drops,
+villager/wandering-trader trades, composting and furnace-fuel values are in `config.yml`. Pet food and food-buff
+assignments are in the CraftEngine item configuration. Both files contain inline comments and are documented in
+the Admin Wiki. You will rarely need them on day one.
 
 ## Next
 

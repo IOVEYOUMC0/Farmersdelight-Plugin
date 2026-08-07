@@ -11,11 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Config for the generic addon recipe book (RecipeBookGui) — the category menu, paginated recipe
- * list, and recipe detail views. Read from gui.yml -> recipe-book-gui.{menu,list,detail};
- * defaults reproduce the previous hardcoded layout, so behavior is unchanged until edited.
- */
 public final class RecipeBookGuiConfig {
 
     // Slot types whose content is filled dynamically (categories/recipes/inputs/result) or conditionally
@@ -55,7 +50,6 @@ public final class RecipeBookGuiConfig {
                 ViewConfig.fromConfig(detailSection, defaultDetail()));
     }
 
-    /** A single view (menu / list / detail): title, layout, legend, items + typed slot lookups. */
     public static final class ViewConfig {
         private final String title;
         private final int rows;
@@ -102,8 +96,6 @@ public final class RecipeBookGuiConfig {
             return slots.isEmpty() ? -1 : slots.getFirst();
         }
 
-        /** Renders static chrome (background, decoration, close/back, etc.) into every layout slot whose type
-         * has an item, skipping dynamic/conditional types (those are placed by the GUI). */
         public void renderChrome(Inventory inventory) {
             for (int row = 0; row < layout.size(); row++) {
                 String line = layout.get(row);

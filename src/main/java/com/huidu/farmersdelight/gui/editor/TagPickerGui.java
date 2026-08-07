@@ -28,11 +28,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 
-/**
- * A two-page picker for selecting a tag ingredient. The first page lists every tag the source item belongs to; left-click
- * uses that tag directly, right-click opens the second page, which lists the tag's member items for the player to
- * toggle exclusions. Layout and text come from the recipe-tag-picker-gui section of gui.yml.
- */
 public final class TagPickerGui extends AbstractInventoryGui implements EditorGui {
 
     private enum Mode { SELECT, EXCLUDE }
@@ -290,10 +285,6 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
         return new ArrayList<>(unique.values());
     }
 
-    /**
-     * Collects all tags that the member items belong to (excluding the chosen tag),
-     * so the user can toggle them as excluded tags.
-     */
     private List<String> resolveExcludableTags(Key chosen) {
         Set<String> tags = new LinkedHashSet<>();
         String chosenStr = chosen.toString();

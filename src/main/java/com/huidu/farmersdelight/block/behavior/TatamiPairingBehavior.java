@@ -81,13 +81,6 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
         }
     };
 
-    /**
-     * Sets facing from the clicked face on placement, mirroring vanilla TatamiBlock.getStateForPlacement
-     * (facing = clickedFace.opposite). Without this the block would keep its default facing and pairing would
-     * go in the wrong direction. Floor placement clicks the ground's up-face, giving facing=down (a lone flat
-     * mat); placing against another tatami's side gives a horizontal facing, orienting the paired even/odd
-     * weave. Sneak-to-suppress-pairing is enforced in placeMultiState.
-     */
     @Override
     public ImmutableBlockState updateStateForPlacement(BlockPlaceContext context, ImmutableBlockState state) {
         Direction facing = context.getClickedFace().opposite();
@@ -118,14 +111,6 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
         }
     }
 
-    /**
-     * Resets paired=false when the facing partner stops being this tatami, mirroring vanilla
-     * TatamiBlock.updateShape one-to-one. updateShape is the engine's shape-update hook, called for the exact
-     * changed direction whenever a block state changes; the returned state is persisted with no follow-up
-     * place(). Whether the engine dispatches this to a CraftEngine custom block on this server is being verified
-     * in-game via the debug log below; the authoritative reset is resetFacingNeighbors driven by the block-break
-     * events (TatamiBreakListener). args[3]=pos, args[5]=neighborPos, args[6]=neighborState (1.21.2+).
-     */
     @Override
     public Object updateShape(Object thisBlock, Object[] args) {
         if (args.length < 7) {
@@ -152,11 +137,6 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
         return state.with(pairedProperty, false).customBlockState().minecraftState();
     }
 
-    /**
-     * Backup reset on the neighbor-notify path. Fires when a neighbor is placed/removed; resets paired=false when
-     * the facing partner is no longer this tatami. Idempotent (only a paired tatami un-pairs), so pairing never
-     * triggers a false reset and a redundant fire after updateShape / the break listener is a no-op.
-     */
     @Override
     public void neighborChanged(Object thisBlock, Object[] args) {
         if (args.length < 3) {
@@ -183,13 +163,6 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
         CraftEngineBlocks.place(self.getLocation(), state.with(pairedProperty, false), false);
     }
 
-    /**
-     * Authoritative un-pair reset, driven by the block-break events (TatamiBreakListener). Given the location of
-     * a tatami that is being removed, resets paired=false on any adjacent paired tatami whose facing points back
-     * at that location (its now-departing partner). Position-based and synchronous: it does not depend on the
-     * broken block's own custom state still being readable (which CraftEngine may already have cleared), only on
-     * the surviving neighbor's live state, so it is reliable where the engine block-update hooks are not.
-     */
     public static void resetFacingNeighbors(Location brokenLocation, String source) {
         if (brokenLocation == null || brokenLocation.getWorld() == null) {
             return;
@@ -213,12 +186,6 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
         }
     }
 
-    /**
-     * Whether the placing player is sneaking, so pairing can be suppressed like vanilla TatamiBlock.
-     * CraftEngine passes the placeMultiState player as a native Minecraft ServerPlayer, not a CraftEngine
-     * Player, so bridge it to its Bukkit entity to read the sneak state; a CraftEngine Player is still
-     * honored when one is passed.
-     */
     private static boolean isPlacerSneaking(Object playerArg) {
         if (playerArg == null) {
             return false;

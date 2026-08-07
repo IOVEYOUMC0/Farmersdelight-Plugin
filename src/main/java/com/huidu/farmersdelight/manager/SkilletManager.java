@@ -284,8 +284,6 @@ public class SkilletManager {
         return created;
     }
 
-    /** Adds every proxy display id this manager's tracked skillets still reference, so /fd cleanup
-     *  can leave live skillet visuals alone and remove only orphans. */
     public void collectLiveDisplayIds(java.util.Set<Integer> out) {
         for (SkilletData skillet : skillets.values()) {
             out.addAll(skillet.displayEntityIds);
@@ -460,13 +458,6 @@ public class SkilletManager {
         return skillet.storedItem.clone();
     }
 
-    /**
-     * Read-only snapshot of the tracked skillet at location for the api station-query facade, or null
-     * when nothing is tracked there. Taken under the SkilletData monitor so a concurrent interact or
-     * break cannot split the stored item from the progress counters; the heat flag is probed live
-     * rather than read from the tick cache so a caller that has just placed a heat source sees it.
-     * Must be called on the region thread owning location, because the heat probe reads blocks.
-     */
     public com.huidu.farmersdelight.api.block.SkilletSnapshot snapshot(Location location) {
         Location normalized = ManagerSupport.normalize(location);
         if (normalized == null) {
@@ -656,9 +647,6 @@ public class SkilletManager {
         breakSkillet(blockLocation, dropLocation, true);
     }
 
-    /** Applies parked controller data (a chunk-cache passivation snapshot, or a deferred load) back into the
-     *  manager entry, so a caller that reads the entry right after — a break that drops the stored food — sees
-     *  it instead of a blank entry whose state still sits in the controller's pendingSaveData. */
     private void flushControllerPendingData(Location location) {
         if (location == null || location.getWorld() == null) return;
         CustomBlockUtils.notifyControllerChanged(location.getWorld(), new BlockPosKey(location),
@@ -788,7 +776,6 @@ public class SkilletManager {
         }
     }
 
-    /** Stashes the skillet's exported state into its CE controller; false when the controller is unreachable. */
     private boolean passivateToController(World world, Location location) {
         boolean[] stashed = {false};
         CustomBlockUtils.notifyControllerChanged(world, new BlockPosKey(location),
@@ -801,7 +788,6 @@ public class SkilletManager {
         return loadSkillet(world, new BlockPosKey(pos), data);
     }
 
-    /** Returns whether the saved data was consumed; false keeps it parked on the controller for a retry. */
     public boolean loadSkillet(World world, BlockPosKey posKey, Map<String, Object> data) {
         if (world == null || posKey == null || data == null) return true;
 
@@ -914,7 +900,6 @@ public class SkilletManager {
         return result;
     }
 
-    /** Whether any tracked skillets exist (cheap check, no location list allocation). */
     public boolean hasTrackedSkillets() {
         return !skillets.isEmpty();
     }

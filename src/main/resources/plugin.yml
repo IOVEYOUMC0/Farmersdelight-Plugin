@@ -8,6 +8,12 @@ softdepend: [AuraSkills, UltimateAdvancementAPI, PlaceholderAPI, WorldGuard, Gri
 authors:
   - HuiDu_OwO
 description: CraftEngine Farmer's Delight Addon
+commands:
+  farmersdelight:
+    description: Main FarmersDelight command
+    usage: /farmersdelight [recipe|reload|help]
+    aliases: [fd]
+    permission: farmersdelight.command
 permissions:
   farmersdelight.command:
     description: Allow to use main command

@@ -170,9 +170,8 @@ console:
       unknown_tag: "Unknown enchantment tag: {tag}"
       tag_resolve_failed: "Failed to resolve enchantment tag {tag}: {error}"
     tool:
-      invalid_durability: "farmersdelight:tool has no max-durability or it is 0 — item will have no durability"
-      zero_enchantability: "farmersdelight:tool enchantability is 0 — item cannot be enchanted at table"
-      stack_size_forced: "Tool item configured with max-stack-size={size} but damageable items must be unstackable. Forcing to 1"
+      invalid_durability: "farmersdelight:sword has no max-durability or it is 0 — item will have no durability"
+      zero_enchantability: "farmersdelight:sword enchantability is 0 — item cannot be enchanted at table"
       loaded: "Loaded {count} tool item(s)"
     config_summary: "{label}: scheduler={scheduler}, cutting-board mode={mode}, hopper={hopper}, cooking-pot-hopper={cooking_pot_hopper}, cutting-board-hopper={cutting_board_hopper}, skillet-hopper={skillet_hopper}, advancements={advancements}"
     content_summary: "Content ready: {cooking_pot} cooking pot (FD {fd_pot} + {cooking_pot_addon} addon, {custom_pot} custom) and {cutting_board} cutting board (FD {fd_board} + {cutting_board_addon} addon) recipes, {drop_rules} mob drop rules, {pet_foods} pet foods, {advancements} advancements (+{addon_advancements} from addons)."

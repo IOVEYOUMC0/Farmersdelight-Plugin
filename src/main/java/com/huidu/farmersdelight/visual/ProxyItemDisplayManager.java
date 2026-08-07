@@ -316,8 +316,6 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         return true;
     }
 
-    /** True when two display locations occupy the same world + x/y/z. Position packets carry only
-     *  coordinates (yaw/pitch are always 0), so an unchanged position needs no teleport packet. */
     private static boolean sameDisplayPosition(Location a, Location b) {
         return a != null && b != null
                 && a.getWorld() == b.getWorld()
@@ -504,11 +502,6 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         syncTask = plugin.scheduler().runRepeating(this::syncAll, syncIntervalTicks, syncIntervalTicks);
     }
 
-    /** Starts the sync task unless one is already running. The whole check-then-start is inside the lock,
-     *  with no unlocked probe of the handle: an unlocked read could observe a non-null handle for a task
-     *  stopSyncTaskIfIdle is concurrently cancelling, and return without starting a replacement, leaving
-     *  the displays with no sync pass. Callers are display creation and reload only, so the monitor is
-     *  effectively uncontended. Same shape as TrayManager.ensureQueuedSyncTask. */
     private void ensureSyncTask() {
         synchronized (syncTaskLock) {
             if (syncTask == null) {
@@ -517,12 +510,6 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         }
     }
 
-    /** Stops the sync task once the display map has drained, so a server with no FD displays present does
-     *  not keep a repeating pass alive. The unlocked displays.isEmpty() probe is only a hint that skips the
-     *  monitor while displays exist — never cancelling is always safe. The authoritative recheck happens
-     *  inside the lock, and because ensureSyncTask takes the same lock, a display put into the map
-     *  concurrently either is seen by that recheck (no cancel) or its ensureSyncTask observes the cleared
-     *  handle afterwards and starts a fresh pass. */
     private void stopSyncTaskIfIdle() {
         if (!displays.isEmpty()) {
             return;
@@ -608,8 +595,6 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         scheduleSyncForAllPlayers();
     }
 
-    /** Queues a display for a coalesced visibility sync one tick later. Bursts of creates/updates in
-     *  the same tick collapse into one drain sharing one chunk-player lookup per chunk. */
     private void queueSync(ProxyDisplay display) {
         if (display == null) {
             return;
@@ -641,8 +626,6 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         }
     }
 
-    /** Chunk identity for the per-pass player-tracking memo. Includes the world so identical
-     *  coordinates in different worlds never collide. */
     private record ChunkKey(World world, int x, int z) {
     }
 
@@ -776,10 +759,6 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         }
     }
 
-    /** Whether player is tracking (has been sent) the display's chunk. Uses Paper's
-     *  chunk-holder player set, which already encodes each player's own view-distance — the authoritative
-     *  "can this player see here" signal, mirroring CE routing furniture through the vanilla entity
-     *  tracker. Returns false for an unloaded chunk or a cross-world player. */
     private boolean isPlayerTrackingDisplayChunk(Player player, ProxyDisplay display) {
         Location location = display.location();
         World world = location.getWorld();
@@ -1163,8 +1142,6 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         return new DisplaySpec(location, itemStack, spec.itemTransform(), spec.transformation());
     }
 
-    /** Snapshot of business counters since the last #resetDebugStats() call. One-line-per-metric
-     *  format so /fd debugtools status (and profile) can pipe straight to chat. */
     public List<String> debugStats() {
         long elapsedMs = Math.max(1L, System.currentTimeMillis() - debugStatsResetEpochMs);
         double seconds = elapsedMs / 1000.0;

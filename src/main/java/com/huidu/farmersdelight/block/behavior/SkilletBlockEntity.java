@@ -16,10 +16,6 @@ import org.bukkit.inventory.ItemStack;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * Legacy skillet state model, kept for the recipe-cache helper methods and compatibility with old saved state.
- * Runtime skillet logic is handled by com.huidu.farmersdelight.manager.SkilletManager.
- */
 @Deprecated(forRemoval = false)
 public class SkilletBlockEntity {
 
@@ -235,10 +231,6 @@ public class SkilletBlockEntity {
     // lookups are handled at runtime by SkilletManager.findCampfireRecipe (delegating to CampfireRecipeCache),
     // and this class's version no longer has any live callers.
 
-    /**
-     * This empty implementation is kept for compatibility with the reload/disable flow (FarmersDelightPlugin still calls it).
-     * Since the recipe cache moved to SkilletManager, no state needs clearing here anymore.
-     */
     public static void clearRecipeCache() {
         // No-op: the cache moved to SkilletManager's CampfireRecipeCache.
     }

@@ -6,16 +6,6 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.server.PluginDisableEvent;
 
-/**
- * FarmersDelight hard-depends on CraftEngine for its custom blocks, block entities and scheduler-bound
- * behaviors. If CraftEngine is disabled while the server keeps running, for example a plugin-manager unload
- * or a CraftEngine failure, those references become dead: CraftEngine singletons like BukkitWorldManager go
- * null and FD's tick tasks, chunk-load handlers and behaviors start throwing. There is nothing FD can do
- * without CraftEngine, so it disables itself with a clear message instead of spamming errors.
- *
- * This never fires during a normal server stop, where both plugins are shutting down anyway: the stopping
- * check and the already-disabled check both suppress it.
- */
 public final class CraftEngineWatchdogListener implements Listener {
 
     private static final String CRAFT_ENGINE = "CraftEngine";

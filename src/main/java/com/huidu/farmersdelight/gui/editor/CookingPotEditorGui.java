@@ -26,12 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * In-game editor for editing a single cooking-pot recipe. Layout, slot positions, and button text come from
- * the recipe-editor-gui section of gui.yml (or recipe-editor-cooking-pot-guis.<id> per custom pot);
- * chat feedback comes from the gui.editor.* language keys. Ingredient capacity adapts
- * to the parsed layout, so custom (large) pots can expose more ingredient slots.
- */
 public final class CookingPotEditorGui extends AbstractInventoryGui implements EditorGui {
 
     private static final List<String> CATEGORY_PRESETS = List.of("meals", "soups", "drinks", "misc");
@@ -105,17 +99,17 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
 
     @Override
     protected AbstractInventoryGui findExistingGui(UUID playerId) {
-        return null; // 编辑器直接覆盖打开，无需追踪
+        return null; // The editor replaces the current view directly and needs no tracking.
     }
 
     @Override
     protected void putActiveGui(UUID playerId, AbstractInventoryGui gui) {
-        // 编辑器由 RecipeEditorListener 统一管理
+        // RecipeEditorListener owns the editor lifecycle.
     }
 
     @Override
     protected void removeFromActiveGuis(UUID playerId) {
-        // 编辑器由 RecipeEditorListener 统一管理
+        // RecipeEditorListener owns the editor lifecycle.
     }
 
     @Override

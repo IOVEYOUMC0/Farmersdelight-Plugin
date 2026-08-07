@@ -8,9 +8,16 @@
 # Affects plugin logs, console text and text with no player context; player GUI/messages still prefer the player client language.
 language: ''
 
-# Enchantments added by FarmersDelight. Each enchantment has its own enabled toggle.
-# Knife enchantments. Registry properties (weight, valid cost range, conflicts and anvil cost)
-# are read from Paper at runtime; these lists only decide what FarmersDelight knives may receive.
+# Datapacks are server-wide when loaded from the primary world, so writing another copy into every
+# Multiverse/resource/dungeon world only creates unused files. Entries are exact Bukkit world names.
+# $primary resolves to server.properties level-name; * restores the old all-world behavior; [] disables writes.
+datapacks:
+  world-whitelist:
+    - $primary
+
+# Enchantments added by FarmersDelight. Knife and skillet enchantments are configured separately.
+# Registry properties (weight, valid cost range, conflicts and anvil cost) are read from Paper at runtime;
+# these lists only decide what each FarmersDelight item group may receive.
 enchantments:
   enabled: true
   compatibility:
@@ -18,28 +25,46 @@ enchantments:
     # Set this to false only when that plugin is configured not to provide an overlapping enchantment.
     auto-disable-on-conflict: true
 
-  table:
-    enabled: true
-    # true replaces the three offers with vanilla-style rolls from the list below.
-    # false keeps vanilla/other-plugin offers and appends a compatible configured roll.
-    override-offers: true
-    # Fallback enchantability for items that don't have farmersdelight:tool settings in their CE YAML.
-    default-enchantability: 12
-    # $backstabbing resolves to backstabbing.id, so changing the custom ID needs no duplicate edits.
-    enchantments:
-      - minecraft:sharpness
-      - minecraft:smite
-      - minecraft:bane_of_arthropods
-      - minecraft:unbreaking
-      - minecraft:fire_aspect
-      - minecraft:knockback
-      - minecraft:looting
-      - minecraft:fortune
-      - $backstabbing
+  groups:
+    knives:
+      table:
+        enabled: true
+        # true replaces the three offers with vanilla-style rolls from this group's list.
+        # false keeps vanilla/other-plugin offers and appends a compatible configured roll.
+        override-offers: true
+        # Fallback enchantability for items without farmersdelight:sword settings in their CE YAML.
+        default-enchantability: 12
+        # $backstabbing resolves to backstabbing.id, so changing the custom ID needs no duplicate edits.
+        enchantments:
+          - minecraft:sharpness
+          - minecraft:smite
+          - minecraft:bane_of_arthropods
+          - minecraft:unbreaking
+          - minecraft:fire_aspect
+          - minecraft:knockback
+          - minecraft:looting
+          - minecraft:fortune
+          - $backstabbing
+      # Anvil auto-inherits this group's table list and also allows mending.
+      anvil:
+        enabled: true
 
-  # Anvil auto-inherits the table enchantment list and also allows mending.
-  anvil:
-    enabled: true
+    skillet:
+      table:
+        enabled: true
+        override-offers: true
+        default-enchantability: 14
+        enchantments:
+          - minecraft:sharpness
+          - minecraft:smite
+          - minecraft:bane_of_arthropods
+          - minecraft:unbreaking
+          - minecraft:fire_aspect
+          - minecraft:knockback
+          - minecraft:looting
+      # Anvil auto-inherits this group's table list and also allows mending.
+      anvil:
+        enabled: true
 
   backstabbing:
     enabled: true
@@ -76,7 +101,7 @@ debug:
 # Vanilla loot table injection. The plugin ships a built-in datapack (`farmersdelight_loot`)
 # that overrides vanilla chest / mob drop / grass loot tables to inject FarmersDelight items
 # via CraftEngine's `craftengine:item` loot pool entry type. The datapack is copied into each
-# world's `datapacks/` folder on first enable and requires a server restart (or /reload) to
+# whitelisted world's `datapacks/` folder on first enable and requires a server restart (or /reload) to
 # take effect. Once installed, admin edits to the datapack files survive plugin updates
 # (already-present datapack folders are not overwritten). Set to false to skip the install
 # (useful if you want to author your own loot tables manually or use another loot plugin).
@@ -858,71 +883,6 @@ stove:
     # display-overrides: {}
     # display-tag-overrides: {}
 
-# Pet foods. Grant effects when a player right-clicks the matching entity; add more foods in the same format.
-# Each key is an item ID, supporting CraftEngine items and vanilla items.
-# For a food used only for hand-tempting and not right-click consumption, set restore-health to false, effects to [], and keep or disable sound/particles as needed.
-pet-foods:
-  farmersdelight:dog_food:
-    entities:
-      - WOLF
-    require-tamed: true
-    restore-health: true
-    effects:
-      - type: SPEED
-        duration: 6000
-        amplifier: 0
-        ambient: false
-        particles: true
-      - type: STRENGTH
-        duration: 6000
-        amplifier: 0
-        ambient: false
-        particles: true
-    sound: ENTITY_GENERIC_EAT
-    sound-volume: 0.8
-    sound-pitch: 0.8
-    particles: true
-    particle-type: END_ROD
-    particle-count: 5
-  farmersdelight:horse_feed:
-    # Bukkit EntityType names. Add entities like LLAMA, CAMEL in the same format; invalid ones are skipped with a log entry.
-    entities:
-      - HORSE
-      - DONKEY
-      - MULE
-    # true = require the target to be tamed when right-click feeding; false = untamed entities can also trigger the right-click food effect.
-    require-tamed: false
-    restore-health: true
-    effects:
-      - type: SPEED
-        duration: 6000
-        amplifier: 1
-        ambient: false
-        particles: true
-      - type: JUMP_BOOST
-        duration: 6000
-        amplifier: 0
-        ambient: false
-        particles: true
-    sound: ENTITY_GENERIC_EAT
-    sound-volume: 0.8
-    sound-pitch: 0.8
-    particles: true
-    particle-type: HEART
-    particle-count: 4
-    # While holding this food, tempt entities in the entities list above to approach.
-    tempt:
-      # false = this food does not participate in hand-tempting, keeping only the right-click feeding effect.
-      enabled: true
-      # Tempt search radius, in blocks.
-      range: 10.0
-      # Pathfinder move speed multiplier; too high makes entity movement look unnatural.
-      move-speed: 1.25
-      # Tempt task interval, in ticks. 10 ticks = 0.5 seconds; increase to lower overhead but response gets slower.
-      tick-interval: 10
-      # true = a tamed horse owned by the feeding player is not further pulled by its own horse feed.
-      ignore-owned-tamed: true
-
 # Buff system. Master switch for every custom buff: Comfort, Nourishment and any buff an addon registers
 # through the buff API.
 # enabled=false turns the whole system off — no buff is applied or ticked, the effect ticker never starts,
@@ -972,80 +932,16 @@ buff:
       nourishment: {color: GREEN, overlay: PROGRESS}
       comfort:     {color: BLUE,  overlay: PROGRESS}
 
-  # Comfort effect. The original mod deprecated Comfort (replaced by Nourishment), so it is off by default with an empty list.
-  # The mechanic code is kept: set enabled to true and add foods under foods if needed.
+  # Comfort mechanics. Assign Comfort to a CraftEngine food with an on-consume
+  # farmersdelight:comfort function in that item's CE configuration.
   comfort:
-    enabled: false
     # How many ticks between each comfort heal tick; set to 0 to disable comfort healing and keep only the status display.
     heal-interval-ticks: 80
     # How much health (in HP; 1.0 = half a heart) each comfort heal tick restores.
     heal-amount: 1.0
-    foods: {}
 
-  # Nourishment effect. Eating listed foods grants the player Nourishment (resets exhaustion, prevents hunger loss).
-  # Duration (seconds) follows the original mod's tiers: cooked_rice=30; broths/bacon and eggs etc.=60; stews/pasta etc.=180; rich soups/feasts etc.=300.
-  nourishment:
-    enabled: true
-    # Nourishment reports itself through the buff bossbar, so it sends no chat messages and has no fade reminder.
-    foods:
-      farmersdelight:cooked_rice:
-        duration: 30
-      farmersdelight:bone_broth:
-        duration: 60
-      farmersdelight:bacon_and_eggs:
-        duration: 60
-      farmersdelight:ratatouille:
-        duration: 60
-      farmersdelight:beef_stew:
-        duration: 180
-      farmersdelight:vegetable_soup:
-        duration: 180
-      farmersdelight:fish_stew:
-        duration: 180
-      farmersdelight:onion_soup:
-        duration: 180
-      farmersdelight:steak_and_potatoes:
-        duration: 180
-      farmersdelight:pasta_with_meatballs:
-        duration: 180
-      farmersdelight:pasta_with_mutton_chop:
-        duration: 180
-      farmersdelight:mushroom_rice:
-        duration: 180
-      farmersdelight:grilled_salmon:
-        duration: 180
-      minecraft:mushroom_stew:
-        duration: 180
-      minecraft:beetroot_soup:
-        duration: 180
-      farmersdelight:chicken_soup:
-        duration: 180
-      farmersdelight:fried_rice:
-        duration: 180
-      farmersdelight:pumpkin_soup:
-        duration: 300
-      farmersdelight:baked_cod_stew:
-        duration: 300
-      farmersdelight:noodle_soup:
-        duration: 300
-      farmersdelight:roasted_mutton_chops:
-        duration: 300
-      farmersdelight:vegetable_noodles:
-        duration: 300
-      farmersdelight:squid_ink_pasta:
-        duration: 300
-      farmersdelight:roast_chicken:
-        duration: 300
-      farmersdelight:stuffed_pumpkin:
-        duration: 300
-      farmersdelight:honey_glazed_ham:
-        duration: 300
-      farmersdelight:shepherds_pie:
-        duration: 300
-      farmersdelight:gleaming_salad:
-        duration: 300
-      minecraft:rabbit_stew:
-        duration: 300
+  # Built-in Nourishment food assignments and durations live in the CraftEngine item configuration.
+  # Use farmersdelight:nourishment as an on-consume function to add it to another CE food.
 
 # World data the mod ships alongside its items: composting chances, furnace burn times and the crop trades
 # farmer villagers and the wandering trader offer. The values reproduce the mod's own data exactly, so an

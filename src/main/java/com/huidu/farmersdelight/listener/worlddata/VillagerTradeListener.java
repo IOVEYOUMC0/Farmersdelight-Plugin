@@ -17,19 +17,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
 
-/**
- * Adds the mod's crop trades to farmer villagers and its seed trades to the wandering trader.
- *
- * The mod appends its listings to the static VillagerTrades pools, so its trades take part in the same draw
- * as the vanilla ones: a villager picks two listings for the level it just reached, a wandering trader picks
- * five from the generic pool. Those pools are plain NMS statics with no Bukkit equivalent, so the draw itself
- * cannot be joined. What Bukkit does expose is the result of each draw, through VillagerAcquireTradeEvent,
- * which fires once per acquired trade in AbstractVillager.addOffersFromItemListings and allows the recipe to
- * be replaced. Substituting a configured offer for a drawn one at the probability the mod's listing would
- * have been picked reproduces both the offers and the number of trades a merchant ends up with; what is not
- * reproducible is any interaction with the pool itself, so a server that changes the vanilla pools with a
- * datapack should retune the chance values.
- */
 public final class VillagerTradeListener implements Listener {
 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.NORMAL)
@@ -103,11 +90,6 @@ public final class VillagerTradeListener implements Listener {
         return ((Keyed) profession).getKey().getKey().toLowerCase(Locale.ROOT);
     }
 
-    /**
-     * True when this merchant already carries an offer trading the same pair. Vanilla never draws the same
-     * listing twice within one batch, and the offers acquired earlier in the batch are already on the
-     * merchant by the time this event fires, so the same check covers both.
-     */
     private static boolean alreadyOffered(AbstractVillager merchant, TradeOffer offer) {
         for (MerchantRecipe recipe : merchant.getRecipes()) {
             List<ItemStack> ingredients = recipe.getIngredients();

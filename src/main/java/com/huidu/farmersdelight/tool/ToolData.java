@@ -2,9 +2,6 @@ package com.huidu.farmersdelight.tool;
 
 import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 
-/**
- * Parsed CE settings section farmersdelight:tool.
- */
 public record ToolData(int maxDurability, int enchantability, String attackSound, String attackSoundWeak) {
 
     public static ToolData fromConfig(ConfigSection section) {

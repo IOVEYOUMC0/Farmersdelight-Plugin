@@ -330,7 +330,6 @@ public final class DebugToolsCommand {
 
     // Read-only diagnostics: inspect a block, dump a held item, validate recipes, trace a translation key.
 
-    /** Dumps the CraftEngine custom block the player looks at (falling back to the block underfoot). */
     private void inspect(Player player, String[] args) {
         Integer requested = parseOptionalInt(args, 2, 6);
         int distance = requested == null ? 6 : clamp(requested, 1, 64);
@@ -406,9 +405,6 @@ public final class DebugToolsCommand {
         return builder.toString();
     }
 
-    /** Behavior class name(s). A composite block exposes its children via a private array; single-behavior
-     *  blocks return the concrete behavior directly, so the array read is expected to fail there — the concrete
-     *  class name is the fallback, not an error. */
     private String describeBehaviors(ImmutableBlockState state) {
         var behavior = state.behavior();
         if (behavior == null) {
@@ -497,7 +493,6 @@ public final class DebugToolsCommand {
         return (id == null ? stack.getType().name() : id) + " x" + stack.getAmount();
     }
 
-    /** Dumps the identity FarmersDelight's matcher sees for the held stack. */
     private void dumpHeldItem(Player player, String[] args) {
         boolean offhand = args.length >= 3 && normalize(args[2]).startsWith("off");
         ItemStack held = offhand
@@ -552,8 +547,6 @@ public final class DebugToolsCommand {
         }
     }
 
-    /** Scans every loaded cooking-pot and cutting-board recipe for ingredient item ids / tags that no longer
-     *  resolve to a real item — the class of typo that loads with no startup warning (e.g. wild_carrots). */
     private void recipeValidate(Player player) {
         boolean ceReady = ItemUtils.isAnyCustomItemLoaded();
         List<String> issues = new ArrayList<>();
@@ -595,8 +588,6 @@ public final class DebugToolsCommand {
         }
     }
 
-    /** Adds a report line for each unresolvable item id / empty tag the ingredient references. Recurses into
-     *  Choice options; item ids are tested with createItem (null == unresolvable), tags with membership. */
     private void checkIngredient(CookingPotRecipeManager tagResolver, String kind, String recipeId,
                                  RecipeIngredient ingredient, boolean ceReady, List<String> issues) {
         if (ingredient instanceof RecipeIngredient.Item item) {
@@ -627,7 +618,6 @@ public final class DebugToolsCommand {
         }
     }
 
-    /** Shows what each translation layer returns for a key so an English-fallback / missing-key can be traced. */
     private void i18nResolve(Player player, String[] args) {
         if (args.length < 3) {
             player.sendMessage(MINI_MESSAGE.deserialize("<yellow>/fd debugtools i18n <key> [locale]</yellow>"));

@@ -17,14 +17,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Writes edited recipes back to the recipes/*.yml files and reloads them.
- *
- * Saves are synchronous: they are triggered by an admin action (a GUI button), the files are small, and
- * FarmersDelightPlugin.reloadRecipeFiles must run on the main/region thread anyway.
- * The files themselves are written atomically (temp file + move), so a crash mid-write does not
- * corrupt the recipe files.
- */
 public final class RecipeEditorStore {
 
     private static final String COOKING_POT_FILE = "recipes/cooking_pot_recipes.yml";
@@ -40,10 +32,6 @@ public final class RecipeEditorStore {
         this.plugin = plugin;
     }
 
-    /**
-     * customGroupId when null or blank, writes to the default cooking-pot recipe group; otherwise
-     *                      writes to the custom cooking-pot recipe group id.
-     */
     public boolean saveCookingPotRecipe(CookingPotRecipe recipe, String customGroupId) {
         String path = cookingPotPath(recipe.getId(), customGroupId);
         return mutate(COOKING_POT_FILE, yaml -> yaml.set(path, buildCookingPotBody(recipe)));

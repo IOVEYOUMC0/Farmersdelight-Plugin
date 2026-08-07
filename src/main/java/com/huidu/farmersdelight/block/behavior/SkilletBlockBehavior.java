@@ -42,7 +42,6 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
         return false;
     }
 
-    /** 方块属性名：控制托盘 entity_renderer 显示。 */
     public static final String SUPPORT_PROPERTY = "support";
 
     private final String addFoodSound;
@@ -79,7 +78,6 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
         return sizzleSound;
     }
 
-    /** support 方块属性，控制托盘 entity_renderer 显示。 */
     public Property<Boolean> getSupportProperty() {
         return supportProperty;
     }
@@ -250,11 +248,6 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
         return plugin.getSkilletManager();
     }
 
-    /**
-     * Returns true when the item can be equipped (armor, elytra, shield, horse armor, wolf armor).
-     * Guards against the skillet consuming player equipment as a cooking ingredient when the
-     * right-click triggers a vanilla armor swap.
-     */
     public static boolean isEquippable(ItemStack item) {
         if (item == null) return false;
         Material type = item.getType();

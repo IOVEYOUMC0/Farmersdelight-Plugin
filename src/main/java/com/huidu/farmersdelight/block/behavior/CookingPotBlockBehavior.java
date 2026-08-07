@@ -62,7 +62,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
     public static final int SLOT_CONTAINER = 7;
     public static final int SLOT_OUTPUT = 8;
     public static final int INVENTORY_SIZE = 9;
-    /** 方块属性名：控制托盘/手柄 entity_renderer 显示 (none / tray / handle)。 */
     public static final String SUPPORT_PROPERTY = "support";
 
     private static final Map<UUID, Map<BlockPosKey, CookingPotBlockEntity>> worldBlockEntities = new ConcurrentHashMap<>();
@@ -92,7 +91,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
                         "cooking-pot.place-interaction-cooldown-ms"));
     }
 
-    /** World-scoped key used by the per-pot display caches above. */
     private record DisplayStateKey(UUID worldId, BlockPosKey pos) {
     }
 
@@ -243,19 +241,16 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         return Set.of();
     }
 
-    /** Compute the chunk key from block coordinates (high 32 bits = chunkX, low 32 bits = chunkZ). */
     private static long chunkKey(int blockX, int blockZ) {
         return (((long) (blockX >> 4)) << 32) | ((blockZ >> 4) & 0xFFFFFFFFL);
     }
 
-    /** Add a position to the chunk index. Must be called in lockstep with the registration write to worldEntities. */
     private static void indexAdd(UUID worldId, BlockPosKey posKey) {
         chunkIndex.computeIfAbsent(worldId, k -> new ConcurrentHashMap<>())
                 .computeIfAbsent(chunkKey(posKey.x(), posKey.z()), k -> ConcurrentHashMap.newKeySet())
                 .add(posKey);
     }
 
-    /** Remove a position from the chunk index. Must be called in lockstep with the removal write to worldEntities. */
     private static void indexRemove(UUID worldId, BlockPosKey posKey) {
         Map<Long, Set<BlockPosKey>> worldChunks = chunkIndex.get(worldId);
         if (worldChunks == null) return;
@@ -267,10 +262,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         if (worldChunks.isEmpty()) chunkIndex.remove(worldId);
     }
 
-    /**
-     * Returns only the cooking pot block entities within the given chunk, avoiding a linear scan of the whole world.
-     * The authoritative map (worldBlockEntities) wins: stale leftover entries in the index that aren't found there are skipped.
-     */
     public static Map<BlockPosKey, CookingPotBlockEntity> getBlockEntitiesInChunk(World world, int chunkX, int chunkZ) {
         Map<BlockPosKey, CookingPotBlockEntity> result = new HashMap<>();
         if (world == null) return result;
@@ -300,7 +291,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         return locations;
     }
 
-    /** Whether any tracked cooking pot block entity exists (cheap check, only iterates worlds, allocates no location list). */
     public static boolean hasAnyBlockEntities() {
         for (Map<BlockPosKey, CookingPotBlockEntity> worldEntities : worldBlockEntities.values()) {
             if (!worldEntities.isEmpty()) {
@@ -338,7 +328,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         return config.customDataKey();
     }
 
-    /** support 方块属性（none / tray / handle），控制 entity_renderer 显示。 */
     public Property<String> getSupportProperty() {
         return config.supportProperty();
     }
@@ -442,8 +431,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         recentPlacements.clear();
     }
 
-    /** Adds every progress-text proxy display id tracked cooking pots still reference, so /fd
-     *  cleanup} removes only orphaned displays and leaves live pot progress text alone. */
     public static void collectLiveDisplayIds(java.util.Set<Integer> out) {
         for (Map<BlockPosKey, Integer> displays : worldProgressDisplays.values()) {
             out.addAll(displays.values());
@@ -611,11 +598,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         markBlockEntityDirty(world, posKey);
     }
 
-    /**
-     * Chunk-unload save: snapshots the entity into the controller (so the data survives the entity's
-     * removal at MONITOR cleanup and re-hydrates it if the chunk reloads out of CraftEngine's chunk cache),
-     * falling back to the plain save when the controller is unreachable.
-     */
     public static void passivateBlockEntityData(World world, BlockPosKey posKey) {
         if (world == null || posKey == null) return;
         CookingPotBlockEntity entity = getBlockEntity(world, posKey);
@@ -633,12 +615,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         }
     }
 
-    /**
-     * Applies any parked controller data (a passivation snapshot left by a chunk-cache reload, or a deferred
-     * startup load) into the plugin-side entity, so callers that read the entity right after — a break/drop
-     * that spills contents, a hopper container read — see the stored contents instead of a blank pot whose
-     * data still sits in the controller's pendingSaveData. Mirrors the flush in getOrCreateBlockEntity.
-     */
     public static void flushPendingControllerData(World world, BlockPosKey posKey) {
         if (world == null || posKey == null) return;
         CookingPotBlockBehavior behavior = getBlockBehavior(posKey.toLocation(world));
@@ -886,12 +862,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         return InteractionResult.SUCCESS_AND_CANCEL;
     }
 
-    /**
-     * True when the player may open/use this cooking pot at block: the plugin use-permission plus the
-     * land-protection "use" gate that useOnBlock applies to a direct interaction. Exposed so the recipe-view
-     * round-trip (returnToCookingPot) re-checks access before re-opening the GUI, rather than trusting the
-     * check made when the pot was first opened — protection or permission may have changed since.
-     */
     public boolean canPlayerOpen(Player player, Block block) {
         return PermissionChecker.check(player, config.permission())
                 && ProtectionCompat.canUse(player, block, ProtectionCompat.Feature.COOKING_POT);

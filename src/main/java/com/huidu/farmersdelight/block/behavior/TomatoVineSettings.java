@@ -9,53 +9,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/**
- * The thirteen configurable values of the farmersdelight:tomato_vine behavior, resolved once per
- * block load from the behavior's raw argument map.
- *
- * Two spellings are accepted for ten of them. The nested spelling groups the sibling block ids, the
- * per-stage growth caps and the bone meal numbers into sections:
- *
- *   blocks:
- *     budding: farmersdelight:budding_tomatoes
- *     tomatoes: farmersdelight:tomatoes
- *     crop-on-rope: farmersdelight:tomato_crop_on_rope
- *     rope: farmersdelight:rope
- *   max-age:
- *     budding: 3
- *     tomatoes: 3
- *     hanging: 3
- *   bonemeal:
- *     bonus-min: 1
- *     bonus-max: 4
- *     climb-chance: 0.3
- *
- * The flat spelling (budding-block, budding-max-age, bonemeal-bonus-min, ...) remains permanently
- * supported with identical meaning. It is an alias, not a deprecation: CraftEngine writes a pack
- * resource only when the target file is absent, so an installed crops.yml is never rewritten and a
- * rename would leave the old key silently unread while its default took over. Every flat key
- * therefore keeps working for as long as the behavior does.
- *
- * The three values that do not belong to a cluster (mature-age, max-stack-height, min-light) have
- * one spelling only, at the top level. A section wrapping a single key would add depth for nothing.
- *
- * Resolution order when both spellings appear for the same value: the nested one wins, and it wins
- * outright. A nested value that fails to parse falls back to the built-in default rather than to
- * the flat alias, so which key is in force depends only on which keys are written, never on whether
- * a value happens to be well formed. A conflict where the two spellings resolve differently is
- * reported once per key at load.
- *
- * Unknown keys inside a recognised section are reported too. Behavior keys are matched by exact
- * hyphenated name with no normalisation and nothing rejects a key it does not know, so a typo
- * otherwise vanishes and the default quietly takes effect. Accepting a second shape widens that
- * surface, which is why every section names its unrecognised keys on the console. Reporting stops
- * at the sections: the top level of the argument map is shared with keys the engine itself puts
- * there (the behavior's own type, among others), so FarmersDelight does not own that key space and
- * cannot tell a typo from an engine key there.
- *
- * A warning never removes the block from the game. Warnings are collected here and emitted by the
- * caller, which keeps this resolution free of plugin state and directly testable.
- */
 public record TomatoVineSettings(
         String buddingBlock,
         String tomatoesBlock,
@@ -93,16 +46,11 @@ public record TomatoVineSettings(
     public static final int DEFAULT_BONEMEAL_BONUS_MIN = 1;
     public static final int DEFAULT_BONEMEAL_BONUS_MAX = 4;
 
-    /** A console line the caller emits through the plugin's I18n logger. */
     public record Warning(String key, Object[] arguments) {
         public static Warning of(String key, Object... args) { return new Warning(key, args); }
         public Object[] arguments() { return arguments.clone(); }
     }
 
-    /**
-     * Resolve every value from one behavior's arguments. The block id is only used to name the
-     * offending block in warnings.
-     */
     public static TomatoVineSettings parse(Map<String, Object> arguments, String blockId) {
         Resolver resolver = new Resolver(arguments, blockId);
 
@@ -145,12 +93,6 @@ public record TomatoVineSettings(
             this.blockId = blockId != null ? blockId : "?";
         }
 
-        /**
-         * The sub-keys written under a section name, or null when the author did not write the
-         * section. A section name carrying a scalar instead of sub-keys is reported and then
-         * treated as absent, which leaves the flat aliases in charge rather than dropping the
-         * values to their defaults.
-         */
         Map<String, Object> section(String sectionKey, Set<String> knownKeys) {
             if (!BehaviorArgParser.isPresent(arguments, sectionKey)) {
                 return null;
@@ -201,12 +143,6 @@ public record TomatoVineSettings(
             return BehaviorArgParser.getFloat(arguments, flatKey, fallback);
         }
 
-        /**
-         * Report a value written both ways whose two spellings do not agree. Writing the same value
-         * twice is harmless and stays silent; only a disagreement changes what the block does and
-         * therefore needs saying, since the flat key an author edited would otherwise appear to be
-         * ignored for no visible reason.
-         */
         private void compare(String sectionKey, String nestedKey, String flatKey, Object nestedValue, Object flatValue) {
             if (!BehaviorArgParser.isPresent(arguments, flatKey) || Objects.equals(nestedValue, flatValue)) {
                 return;

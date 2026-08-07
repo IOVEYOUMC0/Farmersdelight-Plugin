@@ -92,7 +92,7 @@
   "gui.cooking_pot.view_recipes": "查看烹饪配方",
   "gui.cooking_pot.view_recipes_lore": "点击此处查看配方",
   "gui.recipe.container": "容器",
-  "gui.recipe.filter_craftable_on": "仅显示可烹饪",
+  "gui.recipe.filter_craftable_on": "仅显示可合成配方",
   "gui.recipe.filter_craftable_off": "显示全部配方",
   "gui.recipe.click_to_toggle": "点击切换",
   "gui.recipe.cook_time": "烹饪时间",

@@ -18,10 +18,6 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
-/**
- * 厨锅手柄装饰，通过方块 support 属性控制 entity_renderer 显示/隐藏。
- * 潜行 + 空手右键厨锅切换手柄，手柄与托盘互斥。
- */
 public final class HandleManager {
 
     private static final String DEFAULT_TOGGLE_SOUND = "minecraft:block.lantern.place";
@@ -48,18 +44,11 @@ public final class HandleManager {
         toggleSoundPitch = (float) config.getDouble("toggle-sound-pitch", DEFAULT_TOGGLE_SOUND_PITCH);
     }
 
-    /** 检查厨锅当前是否安装了手柄（通过 support 方块属性判断）。 */
     public boolean hasHandle(World world, BlockPos potPos) {
         if (world == null || potPos == null) return false;
         return "handle".equals(getSupportProperty(world, potPos));
     }
 
-    /**
-     * 切换厨锅手柄状态。
-     * 有手柄 → 移除，重新评估托盘
-     * 无手柄 → 移除托盘（如有），安装手柄
-     * @return true=安装了手柄，false=移除了手柄
-     */
     public boolean toggleHandle(World world, BlockPos potPos, @Nullable Player player) {
         if (world == null || potPos == null) return false;
         Block potBlock = world.getBlockAt(potPos.x(), potPos.y(), potPos.z());
@@ -82,7 +71,6 @@ public final class HandleManager {
         return !had;
     }
 
-    /** 移除厨锅上的手柄（设为 none）。锅被破坏时调用。 */
     public void removeHandle(World world, BlockPos potPos) {
         if (world == null || potPos == null) return;
         Block potBlock = world.getBlockAt(potPos.x(), potPos.y(), potPos.z());
@@ -100,7 +88,7 @@ public final class HandleManager {
 
     public void cleanupWorld(java.util.UUID worldId) {}
 
-    // 内部方法
+    // Internal helpers
 
     @Nullable
     private String getSupportProperty(World world, BlockPos potPos) {

@@ -7,11 +7,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * Cloning helpers shared by the station snapshot records. Every ItemStack that crosses the api
- * boundary is copied on the way in and on the way out, so a caller can never reach a live stack held
- * by a station's block entity and a caller mutating what it was handed can never corrupt a station.
- */
 final class SnapshotItems {
 
     private SnapshotItems() {
@@ -21,7 +16,6 @@ final class SnapshotItems {
         return ItemUtils.cloneOrNull(item);
     }
 
-    /** An unmodifiable list of clones; null entries are preserved so slot indexes stay meaningful. */
     static List<ItemStack> copyList(List<ItemStack> items) {
         if (items == null || items.isEmpty()) {
             return List.of();

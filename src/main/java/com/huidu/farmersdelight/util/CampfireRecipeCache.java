@@ -83,11 +83,6 @@ public final class CampfireRecipeCache {
         debug.accept(() -> "Loaded " + recipes.size() + " cached campfire recipes for " + debugName);
     }
 
-    /** Buckets each recipe under the base Material of every item its RecipeChoice accepts. Reading the
-     *  choice's materials directly is what lets custom-item recipes index: CraftEngine registers them with an
-     *  ExactChoice carrying the full custom item (with data components), which a plain new ItemStack(material)
-     *  probe is never isSimilar to — so a probe-based bucket dropped every custom recipe and only vanilla
-     *  (MaterialChoice) items cooked. Item materials only — non-item Materials can't be cooked. */
     private static Map<Material, List<CampfireRecipe>> buildMaterialBucket(List<CampfireRecipe> recipes) {
         if (recipes.isEmpty()) {
             return Map.of();

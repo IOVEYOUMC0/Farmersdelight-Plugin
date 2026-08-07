@@ -5,9 +5,6 @@ import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.proxy.minecraft.world.level.LevelProxy;
 import org.bukkit.World;
 
-/**
- * Small bridge helpers for CraftEngine callbacks.
- */
 public final class CraftEngineAdapter {
 
     private CraftEngineAdapter() {

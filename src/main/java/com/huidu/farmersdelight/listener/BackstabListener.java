@@ -18,10 +18,8 @@ import org.bukkit.util.Vector;
 
 import java.util.Locale;
 
-/** Applies the configurable positional damage effect of the backstabbing enchantment. */
 public final class BackstabListener implements Listener {
 
-    /** 硬编码战斗微调值，之前暴露为可配置项 */
     private static final double BEHIND_DOT_THRESHOLD = -0.5D;
     private static final double MINIMUM_HORIZONTAL_DISTANCE = 0.001D;
     private static final double MINIMUM_HORIZONTAL_DISTANCE_SQUARED =
@@ -49,7 +47,6 @@ public final class BackstabListener implements Listener {
         backstabEnchantment = null;
     }
 
-    /** Kept for addon/source compatibility; config reloads should use reload(). */
     public void setEnabled(boolean enabled) {
         this.enabled = enabled && settings != null && settings.enabled();
     }
@@ -84,7 +81,7 @@ public final class BackstabListener implements Listener {
         }
 
         event.setDamage(event.getDamage() * combat.multiplier(level));
-        // 音效始终在目标位置播放
+        // Always play the sound at the target's location.
         target.getWorld().playSound(target.getLocation(), SOUND, SOUND_VOLUME, SOUND_PITCH);
     }
 

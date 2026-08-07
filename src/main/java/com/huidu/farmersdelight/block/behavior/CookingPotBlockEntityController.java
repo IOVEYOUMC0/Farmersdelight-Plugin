@@ -35,18 +35,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * CraftEngine container/hopper bridge for the cooking pot. The authoritative inventory lives in
- * CookingPotBlockEntity; this controller keeps a shadow copy, reconciled via
- * #refreshFromEntity/#writeToEntity with dirty-slot tracking.
- *
- * #getItem(int) must return the live shadow Item so vanilla hopper in-place
- * merges (getItem(slot).grow(n) followed by #setChanged(), without calling
- * #setItem) are captured; returning a detached copy would drop every merged item. Any
- * mutator must #markDirty(int) the changed slot and call #setChanged(), or be
- * part of a larger operation that ends in #setChanged(); otherwise the next
- * #refreshFromEntity reverts it.
- */
 public final class CookingPotBlockEntityController extends BlockEntityController implements BukkitContainer, WorldlyContainer, InventoryHolder {
 
     private static final String DATA_VERSION = "data_version";
@@ -104,15 +92,16 @@ public final class CookingPotBlockEntityController extends BlockEntityController
 
     @Override
     public void saveCustomData(CompoundTag tag) {
-        // A passivation snapshot is authoritative while the plugin-side entity is gone; checked before
-        // loadPendingDataIfReady so serializing an unloaded chunk cannot resurrect the entity.
-        if (this.pendingSaveData != null) {
-            tag.put(this.behavior.getCustomDataKey(), this.pendingSaveData);
+        // Never rehydrate pending data here: doing so may synchronously request the chunk CraftEngine is
+        // currently serializing. Reading the plugin entity from its already-loaded map does not load a chunk.
+        CompoundTag data = this.pendingSaveData;
+        if (data != null) {
+            tag.put(this.behavior.getCustomDataKey(), data);
             return;
         }
-        loadPendingDataIfReady();
-        if (this.pendingLoadData != null) {
-            tag.put(this.behavior.getCustomDataKey(), this.pendingLoadData);
+        data = this.pendingLoadData;
+        if (data != null) {
+            tag.put(this.behavior.getCustomDataKey(), data);
             return;
         }
         CookingPotBlockEntity entity = getEntityIfLoaded();
@@ -121,7 +110,6 @@ public final class CookingPotBlockEntityController extends BlockEntityController
             tag.put(this.behavior.getCustomDataKey(), saveData(entity));
             return;
         }
-
         tag.put(this.behavior.getCustomDataKey(), saveSnapshotData());
     }
 
@@ -181,11 +169,6 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         }
     }
 
-    /**
-     * Snapshots the entity's current state so it survives the plugin-side entity being dropped on chunk
-     * unload. saveCustomData emits the snapshot verbatim and loadPendingDataIfReady re-hydrates from it
-     * when the chunk reloads out of CraftEngine's chunk cache (where loadCustomData never runs).
-     */
     public void passivate(CookingPotBlockEntity entity) {
         if (entity == null) {
             return;
@@ -278,10 +261,16 @@ public final class CookingPotBlockEntityController extends BlockEntityController
                 continue;
             }
             ItemStack entitySlot = entity.getInventorySlot(i);
+            if (isEmptyBukkitSlot(entitySlot)) {
+                this.items[i] = Item.empty();
+                this.nonCeOriginal[i] = null;
+                this.entityBaseline[i] = null;
+                continue;
+            }
             this.items[i] = normalize(BukkitItemManager.instance().wrap(entitySlot));
             this.nonCeOriginal[i] = ItemUtils.isCustomItem(entitySlot) ? null : entitySlot.clone();
-            // getInventorySlot 返回一份新的拷贝，因此此基线在后续的
-            // setInventorySlot 写入时保持稳定；writeToEntity 会对比实体槽位与基线。
+            // getInventorySlot returns a fresh copy, so this baseline remains stable when setInventorySlot
+            // writes later; writeToEntity compares the entity slot against this baseline.
             this.entityBaseline[i] = entitySlot;
         }
         if (!hasDirtySlots) {
@@ -289,6 +278,10 @@ public final class CookingPotBlockEntityController extends BlockEntityController
             this.cookingDuration = entity.getCookingDuration();
             this.mealContainer = entity.getMealContainer();
         }
+    }
+
+    static boolean isEmptyBukkitSlot(ItemStack item) {
+        return item == null || item.isEmpty();
     }
 
     public void setChangedFromEntity(CookingPotBlockEntity entity) {
@@ -348,9 +341,15 @@ public final class CookingPotBlockEntityController extends BlockEntityController
                 // guard previously covered only the non-dirty branch, letting hopper writes clobber a
                 // cross-region viewer.
                 if (!itemStacksEqual(this.entityBaseline[i], entityNow)) {
-                    this.items[i] = normalize(BukkitItemManager.instance().wrap(entityNow));
-                    this.nonCeOriginal[i] = ItemUtils.isCustomItem(entityNow) ? null : entityNow.clone();
-                    this.entityBaseline[i] = entityNow;
+                    if (isEmptyBukkitSlot(entityNow)) {
+                        this.items[i] = Item.empty();
+                        this.nonCeOriginal[i] = null;
+                        this.entityBaseline[i] = null;
+                    } else {
+                        this.items[i] = normalize(BukkitItemManager.instance().wrap(entityNow));
+                        this.nonCeOriginal[i] = ItemUtils.isCustomItem(entityNow) ? null : entityNow.clone();
+                        this.entityBaseline[i] = entityNow;
+                    }
                     continue;
                 }
                 entity.setInventorySlot(i, toBukkitPreserving(i));
@@ -379,7 +378,6 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         return item == null || item.isEmpty() ? null : ItemStackUtils.getBukkitStack(item.minecraftItem());
     }
 
-    /** Convert CE Item back to Bukkit, preferring the preserved original for non-CE items. */
     private ItemStack toBukkitPreserving(int slot) {
         if (this.nonCeOriginal[slot] != null) {
             return adjustCount(this.nonCeOriginal[slot], this.items[slot]);
@@ -387,7 +385,6 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         return asBukkitStack(this.items[slot]);
     }
 
-    /** Returns a clone of the original Bukkit stack with count adjusted to match the CE Item. */
     private static ItemStack adjustCount(ItemStack original, Item ceItem) {
         if (original == null || ceItem == null || ceItem.isEmpty()) return null;
         int ceCount = ceItem.count();
@@ -645,11 +642,6 @@ public final class CookingPotBlockEntityController extends BlockEntityController
                 && !isNestingHazard(item);
     }
 
-    /**
-     * True when a hopper/automation item must be refused: a cooking pot (empty or packed) or any item already
-     * carrying a stored block-entity inventory. Nesting a container into the pot lets its saved NBT be grown
-     * recursively into a client-crashing bomb, so the automation path rejects it just like the GUI does.
-     */
     private boolean isNestingHazard(Item item) {
         if (item == null || item.isEmpty()) {
             return false;

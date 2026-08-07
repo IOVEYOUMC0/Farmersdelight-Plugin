@@ -16,17 +16,16 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
-/** Writes the bundled backstab enchantment datapack into each world's datapacks directory */
 public final class EnchantmentDatapackInstaller implements Listener {
 
-    /** Hardcoded datapack metadata previously read from the config datapack section */
     private static final String DATAPACK_DIRECTORY = "farmersdelight_enchant";
     private static final int PACK_FORMAT = 48;
     private static final String PACK_DESCRIPTION = "FarmersDelight configurable enchantments";
 
-    /** Backstab definition values, kept in sync with the bundled datapack/enchantment/ */
     private static final int MIN_COST_BASE = 15;
     private static final int MIN_COST_PER_LEVEL = 9;
     private static final int MAX_COST_BASE = 50;
@@ -36,6 +35,11 @@ public final class EnchantmentDatapackInstaller implements Listener {
     private static final List<String> SLOTS = List.of("mainhand");
     private static final String SUPPORTED_ITEMS_TAG = "farmersdelight:enchantable/knife";
     private static final List<String> SUPPORTED_ITEMS = List.of();
+    private static final List<String> DISTRIBUTION_TAGS = List.of(
+            "tradeable",
+            "treasure",
+            "on_random_loot"
+    );
 
     private final FarmersDelightPlugin plugin;
 
@@ -43,7 +47,6 @@ public final class EnchantmentDatapackInstaller implements Listener {
         this.plugin = plugin;
     }
 
-    /** Installs or updates the generated datapack files into every loaded world. */
     public void installToAllWorlds() {
         EnchantmentSettings settings = plugin.getEnchantmentSettings();
         if (!shouldInstall(settings)) {
@@ -56,6 +59,9 @@ public final class EnchantmentDatapackInstaller implements Listener {
         }
         int changedWorlds = 0;
         for (World world : worlds) {
+            if (!plugin.isDatapackWorldAllowed(world)) {
+                continue;
+            }
             if (installToWorld(world, settings)) {
                 changedWorlds++;
             }
@@ -67,6 +73,9 @@ public final class EnchantmentDatapackInstaller implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onWorldLoad(WorldLoadEvent event) {
+        if (!plugin.isDatapackWorldAllowed(event.getWorld())) {
+            return;
+        }
         EnchantmentSettings settings = plugin.getEnchantmentSettings();
         if (shouldInstall(settings) && installToWorld(event.getWorld(), settings)) {
             printRestartBanner(1);
@@ -87,7 +96,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
             NamespacedId enchantmentId = NamespacedId.parse(settings.backstabbing().id());
             NamespacedId supportedTag = NamespacedId.parse(SUPPORTED_ITEMS_TAG);
 
-            List<GeneratedFile> generated = List.of(
+            List<GeneratedFile> generated = new ArrayList<>(List.of(
                     new GeneratedFile(datapackDir.resolve("pack.mcmeta"), renderPackMetadata()),
                     new GeneratedFile(datapackDir.resolve("data")
                             .resolve(enchantmentId.namespace())
@@ -98,7 +107,15 @@ public final class EnchantmentDatapackInstaller implements Listener {
                             .resolve("tags")
                             .resolve("item")
                             .resolve(supportedTag.path() + ".json"), renderSupportedItems())
-            );
+            ));
+            for (Map.Entry<String, String> entry
+                    : renderDistributionTags(settings.backstabbing().id()).entrySet()) {
+                generated.add(new GeneratedFile(datapackDir.resolve("data")
+                        .resolve("minecraft")
+                        .resolve("tags")
+                        .resolve("enchantment")
+                        .resolve(entry.getKey() + ".json"), entry.getValue()));
+            }
 
             int changed = 0;
             for (GeneratedFile file : generated) {
@@ -172,6 +189,19 @@ public final class EnchantmentDatapackInstaller implements Listener {
         return "{\n  \"replace\": true,\n  \"values\": ["
                 + (values.isEmpty() ? "" : "\n" + values + "\n  ")
                 + "]\n}\n";
+    }
+
+    static Map<String, String> renderDistributionTags(String enchantmentId) {
+        NamespacedId.parse(enchantmentId);
+        String content = "{\n"
+                + "  \"replace\": false,\n"
+                + "  \"values\": [\"" + json(enchantmentId) + "\"]\n"
+                + "}\n";
+        java.util.LinkedHashMap<String, String> tags = new java.util.LinkedHashMap<>();
+        for (String tag : DISTRIBUTION_TAGS) {
+            tags.put(tag, content);
+        }
+        return Map.copyOf(tags);
     }
 
     private static boolean writeIfChanged(Path destination, String content) throws IOException {

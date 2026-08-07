@@ -9,24 +9,6 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Central text renderer for everything the plugin shows players: GUI item names, GUI item lore,
- * chat messages, and action bars.
- *
- * A single string may freely mix MiniMessage tags (<green>, <#ff8800>,
- * <gradient:..>, <bold>, ...) and legacy &/§ color codes (including
- * &#rrggbb and Bukkit's §x§r§r.. hex). Legacy codes are converted to MiniMessage,
- * and the whole string is parsed once by MiniMessage, so old configs still work and new MiniMessage
- * configs render too.
- *
- * #name(String) and #lore(String) also fix two long-standing visual issues
- * with NBT-driven text:
- * (1) Italics &mdash; custom item names and lore render italic by default. These helpers
- * disable italics unless the text explicitly requests it.
- * (2) Dark-purple lore &mdash; uncolored lore lines fall back to the vanilla
- * dark_purple default. #lore(String) supplies gray (and
- * #name(String) supplies white), only when the text sets no color itself.
- */
 public final class Text {
 
     private static final MiniMessage MINI = MiniMessage.miniMessage();
@@ -42,10 +24,6 @@ public final class Text {
     private Text() {
     }
 
-    /**
-     * Parses MiniMessage + legacy color codes into a Component. Never throws: malformed input falls
-     * back to plain (unstyled) text, so one bad config line never breaks GUI rendering or messages.
-     */
     public static Component deserialize(String raw) {
         if (raw == null || raw.isEmpty()) {
             return Component.empty();
@@ -58,27 +36,18 @@ public final class Text {
         }
     }
 
-    /**
-     * Renders an item display name: parsed text, italics forced off, defaulting to white
-     * when the text sets no color itself.
-     */
     public static Component name(String raw) {
         return deserialize(raw)
                 .colorIfAbsent(NamedTextColor.WHITE)
                 .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE);
     }
 
-    /**
-     * Renders an item lore line: parsed text, italics forced off, defaulting to gray
-     * when the text sets no color itself (never the vanilla dark-purple lore default).
-     */
     public static Component lore(String raw) {
         return deserialize(raw)
                 .colorIfAbsent(NamedTextColor.GRAY)
                 .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE);
     }
 
-    /** Convenience method for a whole block of lore. */
     public static List<Component> loreLines(List<String> rawLines) {
         List<Component> lines = new ArrayList<>();
         if (rawLines != null) {
@@ -89,12 +58,10 @@ public final class Text {
         return lines;
     }
 
-    /** Renders an inventory/menu title (MiniMessage + legacy codes, no italic/color defaulting). */
     public static Component title(String raw) {
         return deserialize(raw);
     }
 
-    /** Strips all formatting and returns plain text (for console output and comparisons). */
     public static String plain(String raw) {
         if (raw == null || raw.isEmpty()) {
             return "";
@@ -102,11 +69,6 @@ public final class Text {
         return PLAIN.serialize(deserialize(raw));
     }
 
-    /**
-     * Converts legacy &/§ color codes (including &#rrggbb and Bukkit's
-     * §x§r§r§g§g§b§b hex) into MiniMessage tags, leaving any existing MiniMessage tags and
-     * all other text unchanged. Package-private for direct unit testing.
-     */
     static String legacyToMiniMessage(String input) {
         if (input == null || input.isEmpty()) {
             return "";
@@ -184,11 +146,6 @@ public final class Text {
         return true;
     }
 
-    /**
-     * Checks for a Bukkit expanded-hex sequence starting at i, where s.charAt(i) is
-     * the color character and s.charAt(i + 1) is x/X: followed by six
-     * <colourChar><hexDigit> pairs (14 characters total).
-     */
     private static boolean isBukkitHex(String s, int i) {
         if (i + 14 > s.length()) {
             return false;

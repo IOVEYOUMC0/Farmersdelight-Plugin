@@ -28,10 +28,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
-/**
- * Tracks online players that currently have custom food effects.
- * Only tracked players are processed each tick, keeping the scheduled task lightweight.
- */
 public class EffectListener implements Listener {
 
     private static final Set<UUID> playersWithEffects = ConcurrentHashMap.newKeySet();
@@ -76,9 +72,6 @@ public class EffectListener implements Listener {
         registerOwnBuffs();
     }
 
-    /** Wire FD's Comfort / Nourishment into the buff registry so milk_bucket / milk_bottle clears
-     *  them through the same code path addons use, and so PAPI placeholders can read their level /
-     *  remaining time / name key. The unregister happens in #stop(). */
     private static void registerOwnBuffs() {
         CustomBuffRegistry.register(new com.huidu.farmersdelight.api.buff.CustomBuff() {
             @Override public String id() { return "farmersdelight:comfort"; }
@@ -159,13 +152,6 @@ public class EffectListener implements Listener {
         ensureBuffSyncTicking();
     }
 
-    /**
-     * Arms the pass that turns an expired buff into its change event. A buff runs out inside whichever
-     * ticker owns it — this listener's own pass for Comfort and Nourishment, an addon's timer for its
-     * buffs — and none of those report the drop to the registry, so the registry re-reads the players it
-     * knows are buffed and diffs them itself. It covers addon buffs the effect ticker never sees, so it
-     * cannot be folded into that pass.
-     */
     private void ensureBuffSyncTicking() {
         synchronized (taskLock) {
             if (!stopped && buffSyncTask == null && plugin.isEnabled()
@@ -176,10 +162,6 @@ public class EffectListener implements Listener {
         }
     }
 
-    /** Starts the effect tick pass if a tracked player now exists. Producers must add to the pool BEFORE
-     *  calling this, so a concurrently draining pass either sees the new entry (and does not cancel) or
-     *  the producer finds effectTask == null under the lock and reschedules. The ticker is never armed
-     *  while the buff system is switched off — there is nothing to tick then. */
     private void ensureTicking() {
         synchronized (taskLock) {
             if (!stopped && effectTask == null && plugin.isEnabled()
@@ -189,12 +171,6 @@ public class EffectListener implements Listener {
         }
     }
 
-    /**
-     * Re-evaluates the buff master switch after a config reload. Switching off cancels the running pass and
-     * drops the live buff state, so nothing keeps ticking until the next restart; switching back on re-arms
-     * the ticker for players who are still tracked. The switch itself is read in the plugin's config load and
-     * published through the registry, so this only has to act on the transition.
-     */
     public void applySystemEnabled(boolean systemEnabled) {
         if (!systemEnabled) {
             synchronized (taskLock) {
@@ -362,13 +338,6 @@ public class EffectListener implements Listener {
         EffectManager.clearPlayer(event.getEntity());
     }
 
-    /**
-     * Milk-consume to addon buff wipe. Vanilla milk_bucket clears every active registered buff
-     * (FD's own Comfort / Nourishment and BAC's Tipsy / Sweet Heart / Raging / Intoxication via the
-     * addon registration); any custom item carrying the farmersdelight:milk tag (milk_bottle) removes
-     * exactly one, preferring non-low-priority entries — same rule as the original mod's
-     * brewinandchewin:low_priority/milk_bottle effect tag.
-     */
     @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
     public void onMilkConsume(PlayerItemConsumeEvent event) {
         ItemStack item = event.getItem();
@@ -382,13 +351,6 @@ public class EffectListener implements Listener {
         }
     }
 
-    /**
-     * The milk-bottle cleanser: removes exactly ONE effect at random, mirroring the mod's MilkBottleItem
-     * (which picks uniformly from the drinker's milk-curable effects). The candidate pool is every active
-     * vanilla potion effect plus every active non-low-priority custom buff — each an equal-weight candidate.
-     * Low-priority custom buffs (BAC's booze, tagged brewinandchewin:low_priority/milk_bottle) form a fallback
-     * pool used only when nothing else is curable, so a milk bottle sobers you up only as a last resort.
-     */
     private void milkBottleCleanse(Player player) {
         if (player == null) {
             return;

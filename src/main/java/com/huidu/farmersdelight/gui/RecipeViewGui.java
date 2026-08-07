@@ -17,7 +17,6 @@ import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.momirealms.craftengine.core.util.Key;
-import net.momirealms.craftengine.core.util.UniqueKey;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -59,9 +58,8 @@ public class RecipeViewGui extends AbstractInventoryGui {
     // recipe manager republishes (loadRecipes). Values and returns are cloned like itemCache.
     private static final Map<String, ItemStack> recipeListDisplayCache = new ConcurrentHashMap<>();
     // Tag/choice ingredient option caches live in RecipeIngredientIcons (extracted with the resolvers).
-    // Tool preview options (by tool key) are likewise fixed but were previously uncached, forcing a CraftEngine tag
-    // scan on every recipe-list draw / tool animation; cache the result, clear on reload, callers get clones.
-    private static final Map<Key, List<ItemStack>> toolPreviewCache = new ConcurrentHashMap<>();
+    // Tool preview options include item/tag identity and exclusions, so cache by the complete requirement.
+    private static final Map<CuttingBoardRecipe.ToolRequirement, List<ItemStack>> toolPreviewCache = new ConcurrentHashMap<>();
     private static final ItemStack EMPTY_SLOT_BACKGROUND = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
     static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
@@ -92,7 +90,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
     volatile int currentToolIndex = 0;
     private volatile int currentToolPreviewIndex = 0;
     private int toolSwitchTicks = 0;
-    private static final int TOOL_SWITCH_INTERVAL = 40;
     private final Map<Integer, List<ItemStack>> animatedIngredientSlots = new HashMap<>();
     private final Map<Integer, Integer> animatedIngredientIndices = new HashMap<>();
     private final Map<Integer, RecipeIngredient> animatedIngredientDefinitions = new HashMap<>();
@@ -117,7 +114,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
     // old behavior (back to recipeBackState). Touched only inside the click handler (single-threaded per viewer).
     private final java.util.Deque<DetailState> detailHistory = new java.util.ArrayDeque<>();
 
-    /** A remembered recipe-detail page: enough to redraw it and keep its own back destination. */
     private record DetailState(boolean cookingPotMode, String selectedRecipeId, GuiState recipeBackState) {
     }
 
@@ -191,13 +187,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
         warnedCookingPotDetailCapacityConfigs.clear();
     }
 
-    /**
-     * Invalidate cached recipe-list display items. Called by the recipe managers after they publish a
-     * fresh recipe set — covers the paths clearConfigCache misses: addon register/unregister
-     * republish, and the window in reloadAll between clearConfigCache and the recipe reload.
-     */
     public static void clearRecipeDisplayCache() {
         recipeListDisplayCache.clear();
+        toolPreviewCache.clear();
     }
 
     private RecipeViewGuiConfig createDefaultConfig() {
@@ -242,7 +234,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     private void tickToolSwitch() {
         toolSwitchTicks++;
-        if (toolSwitchTicks >= TOOL_SWITCH_INTERVAL) {
+        if (toolSwitchTicks >= INGREDIENT_SWITCH_INTERVAL) {
             toolSwitchTicks = 0;
             
             CuttingBoardRecipe recipe = plugin.getCuttingBoardRecipes().getRecipe(selectedRecipeId);
@@ -252,7 +244,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
             List<CuttingBoardRecipe.ToolRequirement> tools = recipe.getTools();
             int safeToolIndex = currentToolIndex % tools.size();
-            List<ItemStack> previewOptions = resolveToolPreviewOptions(tools.get(safeToolIndex).key());
+            List<ItemStack> previewOptions = resolveToolPreviewOptions(tools.get(safeToolIndex));
 
             if (previewOptions.size() > 1) {
                 currentToolPreviewIndex++;
@@ -281,7 +273,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (recipe == null || recipe.getTools() == null || recipe.getTools().isEmpty()) return;
         
         int safeIndex = currentToolIndex % recipe.getTools().size();
-        Key currentTool = recipe.getTools().get(safeIndex).key();
+        CuttingBoardRecipe.ToolRequirement currentTool = recipe.getTools().get(safeIndex);
         
         if (player == null || !player.isOnline()) return;
         
@@ -399,6 +391,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
         cookingPotMode = false;
         RecipeViewGuiConfig.RecipeListConfig listConfig = config.getRecipeList();
         List<CuttingBoardRecipe> recipes = plugin.getCuttingBoardRecipes().getSortedRecipes();
+        if (craftableOnly) {
+            recipes = filterCraftableCuttingBoardRecipes(recipes);
+        }
         recipes = applyDiscoveryFilter(recipes, false, player);
         drawRecipeList(player, listConfig, recipes, false);
     }
@@ -456,7 +451,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
         drawListNavigation(listConfig, totalPages);
     }
 
-    /** In "hidden" discovery mode, drops recipes the player hasn't unlocked; otherwise returns the list as-is. */
     private <T> List<T> applyDiscoveryFilter(List<T> recipes, boolean isCookingPot, Player player) {
         RecipeDiscoveryManager discovery = plugin.getRecipeDiscoveryManager();
         if (discovery == null || !discovery.isEnabled() || !discovery.hidesLocked() || player == null) {
@@ -471,7 +465,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
         return shown;
     }
 
-    /** True if discovery is on and player has not unlocked this FarmersDelight recipe. */
     private boolean isRecipeLocked(Object recipe, boolean isCookingPot, Player player) {
         RecipeDiscoveryManager discovery = plugin.getRecipeDiscoveryManager();
         if (discovery == null || !discovery.isEnabled() || player == null) {
@@ -496,13 +489,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         }
 
         drawListBackOrCloseButton(listConfig);
-        if (cookingPotMode) {
-            setFilterToggleItem(listConfig, player);
-        } else if (listConfig.getFilterSlot() >= 0) {
-            GuiConfig.GuiItem background = listConfig.getItem("background");
-            inventory.setItem(listConfig.getFilterSlot(),
-                    background != null ? background.createItem() : null);
-        }
+        setFilterToggleItem(listConfig, player);
 
         if (listConfig.getInfoSlot() >= 0) {
             GuiConfig.GuiItem infoItem = listConfig.getItem("info");
@@ -515,12 +502,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
         }
     }
 
-    /**
-     * Renders the recipe-list back slot. For a command-opened top-level list (no menu above, no back
-     * commands) the slot's click closes the GUI, so it shows the "close" item; every other entry point
-     * (menu descent, opened from a pot, or a configured back command) shows the "back" item. Falls back to
-     * the "back" item when no "close" item is configured, so an older gui.yml without it keeps working.
-     */
     private void drawListBackOrCloseButton(RecipeViewGuiConfig.RecipeListConfig listConfig) {
         int backSlot = listConfig.getBackSlot();
         if (backSlot < 0) {
@@ -645,8 +626,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
         return Math.max(1, (int) Math.ceil(recipe.getCookTime() / 20.0D));
     }
 
-    ItemStack createToolDisplayItem(Key toolKey, int totalTools, int currentIndex, Player player) {
-        List<ItemStack> previewOptions = resolveToolPreviewOptions(toolKey);
+    ItemStack createToolDisplayItem(CuttingBoardRecipe.ToolRequirement tool, int totalTools,
+                                    int currentIndex, Player player) {
+        List<ItemStack> previewOptions = resolveToolPreviewOptions(tool);
         int safePreviewIndex = 0;
         if (!previewOptions.isEmpty()) {
             safePreviewIndex = currentToolPreviewIndex % previewOptions.size();
@@ -658,12 +640,14 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (toolItem == null || toolItem.getType() == Material.BARRIER) {
             toolItem = new ItemStack(Material.IRON_AXE);
         }
-        
+
+        Component toolName = itemNameComponent(toolItem, player).colorIfAbsent(NamedTextColor.WHITE);
+
         ItemMeta toolMeta = toolItem.getItemMeta();
         toolMeta.displayName(tr("gui.recipe.tool", NamedTextColor.YELLOW));
 
         List<Component> lore = new ArrayList<>();
-        lore.add(itemNameComponent(toolItem, player).colorIfAbsent(NamedTextColor.WHITE));
+        lore.add(toolName);
         if (totalTools > 1) {
             lore.add(tr("gui.recipe.auto_cycle", NamedTextColor.GRAY,
                     currentIndex + 1, totalTools));
@@ -674,12 +658,12 @@ public class RecipeViewGui extends AbstractInventoryGui {
         }
         toolMeta.lore(lore);
         toolItem.setItemMeta(toolMeta);
-        
+
         return toolItem;
     }
 
-    private ItemStack createToolPreviewItem(Key toolKey) {
-        List<ItemStack> previewOptions = resolveToolPreviewOptions(toolKey);
+    private ItemStack createToolPreviewItem(CuttingBoardRecipe.ToolRequirement tool) {
+        List<ItemStack> previewOptions = resolveToolPreviewOptions(tool);
         if (!previewOptions.isEmpty()) {
             return previewOptions.getFirst().clone();
         }
@@ -687,8 +671,8 @@ public class RecipeViewGui extends AbstractInventoryGui {
         return new ItemStack(Material.IRON_AXE);
     }
 
-    private List<ItemStack> resolveToolPreviewOptions(Key toolKey) {
-        List<ItemStack> cached = toolPreviewCache.computeIfAbsent(toolKey, this::computeToolPreviewOptions);
+    private List<ItemStack> resolveToolPreviewOptions(CuttingBoardRecipe.ToolRequirement tool) {
+        List<ItemStack> cached = toolPreviewCache.computeIfAbsent(tool, this::computeToolPreviewOptions);
         List<ItemStack> copy = new ArrayList<>(cached.size());
         for (ItemStack item : cached) {
             copy.add(item.clone());
@@ -696,38 +680,30 @@ public class RecipeViewGui extends AbstractInventoryGui {
         return copy;
     }
 
-    private List<ItemStack> computeToolPreviewOptions(Key toolKey) {
-        List<ItemStack> previewOptions = new ArrayList<>();
-
-        ItemStack directItem = RecipeIngredientIcons.createItemFromKey(toolKey);
-        if (isDisplayableItem(directItem)) {
-            previewOptions.add(directItem);
-            return previewOptions;
+    private List<ItemStack> computeToolPreviewOptions(CuttingBoardRecipe.ToolRequirement tool) {
+        if (tool.tag() && "farmersdelight:knives".equals(tool.key().toString())) {
+            return finalizeToolPreviewOptions(createKnifePreviewItems(), tool);
         }
 
-        previewOptions.addAll(createTaggedToolPreviewItems(toolKey));
+        List<ItemStack> previewOptions = finalizeToolPreviewOptions(
+                RecipeIngredientIcons.resolveIngredientOptions(tool.asIngredient()), tool);
         if (!previewOptions.isEmpty()) {
             return previewOptions;
         }
 
-        // 兜底：已知工具标签按配置/原版物品生成预览，返回多个物品以支持轮播
-        switch (toolKey.toString()) {
+        // Action keys are predicates rather than item/tag IDs, so map them to their visible tool families.
+        previewOptions = new ArrayList<>();
+        switch (tool.key().toString()) {
             case "farmersdelight:knives" -> previewOptions.addAll(createKnifePreviewItems());
             case "farmersdelight:axe_dig", "farmersdelight:axe_strip", "minecraft:axes" -> previewOptions.addAll(createVanillaToolPreviewItems("_axe"));
-            case "farmersdelight:pickaxe_dig" -> previewOptions.addAll(createVanillaToolPreviewItems("_pickaxe"));
+            case "farmersdelight:pickaxe_dig", "minecraft:pickaxes" -> previewOptions.addAll(createVanillaToolPreviewItems("_pickaxe"));
             case "farmersdelight:shovel_dig", "minecraft:shovels" -> previewOptions.addAll(createVanillaToolPreviewItems("_shovel"));
             case "minecraft:shears" -> previewOptions.add(new ItemStack(Material.SHEARS));
-            default -> {
-                ItemStack item = RecipeIngredientIcons.createItemFromKey(toolKey);
-                if (isDisplayableItem(item)) {
-                    previewOptions.add(item);
-                }
-            }
+            default -> { }
         }
-        return previewOptions;
+        return finalizeToolPreviewOptions(previewOptions, tool);
     }
 
-    /** 从配置获取所有已注册的小刀物品用于工具轮播预览 */
     private List<ItemStack> createKnifePreviewItems() {
         List<ItemStack> knives = new ArrayList<>();
         for (String knifeId : plugin.getConfigStringList("knife-items.items", "drops.knife-items.items", "knife-config.items")) {
@@ -742,7 +718,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
         return knives;
     }
 
-    /** 从原版物品注册表收集匹配指定后缀的工具物品（如 _axe 收集所有斧头） */
     private List<ItemStack> createVanillaToolPreviewItems(String suffix) {
         List<ItemStack> items = new ArrayList<>();
         for (Material material : Material.values()) {
@@ -753,7 +728,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             }
         }
         if (items.isEmpty()) {
-            // 回退：至少显示一个铁质工具
+            // Last resort: show at least one iron tool.
             items.add(switch (suffix) {
                 case "_axe" -> new ItemStack(Material.IRON_AXE);
                 case "_pickaxe" -> new ItemStack(Material.IRON_PICKAXE);
@@ -764,25 +739,31 @@ public class RecipeViewGui extends AbstractInventoryGui {
         return items;
     }
 
-    private List<ItemStack> createTaggedToolPreviewItems(Key toolKey) {
-        List<ItemStack> previewItems = new ArrayList<>();
-        try {
-            for (UniqueKey uniqueKey : plugin.getCraftEngine().itemManager().itemIdsByTag(toolKey)) {
-                ItemStack item = RecipeIngredientIcons.createItemFromKey(uniqueKey.key());
-                if (isDisplayableItem(item)) {
-                    previewItems.add(item);
-                }
+    private List<ItemStack> finalizeToolPreviewOptions(
+            List<ItemStack> candidates,
+            CuttingBoardRecipe.ToolRequirement tool
+    ) {
+        Map<String, ItemStack> unique = new LinkedHashMap<>();
+        for (ItemStack item : candidates) {
+            if (isDisplayableItem(item) && !isExcludedToolPreview(item, tool)) {
+                unique.putIfAbsent(RecipeIngredientIcons.buildIngredientDisplayKey(item), item);
             }
-        } catch (Exception ignored) {
-            // Some action keys are not CE item tags; fall back to the explicit tool preview below.
         }
+        return RecipeIngredientIcons.sortIngredientDisplayItems(unique.values());
+    }
 
-        for (ItemStack item : ItemUtils.createVanillaTagDisplayItems(toolKey, Set.of(), Set.of())) {
-            if (isDisplayableItem(item)) {
-                previewItems.add(item);
+    private boolean isExcludedToolPreview(ItemStack item, CuttingBoardRecipe.ToolRequirement tool) {
+        if (tool.excludedItems().stream().anyMatch(excluded -> ItemUtils.matchesItemId(item, excluded))) {
+            return true;
+        }
+        Set<String> customTags = ItemUtils.getItemTagIds(item);
+        for (Key excludedTag : tool.excludedTags()) {
+            if (customTags.contains(excludedTag.toString())
+                    || ItemUtils.matchesVanillaItemTag(item, excludedTag, Set.of(), Set.of())) {
+                return true;
             }
         }
-        return previewItems;
+        return false;
     }
 
     private boolean isDisplayableItem(ItemStack item) {
@@ -941,7 +922,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         List<Component> lore = new ArrayList<>();
         lore.add(tr("gui.recipe.tool_line", NamedTextColor.GRAY,
                 formatToolListComponent(recipe.getTools(), player).colorIfAbsent(NamedTextColor.YELLOW)));
-        // 显示输入材料类型信息，让玩家不点详情也能知道是否有多种可选物品
+        // Show the input type so players can see when multiple alternatives exist without opening details.
         appendCuttingBoardInputLore(lore, recipe.getInput(), player);
         lore.add(tr("gui.recipe.results_label", NamedTextColor.GRAY));
         int maxPreview = config.getRecipeListMaxPreviewIngredients();
@@ -970,12 +951,11 @@ public class RecipeViewGui extends AbstractInventoryGui {
         return input;
     }
 
-    /** 在列表预览中显示砧板配方的输入材料类型（标签/或选），格式对齐厨锅的配料显示 */
     private void appendCuttingBoardInputLore(List<Component> lore, RecipeIngredient input, Player player) {
         if (input instanceof RecipeIngredient.Item) {
-            return; // 单个物品直接从图标即可识别，无需额外显示
+            return; // A single item is already identifiable from its icon.
         }
-        // Tag/Choice 输入：与厨锅配料同样的紧凑格式，列出匹配物品名称
+        // Tag/choice input: list matching names in the same compact format used for cooking-pot ingredients.
         appendCompactIngredientLore(lore, input, player);
     }
 
@@ -1236,7 +1216,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             if (i > 0) {
                 result = result.append(Component.text(", ", NamedTextColor.GRAY));
             }
-            result = result.append(itemNameComponent(createToolPreviewItem(tools.get(i).key()), player));
+            result = result.append(itemNameComponent(createToolPreviewItem(tools.get(i)), player));
         }
         return result;
     }
@@ -1350,17 +1330,12 @@ public class RecipeViewGui extends AbstractInventoryGui {
         return value;
     }
 
-    /** Client-side translatable lore line: Component.translatable(key) with a color and italic-off,
-     * so each player's client renders the key from its own resource-pack lang file. The key must exist in
-     * assets/farmersdelight/lang/<locale>.json. */
     Component tr(String key, NamedTextColor color) {
         return Component.translatable(key)
                 .color(color)
                 .decoration(TextDecoration.ITALIC, false);
     }
 
-    /** Translatable with positional %s args; each arg is wrapped in Component.text(...)
-     * unless already a Component, so colored sub-components pass through unchanged. */
     Component tr(String key, NamedTextColor color, Object... args) {
         Component[] components = new Component[args.length];
         for (int i = 0; i < args.length; i++) {
@@ -1454,6 +1429,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
     private void handleCuttingBoardListClick(Player player, int slot) {
         RecipeViewGuiConfig.RecipeListConfig listConfig = config.getRecipeList();
         List<CuttingBoardRecipe> recipes = plugin.getCuttingBoardRecipes().getSortedRecipes();
+        if (craftableOnly) {
+            recipes = filterCraftableCuttingBoardRecipes(recipes);
+        }
         recipes = applyDiscoveryFilter(recipes, false, player);
 
         handleRecipeListClick(player, slot, listConfig, recipes, false);
@@ -1469,7 +1447,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             changePage(player, -1);
         } else if (slot == listConfig.getNextPageSlot() && currentPage < totalPages - 1) {
             changePage(player, 1);
-        } else if (isCookingPot && slot == listConfig.getFilterSlot()) {
+        } else if (slot == listConfig.getFilterSlot()) {
             craftableOnly = !craftableOnly;
             currentPage = 0;
             refreshContentsInPlace(player);
@@ -1690,6 +1668,14 @@ public class RecipeViewGui extends AbstractInventoryGui {
             }
         }
         return craftableRecipes;
+    }
+
+    private List<CuttingBoardRecipe> filterCraftableCuttingBoardRecipes(List<CuttingBoardRecipe> recipes) {
+        List<ItemStack> available = Arrays.stream(player.getInventory().getStorageContents())
+                .filter(Objects::nonNull)
+                .filter(item -> !item.isEmpty())
+                .toList();
+        return plugin.getCuttingBoardRecipes().filterCraftable(recipes, available);
     }
 
     private boolean canCraftCookingPotRecipe(CookingPotRecipe recipe, CookingPotBlockEntity entity, List<ItemStack> available) {
@@ -2185,6 +2171,8 @@ public class RecipeViewGui extends AbstractInventoryGui {
         }
         if (newState == GuiState.RECIPE_DETAIL) {
             currentToolIndex = 0;
+            currentToolPreviewIndex = 0;
+            toolSwitchTicks = 0;
         }
         state = newState;
         refresh(player);

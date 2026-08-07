@@ -29,10 +29,6 @@ import org.bukkit.util.BoundingBox;
 import java.util.Arrays;
 import java.util.UUID;
 
-/**
- * 厨锅和煎锅的托盘视觉管理。通过方块 support 属性控制 entity_renderer 显示/隐藏，
- * 替代旧的 CraftEngine 家具实体方式。
- */
 public class TrayManager {
 
     private final FarmersDelightPlugin plugin;
@@ -53,9 +49,8 @@ public class TrayManager {
         requireNonFullSupport = config.getBoolean("require-non-full-support", true);
     }
 
-    // ==== 公开 API（保持新旧兼容） ====
+    // Public API retained for backward compatibility
 
-    /** 检查并在需要时显示托盘。 */
     public void checkAndPlaceTray(World world, BlockPos potPos) {
         if (!enabled || world == null || potPos == null) return;
         if (!isPotOrSkilletAt(world, potPos)) {
@@ -73,13 +68,13 @@ public class TrayManager {
                     setSupportProperty(world, potPos, "tray");
                 }
             } else {
-                // 只在当前是 tray 时才清除，不干扰 handle 状态
+                // Clear only an existing tray so a handle state is never overwritten.
                 if ("tray".equals(current)) {
                     setSupportProperty(world, potPos, "none");
                 }
             }
         } else {
-            // 煎锅：support 是 boolean
+            // Skillet support is represented by a boolean property.
             Boolean current = getSupportBoolean(world, potPos);
             if (wantTray != Boolean.TRUE.equals(current)) {
                 setSupportBoolean(world, potPos, wantTray);
@@ -93,7 +88,6 @@ public class TrayManager {
                 new BlockPos(location.getBlockX(), location.getBlockY(), location.getBlockZ()));
     }
 
-    /** 移除托盘视觉（设为 none/false）。锅被破坏时调用。 */
     public void removeTrayIfAutoPlaced(World world, BlockPos potPos) {
         if (!enabled || world == null || potPos == null) return;
         if (CookingPotBlockBehavior.isCookingPotBlock(world, new BlockPosKey(potPos))) {
@@ -113,7 +107,6 @@ public class TrayManager {
                 new BlockPos(location.getBlockX(), location.getBlockY(), location.getBlockZ()));
     }
 
-    /** 支撑方块变化时重新评估上方 2 格的托盘。 */
     public void syncAroundSupportChange(Location supportLocation) {
         if (!enabled || supportLocation == null || supportLocation.getWorld() == null) return;
 
@@ -133,7 +126,7 @@ public class TrayManager {
         HeatSourceConfig heatConfig = plugin.getHeatSourceConfig();
         if (heatConfig == null) return false;
 
-        // 手柄优先：有手柄的锅不显示托盘
+        // Handles take precedence over trays.
         HandleManager hm = plugin.getHandleManager();
         if (hm != null && hm.hasHandle(world, potPos)) return false;
 
@@ -155,27 +148,26 @@ public class TrayManager {
     public void stop() {}
 
     public void cleanupAll() {
-        // 不再需要清理实体
+        // Trays are block states now, so there are no entities to clean up.
     }
 
     public void cleanupWorld(java.util.UUID worldId) {
-        // 不再需要清理实体
+        // Trays are block states now, so there are no entities to clean up.
     }
 
-    // 旧家具实体兼容方法（无操作，新系统不再使用家具实体）
+    // Compatibility no-ops for the legacy furniture-based implementation
     @SuppressWarnings("unused")
     public boolean isAutoPlacedTray(Object furniture) { return false; }
 
     @SuppressWarnings("unused")
     public void markManualTrayFurniture(Object furniture) {}
 
-    /** 启动时清理旧版家具实体（从旧的 TrayManager/HandleManager 遗留的 ItemDisplay）。 */
     public void cleanupLegacyFurnitureEntities() {
         if (!enabled) return;
-        // 已知的旧家具 ID
+        // Known legacy furniture IDs.
         Key trayKey = Key.of("farmersdelight:tray");
         Key handleKey = Key.of("farmersdelight:cooking_pot_handle");
-        // 旧 PDC 标记键
+        // Legacy persistent-data marker keys.
         NamespacedKey trayMarker = new NamespacedKey(plugin, "auto_tray_marker");
         NamespacedKey handleMarker = new NamespacedKey(plugin, "auto_pot_handle");
 
@@ -205,22 +197,22 @@ public class TrayManager {
 
     private boolean isLegacyFurniture(Entity entity, Key furnitureKey, NamespacedKey markerKey,
                                        String scoreboardPrefix, String manualTag) {
-        // 检查是否是手动放置的（保留手动托盘）
+        // Preserve trays that players placed manually.
         if (manualTag != null && entity.getScoreboardTags().contains(manualTag)) return false;
-        // 检查 PDC 标记
+        // Check the persistent-data marker.
         if (entity.getPersistentDataContainer().has(markerKey, PersistentDataType.BYTE)) return true;
-        // 检查记分板标签
+        // Check legacy scoreboard tags.
         if (scoreboardPrefix != null) {
             for (String tag : entity.getScoreboardTags()) {
                 if (tag.startsWith(scoreboardPrefix)) return true;
             }
         }
-        // 检查 CraftEngine 家具 ID
+        // Check the CraftEngine furniture ID.
         BukkitFurniture furniture = CraftEngineFurniture.getLoadedFurnitureByMetaEntity(entity);
         return furniture != null && furniture.id().equals(furnitureKey);
     }
 
-    // ==== 内部方法 ====
+    // Internal helpers
 
     private boolean isPotOrSkilletAt(World world, BlockPos pos) {
         return CookingPotBlockBehavior.isCookingPotBlock(world, new BlockPosKey(pos))
@@ -246,7 +238,7 @@ public class TrayManager {
         return box.getMaxY() - box.getMinY() < 0.99D;
     }
 
-    // 方块属性读写（通过行为类的类型化属性，避免 raw type 和字符串查找）
+    // Read and write typed behavior properties without raw types or string lookups.
 
     private String getSupportProperty(World world, BlockPos pos) {
         ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(

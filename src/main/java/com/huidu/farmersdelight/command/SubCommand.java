@@ -5,11 +5,6 @@ import org.bukkit.command.CommandSender;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 
-/**
- * Base class for the /fd subcommands. Metadata (name, aliases, permission node, help key, availability)
- * is fixed in the constructor; each concrete subcommand supplies its own execute and tabComplete. The
- * availability/permission gate is shared here so the dispatcher treats every subcommand the same way.
- */
 abstract class SubCommand {
 
     private final String name;
@@ -50,13 +45,10 @@ abstract class SubCommand {
         return helpKey;
     }
 
-    /** Returns true when the feature this subcommand drives is enabled. Disabled subcommands are hidden
-     *  from help/tab-complete and rejected on manual entry. */
     final boolean isAvailable() {
         return availability == null || availability.getAsBoolean();
     }
 
-    /** Shared entry point for help, tab-completion, and execution. */
     final boolean canUse(CommandSender sender) {
         return isAvailable() && (permission == null || sender.hasPermission(permission));
     }

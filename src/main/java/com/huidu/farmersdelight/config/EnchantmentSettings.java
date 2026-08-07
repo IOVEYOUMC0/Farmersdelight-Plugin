@@ -7,20 +7,29 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-/**
- * Immutable, reload-safe configuration for the knife enchantment system.
- *
- * <p>The listener deliberately reads weights, modified-level ranges, conflicts and anvil costs from
- * Paper's live enchantment registry. This object only describes policy: which enchantments are allowed
- * and how the custom backstabbing effect should behave.</p>
- */
 public record EnchantmentSettings(
         boolean enabled,
         boolean autoDisableOnConflict,
-        Table table,
-        boolean anvilEnabled,
+        Group knives,
+        Group skillet,
         Backstabbing backstabbing
 ) {
+
+    public EnchantmentSettings(
+            boolean enabled,
+            boolean autoDisableOnConflict,
+            Table table,
+            boolean anvilEnabled,
+            Backstabbing backstabbing
+    ) {
+        this(
+                enabled,
+                autoDisableOnConflict,
+                new Group(table, anvilEnabled),
+                new Group(table, anvilEnabled),
+                backstabbing
+        );
+    }
 
     private static final List<String> DEFAULT_TABLE_ENCHANTMENTS = List.of(
             "minecraft:sharpness",
@@ -34,14 +43,25 @@ public record EnchantmentSettings(
             "$backstabbing"
     );
 
+    private static final List<String> DEFAULT_SKILLET_ENCHANTMENTS = List.of(
+            "minecraft:sharpness",
+            "minecraft:smite",
+            "minecraft:bane_of_arthropods",
+            "minecraft:unbreaking",
+            "minecraft:fire_aspect",
+            "minecraft:knockback",
+            "minecraft:looting"
+    );
+
     public static EnchantmentSettings defaults() {
         return load(null);
     }
 
     public static EnchantmentSettings load(ConfigurationSection root) {
         ConfigurationSection conflictSection = child(root, "compatibility");
-        ConfigurationSection tableSection = child(root, "table");
-        ConfigurationSection anvilSection = child(root, "anvil");
+        ConfigurationSection legacyTableSection = child(root, "table");
+        ConfigurationSection legacyAnvilSection = child(root, "anvil");
+        ConfigurationSection groupsSection = child(root, "groups");
         ConfigurationSection backstabSection = child(root, "backstabbing");
         ConfigurationSection definitionSection = child(backstabSection, "definition");
         ConfigurationSection combatSection = child(backstabSection, "combat");
@@ -49,14 +69,20 @@ public record EnchantmentSettings(
         boolean enabled = bool(root, "enabled", true);
         boolean autoDisableOnConflict = bool(conflictSection, "auto-disable-on-conflict", true);
 
-        Table table = new Table(
-                bool(tableSection, "enabled", true),
-                bool(tableSection, "override-offers", true),
-                clamp(integer(tableSection, "default-enchantability", 12), 1, 1024),
-                stringList(tableSection, "enchantments", DEFAULT_TABLE_ENCHANTMENTS, true)
+        Group knives = loadGroup(
+                child(groupsSection, "knives"),
+                legacyTableSection,
+                legacyAnvilSection,
+                12,
+                DEFAULT_TABLE_ENCHANTMENTS
         );
-
-        boolean anvilEnabled = bool(anvilSection, "enabled", true);
+        Group skillet = loadGroup(
+                child(groupsSection, "skillet"),
+                legacyTableSection,
+                legacyAnvilSection,
+                14,
+                DEFAULT_SKILLET_ENCHANTMENTS
+        );
 
         String enchantmentId = namespaced(string(backstabSection, "id", "farmersdelight:backstabbing"),
                 "farmersdelight:backstabbing");
@@ -79,11 +105,31 @@ public record EnchantmentSettings(
                 combat
         );
 
-        return new EnchantmentSettings(enabled, autoDisableOnConflict, table, anvilEnabled, backstabbing);
+        return new EnchantmentSettings(enabled, autoDisableOnConflict, knives, skillet, backstabbing);
     }
 
     public boolean isBackstabbingConfigured() {
         return enabled && backstabbing.enabled();
+    }
+
+    public Group group(GroupId groupId) {
+        return groupId == GroupId.SKILLET ? skillet : knives;
+    }
+
+    public Table table() {
+        return knives.table();
+    }
+
+    public boolean anvilEnabled() {
+        return knives.anvilEnabled();
+    }
+
+    public enum GroupId {
+        KNIVES,
+        SKILLET
+    }
+
+    public record Group(Table table, boolean anvilEnabled) {
     }
 
     public record Table(
@@ -122,12 +168,59 @@ public record EnchantmentSettings(
         return section == null ? null : section.getConfigurationSection(path);
     }
 
+    private static Group loadGroup(
+            ConfigurationSection groupSection,
+            ConfigurationSection legacyTableSection,
+            ConfigurationSection legacyAnvilSection,
+            int defaultEnchantability,
+            List<String> defaultEnchantments
+    ) {
+        ConfigurationSection tableSection = child(groupSection, "table");
+        ConfigurationSection anvilSection = child(groupSection, "anvil");
+        Table table = new Table(
+                bool(tableSection, legacyTableSection, "enabled", true),
+                bool(tableSection, legacyTableSection, "override-offers", true),
+                clamp(integer(
+                        tableSection,
+                        legacyTableSection,
+                        "default-enchantability",
+                        defaultEnchantability
+                ), 1, 1024),
+                stringList(tableSection, legacyTableSection, "enchantments", defaultEnchantments, true)
+        );
+        return new Group(table, bool(anvilSection, legacyAnvilSection, "enabled", true));
+    }
+
     private static boolean bool(ConfigurationSection section, String path, boolean fallback) {
         return section == null ? fallback : section.getBoolean(path, fallback);
     }
 
+    private static boolean bool(
+            ConfigurationSection section,
+            ConfigurationSection legacySection,
+            String path,
+            boolean fallback
+    ) {
+        if (section != null && section.isSet(path)) {
+            return section.getBoolean(path, fallback);
+        }
+        return bool(legacySection, path, fallback);
+    }
+
     private static int integer(ConfigurationSection section, String path, int fallback) {
         return section == null ? fallback : section.getInt(path, fallback);
+    }
+
+    private static int integer(
+            ConfigurationSection section,
+            ConfigurationSection legacySection,
+            String path,
+            int fallback
+    ) {
+        if (section != null && section.isSet(path)) {
+            return section.getInt(path, fallback);
+        }
+        return integer(legacySection, path, fallback);
     }
 
     private static double number(ConfigurationSection section, String path, double fallback) {
@@ -168,6 +261,19 @@ public record EnchantmentSettings(
             values.add(value);
         }
         return List.copyOf(values);
+    }
+
+    private static List<String> stringList(
+            ConfigurationSection section,
+            ConfigurationSection legacySection,
+            String path,
+            List<String> fallback,
+            boolean normalizeNamespacedIds
+    ) {
+        if (section != null && section.isList(path)) {
+            return stringList(section, path, fallback, normalizeNamespacedIds);
+        }
+        return stringList(legacySection, path, fallback, normalizeNamespacedIds);
     }
 
     private static String namespaced(String value, String fallback) {

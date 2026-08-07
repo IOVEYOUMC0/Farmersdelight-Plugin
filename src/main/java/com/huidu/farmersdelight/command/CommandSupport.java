@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** Shared helpers and permission nodes for the /fd subcommand handlers. */
 final class CommandSupport {
 
     static final MiniMessage MINI = MiniMessage.miniMessage();
@@ -43,7 +42,6 @@ final class CommandSupport {
         return names;
     }
 
-    /** True when the token is all digits — i.e. a level/seconds argument rather than a player name. */
     static boolean isInteger(String value) {
         if (value == null || value.isEmpty()) {
             return false;

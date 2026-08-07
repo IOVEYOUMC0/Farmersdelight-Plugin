@@ -27,29 +27,10 @@ import org.bukkit.inventory.PlayerInventory;
 
 import java.util.concurrent.ThreadLocalRandom;
 
-/**
- * Makes the mod's compostable items work in a vanilla composter.
- *
- * Vanilla gates the composter on ComposterBlock.COMPOSTABLES, a map keyed by the item's registry entry:
- * ComposterBlock.useItemOn only runs when that map contains the held item, and Paper's CompostItemEvent is
- * fired further inside, in ComposterBlock.addItem. A CraftEngine custom item is a plain vanilla material
- * underneath (nether_brick by default), which is not in that map, so the composter refuses it outright and no
- * event ever fires. Bukkit exposes no way to add an entry to COMPOSTABLES, so the player-driven path is
- * carried out here instead: the interaction is denied and the level raise, the fill effect, the item cost and
- * the level 7 to 8 delay are reproduced from ComposterBlock.
- *
- * The CompostItemEvent handler still matters for the items whose base material happens to be compostable in
- * vanilla (dried_kelp among others): there the composter accepts the stack on its own, including from a
- * hopper, and only the chance needs correcting to the mod's value. It runs at HIGHEST so it wins over
- * CraftEngine's own handler, which applies the item's compost-probability setting and defaults it to 0.5.
- */
 public final class ComposterListener implements Listener {
 
-    /** Level at which the composter stops accepting items and starts its 20 tick wait for the bone meal. */
     private static final int FULL_LEVEL = 7;
-    /** Level at which the bone meal is ready to be collected. */
     private static final int READY_LEVEL = 8;
-    /** Vanilla ComposterBlock schedules the full to ready transition one second out. */
     private static final long READY_DELAY_TICKS = 20L;
 
     private final FarmersDelightPlugin plugin;
@@ -173,10 +154,6 @@ public final class ComposterListener implements Listener {
         inventory.setItem(hand, held);
     }
 
-    /**
-     * Reproduces the scheduled block tick vanilla queues when a composter fills: one second later the level
-     * moves from full to ready and the ready sound plays. Runs on the composter's own region.
-     */
     private void scheduleReady(Location location) {
         plugin.scheduler().runLaterAt(location, () -> {
             Block block = location.getBlock();

@@ -363,13 +363,6 @@ public class CookingPotGui extends AbstractInventoryGui {
         cachedDisplayItems.put(guiSlot, cloneOrNull(item));
     }
 
-    /**
-     * Raises the displayed copy's stack-size ceiling to at least its own count. The pending slot holds up to 64
-     * portions even for an item whose own limit is lower (bowl foods stop at 16), and a stack shown above its
-     * item's limit renders as the limit, so the player reads 16 while the pot really holds more. Only the copy
-     * written into the GUI inventory is touched: the pending cell is click-cancelled and never extracted through
-     * the GUI, so this changes what is drawn and nothing else.
-     */
     private void raiseDisplayStackLimit(ItemStack display) {
         int amount = display.getAmount();
         if (amount <= display.getMaxStackSize()) {
@@ -383,8 +376,6 @@ public class CookingPotGui extends AbstractInventoryGui {
         display.setItemMeta(meta);
     }
 
-    /** Invisible PDC-tagged copy of the GUI's configured background filler, used to fill empty buffer / output
-     * cells so the painted background shows through. Returns null if no background filler is configured. */
     private ItemStack placeholderItem() {
         GuiConfig.GuiItem background = config.getItem("background");
         if (background == null) {
@@ -470,9 +461,6 @@ public class CookingPotGui extends AbstractInventoryGui {
         item.setItemMeta(meta);
     }
 
-    /** Writes item to rawSlot AND marks the slot dirty for the next sync. Use this
-     *  from every click/drag handler that mutates a writable GUI slot; never use it for periodic
-     *  display refresh (those don't represent player intent and would force a false write). */
 
     private void writeWritableSlot(int rawSlot, ItemStack item) {
         inventory.setItem(rawSlot, item);
@@ -862,12 +850,6 @@ public class CookingPotGui extends AbstractInventoryGui {
         updateDisplayItems();
     }
 
-    /**
-     * Safe double-click collect: gather matching items to the cursor only from writable input slots
-     * (ingredient + container) and the player's inventory, skipping read-only slots
-     * (output/buffer/heat/progress/recipe). Input-slot mutations go through the inventory lock,
-     * consistent with the cook tick, to avoid a Folia cross-region dupe.
-     */
     private void handleCollectToCursor(InventoryClickEvent event, Player player) {
         ItemStack cursor = event.getCursor();
         if (cursor == null || cursor.getType().isAir()) {
@@ -1027,10 +1009,6 @@ public class CookingPotGui extends AbstractInventoryGui {
         }
     }
 
-    /** Force-closes every open cooking-pot GUI viewing the block at world/pos. Call this BEFORE
-     * tearing down the block entity on a player/explosion break: otherwise a viewer keeps a live Bukkit
-     * Inventory whose items the cook tick is no longer guarding, and clicking them out dupes (same shape as
-     * the keg break-while-open dupe). */
     public static void closeOpenGuisAt(World world, int x, int y, int z) {
         if (world == null) {
             return;
@@ -1058,10 +1036,6 @@ public class CookingPotGui extends AbstractInventoryGui {
         }
     }
 
-    /** Closes a viewer's inventory on the viewer's own region. On Folia a Player is region-owned, so a bare
-     *  closeInventory() called from the broken pot's region throws a cross-region access error and aborts the
-     *  caller before it drops the pot's stored contents. The EntityScheduler runs synchronously on Paper and
-     *  routes to the entity's region on Folia; the try/catch keeps break cleanup going even if dispatch fails. */
     private static void closeViewerInventory(Player player) {
         try {
             player.getScheduler().run(FarmersDelightPlugin.getInstance(), t -> player.closeInventory(), null);
@@ -1093,8 +1067,6 @@ public class CookingPotGui extends AbstractInventoryGui {
         warm(plugin);
     }
 
-    /** Registers the shared inventory listener up-front so the first cooking-pot open does not pay the
-     *  one-time InvUI/event-dispatch class-load + registerEvents on the interaction path. Idempotent. */
     public static void warm(FarmersDelightPlugin plugin) {
         if (listenerRegistered) return;
         synchronized (CookingPotGui.class) {

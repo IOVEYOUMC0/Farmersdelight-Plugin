@@ -11,18 +11,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- * Composting chances, furnace burn times and villager / wandering trader trade offers.
- *
- * Every value is taken from the mod's generated data: data/neoforge/data_maps/item/compostables.json,
- * data/neoforge/data_maps/item/furnace_fuels.json and common/event/VillagerEvents.java. The defaults below
- * reproduce those files exactly, so the feature works on a config that predates these sections; a config
- * that DOES carry a section replaces the matching default list wholesale, so removing an entry there
- * disables it instead of being merged back in.
- *
- * Read from region threads (block interaction, furnace tick, villager trade acquisition) and rebuilt from
- * the global thread on reload, so the published instance is volatile and never mutated after publication.
- */
 public final class WorldDataConfig {
 
     private static volatile WorldDataConfig instance = createDefaults();
@@ -49,15 +37,10 @@ public final class WorldDataConfig {
         this.wanderingTrades = List.copyOf(builder.wanderingTrades);
     }
 
-    /** The published configuration. Never null: falls back to the mod-faithful defaults before the first load. */
     public static WorldDataConfig get() {
         return instance;
     }
 
-    /**
-     * Rebuilds the configuration from config.yml and publishes it. Called once from the plugin's config
-     * load path so both startup and every reload variant pick the new values up.
-     */
     public static void reload(JavaPlugin plugin) {
         Builder builder = defaultBuilder();
         ConfigurationSection root = plugin.getConfig().getConfigurationSection("world-data");
@@ -82,7 +65,6 @@ public final class WorldDataConfig {
         return compostingEnabled;
     }
 
-    /** The composting chance for an item id, or null when the item is not one of the mod's compostables. */
     public Float compostChance(String itemId) {
         return itemId == null ? null : compostChances.get(itemId.toLowerCase(Locale.ROOT));
     }
@@ -95,7 +77,6 @@ public final class WorldDataConfig {
         return fuelEnabled;
     }
 
-    /** The furnace burn time in ticks for an item id, or null when the item is not one of the mod's fuels. */
     public Integer fuelTime(String itemId) {
         return itemId == null ? null : fuelTimes.get(itemId.toLowerCase(Locale.ROOT));
     }
@@ -108,7 +89,6 @@ public final class WorldDataConfig {
         return villagerTradesEnabled;
     }
 
-    /** The offers configured for one profession id path and villager level. */
     public List<TradeOffer> villagerTradesFor(String professionPath, int level) {
         if (professionPath == null) {
             return List.of();
@@ -129,10 +109,6 @@ public final class WorldDataConfig {
         return wanderingTraderTradesEnabled;
     }
 
-    /**
-     * How many offers a wandering trader draws from the generic pool the mod adds to. Only those draws
-     * compete with the mod's listings; the trader's last offer comes from a separate rare pool.
-     */
     public int wanderingGenericTradeCount() {
         return wanderingGenericTradeCount;
     }
@@ -141,20 +117,6 @@ public final class WorldDataConfig {
         return wanderingTrades;
     }
 
-    /**
-     * One trade the mod contributes to a vanilla listing pool.
-     *
-     * profession villager profession id path, null for wandering trader offers
-     * level villager level whose pool the listing joins, 0 for wandering trader offers
-     * ingredient item id the player hands over
-     * ingredientAmount how many of it
-     * result item id the player receives
-     * resultAmount how many of it
-     * maxUses trades before the offer locks until restock
-     * villagerXp merchant experience the trade awards
-     * priceMultiplier vanilla demand/reputation price multiplier
-     * chance probability this listing wins one draw from its pool
-     */
     public record TradeOffer(String profession, int level, String ingredient, int ingredientAmount,
                              String result, int resultAmount, int maxUses, int villagerXp,
                              float priceMultiplier, double chance) {

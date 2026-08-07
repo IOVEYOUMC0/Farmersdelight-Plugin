@@ -13,7 +13,6 @@ import java.util.List;
 import static com.huidu.farmersdelight.command.CommandSupport.MINI;
 import static com.huidu.farmersdelight.command.CommandSupport.normalize;
 
-/** /fd reload — reloads one config subsystem (or all) and notifies addons in step. */
 final class ReloadSubCommand extends SubCommand {
 
     // Command tokens for tab-completion and usage, derived from ReloadTarget's primary aliases so a

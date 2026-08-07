@@ -12,11 +12,6 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 
-/**
- * Single dispatcher for the generic recipe book + editor. The book is read-only navigation (all clicks
- * cancelled); the editor uses a copy-based model — clicking a player item copies it to the cursor, and
- * placing into an item slot stores a 1-count template, so no real items are ever moved (no dupe/loss).
- */
 public final class RecipeBookListener implements Listener {
 
     private static volatile boolean registered = false;
@@ -38,12 +33,6 @@ public final class RecipeBookListener implements Listener {
         }
     }
 
-    /**
-     * Called on plugin disable, paired with HandlerList.unregisterAll(plugin): that removes the listener
-     * instance, and this resets the flag so that on a soft restart (/plugman reload) ensureRegistered can
-     * register a fresh listener. Without the reset, ensureRegistered would early-return and click/drag events
-     * would no longer be cancelled, leading to item dupe.
-     */
     public static void reset() {
         synchronized (RecipeBookListener.class) {
             registered = false;

@@ -26,18 +26,10 @@ import java.util.function.BiConsumer;
 
 final class RecipeFileLoader {
 
-    /**
-     * Opt-in switch in config.yml. saveResource only writes a recipe file that is missing entirely, so
-     * recipes added by a newer plugin version never reach a server that already has the file. Merging them
-     * in cannot be the default: an admin disables a recipe by deleting it, and a blanket merge would bring
-     * every deleted recipe back.
-     */
     private static final String MERGE_MISSING_SETTING = "recipes.merge-missing-bundled";
 
-    /** Recipe files whose missing-id summary has already been logged, so the report is one line per file per startup. */
     private static final Set<String> REPORTED_MISSING_FILES = ConcurrentHashMap.newKeySet();
 
-    /** Upper bound on the ids spelled out in the summary line, so a heavily trimmed file cannot flood the console. */
     private static final int MAX_REPORTED_IDS = 20;
 
     private RecipeFileLoader() {
@@ -55,12 +47,6 @@ final class RecipeFileLoader {
         return loadRecipeFile(plugin, relativePath, true);
     }
 
-    /**
-     * reconcileWithBundled when true, recipe ids present in the jar but absent from the file on disk
-     *                             are reported (and merged in when the admin opted in). Pass false for the
-     *                             in-game recipe editor: it loads the file only to write it straight back,
-     *                             and a merge there would re-add the very entry an admin just deleted.
-     */
     static YamlConfiguration loadRecipeFile(FarmersDelightPlugin plugin, String relativePath, boolean reconcileWithBundled) {
         File recipesFile = new File(plugin.getDataFolder(), relativePath);
         if (!recipesFile.exists()) {
@@ -93,12 +79,6 @@ final class RecipeFileLoader {
         }
     }
 
-    /**
-     * Compares the recipe ids in the jar's copy of the file against the ids on disk. By default the ids the
-     * admin's file does not have are only logged, because a missing id is usually a recipe that was deleted
-     * on purpose to disable it. When the admin sets the opt-in setting, the missing ids are added back.
-     * An id that exists on disk is never touched under either setting.
-     */
     private static void reconcileWithBundledRecipes(FarmersDelightPlugin plugin, String relativePath, YamlConfiguration onDisk) {
         YamlConfiguration bundled = readBundledRecipeFile(plugin, relativePath);
         if (bundled == null) {
@@ -145,7 +125,6 @@ final class RecipeFileLoader {
         }
     }
 
-    /** Keeps the summary readable when a file is missing a large number of ids: the count is always exact. */
     private static String summarizeIds(List<String> ids) {
         if (ids.size() <= MAX_REPORTED_IDS) {
             return String.join(", ", ids);
@@ -153,11 +132,6 @@ final class RecipeFileLoader {
         return String.join(", ", ids.subList(0, MAX_REPORTED_IDS)) + ", ...";
     }
 
-    /**
-     * A recipe entry is a section whose own children are all plain values: the recipe body. That skips the
-     * root sections (cooking_pot_recipes, cutting_board_recipes) and the group level of
-     * custom_cooking_pot_recipes, whose children are sections themselves.
-     */
     private static boolean isRecipeEntry(ConfigurationSection root, String path) {
         ConfigurationSection section = root.getConfigurationSection(path);
         if (section == null) {

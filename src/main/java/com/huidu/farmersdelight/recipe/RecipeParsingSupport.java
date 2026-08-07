@@ -44,6 +44,15 @@ final class RecipeParsingSupport {
         return leafParser.apply(str);
     }
 
+    static RecipeIngredient parseIngredientChoice(String str) {
+        return parseChoice(str, option -> {
+            String trimmed = option.trim();
+            return trimmed.startsWith("#")
+                    ? parseTagIngredientWithExclusions(trimmed, "ingredient")
+                    : parseSimpleItemOrTag(trimmed);
+        });
+    }
+
     static RecipeIngredient.Tag parseTagIngredientWithExclusions(String str, String contextName) {
         ParsedKey parsed = parseKeyWithExclusions(str, contextName);
         return new RecipeIngredient.Tag(parsed.key(), parsed.excludedItems(), parsed.excludedTags());
@@ -82,10 +91,11 @@ final class RecipeParsingSupport {
             }
         }
 
-        return new ParsedKey(baseKey, Set.copyOf(excludedItems), Set.copyOf(excludedTags));
+        return new ParsedKey(baseKey, baseToken.startsWith("#"),
+                Set.copyOf(excludedItems), Set.copyOf(excludedTags));
     }
 
-    record ParsedKey(Key key, Set<Key> excludedItems, Set<Key> excludedTags) {
+    record ParsedKey(Key key, boolean tag, Set<Key> excludedItems, Set<Key> excludedTags) {
     }
 }
 

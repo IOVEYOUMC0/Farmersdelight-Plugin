@@ -4,24 +4,6 @@ import java.util.List;
 import java.util.function.BiPredicate;
 import java.util.function.ToIntFunction;
 
-/**
- * Generic two-pass recipe-ingredient matcher. Decoupled from Bukkit so the matching logic is unit-testable
- * without a running server: callers supply a matcher predicate (does this slot satisfy this ingredient?)
- * and an initialAmount function (how many ingredient-units the slot contributes).
- *
- * Used by the cooking pot and the keg, and exposed to addons that need to mirror the same matching semantics.
- *
- * Pass semantics:
- * 
- *   - <b>exactSlots = true</b> — slot count must equal required-ingredient count (no leftover slots). The
- *       cooking pot tries this first so e.g. beetroot soup in 4 beetroot slots wins before any lenient recipe
- *       can shadow it.
- *   - <b>exactSlots = false</b> — extra filled slots are allowed only when each one holds an item the recipe
- *       itself uses (the same ingredient spread over several slots — rice in 3 slots for a 1-rice recipe). A
- *       slot holding a foreign item the recipe can't use still blocks the match, so unrelated recipes can't
- *       interfere by sneaking in extra ingredients.
- * 
- */
 public final class IngredientMatching {
 
     private IngredientMatching() {
@@ -61,17 +43,6 @@ public final class IngredientMatching {
         return assignAll(required, slots, matcher, initialAmount);
     }
 
-    /**
-     * Containment check for the "craftable only" recipe-list filter: does the supplied item pool hold enough
-     * of each required ingredient, ignoring any extra unrelated items? Unlike #matchesIngredients this
-     * omits both the slot-count gate and the foreign-slot rejection loop — a player's inventory always carries
-     * items no recipe uses, so those gates would reject every recipe. It keeps only the Kuhn bipartite
-     * assignment (each ingredient claims one distinct unit; a slot with amount a offers up to a units), so a
-     * recipe passes exactly when the pool can supply one item per ingredient simultaneously.
-     *
-     * This must never drive the real cook, which pairs the pot's own &lt;=6 input slots via
-     * #matchesIngredients. It answers only the GUI's "do I have the ingredients somewhere" question.
-     */
     public static <Slot, Ingredient> boolean containsIngredients(
             List<Ingredient> required,
             List<Slot> slots,
@@ -123,8 +94,6 @@ public final class IngredientMatching {
         return true;
     }
 
-    /** Kuhn's augmenting-path step: try to assign ingredient k to a slot-unit it matches, displacing
-     *  a previously-assigned ingredient only if that ingredient can itself be re-homed to another unit. */
     private static <Slot, Ingredient> boolean assign(
             int k,
             List<Ingredient> required,

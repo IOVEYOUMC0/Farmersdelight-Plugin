@@ -197,10 +197,6 @@ public class HeatSourceConfig {
         return isHeatSource(block, null);
     }
 
-    /**
-     * Variant that reuses a pre-fetched ImmutableBlockState so the caller (e.g. TickManager) can
-     * share one CE lookup across both isHeatSource and isConductor for the same block.
-     */
     public boolean isHeatSource(Block block, ImmutableBlockState preFetchedState) {
         Material blockType = block.getType();
 
@@ -246,9 +242,6 @@ public class HeatSourceConfig {
         return isConductor(block, null);
     }
 
-    /**
-     * Variant that reuses a pre-fetched ImmutableBlockState — see isHeatSource(Block, ImmutableBlockState).
-     */
     public boolean isConductor(Block block, ImmutableBlockState preFetchedState) {
         if (conductors.contains(block.getType())) {
             return true;

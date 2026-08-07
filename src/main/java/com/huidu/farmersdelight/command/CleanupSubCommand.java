@@ -7,7 +7,6 @@ import org.bukkit.command.CommandSender;
 import java.util.List;
 import java.util.Map;
 
-/** /fd cleanup — sweeps orphaned proxy displays and invalid auto-trays, and lets addons clean their own. */
 final class CleanupSubCommand extends SubCommand {
 
     private final FarmersDelightPlugin plugin;
@@ -34,7 +33,7 @@ final class CleanupSubCommand extends SubCommand {
         }
 
         int trays = 0;
-        // 托盘现在通过 entity_renderer 管理，不再需要清理家具实体
+        // Trays now use entity_renderer, so no furniture entity cleanup is needed.
 
         // Same hook style as FarmersDelightReloadEvent — addons (BAC etc.) clean their own orphan
         // state in step and report counts back via event.addRemoved().

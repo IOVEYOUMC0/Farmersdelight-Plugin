@@ -6,7 +6,6 @@ import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -16,12 +15,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Draws the recipe-detail view (cooking pot and cutting board) into an open RecipeViewGui: result,
- * ingredient, container, tool, and result slots plus the cooking process bar and its animated frames.
- * A companion of RecipeViewGui holding a back-reference; it reads GUI state and shared item/text helpers
- * through that owner. Extracted from RecipeViewGui to keep the detail-drawing concern in one focused class.
- */
 final class RecipeDetailRenderer {
 
     private static final int COOKING_PROCESS_BAR_FRAMES = 20;
@@ -180,26 +173,15 @@ final class RecipeDetailRenderer {
     void drawCuttingBoardDetail(CuttingBoardRecipe recipe, RecipeViewGuiConfig.RecipeDetailConfig detailConfig, Player player) {
         if (detailConfig.getInputSlot() >= 0) {
             RecipeIngredient input = recipe.getInput();
-            if (input instanceof RecipeIngredient.Tag || input instanceof RecipeIngredient.Choice) {
-                // 多选项输入（标签/或选）需注册动画槽位以支持轮播显示，否则只会显示第一个匹配物品
-                ItemStack inputDisplay = gui.createIngredientDisplay(input, player, detailConfig.getInputSlot());
-                gui.inventory.setItem(detailConfig.getInputSlot(), inputDisplay);
-            } else {
-                ItemStack inputItem = recipe.getInputDisplay().clone();
-                ItemMeta inputMeta = inputItem.getItemMeta();
-                inputMeta.displayName(gui.itemNameComponent(inputItem, player).colorIfAbsent(NamedTextColor.RED));
-                inputMeta.lore(formatIngredientDetailLoreLines(input, player,
-                        gui.tr("gui.recipe.input", NamedTextColor.GRAY)));
-                inputItem.setItemMeta(inputMeta);
-                gui.inventory.setItem(detailConfig.getInputSlot(), inputItem);
-            }
+            ItemStack inputDisplay = gui.createIngredientDisplay(input, player, detailConfig.getInputSlot());
+            gui.inventory.setItem(detailConfig.getInputSlot(), inputDisplay);
         }
 
         if (detailConfig.getToolSlot() >= 0) {
             List<CuttingBoardRecipe.ToolRequirement> tools = recipe.getTools();
             if (tools != null && !tools.isEmpty()) {
                 int safeIndex = gui.currentToolIndex % tools.size();
-                Key currentTool = tools.get(safeIndex).key();
+                CuttingBoardRecipe.ToolRequirement currentTool = tools.get(safeIndex);
                 ItemStack toolItem = gui.createToolDisplayItem(currentTool, tools.size(), safeIndex, player);
                 gui.inventory.setItem(detailConfig.getToolSlot(), toolItem);
             }
@@ -246,32 +228,4 @@ final class RecipeDetailRenderer {
         }
     }
 
-    private List<Component> formatIngredientDetailLoreLines(RecipeIngredient ingredient, Player player, Component category) {
-        List<Component> lines = new ArrayList<>();
-        lines.add(category);
-        if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
-            if (gui.config.isShowIngredientIds()) {
-                lines.add(gui.colored("&7" + itemIngredient.key()));
-            }
-            return lines;
-        }
-        lines.addAll(gui.formatIngredientLoreLines(ingredient, player));
-        return removeAdjacentDuplicateComponents(lines);
-    }
-
-    private List<Component> removeAdjacentDuplicateComponents(List<Component> lines) {
-        if (lines.size() < 2) {
-            return lines;
-        }
-        List<Component> result = new ArrayList<>(lines.size());
-        String previous = null;
-        for (Component line : lines) {
-            String serialized = RecipeViewGui.LEGACY.serialize(line);
-            if (!serialized.equals(previous)) {
-                result.add(line);
-            }
-            previous = serialized;
-        }
-        return result;
-    }
 }

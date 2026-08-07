@@ -6,9 +6,6 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.Locale;
 
-/**
- * Shared console debug logging used by the stove and skillet cooking behaviors.
- */
 public final class CookingDebugLog {
 
     private CookingDebugLog() {

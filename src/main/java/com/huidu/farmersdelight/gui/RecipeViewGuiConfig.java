@@ -318,7 +318,6 @@ public class RecipeViewGuiConfig {
             return backSlot;
         }
 
-        /** Slot of the addon recipe-book button (-1 = not configured); only shown when addon types exist. */
         public int getRecipeBookSlot() {
             return recipeBookSlot;
         }

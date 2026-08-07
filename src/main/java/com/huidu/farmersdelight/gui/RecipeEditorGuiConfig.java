@@ -9,11 +9,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Parsed gui.yml config for the recipe editor GUI. Reuses RecipeViewGuiConfig.BaseConfig
- * to parse layout/legend/items, following the per-custom-pot override pattern of
- * recipe-detail-cooking-pot-guis.
- */
 public final class RecipeEditorGuiConfig {
 
     private static final String COOKING_POT_KEY = "recipe-editor-gui";
@@ -82,10 +77,6 @@ public final class RecipeEditorGuiConfig {
         return new RecipeEditorGuiConfig(potDefault, custom, board, confirm, choice, tagPickerConfig);
     }
 
-    /**
-     * the editor layout for the given custom pot group (returns the default layout when the group is
-     *         null/blank or has no dedicated config section); returns null when no editor config section is configured at all.
-     */
     @Nullable
     public RecipeViewGuiConfig.BaseConfig getCookingPotConfig(@Nullable String customGroupId) {
         if (customGroupId == null || customGroupId.isBlank()) {

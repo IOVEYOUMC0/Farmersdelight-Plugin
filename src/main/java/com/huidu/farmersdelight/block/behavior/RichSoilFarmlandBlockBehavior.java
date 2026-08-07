@@ -56,11 +56,6 @@ public class RichSoilFarmlandBlockBehavior extends FarmersDelightBlockBehavior {
         this.configuredUnaffectedBlocks = configuredUnaffectedBlocks;
     }
 
-    /**
-     * Blocks this farmland's boost must skip: its own configured list when it declares one, otherwise the list
-     * of the rich soil block it reverts to. The reference mod routes the farmland's boost through
-     * RichSoilBlock.tryBoostingPlantsAboveAndBelow, so both blocks honour the same exclusions by default.
-     */
     private ConfiguredBlockSet unaffectedBlocks() {
         if (configuredUnaffectedBlocks != null) {
             return configuredUnaffectedBlocks;

@@ -25,7 +25,6 @@ import static com.huidu.farmersdelight.command.CommandSupport.onlinePlayerNames;
 import static com.huidu.farmersdelight.command.CommandSupport.prefixFilter;
 import static com.huidu.farmersdelight.command.CommandSupport.sendNoPermission;
 
-/** /fd recipe — opens the recipe view GUIs, the recipe editor, and drives recipe discovery unlock/lock. */
 final class RecipeSubCommand extends SubCommand {
 
     private final FarmersDelightPlugin plugin;
@@ -216,9 +215,6 @@ final class RecipeSubCommand extends SubCommand {
         sendDiscoveryChange(sender, unlock, changed, typeId, target.name());
     }
 
-    /** Notes that an edit is being stored while the feature itself is switched off. Only the unlock/lock path
-     *  calls this, and only once its own arguments have validated: the read-only verbs change nothing, and a
-     *  mistyped verb should get the usage line alone. */
     private void warnIfDiscoveryDisabled(CommandSender sender, RecipeDiscoveryManager manager) {
         if (!manager.isEnabled()) {
             // The stored state is still edited and persisted; it just has no visible effect until the
@@ -309,25 +305,14 @@ final class RecipeSubCommand extends SubCommand {
         }
     }
 
-    /** Discovery rides the same admin gate the recipe editor uses, plus a dedicated node so the ability can
-     *  be delegated without granting full admin. */
     private boolean canUseDiscovery(CommandSender sender) {
         return sender.hasPermission(ADMIN_PERMISSION) || sender.hasPermission(DISCOVERY_PERMISSION);
     }
 
-    /** Maps a type token to a registered type id: the short aliases for FarmersDelight's own two types, or
-     *  an exact addon type id. Returns null when nothing matches. */
     private String resolveDiscoveryType(Set<String> knownTypes, String token) {
         return RecipeStationType.resolveTypeId(token, knownTypes);
     }
 
-    /**
-     * Resolves the target player, defaulting to the sender when no name is given. Offline targets are
-     * supported because the discovery state is keyed by UUID, every stored entry is held in memory, and the
-     * save path merges into the data file instead of rewriting it — so editing an absent player is durable.
-     * Only cached identities are accepted: resolving an unknown name would block the calling thread on a
-     * Mojang profile lookup.
-     */
     private DiscoveryTarget resolveDiscoveryTarget(CommandSender sender, String[] args, int index) {
         if (args.length <= index) {
             if (sender instanceof Player self) {
@@ -370,7 +355,6 @@ final class RecipeSubCommand extends SubCommand {
         sender.sendMessage(MINI.deserialize(I18n.get("command.recipe_discovery_usage")));
     }
 
-    /** A resolved discovery target: the UUID the state is keyed by, plus a name for feedback messages. */
     private record DiscoveryTarget(UUID id, String name) {
     }
 
@@ -476,8 +460,6 @@ final class RecipeSubCommand extends SubCommand {
         return List.of();
     }
 
-    /** Type tokens offered for completion: the short aliases for FarmersDelight's own types, plus the id of
-     *  every registered addon type. */
     private List<String> discoveryTypeTokens(Map<String, List<String>> known) {
         List<String> tokens = new ArrayList<>(List.of("cooking_pot", "cutting_board"));
         for (String typeId : known.keySet()) {

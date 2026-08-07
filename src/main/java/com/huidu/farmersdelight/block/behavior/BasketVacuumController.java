@@ -21,27 +21,14 @@ import org.bukkit.inventory.ItemStack;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Adds the vacuum behavior of Farmer's Delight's basket on top of CraftEngine's simple_storage_block
- * container. The storage block already supplies the 27-slot GUI, comparator output, hopper I/O,
- * drop-on-break and the six-way facing state; this controller only pulls dropped item entities from the
- * cell the basket faces (its own cell plus one block toward the facing direction) into that same
- * inventory, mirroring the reference BasketBlockEntity.pushItemsTick.
- *
- * The tick is driven by CraftEngine's per-block-entity ticker (registered when the chunk activates and
- * removed when the block is broken or the chunk unloads), which runs every game tick on the region that
- * owns the block regardless of whether a viewer has the GUI open. This is the direct analog of the mod's
- * BlockEntityTicker and avoids the container's own scheduled tick, which only runs while a viewer is open.
- */
 public final class BasketVacuumController extends BlockEntityController {
 
-    /** 空闲冷却 tick 数：当篮子无事可做时跳过后续检测，避免空闲篮子每 tick 重复跑昂贵的红石检测和满箱扫描 */
     private static final int NO_OP_COOLDOWN = 10;
     private final int transferCooldownTicks;
-    // 篮子是否将内容物推入面向的容器。收集始终无条件执行。
+    // Controls whether the basket pushes contents into the container it faces. Collection always runs.
     private final boolean eject;
-    // 仅在方块实体自己的区域 tick 线程上读写（CraftEngine 同步方块实体 ticker），因此无需跨线程同步。
-    // 初始为负数以匹配原版篮子，原版篮子启动时即准备收集。
+    // Access is confined to the block entity's region tick thread, so cross-thread synchronization is unnecessary.
+    // Start negative to match the original basket, which is ready to collect immediately after startup.
     private int transferCooldown = -1;
 
     public BasketVacuumController(BlockEntity blockEntity, int transferCooldownTicks, boolean eject) {
@@ -135,12 +122,6 @@ public final class BasketVacuumController extends BlockEntityController {
         }
     }
 
-    /**
-     * The live inventory of a vanilla container occupying the given cell, or null when that cell holds no
-     * container. The block state is read without a snapshot so writes go through the real block entity,
-     * which persists them and updates the container's comparator output. The caller has already confirmed
-     * the cell is owned by the current region.
-     */
     private static Inventory facedContainerInventory(World world, int x, int y, int z) {
         org.bukkit.block.BlockState facedState = world.getBlockAt(x, y, z).getState(false);
         if (facedState instanceof org.bukkit.block.Container container) {
@@ -149,12 +130,6 @@ public final class BasketVacuumController extends BlockEntityController {
         return null;
     }
 
-    /**
-     * Moves a single item from the first occupied basket slot whose contents the target accepts, matching
-     * the hopper cadence of one item per successful transfer. Returns true when an item moved so the
-     * caller applies the transfer cooldown, false when nothing could be inserted (empty basket or the
-     * target rejected every stack).
-     */
     private static boolean ejectOneItem(Inventory source, Inventory target) {
         ItemStack[] contents = source.getStorageContents();
         for (int slot = 0; slot < contents.length; slot++) {
@@ -181,8 +156,6 @@ public final class BasketVacuumController extends BlockEntityController {
         return false;
     }
 
-    /** The 27-slot inventory owned by the sibling simple_storage_block controller, or null when the block
-     *  entity is no longer valid. */
     private Inventory storageInventory() {
         Inventory[] holder = new Inventory[1];
         this.blockEntity.controller.let(SimpleStorageBlockEntityController.class, c -> holder[0] = c.inventory());
@@ -201,12 +174,6 @@ public final class BasketVacuumController extends BlockEntityController {
         return true;
     }
 
-    /**
-     * Scans the collection area (own cell plus one cell toward facing) for dropped item entities and
-     * inserts them into the basket inventory, mirroring Basket.collectItems: an item fully absorbed is
-     * removed and stops the scan (returning true so the caller applies the cooldown); a partial merge
-     * updates the item entity and the scan continues without claiming a successful transfer.
-     */
     private boolean collectItems(World world, BlockPos pos, BlockFace facing, Inventory inventory) {
         int fx = facing.getModX();
         int fy = facing.getModY();

@@ -36,6 +36,7 @@ public class CuttingBoardRecipeManager {
     // filtered by that set — sortedRecipes order (priority + id) preserved exactly.
     private volatile Map<String, Set<String>> byInputItemId = Map.of();
     private volatile Set<String> tagInputRecipeIds = Set.of();
+    private volatile List<CuttingBoardRecipe.ToolRequirement> toolRequirements = List.of();
     // Recipes registered at runtime by addons via the public API; kept separate so they survive a
     // /fd reload (which rebuilds the file-backed map) and merged into the published map in loadRecipes().
     private final Map<String, CuttingBoardRecipe> externalRecipes = new java.util.concurrent.ConcurrentHashMap<>();
@@ -114,6 +115,11 @@ public class CuttingBoardRecipeManager {
         this.sortedRecipes = newSorted;
         this.byInputItemId = Map.copyOf(frozenByItemId);
         this.tagInputRecipeIds = Set.copyOf(newTagInputRecipeIds);
+        java.util.LinkedHashSet<CuttingBoardRecipe.ToolRequirement> uniqueTools = new java.util.LinkedHashSet<>();
+        for (CuttingBoardRecipe recipe : newSorted) {
+            uniqueTools.addAll(recipe.getTools());
+        }
+        this.toolRequirements = List.copyOf(uniqueTools);
         vanillaItemIdsByTagCache.clear();
         // Invalidate the recipe-list GUI display cache: this republish path (incl. addon register/
         // unregister) bypasses RecipeViewGui.clearConfigCache.
@@ -224,12 +230,19 @@ public class CuttingBoardRecipeManager {
     }
 
     private RecipeIngredient parseIngredient(String str) {
-        return RecipeParsingSupport.parseChoice(str, RecipeParsingSupport::parseSimpleItemOrTag);
+        return RecipeParsingSupport.parseIngredientChoice(str);
     }
 
-    private CuttingBoardRecipe.ToolRequirement parseTool(String str) {
+    static CuttingBoardRecipe.ToolRequirement parseTool(String str) {
         RecipeParsingSupport.ParsedKey parsed = RecipeParsingSupport.parseKeyWithExclusions(str, "tool");
-        return new CuttingBoardRecipe.ToolRequirement(parsed.key(), parsed.excludedItems(), parsed.excludedTags());
+        String key = parsed.key().toString();
+        boolean tag = parsed.tag()
+                || Constants.TAG_KNIVES.equalsIgnoreCase(key)
+                || Constants.TAG_AXES.equalsIgnoreCase(key)
+                || Constants.TAG_PICKAXES.equalsIgnoreCase(key)
+                || Constants.TAG_SHOVELS.equalsIgnoreCase(key);
+        return new CuttingBoardRecipe.ToolRequirement(
+                parsed.key(), tag, parsed.excludedItems(), parsed.excludedTags());
     }
 
     private ItemStack createDisplayItem(RecipeIngredient ingredient) {
@@ -239,10 +252,24 @@ public class CuttingBoardRecipeManager {
 
         if (ingredient instanceof RecipeIngredient.Tag tagIngredient) {
             for (var candidate : plugin.getCraftEngine().itemManager().itemIdsByTag(tagIngredient.key())) {
+                if (tagIngredient.excludedItems().contains(candidate.key())) {
+                    continue;
+                }
+                boolean excludedByTag = tagIngredient.excludedTags().stream().anyMatch(excludedTag ->
+                        plugin.getCraftEngine().itemManager().itemIdsByTag(excludedTag).stream()
+                                .anyMatch(excluded -> excluded.key().equals(candidate.key())));
+                if (excludedByTag) {
+                    continue;
+                }
                 ItemStack item = createItem(candidate.key().toString());
                 if (item != null && !item.getType().isAir()) {
                     return item;
                 }
+            }
+            List<ItemStack> vanillaItems = ItemUtils.createVanillaTagDisplayItems(
+                    tagIngredient.key(), tagIngredient.excludedItems(), tagIngredient.excludedTags());
+            if (!vanillaItems.isEmpty()) {
+                return vanillaItems.getFirst();
             }
         }
 
@@ -293,10 +320,57 @@ public class CuttingBoardRecipeManager {
         return false;
     }
 
-    /** Candidate recipe ids whose declared input could match input: Item-typed recipes whose
-     *  literal key matches one of the input's item ids, plus EVERY Tag-typed recipe (their tag may resolve
-     *  to a vanilla item tag that isn't surfaced via getItemTagIds, so we don't try to filter them).
-     *  Returns null when the index is empty / input is air — caller iterates sortedRecipes unfiltered. */
+    public boolean isRecipeTool(ItemStack tool) {
+        if (tool == null || tool.getType().isAir()) {
+            return false;
+        }
+        ToolContext context = ToolContext.from(plugin, tool, ItemUtils.getCustomItemId(tool));
+        for (CuttingBoardRecipe.ToolRequirement requirement : toolRequirements) {
+            if (matchesToolRequirement(requirement, context)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public List<CuttingBoardRecipe> filterCraftable(
+            List<CuttingBoardRecipe> candidateRecipes,
+            Iterable<ItemStack> availableItems
+    ) {
+        if (candidateRecipes == null || candidateRecipes.isEmpty() || availableItems == null) {
+            return List.of();
+        }
+        List<AvailableItem> available = new ArrayList<>();
+        for (ItemStack item : availableItems) {
+            if (item == null || item.isEmpty()) {
+                continue;
+            }
+            available.add(new AvailableItem(
+                    item,
+                    ToolContext.from(plugin, item, ItemUtils.getCustomItemId(item))
+            ));
+        }
+
+        List<CuttingBoardRecipe> craftable = new ArrayList<>();
+        for (CuttingBoardRecipe recipe : candidateRecipes) {
+            boolean hasInput = false;
+            boolean hasTool = false;
+            for (AvailableItem candidate : available) {
+                if (!hasInput && matchesInput(recipe, candidate.item())) {
+                    hasInput = true;
+                }
+                if (!hasTool && matchesTool(recipe, candidate.toolContext())) {
+                    hasTool = true;
+                }
+                if (hasInput && hasTool) {
+                    craftable.add(recipe);
+                    break;
+                }
+            }
+        }
+        return List.copyOf(craftable);
+    }
+
     private Set<String> candidateRecipeIds(ItemStack input) {
         Map<String, Set<String>> byId = this.byInputItemId;
         Set<String> tagIds = this.tagInputRecipeIds;
@@ -362,12 +436,19 @@ public class CuttingBoardRecipeManager {
             return false;
         }
 
-        if (matchesToolFallback(toolRequirement.key(), toolContext)) {
+        if (toolRequirement.tag()
+                && Constants.TAG_KNIVES.equalsIgnoreCase(toolRequirement.key().toString())) {
+            return (toolContext.knife() || toolContext.matchesCustomTag(toolRequirement.key()))
+                    && !isExcludedTool(toolContext, toolRequirement);
+        }
+
+        if (matchesToolFallback(toolRequirement, toolContext)) {
             return !isExcludedTool(toolContext, toolRequirement);
         }
 
-        if (toolContext.matchesItemKey(toolRequirement.key())) {
-            return !isExcludedTool(toolContext, toolRequirement);
+        if (!toolRequirement.tag()) {
+            return toolContext.matchesItemKey(toolRequirement.key())
+                    && !isExcludedTool(toolContext, toolRequirement);
         }
 
         if (toolContext.matchesCustomTag(toolRequirement.key())) {
@@ -377,16 +458,17 @@ public class CuttingBoardRecipeManager {
         return toolContext.matchesVanillaTag(toolRequirement.key()) && !isExcludedTool(toolContext, toolRequirement);
     }
 
-    private boolean matchesToolFallback(Key toolKey, ToolContext toolContext) {
-        String toolKeyStr = toolKey.toString();
-        return (Constants.TAG_KNIVES.equalsIgnoreCase(toolKeyStr) && toolContext.knife())
-                || ((Constants.TAG_AXES.equalsIgnoreCase(toolKeyStr)
-                || Constants.ACTION_AXE_DIG.equalsIgnoreCase(toolKeyStr)
-                || Constants.ACTION_AXE_STRIP.equalsIgnoreCase(toolKeyStr)) && toolContext.axe())
-                || (Constants.ACTION_PICKAXE_DIG.equalsIgnoreCase(toolKeyStr) && toolContext.pickaxe())
-                || ((Constants.TAG_SHOVELS.equalsIgnoreCase(toolKeyStr)
-                || Constants.ACTION_SHOVEL_DIG.equalsIgnoreCase(toolKeyStr)) && toolContext.shovel())
-                || (Constants.ITEM_SHEARS.equalsIgnoreCase(toolKeyStr) && toolContext.shears());
+    private boolean matchesToolFallback(CuttingBoardRecipe.ToolRequirement requirement, ToolContext toolContext) {
+        String toolKey = requirement.key().toString();
+        return (requirement.tag() && Constants.TAG_KNIVES.equalsIgnoreCase(toolKey) && toolContext.knife())
+                || ((Constants.TAG_AXES.equalsIgnoreCase(toolKey)
+                || Constants.ACTION_AXE_DIG.equalsIgnoreCase(toolKey)
+                || Constants.ACTION_AXE_STRIP.equalsIgnoreCase(toolKey)) && toolContext.axe())
+                || ((Constants.TAG_PICKAXES.equalsIgnoreCase(toolKey)
+                || Constants.ACTION_PICKAXE_DIG.equalsIgnoreCase(toolKey)) && toolContext.pickaxe())
+                || ((Constants.TAG_SHOVELS.equalsIgnoreCase(toolKey)
+                || Constants.ACTION_SHOVEL_DIG.equalsIgnoreCase(toolKey)) && toolContext.shovel())
+                || (!requirement.tag() && Constants.ITEM_SHEARS.equalsIgnoreCase(toolKey) && toolContext.shears());
     }
 
     private boolean isExcludedTool(ToolContext toolContext, CuttingBoardRecipe.ToolRequirement toolRequirement) {
@@ -452,11 +534,6 @@ public class CuttingBoardRecipeManager {
         loadRecipes();
     }
 
-    /**
-     * Registers (or replaces) an addon-supplied cutting-board recipe at runtime and republishes. Retained
-     * across /fd reload. inputSpec/toolSpec use the recipe-file syntax ("ns:id" or
-     * "#ns:tag"); each result stack carries its own amount and is dropped with 100% chance.
-     */
     public void registerExternalRecipe(String id, String inputSpec, String toolSpec,
                                        List<ItemStack> results, String sound) {
         if (id == null || id.isBlank()) {
@@ -491,14 +568,12 @@ public class CuttingBoardRecipeManager {
         scheduleExternalRepublish();
     }
 
-    /** Removes a previously registered addon recipe and republishes. */
     public void unregisterExternalRecipe(String id) {
         if (id != null && externalRecipes.remove(id) != null) {
             scheduleExternalRepublish();
         }
     }
 
-    /** Coalesces external-recipe republishing to the next tick (one loadRecipes() per batch). */
     private void scheduleExternalRepublish() {
         if (externalRepublishScheduled) {
             return;
@@ -512,6 +587,9 @@ public class CuttingBoardRecipeManager {
             // without this. Deduped on the counts digest, so an unchanged batch prints nothing.
             plugin.requestContentSummary();
         }, 1L);
+    }
+
+    private record AvailableItem(ItemStack item, ToolContext toolContext) {
     }
 
     private record ToolContext(

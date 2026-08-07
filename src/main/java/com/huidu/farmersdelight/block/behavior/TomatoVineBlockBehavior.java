@@ -25,40 +25,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
-/**
- * Three-block tomato vine controller mirroring original FD 1.21 structure:
- * 
- *   - farmersdelight:budding_tomatoes (age 0-3) — BuddingTomatoBlock equivalent. No rope
- *       climbing. random tick at age 3 + light &ge; minLight → swap to ground tomatoes age 0
- *       (tryGrowPastMaxAge). The sibling crop_block has bone-meal-age-bonus: 0, so its
- *       own performBonemeal is a no-op (after == before) and bonemeal age growth is owned entirely by
- *       this behavior, replicating original BuddingTomatoBlock.performBonemeal overflow rules. Note
- *       is-bone-meal-target: false alone is NOT enough: CE crop_block.performBonemeal ignores
- *       that flag and always adds its bonus, so the bonus must be zeroed to avoid a double application.
- *   - farmersdelight:tomatoes (age 0-3) — ground TomatoBlock equivalent. Any age attempts
- *       rope climb on random tick / 30% on bonemeal. Right-click at age 3 harvests + resets age 0.
- *   - farmersdelight:tomato_crop_on_rope (age 0-3) — HangingTomatoBlock equivalent. Any
- *       age can extend the chain. Removed cell restores a connected rope via
- *       affectNeighborsAfterRemoval.
- * 
- *
- * Climb guards mirror original TomatoBlock.climbRopeAbove: brightness >= minLight, same-id column
- * below + self < the effective stack cap, and the cell directly above must carry a
- * RopeBlockBehavior. The cap is read from the hanging block's sibling bush_block max-height (see
- * effectiveMaxStackHeight) so the climb pre-check and CE's survival check share ONE config value
- * and can never drift (no grow-then-decay flicker). Default 3 = original 1.21's 1 ground + 3
- * hangings = 4 total.
- *
- * Bonemeal dispatch (4 paths) tracks the original closely:
- * 
- *   - budding: 2 + rand(3) bonus age; overflow past 3 transitions to ground tomatoes at
- *       clamp(newAge - 4, 0, 3) (original BuddingTomato overflow).
- *   - hanging: 30% chance to climb (sibling crop_block already advanced age).
- *   - ground age &lt; 3: 30% chance to climb.
- *   - ground age == 3: original "newAge &gt; maxAge" branch — forward +1 age to a non-max hanging
- *       directly above if one exists, else attempt climb.
- * 
- */
 public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior implements RandomTickBlock, BonemealableBlock {
 
     @Override
@@ -190,7 +156,6 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
 
     public static final String AGE_PROPERTY = "age";
 
-    /** Index for external lookup (bonemeal listener) by block id. */
     private static final Map<Key, TomatoVineBlockBehavior> BEHAVIORS = new ConcurrentHashMap<>();
 
     private record Config(
@@ -257,25 +222,16 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
         return behavior;
     };
 
-    /** Lookup by block id (e.g. farmersdelight:tomatoes). Null if no behavior registered for that id. */
     public static TomatoVineBlockBehavior getBehavior(Key blockId) {
         return blockId == null ? null : BEHAVIORS.get(blockId);
     }
 
-    /** Pre-resolves every vine behavior's sibling-derived max stack height so the first climb tick does not
-     *  pay the CraftEngineBlocks.byId + getBehavior sibling read. Pure registry/field reads. */
     public static void warmAll() {
         for (TomatoVineBlockBehavior behavior : BEHAVIORS.values()) {
             behavior.effectiveMaxStackHeight();
         }
     }
 
-    /**
-     * True when a right-click on this state would run the YAML on: right_click harvest — i.e.
-     * a ground tomatoes or hanging tomato_crop_on_rope block at its max age. Budding
-     * tomatoes have no right-click harvest, so they never qualify. Used by the WorldGuard protection
-     * listener to cancel only the harvest interaction and leave eating/placing/bonemeal untouched.
-     */
     public boolean isHarvestReady(ImmutableBlockState state) {
         if (state == null || state.isEmpty()) return false;
         Key id = state.owner().value().id();
@@ -311,8 +267,6 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
         }
     }
 
-    /** Mirrors original FD 1.21 BuddingTomatoBlock.growPastMaxAge: when budding reaches
-     *  its max age (3) under enough light, swap to ground tomatoes at age 0. */
     private void tryGrowPastMaxAge(World world, BlockPos pos, ImmutableBlockState state, Block atPos) {
         if (atPos.getLightLevel() < config.minLight()) return;
         @SuppressWarnings("unchecked")
@@ -332,16 +286,6 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
         CraftEngineBlocks.place(loc, newState, true);
     }
 
-    /**
-     * Attempt to extend the vine one cell upward at the given position. Returns true when a rope was
-     * consumed and replaced with a fresh hanging tomato.
-     *
-     * Guards mirror original FD 1.21 TomatoBlock.climbRopeAbove: brightness >= minLight, the cell
-     * directly above must already carry a RopeBlockBehavior, and the column count of *same-id* blocks
-     * including-self below this cell must be < maxStackHeight (3). same-id check: the count only
-     * walks downward and only sees the current block's own id, matching the original
-     * level.getBlockState(pos.below(...)).is(this) loop.
-     */
     public boolean tryClimb(World world, BlockPos pos) {
         if (world == null || pos == null) return false;
         Block atPos = world.getBlockAt(pos.x(), pos.y(), pos.z());
@@ -383,11 +327,6 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
         return placed;
     }
 
-    /**
-     * Restore a rope (with computed N/S/E/W connections) at the removed cell's position whenever a
-     * hanging tomato is removed via any path (player mine, cascade canSurvive fail, explosion,
-     * piston). Skipped for the ground tomato — only the hanging variant occupied a rope to restore.
-     */
     @Override
     public void affectNeighborsAfterRemoval(Object thisBlock, Object[] args) {
         if (args.length < 3) return;
@@ -443,10 +382,6 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
         return resolved;
     }
 
-    /** Original TomatoBlock.climbRopeAbove pattern: walk strictly downward, counting blocks
-     *  that share the *current* block's id (not "any vine block"). Includes self. The hanging
-     *  variant therefore only counts the chain of hangings below it, stopping at the ground tomato —
-     *  so a ground tomato + N hangings on a rope is allowed (N = #effectiveMaxStackHeight). */
     private int countSameIdHeightBelow(World world, BlockPos pos, Key currentBlockId) {
         int count = 1;
         int y = pos.y() - 1;

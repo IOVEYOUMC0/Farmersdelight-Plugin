@@ -9,11 +9,6 @@ import java.util.List;
 
 import static com.huidu.farmersdelight.command.CommandSupport.MINI;
 
-/**
- * /fd debugtools — bridges to the optional performance/debug tooling. The tooling class is resolved
- * reflectively so a build that strips it still compiles and runs; when it is absent create returns
- * null and the dispatcher never registers this subcommand.
- */
 final class DebugToolsSubCommand extends SubCommand {
 
     private static final String DEBUG_TOOLS_CLASS = "com.huidu.farmersdelight.debug.DebugToolsCommand";
@@ -25,7 +20,6 @@ final class DebugToolsSubCommand extends SubCommand {
         this.delegate = delegate;
     }
 
-    /** Instantiates the debug tools bridge, or returns null when the tooling class is absent from this build. */
     static DebugToolsSubCommand create(FarmersDelightPlugin plugin) {
         try {
             Class<?> type = Class.forName(DEBUG_TOOLS_CLASS);

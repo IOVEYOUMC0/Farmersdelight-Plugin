@@ -19,6 +19,9 @@ class EnchantmentSettingsTest {
         assertTrue(settings.table().enchantments().contains("$backstabbing"));
         assertFalse(settings.table().enchantments().contains("minecraft:silk_touch"));
         assertTrue(settings.anvilEnabled());
+        assertEquals(14, settings.skillet().table().defaultEnchantability());
+        assertFalse(settings.skillet().table().enchantments().contains("$backstabbing"));
+        assertFalse(settings.skillet().table().enchantments().contains("minecraft:fortune"));
         assertEquals(1.4D, settings.backstabbing().combat().multiplier(1), 0.0001D);
         assertEquals(1.8D, settings.backstabbing().combat().multiplier(3), 0.0001D);
     }
@@ -63,6 +66,7 @@ class EnchantmentSettingsTest {
         assertEquals(1, settings.table().defaultEnchantability());
         assertEquals(java.util.List.of("minecraft:sharpness"), settings.table().enchantments());
         assertFalse(settings.anvilEnabled());
+        assertEquals(settings.knives(), settings.skillet());
         assertEquals("farmersdelight:backstabbing", settings.backstabbing().id());
         assertEquals(255, settings.backstabbing().definition().maxLevel());
         assertEquals(5, settings.backstabbing().definition().weight());
@@ -70,5 +74,38 @@ class EnchantmentSettingsTest {
         assertFalse(settings.backstabbing().combat().requireKnife());
         assertEquals(0.0D, settings.backstabbing().combat().multiplierBase(), 0.0001D);
         assertEquals(0.0D, settings.backstabbing().combat().multiplierPerLevel(), 0.0001D);
+    }
+
+    @Test
+    void parsesKnifeAndSkilletGroupsIndependently() throws Exception {
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.loadFromString("""
+                enchantments:
+                  groups:
+                    knives:
+                      table:
+                        default-enchantability: 9
+                        enchantments:
+                          - minecraft:fortune
+                      anvil:
+                        enabled: false
+                    skillet:
+                      table:
+                        default-enchantability: 18
+                        enchantments:
+                          - minecraft:fire_aspect
+                      anvil:
+                        enabled: true
+                """);
+
+        EnchantmentSettings settings = EnchantmentSettings.load(
+                yaml.getConfigurationSection("enchantments"));
+
+        assertEquals(9, settings.knives().table().defaultEnchantability());
+        assertEquals(java.util.List.of("minecraft:fortune"), settings.knives().table().enchantments());
+        assertFalse(settings.knives().anvilEnabled());
+        assertEquals(18, settings.skillet().table().defaultEnchantability());
+        assertEquals(java.util.List.of("minecraft:fire_aspect"), settings.skillet().table().enchantments());
+        assertTrue(settings.skillet().anvilEnabled());
     }
 }

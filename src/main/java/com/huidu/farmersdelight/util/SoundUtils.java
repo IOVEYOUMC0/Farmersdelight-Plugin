@@ -14,15 +14,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class SoundUtils {
 
-    /**
-     * Memo of sound-key resolution results, keyed on the raw config string. A hit is either a
-     * registry-backed Sound or the normalized string for the string-play fallback (which
-     * doubles as the negative cache for keys absent from the registry — e.g. CraftEngine
-     * resourcepack sounds like the stove crackle, which the Bukkit registry can never contain).
-     * The registry is frozen at server bootstrap, so entries cannot go stale; the reload-time
-     * #clearCache() hook exists for pattern uniformity with the other config caches.
-     * The size cap guards against a caller passing unbounded dynamic strings.
-     */
     private static final Map<String, Object> RESOLUTION_CACHE = new ConcurrentHashMap<>();
     private static final int RESOLUTION_CACHE_MAX = 512;
 
@@ -56,8 +47,6 @@ public final class SoundUtils {
         }
     }
 
-    /** Plays a sound only to the given viewers (already distance-filtered), one packet per viewer — no
-     *  world.playSound full-world recipient walk. Shares the resolution cache with #play. */
     public static void play(List<Player> viewers, Location location, String soundKey, Sound fallback, float volume, float pitch) {
         if (viewers.isEmpty() || location == null) {
             return;
@@ -87,8 +76,6 @@ public final class SoundUtils {
         }
     }
 
-    /** Plays a sound to a single player at the given location, resolving the config sound key against the
-     *  Bukkit registry with a resourcepack-sound string fallback. Shares the resolution cache with #play. */
     public static void play(Player player, Location location, String soundKey, Sound fallback, SoundCategory category, float volume, float pitch) {
         if (player == null || location == null) {
             return;

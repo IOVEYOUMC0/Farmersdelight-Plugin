@@ -1,15 +1,10 @@
 package com.huidu.farmersdelight.tool;
 
-import com.huidu.farmersdelight.i18n.I18n;
 import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.item.ItemBuildContext;
 import net.momirealms.craftengine.core.item.component.DataComponentKeys;
 import net.momirealms.craftengine.core.item.processor.ItemProcessor;
 
-/**
- * CE ItemProcessor 注入 max_damage/damage/enchantable 组件。
- * 实际最大耐久值在运行时从 ToolRegistry 读取。
- */
 public final class ToolDataProcessor implements ItemProcessor {
 
     private final int maxDurability;
@@ -22,10 +17,9 @@ public final class ToolDataProcessor implements ItemProcessor {
 
     @Override
     public Item apply(Item item, ItemBuildContext context) {
-        int configuredMaxStack = item.maxStackSize();
-        if (configuredMaxStack > 1) {
-            I18n.logWarning("plugin.tool.stack_size_forced", "size", String.valueOf(configuredMaxStack));
-        }
+        // Settings processors run before CraftEngine finishes merging the item's data section, so
+        // maxStackSize() can still expose the base material's default of 64 even when YAML specifies 1.
+        // Enforce the damageable-item invariant without treating that intermediate value as a bad config.
         item.maxStackSize(1);
         item.maxDamage(maxDurability);
         item.damage(0);

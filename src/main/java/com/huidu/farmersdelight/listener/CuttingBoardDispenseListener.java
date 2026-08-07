@@ -16,11 +16,6 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.inventory.ItemStack;
 
-/**
- * Ports the mod's cutting-board dispenser behavior: a dispenser facing a cutting board uses the dispensed
- * item as a tool on the board's stored item instead of ejecting it. Only real dispensers act — droppers keep
- * ejecting — and the item is never ejected while facing a board, matching the mod.
- */
 public final class CuttingBoardDispenseListener implements Listener {
 
     private final FarmersDelightPlugin plugin;
@@ -74,8 +69,11 @@ public final class CuttingBoardDispenseListener implements Listener {
         ItemStack toolCopy = tool.clone();
         boolean cut = behavior.tryDispenserCut(world, boardPos, boardFacing, toolCopy);
         if (cut && dispenser.getState(false) instanceof Dispenser dispenserState) {
-            // Write the tool back with durability applied; a tool broken to amount 0 clears the slot.
-            dispenserState.getInventory().setItem(event.getSlot(), toolCopy.getAmount() > 0 ? toolCopy : null);
+            if (toolCopy.isEmpty() || toolCopy.getAmount() <= 0) {
+                dispenserState.getInventory().clear(event.getSlot());
+            } else {
+                dispenserState.getInventory().setItem(event.getSlot(), toolCopy);
+            }
         }
     }
 }

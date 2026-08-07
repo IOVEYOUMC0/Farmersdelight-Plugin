@@ -28,11 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * In-game editor for editing a single cutting-board recipe (input, tools, weighted results, priority). Layout
- * and button text come from the recipe-cutting-board-editor-gui section of gui.yml; chat
- * feedback comes from the gui.editor.* language keys.
- */
 public final class CuttingBoardEditorGui extends AbstractInventoryGui implements EditorGui {
 
     private static final String NONE = "-";
@@ -338,7 +333,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
             }
         }
         if (toolList.isEmpty()) {
-            toolList.add(new CuttingBoardRecipe.ToolRequirement(Key.of(Constants.TAG_KNIVES)));
+            toolList.add(new CuttingBoardRecipe.ToolRequirement(Key.of(Constants.TAG_KNIVES), true));
         }
 
         CuttingBoardRecipe recipe = new CuttingBoardRecipe(recipeId, input, null, toolList, results, sound, priority);
@@ -416,7 +411,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
                 ingredient -> {
                     if (ingredient instanceof RecipeIngredient.Tag tag) {
                         tools[idx] = new CuttingBoardRecipe.ToolRequirement(
-                                tag.key(), tag.excludedItems(), tag.excludedTags());
+                                tag.key(), true, tag.excludedItems(), tag.excludedTags());
                     }
                     reopen();
                 },
@@ -519,9 +514,11 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
     }
 
     private ItemStack displayForTool(CuttingBoardRecipe.ToolRequirement tool) {
-        ItemStack stack = ItemUtils.createItem(tool.getKey().toString());
-        if (stack != null && !stack.getType().isAir()) {
-            return stack;
+        if (!tool.isTag()) {
+            ItemStack stack = ItemUtils.createItem(tool.getKey().toString());
+            if (stack != null && !stack.getType().isAir()) {
+                return stack;
+            }
         }
         return named(new ItemStack(Material.NAME_TAG), RecipeSerializer.serializeTool(tool));
     }

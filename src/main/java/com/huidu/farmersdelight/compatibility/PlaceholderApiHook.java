@@ -14,28 +14,6 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Locale;
 import java.util.Optional;
 
-/**
- * PlaceholderAPI bridge that exposes every registered buff (FarmersDelight's
- * Comfort / Nourishment and Brewin' And Chewin's Tipsy / Sweet Heart / Raging / Intoxication, plus
- * anything addons register) so HUD plugins (BetterHud, MythicHud, etc.) can render them per player.
- *
- * Placeholder shape (all under the farmersdelight identifier):
- * 
- *   - %farmersdelight_buff_<ns>_<id>_active% → 1 / 0
- *   - %farmersdelight_buff_<ns>_<id>_level%  → effective level (0 when inactive)
- *   - %farmersdelight_buff_<ns>_<id>_time%   → remaining seconds (0 when inactive)
- *   - %farmersdelight_buff_<ns>_<id>_time_fmt% → m:ss (or h:mm:ss past an hour)
- *   - %farmersdelight_buff_<ns>_<id>_name%   → translated display name (server locale)
- *   - %farmersdelight_buff_count%            → number of active buffs on the player
- * 
- *
- * <ns>_<id> mirrors the registered buff id with the colon replaced by an underscore — so
- * brewinandchewin:tipsy becomes brewinandchewin_tipsy. Returns the empty string for
- * unknown buff ids and "0" for any sub-key on an inactive buff.
- *
- * Registered automatically when PlaceholderAPI is present on plugin enable; absence is silently
- * skipped (the dependency is soft).
- */
 public final class PlaceholderApiHook extends PlaceholderExpansion {
 
     private final FarmersDelightPlugin plugin;
@@ -96,8 +74,6 @@ public final class PlaceholderApiHook extends PlaceholderExpansion {
                 .orElse(0);
     }
 
-    /** Parse a <ns>_<id>_<field> request and return its value. field ∈
-     *  active / level / time / time_fmt / name. */
     private String resolveBuff(@Nullable OfflinePlayer offline, String rest) {
         int lastUnderscore = rest.lastIndexOf('_');
         if (lastUnderscore <= 0) return "";

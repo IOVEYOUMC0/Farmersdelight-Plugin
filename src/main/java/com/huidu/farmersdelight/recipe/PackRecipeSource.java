@@ -18,34 +18,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Stream;
 
-/**
- * Loads Farmer's Delight recipe files that ship inside a CraftEngine resource pack, so an addon can add
- * cooking pot and cutting board recipes with no Java. The addon drops its recipe files under a farmersdelight/
- * folder inside its pack, next to the configuration/ and resourcepack/ folders CraftEngine already reads.
- * CraftEngine only scans configuration/,
- * so this sibling folder is invisible to it and never clashes with its parsing; the files use the same
- * root-section format as the plugin's own recipe files (cooking_pot_recipes / custom_cooking_pot_recipes /
- * cutting_board_recipes).
- *
- * The scan is deliberately decoupled from CraftEngine's own recipe pipeline: that pipeline builds vanilla
- * recipes for the crafting table and furnace, and the cooking pot and cutting board are not vanilla
- * stations. Each pack file is parsed here and fed into the existing recipe managers as one more source
- * alongside the plugin's own files and the runtime API.
- */
 final class PackRecipeSource {
 
-    /** A recipe file found in a pack, paired with a readable source label used only in log messages. */
     record Loaded(String source, YamlConfiguration config) {
     }
 
     private PackRecipeSource() {
     }
 
-    /**
-     * Every Farmer's Delight recipe file found across all loaded CraftEngine packs, in a stable order so a
-     * duplicate id across pack files resolves to the same file every load. Empty when CraftEngine is
-     * unavailable or no pack ships a farmersdelight/ folder.
-     */
     static List<Loaded> load(FarmersDelightPlugin plugin) {
         BukkitCraftEngine craftEngine = plugin.getCraftEngine();
         if (craftEngine == null) {

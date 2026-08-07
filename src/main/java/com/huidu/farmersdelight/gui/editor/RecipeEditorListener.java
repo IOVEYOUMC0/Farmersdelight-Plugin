@@ -10,10 +10,6 @@ import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
-/**
- * A single Bukkit listener that routes inventory events to the EditorGui owning the currently open top inventory.
- * Registered lazily only once (following RecipeViewGui's dispatcher pattern).
- */
 public final class RecipeEditorListener implements Listener {
 
     private static volatile boolean registered = false;
@@ -34,7 +30,6 @@ public final class RecipeEditorListener implements Listener {
         }
     }
 
-    /** Reset state so a new listener is re-registered on soft re-enable. */
     public static void reset() {
         registered = false;
     }

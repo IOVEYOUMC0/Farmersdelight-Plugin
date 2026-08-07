@@ -32,15 +32,16 @@ public final class StoveBlockEntityController extends BlockEntityController {
 
     @Override
     public void saveCustomData(CompoundTag tag) {
-        // A passivation snapshot is authoritative while the manager entry is gone; checked before
-        // loadPendingDataIfReady so serializing an unloaded chunk cannot resurrect the manager entry.
-        if (this.pendingSaveData != null) {
-            tag.put(DATA_KEY, this.pendingSaveData);
+        // Never apply parked data from a serialization callback. Rehydration may touch the world while its
+        // chunk is being saved; the parked tag is already the exact payload that needs to be persisted.
+        CompoundTag dataTag = this.pendingSaveData;
+        if (dataTag != null) {
+            tag.put(DATA_KEY, dataTag);
             return;
         }
-        loadPendingDataIfReady();
-        if (this.pendingLoadData != null) {
-            tag.put(DATA_KEY, this.pendingLoadData);
+        dataTag = this.pendingLoadData;
+        if (dataTag != null) {
+            tag.put(DATA_KEY, dataTag);
             return;
         }
         StoveManager manager = getManager();
@@ -55,12 +56,6 @@ public final class StoveBlockEntityController extends BlockEntityController {
         tag.put(DATA_KEY, SimpleBlockEntityData.save(data));
     }
 
-    /**
-     * Snapshots the manager's current state for this stove so it survives the manager entry being
-     * dropped on chunk unload (CE serializes by pulling from the manager at HIGHEST, after the entry is
-     * gone). Returns false when the manager or world is unavailable, in which case the caller must keep
-     * the entry so the pull path can still export it.
-     */
     public boolean passivate() {
         StoveManager manager = getManager();
         World world = getBukkitWorld();

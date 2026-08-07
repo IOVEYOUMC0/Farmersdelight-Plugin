@@ -13,26 +13,6 @@ import net.momirealms.craftengine.core.plugin.context.parameter.DirectContextPar
 import java.util.List;
 import java.util.function.Function;
 
-/**
- * A CraftEngine event function that grants one of FarmersDelight's custom food buffs (Comfort /
- * Nourishment) to the acting player, with a config-driven duration and level. Registered under the keys
- * farmersdelight:comfort and farmersdelight:nourishment so a food item can declare its
- * effect directly in its own CraftEngine config:
- *
- * <pre>
- * farmersdelight:beef_stew:
- *   events:
- *   - on: consume
- *     functions:
- *     - type: farmersdelight:nourishment
- *       duration: 180   # seconds
- *       level: 1        # optional, 1-based
- * </pre>
- *
- * The buff itself (state, stacking, persistence, bossbar) is owned by EffectManager; this
- * function only reads the config and forwards to FarmersDelightFoodEffects. It runs during the
- * consume event on the eating player's own thread, which is where the effect must be applied.
- */
 public final class FoodBuffFunction<CTX extends Context> extends AbstractConditionalFunction<CTX> {
 
     public enum Kind {COMFORT, NOURISHMENT}

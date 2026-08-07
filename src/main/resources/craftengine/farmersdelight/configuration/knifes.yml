@@ -23,7 +23,7 @@ items:
         - <!i><dark_green>  2.5 <lang:attribute.name.attack_damage></dark_green>
         - <!i><dark_green>  2.0 <lang:attribute.name.attack_speed></dark_green>
     settings:
-      farmersdelight:tool:
+      farmersdelight:sword:
         max-durability: 131
         enchantability: 5
         attack-sound: minecraft:entity.player.attack.sweep
@@ -53,7 +53,7 @@ items:
         - <!i><dark_green>  3.5 <lang:attribute.name.attack_damage></dark_green>
         - <!i><dark_green>  2.0 <lang:attribute.name.attack_speed></dark_green>
     settings:
-      farmersdelight:tool:
+      farmersdelight:sword:
         max-durability: 250
         enchantability: 14
         attack-sound: minecraft:entity.player.attack.sweep
@@ -83,7 +83,7 @@ items:
         - <!i><dark_green>  1.5 <lang:attribute.name.attack_damage></dark_green>
         - <!i><dark_green>  2.0 <lang:attribute.name.attack_speed></dark_green>
     settings:
-      farmersdelight:tool:
+      farmersdelight:sword:
         max-durability: 32
         enchantability: 22
         attack-sound: minecraft:entity.player.attack.sweep
@@ -113,7 +113,7 @@ items:
         - <!i><dark_green>  4.5 <lang:attribute.name.attack_damage></dark_green>
         - <!i><dark_green>  2.0 <lang:attribute.name.attack_speed></dark_green>
     settings:
-      farmersdelight:tool:
+      farmersdelight:sword:
         max-durability: 1561
         enchantability: 10
         attack-sound: minecraft:entity.player.attack.sweep
@@ -144,7 +144,7 @@ items:
         - <!i><dark_green>  5.5 <lang:attribute.name.attack_damage></dark_green>
         - <!i><dark_green>  2.0 <lang:attribute.name.attack_speed></dark_green>
     settings:
-      farmersdelight:tool:
+      farmersdelight:sword:
         max-durability: 2031
         enchantability: 15
         attack-sound: minecraft:entity.player.attack.sweep

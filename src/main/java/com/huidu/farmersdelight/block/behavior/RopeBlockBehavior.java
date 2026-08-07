@@ -269,11 +269,6 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
         return InteractionResult.PASS;
     }
 
-    /**
-     * Rings a bell as if a player pulled the rope, matching vanilla RopeBlock: the bell swings from its own
-     * facing rotated clockwise. Scheduled on the bell's location so the tile-entity read and ring run on the
-     * region thread that owns the bell.
-     */
     private void ringBell(Block bell, Player player) {
         Runnable ring = () -> {
             if (bell.getType() != Material.BELL || !(bell.getState() instanceof org.bukkit.block.Bell bellState)) {

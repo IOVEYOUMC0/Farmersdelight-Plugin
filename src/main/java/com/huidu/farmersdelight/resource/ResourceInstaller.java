@@ -26,13 +26,6 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Stream;
 
-/**
- * Releases the plugin's bundled CraftEngine resource tree (configuration + resourcepack) into
- * plugins/CraftEngine/resources/farmersdelight so CraftEngine can load them. The first release copies
- * the whole tree atomically via a temp directory; later startups only re-complete files that are
- * missing (gated by craftengine-resources.auto-completion). Extracted from the plugin main class so the
- * jar-scanning / atomic-copy file IO lives in one focused place.
- */
 public final class ResourceInstaller {
 
     private static final String CRAFTENGINE_RESOURCE_ROOT = "craftengine/farmersdelight";
@@ -56,20 +49,20 @@ public final class ResourceInstaller {
 
         Path targetRoot = pluginsFolder.resolve(CRAFTENGINE_RESOURCE_TARGET);
         try {
-            int copiedFiles;
+            int changedFiles;
             if (Files.exists(targetRoot)) {
+                changedFiles = 0;
                 // The initial release is unconditional; this toggle only controls whether missing files are re-completed on later startups.
-                if (!plugin.getConfig().getBoolean("craftengine-resources.auto-completion", true)) {
-                    return;
+                if (plugin.getConfig().getBoolean("craftengine-resources.auto-completion", true)) {
+                    changedFiles += copyMissingBundledResourceFiles(CRAFTENGINE_RESOURCE_ROOT, targetRoot);
                 }
-                copiedFiles = copyMissingBundledResourceFiles(CRAFTENGINE_RESOURCE_ROOT, targetRoot);
             } else {
-                copiedFiles = copyBundledResourceDirectory(CRAFTENGINE_RESOURCE_ROOT, targetRoot);
+                changedFiles = copyBundledResourceDirectory(CRAFTENGINE_RESOURCE_ROOT, targetRoot);
             }
-            if (copiedFiles > 0) {
+            if (changedFiles > 0) {
                 I18n.logInfo("plugin.craftengine_resources_released",
                         "path", targetRoot,
-                        "count", copiedFiles);
+                        "count", changedFiles);
             }
         } catch (IOException e) {
             I18n.logWarning("plugin.craftengine_resources_release_failed", "error", e.getMessage());
@@ -214,11 +207,6 @@ public final class ResourceInstaller {
         }
     }
 
-    /**
-     * Lists bundled resource files under resourceRoot by scanning the plugin jar's entries.
-     * Returns null (not an empty list) when the plugin is not run from a readable jar file
-     * (e.g. an exploded IDE/test run), so the caller can fall back to classloader-based discovery.
-     */
     private List<String> listJarFileResourceFiles(String resourceRoot) throws IOException {
         if (pluginJar == null || !pluginJar.isFile()) {
             return null;

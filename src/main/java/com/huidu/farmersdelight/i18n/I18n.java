@@ -40,12 +40,6 @@ public class I18n {
     private static FarmersDelightPlugin plugin;
     private static volatile LocaleState state = new LocaleState(Map.of(), null, FALLBACK_LOCALE);
 
-    /**
-     * Immutable snapshot of the locale lookup state: locales, currentLocale, and defaultLocale are always consistent.
-     * Reload replaces only the single volatile #state reference wholesale, so readers see either the complete old
-     * snapshot or the complete new one, avoiding clear()/put() corrupting the underlying HashMap while a region thread reads it
-     * (which could cause wrong results, NPEs, or a region thread spinning forever on a corrupted bucket chain).
-     */
     private record LocaleState(Map<String, YamlConfiguration> locales,
                                YamlConfiguration currentLocale,
                                String defaultLocale) {
@@ -389,9 +383,6 @@ public class I18n {
         return key;
     }
 
-    /**
-     * Translate via CraftEngine public API without reflection.
-     */
     private static String craftEngineTranslate(String key, String locale) {
         try {
             Locale loc = locale != null && !locale.isEmpty()
@@ -488,13 +479,6 @@ public class I18n {
         }
     }
 
-    /**
-     * Startup / reload detail that a healthy boot does not need on the console: per-subsystem census
-     * counts, "loaded successfully" notices, and steps that legitimately run more than once per
-     * lifecycle. Printed at INFO when the matching debug category is enabled (debug.enabled plus
-     * debug.categories in config.yml), and recorded at FINE otherwise so raising the logger level
-     * still surfaces it. Nothing routed here is ever dropped.
-     */
     public static void logDetail(String category, String key, Object... args) {
         FarmersDelightPlugin pluginInstance = plugin;
         if (pluginInstance == null) {
@@ -575,27 +559,14 @@ public class I18n {
         return Text.deserialize(formatNamed(key, player, placeholders));
     }
 
-    /** Returns a Component.translatable(key) that each player's
-     * client renders from its own resource-pack lang file. Use this for any user-visible GUI text so the
-     * server sends a translation key (not a pre-rendered string) and the player sees their own language
-     * without needing to re-open the GUI when they switch client language. The key must exist in the
-     * resource pack's assets/farmersdelight/lang/<locale>.json. */
     public static Component translatable(String key) {
         return Component.translatable(key);
     }
 
-    /** Plain-text translation in the server's default locale via com.huidu.farmersdelight.util.ItemUtils#translate.
-     *  Walks FD lang files, then CraftEngine's TranslationManager, then Adventure's GlobalTranslator, then
-     *  returns the key itself if nothing has a value. Use for bossbar titles and lore lines where the
-     *  visible text must NOT depend on the receiving client's locale or resource-pack contents. */
     public static String serverText(String key) {
         return com.huidu.farmersdelight.util.ItemUtils.translate(key, state.defaultLocale());
     }
 
-    /** #serverText(String) formatted with positional %s args and wrapped in a
-     *  Component.text. Falls back to the unformatted text if the args don't match the placeholders.
-     *  Args that are themselves Component get serialized through plain-text first so colored
-     *  sub-components are not silently dropped (the result is a flat text Component anyway). */
     public static Component serverComponent(String key, Object... args) {
         String resolved = serverText(key);
         if (args == null || args.length == 0) {
@@ -617,11 +588,6 @@ public class I18n {
         return Text.deserialize(formatted);
     }
 
-    /** Component.translatable(key, args) carrying a server-resolved .fallback(...) string,
-     *  so clients whose resource pack lacks the lang entry see readable text in the server's default locale
-     *  instead of the raw key. Non-Component args get wrapped in Component.text(String.valueOf(arg))
-     *  for the client-side render; the fallback string formats the %s placeholders with the args'
-     *  plain-text serialisation. */
     public static Component translatableWithFallback(String key, Object... args) {
         if (args == null) args = new Object[0];
         Component[] argComponents = new Component[args.length];
@@ -651,9 +617,6 @@ public class I18n {
         return Component.translatable(key, argComponents).fallback(fallback);
     }
 
-    /** Translatable with positional %s args. Each arg is wrapped in a Component.text(...)
-     * unless it's already a Component, so colored sub-components pass through unchanged. Order of args must
-     * match the order of %s placeholders in the lang value. */
     public static Component translatable(String key, Object... args) {
         if (args.length == 0) return Component.translatable(key);
         Component[] components = new Component[args.length];

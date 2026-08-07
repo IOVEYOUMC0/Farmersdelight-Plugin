@@ -116,13 +116,10 @@ public class KnifeDropHandler implements Listener {
         }
     }
 
-    /** Number of entity extra-drop rules currently published, for the consolidated startup summary. */
     public int getDropRuleCount() {
         return dropRules.size();
     }
 
-    /** The section at the first path the admin's own file sets. isSet ignores the jar defaults Bukkit
-     *  attaches to getConfig(), so this reports only what the admin actually configured. */
     private ConfigurationSection getFirstConfiguredSection(String... paths) {
         for (String path : paths) {
             if (!plugin.getConfig().isSet(path)) {
@@ -136,9 +133,6 @@ public class KnifeDropHandler implements Listener {
         return null;
     }
 
-    /** Last resort for a file that configures none of the paths: read the section out of the jar's bundled
-     *  config.yml, which Bukkit exposes as getConfig()'s default configuration. Only ever consulted after
-     *  getFirstConfiguredSection has found nothing, so an admin's own value always wins. */
     private ConfigurationSection getFirstBundledSection(String... paths) {
         for (String path : paths) {
             ConfigurationSection section = plugin.getConfig().getConfigurationSection(path);
@@ -347,8 +341,6 @@ public class KnifeDropHandler implements Listener {
         return ItemUtils.createItem(itemId);
     }
 
-    /** Adds or replaces a rule for the run only — a reload rebuilds the map and drops it. Callers that
-     *  want the rule to survive /fd reload use registerExternalDropRule. */
     public void addDropRule(String entityType, KnifeDropRule rule) {
         dropRules.put(entityType.toLowerCase(java.util.Locale.ROOT), rule);
     }
@@ -357,8 +349,6 @@ public class KnifeDropHandler implements Listener {
         dropRules.remove(entityType.toLowerCase(java.util.Locale.ROOT));
     }
 
-    /** Adds or replaces a rule and remembers it, so a reload re-applies it on top of the rebuilt map.
-     *  Backs the api facade; null entityType or rule is a no-op. */
     public void registerExternalDropRule(String entityType, KnifeDropRule rule) {
         if (entityType == null || rule == null) {
             return;
@@ -368,8 +358,6 @@ public class KnifeDropHandler implements Listener {
         dropRules.put(key, rule);
     }
 
-    /** Removes a rule registered through registerExternalDropRule. Returns true when one was present.
-     *  The next reload restores whatever the defaults and config.yml define for that entity type. */
     public boolean unregisterExternalDropRule(String entityType) {
         if (entityType == null) {
             return false;

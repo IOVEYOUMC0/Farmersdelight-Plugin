@@ -19,9 +19,6 @@ import org.bukkit.inventory.meta.Damageable;
 
 import java.util.concurrent.ThreadLocalRandom;
 
-/**
- * Attack listener for farmersdelight:tool items: sweep cancel, custom sounds, durability.
- */
 public final class ToolAttackListener implements Listener {
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
@@ -72,7 +69,6 @@ public final class ToolAttackListener implements Listener {
         return Registry.SOUNDS.get(key);
     }
 
-    /** Resolve ToolData from a Bukkit ItemStack via CE custom item ID. */
     public static ToolData resolveToolData(ItemStack item) {
         if (item == null || item.isEmpty()) return null;
         Key id = CraftEngineItems.getCustomItemId(item);
@@ -80,30 +76,47 @@ public final class ToolAttackListener implements Listener {
         return ToolRegistry.get(id).orElse(null);
     }
 
-    /** Consume 1 durability, break the item at zero. Unbreaking applies. */
-    public static void consumeDurability(ItemStack item, Location breakSoundLocation) {
-        if (!(item.getItemMeta() instanceof Damageable damageable) || damageable.isUnbreakable()) return;
-        if (!damageable.hasMaxDamage()) return;
+    public static boolean consumeDurability(ItemStack item, Location breakSoundLocation) {
+        if (item == null || item.isEmpty()
+                || !(item.getItemMeta() instanceof Damageable damageable)
+                || damageable.isUnbreakable()) {
+            return false;
+        }
 
         if (damageable.hasEnchant(org.bukkit.enchantments.Enchantment.UNBREAKING)) {
             int level = damageable.getEnchantLevel(org.bukkit.enchantments.Enchantment.UNBREAKING);
-            if (java.util.concurrent.ThreadLocalRandom.current().nextInt(level + 1) > 0) return;
+            if (java.util.concurrent.ThreadLocalRandom.current().nextInt(level + 1) > 0) {
+                return false;
+            }
         }
 
-        int maxDamage = damageable.getMaxDamage();
-        int currentDamage = damageable.getDamage();
-        if (currentDamage >= maxDamage) return;
+        int maxDamage = damageable.hasMaxDamage()
+                ? damageable.getMaxDamage()
+                : item.getType().getMaxDurability();
+        if (maxDamage <= 0) {
+            return false;
+        }
 
-        currentDamage++;
-        if (currentDamage >= maxDamage) {
+        int currentDamage = Math.max(0, damageable.getDamage());
+        int damageAfterUse = damageAfterUse(currentDamage, maxDamage);
+        if (damageAfterUse < 0) {
             item.setAmount(0);
-            if (breakSoundLocation != null) {
+            if (breakSoundLocation != null && breakSoundLocation.getWorld() != null) {
                 breakSoundLocation.getWorld().playSound(breakSoundLocation, Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
             }
-            return;
+            return true;
         }
 
-        damageable.setDamage(currentDamage);
+        damageable.setDamage(damageAfterUse);
         item.setItemMeta(damageable);
+        return false;
+    }
+
+    static int damageAfterUse(int currentDamage, int maxDamage) {
+        int normalizedDamage = Math.max(0, currentDamage);
+        if (maxDamage <= 0) {
+            return normalizedDamage;
+        }
+        return normalizedDamage + 1 >= maxDamage ? -1 : normalizedDamage + 1;
     }
 }

@@ -49,7 +49,6 @@ public class RichSoilBlockBehavior extends FarmersDelightBlockBehavior {
         this.unaffectedBlocks = unaffectedBlocks;
     }
 
-    /** Blocks this rich soil's boost must skip. The rich soil farmland reads it when it configures no list of its own. */
     public ConfiguredBlockSet unaffectedBlocks() {
         return unaffectedBlocks;
     }
@@ -126,12 +125,6 @@ public class RichSoilBlockBehavior extends FarmersDelightBlockBehavior {
         return true;
     }
 
-    /**
-     * The colony's age 0 state, or null when the configured colony block declares no integer age property.
-     * Falling back to the colony's default state there would hand out a fully grown, immediately harvestable
-     * colony for every mushroom the soil converts, so the conversion is skipped instead and the mushroom is
-     * left standing.
-     */
     @SuppressWarnings("unchecked")
     private static ImmutableBlockState colonyAgeZero(BlockDefinition colony) {
         Property<?> property = colony.getProperty("age");

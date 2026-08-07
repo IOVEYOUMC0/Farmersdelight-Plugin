@@ -26,11 +26,6 @@ import org.bukkit.inventory.ItemStack;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
-/**
- * Bone meal spread logic for static wild plants (cabbage/onion/tomato), ported from the mod's
- * WildCropBlock: on success, scatters a copy into the air above nearby valid soil, with spread count
- * capped by the number of identical plants already around. Placement/survival stays in bush_block; never does random tick updates.
- */
 public class WildPlantBlockBehavior extends FarmersDelightBlockBehavior {
 
     private final boolean isBoneMealTarget;

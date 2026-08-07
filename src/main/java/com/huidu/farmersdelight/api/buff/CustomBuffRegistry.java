@@ -14,20 +14,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/**
- * Registry that lets FarmersDelight's milk-consume listener clear addon-side custom buffs without
- * knowing each addon's manager API. See CustomBuff for the contract.
- *
- * Lifecycle: addons call register(CustomBuff) during onEnable and unregister(CustomBuff) during
- * onDisable. Registration is idempotent by CustomBuff.id() — re-registering with the same id replaces
- * the previous entry, which matches what a /plugman reload would naturally do.
- *
- * Iteration is COW-snapshot based, so reads (the consume listener) and writes (a plugin enabling
- * mid-game) don't lock against each other.
- *
- * The registry also raises FarmersDelightBuffChangeEvent on real level transitions — see
- * syncState(Player, String) for how an addon reports its own state changes.
- */
 @ApiStatus.NonExtendable
 public final class CustomBuffRegistry {
 
@@ -55,23 +41,15 @@ public final class CustomBuffRegistry {
     private CustomBuffRegistry() {
     }
 
-    /** Publishes the buff.enabled master switch. Called by FarmersDelight's config load. */
     @ApiStatus.Internal
     public static void setSystemEnabled(boolean enabled) {
         systemEnabled = enabled;
     }
 
-    /**
-     * True while the buff system is switched on. When false no buff is granted, restored, ticked or drawn;
-     * every entry point below stays a safe no-op rather than throwing, so an addon can call the registry
-     * unconditionally. Addons can read this to skip their own per-tick buff work entirely.
-     */
     public static boolean isSystemEnabled() {
         return systemEnabled;
     }
 
-    /** Add buff to the registry. If a buff with the same CustomBuff#id() is already
-     *  registered, that entry is replaced (mirrors a clean re-register after a plugin reload). */
     public static void register(CustomBuff buff) {
         Objects.requireNonNull(buff, "buff");
         Objects.requireNonNull(buff.id(), "buff.id()");
@@ -80,53 +58,30 @@ public final class CustomBuffRegistry {
         BY_ID.put(buff.id(), buff);
     }
 
-    /** Drop the registered entry whose id matches buff.id(). No-op when not present. */
     public static void unregister(CustomBuff buff) {
         if (buff == null || buff.id() == null) return;
         ENTRIES.removeIf(existing -> existing.id().equals(buff.id()));
         BY_ID.remove(buff.id());
     }
 
-    /** Drop the registered entry by id. No-op when not present. */
     public static void unregister(String id) {
         if (id == null) return;
         ENTRIES.removeIf(existing -> existing.id().equals(id));
         BY_ID.remove(id);
     }
 
-    /** All registered buffs in insertion order as an unmodifiable view over the live COW list.
-     *  No allocation per call — safe to iterate while a concurrent register/unregister mutates the
-     *  underlying list (CopyOnWriteArrayList provides snapshot iteration). */
     public static List<CustomBuff> all() {
         return ENTRIES_VIEW;
     }
 
-    /** O(1) lookup by registered buff id (e.g. "brewinandchewin:tipsy"). Returns null
-     *  when no buff with that id is currently registered. Drives the PlaceholderAPI hot path. */
     public static CustomBuff byId(String id) {
         return id == null ? null : BY_ID.get(id);
     }
 
-    /**
-     * Re-read the buff registered under buffId on player and raise a
-     * FarmersDelightBuffChangeEvent if — and only if — its level actually moved since the last
-     * time this player/buff pair was looked at (gained, lost, or level changed). A call that finds the
-     * same level as before does nothing at all: no event, no allocation beyond the lookup. That is what
-     * makes it safe to call this after every state mutation, including a duration refresh, without
-     * turning the event into a per-tick firehose.
-     *
-     * An addon that keeps its own buff state calls this after mutating it (granting a dose,
-     * decaying a level, expiring a timer). The registry's own mutating paths — apply,
-     * clearAll, clearOne, restoreAll — already sync themselves, so an addon
-     * that only grants through those does not need to call this at all.
-     *
-     * Returns true when a transition was detected and the event was fired.
-     */
     public static boolean syncState(Player player, String buffId) {
         return syncState(player, byId(buffId));
     }
 
-    /** #syncState(Player, String) for a buff instance you already hold. */
     public static boolean syncState(Player player, CustomBuff buff) {
         if (player == null || buff == null || buff.id() == null) {
             return false;
@@ -149,13 +104,6 @@ public final class CustomBuffRegistry {
         return true;
     }
 
-    /**
-     * Delivers a change event for a transition the diff cache has already consumed, so it must not be
-     * dropped. PluginManager rejects a synchronous event dispatched from a non-tick thread by throwing, and
-     * an addon that decays its buff on an async task would therefore commit the transition and then lose the
-     * event with nothing able to re-derive it. Off a tick thread the finished event is handed to the global
-     * region instead, so the caller returns normally and listeners still see it.
-     */
     private static void fireChange(FarmersDelightBuffChangeEvent event) {
         if (Bukkit.isPrimaryThread()) {
             callChange(event);
@@ -179,8 +127,6 @@ public final class CustomBuffRegistry {
         }
     }
 
-    /** Run #syncState(Player, CustomBuff) for every registered buff. Useful after a bulk
-     *  change (a relog restore, an admin wipe) when the caller doesn't know which buffs moved. */
     public static void syncAll(Player player) {
         if (player == null) return;
         for (CustomBuff buff : ENTRIES) {
@@ -188,15 +134,6 @@ public final class CustomBuffRegistry {
         }
     }
 
-    /**
-     * Re-syncs every player the diff cache still holds a level for. A buff that simply runs out of time is
-     * expired by whoever owns it — FarmersDelight's own effect ticker, an addon's timer — and none of those
-     * paths go through the registry, so without this pass the loss half of the transition would never be
-     * reported. Cheap when nobody is buffed: the cache is empty and the pass returns on the first read.
-     *
-     * Each player is synced on their own scheduler, because reading a buff's level means reading state the
-     * owning region thread mutates. A player who is no longer online is dropped from the cache instead.
-     */
     @ApiStatus.Internal
     public static void syncTrackedPlayers() {
         if (LAST_LEVELS.isEmpty()) {
@@ -217,19 +154,12 @@ public final class CustomBuffRegistry {
         }
     }
 
-    /**
-     * Drop player's cached buff levels. Call on quit: the cache exists only to diff against
-     * live state, and a disconnected player has none. Purely hygiene — a player who reconnects is
-     * diffed from scratch, which at worst re-reports a buff they still have as newly gained.
-     */
     public static void forget(Player player) {
         if (player != null) {
             LAST_LEVELS.remove(player.getUniqueId());
         }
     }
 
-    /** Records level for the pair and returns what was there before (null = never seen).
-     *  Storing 0 is the same as forgetting, so the map only ever holds currently-buffed players. */
     private static Integer swapLastLevel(UUID playerId, String buffId, int level) {
         if (level <= 0) {
             Map<String, Integer> levels = LAST_LEVELS.get(playerId);
@@ -248,11 +178,6 @@ public final class CustomBuffRegistry {
         return LAST_LEVELS.computeIfAbsent(playerId, id -> new ConcurrentHashMap<>()).put(buffId, level);
     }
 
-    /**
-     * Persist every registered buff's state onto player (see CustomBuff#saveState).
-     * Drives FarmersDelight's central buff-persistence lifecycle on quit; per-buff exceptions are
-     * swallowed so one misbehaving addon can't block the rest of the save.
-     */
     public static void saveAll(Player player) {
         // Gated on the master switch for the same reason restoreAll is, but the consequence here is worse:
         // switching the system off clears the live buff state, so an ungated save would write that emptiness
@@ -268,11 +193,6 @@ public final class CustomBuffRegistry {
         }
     }
 
-    /**
-     * Restore every registered buff's state onto player (see CustomBuff#restoreState).
-     * Called on join and again after the configured retry delay; restoreState is gap-filling
-     * so the repeat call is safe.
-     */
     public static void restoreAll(Player player) {
         // Restoring would put a buff straight back into play, so the master switch has to gate it too. The
         // saved state stays on the player, so nothing is lost if the system is switched on again.
@@ -290,12 +210,6 @@ public final class CustomBuffRegistry {
         }
     }
 
-    /**
-     * Grant the registered buff with id to player at level (1-based) for
-     * durationSeconds (see CustomBuff#apply). Returns true when a buff with
-     * that id is registered and accepted the grant, false when the id is unknown or the buff
-     * can't be granted. Drives the /fd buff give admin command.
-     */
     public static boolean apply(Player player, String id, int level, int durationSeconds) {
         // Reports "not granted" rather than throwing when the system is off, which is the same answer an
         // addon already handles for an unknown or non-grantable buff id.
@@ -317,10 +231,6 @@ public final class CustomBuffRegistry {
         return applied;
     }
 
-    /**
-     * Remove every active registered buff from player — vanilla milk_bucket semantics
-     * extended to custom state. Returns the count actually removed.
-     */
     public static int clearAll(Player player) {
         if (player == null) return 0;
         int removed = 0;
@@ -340,10 +250,6 @@ public final class CustomBuffRegistry {
         return removed;
     }
 
-    /**
-     * The registered buffs currently active on player (both priorities). Used by the milk-bottle
-     * cleanser to weigh custom buffs alongside vanilla effects when picking one to remove.
-     */
     public static java.util.List<CustomBuff> activeBuffs(Player player) {
         java.util.List<CustomBuff> active = new java.util.ArrayList<>();
         if (player == null) {
@@ -360,12 +266,6 @@ public final class CustomBuffRegistry {
         return active;
     }
 
-    /**
-     * Remove exactly one active buff from player, preferring non-low-priority entries.
-     * Returns the removed buff (or null when nothing was active). Mirrors the original
-     * farmersdelight:milk_bottle semantics modulated by BAC's
-     * brewinandchewin:low_priority/milk_bottle effect tag.
-     */
     public static CustomBuff clearOne(Player player) {
         if (player == null) return null;
         CustomBuff lowPriorityFallback = null;

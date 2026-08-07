@@ -37,9 +37,7 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
-import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.util.Vector;
 
 import java.util.HashMap;
@@ -138,8 +136,6 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         return Set.of();
     }
 
-    /** Adds every proxy display id tracked cutting boards still reference, so /fd cleanup removes
-     *  only orphaned displays and leaves live cutting-board visuals alone. */
     public static void collectLiveDisplayIds(Set<Integer> out) {
         for (Map<BlockPosKey, CuttingBoardBlockEntity> worldEntities : worldBlockEntities.values()) {
             for (CuttingBoardBlockEntity entity : worldEntities.values()) {
@@ -148,19 +144,16 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         }
     }
 
-    /** Computes the chunk key from block coordinates (high 32 bits = chunkX, low 32 bits = chunkZ). */
     private static long chunkKey(int blockX, int blockZ) {
         return (((long) (blockX >> 4)) << 32) | ((blockZ >> 4) & 0xFFFFFFFFL);
     }
 
-    /** Adds a position to the chunk index. Must be called in lockstep with registrations into worldEntities. */
     private static void indexAdd(UUID worldId, BlockPosKey posKey) {
         chunkIndex.computeIfAbsent(worldId, k -> new ConcurrentHashMap<>())
                 .computeIfAbsent(chunkKey(posKey.x(), posKey.z()), k -> ConcurrentHashMap.newKeySet())
                 .add(posKey);
     }
 
-    /** Removes a position from the chunk index. Must be called in lockstep with removals from worldEntities. */
     private static void indexRemove(UUID worldId, BlockPosKey posKey) {
         Map<Long, Set<BlockPosKey>> worldChunks = chunkIndex.get(worldId);
         if (worldChunks == null) return;
@@ -172,10 +165,6 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         if (worldChunks.isEmpty()) chunkIndex.remove(worldId);
     }
 
-    /**
-     * Returns only the cutting board block entities within the given chunk, avoiding a linear scan of the whole world.
-     * The authoritative map (worldBlockEntities) is the source of truth: stale extra entries in the index are skipped if not found there.
-     */
     public static Map<BlockPosKey, CuttingBoardBlockEntity> getBlockEntitiesInChunk(World world, int chunkX, int chunkZ) {
         Map<BlockPosKey, CuttingBoardBlockEntity> result = new HashMap<>();
         if (world == null) return result;
@@ -363,11 +352,6 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         markBlockEntityDirty(world, posKey);
     }
 
-    /**
-     * Chunk-unload save: snapshots the entity into the controller (so the data survives the entity's
-     * removal at MONITOR cleanup and re-hydrates it if the chunk reloads out of CraftEngine's chunk cache),
-     * falling back to the plain save when the controller is unreachable.
-     */
     public static void passivateBlockEntityData(World world, BlockPosKey posKey) {
         if (world == null || posKey == null) return;
         CuttingBoardBlockEntity entity = getBlockEntity(world, posKey);
@@ -385,10 +369,6 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         }
     }
 
-    /**
-     * Applies any pending controller data (deferred startup load, or a passivation snapshot left by a
-     * chunk-cache reload) before callers create a blank entity that would shadow the stored item.
-     */
     public static void flushPendingControllerData(World world, BlockPosKey posKey) {
         if (world == null || posKey == null) return;
         CuttingBoardBlockBehavior behavior = getBlockBehavior(posKey.toLocation(world));
@@ -946,6 +926,16 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
     public boolean isTool(ItemStack item) {
         if (item == null || item.getType().isAir()) return false;
 
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin.getCuttingBoardRecipes() != null && plugin.getCuttingBoardRecipes().isRecipeTool(item)) {
+            return true;
+        }
+
+        // Vanilla swords are not knives. They are accepted only when a recipe explicitly names one.
+        if (item.getType().name().endsWith("_SWORD")) {
+            return false;
+        }
+
         if (isKnifeTool(item) || isAxeTool(item) || isPickaxeTool(item) || isShovelTool(item) || isConfiguredToolItem(item)) {
             return true;
         }
@@ -961,6 +951,9 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
 
         String vanillaId = "minecraft:" + item.getType().name().toLowerCase(java.util.Locale.ROOT);
         for (Key toolTag : toolTags) {
+            if (!"minecraft".equals(toolTag.namespace())) {
+                continue;
+            }
             var vanillaItems = FarmersDelightPlugin.getInstance().getCraftEngine().itemManager()
                     .vanillaItemIdsByTag(toolTag);
             for (var vanillaItem : vanillaItems) {
@@ -1094,26 +1087,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         }
 
         if (player.getGameMode() != GameMode.CREATIVE) {
-            if (com.huidu.farmersdelight.tool.ToolAttackListener.resolveToolData(tool) != null) {
-                com.huidu.farmersdelight.tool.ToolAttackListener.consumeDurability(tool, player.getLocation());
-            } else if (tool.getItemMeta() instanceof Damageable damageable && !damageable.isUnbreakable()) {
-                if (damageable.hasEnchant(Enchantment.UNBREAKING)
-                        && ThreadLocalRandom.current().nextInt(damageable.getEnchantLevel(Enchantment.UNBREAKING) + 1) > 0) {
-                    // Unbreaking spared the tool — skip to the rest of the processing
-                } else {
-                    int maxDamage = damageable.hasMaxDamage() ? damageable.getMaxDamage() : tool.getType().getMaxDurability();
-                    if (maxDamage > 0) {
-                        int currentDamage = damageable.getDamage();
-                        if (currentDamage + 1 >= maxDamage) {
-                            tool.setAmount(0);
-                            player.playSound(location, Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
-                        } else {
-                            damageable.setDamage(currentDamage + 1);
-                            tool.setItemMeta(damageable);
-                        }
-                    }
-                }
-            }
+            com.huidu.farmersdelight.tool.ToolAttackListener.consumeDurability(tool, player.getLocation());
         }
 
         if (storedItem.getAmount() > 1) {
@@ -1134,14 +1108,6 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
     }
 
     
-    /**
-     * Cuts the board's stored item with a dispenser-supplied tool, with no player involved — the port of the
-     * mod's CuttingBoardDispenseBehavior (a dispenser facing the board uses the dispensed item as a tool).
-     * The tool is damaged in place so the caller can write it back to the dispenser slot; it is never consumed
-     * as a whole stack. Returns true when the tool was used on the board (results dropped, or a matching recipe
-     * produced no output this roll), false when the board is empty or the tool matches no recipe — matching the
-     * mod, where a no-match simply leaves the dispenser holding its item.
-     */
     public boolean tryDispenserCut(World world, BlockPosKey posKey, BlockFace facing, ItemStack tool) {
         if (world == null || posKey == null || tool == null || tool.getType().isAir()) {
             return false;
@@ -1201,26 +1167,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
 
             // A dispenser has no creative exemption, so its tool always takes durability, exactly like a
             // survival player's. A broken tool is emptied; the caller then clears the dispenser slot.
-            if (com.huidu.farmersdelight.tool.ToolAttackListener.resolveToolData(tool) != null) {
-                com.huidu.farmersdelight.tool.ToolAttackListener.consumeDurability(tool, effectLocation);
-            } else if (tool.getItemMeta() instanceof Damageable damageable && !damageable.isUnbreakable()) {
-                if (damageable.hasEnchant(Enchantment.UNBREAKING)
-                        && ThreadLocalRandom.current().nextInt(damageable.getEnchantLevel(Enchantment.UNBREAKING) + 1) > 0) {
-                    // Unbreaking spared the tool
-                } else {
-                    int maxDamage = damageable.hasMaxDamage() ? damageable.getMaxDamage() : tool.getType().getMaxDurability();
-                    if (maxDamage > 0) {
-                        int currentDamage = damageable.getDamage();
-                        if (currentDamage + 1 >= maxDamage) {
-                            tool.setAmount(0);
-                            world.playSound(effectLocation, Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
-                        } else {
-                            damageable.setDamage(currentDamage + 1);
-                            tool.setItemMeta(damageable);
-                        }
-                    }
-                }
-            }
+            com.huidu.farmersdelight.tool.ToolAttackListener.consumeDurability(tool, effectLocation);
 
             if (storedItem.getAmount() > 1) {
                 storedItem.setAmount(storedItem.getAmount() - 1);

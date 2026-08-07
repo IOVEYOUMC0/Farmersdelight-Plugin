@@ -15,26 +15,6 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 
-/**
- * A set of block ids and block tags read from a behavior argument list, matched against a live block.
- *
- * Entries come in three shapes. A leading '#' marks a tag. A minecraft: entry, or one with no namespace at
- * all, becomes a Bukkit Material. Anything else stays a CraftEngine block id.
- *
- * Matching asks CraftEngine first and only falls back to the vanilla side for blocks CraftEngine does not
- * own. A custom block reports a configurable disguise material through Bukkit (bricks by default), so a
- * Material comparison can neither identify a custom block nor be trusted to have found a genuine vanilla
- * one, and a vanilla tag must never be allowed to match a custom block through that disguise.
- *
- * Tags therefore live on both sides of that split. A custom block is tested against the tag list it
- * declares in its own settings, since CraftEngine blocks inherit no vanilla tag. A vanilla block is tested
- * against the server's block tag registry, which covers datapack tags as well.
- *
- * CraftEngine keeps block tags only as a per-block set in BlockSettings and publishes no tag-to-blocks
- * index, so there is no way to ask whether a given tag is known to CraftEngine at all. Existence can only
- * be checked on the vanilla side: a minecraft: tag missing from the block tag registry is reported at
- * load, while a tag in any other namespace is assumed to be a CraftEngine tag and stays silent.
- */
 public final class ConfiguredBlockSet {
 
     public static final ConfiguredBlockSet EMPTY =
@@ -55,7 +35,6 @@ public final class ConfiguredBlockSet {
         this.vanillaTags = vanillaTags;
     }
 
-    /** Parses a behavior argument value; anything that is not a list of ids yields the empty set. */
     public static ConfiguredBlockSet parse(Object rawValue) {
         if (!(rawValue instanceof Iterable<?> entries)) {
             return EMPTY;

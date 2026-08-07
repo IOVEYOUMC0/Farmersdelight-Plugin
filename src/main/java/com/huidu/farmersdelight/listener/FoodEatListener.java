@@ -20,7 +20,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class FoodEatListener implements Listener {
 
-    /** Buff kind enum — each kind holds its default duration, config path, and legacy config key */
     private enum BuffKind {
         COMFORT(Constants.DEFAULT_COMFORT_DURATION, "buff.comfort", "comfort-foods", "comfort-foods-enabled"),
         NOURISHMENT(Constants.DEFAULT_NOURISHMENT_DURATION, "buff.nourishment", "nourishment-foods", "nourishment-foods-enabled");
@@ -39,9 +38,9 @@ public class FoodEatListener implements Listener {
     }
 
     private final FarmersDelightPlugin plugin;
-    // Food → duration mappings loaded from config files
+    // Legacy food-to-duration mappings loaded from the plugin config.
     private final Map<BuffKind, Map<String, Integer>> configDurations = new EnumMap<>(BuffKind.class);
-    // External food → duration mappings registered via plugin API (not affected by /fd reload)
+    // External food-to-duration mappings registered through the API and unaffected by /fd reload.
     private final Map<BuffKind, Map<String, Integer>> externalDurations = new EnumMap<>(BuffKind.class);
     private final Map<BuffKind, Boolean> enabled = new EnumMap<>(BuffKind.class);
 
@@ -52,10 +51,10 @@ public class FoodEatListener implements Listener {
             externalDurations.put(kind, new ConcurrentHashMap<>());
             enabled.put(kind, false);
         }
-        loadNourishmentFoods();
+        loadLegacyFoodMappings();
     }
 
-    private void loadNourishmentFoods() {
+    private void loadLegacyFoodMappings() {
         for (BuffKind kind : BuffKind.values()) {
             Map<String, Integer> map = configDurations.get(kind);
             map.clear();
@@ -87,7 +86,7 @@ public class FoodEatListener implements Listener {
     }
 
     public void reload() {
-        loadNourishmentFoods();
+        loadLegacyFoodMappings();
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -121,22 +120,18 @@ public class FoodEatListener implements Listener {
         }
     }
 
-    /** Register (or replace) a food → comfort mapping via plugin API, unaffected by /fd reload */
     public void registerComfortFood(String itemId, int durationSeconds) {
         registerFood(BuffKind.COMFORT, itemId, durationSeconds);
     }
 
-    /** Register (or replace) a food → nourishment mapping via plugin API, unaffected by /fd reload */
     public void registerNourishmentFood(String itemId, int durationSeconds) {
         registerFood(BuffKind.NOURISHMENT, itemId, durationSeconds);
     }
 
-    /** Remove external food mapping registered via #registerComfortFood */
     public void unregisterComfortFood(String itemId) {
         unregisterFood(BuffKind.COMFORT, itemId);
     }
 
-    /** Remove external food mapping registered via #registerNourishmentFood */
     public void unregisterNourishmentFood(String itemId) {
         unregisterFood(BuffKind.NOURISHMENT, itemId);
     }

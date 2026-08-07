@@ -21,15 +21,6 @@ import java.util.Enumeration;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-/**
- * Installs FarmersDelight's loot-injection datapack into each world's datapacks/ folder.
- * The bundled datapack overrides vanilla chest / mob / grass loot tables to inject CraftEngine
- * custom items (via the craftengine:item loot pool entry type registered by CraftEngine).
- *
- * Installs idempotently: skips worlds where the datapack folder already exists, so admin
- * customisations are preserved across plugin updates. Newly placed datapacks require a server
- * restart or /reload to be picked up by vanilla — that's intentional and logged loudly.
- */
 public final class LootDatapackInstaller implements Listener {
 
     private static final String DATAPACK_NAME = "farmersdelight";
@@ -43,7 +34,6 @@ public final class LootDatapackInstaller implements Listener {
         this.installEnabled = plugin.getConfig().getBoolean("loot-injection.install-datapack", true);
     }
 
-    /** Install into every currently loaded world. Call from onEnable. */
     public void installToAllWorlds() {
         if (!installEnabled) {
             I18n.logInfo("loot_datapack_disabled");
@@ -56,6 +46,9 @@ public final class LootDatapackInstaller implements Listener {
         }
         int installed = 0;
         for (World world : worlds) {
+            if (!plugin.isDatapackWorldAllowed(world)) {
+                continue;
+            }
             if (installToWorld(world)) installed++;
         }
         if (installed > 0) {
@@ -65,6 +58,9 @@ public final class LootDatapackInstaller implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onWorldLoad(WorldLoadEvent event) {
+        if (!plugin.isDatapackWorldAllowed(event.getWorld())) {
+            return;
+        }
         // Cover newly-created / runtime-loaded worlds (e.g. Multiverse) — same idempotent install path.
         // A world that actually receives files here needs the same restart notice the startup path prints:
         // the per-world write itself only reaches the startup detail channel, so without this banner an
@@ -75,8 +71,6 @@ public final class LootDatapackInstaller implements Listener {
         }
     }
 
-    /** Restart notice for worlds that just received datapack files. Stays at WARNING: until vanilla loads
-     *  the datapack the loot injections silently do nothing, which is worth interrupting the console for. */
     private void printRestartBanner(int worlds) {
         plugin.getLogger().warning("==================================================================");
         plugin.getLogger().warning(" Installed FarmersDelight loot datapack into " + worlds + " world(s).");
@@ -86,8 +80,6 @@ public final class LootDatapackInstaller implements Listener {
         plugin.getLogger().warning("==================================================================");
     }
 
-    /** true only if files were actually written this call. A world whose datapack was already
-     *  complete returns false, so the restart banner stays quiet on a boot that changed nothing. */
     private boolean installToWorld(World world) {
         Path datapackDir = getWorldRoot(world).resolve("datapacks").resolve(DATAPACK_NAME);
         // Fresh install → copy everything. Existing install → only ADD files that are missing (e.g. a
@@ -147,10 +139,6 @@ public final class LootDatapackInstaller implements Listener {
         }
     }
 
-    /**
-     * Returns the real world root directory (containing level.dat). In dimension-separated storage,
-     * World#getWorldFolder() returns the dimension subfolder, so we walk up to find the parent.
-     */
     private static Path getWorldRoot(World world) {
         Path folder = world.getWorldFolder().toPath();
         while (folder != null && !Files.exists(folder.resolve("level.dat"))) {
