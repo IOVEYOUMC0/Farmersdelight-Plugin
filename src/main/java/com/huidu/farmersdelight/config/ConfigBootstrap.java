@@ -94,7 +94,7 @@ public final class ConfigBootstrap {
             if (Files.notExists(configPath)) {
                 writeBundledConfig(configPath);
             }
-            writeBundledResourceIfMissing("gui.yml", guiPath);
+            writeBundledResourceIfMissing(guiPath);
 
             if (ConfigFileUpdater.needsRestore(configPath)) {
                 ConfigFileUpdater.backup(configPath);
@@ -227,9 +227,9 @@ public final class ConfigBootstrap {
         ConfigFileUpdater.installBundledResource(plugin, "config.yml", configPath, true);
     }
 
-    private void writeBundledResourceIfMissing(String resourcePath, Path targetPath) throws IOException {
+    private void writeBundledResourceIfMissing(Path targetPath) throws IOException {
         if (Files.notExists(targetPath)) {
-            ConfigFileUpdater.installBundledResource(plugin, resourcePath, targetPath, false);
+            ConfigFileUpdater.installBundledResource(plugin, "gui.yml", targetPath, false);
         }
     }
 }

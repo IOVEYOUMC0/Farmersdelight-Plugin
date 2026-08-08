@@ -16,7 +16,7 @@ public final class FurnaceFuelListener implements Listener {
     @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
     public void onFurnaceBurn(FurnaceBurnEvent event) {
         WorldDataConfig config = WorldDataConfig.get();
-        if (!config.isFuelEnabled()) {
+        if (config.isFuelEnabled()) {
             return;
         }
         Integer ticks = config.fuelTime(ItemUtils.resolveItemId(event.getFuel()));
@@ -35,7 +35,7 @@ public final class FurnaceFuelListener implements Listener {
 
     static void applyFuelTimesToCraftEngine() {
         WorldDataConfig config = WorldDataConfig.get();
-        if (!config.isFuelEnabled() || config.fuelTimes().isEmpty()) {
+        if (config.isFuelEnabled() || config.fuelTimes().isEmpty()) {
             return;
         }
         if (!ItemUtils.isAnyCustomItemLoaded()) {

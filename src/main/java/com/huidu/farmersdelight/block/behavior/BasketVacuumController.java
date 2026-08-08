@@ -18,7 +18,6 @@ import org.bukkit.entity.Item;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.List;
 import java.util.Map;
 
 public final class BasketVacuumController extends BlockEntityController {

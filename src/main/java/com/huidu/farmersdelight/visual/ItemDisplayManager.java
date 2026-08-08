@@ -25,7 +25,7 @@ public interface ItemDisplayManager {
 
     void cleanupWorld(UUID worldId);
 
-    int cleanup();
+    void cleanup();
 
     int cleanupOrphans(java.util.Set<Integer> liveIds);
 
@@ -33,8 +33,15 @@ public interface ItemDisplayManager {
             Location location,
             ItemStack itemStack,
             ItemDisplay.ItemDisplayTransform itemTransform,
-            Transformation transformation
+            Transformation transformation,
+            int interpolationDurationTicks,
+            int interpolationDelayTicks
     ) {
+        // Backward-compatible: displays with no interpolation (transform changes apply instantly / snap).
+        public DisplaySpec(Location location, ItemStack itemStack,
+                           ItemDisplay.ItemDisplayTransform itemTransform, Transformation transformation) {
+            this(location, itemStack, itemTransform, transformation, 0, 0);
+        }
     }
 
     record TextDisplaySpec(

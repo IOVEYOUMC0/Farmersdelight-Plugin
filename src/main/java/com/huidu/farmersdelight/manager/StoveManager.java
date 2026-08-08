@@ -486,7 +486,7 @@ public class StoveManager {
             // If the unload gets cancelled by another plugin, the first interaction re-hydrates from the
             // snapshot via the entry-creation flush.
             if (passivateToController(world, location)) {
-                removeStove(location, false);
+                removeStove(location);
             } else {
                 saveStove(location, stove);
             }
@@ -547,14 +547,14 @@ public class StoveManager {
                     && location.getBlockZ() >= minZ && location.getBlockZ() <= maxZ) {
                 StoveData stove = stoves.get(location);
                 if (stove == null) {
-                    removeStove(location, false);
+                    removeStove(location);
                     continue;
                 }
                 // Snapshot into the controller BEFORE removing the entry: CE serializes this chunk at
                 // ChunkUnloadEvent HIGHEST by pulling from this manager, which runs after this HIGH
                 // handler — removing first would make it export nothing and wipe the persisted data.
                 if (passivateToController(world, location)) {
-                    removeStove(location, false);
+                    removeStove(location);
                 } else {
                     // Controller unreachable: keep the entry so the pull-serialization can still export
                     // it; the entry is reconciled on the next chunk load.
@@ -692,19 +692,19 @@ public class StoveManager {
         campfireRecipes.rebuild();
     }
 
-    private void removeStove(Location location, boolean removeStoredData) {
+    private void removeStove(Location location) {
         Location normalized = ManagerSupport.normalize(location);
         StoveData stove = removeTrackedStove(normalized);
         if (stove != null) {
             cleanupAllVisuals(stove);
         }
         stopTaskIfIdle();
-        if (removeStoredData) {
+        if (false) {
             removeStoredData(normalized);
         }
     }
 
-    private StoveData putStove(Location location, StoveData stove) {
+    private void putStove(Location location, StoveData stove) {
         Location normalized = ManagerSupport.normalize(location);
         StoveData previous = stoves.put(normalized, stove);
         if (previous != null && previous != stove) {
@@ -714,7 +714,6 @@ public class StoveManager {
         }
         indexStove(normalized);
         markTickLocationsDirty();
-        return previous;
     }
 
     private StoveData removeTrackedStove(Location location) {
@@ -1382,13 +1381,12 @@ public class StoveManager {
             if (stove == null || stove.location == null) {
                 continue;
             }
-            StoveData entry = stove;
-            Location stoveLoc = entry.location;
+            Location stoveLoc = stove.location;
             plugin.scheduler().runAt(stoveLoc, () -> {
                 BlockFace facing = CustomBlockUtils.getFacing(stoveLoc.getBlock()).getOppositeFace();
                 for (int slot = 0; slot < SLOT_COUNT; slot++) {
-                    if (entry.items[slot] != null && !entry.items[slot].getType().isAir()) {
-                        createVisual(stoveLoc, entry, slot, facing);
+                    if (stove.items[slot] != null && !stove.items[slot].getType().isAir()) {
+                        createVisual(stoveLoc, stove, slot, facing);
                     }
                 }
             });

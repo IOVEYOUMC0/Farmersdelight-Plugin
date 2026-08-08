@@ -41,7 +41,7 @@ public final class CuttingBoardDispenseListener implements Listener {
         World world = target.getWorld();
         // Use int coordinates directly to skip the Location allocation per event.
         BlockPosKey boardPos = new BlockPosKey(target.getX(), target.getY(), target.getZ());
-        if (!CuttingBoardBlockBehavior.isCuttingBoardBlock(world, boardPos)) {
+        if (CuttingBoardBlockBehavior.isCuttingBoardBlock(world, boardPos)) {
             return;
         }
 

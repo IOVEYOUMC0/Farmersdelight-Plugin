@@ -46,7 +46,7 @@ public final class LootDatapackInstaller implements Listener {
         }
         int installed = 0;
         for (World world : worlds) {
-            if (!plugin.isDatapackWorldAllowed(world)) {
+            if (plugin.isDatapackWorldAllowed(world)) {
                 continue;
             }
             if (installToWorld(world)) installed++;
@@ -58,7 +58,7 @@ public final class LootDatapackInstaller implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onWorldLoad(WorldLoadEvent event) {
-        if (!plugin.isDatapackWorldAllowed(event.getWorld())) {
+        if (plugin.isDatapackWorldAllowed(event.getWorld())) {
             return;
         }
         // Cover newly-created / runtime-loaded worlds (e.g. Multiverse) — same idempotent install path.

@@ -30,6 +30,7 @@ import net.momirealms.craftengine.libraries.nbt.CompoundTag;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -73,12 +74,12 @@ public class BlockBreakListener implements Listener {
             return;
         }
         if (!isSkilletBlock(event.blockState())) {
-            cleanupBlockAt(event.bukkitBlock(), false, event.dropItems());
+            cleanupBlockAt(event.bukkitBlock(), event.dropItems());
             return;
         }
         boolean shouldDropItems = event.dropItems() && event.getPlayer().getGameMode() != GameMode.CREATIVE;
         event.setDropItems(false);
-        cleanupBlockAt(event.bukkitBlock(), false, shouldDropItems);
+        cleanupBlockAt(event.bukkitBlock(), shouldDropItems);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -112,8 +113,8 @@ public class BlockBreakListener implements Listener {
         cleanupBlockAt(block, CustomBlockUtils.getState(block), false, true, true);
     }
 
-    private void cleanupBlockAt(org.bukkit.block.Block block, boolean preserveCookingPotContents, boolean shouldDropItems) {
-        cleanupBlockAt(block, CustomBlockUtils.getState(block), preserveCookingPotContents, shouldDropItems);
+    private void cleanupBlockAt(Block block, boolean shouldDropItems) {
+        cleanupBlockAt(block, CustomBlockUtils.getState(block), false, shouldDropItems);
     }
 
     private void cleanupBlockAt(org.bukkit.block.Block block, ImmutableBlockState state, boolean preserveCookingPotContents, boolean shouldDropItems) {

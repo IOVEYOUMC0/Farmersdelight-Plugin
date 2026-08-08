@@ -95,7 +95,7 @@ public class RicePlantListener implements Listener {
         ImmutableBlockState brokenState = event.blockState();
 
         if (isRiceBlock(brokenState)) {
-            Object half = getPropertyValue(brokenState, "half");
+            Object half = getPropertyValue(brokenState);
             if (isUpperHalfValue(half)) {
                 Block lowerBlock = brokenBlock.getWorld().getBlockAt(
                         brokenBlock.getX(), brokenBlock.getY() - 1, brokenBlock.getZ());
@@ -107,7 +107,7 @@ public class RicePlantListener implements Listener {
         }
 
         if (isWildRiceBlock(brokenState)) {
-            String half = getPropertyString(brokenState, "half");
+            String half = getPropertyString(brokenState);
             plugin.scheduler().runAt(brokenBlock.getLocation(), () -> restoreWildRiceCarrierBlock(brokenBlock, half));
         }
     }
@@ -356,13 +356,13 @@ public class RicePlantListener implements Listener {
         }
     }
 
-    private Object getPropertyValue(ImmutableBlockState state, String propertyName) {
+    private Object getPropertyValue(ImmutableBlockState state) {
         if (state == null || state.isEmpty()) {
             return null;
         }
 
         try {
-            Property<?> property = state.owner().value().getProperty(propertyName);
+            Property<?> property = state.owner().value().getProperty("half");
             if (property == null) {
                 return null;
             }
@@ -374,7 +374,7 @@ public class RicePlantListener implements Listener {
     }
 
     private boolean isUpperRiceHalf(ImmutableBlockState state) {
-        return isUpperHalfValue(getPropertyValue(state, "half"));
+        return isUpperHalfValue(getPropertyValue(state));
     }
 
     private Object inferRiceHalfValue(BlockDefinition block, String target) {
@@ -443,13 +443,13 @@ public class RicePlantListener implements Listener {
         return getAgeProperty(block);
     }
 
-    private String getPropertyString(ImmutableBlockState state, String propertyName) {
+    private String getPropertyString(ImmutableBlockState state) {
         if (state == null || state.isEmpty()) {
             return null;
         }
 
         try {
-            Property<?> property = state.owner().value().getProperty(propertyName);
+            Property<?> property = state.owner().value().getProperty("half");
             if (property == null) {
                 return null;
             }
@@ -657,7 +657,7 @@ public class RicePlantListener implements Listener {
     }
 
     private void removeWildRicePlant(Block block, ImmutableBlockState state) {
-        String half = getPropertyString(state, "half");
+        String half = getPropertyString(state);
         if ("upper".equalsIgnoreCase(half)) {
             CraftEngineBlocks.remove(block);
             return;

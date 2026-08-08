@@ -18,7 +18,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -275,18 +274,16 @@ public class CookingPotRecipeManager {
                 "cooking-pot.cooking.max-cook-time",
                 "cooking-pot.max-cook-time"));
         int cookTime = Math.max(minCookTime, Math.min(maxCookTime, getInt(section,
-                defaultCookTime,
-                "cooking_time",
-                "cooking-time",
-                "cook-time")));
+                defaultCookTime
+        )));
         String category = section.getString("category", "misc");
         int priority = section.getInt("priority", 0);
 
         return new CookingPotRecipe(id, ingredients, container, needsContainer, result, experience, cookTime, category, priority);
     }
 
-    private int getInt(ConfigurationSection section, int defaultValue, String... keys) {
-        for (String key : keys) {
+    private int getInt(ConfigurationSection section, int defaultValue) {
+        for (String key : new String[]{"cooking_time", "cooking-time", "cook-time"}) {
             if (section.contains(key)) {
                 return section.getInt(key, defaultValue);
             }

@@ -16,7 +16,6 @@ import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
-import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.behavior.EntityBlock;
 import net.momirealms.craftengine.core.block.behavior.WorldlyContainerHolder;
@@ -181,9 +180,9 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         return result;
     }
 
-    public static CuttingBoardBlockEntity putBlockEntity(World world, BlockPosKey posKey, CuttingBoardBlockEntity entity) {
+    public static void putBlockEntity(World world, BlockPosKey posKey, CuttingBoardBlockEntity entity) {
         if (world == null || posKey == null || entity == null) {
-            return entity;
+            return;
         }
         Map<BlockPosKey, CuttingBoardBlockEntity> worldEntities = worldBlockEntities.computeIfAbsent(
                 world.getUID(), k -> new ConcurrentHashMap<>());
@@ -196,7 +195,6 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         }
         // put always writes to the authoritative map, so update the index unconditionally.
         indexAdd(world.getUID(), posKey);
-        return entity;
     }
 
     public static void removeBlockEntity(World world, BlockPos pos) {
@@ -336,7 +334,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
     public static void saveBlockEntityData(World world, BlockPosKey posKey) {
         if (world == null || posKey == null) return;
 
-        if (!isCuttingBoardBlock(world, posKey)) {
+        if (isCuttingBoardBlock(world, posKey)) {
             // The CE state can be transiently unresolvable (a /ce reload unbinds states for the parse
             // window); deleting the stored NBT here would destroy a live board's item. Just mark the
             // chunk dirty — a genuinely replaced block is cleaned up by the break/removal callbacks.
@@ -393,7 +391,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
     }
 
     public static void loadBlockEntity(World world, BlockPosKey posKey) {
-        if (world == null || posKey == null || !isCuttingBoardBlock(world, posKey)) return;
+        if (posKey == null || isCuttingBoardBlock(world, posKey)) return;
         // Saved data may still be parked on the controller (deferred startup load, or a chunk served from
         // CraftEngine's chunk cache); apply it first so the computeIfAbsent below does not create a blank
         // entity that shadows the stored item and gets overwritten by the late apply.
@@ -413,11 +411,11 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
 
     public static boolean isCuttingBoardBlock(World world, BlockPosKey posKey) {
         if (world == null || posKey == null) {
-            return false;
+            return true;
         }
         var block = world.getBlockAt(posKey.x(), posKey.y(), posKey.z());
-        return CustomBlockUtils.hasBehavior(block, CuttingBoardBlockBehavior.class)
-                || CustomBlockUtils.hasId(block, Constants.BLOCK_CUTTING_BOARD);
+        return !CustomBlockUtils.hasBehavior(block, CuttingBoardBlockBehavior.class)
+                && !CustomBlockUtils.hasId(block, Constants.BLOCK_CUTTING_BOARD);
     }
 
     public static final BlockBehaviorFactory<CuttingBoardBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {

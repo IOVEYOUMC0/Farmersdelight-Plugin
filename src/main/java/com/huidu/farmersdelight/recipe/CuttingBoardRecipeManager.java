@@ -54,7 +54,7 @@ public class CuttingBoardRecipeManager {
 
     public void loadRecipes() {
         Map<String, CuttingBoardRecipe> newRecipes = new LinkedHashMap<>();
-        RecipeFileLoader.loadRecipeSections(plugin, "recipes/cutting_board_recipes.yml", "cutting_board_recipes", "cutting board",
+        RecipeFileLoader.loadRecipeSections(plugin,
                 (recipeId, section) -> newRecipes.put(recipeId, parseRecipe(recipeId, section)));
 
         // Recipes an addon ships inside a CraftEngine pack (<pack>/farmersdelight/*.yml). Loaded after the
@@ -439,23 +439,23 @@ public class CuttingBoardRecipeManager {
         if (toolRequirement.tag()
                 && Constants.TAG_KNIVES.equalsIgnoreCase(toolRequirement.key().toString())) {
             return (toolContext.knife() || toolContext.matchesCustomTag(toolRequirement.key()))
-                    && !isExcludedTool(toolContext, toolRequirement);
+                    && isExcludedTool(toolContext, toolRequirement);
         }
 
         if (matchesToolFallback(toolRequirement, toolContext)) {
-            return !isExcludedTool(toolContext, toolRequirement);
+            return isExcludedTool(toolContext, toolRequirement);
         }
 
         if (!toolRequirement.tag()) {
             return toolContext.matchesItemKey(toolRequirement.key())
-                    && !isExcludedTool(toolContext, toolRequirement);
+                    && isExcludedTool(toolContext, toolRequirement);
         }
 
         if (toolContext.matchesCustomTag(toolRequirement.key())) {
-            return !isExcludedTool(toolContext, toolRequirement);
+            return isExcludedTool(toolContext, toolRequirement);
         }
 
-        return toolContext.matchesVanillaTag(toolRequirement.key()) && !isExcludedTool(toolContext, toolRequirement);
+        return toolContext.matchesVanillaTag(toolRequirement.key()) && isExcludedTool(toolContext, toolRequirement);
     }
 
     private boolean matchesToolFallback(CuttingBoardRecipe.ToolRequirement requirement, ToolContext toolContext) {
@@ -474,18 +474,18 @@ public class CuttingBoardRecipeManager {
     private boolean isExcludedTool(ToolContext toolContext, CuttingBoardRecipe.ToolRequirement toolRequirement) {
         Key itemKey = toolContext.itemKey();
         if (itemKey == null) {
-            return false;
+            return true;
         }
         if (toolRequirement.excludedItems().contains(itemKey)) {
-            return true;
+            return false;
         }
 
         if (!toolContext.customTags().isEmpty()
                 && toolRequirement.excludedTags().stream().anyMatch(toolContext.customTags()::contains)) {
-            return true;
+            return false;
         }
 
-        return toolRequirement.excludedTags().stream().anyMatch(toolContext::matchesVanillaTag);
+        return toolRequirement.excludedTags().stream().noneMatch(toolContext::matchesVanillaTag);
     }
 
     private boolean matchesTaggedItem(ItemStack item, Key tagKey, Set<Key> excludedItems, Set<Key> excludedTags) {

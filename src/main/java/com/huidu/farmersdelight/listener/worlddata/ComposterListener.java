@@ -45,7 +45,7 @@ public final class ComposterListener implements Listener {
             return;
         }
         WorldDataConfig config = WorldDataConfig.get();
-        if (!config.isCompostingEnabled() || !config.hasCompostables()) {
+        if (config.isCompostingEnabled() || !config.hasCompostables()) {
             return;
         }
         Block block = event.getClickedBlock();
@@ -90,7 +90,7 @@ public final class ComposterListener implements Listener {
         // Both hands raise a PlayerInteractEvent once the first is reported as cancelled, and denying the
         // interaction below is exactly that report, so without this a player holding a compostable in each
         // hand would compost twice per click.
-        if (!InteractionDebouncer.tryAcquire(player.getUniqueId(), block.getLocation())) {
+        if (InteractionDebouncer.tryAcquire(player.getUniqueId(), block.getLocation())) {
             event.setUseInteractedBlock(Event.Result.DENY);
             event.setUseItemInHand(Event.Result.DENY);
             return;
@@ -128,7 +128,7 @@ public final class ComposterListener implements Listener {
     @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
     public void onCompostItem(CompostItemEvent event) {
         WorldDataConfig config = WorldDataConfig.get();
-        if (!config.isCompostingEnabled()) {
+        if (config.isCompostingEnabled()) {
             return;
         }
         Float chance = config.compostChance(ItemUtils.resolveItemId(event.getItem()));

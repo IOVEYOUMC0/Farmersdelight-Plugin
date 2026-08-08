@@ -13,6 +13,7 @@ import org.bukkit.event.entity.VillagerAcquireTradeEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.MerchantRecipe;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
@@ -23,24 +24,28 @@ public final class VillagerTradeListener implements Listener {
     public void onAcquireTrade(VillagerAcquireTradeEvent event) {
         WorldDataConfig config = WorldDataConfig.get();
         AbstractVillager merchant = event.getEntity();
-        List<TradeOffer> candidates;
+        // Addon-registered offers (via the api) are unioned in ALWAYS; only the config-driven offers are gated
+        // on the world-data.trades enable flags, so disabling the built-in trades does not silently kill
+        // addon trades too.
+        List<TradeOffer> candidates = new ArrayList<>();
 
         if (merchant instanceof Villager villager) {
-            if (!config.isVillagerTradesEnabled()) {
-                return;
-            }
             String profession = professionPath(villager);
-            candidates = config.villagerTradesFor(profession, villager.getVillagerLevel());
-        } else if (merchant instanceof WanderingTrader) {
-            if (!config.isWanderingTraderTradesEnabled()) {
-                return;
+            int level = villager.getVillagerLevel();
+            if (config.isVillagerTradesEnabled()) {
+                candidates.addAll(config.villagerTradesFor(profession, level));
             }
+            candidates.addAll(ExternalVillagerTrades.villagerTradesFor(profession, level));
+        } else if (merchant instanceof WanderingTrader) {
             // A wandering trader draws its generic offers first and its last offer from a separate rare pool
             // the mod does not touch, so only the draws before that count are eligible for substitution.
             if (merchant.getRecipeCount() >= config.wanderingGenericTradeCount()) {
                 return;
             }
-            candidates = config.wanderingTrades();
+            if (config.isWanderingTraderTradesEnabled()) {
+                candidates.addAll(config.wanderingTrades());
+            }
+            candidates.addAll(ExternalVillagerTrades.wanderingTrades());
         } else {
             return;
         }

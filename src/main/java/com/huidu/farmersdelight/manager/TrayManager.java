@@ -4,7 +4,6 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior;
 import com.huidu.farmersdelight.config.HeatSourceConfig;
-import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
@@ -25,9 +24,6 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.BoundingBox;
-
-import java.util.Arrays;
-import java.util.UUID;
 
 public class TrayManager {
 

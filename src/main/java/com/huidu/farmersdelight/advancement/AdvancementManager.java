@@ -86,8 +86,8 @@ public class AdvancementManager {
             // Placing any block carrying the farmersdelight:feast_blocks block tag.
             node("place_feast", "place_cooking_pot", "farmersdelight:roast_chicken", Material.COOKED_CHICKEN, AdvancementFrameType.TASK, 3, 4),
             // Eating every dish; unobtainable only once every dish item is gone.
-            multiNode("master_chef", "place_feast", "farmersdelight:beef_stew", Material.COOKED_PORKCHOP, AdvancementFrameType.CHALLENGE, 4, 4,
-                    DISHES, ContentRequirement.anyItem(prefixed(DISHES))),
+            multiNode("master_chef", "place_feast", "farmersdelight:beef_stew", Material.COOKED_PORKCHOP, 4, 4,
+                    DISHES, ContentRequirement.anyItem(prefixed())),
             // Gaining the nourishment effect, whose food list is plugin config.
             node("eat_nourishing_food", "place_cooking_pot", "farmersdelight:steak_and_potatoes", Material.COOKED_BEEF, AdvancementFrameType.TASK, 3, 5),
             // Hitting a raider with a thrown farmersdelight:rotten_tomato.
@@ -101,7 +101,7 @@ public class AdvancementManager {
             node("plant_rice", "get_fd_seed", "farmersdelight:rice", Material.WHEAT_SEEDS, AdvancementFrameType.TASK, 2, 7,
                     ContentRequirement.anyBlock(Constants.BLOCK_RICE)),
             // Its vanilla subtasks keep it obtainable whatever happens to the FarmersDelight crops.
-            multiNode("plant_all_crops", "plant_rice", "farmersdelight:cabbage_seeds", Material.WHEAT_SEEDS, AdvancementFrameType.CHALLENGE, 3, 7,
+            multiNode("plant_all_crops", "plant_rice", "farmersdelight:cabbage_seeds", Material.WHEAT_SEEDS, 3, 7,
                     CROPS, ContentRequirement.ALWAYS),
             // Crafting or picking up the compost item.
             node("get_organic_compost", "get_fd_seed", "farmersdelight:organic_compost", Material.DIRT, AdvancementFrameType.TASK, 2, 8,
@@ -246,9 +246,9 @@ public class AdvancementManager {
         return Map.copyOf(requirements);
     }
 
-    private static List<String> prefixed(List<String> ids) {
-        List<String> prefixed = new ArrayList<>(ids.size());
-        for (String id : ids) {
+    private static List<String> prefixed() {
+        List<String> prefixed = new ArrayList<>(AdvancementManager.DISHES.size());
+        for (String id : AdvancementManager.DISHES) {
             prefixed.add(ITEM_PREFIX + id);
         }
         return prefixed;
@@ -313,9 +313,9 @@ public class AdvancementManager {
     }
 
     private static NodeSpec multiNode(String id, String parentId, String iconId, Material iconFallback,
-                                      AdvancementFrameType frame, float x, float y,
+                                      float x, float y,
                                       List<String> criteria, ContentRequirement requirement) {
-        return new NodeSpec(id, parentId, iconId, iconFallback, frame, x, y, criteria, requirement);
+        return new NodeSpec(id, parentId, iconId, iconFallback, AdvancementFrameType.CHALLENGE, x, y, criteria, requirement);
     }
 
     public void showTo(Player player) {

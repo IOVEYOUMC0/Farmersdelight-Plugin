@@ -76,17 +76,17 @@ public final class ToolAttackListener implements Listener {
         return ToolRegistry.get(id).orElse(null);
     }
 
-    public static boolean consumeDurability(ItemStack item, Location breakSoundLocation) {
+    public static void consumeDurability(ItemStack item, Location breakSoundLocation) {
         if (item == null || item.isEmpty()
                 || !(item.getItemMeta() instanceof Damageable damageable)
                 || damageable.isUnbreakable()) {
-            return false;
+            return;
         }
 
         if (damageable.hasEnchant(org.bukkit.enchantments.Enchantment.UNBREAKING)) {
             int level = damageable.getEnchantLevel(org.bukkit.enchantments.Enchantment.UNBREAKING);
             if (java.util.concurrent.ThreadLocalRandom.current().nextInt(level + 1) > 0) {
-                return false;
+                return;
             }
         }
 
@@ -94,7 +94,7 @@ public final class ToolAttackListener implements Listener {
                 ? damageable.getMaxDamage()
                 : item.getType().getMaxDurability();
         if (maxDamage <= 0) {
-            return false;
+            return;
         }
 
         int currentDamage = Math.max(0, damageable.getDamage());
@@ -104,12 +104,11 @@ public final class ToolAttackListener implements Listener {
             if (breakSoundLocation != null && breakSoundLocation.getWorld() != null) {
                 breakSoundLocation.getWorld().playSound(breakSoundLocation, Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
             }
-            return true;
+            return;
         }
 
         damageable.setDamage(damageAfterUse);
         item.setItemMeta(damageable);
-        return false;
     }
 
     static int damageAfterUse(int currentDamage, int maxDamage) {

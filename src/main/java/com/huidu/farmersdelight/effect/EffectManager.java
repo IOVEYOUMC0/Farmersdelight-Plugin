@@ -31,12 +31,12 @@ public final class EffectManager {
         COMFORT(
             "farmersdelight:comfort_ticks", "farmersdelight:comfort_initial_ticks", "farmersdelight:comfort_level",
             "farmersdelight:comfort", "buff.farmersdelight.comfort.title",
-            BossBar.Color.BLUE, BossBar.Overlay.PROGRESS
+            BossBar.Color.BLUE
         ),
         NOURISHMENT(
             "farmersdelight:nourishment_ticks", "farmersdelight:nourishment_initial_ticks", "farmersdelight:nourishment_level",
             "farmersdelight:nourishment", "buff.farmersdelight.nourishment.title",
-            BossBar.Color.GREEN, BossBar.Overlay.PROGRESS
+            BossBar.Color.GREEN
         );
 
         final NamespacedKey pdcDurationKey;
@@ -48,14 +48,14 @@ public final class EffectManager {
         volatile BossBar.Overlay barOverlay;
 
         BuffKind(String pdcDur, String pdcInit, String pdcLevel, String bbKey, String titleKey,
-                 BossBar.Color defColor, BossBar.Overlay defOverlay) {
+                 BossBar.Color defColor) {
             this.pdcDurationKey = Objects.requireNonNull(NamespacedKey.fromString(pdcDur));
             this.pdcInitialKey = Objects.requireNonNull(NamespacedKey.fromString(pdcInit));
             this.pdcLevelKey = Objects.requireNonNull(NamespacedKey.fromString(pdcLevel));
             this.bossbarKey = Objects.requireNonNull(NamespacedKey.fromString(bbKey));
             this.titleKey = titleKey;
             this.barColor = defColor;
-            this.barOverlay = defOverlay;
+            this.barOverlay = BossBar.Overlay.PROGRESS;
         }
 
         Component title(int durationTicks) {

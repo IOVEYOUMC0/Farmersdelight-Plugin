@@ -2,14 +2,12 @@ package com.huidu.farmersdelight.manager;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
-import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.SoundUtils;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.world.BlockPos;
-import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.World;
@@ -49,10 +47,10 @@ public final class HandleManager {
         return "handle".equals(getSupportProperty(world, potPos));
     }
 
-    public boolean toggleHandle(World world, BlockPos potPos, @Nullable Player player) {
-        if (world == null || potPos == null) return false;
+    public void toggleHandle(World world, BlockPos potPos, @Nullable Player player) {
+        if (world == null || potPos == null) return;
         Block potBlock = world.getBlockAt(potPos.x(), potPos.y(), potPos.z());
-        if (!Constants.BLOCK_COOKING_POT.equals(CustomBlockUtils.getId(potBlock))) return false;
+        if (!Constants.BLOCK_COOKING_POT.equals(CustomBlockUtils.getId(potBlock))) return;
 
         boolean had = hasHandle(world, potPos);
         if (had) {
@@ -68,7 +66,6 @@ public final class HandleManager {
             SoundUtils.play(player, player.getLocation(), toggleSoundId, Sound.BLOCK_LANTERN_PLACE,
                     SoundCategory.BLOCKS, toggleSoundVolume, toggleSoundPitch);
         }
-        return !had;
     }
 
     public void removeHandle(World world, BlockPos potPos) {

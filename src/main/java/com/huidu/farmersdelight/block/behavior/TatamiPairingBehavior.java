@@ -7,7 +7,6 @@ import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
-import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
@@ -117,7 +116,7 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
             return args[0];
         }
         ImmutableBlockState state = BlockStateUtils.getOptionalCustomBlockState(args[0]).orElse(null);
-        if (state == null || !isTatamiState(state) || !Boolean.TRUE.equals(state.get(pairedProperty))) {
+        if (!isTatamiState(state) || !Boolean.TRUE.equals(state.get(pairedProperty))) {
             return args[0];
         }
         BlockPos pos = CraftEngineAdapter.toBlockPos(args[3]);
@@ -223,16 +222,16 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
 
         CraftEngineBlocks.place(
                 neighborBlock.getLocation(),
-                withFacingAndPair(neighborState, facing.getOppositeFace(), true),
+                withFacingAndPair(neighborState, facing.getOppositeFace()),
                 false
         );
         return true;
     }
 
-    private ImmutableBlockState withFacingAndPair(ImmutableBlockState state, BlockFace facing, boolean paired) {
+    private ImmutableBlockState withFacingAndPair(ImmutableBlockState state, BlockFace facing) {
         ImmutableBlockState result =
                 withPropertyValue(state, facingProperty, facing.name().toLowerCase(java.util.Locale.ROOT));
-        return result.with(pairedProperty, paired);
+        return result.with(pairedProperty, true);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

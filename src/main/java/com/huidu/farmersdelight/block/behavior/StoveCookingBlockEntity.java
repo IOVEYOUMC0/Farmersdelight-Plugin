@@ -1,6 +1,6 @@
 package com.huidu.farmersdelight.block.behavior;
 
-@Deprecated(forRemoval = false)
+@Deprecated()
 public final class StoveCookingBlockEntity {
 
     private StoveCookingBlockEntity() {

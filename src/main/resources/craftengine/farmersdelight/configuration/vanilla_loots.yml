@@ -121,12 +121,9 @@ vanilla_loots:
         - rolls: 1
           conditions:
             - type: match_item
+              regex: true
               items:
-                - farmersdelight:flint_knife
-                - farmersdelight:iron_knife
-                - farmersdelight:diamond_knife
-                - farmersdelight:golden_knife
-                - farmersdelight:netherite_knife
+                - ".*_knife"
             - type: random
               value: 0.2
           entries:
@@ -141,12 +138,9 @@ vanilla_loots:
         - rolls: 1
           conditions:
             - type: match_item
+              regex: true
               items:
-                - farmersdelight:flint_knife
-                - farmersdelight:iron_knife
-                - farmersdelight:diamond_knife
-                - farmersdelight:golden_knife
-                - farmersdelight:netherite_knife
+                - ".*_knife"
             - type: random
               value: 0.2
           entries:
@@ -161,12 +155,9 @@ vanilla_loots:
         - rolls: 1
           conditions:
             - type: match_item
+              regex: true
               items:
-                - farmersdelight:flint_knife
-                - farmersdelight:iron_knife
-                - farmersdelight:diamond_knife
-                - farmersdelight:golden_knife
-                - farmersdelight:netherite_knife
+                - ".*_knife"
           entries:
             - type: item
               item: farmersdelight:straw

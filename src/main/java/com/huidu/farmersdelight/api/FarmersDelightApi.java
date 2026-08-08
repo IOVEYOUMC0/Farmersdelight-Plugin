@@ -50,6 +50,11 @@ public final class FarmersDelightApi {
             "cooking-experience-location",
             // Knife extra-drop rule registration (FarmersDelightKnifeDrops).
             "knife-drop-rules",
+            // Runtime villager / wandering-trader trade registration (FarmersDelightVillagerTrades).
+            "villager-trades",
+            // Durability capability decoupled from the sword: the farmersdelight:durable item setting +
+            // FarmersDelightItems.damage(...).
+            "durable-items",
             // com.huidu.farmersdelight.api.util cross-version compatibility helpers.
             "compat-util",
             // Debug tool extension hooks for /fd debugtools.
@@ -274,6 +279,17 @@ public final class FarmersDelightApi {
     public boolean updateItemDisplay(int handle, Location location, ItemStack item,
                                      org.bukkit.entity.ItemDisplay.ItemDisplayTransform itemTransform,
                                      org.bukkit.util.Transformation transformation) {
+        return updateItemDisplay(handle, location, item, itemTransform, transformation, 0);
+    }
+
+    /**
+     * As updateItemDisplay, but animate the transform change: the client smoothly interpolates from the
+     * display's current transform to the given one over interpolationDurationTicks ticks (0 = snap, the
+     * default overload). Use this for animated station displays such as flipping a skewer on the grill.
+     */
+    public boolean updateItemDisplay(int handle, Location location, ItemStack item,
+                                     org.bukkit.entity.ItemDisplay.ItemDisplayTransform itemTransform,
+                                     org.bukkit.util.Transformation transformation, int interpolationDurationTicks) {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin == null || !isAvailable() || location == null || item == null) {
             return false;
@@ -283,7 +299,7 @@ public final class FarmersDelightApi {
             return false;
         }
         return manager.updateDisplay(handle, new com.huidu.farmersdelight.visual.ItemDisplayManager.DisplaySpec(
-                location, item, itemTransform, transformation));
+                location, item, itemTransform, transformation, Math.max(0, interpolationDurationTicks), 0));
     }
 
     public void removeItemDisplay(int handle) {

@@ -21,8 +21,12 @@ datapacks:
 enchantments:
   enabled: true
   compatibility:
-    # Prevent duplicate custom-enchantment registration when a known enchantment plugin is installed.
-    # Set this to false only when that plugin is configured not to provide an overlapping enchantment.
+    # When another enchantment plugin is detected, stand down only FarmersDelight's custom backstab enchant so
+    # we don't stack a second special enchant onto its system; the knife/skillet enchant filter itself stays on
+    # (the CraftEngine knives are otherwise un-enchantable). Detection is automatic and needs no plugin list:
+    # any plugin (other than CraftEngine, the required host) that hooks the enchanting table, or any enchantment
+    # registered outside the minecraft:, farmersdelight: and craftengine: namespaces, counts. Set this to false
+    # to force the backstab enchant on regardless.
     auto-disable-on-conflict: true
 
   groups:
@@ -626,6 +630,10 @@ cooking-pot:
     # How many blocks away a player must be for the pot to broadcast its particles/sounds. 32 = vanilla
     # particle/sound range. Lower it to shrink the broadcast radius for dense pot farms (matches stove.effects.viewer-distance).
     viewer-distance: 32.0
+    # Emit particles/sounds only every Nth cooking-pot tick pass (a pass runs every 4 server ticks, so 1 =
+    # ~5 emissions/second). Raise to 2 or 3 to roughly halve/third the particle + getPlayersSeeingChunk cost
+    # for dense pot farms; cooking speed/progress is unaffected. 1 = every pass (default, smoothest visuals).
+    interval: 1
     bubble:
       enabled: true
       type: BUBBLE_POP

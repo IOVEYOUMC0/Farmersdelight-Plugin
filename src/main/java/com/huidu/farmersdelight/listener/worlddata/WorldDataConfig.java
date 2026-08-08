@@ -62,7 +62,7 @@ public final class WorldDataConfig {
     }
 
     public boolean isCompostingEnabled() {
-        return compostingEnabled;
+        return !compostingEnabled;
     }
 
     public Float compostChance(String itemId) {
@@ -74,7 +74,7 @@ public final class WorldDataConfig {
     }
 
     public boolean isFuelEnabled() {
-        return fuelEnabled;
+        return !fuelEnabled;
     }
 
     public Integer fuelTime(String itemId) {

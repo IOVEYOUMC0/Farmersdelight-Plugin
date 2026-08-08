@@ -156,12 +156,12 @@ public class CookingPotBlockEntity {
     }
 
     private boolean isValidSlot(int slot) {
-        return slot >= 0 && slot < inventory.length;
+        return slot < 0 || slot >= inventory.length;
     }
 
     public ItemStack getInventorySlot(int slot) {
         synchronized (inventoryLock) {
-            if (!isValidSlot(slot)) {
+            if (isValidSlot(slot)) {
                 return null;
             }
             return copyOrNull(inventory[slot]);
@@ -189,7 +189,7 @@ public class CookingPotBlockEntity {
 
     public void setInventorySlot(int slot, ItemStack item) {
         synchronized (inventoryLock) {
-            if (!isValidSlot(slot)) {
+            if (isValidSlot(slot)) {
                 return;
             }
             setSlot(slot, copyOrNull(item));
@@ -250,7 +250,7 @@ public class CookingPotBlockEntity {
             return -1;
         }
         for (int slot : slots) {
-            if (!isValidSlot(slot)) {
+            if (isValidSlot(slot)) {
                 continue;
             }
             ItemStack item = inventory[slot];
@@ -412,7 +412,7 @@ public class CookingPotBlockEntity {
 
         ItemStack pending = item.clone();
         for (int i : slots) {
-            if (!isValidSlot(i)) continue;
+            if (isValidSlot(i)) continue;
             ItemStack existing = inventory[i];
             if (existing == null || existing.getType().isAir() || !isSimilarIgnoringStoredExperience(existing, pending)) {
                 continue;
@@ -432,7 +432,7 @@ public class CookingPotBlockEntity {
         }
 
         for (int i : slots) {
-            if (!isValidSlot(i)) continue;
+            if (isValidSlot(i)) continue;
             ItemStack existing = inventory[i];
             if (existing != null && !existing.getType().isAir()) {
                 continue;
@@ -445,29 +445,29 @@ public class CookingPotBlockEntity {
         return pending;
     }
 
-    private ItemStack getCraftingRemainder(ItemStack item, int amount) {
+    private ItemStack getCraftingRemainder(ItemStack item) {
         String customId = ItemUtils.getCustomItemId(item);
         ContainerReturnConfig config =
                 FarmersDelightPlugin.getInstance().getContainerReturnConfig();
         if (customId != null && config != null) {
-            return config.getReturnItem(customId, amount);
+            return config.getReturnItem(customId, 1);
         }
 
         Material remainderType = item.getType().getCraftingRemainingItem();
         if (remainderType != null && !remainderType.isAir()) {
-            return new ItemStack(remainderType, amount);
+            return new ItemStack(remainderType, 1);
         }
 
         // Ingredients whose container vanilla does not expose as a crafting remainder (fish buckets, stews,
         // potions). Consulted only after the real remainder, matching the mod's ordering.
-        ItemStack override = CookingPotIngredientRemainders.getRemainder(item, amount);
+        ItemStack override = CookingPotIngredientRemainders.getRemainder(item, 1);
         if (override != null) {
             return override;
         }
 
         return switch (item.getType()) {
-            case MILK_BUCKET, WATER_BUCKET, LAVA_BUCKET -> new ItemStack(Material.BUCKET, amount);
-            case HONEY_BOTTLE -> new ItemStack(Material.GLASS_BOTTLE, amount);
+            case MILK_BUCKET, WATER_BUCKET, LAVA_BUCKET -> new ItemStack(Material.BUCKET, 1);
+            case HONEY_BOTTLE -> new ItemStack(Material.GLASS_BOTTLE, 1);
             default -> null;
         };
     }
@@ -496,10 +496,7 @@ public class CookingPotBlockEntity {
                 boolean blocked = tagIngredient.excludedTags().stream()
                         .map(Key::toString)
                         .anyMatch(itemTags::contains);
-                if (blocked) {
-                    return false;
-                }
-                return true;
+                return !blocked;
             }
 
             Key itemKey = Key.of("minecraft:" + item.getType().name().toLowerCase(java.util.Locale.ROOT));
@@ -610,7 +607,7 @@ public class CookingPotBlockEntity {
             CookingPotRecipe previousRecipe = currentRecipe.get();
             if (previousRecipe != null
                     && instance.getCookingPotRecipes().canCraft(previousRecipe, inputItems, containerItem)) {
-                if (!hasRoomForResult(previousRecipe)) {
+                if (hasRoomForResult(previousRecipe)) {
                     return false;
                 }
                 lastRecipeId.set(previousRecipe.getId());
@@ -627,7 +624,7 @@ public class CookingPotBlockEntity {
                 return false;
             }
 
-            if (!hasRoomForResult(recipe)) {
+            if (hasRoomForResult(recipe)) {
                 return false;
             }
 
@@ -657,18 +654,18 @@ public class CookingPotBlockEntity {
     private boolean hasRoomForResult(CookingPotRecipe recipe) {
         ItemStack result = recipe.getResult();
         if (result == null || result.getType().isAir()) {
-            return false;
+            return true;
         }
         if (recipe.needsContainer()) {
             ItemStack requiredContainer = recipe.getContainer();
             if (getMovableOutputAmount(result) >= result.getAmount()
                     && getAvailableContainerAmount(requiredContainer) >= result.getAmount()) {
-                return true;
+                return false;
             }
-            return hasSpaceFor(layout.pendingOutputSlots(), result);
+            return !hasSpaceFor(layout.pendingOutputSlots(), result);
         }
-        return hasSpaceFor(layout.outputSlots(), result)
-                || hasSpaceFor(layout.pendingOutputSlots(), result);
+        return !hasSpaceFor(layout.outputSlots(), result)
+                && !hasSpaceFor(layout.pendingOutputSlots(), result);
     }
 
     private List<ItemStack> getIngredientSlotsInternal() {
@@ -706,7 +703,7 @@ public class CookingPotBlockEntity {
                 continue;
             }
             ItemStack slotItem = inventory[slots[idx]];
-            ItemStack remainder = getCraftingRemainder(slotItem, 1);
+            ItemStack remainder = getCraftingRemainder(slotItem);
             if (remainder != null && !remainder.getType().isAir()) {
                 remainders.add(remainder);
             }
@@ -883,7 +880,7 @@ public class CookingPotBlockEntity {
 
     private SplitItem takeMealPortionWithExperience(int outputSlot, int requestedAmount) {
         synchronized (inventoryLock) {
-            if (!isValidSlot(outputSlot) || !layout.isOutputSlot(outputSlot)) {
+            if (isValidSlot(outputSlot) || !layout.isOutputSlot(outputSlot)) {
                 return null;
             }
             ItemStack meal = inventory[outputSlot];
@@ -1168,7 +1165,7 @@ public class CookingPotBlockEntity {
     }
 
     private int getAvailableSpace(int slot, ItemStack item) {
-        if (!isValidSlot(slot) || item == null || item.getType().isAir()) {
+        if (isValidSlot(slot) || item == null || item.getType().isAir()) {
             return 0;
         }
         ItemStack existing = inventory[slot];
@@ -1182,7 +1179,7 @@ public class CookingPotBlockEntity {
     }
 
     private void addItemToSlot(int slot, ItemStack item) {
-        if (!isValidSlot(slot)) {
+        if (isValidSlot(slot)) {
             return;
         }
         if (item == null || item.getType().isAir()) {
@@ -1191,7 +1188,7 @@ public class CookingPotBlockEntity {
         }
 
         ItemStack existing = inventory[slot];
-        if (existing != null && isSimilarIgnoringStoredExperience(existing, item)) {
+        if (isSimilarIgnoringStoredExperience(existing, item)) {
             int maxStack = slotStackLimit(slot, existing);
             int merged = Math.min(maxStack, existing.getAmount() + item.getAmount());
             existing.setAmount(merged);
@@ -1243,7 +1240,7 @@ public class CookingPotBlockEntity {
     }
 
     private SplitItem splitItemFromSlot(int slot, int amount) {
-        if (!isValidSlot(slot)) {
+        if (isValidSlot(slot)) {
             return null;
         }
         ItemStack source = inventory[slot];

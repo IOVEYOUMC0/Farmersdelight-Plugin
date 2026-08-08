@@ -1,6 +1,8 @@
 package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.enchant.EnchantmentDefinition;
+import com.huidu.farmersdelight.api.enchant.FarmersDelightEnchantments;
 import com.huidu.farmersdelight.config.EnchantmentSettings;
 import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.Bukkit;
@@ -8,6 +10,7 @@ import org.bukkit.World;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.server.ServerLoadEvent;
 import org.bukkit.event.world.WorldLoadEvent;
 
 import java.io.IOException;
@@ -17,7 +20,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public final class EnchantmentDatapackInstaller implements Listener {
@@ -59,7 +64,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
         }
         int changedWorlds = 0;
         for (World world : worlds) {
-            if (!plugin.isDatapackWorldAllowed(world)) {
+            if (plugin.isDatapackWorldAllowed(world)) {
                 continue;
             }
             if (installToWorld(world, settings)) {
@@ -73,7 +78,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onWorldLoad(WorldLoadEvent event) {
-        if (!plugin.isDatapackWorldAllowed(event.getWorld())) {
+        if (plugin.isDatapackWorldAllowed(event.getWorld())) {
             return;
         }
         EnchantmentSettings settings = plugin.getEnchantmentSettings();
@@ -82,10 +87,23 @@ public final class EnchantmentDatapackInstaller implements Listener {
         }
     }
 
+    // Startup plugin-enable order is not guaranteed, so a conflicting enchantment plugin that enabled after
+    // this one is only visible once the whole server has loaded. Re-run the conflict check here so it stands
+    // the enchantment system down even when it lost the boot race.
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onServerLoad(ServerLoadEvent event) {
+        plugin.recheckEnchantmentConflict();
+    }
+
     private boolean shouldInstall(EnchantmentSettings settings) {
-        return settings.enabled()
-                && plugin.isBackstabEnchantmentEnabled()
-                && settings.backstabbing().enabled();
+        if (!settings.enabled()) {
+            return false;
+        }
+        return isBackstabEnabled(settings) || !FarmersDelightEnchantments.managedDefinitions().isEmpty();
+    }
+
+    private boolean isBackstabEnabled(EnchantmentSettings settings) {
+        return plugin.isBackstabEnchantmentEnabled() && settings.backstabbing().enabled();
     }
 
     private boolean installToWorld(World world, EnchantmentSettings settings) {
@@ -93,28 +111,53 @@ public final class EnchantmentDatapackInstaller implements Listener {
                 .resolve("datapacks")
                 .resolve(DATAPACK_DIRECTORY);
         try {
-            NamespacedId enchantmentId = NamespacedId.parse(settings.backstabbing().id());
             NamespacedId supportedTag = NamespacedId.parse(SUPPORTED_ITEMS_TAG);
+            List<GeneratedFile> generated = new ArrayList<>();
+            generated.add(new GeneratedFile(datapackDir.resolve("pack.mcmeta"), renderPackMetadata()));
+            // Every FarmersDelight-managed enchant shares the one (empty) supported-items tag: the enchant
+            // filter is the distributor, so vanilla must never offer them by supported_items.
+            generated.add(new GeneratedFile(datapackDir.resolve("data")
+                    .resolve(supportedTag.namespace())
+                    .resolve("tags")
+                    .resolve("item")
+                    .resolve(supportedTag.path() + ".json"), renderSupportedItems()));
 
-            List<GeneratedFile> generated = new ArrayList<>(List.of(
-                    new GeneratedFile(datapackDir.resolve("pack.mcmeta"), renderPackMetadata()),
-                    new GeneratedFile(datapackDir.resolve("data")
-                            .resolve(enchantmentId.namespace())
-                            .resolve("enchantment")
-                            .resolve(enchantmentId.path() + ".json"), renderDefinition(settings.backstabbing())),
-                    new GeneratedFile(datapackDir.resolve("data")
-                            .resolve(supportedTag.namespace())
-                            .resolve("tags")
-                            .resolve("item")
-                            .resolve(supportedTag.path() + ".json"), renderSupportedItems())
-            ));
-            for (Map.Entry<String, String> entry
-                    : renderDistributionTags(settings.backstabbing().id()).entrySet()) {
+            // Enchant ids to place into each vanilla distribution tag, accumulated as each enchant is written.
+            Map<String, List<String>> distribution = new LinkedHashMap<>();
+            for (String tag : DISTRIBUTION_TAGS) {
+                distribution.put(tag, new ArrayList<>());
+            }
+
+            if (isBackstabEnabled(settings)) {
+                generated.add(new GeneratedFile(
+                        enchantmentFile(datapackDir, NamespacedId.parse(settings.backstabbing().id())),
+                        renderDefinition(settings.backstabbing())));
+                // The built-in backstab enchant keeps its historical membership in all three tags.
+                for (String tag : DISTRIBUTION_TAGS) {
+                    distribution.get(tag).add(settings.backstabbing().id());
+                }
+            }
+            for (EnchantmentDefinition definition : FarmersDelightEnchantments.managedDefinitions()) {
+                generated.add(new GeneratedFile(
+                        enchantmentFile(datapackDir, NamespacedId.parse(definition.id())),
+                        renderDefinition(definition)));
+                if (definition.tradeable()) {
+                    distribution.get("tradeable").add(definition.id());
+                }
+                if (definition.treasure()) {
+                    distribution.get("treasure").add(definition.id());
+                }
+                if (definition.onRandomLoot()) {
+                    distribution.get("on_random_loot").add(definition.id());
+                }
+            }
+
+            for (Map.Entry<String, List<String>> entry : distribution.entrySet()) {
                 generated.add(new GeneratedFile(datapackDir.resolve("data")
                         .resolve("minecraft")
                         .resolve("tags")
                         .resolve("enchantment")
-                        .resolve(entry.getKey() + ".json"), entry.getValue()));
+                        .resolve(entry.getKey() + ".json"), renderDistributionTag(entry.getValue())));
             }
 
             int changed = 0;
@@ -135,6 +178,13 @@ public final class EnchantmentDatapackInstaller implements Listener {
         }
     }
 
+    private static Path enchantmentFile(Path datapackDir, NamespacedId id) {
+        return datapackDir.resolve("data")
+                .resolve(id.namespace())
+                .resolve("enchantment")
+                .resolve(id.path() + ".json");
+    }
+
     private void printRestartBanner(int worlds) {
         plugin.getLogger().warning("==================================================================");
         plugin.getLogger().warning(" Updated FarmersDelight enchantment datapack in " + worlds + " world(s).");
@@ -153,27 +203,47 @@ public final class EnchantmentDatapackInstaller implements Listener {
 
     static String renderDefinition(EnchantmentSettings.Backstabbing backstabbing) {
         NamespacedId id = NamespacedId.parse(backstabbing.id());
-        StringBuilder slots = new StringBuilder();
-        for (String slot : SLOTS) {
-            if (!slots.isEmpty()) {
-                slots.append(", ");
+        return renderEnchantJson(
+                "enchantment." + id.namespace() + "." + id.path(), FALLBACK_NAME,
+                backstabbing.definition().weight(), backstabbing.definition().maxLevel(),
+                MIN_COST_BASE, MIN_COST_PER_LEVEL, MAX_COST_BASE, MAX_COST_PER_LEVEL, ANVIL_COST, SLOTS);
+    }
+
+    static String renderDefinition(EnchantmentDefinition definition) {
+        return renderEnchantJson(
+                definition.translationKey(), definition.fallbackName(),
+                definition.weight(), definition.maxLevel(),
+                definition.minCostBase(), definition.minCostPerLevel(),
+                definition.maxCostBase(), definition.maxCostPerLevel(),
+                definition.anvilCost(), definition.slots());
+    }
+
+    // All FarmersDelight-managed enchants (built-in backstab + API-registered) share the one empty
+    // supported-items tag, since the enchant filter — not vanilla supported_items — distributes them.
+    private static String renderEnchantJson(String translationKey, String fallbackName, int weight, int maxLevel,
+                                            int minCostBase, int minCostPerLevel, int maxCostBase,
+                                            int maxCostPerLevel, int anvilCost, List<String> slots) {
+        StringBuilder slotsJson = new StringBuilder();
+        for (String slot : slots) {
+            if (!slotsJson.isEmpty()) {
+                slotsJson.append(", ");
             }
-            slots.append('"').append(json(slot.toLowerCase(java.util.Locale.ROOT))).append('"');
+            slotsJson.append('"').append(json(slot.toLowerCase(Locale.ROOT))).append('"');
         }
         return "{\n"
                 + "  \"description\": {\n"
-                + "    \"translate\": \"enchantment." + json(id.namespace()) + "." + json(id.path()) + "\",\n"
-                + "    \"fallback\": \"" + json(FALLBACK_NAME) + "\"\n"
+                + "    \"translate\": \"" + json(translationKey) + "\",\n"
+                + "    \"fallback\": \"" + json(fallbackName) + "\"\n"
                 + "  },\n"
                 + "  \"supported_items\": \"#" + json(SUPPORTED_ITEMS_TAG) + "\",\n"
-                + "  \"weight\": " + backstabbing.definition().weight() + ",\n"
-                + "  \"max_level\": " + backstabbing.definition().maxLevel() + ",\n"
-                + "  \"min_cost\": {\"base\": " + MIN_COST_BASE
-                + ", \"per_level_above_first\": " + MIN_COST_PER_LEVEL + "},\n"
-                + "  \"max_cost\": {\"base\": " + MAX_COST_BASE
-                + ", \"per_level_above_first\": " + MAX_COST_PER_LEVEL + "},\n"
-                + "  \"anvil_cost\": " + ANVIL_COST + ",\n"
-                + "  \"slots\": [" + slots + "],\n"
+                + "  \"weight\": " + weight + ",\n"
+                + "  \"max_level\": " + maxLevel + ",\n"
+                + "  \"min_cost\": {\"base\": " + minCostBase
+                + ", \"per_level_above_first\": " + minCostPerLevel + "},\n"
+                + "  \"max_cost\": {\"base\": " + maxCostBase
+                + ", \"per_level_above_first\": " + maxCostPerLevel + "},\n"
+                + "  \"anvil_cost\": " + anvilCost + ",\n"
+                + "  \"slots\": [" + slotsJson + "],\n"
                 + "  \"effects\": {}\n"
                 + "}\n";
     }
@@ -191,17 +261,18 @@ public final class EnchantmentDatapackInstaller implements Listener {
                 + "]\n}\n";
     }
 
-    static Map<String, String> renderDistributionTags(String enchantmentId) {
-        NamespacedId.parse(enchantmentId);
-        String content = "{\n"
-                + "  \"replace\": false,\n"
-                + "  \"values\": [\"" + json(enchantmentId) + "\"]\n"
-                + "}\n";
-        java.util.LinkedHashMap<String, String> tags = new java.util.LinkedHashMap<>();
-        for (String tag : DISTRIBUTION_TAGS) {
-            tags.put(tag, content);
+    static String renderDistributionTag(List<String> enchantmentIds) {
+        StringBuilder values = new StringBuilder();
+        for (String id : enchantmentIds) {
+            if (!values.isEmpty()) {
+                values.append(", ");
+            }
+            values.append('"').append(json(id)).append('"');
         }
-        return Map.copyOf(tags);
+        return "{\n"
+                + "  \"replace\": false,\n"
+                + "  \"values\": [" + values + "]\n"
+                + "}\n";
     }
 
     private static boolean writeIfChanged(Path destination, String content) throws IOException {

@@ -28,10 +28,8 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -509,7 +507,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         }
         GuiConfig.GuiItem backItem = listConfig.getItem("back");
         boolean closesOnBack = backButtonCommandsEnabled && !fromCookingPot
-                && (backItem == null || !backItem.hasCommands());
+                && (backItem == null || backItem.hasCommands());
         if (closesOnBack) {
             GuiConfig.GuiItem closeItem = listConfig.getItem("close");
             GuiConfig.GuiItem rendered = closeItem != null ? closeItem : backItem;
@@ -649,11 +647,11 @@ public class RecipeViewGui extends AbstractInventoryGui {
         List<Component> lore = new ArrayList<>();
         lore.add(toolName);
         if (totalTools > 1) {
-            lore.add(tr("gui.recipe.auto_cycle", NamedTextColor.GRAY,
+            lore.add(tr("gui.recipe.auto_cycle",
                     currentIndex + 1, totalTools));
         }
         if (previewOptions.size() > 1) {
-            lore.add(tr("gui.recipe.matches_line", NamedTextColor.GRAY,
+            lore.add(tr("gui.recipe.matches_line",
                     Component.text(previewOptions.size()).color(NamedTextColor.YELLOW)));
         }
         toolMeta.lore(lore);
@@ -896,15 +894,15 @@ public class RecipeViewGui extends AbstractInventoryGui {
         }
         appendMoreIngredientsLine(lore, ingredients.size() - displayedIngredients, player);
         if (recipe.needsContainer() && recipe.getContainer() != null) {
-            lore.add(tr("gui.recipe.container_line", NamedTextColor.GRAY,
+            lore.add(tr("gui.recipe.container_line",
                     itemNameComponent(recipe.getContainer(), player).colorIfAbsent(NamedTextColor.AQUA)));
         }
         if (recipe.getExperience() > 0.0D || recipe.getCookTime() > 0) {
             // Use the shared cookTimeSeconds() (ceil, min 1s) so the list preview matches the detail
             // screen; raw integer /20 shows a misleading "0s" for sub-20-tick recipes.
             String cookTimeStr = cookTimeSeconds(recipe)
-                    + i18nOrDefault("gui.recipe.seconds_suffix", player, "s");
-            lore.add(tr("gui.recipe.cook_time_line", NamedTextColor.GRAY,
+                    + i18nOrDefault(player);
+            lore.add(tr("gui.recipe.cook_time_line",
                     Component.text(cookTimeStr).color(NamedTextColor.AQUA)));
         }
         lore.add(Component.text(""));
@@ -920,7 +918,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         ItemMeta meta = input.getItemMeta();
 
         List<Component> lore = new ArrayList<>();
-        lore.add(tr("gui.recipe.tool_line", NamedTextColor.GRAY,
+        lore.add(tr("gui.recipe.tool_line",
                 formatToolListComponent(recipe.getTools(), player).colorIfAbsent(NamedTextColor.YELLOW)));
         // Show the input type so players can see when multiple alternatives exist without opening details.
         appendCuttingBoardInputLore(lore, recipe.getInput(), player);
@@ -941,7 +939,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         }
         int remaining = results.size() - displayed;
         if (remaining > 0) {
-            lore.add(tr("gui.recipe.more_items", NamedTextColor.GRAY, remaining));
+            lore.add(tr("gui.recipe.more_items", remaining));
         }
         lore.add(Component.text(""));
         lore.add(tr("gui.recipe.click_to_view", NamedTextColor.YELLOW));
@@ -974,7 +972,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (remainingCount <= 0) {
             return;
         }
-        lore.add(tr("gui.recipe.more_ingredients", NamedTextColor.GRAY, remainingCount));
+        lore.add(tr("gui.recipe.more_ingredients", remainingCount));
         lore.add(tr("gui.recipe.click_to_view_materials", NamedTextColor.YELLOW));
     }
 
@@ -1023,11 +1021,11 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
         List<Component> lore = new ArrayList<>();
         lore.add(tr("gui.recipe.ingredient", NamedTextColor.GRAY));
-        lore.add(tr("gui.recipe.matches_line", NamedTextColor.GRAY,
+        lore.add(tr("gui.recipe.matches_line",
                 Component.text(options.size()).color(NamedTextColor.YELLOW)));
         appendCyclePosition(lore, currentDisplay, options, player);
         if (config.isShowIngredientIds()) {
-            lore.add(tr("gui.recipe.tag_line", NamedTextColor.GRAY,
+            lore.add(tr("gui.recipe.tag_line",
                     Component.text("#" + tagIngredient.key()).color(NamedTextColor.WHITE)));
             appendTagExclusions(lore, tagIngredient, player);
         }
@@ -1046,9 +1044,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
         List<Component> lore = new ArrayList<>();
         lore.add(tr("gui.recipe.ingredient", NamedTextColor.GRAY));
-        lore.add(tr("gui.recipe.any_of_line", NamedTextColor.GRAY,
+        lore.add(tr("gui.recipe.any_of_line",
                 Component.text(choiceIngredient.options().size()).color(NamedTextColor.YELLOW)));
-        lore.add(tr("gui.recipe.matches_line", NamedTextColor.GRAY,
+        lore.add(tr("gui.recipe.matches_line",
                 Component.text(options.size()).color(NamedTextColor.YELLOW)));
         appendCyclePosition(lore, currentDisplay, options, player);
         appendIngredientPreviewLore(lore, choiceIngredient.options(), choiceIngredient.options().size(), player, currentDisplay);
@@ -1136,7 +1134,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             int previewCount = previewOptions.size();
             List<Component> lines = formatCompactItemOptions(previewOptions, player);
             if (totalSize > previewCount) {
-                lines.add(tr("gui.recipe.more_items", NamedTextColor.GRAY,
+                lines.add(tr("gui.recipe.more_items",
                         totalSize - previewCount));
             }
             return lines;
@@ -1190,7 +1188,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 }
                 return lines;
             }
-            appendItemPreviewLore(lines, options, 5, player);
+            appendItemPreviewLore(lines, options, player);
             if (config.isShowIngredientIds()) {
                 lines.add(colored("&8#" + tagIngredient.key()));
                 appendTagExclusions(lines, tagIngredient, player);
@@ -1203,7 +1201,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 lines.add(tr("gui.recipe.no_matching_items", NamedTextColor.GRAY));
                 return lines;
             }
-            appendItemPreviewLore(lines, options, 5, player);
+            appendItemPreviewLore(lines, options, player);
             return lines;
         }
         lines.add(tr("gui.recipe.unknown", NamedTextColor.WHITE));
@@ -1221,8 +1219,8 @@ public class RecipeViewGui extends AbstractInventoryGui {
         return result;
     }
 
-    private void appendItemPreviewLore(List<Component> lore, List<ItemStack> options, int previewLimit, Player player) {
-        appendItemPreviewLore(lore, options, previewLimit, player, null);
+    private void appendItemPreviewLore(List<Component> lore, List<ItemStack> options, Player player) {
+        appendItemPreviewLore(lore, options, 5, player, null);
     }
 
     private void appendItemPreviewLore(
@@ -1295,7 +1293,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 break;
             }
         }
-        lore.add(tr("gui.recipe.auto_cycle", NamedTextColor.GRAY,
+        lore.add(tr("gui.recipe.auto_cycle",
                 Math.max(1, currentIndex), options.size()));
     }
 
@@ -1303,7 +1301,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (remainingCount <= 0) {
             return;
         }
-        lore.add(tr("gui.recipe.more_items", NamedTextColor.GRAY, remainingCount));
+        lore.add(tr("gui.recipe.more_items", remainingCount));
     }
 
     private String unknownRecipeText(Player player) {
@@ -1322,10 +1320,10 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE);
     }
 
-    String i18nOrDefault(String key, Player player, String fallback) {
-        String value = I18n.get(key, player);
-        if (key.equals(value)) {
-            return fallback;
+    String i18nOrDefault(Player player) {
+        String value = I18n.get("gui.recipe.seconds_suffix", player);
+        if ("gui.recipe.seconds_suffix".equals(value)) {
+            return "s";
         }
         return value;
     }
@@ -1336,14 +1334,14 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 .decoration(TextDecoration.ITALIC, false);
     }
 
-    Component tr(String key, NamedTextColor color, Object... args) {
+    Component tr(String key, Object... args) {
         Component[] components = new Component[args.length];
         for (int i = 0; i < args.length; i++) {
             Object a = args[i];
             components[i] = a instanceof Component c ? c : Component.text(String.valueOf(a));
         }
         return Component.translatable(key, components)
-                .color(color)
+                .color(NamedTextColor.GRAY)
                 .decoration(TextDecoration.ITALIC, false);
     }
 
@@ -1761,7 +1759,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 player.updateInventory();
                 return FillResult.stay(FillButtonState.INVENTORY_FULL);
             }
-            debitInventorySlot(player, selection.slot(), 1);
+            debitInventorySlot(player, selection.slot());
             movedCount++;
         }
         if (selectedContainer != null) {
@@ -1781,7 +1779,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 player.updateInventory();
                 return FillResult.stay(FillButtonState.INVENTORY_FULL);
             }
-            debitInventorySlot(player, selectedContainer.slot(), 1);
+            debitInventorySlot(player, selectedContainer.slot());
             movedCount++;
         }
         activateCookingPotAfterFill(entity);
@@ -1791,15 +1789,15 @@ public class RecipeViewGui extends AbstractInventoryGui {
         return FillResult.returnToPot(FillButtonState.FILLED);
     }
 
-    private void debitInventorySlot(Player player, int slot, int amount) {
-        if (player == null || amount <= 0) {
+    private void debitInventorySlot(Player player, int slot) {
+        if (player == null || 1 <= 0) {
             return;
         }
         ItemStack source = player.getInventory().getItem(slot);
         if (source == null || source.getType().isAir()) {
             return;
         }
-        int remaining = source.getAmount() - amount;
+        int remaining = source.getAmount() - 1;
         if (remaining <= 0) {
             player.getInventory().setItem(slot, null);
             return;
@@ -1928,10 +1926,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (recipe == null || entity == null) {
             return false;
         }
-        if (recipe.getIngredients().size() > entity.getLayout().inputSlots().length) {
-            return false;
-        }
-        return true;
+        return recipe.getIngredients().size() <= entity.getLayout().inputSlots().length;
     }
 
     private List<InventorySelection> selectRecipeItemsFromInventory(
@@ -2221,7 +2216,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
     }
 
     private boolean runBackButtonCommands(Player player, GuiConfig.GuiItem backItem) {
-        if (!backButtonCommandsEnabled || player == null || backItem == null || !backItem.hasCommands()) {
+        if (!backButtonCommandsEnabled || player == null || backItem == null || backItem.hasCommands()) {
             return false;
         }
 

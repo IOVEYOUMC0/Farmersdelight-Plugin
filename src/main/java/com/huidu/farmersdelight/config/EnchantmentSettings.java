@@ -84,18 +84,18 @@ public record EnchantmentSettings(
                 DEFAULT_SKILLET_ENCHANTMENTS
         );
 
-        String enchantmentId = namespaced(string(backstabSection, "id", "farmersdelight:backstabbing"),
+        String enchantmentId = namespaced(string(backstabSection),
                 "farmersdelight:backstabbing");
         Backstabbing.Definition definition = new Backstabbing.Definition(
-                clamp(integer(definitionSection, "weight", 5), 1, 1024),
-                clamp(integer(definitionSection, "max-level", 3), 1, 255)
+                clamp(integer(definitionSection, "weight", 5), 1024),
+                clamp(integer(definitionSection, "max-level", 3), 255)
         );
 
         Backstabbing.Combat combat = new Backstabbing.Combat(
                 bool(combatSection, "players-only", true),
                 bool(combatSection, "require-knife", true),
-                clampFinite(number(combatSection, "multiplier-base", 1.4D), 0.0D, 100.0D),
-                clampFinite(number(combatSection, "multiplier-per-level", 0.2D), 0.0D, 100.0D)
+                clampFinite(number(combatSection, "multiplier-base", 1.4D)),
+                clampFinite(number(combatSection, "multiplier-per-level", 0.2D))
         );
 
         Backstabbing backstabbing = new Backstabbing(
@@ -178,17 +178,16 @@ public record EnchantmentSettings(
         ConfigurationSection tableSection = child(groupSection, "table");
         ConfigurationSection anvilSection = child(groupSection, "anvil");
         Table table = new Table(
-                bool(tableSection, legacyTableSection, "enabled", true),
-                bool(tableSection, legacyTableSection, "override-offers", true),
+                bool(tableSection, legacyTableSection, "enabled"),
+                bool(tableSection, legacyTableSection, "override-offers"),
                 clamp(integer(
                         tableSection,
                         legacyTableSection,
-                        "default-enchantability",
                         defaultEnchantability
-                ), 1, 1024),
-                stringList(tableSection, legacyTableSection, "enchantments", defaultEnchantments, true)
+                ), 1024),
+                stringList(tableSection, legacyTableSection, defaultEnchantments)
         );
-        return new Group(table, bool(anvilSection, legacyAnvilSection, "enabled", true));
+        return new Group(table, bool(anvilSection, legacyAnvilSection, "enabled"));
     }
 
     private static boolean bool(ConfigurationSection section, String path, boolean fallback) {
@@ -198,13 +197,12 @@ public record EnchantmentSettings(
     private static boolean bool(
             ConfigurationSection section,
             ConfigurationSection legacySection,
-            String path,
-            boolean fallback
+            String path
     ) {
         if (section != null && section.isSet(path)) {
-            return section.getBoolean(path, fallback);
+            return section.getBoolean(path, true);
         }
-        return bool(legacySection, path, fallback);
+        return bool(legacySection, path, true);
     }
 
     private static int integer(ConfigurationSection section, String path, int fallback) {
@@ -214,25 +212,24 @@ public record EnchantmentSettings(
     private static int integer(
             ConfigurationSection section,
             ConfigurationSection legacySection,
-            String path,
             int fallback
     ) {
-        if (section != null && section.isSet(path)) {
-            return section.getInt(path, fallback);
+        if (section != null && section.isSet("default-enchantability")) {
+            return section.getInt("default-enchantability", fallback);
         }
-        return integer(legacySection, path, fallback);
+        return integer(legacySection, "default-enchantability", fallback);
     }
 
     private static double number(ConfigurationSection section, String path, double fallback) {
         return section == null ? fallback : section.getDouble(path, fallback);
     }
 
-    private static String string(ConfigurationSection section, String path, String fallback) {
+    private static String string(ConfigurationSection section) {
         if (section == null) {
-            return fallback;
+            return "farmersdelight:backstabbing";
         }
-        String value = section.getString(path);
-        return value == null || value.isBlank() ? fallback : value.trim();
+        String value = section.getString("id");
+        return value == null || value.isBlank() ? "farmersdelight:backstabbing" : value.trim();
     }
 
     private static List<String> stringList(
@@ -266,14 +263,12 @@ public record EnchantmentSettings(
     private static List<String> stringList(
             ConfigurationSection section,
             ConfigurationSection legacySection,
-            String path,
-            List<String> fallback,
-            boolean normalizeNamespacedIds
+            List<String> fallback
     ) {
-        if (section != null && section.isList(path)) {
-            return stringList(section, path, fallback, normalizeNamespacedIds);
+        if (section != null && section.isList("enchantments")) {
+            return stringList(section, "enchantments", fallback, true);
         }
-        return stringList(legacySection, path, fallback, normalizeNamespacedIds);
+        return stringList(legacySection, "enchantments", fallback, true);
     }
 
     private static String namespaced(String value, String fallback) {
@@ -293,14 +288,14 @@ public record EnchantmentSettings(
         return normalized;
     }
 
-    private static int clamp(int value, int minimum, int maximum) {
-        return Math.max(minimum, Math.min(maximum, value));
+    private static int clamp(int value, int maximum) {
+        return Math.max(1, Math.min(maximum, value));
     }
 
-    private static double clampFinite(double value, double minimum, double maximum) {
+    private static double clampFinite(double value) {
         if (!Double.isFinite(value)) {
-            return minimum;
+            return 0.0;
         }
-        return Math.max(minimum, Math.min(maximum, value));
+        return Math.max(0.0, Math.min(100.0, value));
     }
 }

@@ -17,19 +17,19 @@ final class StoveDisplayOffsets {
     }
 
     static double[][] defaults() {
-        return copy(DEFAULT);
+        return copy();
     }
 
-    static double[][] copy(double[][] source) {
-        double[][] result = new double[source.length][];
-        for (int i = 0; i < source.length; i++) {
-            result[i] = Arrays.copyOf(source[i], source[i].length);
+    static double[][] copy() {
+        double[][] result = new double[StoveDisplayOffsets.DEFAULT.length][];
+        for (int i = 0; i < StoveDisplayOffsets.DEFAULT.length; i++) {
+            result[i] = Arrays.copyOf(StoveDisplayOffsets.DEFAULT[i], StoveDisplayOffsets.DEFAULT[i].length);
         }
         return result;
     }
 
     static double[][] load(FarmersDelightPlugin plugin, int slotCount) {
-        double[][] loaded = copy(DEFAULT);
+        double[][] loaded = copy();
         ConfigurationSection section = plugin.getFirstConfigSection("stove.display", "display-visuals.stove");
         if (section == null) {
             return loaded;

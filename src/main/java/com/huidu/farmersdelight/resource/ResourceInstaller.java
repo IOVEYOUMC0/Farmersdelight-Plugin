@@ -54,10 +54,10 @@ public final class ResourceInstaller {
                 changedFiles = 0;
                 // The initial release is unconditional; this toggle only controls whether missing files are re-completed on later startups.
                 if (plugin.getConfig().getBoolean("craftengine-resources.auto-completion", true)) {
-                    changedFiles += copyMissingBundledResourceFiles(CRAFTENGINE_RESOURCE_ROOT, targetRoot);
+                    changedFiles += copyMissingBundledResourceFiles(targetRoot);
                 }
             } else {
-                changedFiles = copyBundledResourceDirectory(CRAFTENGINE_RESOURCE_ROOT, targetRoot);
+                changedFiles = copyBundledResourceDirectory(targetRoot);
             }
             if (changedFiles > 0) {
                 I18n.logInfo("plugin.craftengine_resources_released",
@@ -69,10 +69,10 @@ public final class ResourceInstaller {
         }
     }
 
-    private int copyMissingBundledResourceFiles(String resourceRoot, Path targetRoot) throws IOException {
-        List<String> resourcePaths = listBundledResourceFiles(resourceRoot);
+    private int copyMissingBundledResourceFiles(Path targetRoot) throws IOException {
+        List<String> resourcePaths = listBundledResourceFiles(ResourceInstaller.CRAFTENGINE_RESOURCE_ROOT);
         if (resourcePaths.isEmpty()) {
-            throw new IOException("No bundled CraftEngine resources found at " + resourceRoot);
+            throw new IOException("No bundled CraftEngine resources found at " + ResourceInstaller.CRAFTENGINE_RESOURCE_ROOT);
         }
 
         boolean debug = plugin.isDebugEnabled("resource");
@@ -80,7 +80,7 @@ public final class ResourceInstaller {
         int skippedFiles = 0;
         Files.createDirectories(targetRoot);
         for (String resourcePath : resourcePaths) {
-            String relativePath = resourcePath.substring(resourceRoot.length() + 1);
+            String relativePath = resourcePath.substring(ResourceInstaller.CRAFTENGINE_RESOURCE_ROOT.length() + 1);
             Path targetPath = resolveSafeChild(targetRoot, relativePath);
             if (Files.exists(targetPath)) {
                 skippedFiles++;
@@ -120,10 +120,10 @@ public final class ResourceInstaller {
         return copiedFiles;
     }
 
-    private int copyBundledResourceDirectory(String resourceRoot, Path targetRoot) throws IOException {
-        List<String> resourcePaths = listBundledResourceFiles(resourceRoot);
+    private int copyBundledResourceDirectory(Path targetRoot) throws IOException {
+        List<String> resourcePaths = listBundledResourceFiles(ResourceInstaller.CRAFTENGINE_RESOURCE_ROOT);
         if (resourcePaths.isEmpty()) {
-            throw new IOException("No bundled CraftEngine resources found at " + resourceRoot);
+            throw new IOException("No bundled CraftEngine resources found at " + ResourceInstaller.CRAFTENGINE_RESOURCE_ROOT);
         }
 
         boolean debug = plugin.isDebugEnabled("resource");
@@ -135,7 +135,7 @@ public final class ResourceInstaller {
         try {
             int copiedFiles = 0;
             for (String resourcePath : resourcePaths) {
-                String relativePath = resourcePath.substring(resourceRoot.length() + 1);
+                String relativePath = resourcePath.substring(ResourceInstaller.CRAFTENGINE_RESOURCE_ROOT.length() + 1);
                 Path targetPath = resolveSafeChild(tempRoot, relativePath);
                 if (debug) {
                     I18n.logInfo("resource_debug_added", "path", relativePath);

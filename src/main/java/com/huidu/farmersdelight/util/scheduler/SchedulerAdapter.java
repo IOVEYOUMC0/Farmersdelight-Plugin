@@ -26,7 +26,7 @@ public final class SchedulerAdapter {
 
     public SchedulerAdapter(FarmersDelightPlugin plugin) {
         this.plugin = Objects.requireNonNull(plugin, "plugin");
-        this.folia = isClassPresent("io.papermc.paper.threadedregions.RegionizedServer");
+        this.folia = isClassPresent();
         this.asyncExecutor = Executors.newFixedThreadPool(
                 Math.max(2, Math.min(4, Runtime.getRuntime().availableProcessors())),
                 new NamedThreadFactory()
@@ -95,15 +95,17 @@ public final class SchedulerAdapter {
         return wrap(Bukkit.getScheduler().runTaskLater(plugin, task, Math.max(0L, delayTicks)));
     }
 
-    public PluginTask runLaterAt(Location location, Runnable task, long delayTicks) {
+    public void runLaterAt(Location location, Runnable task, long delayTicks) {
         if (location == null || !folia) {
-            return runLater(task, delayTicks);
+            runLater(task, delayTicks);
+            return;
         }
         World world = location.getWorld();
         if (world == null) {
-            return runLater(task, delayTicks);
+            runLater(task, delayTicks);
+            return;
         }
-        return FoliaReflect.regionRunLater(
+        FoliaReflect.regionRunLater(
                 plugin,
                 world,
                 location.getBlockX() >> 4,
@@ -113,11 +115,12 @@ public final class SchedulerAdapter {
         );
     }
 
-    public PluginTask runLaterForEntity(Entity entity, Runnable task, long delayTicks) {
+    public void runLaterForEntity(Entity entity, Runnable task, long delayTicks) {
         if (entity == null || !folia) {
-            return runLater(task, delayTicks);
+            runLater(task, delayTicks);
+            return;
         }
-        return FoliaReflect.entityRunLater(plugin, entity, task, delayTicks);
+        FoliaReflect.entityRunLater(plugin, entity, task, delayTicks);
     }
 
     public PluginTask runRepeating(Runnable task, long delayTicks, long periodTicks) {
@@ -181,9 +184,9 @@ public final class SchedulerAdapter {
         };
     }
 
-    private static boolean isClassPresent(String className) {
+    private static boolean isClassPresent() {
         try {
-            Class.forName(className, false, SchedulerAdapter.class.getClassLoader());
+            Class.forName("io.papermc.paper.threadedregions.RegionizedServer", false, SchedulerAdapter.class.getClassLoader());
             return true;
         } catch (ClassNotFoundException ignored) {
             return false;
@@ -202,8 +205,8 @@ public final class SchedulerAdapter {
     }
 
     private static final class FoliaReflect {
-        private static final Object GLOBAL_SCHEDULER = invokeStatic(Bukkit.class, "getGlobalRegionScheduler");
-        private static final Object REGION_SCHEDULER = invokeStatic(Bukkit.class, "getRegionScheduler");
+        private static final Object GLOBAL_SCHEDULER = invokeStatic("getGlobalRegionScheduler");
+        private static final Object REGION_SCHEDULER = invokeStatic("getRegionScheduler");
         // The resolved scheduler Method is stable per (class, name, arity) combination; cache it
         // so each schedule on Folia avoids re-walking the class/interface hierarchy.
         private static final Map<String, Method> METHOD_CACHE = new ConcurrentHashMap<>();
@@ -308,9 +311,9 @@ public final class SchedulerAdapter {
             };
         }
 
-        private static Object invokeStatic(Class<?> type, String methodName) {
+        private static Object invokeStatic(String methodName) {
             try {
-                Method method = type.getMethod(methodName);
+                Method method = Bukkit.class.getMethod(methodName);
                 return method.invoke(null);
             } catch (ReflectiveOperationException e) {
                 throw new IllegalStateException("Folia scheduler method unavailable: " + methodName, e);

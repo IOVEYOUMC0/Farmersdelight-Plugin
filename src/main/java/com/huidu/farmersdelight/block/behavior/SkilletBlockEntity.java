@@ -16,7 +16,7 @@ import org.bukkit.inventory.ItemStack;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-@Deprecated(forRemoval = false)
+@Deprecated()
 public class SkilletBlockEntity {
 
     private static final int NO_DISPLAY = -1;

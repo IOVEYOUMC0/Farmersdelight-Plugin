@@ -44,6 +44,20 @@ templates:
             duration: 600
             amplifier: 0
             particles: false
+  farmersdelight:food_block_template:
+    data:
+      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
+      item-name: <!i><l10n:block.${__NAMESPACE__}.${__ID__}>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:item/${__ID__}
+      generation:
+        parent: minecraft:item/generated
+        textures:
+          layer0: ${__NAMESPACE__}:item/${__ID__}
+    behavior:
+      type: block_item
+      block: ${__NAMESPACE__}:${__ID__}
   farmersdelight:nourishment_30_template:
     events:
       - on: consume

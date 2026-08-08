@@ -1,9 +1,5 @@
 package com.huidu.farmersdelight.api.tag;
 
-import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
-import org.bukkit.Tag;
-
 public final class FarmersDelightTags {
 
     private FarmersDelightTags() {}

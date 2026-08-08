@@ -358,7 +358,7 @@ public class SkilletManager {
                 return false;
             }
 
-            if (!canStackWithStored(skillet.storedItem, heldItem, skillet.currentRecipe, recipe)) {
+            if (canStackWithStored(skillet.storedItem, heldItem, skillet.currentRecipe, recipe)) {
                 debug("recipe match: stack add failed, recipe/item mismatch. inputRecipe=" + recipe.getKey()
                         + ", storedRecipe=" + skillet.currentRecipe.getKey() + ", input=" + formatItem(heldItem)
                         + ", stored=" + formatItem(skillet.storedItem) + ", location=" + formatLocation(location));
@@ -485,7 +485,7 @@ public class SkilletManager {
 
     public boolean canAcceptHopperInput(Location location, ItemStack item) {
         Location normalized = ManagerSupport.normalize(location);
-        if (normalized == null || !isSkilletBlock(normalized) || !isValidHopperInput(item)) {
+        if (normalized == null || isSkilletBlock(normalized) || isValidHopperInput(item)) {
             return false;
         }
 
@@ -499,7 +499,7 @@ public class SkilletManager {
         if (storedRecipe == null) {
             storedRecipe = findCampfireRecipe(skillet.storedItem);
         }
-        if (!canStackWithStored(skillet.storedItem, item, storedRecipe, incomingRecipe)) {
+        if (canStackWithStored(skillet.storedItem, item, storedRecipe, incomingRecipe)) {
             return false;
         }
 
@@ -511,7 +511,7 @@ public class SkilletManager {
         if (normalized == null || item == null) {
             return ItemUtils.cloneOrNull(item);
         }
-        if (!isSkilletBlock(normalized) || !isValidHopperInput(item)) {
+        if (isSkilletBlock(normalized) || isValidHopperInput(item)) {
             return item.clone();
         }
 
@@ -526,7 +526,7 @@ public class SkilletManager {
                 storedRecipe = findCampfireRecipe(skillet.storedItem);
                 skillet.currentRecipe = storedRecipe;
             }
-            if (!canStackWithStored(skillet.storedItem, pending, storedRecipe, incomingRecipe)) {
+            if (canStackWithStored(skillet.storedItem, pending, storedRecipe, incomingRecipe)) {
                 return pending;
             }
 
@@ -572,11 +572,11 @@ public class SkilletManager {
     }
 
     private boolean isValidHopperInput(ItemStack item) {
-        return item != null
-                && !item.getType().isAir()
-                && !isTool(item)
-                && !isSkilletItem(item)
-                && findCampfireRecipe(item) != null;
+        return item == null
+                || item.getType().isAir()
+                || isTool(item)
+                || isSkilletItem(item)
+                || findCampfireRecipe(item) == null;
     }
 
     private ItemStack remainingAfterMove(ItemStack source, int moved) {
@@ -634,8 +634,8 @@ public class SkilletManager {
     }
 
     private boolean isSkilletBlock(Location location) {
-        return CustomBlockUtils.hasBehavior(location, SkilletBlockBehavior.class)
-                || CustomBlockUtils.hasId(location, Constants.BLOCK_SKILLET);
+        return !CustomBlockUtils.hasBehavior(location, SkilletBlockBehavior.class)
+                && !CustomBlockUtils.hasId(location, Constants.BLOCK_SKILLET);
     }
 
     private boolean isSkilletBlock(ImmutableBlockState state) {
@@ -720,7 +720,7 @@ public class SkilletManager {
             // If the unload gets cancelled by another plugin, the first interaction re-hydrates from the
             // snapshot via the entry-creation flush.
             if (passivateToController(world, location)) {
-                removeSkillet(location, false);
+                removeSkillet(location);
             } else {
                 saveSkillet(location, skillet);
             }
@@ -759,14 +759,14 @@ public class SkilletManager {
                     && location.getBlockZ() >= minZ && location.getBlockZ() <= maxZ) {
                 SkilletData skillet = skillets.get(location);
                 if (skillet == null) {
-                    removeSkillet(location, false);
+                    removeSkillet(location);
                     continue;
                 }
                 // Snapshot into the controller BEFORE removing the entry: CE serializes this chunk at
                 // ChunkUnloadEvent HIGHEST by pulling from this manager, which runs after this HIGH
                 // handler — removing first would make it export nothing and wipe the persisted data.
                 if (passivateToController(world, location)) {
-                    removeSkillet(location, false);
+                    removeSkillet(location);
                 } else {
                     // Controller unreachable: keep the entry so the pull-serialization can still export
                     // it; the entry is reconciled on the next chunk load.
@@ -793,7 +793,7 @@ public class SkilletManager {
 
         Location location = ManagerSupport.toLocation(world, posKey);
         if (location == null) return false;
-        if (!isSkilletBlock(location)) {
+        if (isSkilletBlock(location)) {
             // The CE state can be transiently unresolvable (a /ce reload unbinds states for the parse
             // window); keep the data parked instead of discarding it, so a live skillet's contents are
             // not destroyed. A genuinely replaced block just carries inert leftover NBT.
@@ -908,7 +908,7 @@ public class SkilletManager {
         campfireRecipes.rebuild();
     }
 
-    private SkilletData putSkillet(Location location, SkilletData skillet) {
+    private void putSkillet(Location location, SkilletData skillet) {
         Location normalized = ManagerSupport.normalize(location);
         SkilletData previous = skillets.put(normalized, skillet);
         if (previous != null && previous != skillet) {
@@ -918,7 +918,6 @@ public class SkilletManager {
         }
         indexSkillet(normalized);
         markTickLocationsDirty();
-        return previous;
     }
 
     private SkilletData removeTrackedSkillet(Location location) {
@@ -1000,14 +999,14 @@ public class SkilletManager {
         }
     }
 
-    private void removeSkillet(Location location, boolean removeStoredData) {
+    private void removeSkillet(Location location) {
         Location normalized = ManagerSupport.normalize(location);
         SkilletData skillet = removeTrackedSkillet(normalized);
         if (skillet != null) {
             cleanupVisual(skillet);
         }
         stopTaskIfIdle();
-        if (removeStoredData) {
+        if (false) {
             removeStoredData(normalized);
         }
     }
@@ -1223,7 +1222,7 @@ public class SkilletManager {
 
     private void finishCooking(Location location, SkilletData skillet) {
         if (skillet.currentRecipe == null || skillet.storedItem == null) return;
-        if (!isSkilletBlock(location)) {
+        if (isSkilletBlock(location)) {
             debug("finish cooking: skipped because block is no longer a skillet at " + formatLocation(location));
             cleanupVisual(skillet);
             removeStoredData(location);
@@ -1468,18 +1467,18 @@ public class SkilletManager {
 
     private boolean canStackWithStored(ItemStack stored, ItemStack incoming, CookingRecipe<?> storedRecipe, CookingRecipe<?> incomingRecipe) {
         if (stored == null || incoming == null || storedRecipe == null || incomingRecipe == null) {
-            return false;
+            return true;
         }
 
         if (!storedRecipe.getKey().equals(incomingRecipe.getKey())) {
-            return false;
+            return true;
         }
 
         ItemStack storedSingle = stored.clone();
         storedSingle.setAmount(1);
         ItemStack incomingSingle = incoming.clone();
         incomingSingle.setAmount(1);
-        return storedSingle.isSimilar(incomingSingle);
+        return !storedSingle.isSimilar(incomingSingle);
     }
 
     private void cleanupVisual(SkilletData skillet) {
@@ -1544,11 +1543,10 @@ public class SkilletManager {
             if (skillet == null || !skillet.hasItem() || skillet.location == null) {
                 continue;
             }
-            SkilletData entry = skillet;
-            Location loc = entry.location;
+            Location loc = skillet.location;
             plugin.scheduler().runAt(loc, () -> {
-                cleanupVisual(entry);
-                createVisual(loc, entry);
+                cleanupVisual(skillet);
+                createVisual(loc, skillet);
             });
         }
     }

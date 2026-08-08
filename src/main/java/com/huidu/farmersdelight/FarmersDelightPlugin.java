@@ -55,7 +55,6 @@ import com.huidu.farmersdelight.gui.RecipeEditorGuiConfig;
 import com.huidu.farmersdelight.gui.RecipeViewGui;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.loot.KnifeDropHandler;
-import com.huidu.farmersdelight.BuildFlags;
 import com.huidu.farmersdelight.manager.BuffBossbarManager;
 import com.huidu.farmersdelight.manager.HandleManager;
 import com.huidu.farmersdelight.manager.SkilletManager;
@@ -433,6 +432,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     // FarmersDelight's bStats plugin id.
     private static final int BSTATS_PLUGIN_ID = 32571;
+
+    // Required host platform; excluded from enchantment-conflict detection (it hooks the enchant event to manage
+    // its own custom items and is always present, so it is not a competing enchantment system).
+    private static final String HOST_PLUGIN_NAME = "CraftEngine";
 
     @Override
     public void onEnable() {
@@ -1007,7 +1010,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             return;
         }
         org.bukkit.World primaryWorld = getPrimaryWorld();
-        if (primaryWorld == null || !isDatapackWorldAllowed(primaryWorld)) {
+        if (primaryWorld == null || isDatapackWorldAllowed(primaryWorld)) {
             return;
         }
         datapackSyncQueued = true;
@@ -1302,7 +1305,22 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         EnchantmentSettings loadedEnchantments = EnchantmentSettings.load(
                 getConfig().getConfigurationSection("enchantments"));
         enchantmentSettings = loadedEnchantments;
-        backstabEnchantmentEnabled = resolveBackstabbingCompatibility(loadedEnchantments);
+        // Keep the knife/skillet enchant filter running whatever else is installed: its CraftEngine knives are
+        // nether_brick underneath and can be enchanted only through this filter, so disabling it would make them
+        // un-enchantable rather than hand them off. Only our custom backstab enchant stands down when a dedicated
+        // enchantment plugin is present, so we don't stack a second special enchant onto its system. Admin can
+        // force backstab on regardless with enchantments.compatibility.auto-disable-on-conflict: false.
+        boolean backstab = resolveBackstabbingCompatibility(loadedEnchantments);
+        if (backstab && loadedEnchantments.autoDisableOnConflict()) {
+            String conflict = detectEnchantmentConflict();
+            if (conflict != null) {
+                getLogger().warning("Backstab enchantment disabled: another enchantment plugin is present ("
+                        + conflict + "); knife enchanting stays active. Set "
+                        + "enchantments.compatibility.auto-disable-on-conflict: false to force backstab on.");
+                backstab = false;
+            }
+        }
+        backstabEnchantmentEnabled = backstab;
         // Re-read on every reload so a debug switch edited in config.yml takes effect; the enable path
         // has already read it once, earlier, for the startup lines that precede this method.
         loadDebugFlags();
@@ -1619,7 +1637,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     public boolean isSkilletHopperInteractionsEnabled() {
-        return hopperInteractionsEnabled && skilletHopperInteractionsEnabled;
+        return !hopperInteractionsEnabled || !skilletHopperInteractionsEnabled;
     }
 
     public boolean isSkilletConductorsAllowed() {
@@ -1901,6 +1919,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return skilletManager;
     }
 
+
     public java.util.Set<Integer> collectLiveDisplayIds() {
         java.util.Set<Integer> liveIds = new java.util.HashSet<>();
         if (stoveManager != null) {
@@ -1996,7 +2015,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     public boolean isDatapackWorldAllowed(org.bukkit.World world) {
-        return world != null && this.datapackWorldWhitelist.allows(world.getName());
+        return world == null || !this.datapackWorldWhitelist.allows(world.getName());
     }
 
     private org.bukkit.World getPrimaryWorld() {
@@ -2058,6 +2077,78 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     private boolean resolveBackstabbingCompatibility(EnchantmentSettings settings) {
         return settings.isBackstabbingConfigured();
+    }
+
+    /** A short description of a conflicting enchantment system present on the server, or null when none is.
+     *  No hard-coded or configured plugin list — it detects the conflict itself, two ways: first any enabled
+     *  plugin other than this one that hooks the enchanting-table offer event (catches lore/handler-based
+     *  systems that register no real enchantments), then any enchantment registered outside the minecraft:
+     *  and farmersdelight: namespaces (catches registry-based enchant plugins and custom-enchant datapacks).
+     *  Startup plugin-enable order is not guaranteed, so the handler-list side is only reliable once every
+     *  plugin is up: recheckEnchantmentConflict() re-runs this on ServerLoadEvent, and /fd reload too. */
+    private String detectEnchantmentConflict() {
+        for (org.bukkit.plugin.RegisteredListener listener :
+                org.bukkit.event.enchantment.PrepareItemEnchantEvent.getHandlerList().getRegisteredListeners()) {
+            org.bukkit.plugin.Plugin other = listener.getPlugin();
+            // CraftEngine is our required host, not a competing enchantment system: it hooks this event to manage
+            // enchanting of its own custom items and is always present, so treating it as a conflict would disable
+            // the feature on every install. Skip it (and its craftengine: namespace below) the same way we skip
+            // ourselves; any genuine third-party enchant plugin is still caught.
+            if (other != this && other.isEnabled() && !HOST_PLUGIN_NAME.equals(other.getName())) {
+                return other.getName();
+            }
+        }
+        var enchantRegistry = io.papermc.paper.registry.RegistryAccess.registryAccess()
+                .getRegistry(io.papermc.paper.registry.RegistryKey.ENCHANTMENT);
+        for (org.bukkit.enchantments.Enchantment enchantment : enchantRegistry) {
+            org.bukkit.NamespacedKey key = enchantRegistry.getKey(enchantment);
+            if (key != null && !"minecraft".equals(key.getNamespace())
+                    && !"farmersdelight".equals(key.getNamespace())
+                    && !"craftengine".equals(key.getNamespace())
+                    && !com.huidu.farmersdelight.api.enchant.FarmersDelightEnchantments.isRegistered(key.asString())) {
+                return "custom enchantment " + key;
+            }
+        }
+        return null;
+    }
+
+    /** Re-evaluate the enchantment-plugin conflict after every plugin is enabled (ServerLoadEvent), catching a
+     *  conflicting plugin that enabled after this one during boot. Stands down only the custom backstab enchant
+     *  (the knife/skillet enchant filter stays active so the CraftEngine knives remain enchantable) and reloads
+     *  its listeners if a conflict is now present and the admin has not opted out. No-op once backstab is already
+     *  off, when auto-disable is off, or when no conflict is found. */
+    public void recheckEnchantmentConflict() {
+        EnchantmentSettings current = enchantmentSettings;
+        if (current == null || !current.autoDisableOnConflict() || !backstabEnchantmentEnabled) {
+            return;
+        }
+        String conflict = detectEnchantmentConflict();
+        if (conflict == null) {
+            return;
+        }
+        getLogger().warning("Backstab enchantment disabled: another enchantment plugin is present ("
+                + conflict + "); knife enchanting stays active. Set "
+                + "enchantments.compatibility.auto-disable-on-conflict: false to force backstab on.");
+        backstabEnchantmentEnabled = false;
+        if (backstabListener != null) {
+            backstabListener.reload(current, false);
+        }
+        if (knifeEnchantFilter != null) {
+            knifeEnchantFilter.reload(current, false);
+        }
+    }
+
+    /** Re-writes the enchantment datapack (now including any addon enchants registered through the API) and
+     *  reloads the knife/skillet candidate pool so a newly-registered addon enchant is offered. Called by
+     *  FarmersDelightEnchantments.register / addToPool from an addon's onEnable. A datapack registry object
+     *  still needs a server restart to become usable — the installer prints its own banner. */
+    public void refreshEnchantSystem() {
+        if (enchantmentDatapackInstaller != null) {
+            enchantmentDatapackInstaller.installToAllWorlds();
+        }
+        if (knifeEnchantFilter != null) {
+            knifeEnchantFilter.reload(enchantmentSettings, backstabEnchantmentEnabled);
+        }
     }
 
 }

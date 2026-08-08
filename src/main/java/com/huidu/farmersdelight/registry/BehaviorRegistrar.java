@@ -61,7 +61,7 @@ public final class BehaviorRegistrar {
     }
 
     public static void registerItemBehaviors() {
-        registerItemBehavior(Constants.ITEM_BEHAVIOR_CONDITIONAL_PLANTING, ConditionalBlockPlantingItemBehavior.FACTORY);
+        registerItemBehavior();
     }
 
     public static void registerFunctions() {
@@ -78,10 +78,10 @@ public final class BehaviorRegistrar {
         }
     }
 
-    private static void registerItemBehavior(String key, ItemBehaviorFactory<?> factory) {
-        Key keyObj = Key.of(key);
+    private static void registerItemBehavior() {
+        Key keyObj = Key.of(Constants.ITEM_BEHAVIOR_CONDITIONAL_PLANTING);
         if (BuiltInRegistries.ITEM_BEHAVIOR_TYPE.getValue(keyObj) == null) {
-            ItemBehaviors.register(keyObj, factory);
+            ItemBehaviors.register(keyObj, (ItemBehaviorFactory<?>) ConditionalBlockPlantingItemBehavior.FACTORY);
         }
     }
 

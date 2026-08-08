@@ -190,7 +190,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
         switch (type) {
             case "input":
                 if (click.isShiftClick()) {
-                    openChoiceBuilder(displayIndex(slot, "input"));
+                    openChoiceBuilder(displayIndex(slot));
                     return;
                 }
                 if (hasCursorItem) {
@@ -204,12 +204,12 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
                     clearCursor();
                 } else if (click.isRightClick()) {
                     if (input instanceof RecipeIngredient.Choice) {
-                        openChoiceBuilder(displayIndex(slot, "input"));
+                        openChoiceBuilder(displayIndex(slot));
                         return;
                     }
                     input = null;
                 } else if (input instanceof RecipeIngredient.Choice) {
-                    openChoiceBuilder(displayIndex(slot, "input"));
+                    openChoiceBuilder(displayIndex(slot));
                     return;
                 } else if (input instanceof RecipeIngredient.Item item) {
                     ItemStack pickedUp = ItemUtils.createItem(item.key().toString());
@@ -433,8 +433,8 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
                 this::reopen).open();
     }
 
-    private int displayIndex(int slot, String type) {
-        return switch (type) {
+    private int displayIndex(int slot) {
+        return switch ("input") {
             case "input" -> 1;
             case "tool" -> toolSlots.indexOf(slot) + 1;
             default -> 1;
