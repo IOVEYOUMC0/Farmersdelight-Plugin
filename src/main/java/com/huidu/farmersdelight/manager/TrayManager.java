@@ -167,28 +167,35 @@ public class TrayManager {
         NamespacedKey trayMarker = new NamespacedKey(plugin, "auto_tray_marker");
         NamespacedKey handleMarker = new NamespacedKey(plugin, "auto_pot_handle");
 
-        int removed = 0;
+        java.util.concurrent.atomic.AtomicInteger removed = new java.util.concurrent.atomic.AtomicInteger(0);
         for (World world : org.bukkit.Bukkit.getWorlds()) {
             for (Chunk chunk : world.getLoadedChunks()) {
                 for (Entity entity : chunk.getEntities()) {
                     if (!(entity instanceof ItemDisplay)) continue;
-                    boolean isOldTray = isLegacyFurniture(entity, trayKey, trayMarker,
-                            "farmersdelight:auto_tray:", "farmersdelight:manual_tray");
-                    boolean isOldHandle = isLegacyFurniture(entity, handleKey, handleMarker, null, null);
-                    if (isOldTray || isOldHandle) {
-                        try {
-                            CraftEngineFurniture.remove(entity, false, false);
-                        } catch (Exception ignored) {
-                            entity.remove();
+                    // Schedule on the entity's own region thread for Folia compatibility.
+                    plugin.scheduler().runForEntity(entity, () -> {
+                        boolean isOldTray = isLegacyFurniture(entity, trayKey, trayMarker,
+                                "farmersdelight:auto_tray:", "farmersdelight:manual_tray");
+                        boolean isOldHandle = isLegacyFurniture(entity, handleKey, handleMarker, null, null);
+                        if (isOldTray || isOldHandle) {
+                            try {
+                                CraftEngineFurniture.remove(entity, false, false);
+                            } catch (Exception ignored) {
+                                entity.remove();
+                            }
+                            removed.incrementAndGet();
                         }
-                        removed++;
-                    }
+                    });
                 }
             }
         }
-        if (removed > 0) {
-            plugin.getLogger().info("Cleaned up " + removed + " legacy tray/handle furniture entities.");
-        }
+        // Defer the log so Folia async tasks have time to complete.
+        plugin.scheduler().runLater(() -> {
+            int count = removed.get();
+            if (count > 0) {
+                plugin.getLogger().info("Cleaned up " + count + " legacy tray/handle furniture entities.");
+            }
+        }, 20L);
     }
 
     private boolean isLegacyFurniture(Entity entity, Key furnitureKey, NamespacedKey markerKey,
