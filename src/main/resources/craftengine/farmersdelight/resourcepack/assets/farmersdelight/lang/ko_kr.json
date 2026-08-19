@@ -98,6 +98,7 @@
   "gui.recipe.cook_time": "조리 시간",
   "gui.recipe.experience": "경험치",
   "gui.recipe.input": "입력",
+  "gui.recipe.condition": "조건",
   "gui.recipe.tool": "도구",
   "gui.recipe.tool_line": "도구: %s",
   "gui.recipe.auto_cycle": "%s/%s 표시 중, 자동 순환",

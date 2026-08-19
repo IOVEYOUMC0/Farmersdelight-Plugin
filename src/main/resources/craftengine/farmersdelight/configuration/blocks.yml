@@ -208,6 +208,8 @@ items:
     behavior:
       type: ground_block_item
       block: farmersdelight:cutting_board
+    settings:
+      fuel_time: 200
   farmersdelight:basket:
     template: farmersdelight:block_item_template
     data:
@@ -255,6 +257,13 @@ items:
     template: farmersdelight:block_item_template
     data:
       item-name: <!i><lang:block.farmersdelight.rice_bale>
+    behaviors:
+      - type: compostable_item
+        chance: 0.85
+      - type: block_item
+        block: farmersdelight:rice_bale
+    settings:
+      compost_probability: 0.85
   farmersdelight:rice_bag:
     template: farmersdelight:block_item_template
     data:
@@ -263,6 +272,8 @@ items:
     template: farmersdelight:block_item_template
     data:
       item-name: <!i><lang:block.farmersdelight.straw_bale>
+    settings:
+      fuel_time: 1000
   farmersdelight:tatami:
     data:
       item_name: <!i><lang:block.farmersdelight.tatami>
@@ -270,6 +281,8 @@ items:
     behavior:
       type: block_item
       block: ${__NAMESPACE__}:${__ID__}
+    settings:
+      fuel_time: 400
   farmersdelight:full_tatami_mat:
     data:
       item_name: <!i><lang:block.farmersdelight.full_tatami_mat>
@@ -281,6 +294,8 @@ items:
           rotation: four
           alignment: center
       furniture: ${__NAMESPACE__}:${__ID__}
+    settings:
+      fuel_time: 200
   farmersdelight:full_tatami_mat_elements:
     data:
       item_name: <!i><lang:block.farmersdelight.full_tatami_mat>
@@ -307,6 +322,8 @@ items:
           rotation: four
           alignment: center
       furniture: ${__NAMESPACE__}:${__ID__}
+    settings:
+      fuel_time: 100
   farmersdelight:half_tatami_mat_elements:
     data:
       item_name: <!i><lang:block.farmersdelight.half_tatami_mat>
@@ -333,6 +350,8 @@ items:
           rotation: four
           alignment: center
       furniture: ${__NAMESPACE__}:${__ID__}
+    settings:
+      fuel_time: 200
   farmersdelight:canvas_rug_elements:
     data:
       item_name: <!i><lang:block.farmersdelight.canvas_rug>
@@ -404,42 +423,62 @@ items:
     behavior:
       type: block_item
       block: farmersdelight:safety_net
+    settings:
+      fuel_time: 200
   farmersdelight:oak_cabinet:
     template: farmersdelight:block_item_template
     data:
       item-name: <!i><lang:block.farmersdelight.oak_cabinet>
+    settings:
+      fuel_time: 300
   farmersdelight:spruce_cabinet:
     template: farmersdelight:block_item_template
     data:
       item-name: <!i><lang:block.farmersdelight.spruce_cabinet>
+    settings:
+      fuel_time: 300
   farmersdelight:birch_cabinet:
     template: farmersdelight:block_item_template
     data:
       item-name: <!i><lang:block.farmersdelight.birch_cabinet>
+    settings:
+      fuel_time: 300
   farmersdelight:jungle_cabinet:
     template: farmersdelight:block_item_template
     data:
       item-name: <!i><lang:block.farmersdelight.jungle_cabinet>
+    settings:
+      fuel_time: 300
   farmersdelight:acacia_cabinet:
     template: farmersdelight:block_item_template
     data:
       item-name: <!i><lang:block.farmersdelight.acacia_cabinet>
+    settings:
+      fuel_time: 300
   farmersdelight:dark_oak_cabinet:
     template: farmersdelight:block_item_template
     data:
       item-name: <!i><lang:block.farmersdelight.dark_oak_cabinet>
+    settings:
+      fuel_time: 300
   farmersdelight:mangrove_cabinet:
     template: farmersdelight:block_item_template
     data:
       item-name: <!i><lang:block.farmersdelight.mangrove_cabinet>
+    settings:
+      fuel_time: 300
   farmersdelight:cherry_cabinet:
     template: farmersdelight:block_item_template
     data:
       item-name: <!i><lang:block.farmersdelight.cherry_cabinet>
+    settings:
+      fuel_time: 300
   farmersdelight:bamboo_cabinet:
     template: farmersdelight:block_item_template
     data:
       item-name: <!i><lang:block.farmersdelight.bamboo_cabinet>
+    settings:
+      fuel_time: 300
   farmersdelight:pale_oak_cabinet:
     template: farmersdelight:block_item_template
     data:
@@ -521,6 +560,20 @@ furniture:
     loot:
       template: default:loot_table/self
     variants:
+      ground:
+        elements:
+        - item: farmersdelight:canvas_rug_elements
+          position: 0,0.435,0
+          translation: 0,0.0625,0
+          scale: 1.001
+        hitboxes:
+        - position: 0,0,0
+          type: interaction
+          width: 1
+          height: 0.1
+          blocks-building: true
+          interactive: false
+          invisible: true
       standalone:
         elements:
         - item: farmersdelight:canvas_rug_elements
@@ -1042,9 +1095,6 @@ block:
       - farmersdelight:wild_onions
       - farmersdelight:wild_tomatoes
       - farmersdelight:wild_rice
-      - farmersdelight:wild_carrots
-      - farmersdelight:wild_potatoes
-      - farmersdelight:wild_beetroots
     loot:
       template: default:loot_table/self
     state:
@@ -1300,52 +1350,70 @@ block:
           default: false
       appearances:
         east:
-          state: iron_trapdoor[facing=east,half=bottom,open=false,powered=true,waterlogged=false]
-          model:
-            path: ${__NAMESPACE__}:block/${__ID__}
-            y: 270
-        east_support:
-          state: iron_trapdoor[facing=east,half=bottom,open=false,powered=true,waterlogged=false]
-          entity_renderer:
-            type: item_display
-            item: farmersdelight:tray
-            position: 0.5,-0.5,0.5
-            rotation: -90
-        north:
-          state: iron_trapdoor[facing=north,half=bottom,open=false,powered=true,waterlogged=false]
-          model:
-            path: ${__NAMESPACE__}:block/${__ID__}
-            y: 180
-        north_support:
-          state: iron_trapdoor[facing=north,half=bottom,open=false,powered=true,waterlogged=false]
-          entity_renderer:
-            type: item_display
-            item: farmersdelight:tray
-            position: 0.5,-0.5,0.5
-            rotation: 180
-        south:
-          state: iron_trapdoor[facing=south,half=bottom,open=false,powered=true,waterlogged=false]
-          model:
-            path: ${__NAMESPACE__}:block/${__ID__}
-        south_support:
-          state: iron_trapdoor[facing=south,half=bottom,open=false,powered=true,waterlogged=false]
-          entity_renderer:
-            type: item_display
-            item: farmersdelight:tray
-            position: 0.5,-0.5,0.5
-            rotation: 0
-        west:
-          state: iron_trapdoor[facing=west,half=bottom,open=false,powered=true,waterlogged=false]
-          model:
-            path: ${__NAMESPACE__}:block/${__ID__}
-            y: 90
-        west_support:
-          state: iron_trapdoor[facing=west,half=bottom,open=false,powered=true,waterlogged=false]
-          entity_renderer:
-            type: item_display
-            item: farmersdelight:tray
-            position: 0.5,-0.5,0.5
+          state: iron_trapdoor[open=false, half=bottom, powered=true]
+          transparent: true
+          entity-renderer:        
+            item: ${__NAMESPACE__}:${__ID__}
             rotation: 90
+        east_support:
+          state: iron_trapdoor[open=false, half=bottom, powered=true]
+          transparent: true
+          entity_renderer:
+            - type: item_display
+              item: ${__NAMESPACE__}:${__ID__}
+              rotation: 90
+            - type: item_display
+              item: farmersdelight:tray
+              position: 0.5,-0.5,0.5
+              rotation: 90
+        north:
+          state: iron_trapdoor[open=false, half=bottom, powered=true]       
+          transparent: true
+          entity-renderer:        
+            item: ${__NAMESPACE__}:${__ID__}
+        north_support:
+          state: iron_trapdoor[open=false, half=bottom, powered=true]
+          transparent: true
+          entity_renderer:
+            - type: item_display
+              item: ${__NAMESPACE__}:${__ID__}
+            - type: item_display
+              item: farmersdelight:tray
+              position: 0.5,-0.5,0.5
+        south:
+          state: iron_trapdoor[open=false, half=bottom, powered=true]       
+          transparent: true
+          entity-renderer:        
+            item: ${__NAMESPACE__}:${__ID__}
+            yaw: 180
+        south_support:
+          state: iron_trapdoor[open=false, half=bottom, powered=true]
+          transparent: true
+          entity_renderer:
+            - type: item_display
+              item: ${__NAMESPACE__}:${__ID__}
+              rotation: 180
+            - type: item_display
+              item: farmersdelight:tray
+              position: 0.5,-0.5,0.5
+              rotation: 180
+        west:
+          state: iron_trapdoor[open=false, half=bottom, powered=true]       
+          transparent: true
+          entity-renderer:        
+            item: ${__NAMESPACE__}:${__ID__}
+            yaw: 270
+        west_support:
+          state: iron_trapdoor[open=false, half=bottom, powered=true]
+          transparent: true
+          entity_renderer:
+            - type: item_display
+              item: ${__NAMESPACE__}:${__ID__}
+              rotation: 270
+            - type: item_display
+              item: farmersdelight:tray
+              position: 0.5,-0.5,0.5
+              rotation: 270
       variants:
         facing=north,support=false:
           appearance: north
@@ -1819,11 +1887,11 @@ block:
           default: false
       appearances:
          waterlogged=false:
-          state: soul_campfire[facing=north,lit=false,signal_fire=true,waterlogged=false]
+          state: campfire[facing=north,lit=false,signal_fire=true,waterlogged=false]
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
          waterlogged=true:
-          state: soul_campfire[facing=north,lit=false,signal_fire=true,waterlogged=true]
+          state: campfire[facing=north,lit=false,signal_fire=true,waterlogged=true]
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
       variants:
@@ -1832,8 +1900,22 @@ block:
         waterlogged=true:
           appearance: waterlogged=true
 block-state-mappings:
+  campfire[facing=east,lit=false,signal_fire=true,waterlogged=false]: campfire[facing=east,lit=false,signal_fire=false,waterlogged=false]
+  campfire[facing=east,lit=false,signal_fire=true,waterlogged=true]:  campfire[facing=east,lit=false,signal_fire=false,waterlogged=true]
+  campfire[facing=north,lit=false,signal_fire=true,waterlogged=false]: campfire[facing=north,lit=false,signal_fire=false,waterlogged=false]
+  campfire[facing=north,lit=false,signal_fire=true,waterlogged=true]:  campfire[facing=north,lit=false,signal_fire=false,waterlogged=true]
+  campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]: campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
+  campfire[facing=south,lit=false,signal_fire=true,waterlogged=true]:  campfire[facing=south,lit=false,signal_fire=false,waterlogged=true]
+  campfire[facing=west,lit=false,signal_fire=true,waterlogged=false]: campfire[facing=west,lit=false,signal_fire=false,waterlogged=false]
+  campfire[facing=west,lit=false,signal_fire=true,waterlogged=true]:  campfire[facing=west,lit=false,signal_fire=false,waterlogged=true]
+  soul_campfire[facing=east,lit=false,signal_fire=true,waterlogged=false]: soul_campfire[facing=east,lit=false,signal_fire=false,waterlogged=false]
+  soul_campfire[facing=east,lit=false,signal_fire=true,waterlogged=true]:  soul_campfire[facing=east,lit=false,signal_fire=false,waterlogged=true]
   soul_campfire[facing=north,lit=false,signal_fire=true,waterlogged=false]: soul_campfire[facing=north,lit=false,signal_fire=false,waterlogged=false]
   soul_campfire[facing=north,lit=false,signal_fire=true,waterlogged=true]:  soul_campfire[facing=north,lit=false,signal_fire=false,waterlogged=true]
+  soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
+  soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=true]:  soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=true]
+  soul_campfire[facing=west,lit=false,signal_fire=true,waterlogged=false]: soul_campfire[facing=west,lit=false,signal_fire=false,waterlogged=false]
+  soul_campfire[facing=west,lit=false,signal_fire=true,waterlogged=true]:  soul_campfire[facing=west,lit=false,signal_fire=false,waterlogged=true]
   iron_trapdoor[facing=west,half=bottom,open=false,powered=true,waterlogged=false]: iron_trapdoor[facing=west,half=bottom,open=false,powered=false,waterlogged=false]
   iron_trapdoor[facing=east,half=bottom,open=false,powered=true,waterlogged=false]: iron_trapdoor[facing=east,half=bottom,open=false,powered=false,waterlogged=false]
   iron_trapdoor[facing=north,half=bottom,open=false,powered=true,waterlogged=false]: iron_trapdoor[facing=north,half=bottom,open=false,powered=false,waterlogged=false]
@@ -1852,6 +1934,9 @@ block-state-mappings:
   heavy_weighted_pressure_plate[power=13]: heavy_weighted_pressure_plate[power=1]
   heavy_weighted_pressure_plate[power=14]: heavy_weighted_pressure_plate[power=1]
   heavy_weighted_pressure_plate[power=15]: heavy_weighted_pressure_plate[power=1]
+  petrified_oak_slab[type=bottom]: oak_slab[type=bottom]
+  petrified_oak_slab[type=double]: oak_slab[type=double]
+  petrified_oak_slab[type=top]: oak_slab[type=top]
   farmland[moisture=1]: farmland[moisture=0]
   farmland[moisture=2]: farmland[moisture=0]
   farmland[moisture=3]: farmland[moisture=0]

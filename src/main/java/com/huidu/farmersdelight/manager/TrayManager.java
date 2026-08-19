@@ -141,23 +141,6 @@ public class TrayManager {
         loadConfig();
     }
 
-    public void stop() {}
-
-    public void cleanupAll() {
-        // Trays are block states now, so there are no entities to clean up.
-    }
-
-    public void cleanupWorld(java.util.UUID worldId) {
-        // Trays are block states now, so there are no entities to clean up.
-    }
-
-    // Compatibility no-ops for the legacy furniture-based implementation
-    @SuppressWarnings("unused")
-    public boolean isAutoPlacedTray(Object furniture) { return false; }
-
-    @SuppressWarnings("unused")
-    public void markManualTrayFurniture(Object furniture) {}
-
     public void cleanupLegacyFurnitureEntities() {
         if (!enabled) return;
         // Known legacy furniture IDs.

@@ -47,9 +47,11 @@ public final class EnchantmentDatapackInstaller implements Listener {
     );
 
     private final FarmersDelightPlugin plugin;
+    private final boolean installEnabled;
 
     public EnchantmentDatapackInstaller(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
+        this.installEnabled = plugin.getConfig().getBoolean("enchantments.install-datapack", true);
     }
 
     public void installToAllWorlds() {
@@ -96,7 +98,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
     }
 
     private boolean shouldInstall(EnchantmentSettings settings) {
-        if (!settings.enabled()) {
+        if (!installEnabled || !settings.enabled()) {
             return false;
         }
         return isBackstabEnabled(settings) || !FarmersDelightEnchantments.managedDefinitions().isEmpty();

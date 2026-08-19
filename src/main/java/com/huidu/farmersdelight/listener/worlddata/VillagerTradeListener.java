@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.listener.worlddata;
 import com.huidu.farmersdelight.listener.worlddata.WorldDataConfig.TradeOffer;
 import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.Keyed;
+import org.bukkit.Material;
 import org.bukkit.entity.AbstractVillager;
 import org.bukkit.entity.Villager;
 import org.bukkit.entity.WanderingTrader;
@@ -37,8 +38,12 @@ public final class VillagerTradeListener implements Listener {
             }
             candidates.addAll(ExternalVillagerTrades.villagerTradesFor(profession, level));
         } else if (merchant instanceof WanderingTrader) {
-            // A wandering trader draws its generic offers first and its last offer from a separate rare pool
-            // the mod does not touch, so only the draws before that count are eligible for substitution.
+            // Buying slots (item -> emerald) are left untouched so their direction is not flipped. The draw
+            // count guard is version-dependent: older versions draw a separate rare listing after the count,
+            // newer versions fill buying/uncommon/common pools from datapack trade sets.
+            if (isBuyingOffer(event.getRecipe())) {
+                return;
+            }
             if (merchant.getRecipeCount() >= config.wanderingGenericTradeCount()) {
                 return;
             }
@@ -93,6 +98,13 @@ public final class VillagerTradeListener implements Listener {
         // Villager.Profession moved from an enum to a registry-backed type; going through Keyed keeps the id
         // lookup working on both shapes.
         return ((Keyed) profession).getKey().getKey().toLowerCase(Locale.ROOT);
+    }
+
+    private static boolean isBuyingOffer(MerchantRecipe recipe) {
+        // Vanilla buying listings always pay out emeralds, so a result of emerald marks an item -> emerald
+        // slot. Substituting it with a selling listing would flip the direction of that slot.
+        ItemStack result = recipe.getResult();
+        return result != null && result.getType() == Material.EMERALD;
     }
 
     private static boolean alreadyOffered(AbstractVillager merchant, TradeOffer offer) {

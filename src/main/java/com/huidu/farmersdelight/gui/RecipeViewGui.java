@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.recipe.SpecialRecipeInfo;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
 import com.huidu.farmersdelight.i18n.I18n;
@@ -75,23 +76,32 @@ public class RecipeViewGui extends AbstractInventoryGui {
         MAIN_MENU,
         COOKING_POT_LIST,
         CUTTING_BOARD_LIST,
-        RECIPE_DETAIL
+        RECIPE_DETAIL,
+        SPECIAL_RECIPE_LIST,
+        SPECIAL_RECIPE_DETAIL
     }
 
     final RecipeViewGuiConfig config;
     private GuiState state = GuiState.MAIN_MENU;
     private int currentPage = 0;
     private volatile String selectedRecipeId = null;
+    private volatile String selectedSpecialRecipeId = null;
     private boolean cookingPotMode = true;
     private boolean craftableOnly = false;
     private GuiState recipeBackState = GuiState.COOKING_POT_LIST;
     volatile int currentToolIndex = 0;
     private volatile int currentToolPreviewIndex = 0;
-    private int toolSwitchTicks = 0;
+    // Auto-cycle drivers for the detail slots that rotate through candidates (cutting-board tool preview,
+    // special-recipe catalyst items). The shared CyclicSlot keeps the per-tick advancing in one place,
+    // mirroring how the cooking-pot progress bar owns its frame progression.
+    private final CyclicSlot toolCycle = new CyclicSlot(INGREDIENT_SWITCH_INTERVAL);
+    private final CyclicSlot catalystCycle = new CyclicSlot(INGREDIENT_SWITCH_INTERVAL);
+    // Expanded catalyst options for the currently shown special recipe (tag references expand into
+    // their member items); rebuilt each time the detail page is drawn.
+    private volatile List<ItemStack> specialCatalystOptions = List.of();
     private final Map<Integer, List<ItemStack>> animatedIngredientSlots = new HashMap<>();
-    private final Map<Integer, Integer> animatedIngredientIndices = new HashMap<>();
     private final Map<Integer, RecipeIngredient> animatedIngredientDefinitions = new HashMap<>();
-    private int ingredientSwitchTicks = 0;
+    private final Map<Integer, CyclicSlot> ingredientCycles = new HashMap<>();
     int cookingProcessBarTicks = 0;
     final RecipeDetailRenderer detailRenderer = new RecipeDetailRenderer(this);
     private static final int INGREDIENT_SWITCH_INTERVAL = 20;
@@ -149,13 +159,18 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     @Override
     protected void onTick() {
-        if (!closed && state == GuiState.RECIPE_DETAIL) {
+        if (closed) {
+            return;
+        }
+        if (state == GuiState.RECIPE_DETAIL) {
             if (cookingPotMode) {
                 tickCookingPotProcessBar();
             } else {
                 tickToolSwitch();
             }
             tickIngredientSwitch();
+        } else if (state == GuiState.SPECIAL_RECIPE_DETAIL) {
+            tickCatalystSwitch();
         }
     }
 
@@ -195,7 +210,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
         RecipeViewGuiConfig.RecipeListConfig recipeList = RecipeViewGuiConfig.RecipeListConfig.fromConfig(null);
         RecipeViewGuiConfig.RecipeDetailConfig cookingPotDetail = RecipeViewGuiConfig.RecipeDetailConfig.createCookingPotDefault();
         RecipeViewGuiConfig.RecipeDetailConfig cuttingBoardDetail = RecipeViewGuiConfig.RecipeDetailConfig.createCuttingBoardDefault();
-        return new RecipeViewGuiConfig(mainMenu, recipeList, cookingPotDetail, Map.of(), cuttingBoardDetail, true, false, 4);
+        return new RecipeViewGuiConfig(mainMenu, recipeList, cookingPotDetail,
+                Map.<String, RecipeViewGuiConfig.RecipeDetailConfig>of(), cuttingBoardDetail,
+                null, null, null, true, false, 4);
     }
 
     public void open(Player player) {
@@ -231,33 +248,65 @@ public class RecipeViewGui extends AbstractInventoryGui {
     }
 
     private void tickToolSwitch() {
-        toolSwitchTicks++;
-        if (toolSwitchTicks >= INGREDIENT_SWITCH_INTERVAL) {
-            toolSwitchTicks = 0;
-            
-            CuttingBoardRecipe recipe = plugin.getCuttingBoardRecipes().getRecipe(selectedRecipeId);
-            if (recipe == null || recipe.getTools() == null || recipe.getTools().isEmpty()) {
-                return;
-            }
+        if (player == null || !player.isOnline()) {
+            return;
+        }
+        CuttingBoardRecipe recipe = plugin.getCuttingBoardRecipes().getRecipe(selectedRecipeId);
+        if (recipe == null || recipe.getTools() == null || recipe.getTools().isEmpty()) {
+            return;
+        }
 
-            List<CuttingBoardRecipe.ToolRequirement> tools = recipe.getTools();
-            int safeToolIndex = currentToolIndex % tools.size();
-            List<ItemStack> previewOptions = resolveToolPreviewOptions(tools.get(safeToolIndex));
+        List<CuttingBoardRecipe.ToolRequirement> tools = recipe.getTools();
+        int safeToolIndex = currentToolIndex % tools.size();
+        List<ItemStack> previewOptions = resolveToolPreviewOptions(tools.get(safeToolIndex));
+        if (previewOptions.size() <= 1 && tools.size() <= 1) {
+            return;
+        }
+        // The generic cycle timer decides when to advance, keeping the tick cadence in one place.
+        if (!toolCycle.tick()) {
+            return;
+        }
 
-            if (previewOptions.size() > 1) {
-                currentToolPreviewIndex++;
-                if (currentToolPreviewIndex >= previewOptions.size()) {
-                    currentToolPreviewIndex = 0;
-                    if (tools.size() > 1) {
-                        currentToolIndex = (currentToolIndex + 1) % tools.size();
-                    }
-                }
-            } else if (tools.size() > 1) {
-                currentToolIndex = (currentToolIndex + 1) % tools.size();
+        if (previewOptions.size() > 1) {
+            currentToolPreviewIndex++;
+            if (currentToolPreviewIndex >= previewOptions.size()) {
                 currentToolPreviewIndex = 0;
+                if (tools.size() > 1) {
+                    currentToolIndex = (currentToolIndex + 1) % tools.size();
+                }
             }
+        } else if (tools.size() > 1) {
+            currentToolIndex = (currentToolIndex + 1) % tools.size();
+            currentToolPreviewIndex = 0;
+        }
 
-            updateToolDisplay();
+        updateToolDisplay();
+    }
+
+    /** Cycles the special-recipe catalyst items on the detail page's catalyst_item slot(s). */
+    private void tickCatalystSwitch() {
+        if (player == null || !player.isOnline() || selectedSpecialRecipeId == null) {
+            return;
+        }
+        SpecialRecipeInfo info = plugin.getSpecialRecipeRegistry() != null
+                ? plugin.getSpecialRecipeRegistry().get(selectedSpecialRecipeId) : null;
+        if (info == null) {
+            return;
+        }
+        RecipeViewGuiConfig.SpecialRecipeDetailConfig detailConfig = specialDetailFor(info);
+        List<Integer> slots = detailConfig.getCatalystItemSlots();
+        List<ItemStack> options = specialCatalystOptions;
+        if (slots.isEmpty() || options.size() <= 1) {
+            return;
+        }
+        if (!catalystCycle.tick()) {
+            return;
+        }
+        int displayIndex = catalystCycle.current(options.size());
+        for (int i = 0; i < slots.size(); i++) {
+            int optionIndex = (displayIndex + i) % options.size();
+            inventory.setItem(slots.get(i),
+                    createSpecialCycleDisplay(options.get(optionIndex), optionIndex, options.size()));
         }
     }
 
@@ -283,13 +332,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (animatedIngredientSlots.isEmpty()) {
             return;
         }
-
-        ingredientSwitchTicks++;
-        if (ingredientSwitchTicks < INGREDIENT_SWITCH_INTERVAL) {
-            return;
-        }
-
-        ingredientSwitchTicks = 0;
         if (player == null || !player.isOnline()) {
             return;
         }
@@ -301,8 +343,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
             }
 
             int slot = entry.getKey();
-            int nextIndex = (animatedIngredientIndices.getOrDefault(slot, 0) + 1) % options.size();
-            animatedIngredientIndices.put(slot, nextIndex);
+            CyclicSlot cycle = ingredientCycles.computeIfAbsent(slot, s -> new CyclicSlot(INGREDIENT_SWITCH_INTERVAL));
+            cycle.tick();
+            int nextIndex = cycle.current(options.size());
             RecipeIngredient ingredient = animatedIngredientDefinitions.get(slot);
             if (ingredient == null) {
                 continue;
@@ -338,9 +381,8 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     private void resetDetailAnimations() {
         animatedIngredientSlots.clear();
-        animatedIngredientIndices.clear();
         animatedIngredientDefinitions.clear();
-        ingredientSwitchTicks = 0;
+        ingredientCycles.clear();
         cookingProcessBarTicks = 0;
     }
 
@@ -354,6 +396,8 @@ public class RecipeViewGui extends AbstractInventoryGui {
             case COOKING_POT_LIST -> drawCookingPotList(player);
             case CUTTING_BOARD_LIST -> drawCuttingBoardList(player);
             case RECIPE_DETAIL -> drawRecipeDetail(player, resetDetailAnimations);
+            case SPECIAL_RECIPE_LIST -> drawSpecialRecipeList(player);
+            case SPECIAL_RECIPE_DETAIL -> drawSpecialRecipeDetail(player);
         }
     }
 
@@ -370,6 +414,12 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (menuConfig.getRecipeBookSlot() >= 0
                 && !com.huidu.farmersdelight.api.FarmersDelightApi.get().recipeTypes().isEmpty()) {
             setGuiItem(menuConfig, "recipe_book", menuConfig.getRecipeBookSlot());
+        }
+        // Special recipe button: only shown when special recipes are registered.
+        if (menuConfig.getSpecialRecipesSlot() >= 0
+                && plugin.getSpecialRecipeRegistry() != null
+                && !plugin.getSpecialRecipeRegistry().isEmpty()) {
+            setGuiItem(menuConfig, "special_recipes", menuConfig.getSpecialRecipesSlot());
         }
         setGuiItem(menuConfig, "back", menuConfig.getBackSlot());
     }
@@ -541,7 +591,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             resetDetailAnimations();
             currentToolPreviewIndex = 0;
             currentToolIndex = 0;
-            toolSwitchTicks = 0;
+            toolCycle.reset();
         }
 
         fillBackground(detailConfig);
@@ -617,6 +667,334 @@ public class RecipeViewGui extends AbstractInventoryGui {
         inventory.setItem(slot, createBackgroundItem(detailConfig));
     }
 
+    // ---- Special recipe rendering ----
+
+    private void drawSpecialRecipeList(Player player) {
+        RecipeViewGuiConfig.SpecialRecipeListConfig listConfig = config.getSpecialRecipeList();
+        List<SpecialRecipeInfo> recipes = plugin.getSpecialRecipeRegistry() != null
+                ? plugin.getSpecialRecipeRegistry().getAll() : List.of();
+        int itemsPerPage = listConfig.getRecipeSlots().size();
+        int totalPages = Math.max(1, (int) Math.ceil(recipes.size() / (double) itemsPerPage));
+        if (currentPage < 0) {
+            currentPage = 0;
+        } else if (currentPage >= totalPages) {
+            currentPage = totalPages - 1;
+        }
+
+        Map<String, String> titlePlaceholders = new HashMap<>();
+        titlePlaceholders.put("page", String.valueOf(currentPage + 1));
+        titlePlaceholders.put("total", String.valueOf(totalPages));
+        String title = resolveMenuTitle("special-recipe-list", null, listConfig.getTitle(), titlePlaceholders);
+        inventory = Bukkit.createInventory(this, listConfig.getSize(), coloredComponent(title));
+
+        fillBackground(listConfig);
+
+        List<Integer> recipeSlots = listConfig.getRecipeSlots();
+        int startIndex = currentPage * itemsPerPage;
+        for (int i = 0; i < recipeSlots.size(); i++) {
+            int recipeIndex = startIndex + i;
+            if (recipeIndex < recipes.size()) {
+                SpecialRecipeInfo info = recipes.get(recipeIndex);
+                ItemStack display = createSpecialRecipeListDisplayItem(info, player);
+                inventory.setItem(recipeSlots.get(i), display);
+            }
+        }
+
+        if (currentPage > 0) {
+            setGuiItem(listConfig, "prev_page", listConfig.getPrevPageSlot());
+        }
+        if (currentPage < totalPages - 1) {
+            setGuiItem(listConfig, "next_page", listConfig.getNextPageSlot());
+        }
+        setGuiItem(listConfig, "back", listConfig.getBackSlot());
+    }
+
+    private ItemStack createSpecialRecipeListDisplayItem(SpecialRecipeInfo info, Player player) {
+        ItemStack icon = ItemUtils.createItem(info.iconItemId());
+        if (icon == null || icon.getType().isAir()) {
+            icon = new ItemStack(Material.KNOWLEDGE_BOOK);
+        }
+        ItemMeta meta = icon.getItemMeta();
+        meta.displayName(Component.translatable(info.titleKey())
+                .color(NamedTextColor.GOLD)
+                .decoration(TextDecoration.ITALIC, false));
+        List<Component> lore = new ArrayList<>();
+        for (String descKey : info.descriptionKeys()) {
+            lore.add(Component.translatable(descKey)
+                    .color(NamedTextColor.GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
+        }
+        if (!isListOnlySpecial(info)) {
+            lore.add(Component.text(""));
+            lore.add(tr("gui.recipe.click_to_view", NamedTextColor.YELLOW));
+        }
+        meta.lore(lore);
+        icon.setItemMeta(meta);
+        return icon;
+    }
+
+    // Item-description and text entries are pure information: their whole description is shown as list
+    // lore, so they stay in the list with no click-through to a separate detail page.
+    private boolean isListOnlySpecial(SpecialRecipeInfo info) {
+        return info != null && SpecialRecipeInfo.DISPLAY_ITEM_DESCRIPTION.equals(info.displayType());
+    }
+
+    private void drawSpecialRecipeDetail(Player player) {
+        if (selectedSpecialRecipeId == null) return;
+        SpecialRecipeInfo info = plugin.getSpecialRecipeRegistry() != null
+                ? plugin.getSpecialRecipeRegistry().get(selectedSpecialRecipeId) : null;
+        if (info == null) return;
+
+        // Start the catalyst auto-cycle from its first item each time this detail page is (re)drawn.
+        catalystCycle.reset();
+
+        RecipeViewGuiConfig.SpecialRecipeDetailConfig detailConfig = specialDetailFor(info);
+        String title = resolveSpecialDetailTitle(detailConfig.guiKey(), detailConfig.getTitle(),
+                Map.of("recipe_id", info.id()), info);
+        inventory = Bukkit.createInventory(this, detailConfig.getSize(), coloredComponent(title));
+
+        fillBackground(detailConfig);
+
+        // Description — combined into single slot with all lines as lore
+        List<Integer> descSlots = detailConfig.getDescriptionSlots();
+        if (!descSlots.isEmpty() && !info.descriptionKeys().isEmpty()) {
+            inventory.setItem(descSlots.get(0), createCombinedDescriptionItem(info.descriptionKeys(), player));
+        }
+
+        // Input slots
+        List<Integer> inputSlots = detailConfig.getInputSlots();
+        List<SpecialRecipeInfo.SlotEntry> inputs = info.inputSlots();
+        for (int i = 0; i < inputSlots.size(); i++) {
+            if (i < inputs.size()) {
+                inventory.setItem(inputSlots.get(i), createSlotEntryItem(inputs.get(i), player, NamedTextColor.AQUA));
+            } else {
+                inventory.setItem(inputSlots.get(i), createBackgroundItem(detailConfig));
+            }
+        }
+
+        // Output slots
+        List<Integer> outputSlots = detailConfig.getOutputSlots();
+        List<SpecialRecipeInfo.SlotEntry> outputs = info.outputSlots();
+        for (int i = 0; i < outputSlots.size(); i++) {
+            if (i < outputs.size()) {
+                inventory.setItem(outputSlots.get(i), createSlotEntryItem(outputs.get(i), player, NamedTextColor.GREEN));
+            } else {
+                inventory.setItem(outputSlots.get(i), createBackgroundItem(detailConfig));
+            }
+        }
+
+        // Condition slots (D sunlight / E water / F catalyst_info). When the recipe has the condition,
+        // render the item defined under items.sunlight / items.water / items.catalyst_info in gui.yml
+        // (falling back to the built-in torch / water bucket / paper). When it does not, clear the slot
+        // to plain background so the fillBackground copy of that item, and its tooltip, do not linger.
+        setConditionSlot(detailConfig, "sunlight", detailConfig.getSunlightSlot(), info.hasSunlight(),
+                "minecraft:torch", "gui.condition.sunlight", "gui.condition.sunlight_lore", NamedTextColor.YELLOW);
+        setConditionSlot(detailConfig, "water", detailConfig.getWaterSlot(), info.hasWater(),
+                "minecraft:water_bucket", "gui.condition.water", "gui.condition.water_lore", NamedTextColor.BLUE);
+        // Resolve the catalyst blocks once: the catalyst_info icon lists their names in its lore, and
+        // the catalyst item slots (G) cycle through the same items.
+        List<ItemStack> catalystOptions = expandSpecialEntries(info.catalystSlots());
+
+        setConditionSlot(detailConfig, "catalyst_info", detailConfig.getCatalystInfoSlot(), info.hasCatalystInfo(),
+                "minecraft:paper", "gui.condition.catalyst_info", "gui.condition.catalyst_info_lore", NamedTextColor.GOLD);
+        if (info.hasCatalystInfo()) {
+            appendCatalystListLore(detailConfig.getCatalystInfoSlot(), catalystOptions, player);
+        }
+
+        // Catalyst item slots (G) — the auto-cycle timer rotates through the resolved items.
+        List<Integer> catalystItemSlots = detailConfig.getCatalystItemSlots();
+        this.specialCatalystOptions = catalystOptions;
+        for (int i = 0; i < catalystItemSlots.size(); i++) {
+            if (!catalystOptions.isEmpty()) {
+                int optionIndex = (catalystCycle.current(catalystOptions.size()) + i) % catalystOptions.size();
+                inventory.setItem(catalystItemSlots.get(i),
+                        createSpecialCycleDisplay(catalystOptions.get(optionIndex), optionIndex, catalystOptions.size()));
+            } else {
+                inventory.setItem(catalystItemSlots.get(i), createBackgroundItem(detailConfig));
+            }
+        }
+
+        setGuiItem(detailConfig, "back", detailConfig.getBackSlot());
+    }
+
+    /** Expands special-recipe slot entries into concrete display items ("#tag" / behavior-list refs). */
+    private List<ItemStack> expandSpecialEntries(List<SpecialRecipeInfo.SlotEntry> entries) {
+        if (entries.isEmpty()) {
+            return List.of();
+        }
+        List<ItemStack> options = new ArrayList<>();
+        for (SpecialRecipeInfo.SlotEntry entry : entries) {
+            options.addAll(ItemUtils.createSlotItems(entry.itemId(), entry.behaviorBlockId(), entry.behaviorListKey()));
+        }
+        return options;
+    }
+
+    /** A catalyst item with an auto-cycle position line appended to its lore. */
+    private ItemStack createSpecialCycleDisplay(ItemStack item, int currentIndex, int total) {
+        ItemStack copy = item.clone();
+        ItemMeta meta = copy.getItemMeta();
+        List<Component> lore = meta.lore() == null ? new ArrayList<>() : new ArrayList<>(meta.lore());
+        lore.add(Component.text(""));
+        lore.add(tr("gui.recipe.auto_cycle", currentIndex + 1, total));
+        meta.lore(lore);
+        copy.setItemMeta(meta);
+        return copy;
+    }
+
+    private ItemStack createCombinedDescriptionItem(List<String> translationKeys, Player player) {
+        ItemStack item = new ItemStack(Material.PAPER);
+        ItemMeta meta = item.getItemMeta();
+        if (translationKeys.isEmpty()) {
+            meta.displayName(Component.text(""));
+            meta.lore(List.of());
+            item.setItemMeta(meta);
+            return item;
+        }
+        meta.displayName(Component.translatable(translationKeys.get(0))
+                .color(NamedTextColor.WHITE)
+                .decoration(TextDecoration.ITALIC, false));
+        List<Component> lore = new ArrayList<>();
+        for (int i = 1; i < translationKeys.size(); i++) {
+            lore.add(Component.translatable(translationKeys.get(i))
+                    .color(NamedTextColor.GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
+        }
+        meta.lore(lore);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    private ItemStack createSlotEntryItem(SpecialRecipeInfo.SlotEntry entry, Player player, NamedTextColor nameColor) {
+        List<ItemStack> options = ItemUtils.createSlotItems(entry.itemId(), entry.behaviorBlockId(), entry.behaviorListKey());
+        ItemStack item = options.isEmpty() ? new ItemStack(Material.BARRIER) : options.get(0).clone();
+        ItemMeta meta = item.getItemMeta();
+        // A "#tag" / behavior-list reference has no single member name; keep each member's own display name.
+        boolean referenced = entry.itemId() != null && entry.itemId().startsWith("#") || entry.isBehaviorList();
+        // Only override the item's own name/lore when the entry supplies one, so an entry without a name
+        // or lore keeps the item's existing display name and tooltip.
+        if (!referenced && entry.nameKey() != null && !entry.nameKey().isEmpty()) {
+            meta.displayName(Component.translatable(entry.nameKey())
+                    .color(nameColor)
+                    .decoration(TextDecoration.ITALIC, false));
+        }
+        if (!entry.loreKeys().isEmpty()) {
+            List<Component> lore = new ArrayList<>();
+            for (String loreKey : entry.loreKeys()) {
+                lore.add(Component.translatable(loreKey)
+                        .color(NamedTextColor.GRAY)
+                        .decoration(TextDecoration.ITALIC, false));
+            }
+            meta.lore(lore);
+        }
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    private void setConditionSlot(RecipeViewGuiConfig.SpecialRecipeDetailConfig detailConfig, String key, int slot,
+                                  boolean active, String defaultItemId, String nameKey, String loreKey, NamedTextColor color) {
+        if (slot < 0) {
+            return;
+        }
+        if (!active) {
+            inventory.setItem(slot, createBackgroundItem(detailConfig));
+            return;
+        }
+        GuiConfig.GuiItem configured = detailConfig.getItem(key);
+        inventory.setItem(slot, configured != null
+                ? configured.createItem()
+                : createPredefinedConditionItem(defaultItemId, nameKey, loreKey, color));
+    }
+
+    // Appends each catalyst block's name to a slot's lore, so hovering the catalyst icon lists every
+    // block that accelerates the recipe.
+    private void appendCatalystListLore(int slot, List<ItemStack> catalysts, Player player) {
+        if (slot < 0 || catalysts.isEmpty()) {
+            return;
+        }
+        ItemStack item = inventory.getItem(slot);
+        if (item == null || item.getItemMeta() == null) {
+            return;
+        }
+        ItemMeta meta = item.getItemMeta();
+        List<Component> lore = meta.lore() == null ? new ArrayList<>() : new ArrayList<>(meta.lore());
+        for (ItemStack catalyst : catalysts) {
+            lore.add(Component.text("- " + ItemUtils.getDisplayName(catalyst, player))
+                    .color(NamedTextColor.GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
+        }
+        meta.lore(lore);
+        item.setItemMeta(meta);
+        inventory.setItem(slot, item);
+    }
+
+    private ItemStack createPredefinedConditionItem(String itemId, String nameKey, String loreKey, NamedTextColor nameColor) {
+        ItemStack item = ItemUtils.createItem(itemId);
+        if (item == null || item.getType().isAir()) {
+            item = new ItemStack(Material.PAPER);
+        }
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(Component.translatable(nameKey)
+                .color(nameColor)
+                .decoration(TextDecoration.ITALIC, false));
+        meta.lore(List.of(Component.translatable(loreKey)
+                .color(NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, false)));
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    private void handleSpecialRecipeListClick(Player player, int slot) {
+        RecipeViewGuiConfig.SpecialRecipeListConfig listConfig = config.getSpecialRecipeList();
+        List<SpecialRecipeInfo> recipes = plugin.getSpecialRecipeRegistry() != null
+                ? plugin.getSpecialRecipeRegistry().getAll() : List.of();
+        List<Integer> recipeSlots = listConfig.getRecipeSlots();
+        int itemsPerPage = recipeSlots.size();
+        int totalPages = (int) Math.ceil(recipes.size() / (double) itemsPerPage);
+
+        if (slot == listConfig.getPrevPageSlot() && currentPage > 0) {
+            changePage(player, -1);
+        } else if (slot == listConfig.getNextPageSlot() && currentPage < totalPages - 1) {
+            changePage(player, 1);
+        } else if (slot == listConfig.getBackSlot()) {
+            if (runBackButtonCommands(player, listConfig.getItem("back"))) {
+                return;
+            }
+            navigateToState(player, GuiState.MAIN_MENU, false);
+        } else if (recipeSlots.contains(slot)) {
+            int slotIndex = recipeSlots.indexOf(slot);
+            int recipeIndex = currentPage * itemsPerPage + slotIndex;
+            if (recipeIndex < recipes.size()) {
+                SpecialRecipeInfo info = recipes.get(recipeIndex);
+                // Pure-description entries carry their whole description as list lore, so they open no
+                // separate detail page; only slot-based recipes navigate to a detail.
+                if (!isListOnlySpecial(info)) {
+                    selectedSpecialRecipeId = info.id();
+                    navigateToState(player, GuiState.SPECIAL_RECIPE_DETAIL, false);
+                }
+            }
+        }
+    }
+
+    private void handleSpecialRecipeDetailClick(Player player, int slot) {
+        SpecialRecipeInfo info = plugin.getSpecialRecipeRegistry() != null
+                ? plugin.getSpecialRecipeRegistry().get(selectedSpecialRecipeId) : null;
+        RecipeViewGuiConfig.SpecialRecipeDetailConfig detailConfig = specialDetailFor(info);
+        if (slot == detailConfig.getBackSlot()) {
+            if (runBackButtonCommands(player, detailConfig.getItem("back"))) {
+                return;
+            }
+            navigateToState(player, GuiState.SPECIAL_RECIPE_LIST, true);
+        }
+    }
+
+    /** The detail layout for a special recipe: the full 4-row one when it has extra conditions
+     * (sunlight/water/catalyst), otherwise the compact 3-row one. */
+    private RecipeViewGuiConfig.SpecialRecipeDetailConfig specialDetailFor(SpecialRecipeInfo info) {
+        boolean hasConditions = info != null && (info.hasSunlight() || info.hasWater()
+                || info.hasCatalystInfo() || !info.catalystSlots().isEmpty());
+        return hasConditions ? config.getSpecialRecipeDetail() : config.getSpecialRecipeDetailBasic();
+    }
+
     int cookTimeSeconds(CookingPotRecipe recipe) {
         if (recipe == null || recipe.getCookTime() <= 0) {
             return 0;
@@ -639,20 +1017,27 @@ public class RecipeViewGui extends AbstractInventoryGui {
             toolItem = new ItemStack(Material.IRON_AXE);
         }
 
-        Component toolName = itemNameComponent(toolItem, player).colorIfAbsent(NamedTextColor.WHITE);
-
         ItemMeta toolMeta = toolItem.getItemMeta();
-        toolMeta.displayName(tr("gui.recipe.tool", NamedTextColor.YELLOW));
+        toolMeta.displayName(itemNameComponent(toolItem, player).colorIfAbsent(NamedTextColor.WHITE));
 
+        // Same layout as animated ingredients: the requirement label stays fixed while the icon rotates, so
+        // a tag-based tool need (e.g. #minecraft:axes) never reads as a single specific tool.
         List<Component> lore = new ArrayList<>();
-        lore.add(toolName);
-        if (totalTools > 1) {
-            lore.add(tr("gui.recipe.auto_cycle",
-                    currentIndex + 1, totalTools));
-        }
-        if (previewOptions.size() > 1) {
+        lore.add(tr("gui.recipe.tool", NamedTextColor.GRAY));
+        if (!previewOptions.isEmpty()) {
             lore.add(tr("gui.recipe.matches_line",
                     Component.text(previewOptions.size()).color(NamedTextColor.YELLOW)));
+        }
+        if (totalTools > 1 || previewOptions.size() > 1) {
+            lore.add(tr("gui.recipe.auto_cycle",
+                    currentIndex + 1, totalTools > 1 ? totalTools : previewOptions.size()));
+        }
+        if (config.isShowIngredientIds()) {
+            lore.add(tr("gui.recipe.tag_line",
+                    Component.text("#" + tool.key()).color(NamedTextColor.WHITE)));
+        }
+        if (previewOptions.size() > 1) {
+            appendItemPreviewLore(lore, previewOptions, 5, player, toolItem);
         }
         toolMeta.lore(lore);
         toolItem.setItemMeta(toolMeta);
@@ -803,6 +1188,47 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
         String composed = title.replace("<offset>", offset).replace("<icon>", icon);
         return parseShiftTags(composed);
+    }
+
+    // Special-recipe detail title with the per-condition images composed in. The title-layout
+    // craftengine section may define sunlight / water / catalyst_info image strings (each its own
+    // shift + image); the matching placeholder in the title resolves to that string when the recipe
+    // has the condition, or to the "<key>-off" string (e.g. a cover image) when it does not. One
+    // detail layout then shows exactly the conditions each recipe declares.
+    private String resolveSpecialDetailTitle(String guiPath, String fallbackTitle,
+                                             Map<String, String> placeholders, SpecialRecipeInfo info) {
+        String title = applyTitlePlaceholders(fallbackTitle, placeholders);
+        String offset = "";
+        String icon = "";
+        String sunlight = "";
+        String water = "";
+        String catalystInfo = "";
+
+        var guiSection = plugin.getRecipeViewGuiSection();
+        var layout = guiSection != null
+                ? guiSection.getConfigurationSection(guiPath + ".title-layout.craftengine")
+                : null;
+        if (layout != null) {
+            offset = parseOffset(layout.getString("offset", ""));
+            icon = layout.getString("icon", "");
+            sunlight = conditionImage(layout, "sunlight", info != null && info.hasSunlight());
+            water = conditionImage(layout, "water", info != null && info.hasWater());
+            catalystInfo = conditionImage(layout, "catalyst_info", info != null && info.hasCatalystInfo());
+        }
+
+        String composed = title
+                .replace("<offset>", offset)
+                .replace("<icon>", icon)
+                .replace("<sunlight>", sunlight)
+                .replace("<water>", water)
+                .replace("<catalyst_info>", catalystInfo);
+        return parseShiftTags(composed);
+    }
+
+    // The "on" image string for an active condition, or the "<key>-off" cover string for an inactive
+    // one (e.g. catalyst_info-off draws the none image over the mushroom slot); both default to empty.
+    private String conditionImage(org.bukkit.configuration.ConfigurationSection layout, String key, boolean active) {
+        return active ? layout.getString(key, "") : layout.getString(key + "-off", "");
     }
 
     private String parseOffset(String raw) {
@@ -1077,7 +1503,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
     ) {
         if (!options.isEmpty()) {
             animatedIngredientSlots.put(slot, options);
-            animatedIngredientIndices.put(slot, 0);
+            ingredientCycles.put(slot, new CyclicSlot(INGREDIENT_SWITCH_INTERVAL));
             animatedIngredientDefinitions.put(slot, ingredient);
             return createAnimatedIngredientDisplay(ingredient, options.getFirst(), options, player);
         }
@@ -1382,6 +1808,8 @@ public class RecipeViewGui extends AbstractInventoryGui {
             case COOKING_POT_LIST -> handleCookingPotListClick(player, slot);
             case CUTTING_BOARD_LIST -> handleCuttingBoardListClick(player, slot);
             case RECIPE_DETAIL -> handleRecipeDetailClick(player, slot, event.isShiftClick());
+            case SPECIAL_RECIPE_LIST -> handleSpecialRecipeListClick(player, slot);
+            case SPECIAL_RECIPE_DETAIL -> handleSpecialRecipeDetailClick(player, slot);
         }
     }
 
@@ -1390,10 +1818,10 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
         if (slot == menuConfig.getCookingPotSlot()) {
             backButtonCommandsEnabled = false;
-            navigateToState(player, GuiState.COOKING_POT_LIST);
+            navigateToState(player, GuiState.COOKING_POT_LIST, false);
         } else if (slot == menuConfig.getCuttingBoardSlot()) {
             backButtonCommandsEnabled = false;
-            navigateToState(player, GuiState.CUTTING_BOARD_LIST);
+            navigateToState(player, GuiState.CUTTING_BOARD_LIST, false);
         } else if (slot == menuConfig.getRecipeBookSlot()
                 && !com.huidu.farmersdelight.api.FarmersDelightApi.get().recipeTypes().isEmpty()) {
             // Hand off to the generic addon recipe book (deferred a tick, like the editor handoff).
@@ -1405,6 +1833,8 @@ public class RecipeViewGui extends AbstractInventoryGui {
                             () -> new RecipeViewGui(plugin, player).open(player));
                 }
             }, 1L);
+        } else if (slot == menuConfig.getSpecialRecipesSlot()) {
+            navigateToState(player, GuiState.SPECIAL_RECIPE_LIST, false);
         } else if (slot == menuConfig.getBackSlot()) {
             if (runBackButtonCommands(player, menuConfig.getItem("back"))) {
                 return;
@@ -1461,7 +1891,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 // player into a MAIN_MENU they never opened (which would strand them with only a close button).
                 closeGui(player);
             } else {
-                navigateToState(player, GuiState.MAIN_MENU);
+                navigateToState(player, GuiState.MAIN_MENU, false);
             }
         } else if (recipeSlots.contains(slot)) {
             int slotIndex = recipeSlots.indexOf(slot);
@@ -1489,7 +1919,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 recipeBackState = isCookingPot ? GuiState.COOKING_POT_LIST : GuiState.CUTTING_BOARD_LIST;
                 // Fresh detail opened from a list: this is a new navigation root, so drop any prior jump chain.
                 detailHistory.clear();
-                navigateToState(player, GuiState.RECIPE_DETAIL);
+                navigateToState(player, GuiState.RECIPE_DETAIL, false);
             }
         }
     }
@@ -1509,10 +1939,10 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 recipeBackState = previous.recipeBackState();
                 currentToolIndex = 0;
                 fillButtonState = FillButtonState.READY;
-                navigateToState(player, GuiState.RECIPE_DETAIL);
+                navigateToState(player, GuiState.RECIPE_DETAIL, false);
                 return;
             }
-            navigateToState(player, recipeBackState);
+            navigateToState(player, recipeBackState, true);
             return;
         }
 
@@ -1565,7 +1995,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         cookingPotMode = linkedRecipe.cookingPot();
         currentToolIndex = 0;
         fillButtonState = FillButtonState.READY;
-        navigateToState(player, GuiState.RECIPE_DETAIL);
+        navigateToState(player, GuiState.RECIPE_DETAIL, false);
     }
 
     private LinkedRecipe findLinkedRecipe(ItemStack item) {
@@ -2160,14 +2590,16 @@ public class RecipeViewGui extends AbstractInventoryGui {
         return cachedRecipeGroupId;
     }
 
-    private void navigateToState(Player player, GuiState newState) {
-        if (newState == GuiState.MAIN_MENU || newState == GuiState.COOKING_POT_LIST || newState == GuiState.CUTTING_BOARD_LIST) {
+    private void navigateToState(Player player, GuiState newState, boolean preservePage) {
+        // Entering a list from the main menu starts a fresh browse; returning from a detail view keeps the page.
+        if (!preservePage
+                && (newState == GuiState.MAIN_MENU || newState == GuiState.COOKING_POT_LIST || newState == GuiState.CUTTING_BOARD_LIST)) {
             currentPage = 0;
         }
         if (newState == GuiState.RECIPE_DETAIL) {
             currentToolIndex = 0;
             currentToolPreviewIndex = 0;
-            toolSwitchTicks = 0;
+            toolCycle.reset();
         }
         state = newState;
         refresh(player);

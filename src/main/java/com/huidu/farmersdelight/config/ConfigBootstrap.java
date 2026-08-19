@@ -68,9 +68,6 @@ public final class ConfigBootstrap {
                     // override.
                     "cutting-board.display-overrides",
                     "cutting-board.display-tag-overrides",
-                    // Keyed by item id: a deleted entry means that item no longer composts or no longer burns.
-                    "world-data.composting.items",
-                    "world-data.furnace-fuel.items",
                     // The offers are a list under a single trades key rather than a section of their own, and
                     // a list the admin emptied still counts as present. Guarding at the parent is what covers
                     // the admin who deletes the whole trades key instead, at the same cost the buff parents

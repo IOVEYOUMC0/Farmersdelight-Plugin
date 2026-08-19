@@ -5,6 +5,7 @@ import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.api.recipe.IngredientMatching;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.compat.MMOItemsCompat;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
@@ -249,19 +250,21 @@ public class CookingPotRecipeManager {
             ingredients.add(parseIngredient(ingredientStr));
         }
 
-        String containerStr = section.getString("container");
-        ItemStack container = containerStr != null ? createItem(containerStr) : null;
+        Object containerValue = section.get("container");
+        ItemStack container = containerValue == null ? null : parseItemValue(containerValue);
         boolean needsContainer = container != null;
 
-        String resultStr = section.getString("result");
-        if (resultStr == null) {
+        Object resultValue = section.get("result");
+        if (resultValue == null) {
             throw new IllegalArgumentException("Recipe must have a result");
         }
-        ItemStack result = createItem(resultStr);
+        ItemStack result = parseItemValue(resultValue);
         if (result == null) {
-            throw new IllegalArgumentException("Invalid result item: " + resultStr);
+            throw new IllegalArgumentException("Invalid result item: " + resultValue);
         }
-        result.setAmount(Math.max(1, section.getInt("result-count", 1)));
+        if (!(resultValue instanceof Map)) {
+            result.setAmount(Math.max(1, section.getInt("result-count", 1)));
+        }
 
         float experience = Math.max(0, (float) section.getDouble("experience", 0.0));
         int defaultCookTime = Math.max(1, plugin.getConfigInt(Constants.DEFAULT_COOKING_TIME_COOKING_POT,
@@ -316,6 +319,33 @@ public class CookingPotRecipeManager {
         return ItemUtils.createItem(itemId);
     }
 
+    private ItemStack parseItemValue(Object value) {
+        // Bukkit deserializes nested YAML maps into ConfigurationSection, not java.util.Map, so item
+        // objects written in recipes must be converted to a plain map first.
+        if (value instanceof ConfigurationSection section) {
+            return RecipeItemCodec.deserializeItem(sectionToMap(section));
+        }
+        if (value instanceof Map<?, ?> map) {
+            return RecipeItemCodec.deserializeItem(RecipeItemCodec.coerceStringMap(map));
+        }
+        return createItem(value.toString());
+    }
+
+    // Recursively flattens a configuration section into a plain map so nested sections (e.g. the
+    // components map) survive the conversion and reach the item deserializer unchanged.
+    private static Map<String, Object> sectionToMap(ConfigurationSection section) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        for (String key : section.getKeys(false)) {
+            Object value = section.get(key);
+            if (value instanceof ConfigurationSection nested) {
+                map.put(key, sectionToMap(nested));
+            } else {
+                map.put(key, value);
+            }
+        }
+        return map;
+    }
+
     public CookingPotRecipe matchRecipe(List<ItemStack> inputItems, ItemStack container) {
         return matchRecipe(inputItems, container, null);
     }
@@ -350,7 +380,7 @@ public class CookingPotRecipeManager {
         if (cachedMiss) {
             return null;
         }
-        if (cached != null && matchesContainer(cached, container)) {
+        if (cached != null) {
             return cached;
         }
 
@@ -416,15 +446,17 @@ public class CookingPotRecipeManager {
         }
         // Prefer a recipe that consumes exactly the filled slots; only when none does, allow a lenient match
         // (extra slots of an ingredient the recipe already uses), so exact recipes are never shadowed.
-        CookingPotRecipe exact = matchPass(orderedRecipes, candidateRecipeIds, container, nonEmptyInputs, true);
+        // The C slot is a batch-output channel, not a cook gate: the recipe's required container is
+        // checked at extraction time (storeCookedResult / tryMovePendingToOutput), never here.
+        CookingPotRecipe exact = matchPass(orderedRecipes, candidateRecipeIds, nonEmptyInputs, true);
         if (exact != null) {
             return exact;
         }
-        return matchPass(orderedRecipes, candidateRecipeIds, container, nonEmptyInputs, false);
+        return matchPass(orderedRecipes, candidateRecipeIds, nonEmptyInputs, false);
     }
 
     private CookingPotRecipe matchPass(List<CookingPotRecipe> orderedRecipes, Set<String> candidateRecipeIds,
-                                       ItemStack container, List<ItemStack> nonEmptyInputs, boolean exactSlots) {
+                                       List<ItemStack> nonEmptyInputs, boolean exactSlots) {
         for (CookingPotRecipe recipe : orderedRecipes) {
             if (candidateRecipeIds != null && !candidateRecipeIds.contains(recipe.getId())) {
                 continue;
@@ -432,7 +464,7 @@ public class CookingPotRecipeManager {
             // matchRecipePrefiltered skips the per-call ArrayList alloc that matchRecipe's defensive
             // filter does — caller (matchRecipe public) has already stripped nulls/airs into the list,
             // and matchPass runs this in a tight loop over every recipe in orderedRecipes.
-            if (matchesContainer(recipe, container) && matchRecipePrefiltered(recipe, nonEmptyInputs, exactSlots)) {
+            if (matchRecipePrefiltered(recipe, nonEmptyInputs, exactSlots)) {
                 return recipe;
             }
         }
@@ -461,15 +493,6 @@ public class CookingPotRecipeManager {
             sb.append("|group=").append(customRecipeGroupId);
         }
         return sb.toString();
-    }
-
-    private boolean matchesContainer(CookingPotRecipe recipe, ItemStack container) {
-        // The C slot is a batch-output channel, not a cook gate: cooking proceeds regardless of what's in it
-        // (empty, wrong, right). The downstream storeCookedResult / tryMovePendingToOutput only count slots
-        // that hold the recipe's required container before moving pending->output, so a wrong/missing
-        // container just keeps the result in the pending slot until the player swaps in the right one
-        // (no dedicated container slot — it comes from the player's hand at extraction time).
-        return true;
     }
 
     private Set<String> findCandidateRecipes(List<ItemStack> inputs, Map<String, Set<String>> recipeIndex) {
@@ -568,8 +591,8 @@ public class CookingPotRecipeManager {
                 this::matchIngredient, unitBudget);
     }
 
-    public boolean canCraft(CookingPotRecipe recipe, List<ItemStack> inputs, ItemStack container) {
-        return recipe != null && matchesContainer(recipe, container) && matchRecipe(recipe, inputs);
+    public boolean canCraft(CookingPotRecipe recipe, List<ItemStack> inputs) {
+        return recipe != null && matchRecipe(recipe, inputs);
     }
 
     public boolean containsIngredientsFor(CookingPotRecipe recipe, List<ItemStack> available) {
@@ -645,7 +668,16 @@ public class CookingPotRecipeManager {
         }
 
         String customId = ItemUtils.getCustomItemId(item);
-        return customId != null ? customId : ItemUtils.getVanillaMaterialItemId(item);
+        if (customId != null) {
+            return customId;
+        }
+        // Distinct MMOItems items can share a base material; key on their identity so different
+        // mmoitems:<TYPE>:<ID> items never collide in the recipe cache.
+        String mmoId = MMOItemsCompat.getItemId(item);
+        if (mmoId != null) {
+            return mmoId;
+        }
+        return ItemUtils.getVanillaMaterialItemId(item);
     }
 
     public Map<String, CookingPotRecipe> getRecipes() {

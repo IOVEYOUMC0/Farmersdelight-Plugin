@@ -57,7 +57,13 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
-        return false;
+        // Rice is the only block using this behavior and CraftEngine builds it as a single behavior,
+        // so this method is called directly for mob navigation. Returning false marked it BLOCKED, so
+        // mobs (villager farmers included) could not path across a rice paddy the way they swim through
+        // vanilla kelp. Returning true lets the node evaluator derive the passable WATER/OPEN path type
+        // from the block's own water fluid state, matching vanilla kelp; rice has no collision so
+        // nothing else is affected.
+        return true;
     }
 
     private record Config(

@@ -107,6 +107,15 @@ public EditableRecipe load(String id) {
 
 关于你在 `save` 里拿到的物品 stack，有一点必须知道：编辑器是**基于副本**工作的。点击玩家背包里的物品，会把一个伪造 的、数量为 1 的克隆放到光标上；把它放进编辑器槽位，存下的就是那个数量为 1 的模板。全程没有真实物品被搬动，因此既不 会刷物品也不会吞物品 —— 但这也意味着 `draft.item(i).getAmount()` 恒为 1、不携带任何信息。如果你的格式里有原料数量， 必须另想办法表达。结果的数量取自 `resultCount()`，而不是 `result().getAmount()`。
 
+### 物品身份与 NBT 的保留
+
+副本虽小，**身份**是完整保留的，而且三种槽的保存策略不同：
+
+* **输入 / 工具 / 容器槽**保存的是身份字符串而不是物品快照：CraftEngine 自定义物品存它的 CE 物品 id （`farmersdelight:straw`）、MMOItems 物品存 `mmoitems:<类型>:<id>`（如 `mmoitems:AXE:TEST`）、其余存原版 id （`minecraft:stone_axe`），此外还有 `#ns:tag` 标签和 `a|b` 或选。这些字符串写进配方文件后保持可读， 加载回编辑器时按 id 重建展示物品。
+* **结果槽**保存**完整物品**（含全部组件 / NBT），写盘时以 `{item, count, nbt}` 对象形式序列化，普通带自定义 NBT 的物品（附魔、自定义名字等）编辑往返不丢。**MMOItems 物品例外**：它们的身份由 `mmoitems:<类型>:<id>` 唯一确定，写盘时同样存 id 字符串（`result: mmoitems:AXE:TEST` 或 `{item: mmoitems:AXE:TEST}`），加载时调用 MMOItems 插件 API 重建，不落 NBT 快照。
+
+身份解析顺序是：CE 物品 id → `mmoitems:<类型>:<id>` → 原版 id —— 三者互斥，取第一个命中的。
+
 ## NumericField
 
 ```java

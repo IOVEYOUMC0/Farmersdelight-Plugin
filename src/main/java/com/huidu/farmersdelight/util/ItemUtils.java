@@ -1,6 +1,9 @@
 package com.huidu.farmersdelight.util;
 
+import com.huidu.farmersdelight.block.behavior.BlockBehaviorConfigs;
+import com.huidu.farmersdelight.block.behavior.ConfiguredBlockSet;
 import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.util.compat.MMOItemsCompat;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TranslatableComponent;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
@@ -10,6 +13,7 @@ import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
 import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.item.component.DataComponentKeys;
 import net.momirealms.craftengine.core.util.Key;
+import net.momirealms.craftengine.core.util.UniqueKey;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -94,6 +98,12 @@ public final class ItemUtils {
 
     public static ItemStack createItem(String itemId) {
         if (isEmptyItemId(itemId)) return null;
+        // MMOItems items are addressed as mmoitems:<TYPE>:<ID>; build them through MMOItems so the
+        // item carries its full identity (custom_data etc.) instead of a plain vanilla base.
+        ItemStack mmoItem = MMOItemsCompat.tryCreate(itemId);
+        if (mmoItem != null) {
+            return mmoItem;
+        }
 
         try {
             Key key = Key.of(itemId);
@@ -144,6 +154,72 @@ public final class ItemUtils {
     public static ItemStack createItem(Key itemId) {
         if (itemId == null) return null;
         return createItem(itemId.toString());
+    }
+
+    /**
+     * Resolves a slot entry's item id into concrete items for display. Supports "#namespace:tag"
+     * references: the tag expands to its merged CraftEngine members (vanilla + custom items via
+     * itemIdsByTag). Returns an empty list when nothing resolves.
+     */
+    public static List<ItemStack> createSlotItems(String itemId) {
+        if (itemId == null || itemId.isBlank()) {
+            return List.of();
+        }
+        if (!itemId.startsWith("#")) {
+            ItemStack item = createItem(itemId);
+            return item == null || item.getType().isAir() ? List.of() : List.of(item);
+        }
+        List<ItemStack> items = new ArrayList<>();
+        try {
+            Key tag = Key.of(itemId.substring(1));
+            for (UniqueKey member : BukkitItemManager.instance().itemIdsByTag(tag)) {
+                ItemStack item = createItem(member.toString());
+                if (item != null && !item.getType().isAir()) {
+                    items.add(item);
+                }
+            }
+        } catch (Exception ignored) {
+            // Unknown tag or CraftEngine not ready; the slot renders as empty/barrier elsewhere.
+        }
+        return items;
+    }
+
+    /**
+     * Resolves a slot entry that may be a block-behavior config list reference (behaviorBlockId +
+     * behaviorListKey) instead of a plain item id. Behavior-list entries expand to the block set's
+     * member items, so the GUI mirrors exactly what the block behavior reads.
+     */
+    public static List<ItemStack> createSlotItems(String itemId, String behaviorBlockId, String behaviorListKey) {
+        if (behaviorBlockId != null && behaviorListKey != null && !behaviorListKey.isBlank()) {
+            return createBehaviorListItems(behaviorBlockId, behaviorListKey);
+        }
+        return createSlotItems(itemId);
+    }
+
+    /**
+     * Expands a block behavior's configured block list (via BlockBehaviorConfigs) into item stacks.
+     * Concrete members resolve as items; custom tag members (#...) expand through the same path as
+     * slot "#tag" references.
+     */
+    public static List<ItemStack> createBehaviorListItems(String blockId, String listKey) {
+        if (blockId == null || listKey == null || listKey.isBlank()) {
+            return List.of();
+        }
+        ConfiguredBlockSet set = BlockBehaviorConfigs.get(Key.of(blockId), listKey);
+        if (set == null || set.isEmpty()) {
+            return List.of();
+        }
+        List<ItemStack> items = new ArrayList<>();
+        for (String id : set.memberIds()) {
+            ItemStack item = createItem(id);
+            if (item != null && !item.getType().isAir()) {
+                items.add(item);
+            }
+        }
+        for (Key tag : set.tags()) {
+            items.addAll(createSlotItems("#" + tag));
+        }
+        return items;
     }
 
     private static ItemStack createCustomItem(Key key) {
@@ -624,6 +700,12 @@ public final class ItemUtils {
             // base vanilla material, so they cannot match the base material's vanilla id.
             return customId.equalsIgnoreCase(normalized);
         }
+        String mmoId = MMOItemsCompat.getItemId(item);
+        if (mmoId != null) {
+            // MMOItems items carry their identity in custom_data; only their mmoitems id matches,
+            // so a vanilla id cannot be satisfied by an MMOItems item of the same base material.
+            return mmoId.equalsIgnoreCase(normalized);
+        }
         String vanillaId = getVanillaMaterialItemId(item);
         return vanillaId != null && vanillaId.equalsIgnoreCase(normalized);
     }
@@ -637,14 +719,22 @@ public final class ItemUtils {
             return Set.of();
         }
         String customId = getCustomItemId(item);
+        String mmoId = customId == null ? MMOItemsCompat.getItemId(item) : null;
         String vanillaId = getVanillaMaterialItemId(item);
-        if (customId == null) {
+        if (customId == null && mmoId == null) {
             return vanillaId == null ? Set.of() : Set.of(vanillaId);
         }
-        if (vanillaId == null || customId.equals(vanillaId)) {
-            return Set.of(customId);
+        java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>();
+        if (customId != null) {
+            ids.add(customId);
         }
-        return Set.of(customId, vanillaId);
+        if (mmoId != null) {
+            ids.add(mmoId);
+        }
+        if (vanillaId != null) {
+            ids.add(vanillaId);
+        }
+        return Set.copyOf(ids);
     }
 
     public static Set<String> getItemTagIds(ItemStack item) {
@@ -761,6 +851,12 @@ public final class ItemUtils {
         String customId = getCustomItemId(item);
         if (customId != null) {
             return customId;
+        }
+        // MMOItems items have no CraftEngine id; resolve their identity so station matching and
+        // display keys can use the same mmoitems:<TYPE>:<ID> id the recipes are written with.
+        String mmoId = MMOItemsCompat.getItemId(item);
+        if (mmoId != null) {
+            return mmoId;
         }
         return "minecraft:" + item.getType().name().toLowerCase(java.util.Locale.ROOT);
     }

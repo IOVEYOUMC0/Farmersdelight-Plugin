@@ -33,6 +33,7 @@ gui:
     page: "页数：{page}/{total}"
     result: "成品"
     input: "输入"
+    condition: "条件"
     ingredient: "材料"
     ingredients: "配料"
     container: "容器"
@@ -42,6 +43,7 @@ gui:
     cook_time: "烹饪时间"
     seconds_suffix: "秒"
     chance: "&7概率：&e{value}%"
+    special_recipes: "特殊配方"
     click_to_view: "点击查看详情"
     click_to_view_materials: "点击详情页查看可用材料"
     click_to_toggle: "点击切换"
@@ -86,27 +88,59 @@ gui:
       member_excluded: "&c已排除 &7(点击恢复)"
       tag_included: "&7点击: 排除此标签"
       tag_excluded: "&c标签已排除 &7(点击恢复)"
+  condition:
+    sunlight: "日照"
+    sunlight_lore: "需要充足日照条件"
+    water: "水源"
+    water_lore: "需要周围有水源"
+    catalyst_info: "催化物"
+    catalyst_info_lore: "周围有催化物可加快进程"
+  special_recipe:
+    organic_compost:
+      title: "有机堆肥"
+      desc:
+        "1": "有机堆肥会随时间自然分解，最终转化为沃土。"
+        "2": "日照和附近水源可加速分解。"
+        "3": "附近的菌类、菌丝、灰化土和堆肥块等催化物可加速分解。"
+        "4": "使用水桶右击可立即推进一个分解阶段。"
+      input:
+        compost: "有机堆肥"
+      output:
+        rich_soil: "沃土"
+        rich_soil_lore: "堆肥完全分解后形成"
+    wild_cabbages:
+      title: "野生卷心菜"
+      desc:
+        "1": "野生卷心菜常见于海滩沿岸。"
+    wild_onions:
+      title: "野生洋葱"
+      desc:
+        "1": "野生洋葱常见于平原、森林等温带地区。"
+    wild_tomatoes:
+      title: "番茄灌木"
+      desc:
+        "1": "野生西红柿常见于热带草原、沙漠等干旱地区。"
+    wild_rice:
+      title: "野生稻米"
+      desc:
+        "1": "野生稻米常见于沼泽、丛林等湿润地区的池塘中。"
+    wheat_dough:
+      title: "面团"
+      desc:
+        "1": "麦子与水桶合成面团，桶里的水不会消耗。"
+    straw:
+      title: "稻草"
+      desc:
+        "1": "干燥的植物纤维，用于合成。用小刀收割草丛和植物可获得。"
+    ham:
+      title: "火腿"
+      desc:
+        "1": "从猪或猪灵的腿上切下的大块肉。需要用比剑更轻的工具来切割……"
+    knife:
+      title: "小刀"
+      desc:
+        "1": "轻量近战武器，挥砍快、伤害温和。可以用小刀从草丛收割稻草，并保证动物的额外掉落。"
 console:
-  bac:
-    enabled: "Brewin' And Chewin'（CraftEngine 附属）已启用。"
-    reloaded: "Brewin' And Chewin' 已随 FarmersDelight 重载。"
-    config_keys_merged: "已向 config.yml 补充 {count} 项新配置。"
-    config_key_migrated: "配置项 {old} 已重命名为 {new}。"
-    config_keys_retired: "已移除 {count} 项不再被读取的配置：{keys}"
-    config_backup_failed: "重写 {file} 前备份失败：{error}"
-    config_update_failed: "更新 {file} 失败，新配置未合并：{error}"
-    booze_profiles_loaded: "已加载 {count} 个醉酒效果饮品档案"
-    keg_recipes_loaded: "已加载 {count} 个酒桶配方。"
-    keg_pouring_recipes_loaded: "已加载 {count} 个酒桶倾倒配方，覆盖 {fluids} 种流体。"
-    cooking_pot_recipes_registered: "已向 FarmersDelight 注册 {count} 个厨锅配方。"
-    cutting_board_recipes_registered: "已向 FarmersDelight 注册 {count} 个砧板配方。"
-    cutting_board_recipes_unreadable: "无法读取 {file}，已保留当前注册的配方。请查看上方控制台的 YAML 错误。"
-    keg_item_unreadable: "跳过无法读取的酒桶物品，位于 {key} 槽位 {slot}：{error}"
-    keg_recipe_invalid_base: "酒桶配方 '{id}' 的基础流体槽放的物品不是有效的可倾倒基础液体；未保存。"
-    keg_recipes_save_failed: "保存 keg_recipes.yml 失败：{error}"
-    tipsy_effect_unknown: "config.yml tipsy.effects 中的微醺效果 '{effect}' 未知"
-    resources_released: "已释放 {count} 个 CraftEngine 资源文件到 {target}"
-    resources_release_failed: "释放 CraftEngine 资源失败：{error}"
   prefix: "[FarmersDelight]"
   recipe-discovery:
     save_failed: "保存配方解锁数据失败：{error}"
@@ -199,6 +233,12 @@ console:
     loot_datapack_disabled: "配置中已禁用战利品注入数据包安装；跳过。"
     loot_datapack_written: "已写入 {count} 个数据包文件到 {dir}"
     loot_datapack_install_failed: "向世界 {world} 安装战利品数据包失败：{error}"
+    loot_datapack_not_ready: "战利品数据包安装器尚未就绪，无法重载"
+    damage_datapack_disabled: "配置中已禁用伤害类型数据包安装；跳过。"
+    damage_datapack_no_worlds: "没有已加载的世界——伤害类型数据包将在世界加载时安装"
+    damage_datapack_written: "已写入 {count} 个伤害类型数据包文件到 {dir}"
+    damage_datapack_install_failed: "向世界 {world} 安装伤害类型数据包失败：{error}"
+    damage_datapack_legacy_removed: "已从旧的战利品数据包目录移除 {count} 个迁移文件（世界 {world}）"
     enchantment_datapack_disabled: "配置中已禁用附魔数据包安装；背刺附魔不会注入附魔台。"
     enchantment_datapack_written: "已写入 {count} 个附魔数据包文件到 {dir}"
     enchantment_datapack_install_failed: "向世界 {world} 安装附魔数据包失败：{error}"
@@ -278,11 +318,9 @@ console:
     editor_missing_custom_pot_gui: "自定义厨锅 '{id}' 没有对应的 recipe-editor-cooking-pot-guis 配置,改用默认编辑器布局。"
     invalid_count: "配方中的 count 无效：{error}"
     invalid_chance: "配方中的 chance 无效：{error}"
+    special_recipe_loaded: "已加载 {count} 个特殊配方"
+    special_recipe_backfilled: "已补全 {count} 个内置特殊配方（磁盘配置缺失）"
   worlddata:
-    composting_invalid_item: "world-data.composting.items: 不是物品 ID：{id}"
-    composting_invalid_chance: "world-data.composting.items.{id}: 概率必须介于 0.0 和 1.0 之间"
-    fuel_invalid_item: "world-data.furnace-fuel.items: 不是物品 ID：{id}"
-    fuel_invalid_burn_time: "world-data.furnace-fuel.items.{id}: 燃烧时间必须为正整数 tick"
     villager_trades_no_profession: "world-data.trades.villager.trades: 条目缺少 profession"
     trades_invalid_entry: "{path}: 条目需要有效的 ingredient 和 result 物品 ID"
   rope:
@@ -383,6 +421,20 @@ command:
   help_help: "显示帮助信息"
   help_cleanup: "清理插件生成的物品展示实体"
   help_buff: "发放或清除自定义 buff"
+  help_stats: "查看运行时统计（计数、tick 耗时采样、附属统计）"
+  stats_title: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <white>运行时统计</white>"
+  stats_sampling_off: "<gold>⚠ </gold><gray>采样未开启——运行 <yellow>/fd stats profile [ticks]</yellow> 收集 tick 耗时样本。</gray>"
+  stats_profile_started: "<green>采样已开始。</green> <gray>时长={ticks} tick · 当前世界厨锅数={pots}</gray>"
+  stats_overview: "<gray>样本</gray> <white>{samples}</white> <gray>·</gray> <gray>时长</gray> <white>{duration} tick</white> <gray>·</gray> <gray>间隔</gray> <white>{interval} tick</white> <gray>·</gray> <gray>预算</gray> <white>{budget}</white> <gray>·</gray> <gray>状态</gray> <white>{sampling}</white>"
+  stats_active: "<gray>活跃方块</gray> <white>{current}</white> <gray>·</gray> <gray>快照</gray> <white>{snapshot}</white> <gray>·</gray> <gray>上次</gray> <white>{last}</white> <gray>·</gray> <gray>待处理</gray> <white>+{add} / -{rem}</white> <gray>·</gray> <gray>世界厨锅</gray> <white>{pots}</white>"
+  stats_tick: "<gray>tick 耗时</gray> <white>{avg}ms</white> <gray>·</gray> <gray>最大</gray> <white>{max}ms</white> <gray>·</gray> <gray>最近</gray> <white>{last}ms</white> <gray>·</gray> <gray>上次处理</gray> <white>{processed}</white>"
+  stats_addons_title: "<dark_gray>» </dark_gray><gray>附属插件</gray>"
+  stats_addon_line: "<gray>[{name}]</gray> <white>{line}</white>"
+  stats_proxy_line: "<gray>[proxy-display]</gray> <white>{line}</white>"
+  stats_tickmanager_unavailable: "<red>TickManager 当前不可用。"
+  stats_profile_invalid_ticks: "<red>采样时长必须是整数。"
+  stats_usage_status: "<yellow>/fd stats</yellow> <gray>- 查看当前计数</gray>"
+  stats_usage_profile: "<yellow>/fd stats profile [ticks]</yellow> <gray>- 采样 tick 耗时，默认 {ticks} tick</gray>"
   buff_usage: "<yellow>/fd buff give <buff> [等级] [秒数] [玩家]</yellow> <gray>|</gray> <yellow>/fd buff clear [buff|all] [玩家]</yellow>"
   buff_given: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <white>已给 <white>{player}</white> <gray>发放</gray> <yellow>{buff}</yellow> <gray>等级</gray> <white>{level}</white><gray>，持续</gray> <white>{seconds} 秒</white></white>"
   buff_cleared_all: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <white>已清除 <white>{player}</white> <gray>的</gray> <white>{count}</white> <gray>个 buff</gray></white>"
@@ -410,3 +462,4 @@ item:
     pasta_with_mutton_chop: "羊排意面"
     dumplings: "饺子"
     cabbage_rolls: "卷心菜卷"
+

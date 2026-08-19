@@ -24,8 +24,10 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public final class CuttingBoardEditorGui extends AbstractInventoryGui implements EditorGui {
@@ -171,9 +173,16 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
         int raw = event.getRawSlot();
         boolean top = raw >= 0 && raw < config.getSize();
         if (!top) {
-            ItemStack clicked = event.getCurrentItem();
-            if (clicked != null && !clicked.getType().isAir()) {
-                player.setItemOnCursor(cleanCopy(clicked));
+            ItemStack cursor = event.getCursor();
+            if (cursor != null && !cursor.getType().isAir()) {
+                // Picked-up copies never leave the inventory, so dropping the cursor cancels the pickup
+                // and lets the player put the item back without touching the GUI.
+                player.setItemOnCursor(null);
+            } else {
+                ItemStack clicked = event.getCurrentItem();
+                if (clicked != null && !clicked.getType().isAir()) {
+                    player.setItemOnCursor(cleanCopy(clicked));
+                }
             }
             return;
         }
@@ -235,6 +244,11 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
                 } else if (click.isRightClick()) {
                     tools[idx] = null;
                 } else if (tools[idx] != null) {
+                    if (tools[idx].isTag()) {
+                        // Editing a tag tool reopens the picker on its exclusion list instead of deleting it.
+                        openToolTagEditor(idx);
+                        return;
+                    }
                     ItemStack pickedUp = ItemUtils.createItem(tools[idx].getKey().toString());
                     player.setItemOnCursor(pickedUp != null && !pickedUp.getType().isAir() ? cleanCopy(pickedUp) : null);
                     tools[idx] = null;
@@ -270,20 +284,25 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
             }
             case "result-count":
                 if (selectedResult >= 0 && resultItems[selectedResult] != null) {
-                    int amount = clamp(resultItems[selectedResult].getAmount() + (click.isRightClick() ? -1 : 1), 1, 64);
+                    // Shift-click adjusts by tens, plain click by one.
+                    int amount = clamp(resultItems[selectedResult].getAmount() + (click.isRightClick()
+                            ? (click.isShiftClick() ? -10 : -1) : (click.isShiftClick() ? 10 : 1)), 1, 64);
                     resultItems[selectedResult].setAmount(amount);
                     render();
                 }
                 return;
             case "result-chance":
                 if (selectedResult >= 0 && resultItems[selectedResult] != null) {
-                    double chance = resultChances[selectedResult] + (click.isRightClick() ? -0.05 : 0.05);
+                    // Shift-click adjusts by 25%, plain click by 5%.
+                    double step = click.isShiftClick() ? 0.25 : 0.05;
+                    double chance = resultChances[selectedResult] + (click.isRightClick() ? -step : step);
                     resultChances[selectedResult] = roundChance(Math.max(0.05, Math.min(1.0, chance)));
                     render();
                 }
                 return;
             case "priority":
-                priority = clamp(priority + (click.isRightClick() ? -1 : 1), -100, 100);
+                priority = clamp(priority + (click.isRightClick()
+                        ? (click.isShiftClick() ? -10 : -1) : (click.isShiftClick() ? 10 : 1)), -100, 100);
                 render();
                 return;
             case "save":
@@ -418,6 +437,57 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
                 this::reopen).open();
     }
 
+    // Edit an existing tag tool: reopen the picker directly on its exclusion list.
+    private void openToolTagEditor(int idx) {
+        CuttingBoardRecipe.ToolRequirement tool = tools[idx];
+        if (tool == null || !tool.isTag()) {
+            return;
+        }
+        Key tagKey = tool.getKey();
+        List<ItemStack> members = resolveTagMembers(tagKey);
+        if (members.isEmpty()) {
+            player.sendMessage(Component.translatable("gui.editor.feedback.no_tag_items")
+                    .color(NamedTextColor.RED));
+            return;
+        }
+        RecipeViewGuiConfig.BaseConfig pickerConfig = plugin.getRecipeEditorGuiConfig().getTagPickerConfig();
+        if (pickerConfig == null) {
+            player.sendMessage(Component.translatable("gui.editor.feedback.advanced_coming")
+                    .color(NamedTextColor.YELLOW));
+            return;
+        }
+        closed = true;
+        new TagPickerGui(plugin, player, pickerConfig, members.get(0), List.of(tagKey.toString()), tagKey,
+                ingredient -> {
+                    if (ingredient instanceof RecipeIngredient.Tag tag) {
+                        tools[idx] = new CuttingBoardRecipe.ToolRequirement(
+                                tag.key(), true, tag.excludedItems(), tag.excludedTags());
+                    }
+                    reopen();
+                },
+                this::reopen).open();
+    }
+
+    private List<ItemStack> resolveTagMembers(Key tag) {
+        Map<String, ItemStack> unique = new LinkedHashMap<>();
+        if (plugin.getCraftEngine() != null) {
+            for (net.momirealms.craftengine.core.util.UniqueKey uniqueKey
+                    : plugin.getCraftEngine().itemManager().itemIdsByTag(tag)) {
+                ItemStack stack = ItemUtils.createItem(uniqueKey.key().toString());
+                if (stack != null && !stack.getType().isAir() && stack.getType() != Material.BARRIER) {
+                    unique.putIfAbsent(uniqueKey.key().toString(), stack);
+                }
+            }
+        }
+        for (ItemStack stack : ItemUtils.createVanillaTagDisplayItems(tag, Set.of(), Set.of())) {
+            String id = ItemUtils.resolveItemId(stack);
+            if (id != null) {
+                unique.putIfAbsent(id, stack);
+            }
+        }
+        return new ArrayList<>(unique.values());
+    }
+
     private void openChoiceBuilder(int displayIndex) {
         RecipeViewGuiConfig.BaseConfig choiceConfig = plugin.getRecipeEditorGuiConfig().getChoiceBuilderConfig();
         if (choiceConfig == null) {
@@ -508,7 +578,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
             return named(new ItemStack(Material.NAME_TAG), RecipeSerializer.serializeIngredient(tag));
         }
         if (ingredient instanceof RecipeIngredient.Choice) {
-            return named(new ItemStack(Material.KNOWLEDGE_BOOK), RecipeSerializer.serializeIngredient(ingredient));
+            return named(new ItemStack(Material.CHEST), RecipeSerializer.serializeIngredient(ingredient));
         }
         return new ItemStack(Material.BARRIER);
     }

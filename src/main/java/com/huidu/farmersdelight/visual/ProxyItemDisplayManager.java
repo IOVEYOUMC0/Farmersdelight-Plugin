@@ -132,6 +132,11 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         return networkManager != null;
     }
 
+    @Override
+    public boolean isActive(int entityId) {
+        return displays.containsKey(entityId);
+    }
+
     private int allocateEntityId() {
         int entityId;
         do {
@@ -401,6 +406,9 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         for (Integer entityId : toRemove) {
             destroyDisplay(entityId);
         }
+        // destroyDisplay empties the world's inner chunk map but leaves the outer per-world entry; drop it
+        // so churning uniquely-UUID'd worlds (minigame arenas, dungeon instances) does not leak empty maps.
+        displaysByChunk.remove(worldId);
     }
 
     @Override

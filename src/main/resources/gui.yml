@@ -137,11 +137,12 @@ recipe-view-gui:
     rows: 3
     layout:
       - "XXXXXXXXX"
-      - "XXCXRXDXX"
+      - "XCXDXSXRX"
       - "XXXXBXXXX"
     legend:
       C: cooking_pot
       D: cutting_board
+      S: special_recipes
       R: recipe_book
       B: back
       X: background
@@ -166,6 +167,11 @@ recipe-view-gui:
         name: "<aqua><lang:gui.recipe.recipe_book>"
         lore:
           - "<gray><lang:gui.recipe.recipe_book_lore>"
+      special_recipes:
+        item: "farmersdelight:rich_soil"
+        name: "<light_purple><lang:gui.recipe.special_recipes>"
+        lore:
+          - "<gray><lang:gui.recipe.special_recipes_lore>"
       back:
         material: BARRIER
         name: "<red><lang:gui.recipe.close>"
@@ -359,6 +365,111 @@ recipe-view-gui:
       I: input
       R: result
       T: tool
+      B: back
+      X: background
+    items:
+      background:
+        material: LIGHT_GRAY_STAINED_GLASS_PANE
+        item_model: "air"
+        hide-tooltip: true
+        name: " "
+      back:
+        material: ARROW
+        item_model: "air"
+        name: "<gray><lang:gui.recipe.back>"
+
+  # Special recipe list — the paged chest GUI of special recipes.
+  special-recipe-list:
+    title: "<white><offset><icon><shift:-1600><lang:gui.recipe.special_recipes> <gray>{page}/{total}</gray>"
+    rows: 6
+    title-layout:
+      craftengine:
+        offset: "<shift:-1>"
+        icon: "<image:farmersdelight:recipelist>"
+    layout:
+      - "PXXXBXXXN"
+      - "RRRRRRRRR"
+      - "RRRRRRRRR"
+      - "RRRRRRRRR"
+      - "RRRRRRRRR"
+      - "RRRRRRRRR"
+    legend:
+      R: recipe
+      P: prev_page
+      N: next_page
+      B: back
+      X: background
+    items:
+      background:
+        material: LIGHT_GRAY_STAINED_GLASS_PANE
+        item_model: "air"
+        hide-tooltip: true
+        name: " "
+      prev_page:
+        material: ARROW
+        item_model: "air"
+        name: "<green><lang:gui.recipe.prev_page>"
+      next_page:
+        material: ARROW
+        item_model: "air"
+        name: "<green><lang:gui.recipe.next_page>"
+      back:
+        material: BARRIER
+        name: "<gray><lang:gui.recipe.back>"
+
+  # Special recipe detail (conditions present). Rows match the decomposition title image height (4 rows = 72 px),
+  # slots sit on the decomposition background like the mod's JEI category: description centered on top,
+  # input left / output right, sunlight/water/catalyst conditions in the middle, catalyst items lower-right.
+  special-recipe-detail:
+    title: "<white><offset><icon><shift:-1600><lang:gui.recipe.special_recipes>"
+    rows: 4
+    title-layout:
+      craftengine:
+        offset: "<shift:-1>"
+        icon: "<image:farmersdelight:decomposition>"
+    layout:
+      - "XXXXHXXXX"
+      - "XIXXXXXOX"
+      - "XXXDEFXXX"
+      - "BXXXXGXXX"
+    legend:
+      H: description
+      I: input
+      O: output
+      D: sunlight
+      E: water
+      F: catalyst_info
+      G: catalyst_item
+      B: back
+      X: background
+    items:
+      background:
+        material: LIGHT_GRAY_STAINED_GLASS_PANE
+        item_model: "air"
+        hide-tooltip: true
+        name: " "
+      back:
+        material: ARROW
+        item_model: "air"
+        name: "<gray><lang:gui.recipe.back>"
+
+  # Compact special recipe detail used when a recipe has no extra conditions (no sunlight/water/catalyst).
+  # 3 rows match the decomposition_none title image height (54 px).
+  special-recipe-detail-basic:
+    title: "<white><offset><icon><shift:-1600><lang:gui.recipe.special_recipes>"
+    rows: 3
+    title-layout:
+      craftengine:
+        offset: "<shift:-1>"
+        icon: "<image:farmersdelight:decomposition_none>"
+    layout:
+      - "XXXXCXXXX"
+      - "XIXXXXXOX"
+      - "BXXXXXXXX"
+    legend:
+      C: description
+      I: input
+      O: output
       B: back
       X: background
     items:
@@ -602,6 +713,104 @@ recipe-editor-confirm-delete-gui:
       name: "<green><lang:gui.editor.button.cancel>"
       lore:
         - "<gray><lang:gui.editor.confirm.cancel_lore>"
+
+# Recipe tag picker (opened by right-clicking an ingredient slot with an item on the cursor while editing a
+# recipe). Left-click a tag to use it; right-click a tag to edit its exclusions. info placeholders:
+# {tag} {excluded} {excluded_tags}
+recipe-tag-picker-gui:
+  title: "<white><lang:gui.editor.tag_picker.title>"
+  rows: 6
+  layout:
+    - "XXXXXXXXX"
+    - "EEEEEEEEX"
+    - "EEEEEEEEX"
+    - "EEEEEEEEX"
+    - "IMXXXXXXX"
+    - "PXXCBFNXX"
+  legend:
+    E: entry
+    I: info
+    M: manual
+    P: prev
+    N: next
+    C: cancel
+    B: back
+    F: confirm
+    X: background
+  items:
+    background:
+      material: LIGHT_GRAY_STAINED_GLASS_PANE
+      item_model: "air"
+      hide-tooltip: true
+      name: " "
+    prev-page:
+      material: ARROW
+      item_model: "air"
+      name: "<green><lang:gui.recipe.prev_page>"
+    next-page:
+      material: ARROW
+      item_model: "air"
+      name: "<green><lang:gui.recipe.next_page>"
+    cancel:
+      material: BARRIER
+      name: "<red><lang:gui.editor.button.cancel>"
+    back:
+      material: ARROW
+      item_model: "air"
+      name: "<white><lang:gui.editor.tag.back>"
+    confirm:
+      material: LIME_DYE
+      name: "<green><lang:gui.editor.tag.confirm>"
+    info:
+      material: BOOK
+      name: "<yellow><lang:'gui.editor.tag.info':'<white>{tag}'>"
+      lore:
+        - "<gray><lang:'gui.editor.tag.excluded':'<white>{excluded}'>"
+        - "<gray><lang:'gui.editor.tag.excluded_tags':'<white>{excluded_tags}'>"
+    manual:
+      material: NAME_TAG
+      item_model: "air"
+      name: "<yellow><lang:gui.editor.tag.manual>"
+      lore:
+        - "<gray><lang:gui.editor.tag.manual_lore>"
+
+# Recipe choice builder (opened by shift-clicking an ingredient slot, or clicking a choice ingredient).
+# Combines several items/tags into a single any-of ingredient. info placeholder: {index}
+recipe-choice-builder-gui:
+  title: "<white><lang:gui.editor.choice.title>"
+  rows: 6
+  layout:
+    - "XXXXXXXXX"
+    - "OOOOOOOIX"
+    - "OOOOOOOXX"
+    - "OOOOOOOXX"
+    - "OOOOOOOXX"
+    - "CLLXXXXXS"
+  legend:
+    O: option
+    I: info
+    C: cancel
+    L: clear-all
+    S: save
+    X: background
+  items:
+    background:
+      material: LIGHT_GRAY_STAINED_GLASS_PANE
+      item_model: "air"
+      hide-tooltip: true
+      name: " "
+    info:
+      material: BOOK
+      name: "<yellow><lang:'gui.editor.choice.info':'<white>{index}'>"
+    save:
+      material: LIME_DYE
+      name: "<green><lang:gui.editor.button.save>"
+    cancel:
+      material: BARRIER
+      name: "<red><lang:gui.editor.button.cancel>"
+    clear-all:
+      material: RED_DYE
+      name: "<red><lang:gui.editor.choice.clear_all>"
 
 # Cutting board recipe editor GUI. Opened with /fd recipe edit board <id>.
 # info: {recipe_id}; result-count: {count}; result-chance: {chance}; priority: {priority}

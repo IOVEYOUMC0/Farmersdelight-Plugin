@@ -26,7 +26,8 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.NamespacedKey;
-import org.bukkit.Registry;
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
 import org.bukkit.damage.DamageSource;
 import org.bukkit.damage.DamageType;
 import org.bukkit.entity.LivingEntity;
@@ -927,10 +928,10 @@ public class StoveManager {
         entity.damage(amount, DamageSource.builder(stoveBurnDamageType()).build());
     }
 
-    // Registry.DAMAGE_TYPE is deprecated (since 1.20.6) but not for removal, so it stays stable. The suggested
-    // replacement goes through the ApiStatus.Experimental RegistryKey API; using the deprecated-but-stable
-    // accessor (already wrapped in try/catch with a HOT_FLOOR fallback) is the more version-robust choice.
-    @SuppressWarnings({"deprecation", "UnstableApiUsage"})
+    // RegistryKey.DAMAGE_TYPE is the modern stable lookup; the old Registry.DAMAGE_TYPE accessor was
+    // deprecated in 1.20.6. Still wrapped in try/catch with a HOT_FLOOR fallback for server flavours
+    // without the registry accessor.
+    @SuppressWarnings("UnstableApiUsage")
     private DamageType stoveBurnDamageType() {
         DamageType type = this.stoveBurnType;
         if (type == null) {
@@ -938,7 +939,7 @@ public class StoveManager {
             NamespacedKey key = NamespacedKey.fromString("farmersdelight:stove_burn");
             if (key != null) {
                 try {
-                    custom = Registry.DAMAGE_TYPE.get(key);
+                    custom = RegistryAccess.registryAccess().getRegistry(RegistryKey.DAMAGE_TYPE).get(key);
                 } catch (Throwable ignored) {
                     // Registry unavailable on this server flavour → fall back below.
                 }

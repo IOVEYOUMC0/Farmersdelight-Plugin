@@ -81,10 +81,6 @@ public final class HandleManager {
         loadConfig();
     }
 
-    public void cleanupAll() {}
-
-    public void cleanupWorld(java.util.UUID worldId) {}
-
     // Internal helpers
 
     @Nullable

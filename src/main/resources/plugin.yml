@@ -1,5 +1,5 @@
 name: FarmersDelight
-version: ${version}
+version: '${version}'
 main: com.huidu.farmersdelight.FarmersDelightPlugin
 api-version: '1.21'
 folia-supported: true
@@ -7,7 +7,7 @@ depend: [CraftEngine]
 softdepend: [AuraSkills, UltimateAdvancementAPI, PlaceholderAPI, WorldGuard, GriefPrevention, Lands, Towny, Residence, PlotSquared, Factions, HuskClaims, HuskTowns, BentoBox, SuperiorSkyblock2, IridiumSkyblock, GriefDefender, Kingdoms, CrashClaim, RedProtect, Landlord, uSkyBlock, XClaim, UltimateClaims, UltimateClans, PreciousStones, Dominion, FabledSkyBlock, NoBuildPlus, Protect]
 authors:
   - HuiDu_OwO
-description: CraftEngine Farmer's Delight Addon
+description: CraftEngine port of Farmer's Delight by vectorwing (MIT).
 commands:
   farmersdelight:
     description: Main FarmersDelight command

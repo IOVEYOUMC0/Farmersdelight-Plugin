@@ -17,10 +17,12 @@ public final class FarmersDelightAdvancements {
     private FarmersDelightAdvancements() {
     }
 
+    // Returns true only when the advancement system is usable: FarmersDelight loaded, its advancement
+    // feature enabled, and UltimateAdvancementAPI present & enabled.
     public static boolean isAvailable() {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        return plugin == null || !plugin.isAdvancementsEnabled()
-                || !Bukkit.getPluginManager().isPluginEnabled("UltimateAdvancementAPI");
+        return plugin != null && plugin.isAdvancementsEnabled()
+                && Bukkit.getPluginManager().isPluginEnabled("UltimateAdvancementAPI");
     }
 
     // ------------------------------------------------------------------ FarmersDelight's own tab
@@ -114,7 +116,7 @@ public final class FarmersDelightAdvancements {
     // Return null when the advancement system is unavailable, so callers never reach the UAA-referencing
     // internals (AdvancementManager / AddonAdvancementTab) while UAA is not loaded.
     private static AdvancementManager fdManager() {
-        if (isAvailable()) {
+        if (!isAvailable()) {
             return null;
         }
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
@@ -122,7 +124,7 @@ public final class FarmersDelightAdvancements {
     }
 
     private static AddonAdvancementRegistry registry() {
-        if (isAvailable()) {
+        if (!isAvailable()) {
             return null;
         }
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();

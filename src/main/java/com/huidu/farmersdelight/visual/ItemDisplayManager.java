@@ -17,6 +17,13 @@ public interface ItemDisplayManager {
 
     boolean updateDisplay(int entityId, DisplaySpec spec);
 
+    /**
+     * Whether the given handle still refers to a managed display. A display is removed without the
+     * owner's knowledge by the chunk-unload sweep, world unload, or the /fd cleanup wipe, so owners
+     * that cache handles (e.g. station slot displays) should probe this periodically and recreate.
+     */
+    boolean isActive(int entityId);
+
     int createTextDisplay(TextDisplaySpec spec);
 
     boolean updateText(int entityId, Component text);

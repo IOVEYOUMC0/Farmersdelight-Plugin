@@ -33,6 +33,7 @@ gui:
     page: "Page: {page}/{total}"
     result: "Result"
     input: "Input"
+    condition: "Condition"
     ingredient: "Ingredient"
     ingredients: "Ingredients"
     container: "Container"
@@ -42,6 +43,7 @@ gui:
     cook_time: "Cook Time"
     seconds_suffix: "s"
     chance: "&7Chance: &e{value}%"
+    special_recipes: "Special Recipes"
     click_to_view: "Click to view details"
     click_to_view_materials: "Open details to view usable materials"
     click_to_toggle: "Click to toggle"
@@ -86,27 +88,59 @@ gui:
       member_excluded: "&cExcluded &7(click to restore)"
       tag_included: "&7Click: exclude this tag"
       tag_excluded: "&cTag excluded &7(click to restore)"
+  condition:
+    sunlight: "Sunlight"
+    sunlight_lore: "Requires sufficient sunlight"
+    water: "Water"
+    water_lore: "Requires nearby water source"
+    catalyst_info: "Catalyst"
+    catalyst_info_lore: "Nearby catalysts speed up the process"
+  special_recipe:
+    organic_compost:
+      title: "Organic Compost"
+      desc:
+        "1": "Organic Compost decomposes naturally over time, eventually turning into Rich Soil."
+        "2": "Sunlight and adjacent water speed up decomposition."
+        "3": "Nearby activators (mushrooms, mycelium, podzol, compost...) accelerate decomposition."
+        "4": "Right-click with a water bucket to advance one stage immediately."
+      input:
+        compost: "Organic Compost"
+      output:
+        rich_soil: "Rich Soil"
+        rich_soil_lore: "Forms when compost fully decomposes"
+    wild_cabbages:
+      title: "Wild Cabbages"
+      desc:
+        "1": "Cabbages can be commonly found as a wild plant in beach coasts."
+    wild_onions:
+      title: "Wild Onions"
+      desc:
+        "1": "Onions can be commonly found as a wild plant in temperate lands, such as plains and forests."
+    wild_tomatoes:
+      title: "Tomato Shrub"
+      desc:
+        "1": "Tomatoes can be commonly found as a wild plant in arid lands, such as savannas and deserts."
+    wild_rice:
+      title: "Wild Rice"
+      desc:
+        "1": "Rice can be commonly found as a wild plant in the ponds of wet lands, such as swamps and jungles."
+    wheat_dough:
+      title: "Wheat Dough"
+      desc:
+        "1": "Wheat can be turned into Dough by crafting it with a Water Bucket. But don't worry, the bucket's water won't be depleted!"
+    straw:
+      title: "Straw"
+      desc:
+        "1": "A dry plant fiber used in crafting. Obtained by cutting grassy crops and plants with a Knife."
+    ham:
+      title: "Ham"
+      desc:
+        "1": "A large cut of meat from a Pig or Hoglin's leg.\n\nYou will need something lighter than a Sword to cut one..."
+    knife:
+      title: "Knife"
+      desc:
+        "1": "A lightweight melee weapon, with fast swings and gentle damage.\n\nThey can harvest Straw from grasses, and guarantee secondary drops from animals."
 console:
-  bac:
-    enabled: "Brewin' And Chewin' (CraftEngine addon) enabled."
-    reloaded: "Brewin' And Chewin' reloaded with FarmersDelight."
-    config_keys_merged: "Added {count} new setting(s) to config.yml."
-    config_key_migrated: "Renamed config setting {old} to {new}."
-    config_keys_retired: "Removed {count} config setting(s) nothing reads any more: {keys}"
-    config_backup_failed: "Could not back up {file} before rewriting it: {error}"
-    config_update_failed: "Could not update {file}, settings were not merged: {error}"
-    booze_profiles_loaded: "Loaded {count} booze-effects drink profiles"
-    keg_recipes_loaded: "Loaded {count} keg recipe(s)."
-    keg_pouring_recipes_loaded: "Loaded {count} keg pouring recipe(s) across {fluids} fluid(s)."
-    cooking_pot_recipes_registered: "Registered {count} cooking pot recipe(s) with FarmersDelight."
-    cutting_board_recipes_registered: "Registered {count} cutting board recipe(s) with FarmersDelight."
-    cutting_board_recipes_unreadable: "Could not read {file}; keeping the recipes already registered. Check the console above for the YAML error."
-    keg_item_unreadable: "Skipping unreadable keg item at {key} slot {slot}: {error}"
-    keg_recipe_invalid_base: "Keg recipe '{id}' base-fluid slot holds an item that is not a valid pourable base liquid; not saved."
-    keg_recipes_save_failed: "Failed to save keg_recipes.yml: {error}"
-    tipsy_effect_unknown: "Unknown tipsy effect '{effect}' in config.yml tipsy.effects"
-    resources_released: "Released {count} CraftEngine resource file(s) to {target}"
-    resources_release_failed: "Failed to release CraftEngine resources: {error}"
   prefix: "[FarmersDelight]"
   recipe-discovery:
     save_failed: "Failed to save recipe discovery data: {error}"
@@ -199,6 +233,12 @@ console:
     loot_datapack_disabled: "Loot-injection datapack install disabled in config; skipping."
     loot_datapack_written: "Wrote {count} datapack file(s) to {dir}"
     loot_datapack_install_failed: "Failed to install loot datapack to world {world}: {error}"
+    loot_datapack_not_ready: "Loot datapack installer is not ready yet; cannot reinstall"
+    damage_datapack_disabled: "Damage-type datapack install disabled in config; skipping."
+    damage_datapack_no_worlds: "No loaded worlds — damage datapack will install when a world loads"
+    damage_datapack_written: "Wrote {count} damage datapack file(s) to {dir}"
+    damage_datapack_install_failed: "Failed to install damage datapack to world {world}: {error}"
+    damage_datapack_legacy_removed: "Removed {count} migrated damage file(s) from the legacy loot datapack folder (world {world})"
     enchantment_datapack_disabled: "Enchantment datapack install disabled; backstab enchantment won't be injected into enchanting table."
     enchantment_datapack_written: "Wrote {count} enchantment datapack file(s) to {dir}"
     enchantment_datapack_install_failed: "Failed to install enchantment datapack to world {world}: {error}"
@@ -278,11 +318,9 @@ console:
     editor_missing_custom_pot_gui: "No recipe-editor-cooking-pot-guis entry for custom pot '{id}'; using the default editor layout."
     invalid_count: "Invalid count for recipe: {error}"
     invalid_chance: "Invalid chance for recipe: {error}"
+    special_recipe_loaded: "Loaded {count} special recipes"
+    special_recipe_backfilled: "Backfilled {count} bundled special recipes missing from the on-disk config"
   worlddata:
-    composting_invalid_item: "world-data.composting.items: not an item id: {id}"
-    composting_invalid_chance: "world-data.composting.items.{id}: chance must be between 0.0 and 1.0"
-    fuel_invalid_item: "world-data.furnace-fuel.items: not an item id: {id}"
-    fuel_invalid_burn_time: "world-data.furnace-fuel.items.{id}: burn time must be a positive tick count"
     villager_trades_no_profession: "world-data.trades.villager.trades: entry without a profession"
     trades_invalid_entry: "{path}: entry needs a valid ingredient and result item id"
   rope:
@@ -371,6 +409,20 @@ command:
   help_help: "Show help information"
   help_cleanup: "Remove plugin-spawned item display entities"
   help_buff: "Grant or clear custom buffs"
+  help_stats: "Show runtime statistics (counters, tick-cost profile, addon stats)"
+  stats_title: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <white>Runtime statistics</white>"
+  stats_sampling_off: "<gold>⚠ </gold><gray>Sampling is off — run <yellow>/fd stats profile [ticks]</yellow> to collect tick-cost samples.</gray>"
+  stats_profile_started: "<green>Profile started.</green> <gray>duration={ticks} ticks · world cooking pots={pots}</gray>"
+  stats_overview: "<gray>Samples</gray> <white>{samples}</white> <gray>·</gray> <gray>Duration</gray> <white>{duration} ticks</white> <gray>·</gray> <gray>Interval</gray> <white>{interval} ticks</white> <gray>·</gray> <gray>Budget</gray> <white>{budget}</white> <gray>·</gray> <gray>State</gray> <white>{sampling}</white>"
+  stats_active: "<gray>Active blocks</gray> <white>{current}</white> <gray>·</gray> <gray>Snapshot</gray> <white>{snapshot}</white> <gray>·</gray> <gray>Last</gray> <white>{last}</white> <gray>·</gray> <gray>Pending</gray> <white>+{add} / -{rem}</white> <gray>·</gray> <gray>World pots</gray> <white>{pots}</white>"
+  stats_tick: "<gray>Tick cost</gray> <white>{avg}ms</white> <gray>·</gray> <gray>Max</gray> <white>{max}ms</white> <gray>·</gray> <gray>Last</gray> <white>{last}ms</white> <gray>·</gray> <gray>Last processed</gray> <white>{processed}</white>"
+  stats_addons_title: "<dark_gray>» </dark_gray><gray>Addons</gray>"
+  stats_addon_line: "<gray>[{name}]</gray> <white>{line}</white>"
+  stats_proxy_line: "<gray>[proxy-display]</gray> <white>{line}</white>"
+  stats_tickmanager_unavailable: "<red>TickManager is not available."
+  stats_profile_invalid_ticks: "<red>Profile ticks must be a whole number."
+  stats_usage_status: "<yellow>/fd stats</yellow> <gray>- show current counters</gray>"
+  stats_usage_profile: "<yellow>/fd stats profile [ticks]</yellow> <gray>- sample tick cost, default {ticks} ticks</gray>"
   buff_usage: "<yellow>/fd buff give <buff> [level] [seconds] [player]</yellow> <gray>|</gray> <yellow>/fd buff clear [buff|all] [player]</yellow>"
   buff_given: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <white>Gave <yellow>{buff}</yellow> <gray>lvl</gray> <white>{level}</white> <gray>for</gray> <white>{seconds}s</white> <gray>to</gray> <white>{player}</white></white>"
   buff_cleared_all: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <white>Cleared <white>{count}</white> <gray>buff(s) from</gray> <white>{player}</white></white>"

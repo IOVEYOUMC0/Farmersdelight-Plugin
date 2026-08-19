@@ -28,15 +28,19 @@ public final class RottenTomatoListener implements Listener {
     // The tomato is a snowball-based CraftEngine item, so the thrown Snowball keeps its custom id on its own
     // item stack; identify it at hit time straight from that item instead of marking every launched snowball
     // with a PDC flag. The snowball base already reproduces the mod's RottenTomatoEntity on-hit behaviour
-    // (zero-damage hit + knockback + item-crack splat particles), so this only layers on the custom hit sound
-    // and the raider advancement. The mod applies no mob effect on hit, so neither do we.
+    // (zero-damage hit + knockback + item-crack splat particles) and its throw sound (rotten_tomato.throw
+    // reuses the entity.snowball.throw audio with the same 0.5 volume and random pitch formula), so this only
+    // layers on the custom hit sound and the raider advancement. The mod applies no mob effect on hit,
+    // so neither do we.
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onProjectileHit(ProjectileHitEvent event) {
         if (!(event.getEntity() instanceof Snowball snowball) || !isRottenTomato(snowball)) {
             return;
         }
 
-        snowball.getWorld().playSound(snowball.getLocation(), HIT_SOUND, SoundCategory.PLAYERS, 1.0f, 1.0f);
+        // The mod plays the hit sound with a 0.8~1.2 random pitch (RottenTomatoEntity.onHit*).
+        snowball.getWorld().playSound(snowball.getLocation(), HIT_SOUND, SoundCategory.NEUTRAL, 1.0f,
+                (float) ((Math.random() - Math.random()) * 0.2 + 1.0));
         if (event.getHitEntity() instanceof Raider && snowball.getShooter() instanceof Player player) {
             AdvancementManager advancementManager = this.plugin.getAdvancementManager();
             if (advancementManager != null) {

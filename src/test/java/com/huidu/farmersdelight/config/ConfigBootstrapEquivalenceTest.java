@@ -62,8 +62,6 @@ class ConfigBootstrapEquivalenceTest {
             "cooking-pot.container-returns",
             "cutting-board.display-overrides",
             "cutting-board.display-tag-overrides",
-            "world-data.composting.items",
-            "world-data.furnace-fuel.items",
             "world-data.trades.villager",
             "world-data.trades.wandering-trader");
 
@@ -123,7 +121,6 @@ class ConfigBootstrapEquivalenceTest {
         // An operator who disabled content by deleting entries: the merge must not put any of them back.
         clearChildrenButOne(existing, "heat-sources");
         clearChildrenButOne(existing, "drops.mob-extra");
-        clearChildrenButOne(existing, "world-data.composting.items");
         assertSameResult(existing);
     }
 

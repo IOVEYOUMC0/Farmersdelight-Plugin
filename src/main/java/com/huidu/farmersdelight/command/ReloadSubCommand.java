@@ -43,6 +43,9 @@ final class ReloadSubCommand extends SubCommand {
             case LANGUAGE -> plugin.reloadLanguageFiles();
             case RECIPES -> plugin.reloadRecipeFiles();
             case ADVANCEMENTS -> plugin.reloadAdvancements();
+            case LOOT -> plugin.reloadLootDatapack();
+            case ENCHANT -> plugin.refreshEnchantSystem();
+            case DAMAGE -> plugin.reloadDamageTypeDatapack();
         }
 
         // Notify addons so they reload in sync. "all" already fires this inside reloadAll().

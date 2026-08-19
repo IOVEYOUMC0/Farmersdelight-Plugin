@@ -567,7 +567,7 @@ public class CookingPotBlockEntity {
             // hopper interaction); re-validate under the lock before producing, to avoid conjuring a result from zero/insufficient ingredients (item duping).
             FarmersDelightPlugin instance = FarmersDelightPlugin.getInstance();
             if (instance == null || !instance.getCookingPotRecipes()
-                    .canCraft(recipe, getIngredientSlotsInternal(), getContainerItemInternal())) {
+                    .canCraft(recipe, getIngredientSlotsInternal())) {
                 currentRecipe.set(null);
                 lastRecipeId.set(null);
                 return false;
@@ -606,7 +606,7 @@ public class CookingPotBlockEntity {
             ItemStack containerItem = getContainerItemInternal();
             CookingPotRecipe previousRecipe = currentRecipe.get();
             if (previousRecipe != null
-                    && instance.getCookingPotRecipes().canCraft(previousRecipe, inputItems, containerItem)) {
+                    && instance.getCookingPotRecipes().canCraft(previousRecipe, inputItems)) {
                 if (hasRoomForResult(previousRecipe)) {
                     return false;
                 }

@@ -187,6 +187,11 @@ public class RichSoilFarmlandBlockBehavior extends FarmersDelightBlockBehavior {
                     Block neighbor = world.getBlockAt(pos.x() + dx, pos.y() + dy, pos.z() + dz);
                     Material type = neighbor.getType();
                     if (type == Material.WATER || type == Material.BUBBLE_COLUMN) return true;
+                    // A CE custom block that keeps a water fluid (e.g. the lower half of a planted
+                    // rice plant, kelp-backed with fluid_state: water) still hydrates the farmland
+                    // just like the water source it replaced.
+                    ImmutableBlockState ce = BlockStateUtils.getOptionalCustomBlockState(neighbor).orElse(null);
+                    if (ce != null && ce.settings().fluidState()) return true;
                 }
             }
         }

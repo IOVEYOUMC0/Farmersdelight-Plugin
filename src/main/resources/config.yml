@@ -20,6 +20,12 @@ datapacks:
 # these lists only decide what each FarmersDelight item group may receive.
 enchantments:
   enabled: true
+  # Whether to install the built-in enchantment datapack (farmersdelight_enchant, contains the
+  # backstabbing enchant definition + tag files). The datapack is copied into each whitelisted
+  # world's datapacks/ folder and requires a server restart (or /reload) to take effect; admin
+  # edits to already-installed files survive plugin updates. Set to false to skip the install
+  # (e.g. when authoring the enchantment yourself). Reinstall via /fd reload enchant.
+  install-datapack: true
   compatibility:
     # When another enchantment plugin is detected, stand down only FarmersDelight's custom backstab enchant so
     # we don't stack a second special enchant onto its system; the knife/skillet enchant filter itself stays on
@@ -110,6 +116,15 @@ debug:
 # (already-present datapack folders are not overwritten). Set to false to skip the install
 # (useful if you want to author your own loot tables manually or use another loot plugin).
 loot-injection:
+  install-datapack: true
+
+# Vanilla damage-type injection (farmersdelight_damage datapack): the custom farmersdelight:stove_burn
+# damage type used by the stove grilling surface, plus its no_knockback tag entry. Installed into each
+# whitelisted world's datapacks/ folder and requires a server restart (or /reload) to take effect.
+# Split from the loot datapack so the two can be toggled and reinstalled independently; old installs
+# that wrote these files under the loot datapack are migrated (legacy files removed) on the next
+# install. Reinstall via /fd reload damage.
+damage-type:
   install-datapack: true
 
 # Advancement system. When disabled, the built-in advancement datapack is not synced.
@@ -577,8 +592,8 @@ cooking-pot:
 
   # Floating TextDisplay during pot cooking.
   progress-display:
-    # false = fully disable the pot cooking progress TextDisplay. Recommended off when stress-testing many pots or prioritizing server performance.
-    enabled: true
+    # false = fully disable the pot cooking progress TextDisplay. Off by default (little value, and the packet displays add overhead); set true to re-enable.
+    enabled: false
 
     # false shows only progress/status; true also shows the name of the recipe being cooked.
     show-recipe-name: false
@@ -951,90 +966,14 @@ buff:
   # Built-in Nourishment food assignments and durations live in the CraftEngine item configuration.
   # Use farmersdelight:nourishment as an on-consume function to add it to another CE food.
 
-# World data the mod ships alongside its items: composting chances, furnace burn times and the crop trades
-# farmer villagers and the wandering trader offer. The values reproduce the mod's own data exactly, so an
-# untouched section behaves like the mod. Each of the four enabled switches turns its own behaviour off
-# without affecting the others.
-# The items and trades lists are content: deleting an entry is how you disable that one entry, and a deleted
-# entry is not written back on the next startup.
+# World data the mod ships alongside its items: the crop trades farmer villagers and the wandering trader
+# offer. Composting chances and furnace burn times no longer live here; they are set per item in the
+# CraftEngine configuration under settings: compost_probability and fuel_time. The values reproduce the
+# mod's own data exactly, so an untouched section behaves like the mod. Each of the two enabled switches
+# turns its own behaviour off without affecting the others.
+# The trades lists are content: deleting an entry is how you disable that one entry, and a deleted entry
+# is not written back on the next startup.
 world-data:
-  # Lets the mod's compostable items be used in a vanilla composter. The composter refuses them on its own
-  # because a CraftEngine item is a plain vanilla material underneath, so the fill is carried out here.
-  composting:
-    enabled: true
-    # Key is the item ID, value is the chance between 0.0 and 1.0 that one item raises the composter by one
-    # level. Vanilla always accepts the first item into an empty composter, and that still applies here.
-    items:
-      farmersdelight:tree_bark: 0.3
-      farmersdelight:straw: 0.3
-      farmersdelight:cabbage_seeds: 0.3
-      farmersdelight:tomato_seeds: 0.3
-      farmersdelight:rice: 0.3
-      farmersdelight:rice_panicle: 0.3
-      farmersdelight:sandy_shrub: 0.3
-      farmersdelight:pumpkin_slice: 0.5
-      farmersdelight:cabbage_leaf: 0.5
-      farmersdelight:kelp_roll_slice: 0.5
-      farmersdelight:cabbage: 0.65
-      farmersdelight:onion: 0.65
-      farmersdelight:tomato: 0.65
-      farmersdelight:wild_cabbages: 0.65
-      farmersdelight:wild_onions: 0.65
-      farmersdelight:wild_tomatoes: 0.65
-      farmersdelight:wild_carrots: 0.65
-      farmersdelight:wild_potatoes: 0.65
-      farmersdelight:wild_beetroots: 0.65
-      farmersdelight:wild_rice: 0.65
-      farmersdelight:pie_crust: 0.65
-      farmersdelight:rice_bale: 0.85
-      farmersdelight:sweet_berry_cookie: 0.85
-      farmersdelight:honey_cookie: 0.85
-      farmersdelight:cake_slice: 0.85
-      farmersdelight:apple_pie_slice: 0.85
-      farmersdelight:sweet_berry_cheesecake_slice: 0.85
-      farmersdelight:chocolate_pie_slice: 0.85
-      farmersdelight:raw_pasta: 0.85
-      farmersdelight:rotten_tomato: 0.85
-      farmersdelight:kelp_roll: 0.85
-      farmersdelight:apple_pie: 1.0
-      farmersdelight:sweet_berry_cheesecake: 1.0
-      farmersdelight:chocolate_pie: 1.0
-      farmersdelight:dumplings: 1.0
-      farmersdelight:stuffed_pumpkin_block: 1.0
-      farmersdelight:brown_mushroom_colony: 1.0
-      farmersdelight:red_mushroom_colony: 1.0
-
-  # Gives the mod's fuel items their furnace burn times. The burn time is also pushed into the CraftEngine
-  # item definition, which is what lets the stack be moved into a furnace's fuel slot at all.
-  furnace-fuel:
-    enabled: true
-    # Key is the item ID, value is the burn time in ticks and must be positive. Smelting one item takes 200
-    # ticks, so 200 here is worth exactly one smelt.
-    items:
-      farmersdelight:half_tatami_mat: 100
-      farmersdelight:straw: 100
-      farmersdelight:cutting_board: 200
-      farmersdelight:rope: 200
-      farmersdelight:safety_net: 200
-      farmersdelight:full_tatami_mat: 200
-      farmersdelight:canvas_rug: 200
-      farmersdelight:rope_fence: 200
-      farmersdelight:rope_fence_gate: 200
-      farmersdelight:tree_bark: 200
-      farmersdelight:wooden_basket: 300
-      farmersdelight:bamboo_basket: 300
-      farmersdelight:oak_cabinet: 300
-      farmersdelight:spruce_cabinet: 300
-      farmersdelight:birch_cabinet: 300
-      farmersdelight:jungle_cabinet: 300
-      farmersdelight:acacia_cabinet: 300
-      farmersdelight:dark_oak_cabinet: 300
-      farmersdelight:mangrove_cabinet: 300
-      farmersdelight:cherry_cabinet: 300
-      farmersdelight:bamboo_cabinet: 300
-      farmersdelight:tatami: 400
-      farmersdelight:canvas: 400
-      farmersdelight:straw_bale: 1000
 
   # Trades the mod contributes to vanilla merchant listing pools. The pools themselves cannot be joined, so
   # an offer is substituted for a drawn vanilla one at the probability the mod's listing would have been
@@ -1090,11 +1029,12 @@ world-data:
           chance: 0.2
 
     # Seed trades the wandering trader offers. It has no profession or level, so those two keys are unused
-    # here.
+    # here. Buying slots (item -> emerald) are never substituted, so these listings always pay out in the
+    # listed ingredient (an emerald by default) and receive the listed result.
     wandering-trader:
       enabled: true
-      # How many of a trader's offers are drawn from the generic pool these listings compete in. Its
-      # remaining offer comes from a separate rare pool the mod does not add to.
+      # Substitution stops once the trader has already drawn this many listings; on older versions this
+      # keeps the separate rare listing untouched.
       generic-trade-count: 5
       trades:
         - ingredient: minecraft:emerald

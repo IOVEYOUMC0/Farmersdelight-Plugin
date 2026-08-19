@@ -235,11 +235,6 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
         }
     }
 
-    @SuppressWarnings("deprecation")
-    public static void clearRecipeCache() {
-        StoveCookingBlockEntity.clearRecipeCache();
-    }
-
     private static StoveManager getManager() {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin == null) {

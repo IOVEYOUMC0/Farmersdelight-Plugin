@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
@@ -27,7 +28,7 @@ import org.bukkit.inventory.ItemStack;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior {
+public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior implements ConfiguredBlockSetProvider {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
@@ -35,6 +36,10 @@ public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior {
     }
 
     private static final String COMPOSTING_PROPERTY = "composting";
+    // Any item carrying this CraftEngine item tag accelerates composting one stage the same way a water
+    // bucket does (data-driven, so addons like CrabbersDelight's worm only tag their item — the block keeps
+    // ownership of the stage/rich-soil logic). Mirrors the farmersdelight:milk cleanser tag pattern.
+    private static final Key ACCELERANT_TAG = Key.of("farmersdelight:compost_accelerant");
 
     private record Config(
             Property<Integer> compostingProperty,
@@ -65,6 +70,11 @@ public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior {
         return config.redMushroomColonyId();
     }
 
+    @Override
+    public ConfiguredBlockSet configuredBlockSet(String key) {
+        return "activators".equals(key) ? config.activators() : null;
+    }
+
     public static final BlockBehaviorFactory<OrganicCompostBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         // The composting stage is the whole behavior: every random tick reads it and writes it back one
@@ -89,11 +99,13 @@ public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior {
 
         ConfiguredBlockSet activators = ConfiguredBlockSet.parse(arguments.get("activators"));
 
-        return new OrganicCompostBlockBehavior(block, new Config(
+        OrganicCompostBlockBehavior behavior = new OrganicCompostBlockBehavior(block, new Config(
                 compostingProperty, maxStage, Key.of(richSoilId),
                 Key.of(brownId), Key.of(redId),
                 activators, activatorBonus, waterBonus, lightHighBonus, lightLowBonus, lightThreshold
         ));
+        BlockBehaviorConfigs.register(block.id(), behavior);
+        return behavior;
     };
 
     @Override
@@ -105,7 +117,9 @@ public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior {
         if (bukkitPlayer == null) return InteractionResult.PASS;
 
         ItemStack held = bukkitPlayer.getInventory().getItemInMainHand();
-        if (held.getType() != Material.WATER_BUCKET) return InteractionResult.PASS;
+        boolean waterBucket = held.getType() == Material.WATER_BUCKET;
+        boolean accelerant = !waterBucket && ItemUtils.hasCustomItemTag(held, ACCELERANT_TAG);
+        if (!waterBucket && !accelerant) return InteractionResult.PASS;
 
         Integer currentStage = state.get(config.compostingProperty());
         if (currentStage == null) return InteractionResult.PASS;
@@ -120,27 +134,33 @@ public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior {
             if (richSoil == null) return InteractionResult.PASS;
             CraftEngineBlocks.place(loc, richSoil.defaultState(), true);
         } else {
-            // Water bucket accelerates composting: advance one stage immediately
+            // A water bucket or a tagged accelerant advances one stage immediately
             ImmutableBlockState next = state.with(config.compostingProperty(), currentStage + 1);
             CraftEngineBlocks.place(loc, next, true);
         }
 
-        // Survival mode: consume water bucket, return empty bucket
         if (bukkitPlayer.getGameMode() != GameMode.CREATIVE) {
-            held.setAmount(held.getAmount() - 1);
-            ItemStack emptyBucket = new ItemStack(Material.BUCKET);
-            if (held.getAmount() <= 0) {
-                bukkitPlayer.getInventory().setItemInMainHand(emptyBucket);
-            } else {
-                // If main hand still has stacked water buckets, drop empty bucket at player location
-                Map<Integer, ItemStack> leftovers = bukkitPlayer.getInventory().addItem(emptyBucket);
-                for (ItemStack leftover : leftovers.values()) {
-                    world.dropItemNaturally(bukkitPlayer.getLocation(), leftover);
+            if (waterBucket) {
+                // Survival mode: consume water bucket, return empty bucket
+                held.setAmount(held.getAmount() - 1);
+                ItemStack emptyBucket = new ItemStack(Material.BUCKET);
+                if (held.getAmount() <= 0) {
+                    bukkitPlayer.getInventory().setItemInMainHand(emptyBucket);
+                } else {
+                    // If main hand still has stacked water buckets, drop empty bucket at player location
+                    Map<Integer, ItemStack> leftovers = bukkitPlayer.getInventory().addItem(emptyBucket);
+                    for (ItemStack leftover : leftovers.values()) {
+                        world.dropItemNaturally(bukkitPlayer.getLocation(), leftover);
+                    }
                 }
+            } else {
+                // A tagged accelerant (e.g. a worm) is simply consumed one at a time
+                held.setAmount(held.getAmount() - 1);
             }
         }
 
-        world.playSound(loc, Sound.ITEM_BUCKET_EMPTY, 1.0f, 1.0f);
+        world.playSound(loc, waterBucket ? Sound.ITEM_BUCKET_EMPTY : Sound.ITEM_BONE_MEAL_USE, 1.0f, 1.0f);
+        world.spawnParticle(org.bukkit.Particle.HAPPY_VILLAGER, loc.clone().add(0, 0.5, 0), 8, 0.3, 0.2, 0.3, 0.0);
         bukkitPlayer.swingMainHand();
         return InteractionResult.SUCCESS_AND_CANCEL;
     }
@@ -169,9 +189,10 @@ public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior {
                     if (ny < world.getMinHeight() || ny >= world.getMaxHeight()) continue;
                     Block neighbor = world.getBlockAt(nx, ny, nz);
                     if (neighbor.getType() == Material.WATER) hasWater = true;
-                    // The reference mod scans the whole 3x3x3 box against the COMPOST_ACTIVATORS block tag,
-                    // including the composting block itself, so a compost block always contributes one
-                    // activator to its own chance.
+                    // The reference mod scans the whole 3x3x3 box against its COMPOST_ACTIVATORS
+                    // block tag; the configured activators list below mirrors that tag's members,
+                    // including the composting block itself, so a compost block always contributes
+                    // one activator to its own chance.
                     if (config.activators().contains(neighbor)) activatorCount++;
                     Block above = world.getBlockAt(nx, Math.min(ny + 1, world.getMaxHeight() - 1), nz);
                     int sky = above.getLightFromSky();

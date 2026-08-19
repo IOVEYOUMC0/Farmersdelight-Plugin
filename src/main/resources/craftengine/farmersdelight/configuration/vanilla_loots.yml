@@ -149,7 +149,7 @@ vanilla_loots:
 
   farmersdelight:straw_from_mature_wheat:
     type: block
-    target: minecraft:wheat[age=7]
+    target: minecraft:wheat
     loot:
       pools:
         - rolls: 1
@@ -158,6 +158,9 @@ vanilla_loots:
               regex: true
               items:
                 - ".*_knife"
+            - type: match_block_property
+              properties:
+                age: "7"
           entries:
             - type: item
               item: farmersdelight:straw

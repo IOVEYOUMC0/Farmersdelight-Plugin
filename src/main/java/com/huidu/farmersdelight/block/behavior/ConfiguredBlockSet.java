@@ -10,8 +10,9 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.Tag;
 import org.bukkit.block.Block;
 
-import java.util.EnumSet;
-import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
@@ -39,10 +40,12 @@ public final class ConfiguredBlockSet {
         if (!(rawValue instanceof Iterable<?> entries)) {
             return EMPTY;
         }
-        Set<Material> materials = EnumSet.noneOf(Material.class);
-        Set<String> customIds = new HashSet<>();
-        Set<Key> tags = new HashSet<>();
-        Set<Tag<Material>> vanillaTags = new HashSet<>();
+        // LinkedHashSet keeps the config's declaration order for callers that enumerate members
+        // (e.g. the recipe GUI's catalyst slots render the list as written in blocks.yml).
+        Set<Material> materials = new LinkedHashSet<>();
+        Set<String> customIds = new LinkedHashSet<>();
+        Set<Key> tags = new LinkedHashSet<>();
+        Set<Tag<Material>> vanillaTags = new LinkedHashSet<>();
         for (Object entry : entries) {
             if (entry == null) {
                 continue;
@@ -98,6 +101,32 @@ public final class ConfiguredBlockSet {
 
     public boolean isEmpty() {
         return this.materials.isEmpty() && this.customIds.isEmpty() && this.tags.isEmpty();
+    }
+
+    // Concrete members (vanilla ids + CraftEngine custom block ids) in config order; tags stay
+    // separate so callers expand them through their own tag lookup.
+    public List<String> memberIds() {
+        List<String> ids = new ArrayList<>(this.materials.size() + this.customIds.size());
+        for (Material material : this.materials) {
+            ids.add("minecraft:" + material.name().toLowerCase(Locale.ROOT));
+        }
+        ids.addAll(this.customIds);
+        return ids;
+    }
+
+    public Set<Key> tags() {
+        return this.tags;
+    }
+
+    public Set<Key> vanillaTagKeys() {
+        if (this.vanillaTags.isEmpty()) {
+            return Set.of();
+        }
+        Set<Key> keys = new LinkedHashSet<>();
+        for (Tag<Material> tag : this.vanillaTags) {
+            keys.add(Key.of(tag.getKey().toString()));
+        }
+        return keys;
     }
 
     public boolean contains(Block block) {

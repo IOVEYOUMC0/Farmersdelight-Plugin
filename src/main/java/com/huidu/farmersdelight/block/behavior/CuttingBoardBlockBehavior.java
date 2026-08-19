@@ -2,6 +2,8 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.api.block.CuttingBoardInteractionContext;
+import com.huidu.farmersdelight.api.block.CuttingBoardInteractionHandler;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
 import com.huidu.farmersdelight.util.ItemUtils;
@@ -524,6 +526,13 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
                 + ", stacking=" + stackingEnabled
                 + ", pos=" + posKey);
 
+        // Addon-registered handlers get the interaction first (after permission / protection checks, before
+        // FarmersDelight's own placement, cutting and stacking logic). The first handler that consumes wins.
+        if (runExternalInteractionHandlers(bukkitPlayer, block, blockEntity, facing, world, posKey,
+                mainHand, offHand)) {
+            return InteractionResult.SUCCESS_AND_CANCEL;
+        }
+
         if (blockEntity.hasItem()) {
             ItemStack tool = findMatchingTool(blockEntity, mainHand, offHand, allowOffhandInteractions);
             boolean toolIsOffhand = allowOffhandInteractions && tool != null && tool == offHand;
@@ -627,6 +636,34 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         }
 
         return InteractionResult.PASS;
+    }
+
+    // Runs every addon-registered cutting-board handler against this right-click until one consumes. Runs on
+    // the world region thread. A throwing handler is logged and skipped so one addon cannot break the board.
+    private static boolean runExternalInteractionHandlers(Player player, Block block, CuttingBoardBlockEntity blockEntity,
+                                                          BlockFace facing, World world, BlockPosKey posKey,
+                                                          ItemStack mainHand, ItemStack offHand) {
+        List<CuttingBoardInteractionHandler> handlers =
+                FarmersDelightPlugin.getInstance().getCuttingBoardInteractionHandlers();
+        if (handlers.isEmpty()) {
+            return false;
+        }
+        CuttingBoardInteractionContext context = new CuttingBoardInteractionContext(
+                player, block, mainHand, offHand,
+                blockEntity::getStoredItem,
+                item -> blockEntity.setStoredItem(item, world, posKey, facing),
+                block::getLocation);
+        for (CuttingBoardInteractionHandler handler : handlers) {
+            try {
+                if (handler.handle(context)) {
+                    return true;
+                }
+            } catch (RuntimeException e) {
+                FarmersDelightPlugin.getInstance().getLogger()
+                        .warning("cutting board interaction handler failed: " + e);
+            }
+        }
+        return false;
     }
 
     private boolean tryPlaceOnEmptyBoard(ItemStack sourceItem, boolean offhand, Player player,

@@ -1,253 +1,274 @@
-﻿items:
+items:
   farmersdelight:wild_cabbages:
     data:
       item-name: <lang:block.farmersdelight.wild_cabbages>
     texture: farmersdelight:block/wild_cabbages
-    behavior:
-      type: block_item
-      block:
-        settings:
-          template:
-            - default:hardness/none
-            - default:sound/grass
-        overrides:
-          item: farmersdelight:wild_cabbages
-          push-reaction: destroy
-        tags:
-          - minecraft:flowers
-          - minecraft:small_flowers
-        behavior:
-          - type: liquid_flowable_block
-          - type: bush_block
-            bottom-block-tags:
-              - minecraft:dirt
-              - minecraft:sand
-          - type: farmersdelight:wild_plant
-            is-bone-meal-target: true
-        state:
-          auto-state: sugar_cane
-          models:
-            - path: farmersdelight:block/wild_cabbages
-        loot:
-          pools:
-            - rolls: 1
-              entries:
-                - type: alternatives
-                  children:
-                    - type: item
-                      item: farmersdelight:wild_cabbages
-                      conditions:
-                        - type: match_item
-                          item: minecraft:shears
-                    - type: item
-                      item: farmersdelight:cabbage_seeds
-                      count: 1
-                      functions:
-                        - type: explosion_decay
-                        - type: apply_bonus
-                          enchantment: minecraft:fortune
-                          formula:
-                            type: binomial_with_bonus_count
-                            extra: 0
-                            probability: 1.0
-            - rolls: 1
-              conditions:
-                - type: random
-                  value: 0.2
-                - type: inverted
-                  term:
-                    type: match_item
-                    item: minecraft:shears
-              entries:
-                - type: item
-                  item: farmersdelight:cabbage
-                  count: 1
+    behaviors:
+      - type: compostable_item
+        chance: 0.65
+      - type: block_item
+        block: farmersdelight:wild_cabbages
+    settings:
+      compost_probability: 0.65
   farmersdelight:wild_onions:
     data:
       item-name: <lang:block.farmersdelight.wild_onions>
     texture: farmersdelight:block/wild_onions
-    behavior:
-      type: block_item
-      block:
-        settings:
-          template:
-            - default:hardness/none
-            - default:sound/grass
-        overrides:
-          item: farmersdelight:wild_onions
-          push-reaction: destroy
-        tags:
-          - minecraft:flowers
-          - minecraft:small_flowers
-        behavior:
-          - type: liquid_flowable_block
-          - type: bush_block
-            bottom-block-tags:
-              - minecraft:dirt
-              - minecraft:sand
-            bottom-blocks:
-              - minecraft:grass_block
-          - type: farmersdelight:wild_plant
-            is-bone-meal-target: true
-        state:
-          auto-state: sugar_cane
-          models:
-            - path: farmersdelight:block/wild_onions
-        loot:
-          pools:
-            - rolls: 1
-              entries:
-                - type: alternatives
-                  children:
-                    - type: item
-                      item: farmersdelight:wild_onions
-                      conditions:
-                        - type: match_item
-                          item: minecraft:shears
-                    - type: item
-                      item: farmersdelight:onion
-                      count: 1
-                      functions:
-                        - type: explosion_decay
-                        - type: apply_bonus
-                          enchantment: minecraft:fortune
-                          formula:
-                            type: binomial_with_bonus_count
-                            extra: 0
-                            probability: 1.0
+    behaviors:
+      - type: compostable_item
+        chance: 0.65
+      - type: block_item
+        block: farmersdelight:wild_onions
+    settings:
+      compost_probability: 0.65
   farmersdelight:wild_tomatoes:
     data:
       item-name: <lang:block.farmersdelight.wild_tomatoes>
     texture: farmersdelight:block/wild_tomatoes
-    behavior:
-      type: block_item
-      block:
-        settings:
-          template:
-            - default:hardness/none
-            - default:sound/grass
-        overrides:
-          item: farmersdelight:wild_tomatoes
-          push-reaction: destroy
-        tags:
-          - minecraft:flowers
-          - minecraft:small_flowers
-        behavior:
-          - type: liquid_flowable_block
-          - type: bush_block
-            bottom-block-tags:
-              - minecraft:dirt
-              - minecraft:sand
-            bottom-blocks:
-              - minecraft:grass_block
-          - type: farmersdelight:wild_plant
-            is-bone-meal-target: true
-        state:
-          auto-state: sugar_cane
-          models:
-            - path: farmersdelight:block/wild_tomatoes
-        loot:
-          pools:
-            - rolls: 1
-              entries:
-                - type: alternatives
-                  children:
-                    - type: item
-                      item: farmersdelight:wild_tomatoes
-                      conditions:
-                        - type: match_item
-                          item: minecraft:shears
-                    - type: item
-                      item: farmersdelight:tomato_seeds
-                      count: 1
-                      functions:
-                        - type: explosion_decay
-                        - type: apply_bonus
-                          enchantment: minecraft:fortune
-                          formula:
-                            type: binomial_with_bonus_count
-                            extra: 0
-                            probability: 1.0
-            - rolls: 1
-              conditions:
-                - type: random
-                  value: 0.2
-                - type: inverted
-                  term:
-                    type: match_item
-                    item: minecraft:shears
-              entries:
-                - type: item
-                  item: farmersdelight:tomato
-                  count: 1
+    behaviors:
+      - type: compostable_item
+        chance: 0.65
+      - type: block_item
+        block: farmersdelight:wild_tomatoes
+    settings:
+      compost_probability: 0.65
   farmersdelight:wild_rice:
     data:
       item-name: <lang:block.farmersdelight.wild_rice>
     texture: farmersdelight:block/wild_rice_top
-    behavior:
-      type: double_high_block_item
-      block:
-        settings:
-          template:
-            - default:hardness/none
-            - default:sound/grass
-        overrides:
-          item: farmersdelight:wild_rice
-          push-reaction: destroy
-        tags:
-          - minecraft:flowers
-          - minecraft:tall_flowers
-        behavior:
-          - type: double_high_block
-          - type: farmersdelight:wild_rice
-            requires-water: true
-            bottom-block-tags:
-              - "#minecraft:dirt"
-            bottom-blocks:
-              - minecraft:grass_block
-              - minecraft:mud
-              - minecraft:sand
-              - minecraft:red_sand
-          - type: farmersdelight:upper_half_loot_relay
-        states:
-          properties:
-            half:
-              type: double_block_half
-              default: lower
-          appearances:
-            half=lower:
-              auto-state: kelp
-              model: farmersdelight:block/wild_rice_bottom
-            half=upper:
-              auto-state: higher_tripwire
-              model: farmersdelight:block/wild_rice_top
-          variants:
-            half=lower:
-              appearance: half=lower
-            half=upper:
-              appearance: half=upper
-        loot:
-          pools:
-            - rolls: 1
-              entries:
-                - type: alternatives
-                  children:
-                    - type: item
-                      item: farmersdelight:wild_rice
-                      conditions:
-                        - type: match_item
-                          item: minecraft:shears
-                        - type: match_block_property
-                          properties:
-                            half: lower
-                    - type: item
-                      item: farmersdelight:rice
-                      count: 1
-                      conditions:
-                        - type: survives_explosion
-                        - type: match_block_property
-                          properties:
-                            half: lower
+    behaviors:
+      - type: compostable_item
+        chance: 0.65
+      - type: double_high_block_item
+        block: farmersdelight:wild_rice
+    settings:
+      compost_probability: 0.65
+blocks:
+  farmersdelight:wild_cabbages:
+    settings:
+      template:
+        - default:hardness/none
+        - default:sound/grass
+    overrides:
+      item: farmersdelight:wild_cabbages
+      push-reaction: destroy
+    tags:
+      - minecraft:flowers
+      - minecraft:small_flowers
+    behaviors:
+      - type: liquid_flowable_block
+      - type: bush_block
+        bottom-block-tags:
+          - minecraft:dirt
+          - minecraft:sand
+      - type: farmersdelight:wild_plant
+        is-bone-meal-target: true
+    state:
+      auto-state: sugar_cane
+      models:
+        - path: farmersdelight:block/wild_cabbages
+    loot:
+      pools:
+        - rolls: 1
+          entries:
+            - type: alternatives
+              children:
+                - type: item
+                  item: farmersdelight:wild_cabbages
+                  conditions:
+                    - type: match_item
+                      item: minecraft:shears
+                - type: item
+                  item: farmersdelight:cabbage_seeds
+                  count: 1
+                  functions:
+                    - type: explosion_decay
+                    - type: apply_bonus
+                      enchantment: minecraft:fortune
+                      formula:
+                        type: binomial_with_bonus_count
+                        extra: 0
+                        probability: 1.0
+        - rolls: 1
+          conditions:
+            - type: random
+              value: 0.2
+            - type: inverted
+              term:
+                type: match_item
+                item: minecraft:shears
+          entries:
+            - type: item
+              item: farmersdelight:cabbage
+              count: 1
+  farmersdelight:wild_onions:
+    settings:
+      template:
+        - default:hardness/none
+        - default:sound/grass
+    overrides:
+      item: farmersdelight:wild_onions
+      push-reaction: destroy
+    tags:
+      - minecraft:flowers
+      - minecraft:small_flowers
+    behaviors:
+      - type: liquid_flowable_block
+      - type: bush_block
+        bottom-block-tags:
+          - minecraft:dirt
+          - minecraft:sand
+        bottom-blocks:
+          - minecraft:grass_block
+      - type: farmersdelight:wild_plant
+        is-bone-meal-target: true
+    state:
+      auto-state: sugar_cane
+      models:
+        - path: farmersdelight:block/wild_onions
+    loot:
+      pools:
+        - rolls: 1
+          entries:
+            - type: alternatives
+              children:
+                - type: item
+                  item: farmersdelight:wild_onions
+                  conditions:
+                    - type: match_item
+                      item: minecraft:shears
+                - type: item
+                  item: farmersdelight:onion
+                  count: 1
+                  functions:
+                    - type: explosion_decay
+                    - type: apply_bonus
+                      enchantment: minecraft:fortune
+                      formula:
+                        type: binomial_with_bonus_count
+                        extra: 0
+                        probability: 1.0
+  farmersdelight:wild_tomatoes:
+    settings:
+      template:
+        - default:hardness/none
+        - default:sound/grass
+    overrides:
+      item: farmersdelight:wild_tomatoes
+      push-reaction: destroy
+    tags:
+      - minecraft:flowers
+      - minecraft:small_flowers
+    behaviors:
+      - type: liquid_flowable_block
+      - type: bush_block
+        bottom-block-tags:
+          - minecraft:dirt
+          - minecraft:sand
+        bottom-blocks:
+          - minecraft:grass_block
+      - type: farmersdelight:wild_plant
+        is-bone-meal-target: true
+    state:
+      auto-state: sugar_cane
+      models:
+        - path: farmersdelight:block/wild_tomatoes
+    loot:
+      pools:
+        - rolls: 1
+          entries:
+            - type: alternatives
+              children:
+                - type: item
+                  item: farmersdelight:wild_tomatoes
+                  conditions:
+                    - type: match_item
+                      item: minecraft:shears
+                - type: item
+                  item: farmersdelight:tomato_seeds
+                  count: 1
+                  functions:
+                    - type: explosion_decay
+                    - type: apply_bonus
+                      enchantment: minecraft:fortune
+                      formula:
+                        type: binomial_with_bonus_count
+                        extra: 0
+                        probability: 1.0
+        - rolls: 1
+          conditions:
+            - type: random
+              value: 0.2
+            - type: inverted
+              term:
+                type: match_item
+                item: minecraft:shears
+          entries:
+            - type: item
+              item: farmersdelight:tomato
+              count: 1
+  farmersdelight:wild_rice:
+    settings:
+      template:
+        - default:hardness/none
+        - default:sound/grass
+    overrides:
+      item: farmersdelight:wild_rice
+      push-reaction: destroy
+    tags:
+      - minecraft:flowers
+      - minecraft:tall_flowers
+    behaviors:
+      - type: double_high_block
+      - type: farmersdelight:wild_rice
+        requires-water: true
+        bottom-block-tags:
+          - "#minecraft:dirt"
+        bottom-blocks:
+          - minecraft:grass_block
+          - minecraft:mud
+          - minecraft:sand
+          - minecraft:red_sand
+      - type: farmersdelight:upper_half_loot_relay
+    states:
+      properties:
+        half:
+          type: double_block_half
+          default: lower
+      appearances:
+        half=lower:
+          auto-state: kelp
+          model: farmersdelight:block/wild_rice_bottom
+        half=upper:
+          auto-state: higher_tripwire
+          model: farmersdelight:block/wild_rice_top
+      variants:
+        half=lower:
+          appearance: half=lower
+        half=upper:
+          appearance: half=upper
+    loot:
+      pools:
+        - rolls: 1
+          entries:
+            - type: alternatives
+              children:
+                - type: item
+                  item: farmersdelight:wild_rice
+                  conditions:
+                    - type: match_item
+                      item: minecraft:shears
+                    - type: match_block_property
+                      properties:
+                        half: lower
+                - type: item
+                  item: farmersdelight:rice
+                  count: 1
+                  conditions:
+                    - type: survives_explosion
+                    - type: match_block_property
+                      properties:
+                        half: lower
 placed-features:
   farmersdelight:wild_cabbages:
     biome:

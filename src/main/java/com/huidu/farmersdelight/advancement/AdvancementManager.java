@@ -329,8 +329,14 @@ public class AdvancementManager {
             return;
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
-            award(player, "root");
-            showTo(player);
+            try {
+                award(player, "root");
+                showTo(player);
+            } catch (Exception e) {
+                // A player whose data is not loaded yet (UserNotLoadedException) must not block the others.
+                plugin.getLogger().log(java.util.logging.Level.WARNING,
+                        "Failed to resync advancements for " + player.getName() + ':', e);
+            }
         }
     }
 

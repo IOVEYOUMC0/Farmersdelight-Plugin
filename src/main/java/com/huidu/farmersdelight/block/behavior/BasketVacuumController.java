@@ -11,7 +11,6 @@ import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.CEWorld;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Item;
@@ -23,12 +22,19 @@ import java.util.Map;
 public final class BasketVacuumController extends BlockEntityController {
 
     private static final int NO_OP_COOLDOWN = 10;
+    // Idle baskets re-poll the redstone signal at this cadence. Once a signal is observed the poll tightens
+    // to every tick so the basket resumes promptly when the signal drops; the cached state turns the hot
+    // isBlockIndirectlyPowered (6-neighbour signal scan) from a per-cooldown-expiry call into ~1/s per
+    // idle basket regardless of the configured transfer cooldown.
+    private static final int REDSTONE_POLL_INTERVAL = 20;
     private final int transferCooldownTicks;
     // Controls whether the basket pushes contents into the container it faces. Collection always runs.
     private final boolean eject;
     // Access is confined to the block entity's region tick thread, so cross-thread synchronization is unnecessary.
     // Start negative to match the original basket, which is ready to collect immediately after startup.
     private int transferCooldown = -1;
+    private boolean poweredByRedstone;
+    private int redstonePollTicks;
 
     public BasketVacuumController(BlockEntity blockEntity, int transferCooldownTicks, boolean eject) {
         super(blockEntity);
@@ -63,8 +69,15 @@ public final class BasketVacuumController extends BlockEntityController {
         // property is added. This reads the basket's own block on the region that ticks it; the
         // neighbour-signal scan stays inside the region's owned area, which always keeps a chunk border
         // for block ticking, so it is region-safe on Folia and needs no ownership guard.
-        Block ownBlock = world.getBlockAt(pos.x(), pos.y(), pos.z());
-        if (ownBlock.isBlockIndirectlyPowered()) {
+        // The poll is adaptive: an idle basket re-checks every REDSTONE_POLL_INTERVAL ticks, but the
+        // moment a signal is seen the check runs every tick so the basket resumes as soon as the signal
+        // drops. Redstone state rarely changes, so the hot 6-neighbour scan is no longer paid on every
+        // cooldown expiry.
+        if (this.poweredByRedstone || ++this.redstonePollTicks >= REDSTONE_POLL_INTERVAL) {
+            this.redstonePollTicks = 0;
+            this.poweredByRedstone = world.getBlockAt(pos.x(), pos.y(), pos.z()).isBlockIndirectlyPowered();
+        }
+        if (this.poweredByRedstone) {
             this.transferCooldown = NO_OP_COOLDOWN;
             return;
         }

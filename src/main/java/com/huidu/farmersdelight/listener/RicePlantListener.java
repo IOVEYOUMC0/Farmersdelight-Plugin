@@ -220,6 +220,9 @@ public class RicePlantListener implements Listener {
         event.setCancelled(true);
     }
 
+    // Paper deprecated Material#isInteractable with no replacement (its javadoc notes it never was
+    // comprehensive). The judgement here is deliberately a coarse heuristic that keeps rice planting
+    // from hijacking right-clicks on interactive blocks, so keep the call with a local suppression.
     @SuppressWarnings("deprecation")
     private boolean isBlockingInteractable(Block clickedBlock, Player player) {
         return clickedBlock.getType() != Material.WATER

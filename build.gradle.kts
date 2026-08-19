@@ -23,12 +23,24 @@ repositories {
     maven("https://repo.extendedclip.com/content/repositories/placeholderapi/")
 }
 
+// CraftEngine version selector — must be declared before `dependencies {}` uses it.
+val ceVersion = providers.gradleProperty("ceVersion").orElse("26.7.4").get()
+val pluginArchiveClassifier = if (ceVersion == "26.8") "ce268" else "ce2674"
+
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
     compileOnly("org.jetbrains:annotations:26.1.0")
-    compileOnly("net.momirealms:craft-engine-core:26.7.4")
-    compileOnly("net.momirealms:craft-engine-bukkit:26.7.4")
-    compileOnly("net.momirealms:craft-engine-bukkit-proxy:26.7.4")
+
+    // CraftEngine — two supported server-side versions. Pass -PceVersion=26.7.4 (default, maven) or
+    // -PceVersion=26.8 (local jar under libs/, since 26.8-SNAPSHOT is not published to maven).
+    if (ceVersion == "26.8") {
+        compileOnly(files("libs/craft-engine-26.8.jar"))
+    } else {
+        compileOnly("net.momirealms:craft-engine-core:26.7.4")
+        compileOnly("net.momirealms:craft-engine-bukkit:26.7.4")
+        compileOnly("net.momirealms:craft-engine-bukkit-proxy:26.7.4")
+    }
+
     compileOnly("me.clip:placeholderapi:2.11.6")
     // AntiGriefLib: unified protection facade over 24+ land/claim plugins (MIT). Bundled by shadowJar (not
     // relocated — Bukkit plugin classloaders are isolated, so the package cannot clash with another plugin's).
@@ -40,6 +52,9 @@ dependencies {
     // relocating triggers shadow 8.1.7's ASM remap bug. bStats' own relocation self-check is disabled at
     // runtime via System.setProperty("bstats.relocatecheck", "false") before Metrics is constructed.
     implementation("org.bstats:bstats-bukkit:3.1.0")
+    // Jackson JSON (Maven Central): parses and merges the vanilla chest loot tables with the FD
+    // append pools at datapack install time. Bundled by shadowJar like the other implementation deps.
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.17.3")
     // UltimateAdvancementAPI: separate server plugin; vendored only for offline compile against its API.
     compileOnly(files("libs/UltimateAdvancementAPI-Plugin-2.8.0-folia.jar"))
     testImplementation("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
@@ -63,6 +78,8 @@ val obfuscateBuild = providers.gradleProperty("obfuscate")
     .orElse(false)
 val debugToolsBuild = providers.gradleProperty("debugTools")
     .map { it.equals("true", ignoreCase = true) }
+    // Debug tools require a special build (-PdebugTools=true); the runtime statistics they used to
+    // carry now live in the main plugin as /fd stats, so a normal build needs no debug source set.
     .orElse(false)
 val pluginArchiveBaseName = "farmersdelight"
 
@@ -133,7 +150,7 @@ tasks.compileJava {
 
 tasks.shadowJar {
     archiveBaseName.set(pluginArchiveBaseName)
-    archiveClassifier.set("")
+    archiveClassifier.set(pluginArchiveClassifier)
     if (!debugToolsBuild.get()) {
         exclude("com/huidu/farmersdelight/debug/**")
     }
@@ -160,7 +177,6 @@ fun registerObfuscationTask(
         val outputJar = layout.buildDirectory.file("libs/$outputFileName")
         val mappingFile = layout.buildDirectory.file("reports/proguard/$reportBaseName-mapping.txt")
         val configFile = layout.buildDirectory.file("reports/proguard/$reportBaseName-configuration.txt")
-
         injars(inputJar)
         outjars(outputJar)
 
@@ -192,6 +208,11 @@ fun registerObfuscationTask(
         // Public addon-facing API (events + extension facade for addons like Brewin' And Chewin').
         keep("""
         public class com.huidu.farmersdelight.api.** {
+            public protected *;
+        }
+        // Explicitly keep NestingGuard, which is only called by addons, not used internally by FD itself.
+        // Without this line ProGuard removes it as "unused" during shrinking.
+        public class com.huidu.farmersdelight.api.util.NestingGuard {
             public protected *;
         }
     """.trimIndent())
@@ -226,8 +247,8 @@ val obfuscateJar = registerObfuscationTask(
     taskDescription = "Builds the strongly obfuscated universal plugin jar.",
     dependency = tasks.shadowJar,
     inputJar = tasks.shadowJar.flatMap { it.archiveFile },
-    outputFileName = "$pluginArchiveBaseName-${project.version}-obf.jar",
-    reportBaseName = "$pluginArchiveBaseName-${project.version}"
+    outputFileName = "$pluginArchiveBaseName-${project.version}-$pluginArchiveClassifier-obf.jar",
+    reportBaseName = "$pluginArchiveBaseName-${project.version}-$pluginArchiveClassifier"
 )
 
 tasks.register("buildObfuscated") {

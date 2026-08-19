@@ -21,8 +21,9 @@ templates:
     data:
       components:
         minecraft:max_stack_size: 16
-    settings:
-      consume-replacement: "minecraft:bowl"
+        minecraft:use_remainder:
+          id: minecraft:bowl
+          count: 1
   farmersdelight:pie_template:
     model: ${__NAMESPACE__}:item/${__ID__}
     behavior:
@@ -88,19 +89,30 @@ items:
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
       item-name: <!i><lang:item.farmersdelight.straw>
+    behavior:
+      type: compostable_item
+      chance: 0.3
+    settings:
+      compost_probability: 0.3
+      fuel_time: 100
   farmersdelight:canvas:
     material: nether_brick
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
       item-name: <!i><lang:item.farmersdelight.canvas>
+    settings:
+      fuel_time: 400
   farmersdelight:tree_bark:
     material: nether_brick
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
       item-name: <!i><lang:item.farmersdelight.tree_bark>
+    behavior:
+      type: compostable_item
+      chance: 0.3
     settings:
       compost_probability: 0.3
-      fuel_time: 80
+      fuel_time: 200
   farmersdelight:apple_cider:
     template: farmersdelight:drink_template
     data:
@@ -182,9 +194,13 @@ items:
         nutrition: 2
         saturation: 1.6
         can-always-eat: false
+    behavior:
+      type: compostable_item
+      chance: 0.65
     settings:
       tags:
         - farmersdelight:leafs
+      compost_probability: 0.65
   farmersdelight:tomato:
     template: farmersdelight:food_template
     data:
@@ -193,6 +209,11 @@ items:
         nutrition: 1
         saturation: 0.6
         can-always-eat: false
+    behavior:
+      type: compostable_item
+      chance: 0.65
+    settings:
+      compost_probability: 0.65
   farmersdelight:onion:
     template: farmersdelight:food_template
     data:
@@ -201,34 +222,55 @@ items:
         nutrition: 2
         saturation: 1.6
         can-always-eat: false
-    behavior:
-      type: block_item
-      block: farmersdelight:onions
+    behaviors:
+      - type: compostable_item
+        chance: 0.65
+      - type: block_item
+        block: farmersdelight:onions
+    settings:
+      compost_probability: 0.65
   farmersdelight:rice_panicle:
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
       item-name: <!i><lang:item.farmersdelight.rice_panicle>
+    behavior:
+      type: compostable_item
+      chance: 0.3
+    settings:
+      compost_probability: 0.3
   farmersdelight:rice:
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
       item-name: <!i><lang:item.farmersdelight.rice>
-    behavior:
-      type: liquid_collision_block_item
-      block: farmersdelight:rice
+    behaviors:
+      - type: compostable_item
+        chance: 0.3
+      - type: liquid_collision_block_item
+        block: farmersdelight:rice
+    settings:
+      compost_probability: 0.3
   farmersdelight:cabbage_seeds:
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
       item-name: <!i><lang:item.farmersdelight.cabbage_seeds>
-    behavior:
-      type: block_item
-      block: farmersdelight:cabbages
+    behaviors:
+      - type: compostable_item
+        chance: 0.3
+      - type: block_item
+        block: farmersdelight:cabbages
+    settings:
+      compost_probability: 0.3
   farmersdelight:tomato_seeds:
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
       item-name: <!i><lang:item.farmersdelight.tomato_seeds>
-    behavior:
-      type: block_item
-      block: farmersdelight:budding_tomatoes
+    behaviors:
+      - type: compostable_item
+        chance: 0.3
+      - type: block_item
+        block: farmersdelight:budding_tomatoes
+    settings:
+      compost_probability: 0.3
   farmersdelight:organic_compost:
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
@@ -255,6 +297,11 @@ items:
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
       item-name: <!i><lang:item.farmersdelight.rotten_tomato>
+    behavior:
+      type: compostable_item
+      chance: 0.85
+    settings:
+      compost_probability: 0.85
   farmersdelight:fried_egg:
     template: farmersdelight:food_template
     data:
@@ -298,6 +345,11 @@ items:
         nutrition: 2
         saturation: 1.2
         can-always-eat: false
+    behavior:
+      type: compostable_item
+      chance: 0.85
+    settings:
+      compost_probability: 0.85
     events:
       - on: consume
         conditions:
@@ -317,6 +369,11 @@ items:
         nutrition: 3
         saturation: 1.8
         can-always-eat: false
+    behavior:
+      type: compostable_item
+      chance: 0.5
+    settings:
+      compost_probability: 0.5
   farmersdelight:cabbage_leaf:
     template: farmersdelight:food_cut_template
     data:
@@ -328,6 +385,7 @@ items:
     settings:
       tags:
         - farmersdelight:leafs
+      compost_probability: 0.5
   farmersdelight:minced_beef:
     template: farmersdelight:food_cut_template
     data:
@@ -461,8 +519,10 @@ items:
         nutrition: 5
         saturation: 3
         can-always-eat: false
-    settings:
-      consume-replacement: "minecraft:bone"
+      components:
+        minecraft:use_remainder:
+          id: minecraft:bone
+          count: 1
   farmersdelight:smoked_ham:
     template: farmersdelight:food_template
     data:
@@ -471,8 +531,10 @@ items:
         nutrition: 10
         saturation: 16
         can-always-eat: false
-    settings:
-      consume-replacement: "minecraft:bone"
+      components:
+        minecraft:use_remainder:
+          id: minecraft:bone
+          count: 1
   farmersdelight:pie_crust:
     template: farmersdelight:food_template
     data:
@@ -481,21 +543,47 @@ items:
         nutrition: 2
         saturation: 0.8
         can-always-eat: false
+    behavior:
+      type: compostable_item
+      chance: 0.65
+    settings:
+      compost_probability: 0.65
   farmersdelight:apple_pie:
     template: farmersdelight:pie_template
     data:
       item-name: <!i><lang:block.farmersdelight.apple_pie>
       lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
+    behaviors:
+      - type: compostable_item
+        chance: 1.0
+      - type: ground_block_item
+        block: farmersdelight:apple_pie
+    settings:
+      compost_probability: 1.0
   farmersdelight:sweet_berry_cheesecake:
     template: farmersdelight:pie_template
     data:
       item-name: <!i><lang:block.farmersdelight.sweet_berry_cheesecake>
       lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
+    behaviors:
+      - type: compostable_item
+        chance: 1.0
+      - type: ground_block_item
+        block: farmersdelight:sweet_berry_cheesecake
+    settings:
+      compost_probability: 1.0
   farmersdelight:chocolate_pie:
     template: farmersdelight:pie_template
     data:
       item-name: <!i><lang:block.farmersdelight.chocolate_pie>
       lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
+    behaviors:
+      - type: compostable_item
+        chance: 1.0
+      - type: ground_block_item
+        block: farmersdelight:chocolate_pie
+    settings:
+      compost_probability: 1.0
   farmersdelight:cake_slice:
     template: farmersdelight:food_template
     data:
@@ -504,6 +592,11 @@ items:
         nutrition: 2
         saturation: 0.4
         can-always-eat: false
+    behavior:
+      type: compostable_item
+      chance: 0.85
+    settings:
+      compost_probability: 0.85
     events:
       - on: consume
         functions:
@@ -516,14 +609,29 @@ items:
     template: farmersdelight:pie_slice_template
     data:
       item-name: <!i><lang:block.farmersdelight.apple_pie_slice>
+    behavior:
+      type: compostable_item
+      chance: 0.85
+    settings:
+      compost_probability: 0.85
   farmersdelight:sweet_berry_cheesecake_slice:
     template: farmersdelight:pie_slice_template
     data:
       item-name: <!i><lang:block.farmersdelight.sweet_berry_cheesecake_slice>
+    behavior:
+      type: compostable_item
+      chance: 0.85
+    settings:
+      compost_probability: 0.85
   farmersdelight:chocolate_pie_slice:
     template: farmersdelight:pie_slice_template
     data:
       item-name: <!i><lang:block.farmersdelight.chocolate_pie_slice>
+    behavior:
+      type: compostable_item
+      chance: 0.85
+    settings:
+      compost_probability: 0.85
   minecraft:pumpkin_pie:
     material: pumpkin_pie
     data:
@@ -549,6 +657,8 @@ items:
         nutrition: 2
         saturation: 0.4
         can-always-eat: false
+    settings:
+      compost_probability: 0.85
   farmersdelight:honey_cookie:
     template: farmersdelight:food_cut_template
     data:
@@ -557,6 +667,8 @@ items:
         nutrition: 2
         saturation: 0.4
         can-always-eat: false
+    settings:
+      compost_probability: 0.85
   farmersdelight:melon_popsicle:
     template: farmersdelight:food_cut_template
     data:
@@ -565,8 +677,10 @@ items:
         nutrition: 3
         saturation: 1.2
         can-always-eat: true
-    settings:
-      consume-replacement: "minecraft:stick"
+      components:
+        minecraft:use_remainder:
+          id: minecraft:stick
+          count: 1
   farmersdelight:glow_berry_custard:
     template: farmersdelight:drink_template
     data:
@@ -645,8 +759,10 @@ items:
         nutrition: 8
         saturation: 14.4
         can-always-eat: false
-    settings:
-      consume-replacement: "minecraft:stick"
+      components:
+        minecraft:use_remainder:
+          id: minecraft:stick
+          count: 1
   farmersdelight:egg_sandwich:
     template: farmersdelight:food_template
     data:
@@ -695,6 +811,11 @@ items:
         nutrition: 8
         saturation: 12.8
         can-always-eat: false
+    behavior:
+      type: compostable_item
+      chance: 1.0
+    settings:
+      compost_probability: 1.0
   farmersdelight:stuffed_potato:
     template: farmersdelight:food_template
     data:
@@ -735,6 +856,11 @@ items:
         nutrition: 12
         saturation: 12
         can-always-eat: false
+    behavior:
+      type: compostable_item
+      chance: 0.85
+    settings:
+      compost_probability: 0.85
   farmersdelight:kelp_roll_slice:
     template: farmersdelight:food_cut_template
     data:
@@ -743,6 +869,8 @@ items:
         nutrition: 6
         saturation: 6
         can-always-eat: false
+    settings:
+      compost_probability: 0.5
   farmersdelight:cooked_rice:
     template:
       - farmersdelight:soup_template
@@ -1013,6 +1141,13 @@ items:
         minecraft:max_stack_size: 1
       item-name: <!i><lang:block.farmersdelight.stuffed_pumpkin_block>
       lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
+    behaviors:
+      - type: compostable_item
+        chance: 1.0
+      - type: ground_block_item
+        block: farmersdelight:stuffed_pumpkin_block
+    settings:
+      compost_probability: 1.0
   farmersdelight:stuffed_pumpkin:
     template:
       - farmersdelight:soup_template

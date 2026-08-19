@@ -25,7 +25,7 @@ items:
     settings:
       farmersdelight:sword:
         max-durability: 131
-        enchantability: 5
+        enchantability: 14
         attack-sound: minecraft:entity.player.attack.sweep
       tags:
       - farmersdelight:knives
