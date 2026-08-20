@@ -31,7 +31,6 @@ import com.huidu.farmersdelight.listener.RicePlantListener;
 import com.huidu.farmersdelight.listener.RichSoilHoeListener;
 import com.huidu.farmersdelight.listener.RottenTomatoListener;
 import com.huidu.farmersdelight.listener.RopeBlockListener;
-import com.huidu.farmersdelight.listener.RugListener;
 import com.huidu.farmersdelight.listener.SkilletPlaceListener;
 import com.huidu.farmersdelight.listener.StrawDropListener;
 import com.huidu.farmersdelight.listener.TatamiBreakListener;
@@ -44,7 +43,6 @@ import com.huidu.farmersdelight.config.CuttingBoardDisplayConfig;
 import com.huidu.farmersdelight.config.DatapackWorldWhitelist;
 import com.huidu.farmersdelight.config.EnchantmentSettings;
 import com.huidu.farmersdelight.config.HeatSourceConfig;
-import com.huidu.farmersdelight.config.RugConfig;
 import com.huidu.farmersdelight.config.PetFoodConfig;
 import com.huidu.farmersdelight.config.StrawDropConfig;
 import com.huidu.farmersdelight.compat.AuraSkillsHook;
@@ -149,7 +147,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private StrawDropListener strawDropListener;
     private ChunkLoadListener chunkLoadListener;
     private RopeBlockListener ropeBlockListener;
-    private RugListener rugListener;
     private FoodEatListener foodEatListener;
     private PetFoodListener petFoodListener;
     private HorseFeedTemptListener horseFeedTemptListener;
@@ -174,8 +171,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     // volatile: reassigned on reload and read by region threads.
     private volatile HeatSourceConfig heatSourceConfig;
-    // volatile: rebuilt on reload, read by region threads in RugListener (block-physics/break events).
-    private volatile RugConfig rugConfig;
     private GuiConfig cookingPotGuiConfig;
     private Map<String, GuiConfig> customCookingPotGuiConfigs = Map.of();
     private volatile RecipeEditorGuiConfig recipeEditorGuiConfig;
@@ -308,9 +303,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
         if (ropeBlockListener != null) {
             ropeBlockListener.indexRopesInLoadedChunks();
-        }
-        if (rugListener != null) {
-            rugListener.indexRugsInLoadedChunks();
         }
     }
 
@@ -592,8 +584,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         ropeBlockListener = new RopeBlockListener(this);
         getServer().getPluginManager().registerEvents(ropeBlockListener, this);
         getServer().getPluginManager().registerEvents(new TatamiBreakListener(), this);
-        rugListener = new RugListener(this);
-        getServer().getPluginManager().registerEvents(rugListener, this);
         getServer().getPluginManager().registerEvents(new RichSoilHoeListener(this), this);
         getServer().getPluginManager().registerEvents(new CropInteractProtectionListener(), this);
 
@@ -845,7 +835,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         auraSkillsHook = null;
 
         heatSourceConfig = null;
-        rugConfig = null;
         cookingPotGuiConfig = null;
         cookingPotExperienceRewardConfig = null;
         strawDropConfig = null;
@@ -1380,19 +1369,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
         heatSourceConfig = newHeatSourceConfig;
 
-        // Rug underlying-block config lives beside the other FarmersDelight CraftEngine data
-        // (plugins/CraftEngine/resources/farmersdelight/rugs.yml), not in this plugin's config.yml, so
-        // admins tune all rug config in one place. Same R-CONC-002 safe-publication as heatSourceConfig:
-        // RugListener reads it from region-thread block events.
-        RugConfig newRugConfig = new RugConfig();
-        RugConfig.setLogger(getLogger());
-        newRugConfig.loadDefaults();
-        ConfigurationSection rugSection = loadRugConfigSection();
-        if (rugSection != null) {
-            newRugConfig.loadFromConfig(rugSection);
-        }
-        rugConfig = newRugConfig;
-
         guiConfig = loadGuiConfig();
         ConfigurationSection cookingPotSection = guiConfig.getConfigurationSection("cooking-pot-gui");
         cookingPotGuiConfig = cookingPotSection != null
@@ -1820,24 +1796,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             heatSourceConfig = new HeatSourceConfig();
         }
         return heatSourceConfig;
-    }
-
-    public RugConfig getRugConfig() {
-        RugConfig config = rugConfig;
-        if (config == null) {
-            config = new RugConfig();
-            config.loadDefaults();
-            rugConfig = config;
-        }
-        return config;
-    }
-
-    private ConfigurationSection loadRugConfigSection() {
-        Path pluginsFolder = getDataFolder().toPath().getParent();
-        if (pluginsFolder == null) return null;
-        File rugsFile = pluginsFolder.resolve(com.huidu.farmersdelight.resource.ResourceInstaller.CRAFTENGINE_RESOURCE_TARGET).resolve("rugs.yml").toFile();
-        if (!rugsFile.isFile()) return null;
-        return YamlConfiguration.loadConfiguration(rugsFile);
     }
 
     public GuiConfig getCookingPotGuiConfig() {

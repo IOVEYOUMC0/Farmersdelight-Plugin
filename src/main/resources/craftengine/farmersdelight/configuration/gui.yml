@@ -1,4 +1,4 @@
-﻿templates:
+templates:
   farmersdelight:icons_big:
     model:
       type: minecraft:model
@@ -202,4 +202,124 @@ images:
     file: farmersdelight:gui/item_info.png
     height: 56
     ascent: -2
+    font: farmersdelight:custom
+  farmersdelight:icon_apple_cider:
+    file: farmersdelight:item/apple_cider.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_baked_cod_stew:
+    file: farmersdelight:item/baked_cod_stew.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_beef_stew:
+    file: farmersdelight:item/beef_stew.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_bone_broth:
+    file: farmersdelight:item/bone_broth.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_cabbage_rolls:
+    file: farmersdelight:item/cabbage_rolls.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_chicken_soup:
+    file: farmersdelight:item/chicken_soup.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_cooked_rice:
+    file: farmersdelight:item/cooked_rice.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_dog_food:
+    file: farmersdelight:item/dog_food.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_dumplings:
+    file: farmersdelight:item/dumplings.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_fish_stew:
+    file: farmersdelight:item/fish_stew.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_fried_rice:
+    file: farmersdelight:item/fried_rice.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_glow_berry_custard:
+    file: farmersdelight:item/glow_berry_custard.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_hot_cocoa:
+    file: farmersdelight:item/hot_cocoa.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_mushroom_rice:
+    file: farmersdelight:item/mushroom_rice.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_noodle_soup:
+    file: farmersdelight:item/noodle_soup.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_pasta_with_meatballs:
+    file: farmersdelight:item/pasta_with_meatballs.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_pasta_with_mutton_chop:
+    file: farmersdelight:item/pasta_with_mutton_chop.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_pumpkin_soup:
+    file: farmersdelight:item/pumpkin_soup.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_ratatouille:
+    file: farmersdelight:item/ratatouille.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_squid_ink_pasta:
+    file: farmersdelight:item/squid_ink_pasta.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_stuffed_pumpkin_block:
+    file: farmersdelight:item/stuffed_pumpkin_block.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_tomato_sauce:
+    file: farmersdelight:item/tomato_sauce.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_vegetable_noodles:
+    file: farmersdelight:item/vegetable_noodles.png
+    height: 16
+    ascent: 12
+    font: farmersdelight:custom
+  farmersdelight:icon_vegetable_soup:
+    file: farmersdelight:item/vegetable_soup.png
+    height: 16
+    ascent: 12
     font: farmersdelight:custom

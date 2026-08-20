@@ -421,12 +421,21 @@ recipe-view-gui:
   # slots sit on the decomposition background like the mod's JEI category: description centered on top,
   # input left / output right, sunlight/water/catalyst conditions in the middle, catalyst items lower-right.
   special-recipe-detail:
-    title: "<white><offset><icon><shift:-1600><lang:gui.recipe.special_recipes>"
+    title: "<white><offset><icon><sunlight><water><catalyst_info><shift:-1600><lang:gui.recipe.special_recipes>"
     rows: 4
     title-layout:
       craftengine:
         offset: "<shift:-1>"
         icon: "<image:farmersdelight:decomposition>"
+        # Each condition icon keeps the SAME <shift> in its on and -off form, and the nowhere icon is the
+        # same width (162px) as sun/water/mushroom, so the title offset chain never collapses when a
+        # condition is missing. Tune the absolute shifts if an icon sits off its slot.
+        sunlight: "<shift:-163><image:farmersdelight:sun>"
+        sunlight-off: "<shift:-163><image:farmersdelight:none>"
+        water: "<shift:-71><image:farmersdelight:water>"
+        water-off: "<shift:-71><image:farmersdelight:none>"
+        catalyst_info: "<shift:-87><image:farmersdelight:mushroom>"
+        catalyst_info-off: "<shift:-87><image:farmersdelight:none>"
     layout:
       - "XXXXHXXXX"
       - "XIXXXXXOX"

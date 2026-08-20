@@ -423,6 +423,11 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
     public static final BlockBehaviorFactory<CuttingBoardBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         Property<?> facingProperty = block.getProperty("facing");
+        if (facingProperty == null) {
+            FarmersDelightPlugin.getInstance().getLogger()
+                    .warning("[FarmersDelight] Block " + block.id() + " is missing the 'facing' property"
+                            + " — the cutting board will not face any direction and may misbehave when placed.");
+        }
 
         List<String> toolTagStrings = getStringList(arguments, "tool-tags");
         if (toolTagStrings.isEmpty()) {

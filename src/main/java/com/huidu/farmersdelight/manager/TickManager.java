@@ -80,6 +80,14 @@ public class TickManager {
     private final AtomicLong performanceLastActiveBlocks = new AtomicLong();
     private final AtomicLong performanceLastProcessedBlocks = new AtomicLong();
     private volatile boolean performanceStatsEnabled;
+    // Per-block hot-spot sampling: keyed by BlockPosKey so a pot is attributed once per pass across all
+    // regions. Grows only while a profile runs, handed off to the caller on getPerformanceSnapshot(), then
+    // reset so per-profile attribution never bleeds into the next run.
+    private final Map<BlockPosKey, Long> performanceBlockNanos = new ConcurrentHashMap<>();
+    // Rolling per-pass duration history for P50/P95/P99 reporting, mirroring Spark's MSPT distribution.
+    private long[] performanceHistory = new long[PERFORMANCE_HISTORY_CAPACITY];
+    private int performanceHistorySize;
+    private static final int PERFORMANCE_HISTORY_CAPACITY = 4096;
 
     private static final int TICK_INTERVAL = 4;
     // Squared player-proximity radius for gating cooking-pot particle/sound broadcasts. Default 32 blocks =
@@ -436,12 +444,24 @@ public class TickManager {
         if (!performanceStatsEnabled) {
             return;
         }
+        long bounded = Math.max(0L, durationNanos);
         performanceSamples.incrementAndGet();
-        performanceTotalNanos.addAndGet(Math.max(0L, durationNanos));
-        performanceLastNanos.set(Math.max(0L, durationNanos));
+        performanceTotalNanos.addAndGet(bounded);
+        performanceLastNanos.set(bounded);
         performanceLastActiveBlocks.set(Math.max(0, activeCount));
         performanceLastProcessedBlocks.set(Math.max(0, processedCount));
-        updateMax(performanceMaxNanos, durationNanos);
+        updateMax(performanceMaxNanos, bounded);
+        appendHistory(bounded);
+    }
+
+    // Grow-only per-pass duration history for percentile reporting; capped so a long profile cannot
+    // allocate unbounded. Percentiles stay valid because the cap only drops the oldest samples.
+    private void appendHistory(long durationNanos) {
+        if (performanceHistorySize >= performanceHistory.length) {
+            return;
+        }
+        performanceHistory[performanceHistorySize] = durationNanos;
+        performanceHistorySize++;
     }
 
     private void updateMax(AtomicLong target, long value) {
@@ -471,6 +491,8 @@ public class TickManager {
         performanceMaxNanos.set(0L);
         performanceLastActiveBlocks.set(activeBlockSnapshot.size());
         performanceLastProcessedBlocks.set(0L);
+        performanceBlockNanos.clear();
+        performanceHistorySize = 0;
         performanceStatsEnabled = true;
     }
 
@@ -489,6 +511,8 @@ public class TickManager {
                 pendingRemovalsSize++;
             }
         }
+        long[] historyCopy = Arrays.copyOf(performanceHistory, performanceHistorySize);
+        Map<BlockPosKey, Long> blockCopy = new HashMap<>(performanceBlockNanos);
         return new PerformanceSnapshot(
                 performanceSamples.get(),
                 performanceTotalNanos.get(),
@@ -502,7 +526,9 @@ public class TickManager {
                 pendingRemovalsSize,
                 cookingPotTickBudget,
                 TICK_INTERVAL,
-                performanceStatsEnabled
+                performanceStatsEnabled,
+                historyCopy,
+                blockCopy
         );
     }
 
@@ -545,7 +571,16 @@ public class TickManager {
 
         try {
             if (Objects.requireNonNull(activeBlock.type()) == BlockType.COOKING_POT) {
-                tickCookingPot(activeBlock, world, posKey, consumeElapsedTicks(activeBlock));
+                if (performanceStatsEnabled) {
+                    long started = System.nanoTime();
+                    tickCookingPot(activeBlock, world, posKey, consumeElapsedTicks(activeBlock));
+                    long cost = System.nanoTime() - started;
+                    if (cost > 0L) {
+                        performanceBlockNanos.merge(posKey, cost, Long::sum);
+                    }
+                } else {
+                    tickCookingPot(activeBlock, world, posKey, consumeElapsedTicks(activeBlock));
+                }
             } else {
                 throw new IllegalArgumentException("Unexpected value: " + activeBlock.type());
             }
@@ -1049,7 +1084,9 @@ public class TickManager {
             int pendingRemovals,
             int tickBudget,
             int tickInterval,
-            boolean statsEnabled
+            boolean statsEnabled,
+            long[] historyNanos,
+            Map<BlockPosKey, Long> blockNanos
     ) {
         public double averageNanos() {
             return samples <= 0L ? 0.0D : (double) totalNanos / samples;

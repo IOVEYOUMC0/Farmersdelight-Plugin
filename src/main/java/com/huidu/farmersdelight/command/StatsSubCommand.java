@@ -6,6 +6,7 @@ import com.huidu.farmersdelight.api.util.DebugToolRegistry;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.manager.TickManager;
+import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.ManagerSupport;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import com.huidu.farmersdelight.visual.ProxyItemDisplayManager;
@@ -14,6 +15,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -42,31 +44,40 @@ final class StatsSubCommand extends SubCommand {
             sender.sendMessage(I18n.getComponent("command.player_only"));
             return;
         }
-        String action = args.length >= 2 ? normalize(args[1]) : "status";
+        String action = args.length >= 2 ? normalize(args[1]) : "";
         switch (action) {
             case "profile", "sample" -> profile(player, args);
-            case "status", "stats" -> status(player);
-            default -> sendUsage(player);
+            case "addon", "addons" -> addon(player, args);
+            default -> overview(player);
         }
     }
 
     @Override
     List<String> tabComplete(CommandSender sender, String[] args) {
         if (args.length == 2) {
-            return prefixFilter(args[1], List.of("status", "profile"));
+            return prefixFilter(args[1], List.of("profile", "addon"));
         }
-        if (args.length == 3 && isProfile(args[1])) {
-            return prefixFilter(args[2], PROFILE_DURATIONS);
+        if (args.length == 3) {
+            String action = normalize(args[1]);
+            if (isProfile(action)) {
+                return prefixFilter(args[2], PROFILE_DURATIONS);
+            }
+            if (isAddonAction(action)) {
+                return prefixFilter(args[2], new ArrayList<>(DebugToolRegistry.registeredNames()));
+            }
         }
         return List.of();
     }
 
     private boolean isProfile(String action) {
-        String normalized = normalize(action);
-        return "profile".equals(normalized) || "sample".equals(normalized);
+        return "profile".equals(action) || "sample".equals(action);
     }
 
-    private void status(Player player) {
+    private boolean isAddonAction(String action) {
+        return "addon".equals(action) || "addons".equals(action);
+    }
+
+    private void overview(Player player) {
         TickManager tickManager = plugin.getTickManager();
         if (tickManager == null) {
             player.sendMessage(I18n.getComponent("command.stats_tickmanager_unavailable", player));
@@ -81,20 +92,42 @@ final class StatsSubCommand extends SubCommand {
         }
         sendPerformanceSnapshot(player, snapshot, 0);
         appendProxyDisplayStats(player);
-        // Append each registered extension's status lines so addons report their own counters.
+        // List each registered addon as a clickable name that drills into /fd stats addon <name>;
+        // each addon's own status lines are shown only on demand to keep the overview readable.
         List<DebugToolExtension> extensions = new ArrayList<>(DebugToolRegistry.all());
-        if (!extensions.isEmpty()) {
-            player.sendMessage(I18n.getComponent("command.stats_addons_title", player));
+        player.sendMessage(I18n.getComponent("command.stats_addons_title", player));
+        if (extensions.isEmpty()) {
+            player.sendMessage(I18n.getComponent("command.stats_addon_empty", player));
+        } else {
             for (DebugToolExtension extension : extensions) {
-                List<String> lines = extension.status(player);
-                if (lines == null || lines.isEmpty()) {
-                    continue;
-                }
-                for (String line : lines) {
-                    player.sendMessage(I18n.getComponent("command.stats_addon_line", player,
-                            Map.of("name", extension.name(), "line", line)));
-                }
+                player.sendMessage(I18n.getComponent("command.stats_addon_link", player,
+                        Map.of("name", extension.name())));
             }
+        }
+    }
+
+    private void addon(Player player, String[] args) {
+        if (args.length < 3) {
+            sendUsage(player);
+            return;
+        }
+        DebugToolExtension extension = DebugToolRegistry.find(args[2]);
+        if (extension == null) {
+            player.sendMessage(I18n.getComponent("command.stats_addon_unknown", player,
+                    Map.of("name", args[2])));
+            return;
+        }
+        player.sendMessage(I18n.getComponent("command.stats_addon_title", player,
+                Map.of("name", extension.name())));
+        List<String> lines = extension.status(player);
+        if (lines == null || lines.isEmpty()) {
+            player.sendMessage(I18n.getComponent("command.stats_addon_empty_state", player,
+                    Map.of("name", extension.name())));
+            return;
+        }
+        for (String line : lines) {
+            player.sendMessage(I18n.getComponent("command.stats_addon_line", player,
+                    Map.of("name", extension.name(), "line", line)));
         }
     }
 
@@ -167,6 +200,46 @@ final class StatsSubCommand extends SubCommand {
                 "max", formatMillis(snapshot.maxNanos()),
                 "last", formatMillis(snapshot.lastNanos()),
                 "processed", String.valueOf(snapshot.lastProcessedBlocks()))));
+        appendSparkStyleStats(player, snapshot);
+    }
+
+    // Spark-style profile lines appended after the totals: duration percentiles (P50/P95/P99) from the
+    // rolling history, plus the most expensive cooking pots by total time to pinpoint lag hotspots.
+    private void appendSparkStyleStats(Player player, TickManager.PerformanceSnapshot snapshot) {
+        long[] history = snapshot.historyNanos();
+        if (history != null && history.length > 0) {
+            long[] sorted = history.clone();
+            Arrays.sort(sorted);
+            player.sendMessage(I18n.getComponent("command.stats_percentile", player, Map.of(
+                    "p50", formatMillis(percentile(sorted, 50)),
+                    "p95", formatMillis(percentile(sorted, 95)),
+                    "p99", formatMillis(percentile(sorted, 99)),
+                    "max", formatMillis(sorted[sorted.length - 1]))));
+        }
+        Map<BlockPosKey, Long> blockNanos = snapshot.blockNanos();
+        if (blockNanos == null || blockNanos.isEmpty()) {
+            return;
+        }
+        List<Map.Entry<BlockPosKey, Long>> tops = new ArrayList<>(blockNanos.entrySet());
+        tops.sort(Map.Entry.<BlockPosKey, Long>comparingByValue().reversed());
+        int shown = Math.min(5, tops.size());
+        player.sendMessage(I18n.getComponent("command.stats_hotspot_title", player,
+                Map.of("count", String.valueOf(shown))));
+        for (int i = 0; i < shown; i++) {
+            Map.Entry<BlockPosKey, Long> entry = tops.get(i);
+            BlockPosKey key = entry.getKey();
+            player.sendMessage(I18n.getComponent("command.stats_hotspot_line", player, Map.of(
+                    "rank", String.valueOf(i + 1),
+                    "x", String.valueOf(key.x()),
+                    "y", String.valueOf(key.y()),
+                    "z", String.valueOf(key.z()),
+                    "time", formatMillis(entry.getValue()))));
+        }
+    }
+
+    private static double percentile(long[] sorted, int p) {
+        int index = Math.min(sorted.length - 1, (sorted.length * p) / 100);
+        return sorted[index];
     }
 
     private int countCookingPots(org.bukkit.World world) {
@@ -209,6 +282,7 @@ final class StatsSubCommand extends SubCommand {
 
     private void sendUsage(Player player) {
         player.sendMessage(I18n.getComponent("command.stats_usage_status", player));
+        player.sendMessage(I18n.getComponent("command.stats_usage_addon", player));
         player.sendMessage(I18n.getComponent("command.stats_usage_profile", player,
                 Map.of("ticks", String.valueOf(DEFAULT_PROFILE_TICKS))));
     }

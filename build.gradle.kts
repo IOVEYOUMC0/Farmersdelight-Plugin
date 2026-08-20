@@ -23,23 +23,15 @@ repositories {
     maven("https://repo.extendedclip.com/content/repositories/placeholderapi/")
 }
 
-// CraftEngine version selector — must be declared before `dependencies {}` uses it.
-val ceVersion = providers.gradleProperty("ceVersion").orElse("26.7.4").get()
-val pluginArchiveClassifier = if (ceVersion == "26.8") "ce268" else "ce2674"
+// CraftEngine is pinned to the vendored 26.8 jar (shipped under libs/); older 26.7.4 maven builds are dropped.
+val pluginArchiveClassifier = "ce268"
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
     compileOnly("org.jetbrains:annotations:26.1.0")
 
-    // CraftEngine — two supported server-side versions. Pass -PceVersion=26.7.4 (default, maven) or
-    // -PceVersion=26.8 (local jar under libs/, since 26.8-SNAPSHOT is not published to maven).
-    if (ceVersion == "26.8") {
-        compileOnly(files("libs/craft-engine-26.8.jar"))
-    } else {
-        compileOnly("net.momirealms:craft-engine-core:26.7.4")
-        compileOnly("net.momirealms:craft-engine-bukkit:26.7.4")
-        compileOnly("net.momirealms:craft-engine-bukkit-proxy:26.7.4")
-    }
+    // CraftEngine — pinned to the vendored 26.8 jar (26.8-SNAPSHOT is not published to maven).
+    compileOnly(files("libs/craft-engine-26.8.jar"))
 
     compileOnly("me.clip:placeholderapi:2.11.6")
     // AntiGriefLib: unified protection facade over 24+ land/claim plugins (MIT). Bundled by shadowJar (not
@@ -58,9 +50,7 @@ dependencies {
     // UltimateAdvancementAPI: separate server plugin; vendored only for offline compile against its API.
     compileOnly(files("libs/UltimateAdvancementAPI-Plugin-2.8.0-folia.jar"))
     testImplementation("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
-    testImplementation("net.momirealms:craft-engine-core:26.7")
-    testImplementation("net.momirealms:craft-engine-bukkit:26.7")
-    testImplementation("net.momirealms:craft-engine-bukkit-proxy:26.7")
+    testImplementation(files("libs/craft-engine-26.8.jar"))
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

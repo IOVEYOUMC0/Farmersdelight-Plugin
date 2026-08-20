@@ -40,8 +40,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class RecipeViewGui extends AbstractInventoryGui {
 
@@ -62,7 +60,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
     private static final ItemStack EMPTY_SLOT_BACKGROUND = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
     static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
-    private static final Pattern SHIFT_TAG_PATTERN = Pattern.compile("<shift:(-?\\d+)>");
     private static final int MAX_COMPACT_INGREDIENT_LINE_LENGTH = 42;
     private static final int GUI_TICK_INTERVAL_TICKS = 4;
 
@@ -305,8 +302,11 @@ public class RecipeViewGui extends AbstractInventoryGui {
         int displayIndex = catalystCycle.current(options.size());
         for (int i = 0; i < slots.size(); i++) {
             int optionIndex = (displayIndex + i) % options.size();
+            // Rebuild slot 0 with the full catalyst list so auto-cycle never wipes it (see createSpecialCycleDisplay).
+            boolean showFullList = info.hasCatalystInfo() && i == 0;
             inventory.setItem(slots.get(i),
-                    createSpecialCycleDisplay(options.get(optionIndex), optionIndex, options.size()));
+                    createSpecialCycleDisplay(options.get(optionIndex), optionIndex, options.size(),
+                            showFullList, options, player));
         }
     }
 
@@ -783,32 +783,35 @@ public class RecipeViewGui extends AbstractInventoryGui {
             }
         }
 
-        // Condition slots (D sunlight / E water / F catalyst_info). When the recipe has the condition,
-        // render the item defined under items.sunlight / items.water / items.catalyst_info in gui.yml
-        // (falling back to the built-in torch / water bucket / paper). When it does not, clear the slot
-        // to plain background so the fillBackground copy of that item, and its tooltip, do not linger.
+        // Condition slots (D sunlight / E water / F catalyst_info). The icon itself can either be drawn by
+        // the title (title-layout craftengine <image>, "title draws the look") with the slot carrying only
+        // the hover text, or by the slot item itself (items.sunlight / items.water / items.catalyst_info in
+        // gui.yml, falling back to torch / water bucket / paper). When the recipe lacks the condition, the
+        // slot clears to plain background so the fillBackground copy and its tooltip do not linger.
         setConditionSlot(detailConfig, "sunlight", detailConfig.getSunlightSlot(), info.hasSunlight(),
+                hasTitleConditionImage(detailConfig.guiKey(), "sunlight"),
                 "minecraft:torch", "gui.condition.sunlight", "gui.condition.sunlight_lore", NamedTextColor.YELLOW);
         setConditionSlot(detailConfig, "water", detailConfig.getWaterSlot(), info.hasWater(),
+                hasTitleConditionImage(detailConfig.guiKey(), "water"),
                 "minecraft:water_bucket", "gui.condition.water", "gui.condition.water_lore", NamedTextColor.BLUE);
-        // Resolve the catalyst blocks once: the catalyst_info icon lists their names in its lore, and
-        // the catalyst item slots (G) cycle through the same items.
+        // Resolve the catalyst blocks once; they feed the switching catalyst item slots (G) and their lore.
         List<ItemStack> catalystOptions = expandSpecialEntries(info.catalystSlots());
 
         setConditionSlot(detailConfig, "catalyst_info", detailConfig.getCatalystInfoSlot(), info.hasCatalystInfo(),
+                hasTitleConditionImage(detailConfig.guiKey(), "catalyst_info"),
                 "minecraft:paper", "gui.condition.catalyst_info", "gui.condition.catalyst_info_lore", NamedTextColor.GOLD);
-        if (info.hasCatalystInfo()) {
-            appendCatalystListLore(detailConfig.getCatalystInfoSlot(), catalystOptions, player);
-        }
 
-        // Catalyst item slots (G) — the auto-cycle timer rotates through the resolved items.
+        // Catalyst item slots (G) — the auto-cycle timer rotates through the resolved items. The full
+        // catalyst list rides on slot 0's lore (matching the old one-time appendCatalystListLore behaviour)
+        // and is now carried on every candidate, so auto-cycle switching keeps it.
         List<Integer> catalystItemSlots = detailConfig.getCatalystItemSlots();
         this.specialCatalystOptions = catalystOptions;
         for (int i = 0; i < catalystItemSlots.size(); i++) {
             if (!catalystOptions.isEmpty()) {
                 int optionIndex = (catalystCycle.current(catalystOptions.size()) + i) % catalystOptions.size();
                 inventory.setItem(catalystItemSlots.get(i),
-                        createSpecialCycleDisplay(catalystOptions.get(optionIndex), optionIndex, catalystOptions.size()));
+                        createSpecialCycleDisplay(catalystOptions.get(optionIndex), optionIndex, catalystOptions.size(),
+                                info.hasCatalystInfo() && i == 0, catalystOptions, player));
             } else {
                 inventory.setItem(catalystItemSlots.get(i), createBackgroundItem(detailConfig));
             }
@@ -829,11 +832,24 @@ public class RecipeViewGui extends AbstractInventoryGui {
         return options;
     }
 
-    /** A catalyst item with an auto-cycle position line appended to its lore. */
-    private ItemStack createSpecialCycleDisplay(ItemStack item, int currentIndex, int total) {
+    /**
+     * A catalyst cycle slot item. Unlike the tool/ingredient switchers (which rebuild the whole lore on
+     * every tick), this used to depend on a one-time appendCatalystListLore after page draw, so the full
+     * catalyst list was wiped as soon as auto-cycle overwrote the slot. Each candidate now carries its own
+     * copy of the list lore when showFullList is set, so switching can never lose it.
+     */
+    private ItemStack createSpecialCycleDisplay(ItemStack item, int currentIndex, int total,
+                                                boolean showFullList, List<ItemStack> options, Player player) {
         ItemStack copy = item.clone();
         ItemMeta meta = copy.getItemMeta();
         List<Component> lore = meta.lore() == null ? new ArrayList<>() : new ArrayList<>(meta.lore());
+        if (showFullList && !options.isEmpty()) {
+            for (ItemStack catalyst : options) {
+                lore.add(Component.text("- " + ItemUtils.getDisplayName(catalyst, player))
+                        .color(NamedTextColor.GRAY)
+                        .decoration(TextDecoration.ITALIC, false));
+            }
+        }
         lore.add(Component.text(""));
         lore.add(tr("gui.recipe.auto_cycle", currentIndex + 1, total));
         meta.lore(lore);
@@ -891,12 +907,16 @@ public class RecipeViewGui extends AbstractInventoryGui {
     }
 
     private void setConditionSlot(RecipeViewGuiConfig.SpecialRecipeDetailConfig detailConfig, String key, int slot,
-                                  boolean active, String defaultItemId, String nameKey, String loreKey, NamedTextColor color) {
+                                  boolean active, boolean titleDrawn, String defaultItemId, String nameKey, String loreKey, NamedTextColor color) {
         if (slot < 0) {
             return;
         }
         if (!active) {
             inventory.setItem(slot, createBackgroundItem(detailConfig));
+            return;
+        }
+        if (titleDrawn) {
+            inventory.setItem(slot, createLoreCarrierItem(nameKey, loreKey, color));
             return;
         }
         GuiConfig.GuiItem configured = detailConfig.getItem(key);
@@ -905,26 +925,31 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 : createPredefinedConditionItem(defaultItemId, nameKey, loreKey, color));
     }
 
-    // Appends each catalyst block's name to a slot's lore, so hovering the catalyst icon lists every
-    // block that accelerates the recipe.
-    private void appendCatalystListLore(int slot, List<ItemStack> catalysts, Player player) {
-        if (slot < 0 || catalysts.isEmpty()) {
-            return;
+    // True when the title-layout craftengine section defines an <image> for this condition, meaning the
+    // icon's look is drawn by the title and the slot should only carry the hover text.
+    private boolean hasTitleConditionImage(String guiPath, String key) {
+        var guiSection = plugin.getRecipeViewGuiSection();
+        var layout = guiSection != null
+                ? guiSection.getConfigurationSection(guiPath + ".title-layout.craftengine")
+                : null;
+        if (layout == null) {
+            return false;
         }
-        ItemStack item = inventory.getItem(slot);
-        if (item == null || item.getItemMeta() == null) {
-            return;
-        }
+        String image = layout.getString(key, "");
+        return image != null && !image.isEmpty();
+    }
+
+    // The condition icon is drawn by the title (title-layout <image>), so the slot item only carries the
+    // hover text. A near-invisible pane with the "air" item model keeps the grid slot clear while still
+    // offering the translated name/lore on hover.
+    private ItemStack createLoreCarrierItem(String nameKey, String loreKey, NamedTextColor nameColor) {
+        ItemStack item = new ItemStack(org.bukkit.Material.LIGHT_GRAY_STAINED_GLASS_PANE);
         ItemMeta meta = item.getItemMeta();
-        List<Component> lore = meta.lore() == null ? new ArrayList<>() : new ArrayList<>(meta.lore());
-        for (ItemStack catalyst : catalysts) {
-            lore.add(Component.text("- " + ItemUtils.getDisplayName(catalyst, player))
-                    .color(NamedTextColor.GRAY)
-                    .decoration(TextDecoration.ITALIC, false));
-        }
-        meta.lore(lore);
+        meta.setItemModel(new org.bukkit.NamespacedKey("minecraft", "air"));
+        meta.displayName(Component.translatable(nameKey).color(nameColor).decoration(TextDecoration.ITALIC, false));
+        meta.lore(List.of(Component.translatable(loreKey).color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)));
         item.setItemMeta(meta);
-        inventory.setItem(slot, item);
+        return item;
     }
 
     private ItemStack createPredefinedConditionItem(String itemId, String nameKey, String loreKey, NamedTextColor nameColor) {
@@ -1187,7 +1212,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         }
 
         String composed = title.replace("<offset>", offset).replace("<icon>", icon);
-        return parseShiftTags(composed);
+        return composed;
     }
 
     // Special-recipe detail title with the per-condition images composed in. The title-layout
@@ -1222,7 +1247,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 .replace("<sunlight>", sunlight)
                 .replace("<water>", water)
                 .replace("<catalyst_info>", catalystInfo);
-        return parseShiftTags(composed);
+        return composed;
     }
 
     // The "on" image string for an active condition, or the "<key>-off" cover string for an inactive
@@ -1231,58 +1256,13 @@ public class RecipeViewGui extends AbstractInventoryGui {
         return active ? layout.getString(key, "") : layout.getString(key + "-off", "");
     }
 
+    // Offsets in the title-layout are ordinary <shift:N> tags handled by CraftEngine's network layer
+    // (it wraps the offset glyphs in the offset font). Keep them as-is so CE resolves them correctly.
     private String parseOffset(String raw) {
-        if (raw == null || raw.isBlank()) {
+        if (raw == null) {
             return "";
         }
-        Matcher matcher = SHIFT_TAG_PATTERN.matcher(raw);
-        if (!matcher.matches()) {
-            return raw;
-        }
-        int amount = Integer.parseInt(matcher.group(1));
-        if (amount < 0) {
-            return getNegativeSpace(Math.abs(amount));
-        }
-        return "";
-    }
-
-    private String parseShiftTags(String title) {
-        String source = "";
-        if (title != null) {
-            source = title;
-        }
-        Matcher matcher = SHIFT_TAG_PATTERN.matcher(source);
-        StringBuilder builder = new StringBuilder();
-        while (matcher.find()) {
-            int amount = Integer.parseInt(matcher.group(1));
-            String replacement = "";
-            if (amount < 0) {
-                replacement = Matcher.quoteReplacement(getNegativeSpace(Math.abs(amount)));
-            }
-            matcher.appendReplacement(builder, replacement);
-        }
-        matcher.appendTail(builder);
-        return builder.toString();
-    }
-
-    private String getNegativeSpace(int amount) {
-        StringBuilder builder = new StringBuilder();
-        int remaining = amount;
-        while (remaining > 0) {
-            if (remaining >= 128) { builder.append("\uF80C"); remaining -= 128; }
-            else if (remaining >= 64) { builder.append("\uF80B"); remaining -= 64; }
-            else if (remaining >= 32) { builder.append("\uF80A"); remaining -= 32; }
-            else if (remaining >= 16) { builder.append("\uF809"); remaining -= 16; }
-            else if (remaining >= 8) { builder.append("\uF808"); remaining -= 8; }
-            else if (remaining >= 7) { builder.append("\uF807"); remaining -= 7; }
-            else if (remaining >= 6) { builder.append("\uF806"); remaining -= 6; }
-            else if (remaining >= 5) { builder.append("\uF805"); remaining -= 5; }
-            else if (remaining >= 4) { builder.append("\uF804"); remaining -= 4; }
-            else if (remaining >= 3) { builder.append("\uF803"); remaining -= 3; }
-            else if (remaining >= 2) { builder.append("\uF802"); remaining -= 2; }
-            else { builder.append("\uF801"); remaining -= 1; }
-        }
-        return builder.toString();
+        return raw;
     }
 
     private void fillBackground(RecipeViewGuiConfig.BaseConfig guiConfig) {

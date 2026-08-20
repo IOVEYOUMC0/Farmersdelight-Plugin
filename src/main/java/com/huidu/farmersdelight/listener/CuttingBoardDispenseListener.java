@@ -4,6 +4,7 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.ItemUtils;
 import io.papermc.paper.event.block.BlockPreDispenseEvent;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -34,6 +35,20 @@ public final class CuttingBoardDispenseListener implements Listener {
         if (dispenser.getType() != Material.DISPENSER) {
             return;
         }
+        ItemStack tool = event.getItemStack();
+        if (tool == null || tool.getType().isAir()) {
+            return;
+        }
+        // A FarmersDelight knife has no vanilla dispense behavior, so a dispenser would eject it as an
+        // ordinary item the moment it fires. The knife is only ever meant to be used as a tool on a facing
+        // cutting board, so gate on the item instead of the block: this also keeps a knife inside the
+        // dispenser while CE reloads, when the facing board can briefly fail to resolve as a cutting board.
+        String customId = ItemUtils.getCustomItemId(tool);
+        if (customId == null || !plugin.isKnifeItemId(customId)) {
+            return;
+        }
+        event.setCancelled(true);
+
         if (!(dispenser.getBlockData() instanceof Directional directional)) {
             return;
         }
@@ -41,15 +56,7 @@ public final class CuttingBoardDispenseListener implements Listener {
         World world = target.getWorld();
         // Use int coordinates directly to skip the Location allocation per event.
         BlockPosKey boardPos = new BlockPosKey(target.getX(), target.getY(), target.getZ());
-        if (CuttingBoardBlockBehavior.isCuttingBoardBlock(world, boardPos)) {
-            return;
-        }
-
-        // A dispenser facing a cutting board never ejects — it only ever uses its item as a tool.
-        event.setCancelled(true);
-
-        ItemStack tool = event.getItemStack();
-        if (tool == null || tool.getType().isAir()) {
+        if (!CuttingBoardBlockBehavior.isCuttingBoardBlock(world, boardPos)) {
             return;
         }
 

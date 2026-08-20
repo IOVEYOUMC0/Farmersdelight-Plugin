@@ -1,8 +1,10 @@
 package com.huidu.farmersdelight.registry;
 
 import com.huidu.farmersdelight.block.behavior.BasketBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.ConnectedRugBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.DoubleBlockRugBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.MushroomColonyBehavior;
 import com.huidu.farmersdelight.block.behavior.OrganicCompostBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.RichSoilBlockBehavior;
@@ -38,6 +40,8 @@ public final class BehaviorRegistrar {
     }
 
     public static void registerBlockBehaviors() {
+        registerBehavior(Constants.BEHAVIOR_CONNECTED_RUG, ConnectedRugBlockBehavior.FACTORY);
+        registerBehavior(Constants.BEHAVIOR_DOUBLE_BLOCK, DoubleBlockRugBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_BASKET, BasketBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_COOKING_POT, CookingPotBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_CUTTING_BOARD, CuttingBoardBlockBehavior.FACTORY);

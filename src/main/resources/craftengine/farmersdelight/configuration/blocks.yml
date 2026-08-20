@@ -288,12 +288,8 @@ items:
       item_name: <!i><lang:block.farmersdelight.full_tatami_mat>
     model: ${__NAMESPACE__}:item/${__ID__}
     behavior:
-      type: furniture_item
-      rules:
-        ground:
-          rotation: four
-          alignment: center
-      furniture: ${__NAMESPACE__}:${__ID__}
+      type: block_item
+      block: ${__NAMESPACE__}:${__ID__}
     settings:
       fuel_time: 200
   farmersdelight:full_tatami_mat_elements:
@@ -311,17 +307,23 @@ items:
       fallback:
         type: minecraft:model
         path: ${__NAMESPACE__}:block/full_tatami_mat
+  farmersdelight:full_tatami_mat_head_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.full_tatami_mat>
+    model: ${__NAMESPACE__}:block/full_tatami_mat_head
+  farmersdelight:full_tatami_mat_foot_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.full_tatami_mat>
+    model: ${__NAMESPACE__}:block/full_tatami_mat_foot
   farmersdelight:half_tatami_mat:
     data:
       item_name: <!i><lang:block.farmersdelight.half_tatami_mat>
     model: ${__NAMESPACE__}:item/${__ID__}
     behavior:
-      type: furniture_item
-      rules:
-        ground:
-          rotation: four
-          alignment: center
-      furniture: ${__NAMESPACE__}:${__ID__}
+      type: block_item
+      block: ${__NAMESPACE__}:${__ID__}
     settings:
       fuel_time: 100
   farmersdelight:half_tatami_mat_elements:
@@ -344,12 +346,8 @@ items:
       item_name: <!i><lang:block.farmersdelight.canvas_rug>
     model: ${__NAMESPACE__}:item/${__ID__}
     behavior:
-      type: furniture_item
-      rules:
-        ground:
-          rotation: four
-          alignment: center
-      furniture: ${__NAMESPACE__}:${__ID__}
+      type: block_item
+      block: ${__NAMESPACE__}:${__ID__}
     settings:
       fuel_time: 200
   farmersdelight:canvas_rug_elements:
@@ -416,6 +414,62 @@ items:
     model:
       type: minecraft:model
       path: ${__NAMESPACE__}:block/canvas_rug_base
+  farmersdelight:canvas_rug_no_north_south_east_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_no_north_south_east
+  farmersdelight:canvas_rug_no_north_south_west_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_no_north_south_west
+  farmersdelight:canvas_rug_no_east_west_north_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_no_east_west_north
+  farmersdelight:canvas_rug_no_east_west_south_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_no_east_west_south
+  farmersdelight:canvas_rug_no_north_east_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_no_north_east
+  farmersdelight:canvas_rug_no_north_west_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_no_north_west
+  farmersdelight:canvas_rug_no_south_east_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_no_south_east
+  farmersdelight:canvas_rug_no_south_west_elements:
+    data:
+      hidden: true
+      item_name: <!i><lang:block.farmersdelight.canvas_rug>
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:block/canvas_rug_no_south_west
   farmersdelight:safety_net:
     data:
       item-name: <!i><lang:block.farmersdelight.safety_net>
@@ -492,200 +546,6 @@ items:
     data:
       item-name: <!i><lang:block.farmersdelight.warped_cabinet>
 furniture:
-  farmersdelight:full_tatami_mat:
-    settings:
-      item: farmersdelight:full_tatami_mat
-      hit_times: 5
-      sounds:
-        break: minecraft:block.wool.break
-        place: minecraft:block.wool.place
-        hit: minecraft:block.wool.hit
-    loot:
-      template: default:loot_table/self
-    variants:
-      ground:
-        elements:
-        - item: farmersdelight:full_tatami_mat_elements
-          position: 0,0.435,0
-          translation: 0,0.0625,0
-          scale: 1.001
-        hitboxes:
-        - position: 0,0,0
-          type: interaction
-          width: 1
-          height: 0.1
-          blocks-building: true
-          interactive: false
-          invisible: true
-        - position: 0,0,-1
-          type: interaction
-          width: 1
-          height: 0.1
-          blocks-building: true
-          interactive: false
-          invisible: true
-  farmersdelight:half_tatami_mat:
-    settings:
-      item: farmersdelight:half_tatami_mat
-      hit_times: 5
-      sounds:
-        break: minecraft:block.wool.break
-        place: minecraft:block.wool.place
-        hit: minecraft:block.wool.hit
-    loot:
-      template: default:loot_table/self
-    variants:
-      ground:
-        elements:
-        - item: farmersdelight:half_tatami_mat_elements
-          position: 0,0.435,0
-          translation: 0,0.0625,0
-          scale: 1.001
-        hitboxes:
-        - position: 0,0,0
-          type: interaction
-          width: 1
-          height: 0.1
-          blocks-building: true
-          interactive: false
-          invisible: true
-  farmersdelight:canvas_rug:
-    settings:
-      item: farmersdelight:canvas_rug
-      hit_times: 5
-      sounds:
-        break: minecraft:block.wool.break
-        place: minecraft:block.wool.place
-        hit: minecraft:block.wool.hit
-    loot:
-      template: default:loot_table/self
-    variants:
-      ground:
-        elements:
-        - item: farmersdelight:canvas_rug_elements
-          position: 0,0.435,0
-          translation: 0,0.0625,0
-          scale: 1.001
-        hitboxes:
-        - position: 0,0,0
-          type: interaction
-          width: 1
-          height: 0.1
-          blocks-building: true
-          interactive: false
-          invisible: true
-      standalone:
-        elements:
-        - item: farmersdelight:canvas_rug_elements
-          position: 0,0.435,0
-          translation: 0,0.0625,0
-          scale: 1.001
-        hitboxes:
-        - position: 0,0,0
-          type: interaction
-          width: 1
-          height: 0.1
-          blocks-building: true
-          interactive: false
-          invisible: true
-      no_north:
-        elements:
-        - item: farmersdelight:canvas_rug_no_north_elements
-          position: 0,0.435,0
-          translation: 0,0.0625,0
-          scale: 1.001
-        hitboxes:
-        - position: 0,0,0
-          type: interaction
-          width: 1
-          height: 0.1
-          blocks-building: true
-          interactive: false
-          invisible: true
-      no_south:
-        elements:
-        - item: farmersdelight:canvas_rug_no_south_elements
-          position: 0,0.435,0
-          translation: 0,0.0625,0
-          scale: 1.001
-        hitboxes:
-        - position: 0,0,0
-          type: interaction
-          width: 1
-          height: 0.1
-          blocks-building: true
-          interactive: false
-          invisible: true
-      no_east:
-        elements:
-        - item: farmersdelight:canvas_rug_no_east_elements
-          position: 0,0.435,0
-          translation: 0,0.0625,0
-          scale: 1.001
-        hitboxes:
-        - position: 0,0,0
-          type: interaction
-          width: 1
-          height: 0.1
-          blocks-building: true
-          interactive: false
-          invisible: true
-      no_west:
-        elements:
-        - item: farmersdelight:canvas_rug_no_west_elements
-          position: 0,0.435,0
-          translation: 0,0.0625,0
-          scale: 1.001
-        hitboxes:
-        - position: 0,0,0
-          type: interaction
-          width: 1
-          height: 0.1
-          blocks-building: true
-          interactive: false
-          invisible: true
-      no_north_south:
-        elements:
-        - item: farmersdelight:canvas_rug_no_north_south_elements
-          position: 0,0.435,0
-          translation: 0,0.0625,0
-          scale: 1.001
-        hitboxes:
-        - position: 0,0,0
-          type: interaction
-          width: 1
-          height: 0.1
-          blocks-building: true
-          interactive: false
-          invisible: true
-      no_east_west:
-        elements:
-        - item: farmersdelight:canvas_rug_no_east_west_elements
-          position: 0,0.435,0
-          translation: 0,0.0625,0
-          scale: 1.001
-        hitboxes:
-        - position: 0,0,0
-          type: interaction
-          width: 1
-          height: 0.1
-          blocks-building: true
-          interactive: false
-          invisible: true
-      surrounded:
-        elements:
-        - item: farmersdelight:canvas_rug_surrounded_elements
-          position: 0,0.435,0
-          translation: 0,0.0625,0
-          scale: 1.001
-        hitboxes:
-        - position: 0,0,0
-          type: interaction
-          width: 1
-          height: 0.1
-          blocks-building: true
-          interactive: false
-          invisible: true
   farmersdelight:tray:
     settings:
       item: farmersdelight:tray
@@ -1899,6 +1759,288 @@ block:
           appearance: waterlogged=false
         waterlogged=true:
           appearance: waterlogged=true
+  farmersdelight:canvas_rug:
+    template:
+    - farmersdelight:block_loot_template
+    behavior:
+    - type: farmersdelight:connected_rug
+      variant-property: variant
+      connected-ids:
+      - ${__NAMESPACE__}:canvas_rug
+    settings:
+      hardness: 0.2
+      resistance: 0.2
+      burnable: true
+      burn_chance: 60
+      fire_spread_chance: 20
+      push-reaction: destroy
+      sounds:
+        break: minecraft:block.grass.break
+        fall: minecraft:block.grass.fall
+        hit: minecraft:block.grass.hit
+        place: minecraft:block.grass.place
+        step: minecraft:block.grass.step
+    states:
+      properties:
+        variant:
+          type: string
+          values: [none, no_north, no_south, no_east, no_west, no_north_south, no_east_west, no_north_east, no_north_west, no_south_east, no_south_west, no_north_south_east, no_north_south_west, no_east_west_north, no_east_west_south, surrounded]
+          default: none
+      appearances:
+        none:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:canvas_rug_elements
+            scale: 1.005
+            translation: 0,0.00245,0
+        no_north:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:canvas_rug_no_north_elements
+            scale: 1.005
+            translation: 0,0.00245,0
+        no_south:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:canvas_rug_no_south_elements
+            scale: 1.005
+            translation: 0,0.00245,0
+        no_east:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:canvas_rug_no_east_elements
+            scale: 1.005
+            translation: 0,0.00245,0
+        no_west:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:canvas_rug_no_west_elements
+            scale: 1.005
+            translation: 0,0.00245,0
+        no_north_south:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:canvas_rug_no_north_south_elements
+            scale: 1.005
+            translation: 0,0.00245,0
+        no_east_west:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:canvas_rug_no_east_west_elements
+            scale: 1.005
+            translation: 0,0.00245,0
+        no_north_east:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:canvas_rug_no_north_east_elements
+            scale: 1.005
+            translation: 0,0.00245,0
+        no_north_west:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:canvas_rug_no_north_west_elements
+            scale: 1.005
+            translation: 0,0.00245,0
+        no_south_east:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:canvas_rug_no_south_east_elements
+            scale: 1.005
+            translation: 0,0.00245,0
+        no_south_west:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:canvas_rug_no_south_west_elements
+            scale: 1.005
+            translation: 0,0.00245,0
+        no_north_south_east:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:canvas_rug_no_north_south_east_elements
+            scale: 1.005
+            translation: 0,0.00245,0
+        no_north_south_west:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:canvas_rug_no_north_south_west_elements
+            scale: 1.005
+            translation: 0,0.00245,0
+        no_east_west_north:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:canvas_rug_no_east_west_north_elements
+            scale: 1.005
+            translation: 0,0.00245,0
+        no_east_west_south:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:canvas_rug_no_east_west_south_elements
+            scale: 1.005
+            translation: 0,0.00245,0
+        surrounded:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:canvas_rug_surrounded_elements
+            scale: 1.005
+            translation: 0,0.00245,0
+      variants:
+        variant=none:
+          appearance: none
+        variant=no_north:
+          appearance: no_south
+        variant=no_south:
+          appearance: no_north
+        variant=no_east:
+          appearance: no_west
+        variant=no_west:
+          appearance: no_east
+        variant=no_north_south:
+          appearance: no_north_south
+        variant=no_east_west:
+          appearance: no_east_west
+        variant=no_north_east:
+          appearance: no_north_east
+        variant=no_north_west:
+          appearance: no_north_west
+        variant=no_south_east:
+          appearance: no_south_east
+        variant=no_south_west:
+          appearance: no_south_west
+        variant=no_north_south_east:
+          appearance: no_north_south_east
+        variant=no_north_south_west:
+          appearance: no_north_south_west
+        variant=no_east_west_north:
+          appearance: no_east_west_north
+        variant=no_east_west_south:
+          appearance: no_east_west_south
+        variant=surrounded:
+          appearance: surrounded
+  farmersdelight:half_tatami_mat:
+    template:
+    - farmersdelight:block_loot_template
+    settings:
+      hardness: 0.3
+      resistance: 0.3
+      burnable: true
+      burn_chance: 30
+      fire_spread_chance: 60
+      push-reaction: destroy
+      sounds:
+        break: minecraft:block.wool.break
+        fall: minecraft:block.wool.fall
+        hit: minecraft:block.wool.hit
+        place: minecraft:block.wool.place
+        step: minecraft:block.wool.step
+    state:
+      state: white_carpet
+      entity_renderer:
+        item: ${__NAMESPACE__}:half_tatami_mat_elements
+        scale: 1.003
+        translation: 0,0.00245,0
+  farmersdelight:full_tatami_mat:
+    template:
+    - farmersdelight:block_loot_template
+    behavior:
+    - type: farmersdelight:double_block
+      facing-property: facing
+      part-property: part
+      partner-ids:
+      - ${__NAMESPACE__}:full_tatami_mat
+    settings:
+      hardness: 0.3
+      resistance: 0.3
+      burnable: true
+      burn_chance: 30
+      fire_spread_chance: 60
+      push-reaction: destroy
+      sounds:
+        break: minecraft:block.wool.break
+        fall: minecraft:block.wool.fall
+        hit: minecraft:block.wool.hit
+        place: minecraft:block.wool.place
+        step: minecraft:block.wool.step
+    states:
+      properties:
+        part:
+          type: string
+          values: [head, foot]
+          default: head
+        facing:
+          type: horizontal_direction
+          default: north
+      appearances:
+        north_head:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:full_tatami_mat_head_elements
+            rotation: 180
+            scale: 1.003
+            translation: 0,-0.0002,0
+        north_foot:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:full_tatami_mat_foot_elements
+            rotation: 180
+            scale: 1.003
+            translation: 0,-0.0002,0
+        south_head:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:full_tatami_mat_head_elements
+            scale: 1.003
+            translation: 0,-0.0002,0
+        south_foot:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:full_tatami_mat_foot_elements
+            scale: 1.003
+            translation: 0,-0.0002,0
+        east_head:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:full_tatami_mat_head_elements
+            rotation: 270
+            scale: 1.003
+            translation: 0,-0.0002,0
+        east_foot:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:full_tatami_mat_foot_elements
+            rotation: 270
+            scale: 1.003
+            translation: 0,-0.0002,0
+        west_head:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:full_tatami_mat_head_elements
+            rotation: 90
+            scale: 1.003
+            translation: 0,-0.0002,0
+        west_foot:
+          state: white_carpet
+          entity_renderer:
+            item: ${__NAMESPACE__}:full_tatami_mat_foot_elements
+            rotation: 90
+            scale: 1.003
+            translation: 0,-0.0002,0
+      variants:
+        facing=north,part=head:
+          appearance: north_head
+        facing=north,part=foot:
+          appearance: north_foot
+        facing=south,part=head:
+          appearance: south_head
+        facing=south,part=foot:
+          appearance: south_foot
+        facing=east,part=head:
+          appearance: east_head
+        facing=east,part=foot:
+          appearance: east_foot
+        facing=west,part=head:
+          appearance: west_head
+        facing=west,part=foot:
+          appearance: west_foot
 block-state-mappings:
   campfire[facing=east,lit=false,signal_fire=true,waterlogged=false]: campfire[facing=east,lit=false,signal_fire=false,waterlogged=false]
   campfire[facing=east,lit=false,signal_fire=true,waterlogged=true]:  campfire[facing=east,lit=false,signal_fire=false,waterlogged=true]
