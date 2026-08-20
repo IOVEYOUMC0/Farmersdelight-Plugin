@@ -7,14 +7,11 @@ import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CampfireRecipeCache;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
-import com.huidu.farmersdelight.util.compat.DisplayTransformUtils;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior;
-import com.huidu.farmersdelight.config.CuttingBoardDisplayConfig;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
-import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -32,9 +29,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.CookingRecipe;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.util.Transformation;
-import org.joml.Quaternionf;
-import org.joml.Vector3f;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -43,7 +37,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -75,6 +68,7 @@ public class SkilletManager {
     private static final long HEAT_SOURCE_CACHE_TTL = 20L;
 
     private final FarmersDelightPlugin plugin;
+    private final SkilletVisualManager visualManager;
     private final Map<Location, SkilletData> skillets = new ConcurrentHashMap<>();
     private final Map<UUID, Set<Location>> skilletsByWorld = new ConcurrentHashMap<>();
     private final Map<UUID, Map<Long, Set<Location>>> skilletsByChunk = new ConcurrentHashMap<>();
@@ -129,6 +123,7 @@ public class SkilletManager {
 
     public SkilletManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
+        this.visualManager = new SkilletVisualManager(plugin);
         reloadConfig();
         campfireRecipes.rebuild();
     }
@@ -973,9 +968,22 @@ public class SkilletManager {
             cleanupVisual(skillet);
         }
         stopTaskIfIdle();
-        if (false) {
-            removeStoredData(normalized);
+    }
+
+    private boolean canStackWithStored(ItemStack stored, ItemStack incoming, CookingRecipe<?> storedRecipe, CookingRecipe<?> incomingRecipe) {
+        if (stored == null || incoming == null || storedRecipe == null || incomingRecipe == null) {
+            return true;
         }
+
+        if (!storedRecipe.getKey().equals(incomingRecipe.getKey())) {
+            return true;
+        }
+
+        ItemStack storedSingle = stored.clone();
+        storedSingle.setAmount(1);
+        ItemStack incomingSingle = incoming.clone();
+        incomingSingle.setAmount(1);
+        return !storedSingle.isSimilar(incomingSingle);
     }
 
     private int getAdjustedCookingTime(int baseTime, int fireAspectLevel) {
@@ -1294,212 +1302,15 @@ public class SkilletManager {
     }
 
     private void createVisual(Location location, SkilletData skillet) {
-        if (skillet.storedItem == null || skillet.storedItem.getType().isAir()) {
-            debug("spawn display: skipped empty stored item at " + formatLocation(location));
-            cleanupVisual(skillet);
-            return;
-        }
-
-        CuttingBoardDisplayConfig displayConfig = plugin.getSkilletDisplayConfig();
-        CuttingBoardDisplayConfig.DisplayOverride displayOverride = displayConfig.getOverride(skillet.storedItem);
-        ItemStack visualItem = displayConfig.resolveDisplayItem(skillet.storedItem, displayOverride);
-        if (visualItem == null || visualItem.getType().isAir()) {
-            debug("spawn display: skipped unresolved display item for " + formatItem(skillet.storedItem)
-                    + " at " + formatLocation(location));
-            cleanupVisual(skillet);
-            return;
-        }
-        BlockFace facing = CustomBlockUtils.getFacing(location.getBlock());
-        boolean itemChanged = skillet.displayedItem == null || !skillet.displayedItem.isSimilar(visualItem);
-        boolean facingChanged = skillet.displayedFacing != facing;
-        boolean overrideChanged = !displayOverride.equals(skillet.displayedOverride);
-        int displayCount = getModelCount(skillet.storedItem);
-        if (itemChanged || facingChanged || overrideChanged || skillet.displayEntityIds.size() != displayCount) {
-            cleanupVisual(skillet);
-            skillet.displayedItem = visualItem;
-            skillet.displayedFacing = facing;
-            skillet.displayedOverride = displayOverride;
-            skillet.lastVisualStoredItem = skillet.storedItem == null ? null : skillet.storedItem.clone();
-        }
-
-        Random random = new Random(getVisualSeed(skillet.storedItem));
-        debug("spawn display: target " + displayCount + " displays for " + formatItem(skillet.storedItem)
-                + " at " + formatLocation(location));
-
-        while (skillet.displayEntityIds.size() > displayCount) {
-            int entityId = skillet.displayEntityIds.remove(skillet.displayEntityIds.size() - 1);
-            ItemDisplayManager visualManager = plugin.getItemDisplayManager();
-            if (visualManager != null) {
-                visualManager.destroyDisplay(entityId);
-            }
-        }
-
-        for (int i = skillet.displayEntityIds.size(); i < displayCount; i++) {
-            double spread = displayConfig.getItemSpread();
-            double offsetX = displayCount == 1 ? 0 : (random.nextDouble() - 0.5D) * spread;
-            double offsetZ = displayCount == 1 ? 0 : (random.nextDouble() - 0.5D) * spread;
-            double offsetY = (i + 1) * 0.03D;
-            Vector3f configuredOffset = displayOverride.offset();
-            if (configuredOffset != null) {
-                offsetX += configuredOffset.x();
-                offsetY += configuredOffset.y();
-                offsetZ += configuredOffset.z();
-            }
-
-            ItemStack stackForDisplay = visualItem.clone();
-
-            boolean isBlockItem = switch (displayOverride.style()) {
-                case BLOCK -> true;
-                case ITEM -> false;
-                default -> ItemUtils.shouldUseBlockStyleDisplay(stackForDisplay);
-            };
-            float xRotation = isBlockItem ? 0.0F : -90.0F;
-            float yRotation = DisplayTransformUtils.skilletYaw(facing);
-            float zRotation = 0.0F;
-            if (displayOverride.rotationDegrees() != null) {
-                xRotation = displayOverride.rotationDegrees().x();
-                yRotation = displayOverride.rotationDegrees().y();
-                zRotation = displayOverride.rotationDegrees().z();
-            }
-
-            Quaternionf leftRotation = new Quaternionf();
-            leftRotation.rotationYXZ(
-                    (float) Math.toRadians(yRotation),
-                    (float) Math.toRadians(xRotation),
-                    (float) Math.toRadians(zRotation)
-            );
-
-            Vector3f translation = displayOverride.translation() == null
-                    ? new Vector3f(0.0F, 0.0F, 0.0F)
-                    : new Vector3f(displayOverride.translation());
-            Vector3f scale = displayOverride.scale() == null
-                    ? new Vector3f(plugin.getSkilletDisplayScale(), plugin.getSkilletDisplayScale(), plugin.getSkilletDisplayScale())
-                    : new Vector3f(displayOverride.scale());
-            Transformation transformation = new Transformation(
-                    translation,
-                    leftRotation,
-                    scale,
-                    new Quaternionf()
-            );
-
-            ItemDisplayManager visualManager = plugin.getItemDisplayManager();
-            if (visualManager == null || !visualManager.isAvailable()) {
-                debug("spawn display: visual manager unavailable at " + formatLocation(location));
-                continue;
-            }
-
-            Location displayLoc = location.clone().add(0.5 + offsetX, offsetY, 0.5 + offsetZ);
-            int displayId = visualManager.createDisplay(new ItemDisplayManager.DisplaySpec(
-                    displayLoc,
-                    stackForDisplay,
-                    org.bukkit.entity.ItemDisplay.ItemDisplayTransform.FIXED,
-                    transformation
-            ));
-            if (displayId >= 0) {
-                skillet.displayEntityIds.add(displayId);
-                debug("spawn display: entityId=" + displayId + ", index=" + i + ", item=" + formatItem(stackForDisplay)
-                        + ", location=" + formatLocation(location));
-            }
-        }
-    }
-
-    private int getModelCount(ItemStack stack) {
-        int amount = stack.getAmount();
-        if (amount > 48) {
-            return 5;
-        }
-        if (amount > 32) {
-            return 4;
-        }
-        if (amount > 16) {
-            return 3;
-        }
-        if (amount > 1) {
-            return 2;
-        }
-        return 1;
-    }
-
-    private long getVisualSeed(ItemStack stack) {
-        long seed = stack.getType().ordinal();
-        String customItemId = ItemUtils.getCustomItemId(stack);
-        if (customItemId != null) {
-            seed = 31L * seed + customItemId.hashCode();
-        }
-        if (stack.hasItemMeta() && stack.getItemMeta().hasCustomModelData()) {
-            seed = 31L * seed + stack.getItemMeta().getCustomModelData();
-        }
-        return seed;
-    }
-
-    private boolean canStackWithStored(ItemStack stored, ItemStack incoming, CookingRecipe<?> storedRecipe, CookingRecipe<?> incomingRecipe) {
-        if (stored == null || incoming == null || storedRecipe == null || incomingRecipe == null) {
-            return true;
-        }
-
-        if (!storedRecipe.getKey().equals(incomingRecipe.getKey())) {
-            return true;
-        }
-
-        ItemStack storedSingle = stored.clone();
-        storedSingle.setAmount(1);
-        ItemStack incomingSingle = incoming.clone();
-        incomingSingle.setAmount(1);
-        return !storedSingle.isSimilar(incomingSingle);
+        visualManager.createVisual(location, skillet);
     }
 
     private void cleanupVisual(SkilletData skillet) {
-        if (skillet.displayEntityIds.isEmpty()) {
-            skillet.displayedItem = null;
-            skillet.displayedFacing = null;
-            skillet.displayedOverride = null;
-            return;
-        }
-
-        ItemDisplayManager visualManager = plugin.getItemDisplayManager();
-        if (visualManager == null) {
-            skillet.displayEntityIds.clear();
-            skillet.displayedItem = null;
-            skillet.displayedFacing = null;
-            skillet.displayedOverride = null;
-            return;
-        }
-
-        for (Integer entityId : new ArrayList<>(skillet.displayEntityIds)) {
-            visualManager.destroyDisplay(entityId);
-        }
-        skillet.displayEntityIds.clear();
-        skillet.displayedItem = null;
-        skillet.displayedFacing = null;
-        skillet.displayedOverride = null;
+        visualManager.cleanupVisual(skillet);
     }
 
     private void ensureVisualsExist(Location location, SkilletData skillet) {
-        if (!skillet.hasItem()) {
-            return;
-        }
-
-        int expectedCount = getModelCount(skillet.storedItem);
-        // Cheap precheck: return early when the display entity count is correct and storedItem is unchanged since last build,
-        // skipping the costly facing/override/resolveDisplayItem resolution below. storedItem changes (insert/cook) and config
-        // changes each take their own rebuild path (createVisual / refreshVisualsAfterConfigReload), and block facing never changes
-        // after placement. A count mismatch (lost visuals, etc.) fails this check and falls through to the slow rebuild path.
-        if (skillet.displayEntityIds.size() == expectedCount
-                && skillet.lastVisualStoredItem != null
-                && skillet.lastVisualStoredItem.isSimilar(skillet.storedItem)) {
-            return;
-        }
-
-        BlockFace facing = CustomBlockUtils.getFacing(location.getBlock());
-        CuttingBoardDisplayConfig.DisplayOverride displayOverride = plugin.getSkilletDisplayConfig().getOverride(skillet.storedItem);
-        ItemStack visualItem = plugin.getSkilletDisplayConfig().resolveDisplayItem(skillet.storedItem, displayOverride);
-        boolean itemChanged = visualItem != null && (skillet.displayedItem == null || !skillet.displayedItem.isSimilar(visualItem));
-        if (skillet.displayEntityIds.size() != expectedCount
-                || skillet.displayedFacing != facing
-                || !displayOverride.equals(skillet.displayedOverride)
-                || itemChanged) {
-            createVisual(location, skillet);
-        }
+        visualManager.ensureVisualsExist(location, skillet);
     }
 
     private void refreshVisualsAfterConfigReload() {
