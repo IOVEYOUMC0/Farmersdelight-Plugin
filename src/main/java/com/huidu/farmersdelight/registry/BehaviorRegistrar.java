@@ -1,8 +1,10 @@
 package com.huidu.farmersdelight.registry;
 
 import com.huidu.farmersdelight.block.behavior.BasketBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.ConnectedRugBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.DoubleBlockRugBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.MushroomColonyBehavior;
 import com.huidu.farmersdelight.block.behavior.OrganicCompostBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.RichSoilBlockBehavior;
@@ -38,6 +40,8 @@ public final class BehaviorRegistrar {
     }
 
     public static void registerBlockBehaviors() {
+        registerBehavior(Constants.BEHAVIOR_CONNECTED_RUG, ConnectedRugBlockBehavior.FACTORY);
+        registerBehavior(Constants.BEHAVIOR_DOUBLE_BLOCK, DoubleBlockRugBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_BASKET, BasketBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_COOKING_POT, CookingPotBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_CUTTING_BOARD, CuttingBoardBlockBehavior.FACTORY);
@@ -61,7 +65,7 @@ public final class BehaviorRegistrar {
     }
 
     public static void registerItemBehaviors() {
-        registerItemBehavior(Constants.ITEM_BEHAVIOR_CONDITIONAL_PLANTING, ConditionalBlockPlantingItemBehavior.FACTORY);
+        registerItemBehavior();
     }
 
     public static void registerFunctions() {
@@ -78,10 +82,10 @@ public final class BehaviorRegistrar {
         }
     }
 
-    private static void registerItemBehavior(String key, ItemBehaviorFactory<?> factory) {
-        Key keyObj = Key.of(key);
+    private static void registerItemBehavior() {
+        Key keyObj = Key.of(Constants.ITEM_BEHAVIOR_CONDITIONAL_PLANTING);
         if (BuiltInRegistries.ITEM_BEHAVIOR_TYPE.getValue(keyObj) == null) {
-            ItemBehaviors.register(keyObj, factory);
+            ItemBehaviors.register(keyObj, (ItemBehaviorFactory<?>) ConditionalBlockPlantingItemBehavior.FACTORY);
         }
     }
 

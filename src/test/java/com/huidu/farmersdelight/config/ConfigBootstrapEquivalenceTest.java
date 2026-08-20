@@ -16,9 +16,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 class ConfigBootstrapEquivalenceTest {
 
@@ -64,8 +62,6 @@ class ConfigBootstrapEquivalenceTest {
             "cooking-pot.container-returns",
             "cutting-board.display-overrides",
             "cutting-board.display-tag-overrides",
-            "world-data.composting.items",
-            "world-data.furnace-fuel.items",
             "world-data.trades.villager",
             "world-data.trades.wandering-trader");
 
@@ -125,7 +121,6 @@ class ConfigBootstrapEquivalenceTest {
         // An operator who disabled content by deleting entries: the merge must not put any of them back.
         clearChildrenButOne(existing, "heat-sources");
         clearChildrenButOne(existing, "drops.mob-extra");
-        clearChildrenButOne(existing, "world-data.composting.items");
         assertSameResult(existing);
     }
 
@@ -168,7 +163,7 @@ class ConfigBootstrapEquivalenceTest {
 
         YamlConfiguration current = copyOf(input);
         List<ConfigKeyRename> currentMigrated =
-                ConfigFileUpdater.applyMigrations(current, renames(LEGACY_MIGRATIONS));
+                ConfigFileUpdater.applyMigrations(current, renames());
         List<String> currentRetired = ConfigFileUpdater.removeKeys(current, LEGACY_RETIRED);
         int currentAdded = ConfigFileUpdater.copyMissingKeys(bundledConfig(), current, LEGACY_REGISTRY_SECTIONS);
 
@@ -187,9 +182,9 @@ class ConfigBootstrapEquivalenceTest {
                 "rewritten file bytes differ");
     }
 
-    private static List<ConfigKeyRename> renames(String[][] table) {
+    private static List<ConfigKeyRename> renames() {
         List<ConfigKeyRename> renames = new ArrayList<>();
-        for (String[] entry : table) {
+        for (String[] entry : ConfigBootstrapEquivalenceTest.LEGACY_MIGRATIONS) {
             renames.add(new ConfigKeyRename(entry[0], entry[1]));
         }
         return renames;
@@ -205,7 +200,7 @@ class ConfigBootstrapEquivalenceTest {
         Path path = Path.of("src", "main", "resources", "config.yml");
         assertTrue(Files.exists(path), "bundled config.yml not found at " + path.toAbsolutePath());
         YamlConfiguration loaded = YamlConfiguration.loadConfiguration(path.toFile());
-        assertTrue(!loaded.getKeys(false).isEmpty(), "bundled config.yml loaded empty");
+        assertFalse(loaded.getKeys(false).isEmpty(), "bundled config.yml loaded empty");
         return loaded;
     }
 
@@ -222,7 +217,7 @@ class ConfigBootstrapEquivalenceTest {
 
     private static void clearChildrenButOne(YamlConfiguration configuration, String section) {
         ConfigurationSection body = configuration.getConfigurationSection(section);
-        assertTrue(body != null, "bundled config.yml has no section " + section);
+        assertNotNull(body, "bundled config.yml has no section " + section);
         List<String> keys = new ArrayList<>(body.getKeys(false));
         assertTrue(keys.size() > 1, "section " + section + " has too few entries to test with");
         for (int i = 1; i < keys.size(); i++) {

@@ -28,6 +28,16 @@ public final class ToolRegistry {
             null
     );
 
+    // farmersdelight:durable — the durability half of the sword setting with none of the combat: it stamps the
+    // same vanilla max_damage / damage / max_stack_size:1 components (so the item is single-stack, damageable,
+    // and shows the vanilla durability bar) but is stored under a DISTINCT key that the combat listener and the
+    // knife-enchant filter never consult, so a durable item is not a weapon. Wear must be driven in code via
+    // FarmersDelightItems.damage(...). Not added to the refresh() cache — nothing runtime reads it.
+    static final CustomItemSettingType<ToolData> DURABLE_KEY = CustomItemSettingType.newType(
+            (data, consumer) -> consumer.accept(new ToolDataProcessor(data.maxDurability(), data.enchantability())),
+            null
+    );
+
     private static boolean registered = false;
     private static volatile Map<Key, ToolData> cache = Map.of();
 
@@ -50,6 +60,19 @@ public final class ToolRegistry {
         ((WritableRegistry<ItemSettingsModifierType<? extends ItemSettingsModifier>>)
                 BuiltInRegistries.ITEM_SETTINGS_TYPE)
                 .register(ResourceKey.create(Registries.ITEM_SETTINGS_TYPE.location(), type.id()), type);
+
+        ItemSettingsModifierType<ItemSettingsModifier> durableType = new ItemSettingsModifierType<>(
+                Key.of("farmersdelight", "durable"),
+                (ItemSettingsModifierFactory<ItemSettingsModifier>) (ConfigValue value) ->
+                        (ItemSettingsModifier) settings -> {
+                            ToolData data = ToolData.fromConfig(value.getAsSection());
+                            settings.addCustomData(DURABLE_KEY, data);
+                        }
+        );
+
+        ((WritableRegistry<ItemSettingsModifierType<? extends ItemSettingsModifier>>)
+                BuiltInRegistries.ITEM_SETTINGS_TYPE)
+                .register(ResourceKey.create(Registries.ITEM_SETTINGS_TYPE.location(), durableType.id()), durableType);
     }
 
     public static void refresh() {

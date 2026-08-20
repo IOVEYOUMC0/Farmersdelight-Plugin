@@ -132,6 +132,11 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         return networkManager != null;
     }
 
+    @Override
+    public boolean isActive(int entityId) {
+        return displays.containsKey(entityId);
+    }
+
     private int allocateEntityId() {
         int entityId;
         do {
@@ -401,6 +406,9 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         for (Integer entityId : toRemove) {
             destroyDisplay(entityId);
         }
+        // destroyDisplay empties the world's inner chunk map but leaves the outer per-world entry; drop it
+        // so churning uniquely-UUID'd worlds (minigame arenas, dungeon instances) does not leak empty maps.
+        displaysByChunk.remove(worldId);
     }
 
     @Override
@@ -420,7 +428,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
     }
 
     @Override
-    public int cleanup() {
+    public void cleanup() {
         synchronized (syncTaskLock) {
             if (syncTask != null) {
                 syncTask.cancel();
@@ -446,7 +454,6 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         }
         displaySnapshot = List.of();
         markDisplaySnapshotDirty();
-        return removed;
     }
 
     @EventHandler
@@ -1038,6 +1045,14 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         DisplayData.ItemDisplayData.Scale.addEntityData(transformation.getScale(), values);
         DisplayData.ItemDisplayData.LeftRotation.addEntityData(transformation.getLeftRotation(), values);
         DisplayData.ItemDisplayData.RightRotation.addEntityData(transformation.getRightRotation(), values);
+        if (spec.interpolationDurationTicks() > 0) {
+            // Animate transform changes (e.g. the grill's skewer flip): the client tweens from its current
+            // transform to this one over `duration` ticks, starting after `delay`. Only meaningful on an
+            // update that changes the transform; on a fresh spawn/resync of an unchanged transform it is a
+            // no-op tween. Floor is 1.21 (>=1.20.2), so only the Transformation* interpolation fields apply.
+            DisplayData.TransformationInterpolationDelay.addEntityData(spec.interpolationDelayTicks(), values);
+            DisplayData.TransformationInterpolationDuration.addEntityData(spec.interpolationDurationTicks(), values);
+        }
         DisplayData.ItemDisplayData.ItemTransform.addEntityData(toCeDisplayContext(spec.itemTransform()), values);
         DisplayData.ItemDisplayData.ShadowRadius.addEntityData(0.0F, values);
         DisplayData.ItemDisplayData.ShadowStrength.addEntityData(0.0F, values);
@@ -1139,7 +1154,8 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         Location location = spec.location().clone();
         ItemStack itemStack = spec.itemStack().clone();
         itemStack.setAmount(1);
-        return new DisplaySpec(location, itemStack, spec.itemTransform(), spec.transformation());
+        return new DisplaySpec(location, itemStack, spec.itemTransform(), spec.transformation(),
+                spec.interpolationDurationTicks(), spec.interpolationDelayTicks());
     }
 
     public List<String> debugStats() {

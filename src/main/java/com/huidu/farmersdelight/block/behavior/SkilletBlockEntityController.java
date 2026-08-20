@@ -159,7 +159,7 @@ public final class SkilletBlockEntityController extends BlockEntityController im
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         SkilletManager manager = getManager();
         Location location = getLocation();
-        if (plugin == null || !plugin.isSkilletHopperInteractionsEnabled() || manager == null || location == null) {
+        if (plugin == null || plugin.isSkilletHopperInteractionsEnabled() || manager == null || location == null) {
             return stack.clone();
         }
 
@@ -207,7 +207,7 @@ public final class SkilletBlockEntityController extends BlockEntityController im
 
     @Override
     public Item getItem(int slot) {
-        if (!isValidSlot(slot)) {
+        if (isValidSlot(slot)) {
             return Item.empty();
         }
         return this.item;
@@ -225,7 +225,7 @@ public final class SkilletBlockEntityController extends BlockEntityController im
 
     @Override
     public void setItem(int slot, Item item) {
-        if (!isValidSlot(slot)) {
+        if (isValidSlot(slot)) {
             return;
         }
         this.item = normalize(item);
@@ -285,7 +285,7 @@ public final class SkilletBlockEntityController extends BlockEntityController im
 
     @Override
     public boolean canPlaceItem(int slot, Item item) {
-        if (!isValidSlot(slot)) {
+        if (isValidSlot(slot)) {
             return false;
         }
         SkilletManager manager = getManager();
@@ -337,7 +337,7 @@ public final class SkilletBlockEntityController extends BlockEntityController im
     }
 
     private boolean isValidSlot(int slot) {
-        return slot == SLOT_INDEX;
+        return slot != SLOT_INDEX;
     }
 
     private void refreshFromManager() {

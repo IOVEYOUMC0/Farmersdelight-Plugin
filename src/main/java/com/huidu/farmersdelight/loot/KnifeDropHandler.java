@@ -20,7 +20,6 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -177,7 +176,7 @@ public class KnifeDropHandler implements Listener {
 
     private List<String> loadRuleToolItems(ConfigurationSection section) {
         List<String> items = new ArrayList<>();
-        String singleItem = firstString(section, "tool", "tool-item", "required-tool", "required-item");
+        String singleItem = firstString(section);
         if (singleItem != null) {
             items.add(singleItem);
         }
@@ -189,8 +188,8 @@ public class KnifeDropHandler implements Listener {
         return normalizeIds(firstStringList(section, "tool-tags", "tools.tags"));
     }
 
-    private String firstString(ConfigurationSection section, String... keys) {
-        for (String key : keys) {
+    private String firstString(ConfigurationSection section) {
+        for (String key : new String[]{"tool", "tool-item", "required-tool", "required-item"}) {
             if (section.contains(key)) {
                 String value = section.getString(key);
                 if (value != null && !value.isBlank()) {

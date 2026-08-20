@@ -99,7 +99,9 @@ final class RecipeSubCommand extends SubCommand {
             return;
         }
         String id = normalize(args[3]);
-        if (!id.matches("[a-z0-9_]+")) {
+        // Addon-registered recipes carry a namespace (e.g. barbequesdelight:kebab_wrap), so allow an
+        // optional "namespace:" prefix in addition to plain ids.
+        if (!id.matches("[a-z0-9_]+(?::[a-z0-9_]+)?")) {
             player.sendMessage(I18n.getComponent("gui.editor.feedback.invalid_id", player));
             return;
         }

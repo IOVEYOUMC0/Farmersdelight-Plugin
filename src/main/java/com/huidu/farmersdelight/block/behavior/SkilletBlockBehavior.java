@@ -13,7 +13,6 @@ import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.util.PermissionChecker;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
-import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.behavior.EntityBlock;
 import net.momirealms.craftengine.core.block.behavior.WorldlyContainerHolder;
@@ -191,7 +190,7 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
     @Override
     public Object getContainer(Object thisBlock, Object[] args) {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (plugin == null || !plugin.isSkilletHopperInteractionsEnabled()) {
+        if (plugin == null || plugin.isSkilletHopperInteractionsEnabled()) {
             return null;
         }
         if (args == null || args.length < 3) {

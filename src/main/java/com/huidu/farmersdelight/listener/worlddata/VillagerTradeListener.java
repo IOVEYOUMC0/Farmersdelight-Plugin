@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.listener.worlddata;
 import com.huidu.farmersdelight.listener.worlddata.WorldDataConfig.TradeOffer;
 import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.Keyed;
+import org.bukkit.Material;
 import org.bukkit.entity.AbstractVillager;
 import org.bukkit.entity.Villager;
 import org.bukkit.entity.WanderingTrader;
@@ -13,6 +14,7 @@ import org.bukkit.event.entity.VillagerAcquireTradeEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.MerchantRecipe;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
@@ -23,24 +25,32 @@ public final class VillagerTradeListener implements Listener {
     public void onAcquireTrade(VillagerAcquireTradeEvent event) {
         WorldDataConfig config = WorldDataConfig.get();
         AbstractVillager merchant = event.getEntity();
-        List<TradeOffer> candidates;
+        // Addon-registered offers (via the api) are unioned in ALWAYS; only the config-driven offers are gated
+        // on the world-data.trades enable flags, so disabling the built-in trades does not silently kill
+        // addon trades too.
+        List<TradeOffer> candidates = new ArrayList<>();
 
         if (merchant instanceof Villager villager) {
-            if (!config.isVillagerTradesEnabled()) {
-                return;
-            }
             String profession = professionPath(villager);
-            candidates = config.villagerTradesFor(profession, villager.getVillagerLevel());
+            int level = villager.getVillagerLevel();
+            if (config.isVillagerTradesEnabled()) {
+                candidates.addAll(config.villagerTradesFor(profession, level));
+            }
+            candidates.addAll(ExternalVillagerTrades.villagerTradesFor(profession, level));
         } else if (merchant instanceof WanderingTrader) {
-            if (!config.isWanderingTraderTradesEnabled()) {
+            // Buying slots (item -> emerald) are left untouched so their direction is not flipped. The draw
+            // count guard is version-dependent: older versions draw a separate rare listing after the count,
+            // newer versions fill buying/uncommon/common pools from datapack trade sets.
+            if (isBuyingOffer(event.getRecipe())) {
                 return;
             }
-            // A wandering trader draws its generic offers first and its last offer from a separate rare pool
-            // the mod does not touch, so only the draws before that count are eligible for substitution.
             if (merchant.getRecipeCount() >= config.wanderingGenericTradeCount()) {
                 return;
             }
-            candidates = config.wanderingTrades();
+            if (config.isWanderingTraderTradesEnabled()) {
+                candidates.addAll(config.wanderingTrades());
+            }
+            candidates.addAll(ExternalVillagerTrades.wanderingTrades());
         } else {
             return;
         }
@@ -88,6 +98,13 @@ public final class VillagerTradeListener implements Listener {
         // Villager.Profession moved from an enum to a registry-backed type; going through Keyed keeps the id
         // lookup working on both shapes.
         return ((Keyed) profession).getKey().getKey().toLowerCase(Locale.ROOT);
+    }
+
+    private static boolean isBuyingOffer(MerchantRecipe recipe) {
+        // Vanilla buying listings always pay out emeralds, so a result of emerald marks an item -> emerald
+        // slot. Substituting it with a selling listing would flip the direction of that slot.
+        ItemStack result = recipe.getResult();
+        return result != null && result.getType() == Material.EMERALD;
     }
 
     private static boolean alreadyOffered(AbstractVillager merchant, TradeOffer offer) {

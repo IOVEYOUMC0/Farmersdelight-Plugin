@@ -11,9 +11,9 @@ class StoveDamageDatapackTest {
 
     @Test
     void stoveBurnDamageDisablesKnockback() throws Exception {
-        Path damageType = Path.of("src", "main", "resources", "datapack", "loot", "data",
+        Path damageType = Path.of("src", "main", "resources", "datapack", "damage", "data",
                 "farmersdelight", "damage_type", "stove_burn.json");
-        Path noKnockbackTag = Path.of("src", "main", "resources", "datapack", "loot", "data",
+        Path noKnockbackTag = Path.of("src", "main", "resources", "datapack", "damage", "data",
                 "minecraft", "tags", "damage_type", "no_knockback.json");
 
         assertTrue(Files.readString(damageType).contains("\"effects\": \"burning\""));

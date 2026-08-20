@@ -36,11 +36,8 @@ final class RecipeFileLoader {
     }
 
     static void loadRecipeSections(FarmersDelightPlugin plugin,
-                                   String relativePath,
-                                   String rootSectionKey,
-                                   String recipeTypeName,
                                    BiConsumer<String, ConfigurationSection> sectionConsumer) {
-        loadRecipeSections(plugin, loadRecipeFile(plugin, relativePath), rootSectionKey, recipeTypeName, sectionConsumer);
+        loadRecipeSections(plugin, loadRecipeFile(plugin, "recipes/cutting_board_recipes.yml"), "cutting_board_recipes", "cutting board", sectionConsumer);
     }
 
     static YamlConfiguration loadRecipeFile(FarmersDelightPlugin plugin, String relativePath) {

@@ -24,12 +24,7 @@ import org.bukkit.block.Block;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -85,6 +80,14 @@ public class TickManager {
     private final AtomicLong performanceLastActiveBlocks = new AtomicLong();
     private final AtomicLong performanceLastProcessedBlocks = new AtomicLong();
     private volatile boolean performanceStatsEnabled;
+    // Per-block hot-spot sampling: keyed by BlockPosKey so a pot is attributed once per pass across all
+    // regions. Grows only while a profile runs, handed off to the caller on getPerformanceSnapshot(), then
+    // reset so per-profile attribution never bleeds into the next run.
+    private final Map<BlockPosKey, Long> performanceBlockNanos = new ConcurrentHashMap<>();
+    // Rolling per-pass duration history for P50/P95/P99 reporting, mirroring Spark's MSPT distribution.
+    private long[] performanceHistory = new long[PERFORMANCE_HISTORY_CAPACITY];
+    private int performanceHistorySize;
+    private static final int PERFORMANCE_HISTORY_CAPACITY = 4096;
 
     private static final int TICK_INTERVAL = 4;
     // Squared player-proximity radius for gating cooking-pot particle/sound broadcasts. Default 32 blocks =
@@ -93,6 +96,11 @@ public class TickManager {
     // Written in reloadConfig (reload thread), read on Folia region tick threads — volatile for a
     // happens-before edge, matching the other reload-mutated tick-read fields.
     private volatile double effectViewerDistanceSquared = DEFAULT_EFFECT_VIEWER_DISTANCE * DEFAULT_EFFECT_VIEWER_DISTANCE;
+    // Cooking-pot particle/sound emission is throttled to 1-in-N TickManager passes (each pass = TICK_INTERVAL
+    // ticks, so 1 = every pass ~= 5/s). Raise to 2-3 to cut particle + getPlayersSeeingChunk cost on dense pot
+    // farms; cooking PROGRESS is unaffected (it runs earlier in tickCookingPot). Read from
+    // cooking-pot.effects.interval on reload.
+    private volatile int cookingPotEffectInterval = 1;
     // Reusable per-thread recipient list for targeted particle/sound sends (per-thread for Folia's
     // concurrent per-region cooking-pot ticks; refilled per pot and consumed synchronously).
     private static final ThreadLocal<List<Player>> NEARBY_VIEWER_SCRATCH = ThreadLocal.withInitial(ArrayList::new);
@@ -132,18 +140,19 @@ public class TickManager {
         ConfigurationSection steamSection = effectSection != null ? effectSection.getConfigurationSection("steam") : null;
         ConfigurationSection secondarySection = steamSection != null ? steamSection.getConfigurationSection("secondary") : null;
 
-        bubbleEffect = loadEffectSpec(bubbleSection, true, Particle.BUBBLE_POP, 0.20f, 1,
-                0.02D, 0.0D, 0.0D, 0.0D, 0.01D);
-        steamEffect = loadEffectSpec(steamSection, true, Particle.CLOUD, 0.05f, 1,
-                0.08D, 0.0D, 0.03D, 0.0D, 0.02D);
-        secondarySteamEffect = loadEffectSpec(secondarySection, false, Particle.SMOKE, 1.0f, 1,
-                0.05D, 0.0D, 0.025D, 0.0D, 0.02D);
+        bubbleEffect = loadEffectSpec(bubbleSection, true, Particle.BUBBLE_POP, 0.20f,
+                0.02D, 0.0D, 0.01D);
+        steamEffect = loadEffectSpec(steamSection, true, Particle.CLOUD, 0.05f,
+                0.08D, 0.03D, 0.02D);
+        secondarySteamEffect = loadEffectSpec(secondarySection, false, Particle.SMOKE, 1.0f,
+                0.05D, 0.025D, 0.02D);
         cookingPotTickBudget = Math.max(1, plugin.getConfigInt(DEFAULT_COOKING_POT_TICK_BUDGET,
                 "cooking-pot.tick-budget",
                 "performance.cooking-pot-tick-budget"));
         double viewerDistance = Math.max(0.0D, plugin.getConfigDouble(DEFAULT_EFFECT_VIEWER_DISTANCE,
                 "cooking-pot.effects.viewer-distance"));
         effectViewerDistanceSquared = viewerDistance * viewerDistance;
+        cookingPotEffectInterval = Math.max(1, plugin.getConfigInt(1, "cooking-pot.effects.interval"));
         cookingPotChunkEffectBudgetLimit = Math.max(1, plugin.getConfigInt(50,
                 "performance.chunk-effect-packet-budget"));
         cookingPotProgressDisplayUpdateIntervalTicks = Math.max(1,
@@ -322,8 +331,8 @@ public class TickManager {
         return count;
     }
 
-    private boolean cleanupCookingPotBlockEntity(World world, BlockPosKey posKey) {
-        return cleanupInvalidBlockEntity(
+    private void cleanupCookingPotBlockEntity(World world, BlockPosKey posKey) {
+        cleanupInvalidBlockEntity(
                 world,
                 posKey,
                 CookingPotBlockBehavior::removeBlockEntity
@@ -382,7 +391,7 @@ public class TickManager {
             }
             if (changed) {
                 activeBlockSnapshot = List.copyOf(activeBlocks);
-                activeCookingPotCount = countActiveBlocks(activeBlockSnapshot, BlockType.COOKING_POT);
+                activeCookingPotCount = countActiveBlocks(activeBlockSnapshot);
             }
 
             List<ActiveBlock> snapshot = activeBlockSnapshot;
@@ -435,12 +444,24 @@ public class TickManager {
         if (!performanceStatsEnabled) {
             return;
         }
+        long bounded = Math.max(0L, durationNanos);
         performanceSamples.incrementAndGet();
-        performanceTotalNanos.addAndGet(Math.max(0L, durationNanos));
-        performanceLastNanos.set(Math.max(0L, durationNanos));
+        performanceTotalNanos.addAndGet(bounded);
+        performanceLastNanos.set(bounded);
         performanceLastActiveBlocks.set(Math.max(0, activeCount));
         performanceLastProcessedBlocks.set(Math.max(0, processedCount));
-        updateMax(performanceMaxNanos, durationNanos);
+        updateMax(performanceMaxNanos, bounded);
+        appendHistory(bounded);
+    }
+
+    // Grow-only per-pass duration history for percentile reporting; capped so a long profile cannot
+    // allocate unbounded. Percentiles stay valid because the cap only drops the oldest samples.
+    private void appendHistory(long durationNanos) {
+        if (performanceHistorySize >= performanceHistory.length) {
+            return;
+        }
+        performanceHistory[performanceHistorySize] = durationNanos;
+        performanceHistorySize++;
     }
 
     private void updateMax(AtomicLong target, long value) {
@@ -453,10 +474,10 @@ public class TickManager {
         } while (!target.compareAndSet(current, value));
     }
 
-    private int countActiveBlocks(List<ActiveBlock> blocks, BlockType type) {
+    private int countActiveBlocks(List<ActiveBlock> blocks) {
         int count = 0;
         for (ActiveBlock block : blocks) {
-            if (block.type() == type) {
+            if (block.type() == BlockType.COOKING_POT) {
                 count++;
             }
         }
@@ -470,6 +491,8 @@ public class TickManager {
         performanceMaxNanos.set(0L);
         performanceLastActiveBlocks.set(activeBlockSnapshot.size());
         performanceLastProcessedBlocks.set(0L);
+        performanceBlockNanos.clear();
+        performanceHistorySize = 0;
         performanceStatsEnabled = true;
     }
 
@@ -488,6 +511,8 @@ public class TickManager {
                 pendingRemovalsSize++;
             }
         }
+        long[] historyCopy = Arrays.copyOf(performanceHistory, performanceHistorySize);
+        Map<BlockPosKey, Long> blockCopy = new HashMap<>(performanceBlockNanos);
         return new PerformanceSnapshot(
                 performanceSamples.get(),
                 performanceTotalNanos.get(),
@@ -501,7 +526,9 @@ public class TickManager {
                 pendingRemovalsSize,
                 cookingPotTickBudget,
                 TICK_INTERVAL,
-                performanceStatsEnabled
+                performanceStatsEnabled,
+                historyCopy,
+                blockCopy
         );
     }
 
@@ -543,9 +570,19 @@ public class TickManager {
         }
 
         try {
-            switch (activeBlock.type()) {
-                case COOKING_POT -> tickCookingPot(activeBlock, world, posKey, consumeElapsedTicks(activeBlock));
-                default -> throw new IllegalArgumentException("Unexpected value: " + activeBlock.type());
+            if (Objects.requireNonNull(activeBlock.type()) == BlockType.COOKING_POT) {
+                if (performanceStatsEnabled) {
+                    long started = System.nanoTime();
+                    tickCookingPot(activeBlock, world, posKey, consumeElapsedTicks(activeBlock));
+                    long cost = System.nanoTime() - started;
+                    if (cost > 0L) {
+                        performanceBlockNanos.merge(posKey, cost, Long::sum);
+                    }
+                } else {
+                    tickCookingPot(activeBlock, world, posKey, consumeElapsedTicks(activeBlock));
+                }
+            } else {
+                throw new IllegalArgumentException("Unexpected value: " + activeBlock.type());
             }
         } catch (Exception e) {
             plugin.getLogger().warning(I18n.formatNamedArgs("console.tick.error_ticking",
@@ -768,6 +805,13 @@ public class TickManager {
         int chunkZ = posKey.z() >> 4;
         long effectChunkKey = ((long) chunkX << 32) | (chunkZ & 0xffffffffL);
         long currentBukkitTick = getCurrentTick();
+        // Throttle particle/sound emission to 1-in-N passes (cooking-pot.effects.interval). Skips the
+        // getPlayersSeeingChunk lookup + particle/sound broadcast on the off-passes; cooking PROGRESS
+        // already ran in tickCookingPot, so this is cosmetic-only (R-PERF-003). currentBukkitTick advances
+        // by TICK_INTERVAL each pass on both Paper and Folia, so /TICK_INTERVAL yields the pass counter.
+        if (cookingPotEffectInterval > 1 && (currentBukkitTick / TICK_INTERVAL) % cookingPotEffectInterval != 0) {
+            return;
+        }
         if (currentBukkitTick != effectBudgetResetTick) {
             chunkFx.clear();
             effectBudgetResetTick = currentBukkitTick;
@@ -921,22 +965,19 @@ public class TickManager {
             boolean defaultEnabled,
             Particle defaultParticle,
             float defaultChance,
-            int defaultCount,
             double defaultYOffset,
-            double defaultOffsetX,
             double defaultOffsetY,
-            double defaultOffsetZ,
             double defaultSpeed
     ) {
         return new EffectSpec(
                 section == null ? defaultEnabled : section.getBoolean("enabled", defaultEnabled),
                 ManagerSupport.resolveParticle(section == null ? null : section.getString("type"), defaultParticle),
                 section == null ? defaultChance : (float) section.getDouble("chance", defaultChance),
-                Math.max(1, section == null ? defaultCount : section.getInt("count", defaultCount)),
+                Math.max(1, section == null ? 1 : section.getInt("count", 1)),
                 section == null ? defaultYOffset : section.getDouble("y-offset", defaultYOffset),
-                section == null ? defaultOffsetX : section.getDouble("offset-x", defaultOffsetX),
+                section == null ? 0.0 : section.getDouble("offset-x", 0.0),
                 section == null ? defaultOffsetY : section.getDouble("offset-y", defaultOffsetY),
-                section == null ? defaultOffsetZ : section.getDouble("offset-z", defaultOffsetZ),
+                section == null ? 0.0 : section.getDouble("offset-z", 0.0),
                 Math.max(0.001D, section == null ? defaultSpeed : section.getDouble("speed", defaultSpeed))
         );
     }
@@ -974,7 +1015,8 @@ public class TickManager {
         } else {
             registryKey = "minecraft:" + trimmed.toLowerCase(java.util.Locale.ROOT).replace('_', '.');
         }
-        Sound registrySound = Registry.SOUNDS.get(NamespacedKey.fromString(registryKey));
+        NamespacedKey parsedRegistryKey = NamespacedKey.fromString(registryKey);
+        Sound registrySound = parsedRegistryKey == null ? null : Registry.SOUNDS.get(parsedRegistryKey);
         if (registrySound != null) {
             return ResolvedSound.fromBukkit(registrySound);
         }
@@ -1042,7 +1084,9 @@ public class TickManager {
             int pendingRemovals,
             int tickBudget,
             int tickInterval,
-            boolean statsEnabled
+            boolean statsEnabled,
+            long[] historyNanos,
+            Map<BlockPosKey, Long> blockNanos
     ) {
         public double averageNanos() {
             return samples <= 0L ? 0.0D : (double) totalNanos / samples;

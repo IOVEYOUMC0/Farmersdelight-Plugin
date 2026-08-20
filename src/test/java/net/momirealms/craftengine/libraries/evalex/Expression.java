@@ -6,7 +6,7 @@ public class Expression {
     public Expression(String expression) {
     }
 
-    public EvaluationValue evaluate() throws EvaluationException {
+    public EvaluationValue evaluate() {
         return new EvaluationValue();
     }
 }

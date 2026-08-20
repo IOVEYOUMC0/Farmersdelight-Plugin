@@ -100,14 +100,13 @@ public class I18n {
     private static volatile String lastLoggedLocaleSignature;
 
     private static void saveDefaultLanguages() {
-        String[] defaultLangs = DEFAULT_LANGUAGES;
-        
+
         File langFolder = new File(plugin.getDataFolder(), "lang");
         if (!langFolder.exists()) {
             langFolder.mkdirs();
         }
         
-        for (String lang : defaultLangs) {
+        for (String lang : DEFAULT_LANGUAGES) {
             File langFile = new File(langFolder, lang + ".yml");
             try {
                 if (!langFile.exists()) {
@@ -129,7 +128,7 @@ public class I18n {
         }
     }
 
-    private static void mergeMissingBundledLanguageKeys(Path langFile, String lang) throws IOException {
+    private static void mergeMissingBundledLanguageKeys(Path langFile, String lang) {
         try (InputStream stream = plugin.getResource("lang/" + lang + ".yml")) {
             if (stream == null) {
                 return;

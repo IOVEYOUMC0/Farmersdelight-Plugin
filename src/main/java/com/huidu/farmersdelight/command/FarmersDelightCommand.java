@@ -32,6 +32,7 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
         register(new ReloadSubCommand(plugin));
         register(new CleanupSubCommand(plugin));
         register(new BuffSubCommand(plugin));
+        register(new StatsSubCommand(plugin));
         register(new SubCommand("help", List.of("?"), null, "command.help_help") {
             @Override
             void execute(CommandSender sender, String label, String[] args) {

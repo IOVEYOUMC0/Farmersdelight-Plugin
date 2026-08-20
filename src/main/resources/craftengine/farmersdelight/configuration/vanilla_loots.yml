@@ -121,12 +121,9 @@ vanilla_loots:
         - rolls: 1
           conditions:
             - type: match_item
+              regex: true
               items:
-                - farmersdelight:flint_knife
-                - farmersdelight:iron_knife
-                - farmersdelight:diamond_knife
-                - farmersdelight:golden_knife
-                - farmersdelight:netherite_knife
+                - ".*_knife"
             - type: random
               value: 0.2
           entries:
@@ -141,12 +138,9 @@ vanilla_loots:
         - rolls: 1
           conditions:
             - type: match_item
+              regex: true
               items:
-                - farmersdelight:flint_knife
-                - farmersdelight:iron_knife
-                - farmersdelight:diamond_knife
-                - farmersdelight:golden_knife
-                - farmersdelight:netherite_knife
+                - ".*_knife"
             - type: random
               value: 0.2
           entries:
@@ -155,18 +149,18 @@ vanilla_loots:
 
   farmersdelight:straw_from_mature_wheat:
     type: block
-    target: minecraft:wheat[age=7]
+    target: minecraft:wheat
     loot:
       pools:
         - rolls: 1
           conditions:
             - type: match_item
+              regex: true
               items:
-                - farmersdelight:flint_knife
-                - farmersdelight:iron_knife
-                - farmersdelight:diamond_knife
-                - farmersdelight:golden_knife
-                - farmersdelight:netherite_knife
+                - ".*_knife"
+            - type: match_block_property
+              properties:
+                age: "7"
           entries:
             - type: item
               item: farmersdelight:straw

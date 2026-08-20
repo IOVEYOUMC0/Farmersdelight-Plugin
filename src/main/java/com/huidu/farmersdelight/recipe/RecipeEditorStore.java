@@ -70,13 +70,19 @@ public final class RecipeEditorStore {
 
         ItemStack container = recipe.getContainer();
         if (container != null && !container.getType().isAir()) {
-            body.put("container", RecipeSerializer.itemIdString(container));
+            Map<String, Object> snapshot = RecipeItemCodec.snapshotIfCustom(container);
+            body.put("container", snapshot != null ? snapshot : RecipeSerializer.itemIdString(container));
         }
 
         ItemStack result = recipe.getResult();
-        body.put("result", RecipeSerializer.itemIdString(result));
-        if (result != null && result.getAmount() > 1) {
-            body.put("result-count", result.getAmount());
+        Map<String, Object> resultSnapshot = RecipeItemCodec.snapshotIfCustom(result);
+        if (resultSnapshot != null) {
+            body.put("result", resultSnapshot);
+        } else {
+            body.put("result", RecipeSerializer.itemIdString(result));
+            if (result != null && result.getAmount() > 1) {
+                body.put("result-count", result.getAmount());
+            }
         }
         if (recipe.getExperience() > 0.0f) {
             body.put("experience", (double) recipe.getExperience());
@@ -112,9 +118,14 @@ public final class RecipeEditorStore {
                 continue;
             }
             Map<String, Object> resultMap = new LinkedHashMap<>();
-            resultMap.put("item", RecipeSerializer.itemIdString(item));
-            if (item.getAmount() > 1) {
-                resultMap.put("count", item.getAmount());
+            Map<String, Object> snapshot = RecipeItemCodec.snapshotIfCustom(item);
+            if (snapshot != null) {
+                resultMap.putAll(snapshot);
+            } else {
+                resultMap.put("item", RecipeSerializer.itemIdString(item));
+                if (item.getAmount() > 1) {
+                    resultMap.put("count", item.getAmount());
+                }
             }
             if (entry.getChance() < 1.0d) {
                 resultMap.put("chance", entry.getChance());

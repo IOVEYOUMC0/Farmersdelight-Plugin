@@ -7,7 +7,6 @@ import org.bukkit.entity.Player;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.EnumMap;
 import java.util.Map;
 
 public final class WorldGuardCompat {
@@ -22,7 +21,14 @@ public final class WorldGuardCompat {
     // Registered StateFlag instances resolved once in registerFlags() during onLoad. null when
     // WorldGuard is absent / registration failed -> the query layer treats a null flag as ALLOW.
     private static volatile Object masterFlag;
-    private static volatile Map<ProtectionCompat.Feature, Object> featureFlags = Map.of();
+    // flagName -> registered StateFlag. Holds the FD feature flags plus any addon-registered flags
+    // (addons register their own flag names on their onLoad, after FD's, so they must be tolerated here).
+    private static volatile Map<String, Object> customFlags = Map.of();
+    // Registry + register/get handles cached from the first registration; reused by registerCustomFlag so
+    // addons registering flags late don't re-scan WorldGuard's classes.
+    private static volatile Object flagRegistry;
+    private static volatile Method registerFlagMethod;
+    private static volatile Method getFlagMethod;
     // Reflection handles are resolved once and reused, so per-interaction canUse/canBuild queries
     // don't repeat Class.forName + getMethod and the full getMethods() scan.
     private static volatile Object cachedRegionContainer;
@@ -49,17 +55,71 @@ public final class WorldGuardCompat {
                 return;
             }
             masterFlag = registerStateFlag(registry, stateFlagClass, register, get, MASTER_FLAG_NAME);
-            EnumMap<ProtectionCompat.Feature, Object> resolved = new EnumMap<>(ProtectionCompat.Feature.class);
+            // Start from the current map so addon flags registered before FD's own onLoad are preserved.
+            Map<String, Object> resolved = new java.util.HashMap<>(customFlags);
             for (ProtectionCompat.Feature feature : ProtectionCompat.Feature.values()) {
                 Object flag = registerStateFlag(registry, stateFlagClass, register, get, feature.flagName());
                 if (flag != null) {
-                    resolved.put(feature, flag);
+                    resolved.put(feature.flagName(), flag);
                 }
             }
-            featureFlags = resolved.isEmpty() ? Map.of() : Map.copyOf(resolved);
+            customFlags = resolved.isEmpty() ? Map.of() : Map.copyOf(resolved);
+            // Cache the handles so addons can register their own flags during their onLoad without re-scanning.
+            flagRegistry = registry;
+            registerFlagMethod = register;
+            getFlagMethod = get;
         } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
             masterFlag = null;
-            featureFlags = Map.of();
+            customFlags = Map.of();
+        }
+    }
+
+    /**
+     * Registers one extra StateFlag (typically an addon's own feature flag). Idempotent; a no-op when
+     * WorldGuard is absent or the registry was never reachable. Must be called from onLoad (WorldGuard
+     * locks its FlagRegistry once it enables).
+     */
+    public static void registerCustomFlag(String flagName) {
+        if (flagName == null || flagName.isBlank() || customFlags.containsKey(flagName)
+                || Bukkit.getPluginManager().getPlugin(WORLD_GUARD_PLUGIN) == null) {
+            return;
+        }
+        Object registry = flagRegistry;
+        Method register = registerFlagMethod;
+        Method get = getFlagMethod;
+        if (registry == null || register == null) {
+            bootstrapRegistry();
+            registry = flagRegistry;
+            register = registerFlagMethod;
+            get = getFlagMethod;
+            if (registry == null || register == null) {
+                return;
+            }
+        }
+        try {
+            Class<?> stateFlagClass = Class.forName("com.sk89q.worldguard.protection.flags.StateFlag");
+            Object flag = registerStateFlag(registry, stateFlagClass, register, get, flagName);
+            if (flag != null) {
+                Map<String, Object> copy = new java.util.HashMap<>(customFlags);
+                copy.put(flagName, flag);
+                customFlags = Map.copyOf(copy);
+            }
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+        }
+    }
+
+    private static void bootstrapRegistry() {
+        try {
+            Class<?> worldGuardClass = Class.forName("com.sk89q.worldguard.WorldGuard");
+            Object worldGuard = worldGuardClass.getMethod("getInstance").invoke(null);
+            Object registry = worldGuardClass.getMethod("getFlagRegistry").invoke(worldGuard);
+            if (registry == null) {
+                return;
+            }
+            flagRegistry = registry;
+            registerFlagMethod = findMethod(registry.getClass(), "register", 1);
+            getFlagMethod = findMethod(registry.getClass(), "get", 1);
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
         }
     }
 
@@ -79,13 +139,21 @@ public final class WorldGuardCompat {
         }
     }
 
-    // -- ProtectionCompat.Feature-aware overloads: WG BUILD/USE flag AND master flag AND the feature's own flag. --
+    // -- Query layer: WG BUILD/USE flag AND master flag AND the feature/addon flag (null flagName = master only). --
     public static boolean canBuild(Player player, Location location, ProtectionCompat.Feature feature) {
-        return testFlagState(player, location, buildFlagOrNull()) && customAllows(player, location, feature);
+        return canBuild(player, location, feature == null ? null : feature.flagName());
     }
 
     public static boolean canUse(Player player, Location location, ProtectionCompat.Feature feature) {
-        return testFlagState(player, location, useFlagOrNull()) && customAllows(player, location, feature);
+        return canUse(player, location, feature == null ? null : feature.flagName());
+    }
+
+    public static boolean canBuild(Player player, Location location, String flagName) {
+        return testFlagState(player, location, buildFlagOrNull()) && customAllows(player, location, flagName);
+    }
+
+    public static boolean canUse(Player player, Location location, String flagName) {
+        return testFlagState(player, location, useFlagOrNull()) && customAllows(player, location, flagName);
     }
 
     private static Object buildFlagOrNull() {
@@ -104,15 +172,15 @@ public final class WorldGuardCompat {
         }
     }
 
-    private static boolean customAllows(Player player, Location location, ProtectionCompat.Feature feature) {
+    private static boolean customAllows(Player player, Location location, String flagName) {
         Object master = masterFlag;
         if (master != null && !testFlagState(player, location, master)) {
             return false;
         }
-        if (feature == null) {
+        if (flagName == null) {
             return true;
         }
-        Object flag = featureFlags.get(feature);
+        Object flag = customFlags.get(flagName);
         return flag == null || testFlagState(player, location, flag);
     }
 

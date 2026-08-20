@@ -1,0 +1,44 @@
+{
+	"format_version": "1.9.0",
+	"credit": "Made with Blockbench",
+	"parent": "block/thin_block",
+	"render_type": "minecraft:cutout",
+	"textures": {
+		"particle": "farmersdelight:block/canvas_rug",
+		"rug": "farmersdelight:block/canvas_rug",
+		"fraying": "farmersdelight:block/canvas_rug_fraying"
+	},
+	"elements": [
+		{
+			"name": "canvas",
+			"from": [0, 0, 0],
+			"to": [16, 1.1, 16],
+			"faces": {
+				"north": {"uv": [0, 1, 16, 2], "texture": "#rug", "cullface": "north"},
+				"east": {"uv": [0, 1, 16, 2], "texture": "#rug", "cullface": "east"},
+				"south": {"uv": [0, 1, 16, 2], "texture": "#rug", "cullface": "south"},
+				"west": {"uv": [0, 1, 16, 2], "texture": "#rug", "cullface": "west"},
+				"up": {"uv": [0, 0, 16, 16], "texture": "#rug"},
+				"down": {"uv": [0, 16, 16, 0], "texture": "#rug", "cullface": "down"}
+			}
+		},
+		{
+			"name": "south_fraying",
+			"from": [0, 1, 16],
+			"to": [16, 1.1, 24],
+			"faces": {
+				"up": {"uv": [0, 8, 16, 16], "texture": "#fraying", "cullface": "south"},
+				"down": {"uv": [0, 16, 16, 8], "texture": "#fraying", "cullface": "south"}
+			}
+		},
+		{
+			"name": "west_fraying",
+			"from": [-8, 1, 0],
+			"to": [0, 1.1, 16],
+			"faces": {
+				"up": {"uv": [0, 0, 16, 8], "rotation": 90, "texture": "#fraying", "cullface": "west"},
+				"down": {"uv": [0, 8, 16, 16], "rotation": 90, "texture": "#fraying", "cullface": "west"}
+			}
+		}
+	]
+}

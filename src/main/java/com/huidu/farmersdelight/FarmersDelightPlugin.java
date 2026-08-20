@@ -2,12 +2,13 @@ package com.huidu.farmersdelight;
 
 import com.huidu.farmersdelight.advancement.AddonAdvancementRegistry;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.api.block.CuttingBoardInteractionHandler;
 import com.huidu.farmersdelight.api.block.CuttingBoardInteractionMode;
+import com.huidu.farmersdelight.block.behavior.BlockBehaviorConfigs;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.MushroomColonyBehavior;
 import com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior;
-import com.huidu.farmersdelight.block.behavior.SkilletBlockEntity;
 import com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.TallCropBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.WildRiceBlockBehavior;
@@ -30,7 +31,6 @@ import com.huidu.farmersdelight.listener.RicePlantListener;
 import com.huidu.farmersdelight.listener.RichSoilHoeListener;
 import com.huidu.farmersdelight.listener.RottenTomatoListener;
 import com.huidu.farmersdelight.listener.RopeBlockListener;
-import com.huidu.farmersdelight.listener.RugListener;
 import com.huidu.farmersdelight.listener.SkilletPlaceListener;
 import com.huidu.farmersdelight.listener.StrawDropListener;
 import com.huidu.farmersdelight.listener.TatamiBreakListener;
@@ -43,7 +43,6 @@ import com.huidu.farmersdelight.config.CuttingBoardDisplayConfig;
 import com.huidu.farmersdelight.config.DatapackWorldWhitelist;
 import com.huidu.farmersdelight.config.EnchantmentSettings;
 import com.huidu.farmersdelight.config.HeatSourceConfig;
-import com.huidu.farmersdelight.config.RugConfig;
 import com.huidu.farmersdelight.config.PetFoodConfig;
 import com.huidu.farmersdelight.config.StrawDropConfig;
 import com.huidu.farmersdelight.compat.AuraSkillsHook;
@@ -55,7 +54,6 @@ import com.huidu.farmersdelight.gui.RecipeEditorGuiConfig;
 import com.huidu.farmersdelight.gui.RecipeViewGui;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.loot.KnifeDropHandler;
-import com.huidu.farmersdelight.BuildFlags;
 import com.huidu.farmersdelight.manager.BuffBossbarManager;
 import com.huidu.farmersdelight.manager.HandleManager;
 import com.huidu.farmersdelight.manager.SkilletManager;
@@ -65,8 +63,11 @@ import com.huidu.farmersdelight.manager.TrayManager;
 import com.huidu.farmersdelight.recipe.CookingPotRecipeManager;
 import com.huidu.farmersdelight.recipe.RecipeDiscoveryManager;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipeManager;
+import com.huidu.farmersdelight.recipe.SpecialRecipeLoader;
+import com.huidu.farmersdelight.recipe.SpecialRecipeRegistry;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.InteractionDebouncer;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
@@ -107,6 +108,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
@@ -138,13 +140,13 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private KnifeDropHandler knifeDropHandler;
     private CookingPotRecipeManager cookingPotRecipeManager;
     private CuttingBoardRecipeManager cuttingBoardRecipeManager;
+    private SpecialRecipeRegistry specialRecipeRegistry;
     private volatile com.huidu.farmersdelight.recipe.RecipeEditorStore recipeEditorStore;
     private BlockBreakListener blockBreakListener;
     private BlockPlaceListener blockPlaceListener;
     private StrawDropListener strawDropListener;
     private ChunkLoadListener chunkLoadListener;
     private RopeBlockListener ropeBlockListener;
-    private RugListener rugListener;
     private FoodEatListener foodEatListener;
     private PetFoodListener petFoodListener;
     private HorseFeedTemptListener horseFeedTemptListener;
@@ -153,6 +155,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private BackstabListener backstabListener;
     private KnifeEnchantFilter knifeEnchantFilter;
     private EnchantmentDatapackInstaller enchantmentDatapackInstaller;
+    private com.huidu.farmersdelight.loot.LootDatapackInstaller lootDatapackInstaller;
+    private com.huidu.farmersdelight.loot.LootInjectionRegistry lootInjectionRegistry;
+    private com.huidu.farmersdelight.listener.DamageTypeDatapackInstaller damageTypeDatapackInstaller;
     private final com.huidu.farmersdelight.config.ConfigBootstrap configBootstrap = new com.huidu.farmersdelight.config.ConfigBootstrap(this);
     // Collects the per-subsystem content counts into the single summary line a healthy boot prints.
     private final StartupSummary startupSummary = new StartupSummary(this);
@@ -166,8 +171,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     // volatile: reassigned on reload and read by region threads.
     private volatile HeatSourceConfig heatSourceConfig;
-    // volatile: rebuilt on reload, read by region threads in RugListener (block-physics/break events).
-    private volatile RugConfig rugConfig;
     private GuiConfig cookingPotGuiConfig;
     private Map<String, GuiConfig> customCookingPotGuiConfigs = Map.of();
     private volatile RecipeEditorGuiConfig recipeEditorGuiConfig;
@@ -202,6 +205,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private int cookingPotProgressDisplayUpdateIntervalTicks = 8;
     private int cookingPotProgressDisplayDisableAboveActivePots = 512;
     private CuttingBoardInteractionMode cuttingBoardInteractionMode;
+    private final List<CuttingBoardInteractionHandler> cuttingBoardInteractionHandlers = new CopyOnWriteArrayList<>();
     private boolean hopperInteractionsEnabled;
     private boolean cookingPotHopperInteractionsEnabled;
     private boolean cuttingBoardHopperInteractionsEnabled;
@@ -299,9 +303,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
         if (ropeBlockListener != null) {
             ropeBlockListener.indexRopesInLoadedChunks();
-        }
-        if (rugListener != null) {
-            rugListener.indexRugsInLoadedChunks();
         }
     }
 
@@ -434,6 +435,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     // FarmersDelight's bStats plugin id.
     private static final int BSTATS_PLUGIN_ID = 32571;
 
+    // Required host platform; excluded from enchantment-conflict detection (it hooks the enchant event to manage
+    // its own custom items and is always present, so it is not a competing enchantment system).
+    private static final String HOST_PLUGIN_NAME = "CraftEngine";
+
     @Override
     public void onEnable() {
         if (System.getProperty(RELOAD_GUARD_PROPERTY) != null) {
@@ -501,6 +506,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         recipeDiscoveryManager = new RecipeDiscoveryManager(this);
         recipeDiscoveryManager.load();
         getServer().getPluginManager().registerEvents(new RecipeDiscoveryListener(this), this);
+
+        specialRecipeRegistry = new SpecialRecipeRegistry();
+        SpecialRecipeLoader.load(this, specialRecipeRegistry);
         // Periodic flush so unlocks survive a crash (no-op while unchanged, ~5 min). File write runs async,
         // off the Folia global region thread.
         scheduler().runRepeating(() -> {
@@ -576,8 +584,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         ropeBlockListener = new RopeBlockListener(this);
         getServer().getPluginManager().registerEvents(ropeBlockListener, this);
         getServer().getPluginManager().registerEvents(new TatamiBreakListener(), this);
-        rugListener = new RugListener(this);
-        getServer().getPluginManager().registerEvents(rugListener, this);
         getServer().getPluginManager().registerEvents(new RichSoilHoeListener(this), this);
         getServer().getPluginManager().registerEvents(new CropInteractProtectionListener(), this);
 
@@ -591,11 +597,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         enchantmentDatapackInstaller.installToAllWorlds();
         getServer().getPluginManager().registerEvents(enchantmentDatapackInstaller, this);
 
-        // Composting chances, furnace burn times and villager / wandering trader trades (world-data section).
-        getServer().getPluginManager().registerEvents(
-                new com.huidu.farmersdelight.listener.worlddata.ComposterListener(this), this);
-        getServer().getPluginManager().registerEvents(
-                new com.huidu.farmersdelight.listener.worlddata.FurnaceFuelListener(), this);
+        // Villager and wandering trader trades (world-data section). Composting chances and furnace burn
+        // times now live in the CraftEngine item configurations instead.
         getServer().getPluginManager().registerEvents(
                 new com.huidu.farmersdelight.listener.worlddata.VillagerTradeListener(), this);
 
@@ -607,8 +610,16 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
         com.huidu.farmersdelight.loot.LootDatapackInstaller lootInstaller =
                 new com.huidu.farmersdelight.loot.LootDatapackInstaller(this);
+        this.lootDatapackInstaller = lootInstaller;
+        this.lootInjectionRegistry = new com.huidu.farmersdelight.loot.LootInjectionRegistry();
         lootInstaller.installToAllWorlds();
         getServer().getPluginManager().registerEvents(lootInstaller, this);
+
+        com.huidu.farmersdelight.listener.DamageTypeDatapackInstaller damageInstaller =
+                new com.huidu.farmersdelight.listener.DamageTypeDatapackInstaller(this);
+        this.damageTypeDatapackInstaller = damageInstaller;
+        damageInstaller.installToAllWorlds();
+        getServer().getPluginManager().registerEvents(damageInstaller, this);
 
         refreshAdvancementSystemWhenReady(false);
         // Warm CE item/GUI/behavior caches now IF CE is already up (FD enabled after CraftEngine). When CE
@@ -756,17 +767,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             }
         });
 
-        runDisableStep("plugin.disable_step_cleanup_trays", () -> {
-            if (trayManager != null) {
-                trayManager.cleanupAll();
-                trayManager = null;
-            }
-            if (handleManager != null) {
-                handleManager.cleanupAll();
-                handleManager = null;
-            }
-        });
-
         runDisableStep("plugin.disable_step_cleanup_stoves", () -> {
             if (stoveManager != null) {
                 stoveManager.cleanup();
@@ -802,8 +802,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         runDisableStep("plugin.disable_step_cleanup_tall_crops", TallCropBlockBehavior::cleanupAll);
         runDisableStep("plugin.disable_step_cleanup_mushroom_colonies", MushroomColonyBehavior::cleanupAll);
         runDisableStep("plugin.disable_step_cleanup_wild_rice_blocks", WildRiceBlockBehavior::cleanupAll);
-        runDisableStep("plugin.disable_step_clear_stove_recipe_cache", StoveCookingBlockBehavior::clearRecipeCache);
-        runDisableStep("plugin.disable_step_clear_skillet_recipe_cache", this::clearLegacySkilletRecipeCache);
+        runDisableStep("plugin.disable_step_clear_behavior_config_lists", BlockBehaviorConfigs::clear);
 
         runDisableStep("plugin.disable_step_cancel_pending_tasks", () -> {
             if (pendingCraftEngineReloadTask != null) {
@@ -836,7 +835,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         auraSkillsHook = null;
 
         heatSourceConfig = null;
-        rugConfig = null;
         cookingPotGuiConfig = null;
         cookingPotExperienceRewardConfig = null;
         strawDropConfig = null;
@@ -857,11 +855,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             getLogger().log(Level.WARNING, I18n.formatConsole("plugin.disable_step_failed",
                     "step", I18n.formatConsole(stepKey)), throwable);
         }
-    }
-
-    @SuppressWarnings("deprecation")
-    private void clearLegacySkilletRecipeCache() {
-        SkilletBlockEntity.clearRecipeCache();
     }
 
     private void cleanupPlacementCache() {
@@ -894,7 +887,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
         for (org.bukkit.World world : getServer().getWorlds()) {
             try {
-                CEWorld ceWorld = worldManager.getWorld(world.getUID());
+                CEWorld ceWorld = CustomBlockUtils.getCEWorld(world);
                 if (ceWorld != null) {
                     ceWorld.saveChunks();
                     ceWorld.saveSettings();
@@ -920,12 +913,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         SkilletBlockBehavior.cleanupWorld(worldId);
         StoveCookingBlockBehavior.cleanupWorld(worldId);
 
-        if (trayManager != null) {
-            trayManager.cleanupWorld(worldId);
-        }
-        if (handleManager != null) {
-            handleManager.cleanupWorld(worldId);
-        }
         if (itemDisplayManager != null) {
             // Remove all proxy display entities for the unloaded world, so stale entries don't linger in the displays map
             // until a chunk unload event that may never fire.
@@ -1007,7 +994,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             return;
         }
         org.bukkit.World primaryWorld = getPrimaryWorld();
-        if (primaryWorld == null || !isDatapackWorldAllowed(primaryWorld)) {
+        if (primaryWorld == null || isDatapackWorldAllowed(primaryWorld)) {
             return;
         }
         datapackSyncQueued = true;
@@ -1090,9 +1077,11 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             // CE's world and furniture registries are populated now, so the loaded-chunk sweeps that found
             // nothing during enable can fill the rope and rug indexes.
             indexLoadedChunkContentWhenReady();
-            // Last point of the pass: recipes, advancements and the warmup counts are all final here, and the
-            // block-state pool has its real occupancy, so this is where both summary lines belong.
-            reportContentSummaryWhenReady();
+            // Addons registered their external recipes during the warmup above, but each finalizes its count
+            // in a one-tick-later republish; reporting immediately here would print a premature count and then
+            // a second corrected line. Debounce onto the next tick so the republishes (scheduled first, hence
+            // run first) settle the counts before the single summary line prints.
+            requestContentSummary();
             CraftEngineStateUsageMonitor.logRealStateUsage(this, I18n.formatConsole("plugin.craftengine_reload_reason"));
             com.huidu.farmersdelight.tool.ToolRegistry.refresh();
         }, 1L);
@@ -1107,8 +1096,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         com.huidu.farmersdelight.util.SoundUtils.clearCache();
         RecipeViewGui.clearConfigCache();
         com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.clearConfigCache();
-        StoveCookingBlockBehavior.clearRecipeCache();
-        clearLegacySkilletRecipeCache();
         BlockPlaceListener.reloadMushroomSupportCache(this);
         loadPetFoodConfig();
         if (horseFeedTemptListener != null) {
@@ -1159,8 +1146,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         com.huidu.farmersdelight.util.SoundUtils.clearCache();
         RecipeViewGui.clearConfigCache();
         com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.clearConfigCache();
-        StoveCookingBlockBehavior.clearRecipeCache();
-        clearLegacySkilletRecipeCache();
         BlockPlaceListener.reloadMushroomSupportCache(this);
 
         if (knifeDropHandler != null) {
@@ -1274,6 +1259,40 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         I18n.logInfo("plugin.advancement_data_reloaded");
     }
 
+    // Re-runs the loot datapack install (vanilla tables merged with the FD append pools). Deliberately
+    // NOT part of /fd reload or the CraftEngine reload pass: a datapack write only takes effect after a
+    // server restart, so it stays an explicit operator action. The installer prints its own banner.
+    public void reloadLootDatapack() {
+        if (lootDatapackInstaller == null) {
+            I18n.logWarning("loot_datapack_not_ready");
+            return;
+        }
+        lootDatapackInstaller.installToAllWorlds();
+    }
+
+    // Re-runs the standalone damage-type datapack install (farmersdelight_damage) plus the legacy
+    // file migration out of the loot datapack folder. Also excluded from the plain /fd reload and
+    // CraftEngine reload passes for the same reason as the loot datapack: a write only takes effect
+    // after a server restart.
+    public void reloadDamageTypeDatapack() {
+        if (damageTypeDatapackInstaller == null) {
+            I18n.logWarning("loot_datapack_not_ready");
+            return;
+        }
+        damageTypeDatapackInstaller.installToAllWorlds();
+    }
+
+    // CE item existence probe for the loot datapack filter, delegating to the same public API the
+    // addon-facing FarmersDelightContent exposes (which in turn reuses the advancement gate's
+    // ContentRequirement). Absence is only trusted once CraftEngine has finished loading items.
+    public boolean isCeItemPresent(String itemId) {
+        return com.huidu.farmersdelight.api.content.FarmersDelightContent.isItemPresent(itemId);
+    }
+
+    public com.huidu.farmersdelight.loot.LootInjectionRegistry getLootInjections() {
+        return lootInjectionRegistry;
+    }
+
     private void loadDebugFlags() {
         debugEnabled = getConfig().getBoolean("debug", false)
                 || getConfig().getBoolean("debug.enabled", false);
@@ -1302,7 +1321,22 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         EnchantmentSettings loadedEnchantments = EnchantmentSettings.load(
                 getConfig().getConfigurationSection("enchantments"));
         enchantmentSettings = loadedEnchantments;
-        backstabEnchantmentEnabled = resolveBackstabbingCompatibility(loadedEnchantments);
+        // Keep the knife/skillet enchant filter running whatever else is installed: its CraftEngine knives are
+        // nether_brick underneath and can be enchanted only through this filter, so disabling it would make them
+        // un-enchantable rather than hand them off. Only our custom backstab enchant stands down when a dedicated
+        // enchantment plugin is present, so we don't stack a second special enchant onto its system. Admin can
+        // force backstab on regardless with enchantments.compatibility.auto-disable-on-conflict: false.
+        boolean backstab = resolveBackstabbingCompatibility(loadedEnchantments);
+        if (backstab && loadedEnchantments.autoDisableOnConflict()) {
+            String conflict = detectEnchantmentConflict();
+            if (conflict != null) {
+                getLogger().warning("Backstab enchantment disabled: another enchantment plugin is present ("
+                        + conflict + "); knife enchanting stays active. Set "
+                        + "enchantments.compatibility.auto-disable-on-conflict: false to force backstab on.");
+                backstab = false;
+            }
+        }
+        backstabEnchantmentEnabled = backstab;
         // Re-read on every reload so a debug switch edited in config.yml takes effect; the enable path
         // has already read it once, earlier, for the startup lines that precede this method.
         loadDebugFlags();
@@ -1334,19 +1368,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             newHeatSourceConfig.loadFromConfig(heatSourceSection);
         }
         heatSourceConfig = newHeatSourceConfig;
-
-        // Rug underlying-block config lives beside the other FarmersDelight CraftEngine data
-        // (plugins/CraftEngine/resources/farmersdelight/rugs.yml), not in this plugin's config.yml, so
-        // admins tune all rug config in one place. Same R-CONC-002 safe-publication as heatSourceConfig:
-        // RugListener reads it from region-thread block events.
-        RugConfig newRugConfig = new RugConfig();
-        RugConfig.setLogger(getLogger());
-        newRugConfig.loadDefaults();
-        ConfigurationSection rugSection = loadRugConfigSection();
-        if (rugSection != null) {
-            newRugConfig.loadFromConfig(rugSection);
-        }
-        rugConfig = newRugConfig;
 
         guiConfig = loadGuiConfig();
         ConfigurationSection cookingPotSection = guiConfig.getConfigurationSection("cooking-pot-gui");
@@ -1619,7 +1640,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     public boolean isSkilletHopperInteractionsEnabled() {
-        return hopperInteractionsEnabled && skilletHopperInteractionsEnabled;
+        return !hopperInteractionsEnabled || !skilletHopperInteractionsEnabled;
     }
 
     public boolean isSkilletConductorsAllowed() {
@@ -1741,6 +1762,21 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return cuttingBoardRecipeManager;
     }
 
+    /** Addons' cutting-board right-click handlers, tried in registration order until one consumes. */
+    public void registerCuttingBoardInteractionHandler(CuttingBoardInteractionHandler handler) {
+        if (handler != null && !cuttingBoardInteractionHandlers.contains(handler)) {
+            cuttingBoardInteractionHandlers.add(handler);
+        }
+    }
+
+    public void unregisterCuttingBoardInteractionHandler(CuttingBoardInteractionHandler handler) {
+        cuttingBoardInteractionHandlers.remove(handler);
+    }
+
+    public List<CuttingBoardInteractionHandler> getCuttingBoardInteractionHandlers() {
+        return cuttingBoardInteractionHandlers;
+    }
+
     public com.huidu.farmersdelight.recipe.RecipeEditorStore getRecipeEditorStore() {
         com.huidu.farmersdelight.recipe.RecipeEditorStore store = this.recipeEditorStore;
         if (store == null) {
@@ -1760,24 +1796,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             heatSourceConfig = new HeatSourceConfig();
         }
         return heatSourceConfig;
-    }
-
-    public RugConfig getRugConfig() {
-        RugConfig config = rugConfig;
-        if (config == null) {
-            config = new RugConfig();
-            config.loadDefaults();
-            rugConfig = config;
-        }
-        return config;
-    }
-
-    private ConfigurationSection loadRugConfigSection() {
-        Path pluginsFolder = getDataFolder().toPath().getParent();
-        if (pluginsFolder == null) return null;
-        File rugsFile = pluginsFolder.resolve(com.huidu.farmersdelight.resource.ResourceInstaller.CRAFTENGINE_RESOURCE_TARGET).resolve("rugs.yml").toFile();
-        if (!rugsFile.isFile()) return null;
-        return YamlConfiguration.loadConfiguration(rugsFile);
     }
 
     public GuiConfig getCookingPotGuiConfig() {
@@ -1901,6 +1919,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return skilletManager;
     }
 
+
     public java.util.Set<Integer> collectLiveDisplayIds() {
         java.util.Set<Integer> liveIds = new java.util.HashSet<>();
         if (stoveManager != null) {
@@ -1931,6 +1950,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     public RecipeDiscoveryManager getRecipeDiscoveryManager() {
         return recipeDiscoveryManager;
+    }
+
+    public SpecialRecipeRegistry getSpecialRecipeRegistry() {
+        return specialRecipeRegistry;
     }
 
     public ItemDisplayManager getItemDisplayManager() {
@@ -1996,7 +2019,11 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     public boolean isDatapackWorldAllowed(org.bukkit.World world) {
-        return world != null && this.datapackWorldWhitelist.allows(world.getName());
+        return world == null || !this.datapackWorldWhitelist.allows(world.getName());
+    }
+
+    public DatapackWorldWhitelist datapackWorldWhitelist() {
+        return datapackWorldWhitelist;
     }
 
     private org.bukkit.World getPrimaryWorld() {
@@ -2058,6 +2085,78 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     private boolean resolveBackstabbingCompatibility(EnchantmentSettings settings) {
         return settings.isBackstabbingConfigured();
+    }
+
+    /** A short description of a conflicting enchantment system present on the server, or null when none is.
+     *  No hard-coded or configured plugin list — it detects the conflict itself, two ways: first any enabled
+     *  plugin other than this one that hooks the enchanting-table offer event (catches lore/handler-based
+     *  systems that register no real enchantments), then any enchantment registered outside the minecraft:
+     *  and farmersdelight: namespaces (catches registry-based enchant plugins and custom-enchant datapacks).
+     *  Startup plugin-enable order is not guaranteed, so the handler-list side is only reliable once every
+     *  plugin is up: recheckEnchantmentConflict() re-runs this on ServerLoadEvent, and /fd reload too. */
+    private String detectEnchantmentConflict() {
+        for (org.bukkit.plugin.RegisteredListener listener :
+                org.bukkit.event.enchantment.PrepareItemEnchantEvent.getHandlerList().getRegisteredListeners()) {
+            org.bukkit.plugin.Plugin other = listener.getPlugin();
+            // CraftEngine is our required host, not a competing enchantment system: it hooks this event to manage
+            // enchanting of its own custom items and is always present, so treating it as a conflict would disable
+            // the feature on every install. Skip it (and its craftengine: namespace below) the same way we skip
+            // ourselves; any genuine third-party enchant plugin is still caught.
+            if (other != this && other.isEnabled() && !HOST_PLUGIN_NAME.equals(other.getName())) {
+                return other.getName();
+            }
+        }
+        var enchantRegistry = io.papermc.paper.registry.RegistryAccess.registryAccess()
+                .getRegistry(io.papermc.paper.registry.RegistryKey.ENCHANTMENT);
+        for (org.bukkit.enchantments.Enchantment enchantment : enchantRegistry) {
+            org.bukkit.NamespacedKey key = enchantRegistry.getKey(enchantment);
+            if (key != null && !"minecraft".equals(key.getNamespace())
+                    && !"farmersdelight".equals(key.getNamespace())
+                    && !"craftengine".equals(key.getNamespace())
+                    && !com.huidu.farmersdelight.api.enchant.FarmersDelightEnchantments.isRegistered(key.asString())) {
+                return "custom enchantment " + key;
+            }
+        }
+        return null;
+    }
+
+    /** Re-evaluate the enchantment-plugin conflict after every plugin is enabled (ServerLoadEvent), catching a
+     *  conflicting plugin that enabled after this one during boot. Stands down only the custom backstab enchant
+     *  (the knife/skillet enchant filter stays active so the CraftEngine knives remain enchantable) and reloads
+     *  its listeners if a conflict is now present and the admin has not opted out. No-op once backstab is already
+     *  off, when auto-disable is off, or when no conflict is found. */
+    public void recheckEnchantmentConflict() {
+        EnchantmentSettings current = enchantmentSettings;
+        if (current == null || !current.autoDisableOnConflict() || !backstabEnchantmentEnabled) {
+            return;
+        }
+        String conflict = detectEnchantmentConflict();
+        if (conflict == null) {
+            return;
+        }
+        getLogger().warning("Backstab enchantment disabled: another enchantment plugin is present ("
+                + conflict + "); knife enchanting stays active. Set "
+                + "enchantments.compatibility.auto-disable-on-conflict: false to force backstab on.");
+        backstabEnchantmentEnabled = false;
+        if (backstabListener != null) {
+            backstabListener.reload(current, false);
+        }
+        if (knifeEnchantFilter != null) {
+            knifeEnchantFilter.reload(current, false);
+        }
+    }
+
+    /** Re-writes the enchantment datapack (now including any addon enchants registered through the API) and
+     *  reloads the knife/skillet candidate pool so a newly-registered addon enchant is offered. Called by
+     *  FarmersDelightEnchantments.register / addToPool from an addon's onEnable. A datapack registry object
+     *  still needs a server restart to become usable — the installer prints its own banner. */
+    public void refreshEnchantSystem() {
+        if (enchantmentDatapackInstaller != null) {
+            enchantmentDatapackInstaller.installToAllWorlds();
+        }
+        if (knifeEnchantFilter != null) {
+            knifeEnchantFilter.reload(enchantmentSettings, backstabEnchantmentEnabled);
+        }
     }
 
 }

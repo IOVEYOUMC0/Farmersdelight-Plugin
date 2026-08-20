@@ -272,7 +272,7 @@ public final class CuttingBoardDisplayConfig {
 
             return new DisplayOverride(
                     displayItemId,
-                    DisplayStyle.fromConfig(firstString(section, "default-display-style", "default-style", "style")),
+                    DisplayStyle.fromConfig(firstString(section)),
                     defaultOffset,
                     readVector(section, "default-display-translation", "default-translation", "translation"),
                     readVector(section, "default-display-rotation", "default-rotation", "rotation"),
@@ -281,8 +281,8 @@ public final class CuttingBoardDisplayConfig {
         }
 
         @Nullable
-        private static String firstString(ConfigurationSection section, String... keys) {
-            for (String key : keys) {
+        private static String firstString(ConfigurationSection section) {
+            for (String key : new String[]{"default-display-style", "default-style", "style"}) {
                 if (section.contains(key)) {
                     String value = section.getString(key);
                     if (value != null) {

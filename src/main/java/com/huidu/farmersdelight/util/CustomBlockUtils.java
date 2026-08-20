@@ -90,14 +90,42 @@ public final class CustomBlockUtils {
                 : null;
     }
 
+    private static final java.util.concurrent.atomic.AtomicBoolean CE_WORLD_LOAD_FAILURE_LOGGED =
+            new java.util.concurrent.atomic.AtomicBoolean();
+
     public static CEWorld getCEWorld(World world) {
         if (world == null) {
             return null;
         }
-        // BukkitWorldManager.instance() is null when CraftEngine is not loaded (not yet initialized, or
-        // disabled at runtime). Callers treat a null CEWorld as "skip", so return null instead of throwing.
         BukkitWorldManager worldManager = BukkitWorldManager.instance();
-        return worldManager == null ? null : worldManager.getWorld(world.getUID());
+        if (worldManager == null) {
+            return null;
+        }
+        try {
+            // Before CE binds its blocks, getWorld() deserializes chunk data against an unbound registry.
+            if (!ItemUtils.isAnyCustomItemLoaded()) {
+                return null;
+            }
+            return resolveCEWorld(worldManager, world.getUID());
+        } catch (RuntimeException | LinkageError e) {
+            // A saved block from an uninstalled pack (or a CE deserialize race) must not crash the caller.
+            if (CE_WORLD_LOAD_FAILURE_LOGGED.compareAndSet(false, true)) {
+                Bukkit.getLogger().warning("[FarmersDelight] Skipped a chunk whose CraftEngine block data could not be loaded: " + e);
+            }
+            return null;
+        }
+    }
+
+    // Compat shim: 26.7.4 returns CEWorld directly; 26.8 returns BukkitWorld (World), so bridge via ceWorld().
+    private static CEWorld resolveCEWorld(BukkitWorldManager worldManager, java.util.UUID uuid) {
+        Object world = worldManager.getWorld(uuid);
+        if (world instanceof CEWorld ceWorld) {
+            return ceWorld;
+        }
+        if (world instanceof net.momirealms.craftengine.core.world.World ceWorld) {
+            return ceWorld.ceWorld();
+        }
+        return null;
     }
 
     public static World getBukkitWorld(BlockEntity blockEntity) {

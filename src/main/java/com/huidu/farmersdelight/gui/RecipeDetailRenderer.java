@@ -69,9 +69,9 @@ final class RecipeDetailRenderer {
             }
             if (meta.lore() == null || meta.lore().isEmpty()) {
                 meta.lore(List.of(
-                        gui.tr("gui.recipe.cook_time_line", NamedTextColor.GRAY,
+                        gui.tr("gui.recipe.cook_time_line",
                                 Component.text(placeholders.get("cook_time")).color(NamedTextColor.AQUA)),
-                        gui.tr("gui.recipe.experience_line", NamedTextColor.GRAY,
+                        gui.tr("gui.recipe.experience_line",
                                 Component.text(placeholders.get("experience")).color(NamedTextColor.GREEN))
                 ));
             }
@@ -145,7 +145,7 @@ final class RecipeDetailRenderer {
     }
 
     private String formatCookTime(CookingPotRecipe recipe, Player player) {
-        return gui.cookTimeSeconds(recipe) + gui.i18nOrDefault("gui.recipe.seconds_suffix", player, "s");
+        return gui.cookTimeSeconds(recipe) + gui.i18nOrDefault(player);
     }
 
     private Map<String, String> cookingInfoPlaceholders(CookingPotRecipe recipe, Player player) {
@@ -215,7 +215,7 @@ final class RecipeDetailRenderer {
                 }
                 lore.add(0, gui.tr("gui.recipe.result", NamedTextColor.GREEN));
                 if (resultEntry.chance() < 1.0d) {
-                    lore.add(1, gui.tr("gui.recipe.chance_line", NamedTextColor.GRAY,
+                    lore.add(1, gui.tr("gui.recipe.chance_line",
                             Component.text((int) Math.round(resultEntry.chance() * 100))
                                     .color(NamedTextColor.YELLOW)));
                 }

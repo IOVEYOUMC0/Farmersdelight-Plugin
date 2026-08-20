@@ -19,7 +19,6 @@ import net.momirealms.craftengine.core.world.CEWorld;
 import net.momirealms.craftengine.core.world.chunk.CEChunk;
 import org.bukkit.Chunk;
 import org.bukkit.World;
-import org.bukkit.entity.Entity;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -27,9 +26,7 @@ import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
 
 import java.util.ArrayDeque;
-import java.util.Arrays;
 import java.util.Deque;
-import java.util.List;
 import java.util.Map;
 
 public class ChunkLoadListener implements Listener {

@@ -110,7 +110,7 @@ public final class CookingPotExperienceRewardConfig {
                     "raw",
                     "bypass-multipliers",
                     "ignore-multipliers",
-                    "exact"), false);
+                    "exact"));
             return new AuraSkillsReward(skill, fixedAmount, multiplier, raw, getChance(mapEntry));
         }
 
@@ -183,14 +183,14 @@ public final class CookingPotExperienceRewardConfig {
         return defaultValue;
     }
 
-    private boolean getBoolean(Object value, boolean defaultValue) {
+    private boolean getBoolean(Object value) {
         if (value instanceof Boolean bool) {
             return bool;
         }
         if (value instanceof String stringValue) {
             return Boolean.parseBoolean(stringValue);
         }
-        return defaultValue;
+        return false;
     }
 
     private String normalizeSkillId(String skillId) {

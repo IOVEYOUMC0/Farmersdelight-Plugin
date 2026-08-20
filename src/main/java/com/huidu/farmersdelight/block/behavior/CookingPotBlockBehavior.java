@@ -17,7 +17,6 @@ import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
-import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.behavior.EntityBlock;
 import net.momirealms.craftengine.core.block.behavior.WorldlyContainerHolder;
@@ -639,7 +638,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
     }
 
     public static void loadBlockEntity(World world, BlockPosKey posKey) {
-        if (world == null || posKey == null || !hasCookingPotBehavior(world, posKey)) return;
+        if (posKey == null || !hasCookingPotBehavior(world, posKey)) return;
         getOrCreateBlockEntity(posKey.toLocation(world));
     }
 
@@ -731,7 +730,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         Double soundPitchMin = getNullableDouble(arguments, "sound-pitch-min");
         Double soundPitchMax = getNullableDouble(arguments, "sound-pitch-max");
         String customDataKey = BehaviorArgParser.getString(arguments, "data-key", "farmersdelight:cooking_pot");
-        Map<String, Object> custom = getMap(arguments, "custom");
+        Map<String, Object> custom = getMap(arguments);
         CookingPotLayout layout = CookingPotLayout.DEFAULT;
         String customRecipeGroupId = null;
         String titleOverride = null;
@@ -1038,8 +1037,8 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         return arguments.get(key);
     }
 
-    private static Map<String, Object> getMap(Map<String, Object> arguments, String key) {
-        Object value = getArgument(arguments, key);
+    private static Map<String, Object> getMap(Map<String, Object> arguments) {
+        Object value = getArgument(arguments, "custom");
         if (value instanceof net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
             return section.values();
         }
