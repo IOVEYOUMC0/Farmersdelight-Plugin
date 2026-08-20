@@ -8,7 +8,10 @@ public enum ReloadTarget {
     GUI("gui"),
     LANGUAGE("lang", "language", "languages"),
     RECIPES("recipes", "recipe"),
-    ADVANCEMENTS("advancements", "advancement");
+    ADVANCEMENTS("advancements", "advancement"),
+    LOOT("loot", "lootreload"),
+    ENCHANT("enchant", "enchantment"),
+    DAMAGE("damage", "damagetype", "damage-type");
 
     private final String[] aliases;
 

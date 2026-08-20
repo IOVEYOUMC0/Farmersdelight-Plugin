@@ -2,6 +2,8 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.api.block.CuttingBoardInteractionContext;
+import com.huidu.farmersdelight.api.block.CuttingBoardInteractionHandler;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
 import com.huidu.farmersdelight.util.ItemUtils;
@@ -16,7 +18,6 @@ import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
-import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.behavior.EntityBlock;
 import net.momirealms.craftengine.core.block.behavior.WorldlyContainerHolder;
@@ -181,9 +182,9 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         return result;
     }
 
-    public static CuttingBoardBlockEntity putBlockEntity(World world, BlockPosKey posKey, CuttingBoardBlockEntity entity) {
+    public static void putBlockEntity(World world, BlockPosKey posKey, CuttingBoardBlockEntity entity) {
         if (world == null || posKey == null || entity == null) {
-            return entity;
+            return;
         }
         Map<BlockPosKey, CuttingBoardBlockEntity> worldEntities = worldBlockEntities.computeIfAbsent(
                 world.getUID(), k -> new ConcurrentHashMap<>());
@@ -196,7 +197,6 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         }
         // put always writes to the authoritative map, so update the index unconditionally.
         indexAdd(world.getUID(), posKey);
-        return entity;
     }
 
     public static void removeBlockEntity(World world, BlockPos pos) {
@@ -336,7 +336,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
     public static void saveBlockEntityData(World world, BlockPosKey posKey) {
         if (world == null || posKey == null) return;
 
-        if (!isCuttingBoardBlock(world, posKey)) {
+        if (isCuttingBoardBlock(world, posKey)) {
             // The CE state can be transiently unresolvable (a /ce reload unbinds states for the parse
             // window); deleting the stored NBT here would destroy a live board's item. Just mark the
             // chunk dirty — a genuinely replaced block is cleaned up by the break/removal callbacks.
@@ -393,7 +393,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
     }
 
     public static void loadBlockEntity(World world, BlockPosKey posKey) {
-        if (world == null || posKey == null || !isCuttingBoardBlock(world, posKey)) return;
+        if (posKey == null || isCuttingBoardBlock(world, posKey)) return;
         // Saved data may still be parked on the controller (deferred startup load, or a chunk served from
         // CraftEngine's chunk cache); apply it first so the computeIfAbsent below does not create a blank
         // entity that shadows the stored item and gets overwritten by the late apply.
@@ -413,16 +413,21 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
 
     public static boolean isCuttingBoardBlock(World world, BlockPosKey posKey) {
         if (world == null || posKey == null) {
-            return false;
+            return true;
         }
         var block = world.getBlockAt(posKey.x(), posKey.y(), posKey.z());
-        return CustomBlockUtils.hasBehavior(block, CuttingBoardBlockBehavior.class)
-                || CustomBlockUtils.hasId(block, Constants.BLOCK_CUTTING_BOARD);
+        return !CustomBlockUtils.hasBehavior(block, CuttingBoardBlockBehavior.class)
+                && !CustomBlockUtils.hasId(block, Constants.BLOCK_CUTTING_BOARD);
     }
 
     public static final BlockBehaviorFactory<CuttingBoardBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         Property<?> facingProperty = block.getProperty("facing");
+        if (facingProperty == null) {
+            FarmersDelightPlugin.getInstance().getLogger()
+                    .warning("[FarmersDelight] Block " + block.id() + " is missing the 'facing' property"
+                            + " — the cutting board will not face any direction and may misbehave when placed.");
+        }
 
         List<String> toolTagStrings = getStringList(arguments, "tool-tags");
         if (toolTagStrings.isEmpty()) {
@@ -525,6 +530,13 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
                 + ", allowOffhand=" + allowOffhandInteractions
                 + ", stacking=" + stackingEnabled
                 + ", pos=" + posKey);
+
+        // Addon-registered handlers get the interaction first (after permission / protection checks, before
+        // FarmersDelight's own placement, cutting and stacking logic). The first handler that consumes wins.
+        if (runExternalInteractionHandlers(bukkitPlayer, block, blockEntity, facing, world, posKey,
+                mainHand, offHand)) {
+            return InteractionResult.SUCCESS_AND_CANCEL;
+        }
 
         if (blockEntity.hasItem()) {
             ItemStack tool = findMatchingTool(blockEntity, mainHand, offHand, allowOffhandInteractions);
@@ -629,6 +641,34 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         }
 
         return InteractionResult.PASS;
+    }
+
+    // Runs every addon-registered cutting-board handler against this right-click until one consumes. Runs on
+    // the world region thread. A throwing handler is logged and skipped so one addon cannot break the board.
+    private static boolean runExternalInteractionHandlers(Player player, Block block, CuttingBoardBlockEntity blockEntity,
+                                                          BlockFace facing, World world, BlockPosKey posKey,
+                                                          ItemStack mainHand, ItemStack offHand) {
+        List<CuttingBoardInteractionHandler> handlers =
+                FarmersDelightPlugin.getInstance().getCuttingBoardInteractionHandlers();
+        if (handlers.isEmpty()) {
+            return false;
+        }
+        CuttingBoardInteractionContext context = new CuttingBoardInteractionContext(
+                player, block, mainHand, offHand,
+                blockEntity::getStoredItem,
+                item -> blockEntity.setStoredItem(item, world, posKey, facing),
+                block::getLocation);
+        for (CuttingBoardInteractionHandler handler : handlers) {
+            try {
+                if (handler.handle(context)) {
+                    return true;
+                }
+            } catch (RuntimeException e) {
+                FarmersDelightPlugin.getInstance().getLogger()
+                        .warning("cutting board interaction handler failed: " + e);
+            }
+        }
+        return false;
     }
 
     private boolean tryPlaceOnEmptyBoard(ItemStack sourceItem, boolean offhand, Player player,

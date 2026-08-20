@@ -1,10 +1,9 @@
 package com.huidu.farmersdelight.tool;
 
+import com.huidu.farmersdelight.util.SoundUtils;
 import net.momirealms.craftengine.bukkit.api.CraftEngineItems;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Location;
-import org.bukkit.NamespacedKey;
-import org.bukkit.Registry;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.entity.LivingEntity;
@@ -58,15 +57,10 @@ public final class ToolAttackListener implements Listener {
                 ? 0.9f + ThreadLocalRandom.current().nextFloat() * 0.2f
                 : 0.9f;
 
-        Sound sound = resolveSound(soundKey);
-        if (sound == null) return;
-        player.getWorld().playSound(player.getLocation(), sound, SoundCategory.PLAYERS, volume, pitch);
-    }
-
-    private static Sound resolveSound(String namespaced) {
-        NamespacedKey key = NamespacedKey.fromString(namespaced);
-        if (key == null) return null;
-        return Registry.SOUNDS.get(key);
+        // Custom resource-pack sounds (e.g. farmersdelight:item.skillet.attack.strong) are NOT in Bukkit's
+        // Registry.SOUNDS; SoundUtils falls back to playing the string key, which resolves against sounds.json.
+        SoundUtils.play(player.getWorld(), player.getLocation(), soundKey,
+                Sound.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.PLAYERS, volume, pitch);
     }
 
     public static ToolData resolveToolData(ItemStack item) {
@@ -76,17 +70,17 @@ public final class ToolAttackListener implements Listener {
         return ToolRegistry.get(id).orElse(null);
     }
 
-    public static boolean consumeDurability(ItemStack item, Location breakSoundLocation) {
+    public static void consumeDurability(ItemStack item, Location breakSoundLocation) {
         if (item == null || item.isEmpty()
                 || !(item.getItemMeta() instanceof Damageable damageable)
                 || damageable.isUnbreakable()) {
-            return false;
+            return;
         }
 
         if (damageable.hasEnchant(org.bukkit.enchantments.Enchantment.UNBREAKING)) {
             int level = damageable.getEnchantLevel(org.bukkit.enchantments.Enchantment.UNBREAKING);
             if (java.util.concurrent.ThreadLocalRandom.current().nextInt(level + 1) > 0) {
-                return false;
+                return;
             }
         }
 
@@ -94,7 +88,7 @@ public final class ToolAttackListener implements Listener {
                 ? damageable.getMaxDamage()
                 : item.getType().getMaxDurability();
         if (maxDamage <= 0) {
-            return false;
+            return;
         }
 
         int currentDamage = Math.max(0, damageable.getDamage());
@@ -104,12 +98,11 @@ public final class ToolAttackListener implements Listener {
             if (breakSoundLocation != null && breakSoundLocation.getWorld() != null) {
                 breakSoundLocation.getWorld().playSound(breakSoundLocation, Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
             }
-            return true;
+            return;
         }
 
         damageable.setDamage(damageAfterUse);
         item.setItemMeta(damageable);
-        return false;
     }
 
     static int damageAfterUse(int currentDamage, int maxDamage) {

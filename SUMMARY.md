@@ -1,6 +1,7 @@
 # Table of contents
 
 * [FarmersDelight Admin Wiki](README.md)
+* [Addon Guide](addon-guide/README.md)
 * [API Docs](api-docs/README.md)
   * [English](api-docs/en/README.md)
     * [Table of contents](api-docs/en/summary.md)

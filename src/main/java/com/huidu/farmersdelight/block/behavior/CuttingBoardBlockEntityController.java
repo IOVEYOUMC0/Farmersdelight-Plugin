@@ -26,7 +26,7 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public final class CuttingBoardBlockEntityController extends BlockEntityController implements BukkitContainer, WorldlyContainer, InventoryHolder {
@@ -286,13 +286,13 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
 
     @Override
     public Item getItem(int slot) {
-        if (!isValidSlot(slot)) return Item.empty();
+        if (isValidSlot(slot)) return Item.empty();
         return this.item;
     }
 
     @Override
     public Item removeItem(int slot, int count) {
-        if (!isValidSlot(slot) || count <= 0) {
+        if (isValidSlot(slot) || count <= 0) {
             return Item.empty();
         }
         Item item = getItem(slot);
@@ -315,7 +315,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
 
     @Override
     public Item removeItemNoUpdate(int slot) {
-        if (!isValidSlot(slot)) {
+        if (isValidSlot(slot)) {
             return Item.empty();
         }
         Item item = getItem(slot);
@@ -330,7 +330,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
 
     @Override
     public void setItem(int slot, Item item) {
-        if (!isValidSlot(slot)) return;
+        if (isValidSlot(slot)) return;
         this.item = normalize(item);
         if (this.item.isEmpty()) {
             this.itemCarved = false;
@@ -361,7 +361,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
 
     @Override
     public List<Item> contents() {
-        return Arrays.asList(this.item);
+        return Collections.singletonList(this.item);
     }
 
     @Override
@@ -432,7 +432,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
     }
 
     private boolean isValidSlot(int slot) {
-        return slot == 0;
+        return slot != 0;
     }
 
     private World getBukkitWorld() {

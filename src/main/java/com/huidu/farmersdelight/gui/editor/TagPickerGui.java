@@ -23,10 +23,12 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 public final class TagPickerGui extends AbstractInventoryGui implements EditorGui {
 
@@ -42,6 +44,7 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
     private Mode mode = Mode.SELECT;
     private int page = 0;
     private Key chosenTag;
+    private final Key openTag;
     private List<ItemStack> members = List.of();
     private List<String> availableTags = List.of();
     private final Set<String> excludedItemIds = new LinkedHashSet<>();
@@ -52,10 +55,17 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
     public TagPickerGui(FarmersDelightPlugin plugin, Player player, RecipeViewGuiConfig.BaseConfig config,
                         ItemStack sourceItem, List<String> tagIds,
                         Consumer<RecipeIngredient> onConfirm, Runnable onCancel) {
+        this(plugin, player, config, sourceItem, tagIds, null, onConfirm, onCancel);
+    }
+
+    public TagPickerGui(FarmersDelightPlugin plugin, Player player, RecipeViewGuiConfig.BaseConfig config,
+                        ItemStack sourceItem, List<String> tagIds, @org.jetbrains.annotations.Nullable Key openTag,
+                        Consumer<RecipeIngredient> onConfirm, Runnable onCancel) {
         super(plugin, player);
         this.config = config;
         this.sourceItem = sourceItem.clone();
         this.tagIds = List.copyOf(tagIds);
+        this.openTag = openTag;
         this.onConfirm = onConfirm;
         this.onCancel = onCancel;
         this.entrySlots = config.getSlotsByType("entry");
@@ -63,6 +73,10 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
     }
 
     public void open() {
+        // Editing an existing tag opens straight into its exclusion list.
+        if (openTag != null) {
+            enterExcludeMode(openTag);
+        }
         doOpen(this::render);
     }
 
@@ -111,6 +125,7 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
                 case "cancel" -> inventory.setItem(i, configItem("cancel"));
                 case "back" -> inventory.setItem(i, mode == Mode.EXCLUDE ? configItem("back") : configItem("background"));
                 case "confirm" -> inventory.setItem(i, mode == Mode.EXCLUDE ? configItem("confirm") : configItem("background"));
+                case "manual" -> inventory.setItem(i, mode == Mode.SELECT ? configItem("manual") : configItem("background"));
                 case "info" -> inventory.setItem(i, infoItem());
                 default -> inventory.setItem(i, configItem("background"));
             }
@@ -120,10 +135,11 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
     private ItemStack renderEntry(int dataIndex) {
         if (mode == Mode.SELECT) {
             String tagId = tagIds.get(dataIndex);
-            ItemStack display = sourceItem.clone();
-            display.setAmount(1);
+            // Tags are multi-item matches, so they share the name-tag icon across the list; the lore shows
+            // what the tag actually contains.
+            ItemStack display = new ItemStack(Material.NAME_TAG);
             named(display, "&e#" + tagId);
-            lore(display, tr("gui.editor.tag.select_hint"));
+            lore(display, tagLore(tagId));
             return display;
         }
         // EXCLUDE mode: items first, then tags
@@ -157,6 +173,33 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
         return configItem("background");
     }
 
+    // Max member names shown in a tag entry's lore before collapsing into "...N more".
+    private static final int TAG_PREVIEW_LIMIT = 5;
+
+    // Show what the tag actually contains instead of stacking the id on a copied icon.
+    private List<String> tagLore(String tagId) {
+        List<ItemStack> members = resolveMembers(Key.of(tagId));
+        List<String> lines = new ArrayList<>();
+        lines.add(tr("gui.editor.tag.select_hint"));
+        if (members.isEmpty()) {
+            lines.add("<gray>(<dark_gray>empty tag<gray>)");
+            return lines;
+        }
+        lines.add("");
+        for (int i = 0; i < Math.min(members.size(), TAG_PREVIEW_LIMIT); i++) {
+            lines.add("<gray>• <white>" + memberName(members.get(i)));
+        }
+        if (members.size() > TAG_PREVIEW_LIMIT) {
+            lines.add("<gray>... " + (members.size() - TAG_PREVIEW_LIMIT) + " <dark_gray>more");
+        }
+        return lines;
+    }
+
+    private String memberName(ItemStack stack) {
+        String name = ItemUtils.getDisplayName(stack, player);
+        return name == null || name.isBlank() ? stack.getType().name().toLowerCase(Locale.ROOT) : name;
+    }
+
     @Override
     public void handleClick(InventoryClickEvent event) {
         event.setCancelled(true);
@@ -166,9 +209,16 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
         int raw = event.getRawSlot();
         boolean top = raw >= 0 && raw < config.getSize();
         if (!top) {
-            ItemStack clicked = event.getCurrentItem();
-            if (clicked != null && !clicked.getType().isAir()) {
-                player.setItemOnCursor(cleanCopy(clicked));
+            ItemStack cursor = event.getCursor();
+            if (cursor != null && !cursor.getType().isAir()) {
+                // Picked-up copies never leave the inventory, so dropping the cursor cancels the pickup
+                // and lets the player put the item back without touching the GUI.
+                player.setItemOnCursor(null);
+            } else {
+                ItemStack clicked = event.getCurrentItem();
+                if (clicked != null && !clicked.getType().isAir()) {
+                    player.setItemOnCursor(cleanCopy(clicked));
+                }
             }
             return;
         }
@@ -244,6 +294,11 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
                     finish(new RecipeIngredient.Tag(chosenTag, Set.copyOf(excluded), excludedTags()));
                 }
             }
+            case "manual" -> {
+                if (mode == Mode.SELECT) {
+                    startManualInput();
+                }
+            }
             case "cancel" -> {
                 acted = true;
                 super.close();
@@ -264,6 +319,37 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
         mode = Mode.EXCLUDE;
         page = 0;
         render();
+    }
+
+    // A tag id is "namespace:path" or a bare id; path chars match vanilla/custom tags (e.g. forge:vegetables/onion).
+    private static final Pattern TAG_ID_PATTERN = Pattern.compile("^[a-z0-9_.\\-/]+(?::[a-z0-9_.\\-/]+)?$");
+
+    // Close the picker and ask for a tag id in chat; the ingredient is confirmed on a valid input.
+    private void startManualInput() {
+        acted = true;
+        super.close();
+        // super.close() only unregisters the tick callback; the chest stays open on the client and would
+        // capture keyboard focus, so the player could not type the tag id the prompt asks for.
+        player.closeInventory();
+        clearCursor();
+        RecipeEditorListener.promptChat(player, raw -> {
+            String input = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+            if (input.equals("cancel")) {
+                player.sendMessage(tr("gui.editor.tag.manual_cancelled"));
+                reopenPicker();
+                return;
+            }
+            if (!TAG_ID_PATTERN.matcher(input).matches()) {
+                player.sendMessage(tr("gui.editor.tag.manual_invalid"));
+                reopenPicker();
+                return;
+            }
+            finish(new RecipeIngredient.Tag(Key.of(input)));
+        });
+    }
+
+    private void reopenPicker() {
+        new TagPickerGui(plugin, player, config, sourceItem, tagIds, onConfirm, onCancel).open();
     }
 
     private List<ItemStack> resolveMembers(Key tag) {
@@ -354,6 +440,14 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
         ItemMeta meta = stack.getItemMeta();
         if (meta != null) {
             meta.lore(List.of(Text.lore(line)));
+            stack.setItemMeta(meta);
+        }
+    }
+
+    private static void lore(ItemStack stack, List<String> lines) {
+        ItemMeta meta = stack.getItemMeta();
+        if (meta != null) {
+            meta.lore(Text.loreLines(lines));
             stack.setItemMeta(meta);
         }
     }

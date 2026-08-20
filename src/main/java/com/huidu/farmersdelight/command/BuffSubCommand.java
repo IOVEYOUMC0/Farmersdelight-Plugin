@@ -26,8 +26,8 @@ final class BuffSubCommand extends SubCommand {
         super("buff", List.of("effect"), "farmersdelight.admin", "command.help_buff", plugin::isBuffSystemEnabled);
     }
 
-    // /fd buff give <buffId> [level] [seconds] [player]  — grant a registered custom buff
-    // /fd buff clear [buffId|all] [player]                — remove one / all (all reuses the milk-wipe path)
+    // /fd buff give <player> <buffId> <time> <level>  — grant a registered custom buff (fixed order)
+    // /fd buff clear <player> [buffId]                — remove one buff, or all when omitted
     @Override
     void execute(CommandSender sender, String label, String[] args) {
         if (args.length < 2) {
@@ -42,34 +42,32 @@ final class BuffSubCommand extends SubCommand {
     }
 
     private void executeBuffGive(CommandSender sender, String[] args) {
-        if (args.length < 3) {
+        // Fixed order: /fd buff give <player> <buffId> <time> <level>
+        // time and level are optional and fall back to defaults when omitted; only the player and
+        // buffId positions get tab completion, so time/level are typed by hand.
+        if (args.length < 4) {
             sendBuffUsage(sender);
             return;
         }
-        CustomBuff buff = resolveBuff(args[2]);
+        List<Player> targets = resolveTargets(sender, args[2]);
+        if (targets.isEmpty()) {
+            return;
+        }
+        CustomBuff buff = resolveBuff(args[3]);
         if (buff == null) {
             sender.sendMessage(I18n.getComponent("command.buff_unknown",
-                    Map.of("buff", args[2], "buffs", buffIdList())));
+                    Map.of("buff", args[3], "buffs", buffIdList())));
             return;
         }
-        // level and seconds are optional and identified by TYPE, not position: leading numeric tokens are the
-        // level then the seconds, and the first non-numeric token is the player name. So every form works —
-        // `/fd buff give <buff>`, `/fd buff give <buff> <player>`, `/fd buff give <buff> <level> <player>`,
-        // `/fd buff give <buff> <level> <seconds> <player>` — without forcing a duration/level to target someone.
-        int argIndex = 3;
-        int level = 1;
-        int seconds = 30;
-        if (argIndex < args.length && isInteger(args[argIndex])) {
-            level = parsePositiveInt(args[argIndex++], 1);
+        int seconds = (args.length >= 5 && isInteger(args[4])) ? parsePositiveInt(args[4], 30) : 30;
+        int level = (args.length >= 6 && isInteger(args[5])) ? parsePositiveInt(args[5], 1) : 1;
+        int granted = 0;
+        for (Player target : targets) {
+            if (CustomBuffRegistry.apply(target, buff.id(), level, seconds)) {
+                granted++;
+            }
         }
-        if (argIndex < args.length && isInteger(args[argIndex])) {
-            seconds = parsePositiveInt(args[argIndex++], 30);
-        }
-        Player target = resolveTarget(sender, args, argIndex);
-        if (target == null) {
-            return;
-        }
-        if (!CustomBuffRegistry.apply(target, buff.id(), level, seconds)) {
+        if (granted == 0) {
             sender.sendMessage(I18n.getComponent("command.buff_not_grantable", Map.of("buff", buff.id())));
             return;
         }
@@ -77,40 +75,81 @@ final class BuffSubCommand extends SubCommand {
                 "buff", buff.id(),
                 "level", String.valueOf(level),
                 "seconds", String.valueOf(seconds),
-                "player", target.getName())));
+                "player", describeTargets(targets))));
     }
 
     private void executeBuffClear(CommandSender sender, String[] args) {
-        CustomBuff one = null;
-        int playerIndex = 3;
-        if (args.length >= 3 && !normalize(args[2]).equals("all")) {
-            one = resolveBuff(args[2]);
-            if (one == null) {
-                // Not a buff id — accept `/fd buff clear <player>` (clear all for that player).
-                if (Bukkit.getPlayerExact(args[2]) != null) {
-                    playerIndex = 2;
-                } else {
-                    sender.sendMessage(I18n.getComponent("command.buff_unknown",
-                            Map.of("buff", args[2], "buffs", buffIdList())));
-                    return;
-                }
-            }
+        // Fixed order: /fd buff clear <player> [buffId] — player required, buff optional (all when omitted).
+        if (args.length < 3) {
+            sendBuffUsage(sender);
+            return;
         }
-        Player target = resolveTarget(sender, args, playerIndex);
-        if (target == null) {
+        List<Player> targets = resolveTargets(sender, args[2]);
+        if (targets.isEmpty()) {
+            return;
+        }
+        CustomBuff one = args.length >= 4 ? resolveBuff(args[3]) : null;
+        if (args.length >= 4 && one == null) {
+            sender.sendMessage(I18n.getComponent("command.buff_unknown",
+                    Map.of("buff", args[3], "buffs", buffIdList())));
             return;
         }
         if (one == null) {
-            int removed = CustomBuffRegistry.clearAll(target);
+            int removed = 0;
+            for (Player target : targets) {
+                removed += CustomBuffRegistry.clearAll(target);
+            }
             sender.sendMessage(I18n.getComponent("command.buff_cleared_all", Map.of(
-                    "count", String.valueOf(removed), "player", target.getName())));
+                    "count", String.valueOf(removed), "player", describeTargets(targets))));
         } else {
-            if (one.isActive(target)) {
-                one.remove(target);
+            int removed = 0;
+            for (Player target : targets) {
+                if (one.isActive(target)) {
+                    one.remove(target);
+                    removed++;
+                }
             }
             sender.sendMessage(I18n.getComponent("command.buff_cleared_one", Map.of(
-                    "buff", one.id(), "player", target.getName())));
+                    "buff", one.id(), "player", describeTargets(targets), "count", String.valueOf(removed))));
         }
+    }
+
+    // Resolves a player argument to one or more targets. Supports the @a / @p / @s selectors plus a
+    // literal player name. Returns an empty list (after messaging the sender) when nothing matched.
+    private List<Player> resolveTargets(CommandSender sender, String token) {
+        String selector = normalize(token);
+        switch (selector) {
+            case "@a" -> {
+                return new ArrayList<>(Bukkit.getOnlinePlayers());
+            }
+            case "@p", "@s" -> {
+                if (sender instanceof Player self) {
+                    return List.of(self);
+                }
+                sender.sendMessage(I18n.getComponent("command.player_only"));
+                return List.of();
+            }
+            default -> {
+                Player player = Bukkit.getPlayerExact(token);
+                if (player == null) {
+                    sender.sendMessage(I18n.getComponent("command.buff_player_not_found",
+                            Map.of("player", token)));
+                    return List.of();
+                }
+                return List.of(player);
+            }
+        }
+    }
+
+    private static String describeTargets(List<Player> targets) {
+        if (targets.size() == 1) {
+            return targets.get(0).getName();
+        }
+        List<String> names = new ArrayList<>();
+        for (Player target : targets) {
+            names.add(target.getName());
+        }
+        return "@a(" + String.join(", ", names) + ")";
     }
 
     private CustomBuff resolveBuff(String token) {
@@ -127,22 +166,6 @@ final class BuffSubCommand extends SubCommand {
                 return buff;
             }
         }
-        return null;
-    }
-
-    private Player resolveTarget(CommandSender sender, String[] args, int index) {
-        if (args.length > index) {
-            Player player = Bukkit.getPlayerExact(args[index]);
-            if (player == null) {
-                sender.sendMessage(I18n.getComponent("command.buff_player_not_found",
-                        Map.of("player", args[index])));
-            }
-            return player;
-        }
-        if (sender instanceof Player self) {
-            return self;
-        }
-        sender.sendMessage(I18n.getComponent("command.player_only"));
         return null;
     }
 
@@ -166,37 +189,44 @@ final class BuffSubCommand extends SubCommand {
         }
         String mode = normalize(args[1]);
         if (mode.equals("give") || mode.equals("add") || mode.equals("grant")) {
-            if (args.length == 3) {
-                return prefixFilter(normalize(args[2]), buffSuffixes());
-            }
-            if (args.length == 4) {
-                // Next token is either the level or the player (type-based parsing) — suggest both.
-                List<String> options = new ArrayList<>(List.of("1", "2", "3"));
-                options.addAll(onlinePlayerNames());
-                return prefixFilter(normalize(args[3]), options);
-            }
-            if (args.length == 5) {
-                // Either the seconds or the player (when a level was given).
-                List<String> options = new ArrayList<>(List.of("30", "60", "120", "300"));
-                options.addAll(onlinePlayerNames());
-                return prefixFilter(normalize(args[4]), options);
-            }
-            if (args.length == 6) {
-                return prefixFilter(normalize(args[5]), onlinePlayerNames());
+            switch (args.length) {
+                case 3 -> {
+                    // Player slot — selectors + names only.
+                    return prefixFilter(normalize(args[2]), targetOptions());
+                }
+                case 4 -> {
+                    // Buff slot.
+                    return prefixFilter(normalize(args[3]), buffSuffixes());
+                }
+                // args.length >= 5 — time/level slots, intentionally no completion.
+                default -> {
+                    return List.of();
+                }
             }
         } else if (mode.equals("clear") || mode.equals("remove")) {
-            if (args.length == 3) {
-                List<String> options = new ArrayList<>();
-                options.add("all");
-                options.addAll(buffSuffixes());
-                options.addAll(onlinePlayerNames());
-                return prefixFilter(normalize(args[2]), options);
-            }
-            if (args.length == 4) {
-                return prefixFilter(normalize(args[3]), onlinePlayerNames());
+            switch (args.length) {
+                case 3 -> {
+                    // Player slot (required) — selectors + names only, never the buff list.
+                    return prefixFilter(normalize(args[2]), targetOptions());
+                }
+                case 4 -> {
+                    // Optional buff slot — buff ids only.
+                    return prefixFilter(normalize(args[3]), buffSuffixes());
+                }
+                default -> {
+                    return List.of();
+                }
             }
         }
         return List.of();
+    }
+
+    // Slot placeholder sources kept distinct so tab completion never leaks one argument range into
+    // another: targetOptions() is only used for the player position, buffSuffixes() for the buff one.
+    private List<String> targetOptions() {
+        List<String> options = new ArrayList<>(List.of("@a", "@p", "@s"));
+        options.addAll(onlinePlayerNames());
+        return options;
     }
 
     private List<String> buffSuffixes() {

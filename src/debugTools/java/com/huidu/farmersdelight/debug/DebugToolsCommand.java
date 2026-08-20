@@ -59,15 +59,12 @@ public final class DebugToolsCommand {
 
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
     private static final int DEFAULT_MAX_PLACE_COUNT = 65536;
-    private static final int DEFAULT_PROFILE_TICKS = 200;
-    private static final int MAX_PROFILE_TICKS = 12_000;
-    private static final List<String> ACTIONS = List.of("place", "activate", "status", "profile", "undo",
+    private static final List<String> ACTIONS = List.of("place", "activate", "undo",
             "inspect", "item", "recipe", "i18n");
     private static final List<String> TARGETS = List.of("cooking_pot", "skillet", "stove", "stove_blocked",
             "cutting_board", "basket", "all");
     // Basket has no Constants block-id entry (only a behavior constant); its block id equals its behavior id.
     private static final String BLOCK_BASKET = "farmersdelight:basket";
-    private static final List<String> PROFILE_DURATIONS = List.of("100", "200", "600", "1200");
     private static final int UNDO_HISTORY_LIMIT = 8;
     private static final Deque<List<UndoEntry>> UNDO_HISTORY = new ArrayDeque<>();
 
@@ -91,8 +88,6 @@ public final class DebugToolsCommand {
         switch (normalize(args[1])) {
             case "place" -> place(player, args);
             case "activate" -> activate(player, args);
-            case "status", "stats" -> status(player);
-            case "profile", "sample" -> profile(player, args);
             case "undo" -> undo(player);
             case "inspect", "look" -> inspect(player, args);
             case "item", "hand", "held" -> dumpHeldItem(player, args);
@@ -108,17 +103,13 @@ public final class DebugToolsCommand {
         }
         if (args.length == 3) {
             String action = normalize(args[1]);
-            if ("profile".equals(action) || "sample".equals(action)) {
-                return complete(PROFILE_DURATIONS, args[2]);
-            }
             if ("item".equals(action) || "hand".equals(action) || "held".equals(action)) {
                 return complete(List.of("offhand"), args[2]);
             }
             if ("recipe".equals(action) || "recipes".equals(action)) {
                 return complete(List.of("validate"), args[2]);
             }
-            if ("status".equals(action) || "stats".equals(action) || "undo".equals(action)
-                    || "inspect".equals(action) || "look".equals(action)
+            if ("undo".equals(action) || "inspect".equals(action) || "look".equals(action)
                     || "i18n".equals(action) || "lang".equals(action)) {
                 return List.of();
             }
@@ -237,72 +228,6 @@ public final class DebugToolsCommand {
         }
 
         player.sendMessage(MINI_MESSAGE.deserialize("<green>Debug scanned and filled " + activated + " placed blocks.</green>"));
-    }
-
-    private void status(Player player) {
-        TickManager tickManager = plugin.getTickManager();
-        if (tickManager == null) {
-            player.sendMessage(MINI_MESSAGE.deserialize("<red>TickManager is not available.</red>"));
-            return;
-        }
-        sendPerformanceSnapshot(player, tickManager.getPerformanceSnapshot(), 0, "status");
-        appendProxyDisplayStats(player);
-        // Append each registered extension's status lines so addons (e.g. BAC kegs) report their own counters.
-        for (DebugToolExtension extension : DebugToolRegistry.all()) {
-            List<String> lines = extension.status(player);
-            if (lines == null || lines.isEmpty()) continue;
-            for (String line : lines) {
-                player.sendMessage(MINI_MESSAGE.deserialize(
-                        "<gray>[" + extension.name() + "] " + line + "</gray>"));
-            }
-        }
-    }
-
-    private void appendProxyDisplayStats(Player player) {
-        com.huidu.farmersdelight.visual.ItemDisplayManager mgr = plugin.getItemDisplayManager();
-        if (!(mgr instanceof com.huidu.farmersdelight.visual.ProxyItemDisplayManager proxy)) return;
-        for (String line : proxy.debugStats()) {
-            player.sendMessage(MINI_MESSAGE.deserialize("<gray>[proxy-display] " + line + "</gray>"));
-        }
-    }
-
-    private void profile(Player player, String[] args) {
-        TickManager tickManager = plugin.getTickManager();
-        if (tickManager == null) {
-            player.sendMessage(MINI_MESSAGE.deserialize("<red>TickManager is not available.</red>"));
-            return;
-        }
-
-        Integer requestedTicks = parseOptionalInt(args, 2, DEFAULT_PROFILE_TICKS);
-        if (requestedTicks == null) {
-            player.sendMessage(MINI_MESSAGE.deserialize("<red>Profile ticks must be a whole number.</red>"));
-            return;
-        }
-
-        int durationTicks = clamp(requestedTicks, 20, MAX_PROFILE_TICKS);
-        Location anchor = ManagerSupport.normalize(player.getLocation());
-        tickManager.resetPerformanceStats();
-        resetProxyDisplayStats();
-        player.sendMessage(MINI_MESSAGE.deserialize("<green>Debug profile started.</green> <gray>duration="
-                + durationTicks + " ticks, currentWorldPots=" + countCookingPots(player.getWorld()) + "</gray>"));
-
-        plugin.scheduler().runLaterAt(anchor, () -> {
-            if (!player.isOnline()) {
-                tickManager.setPerformanceStatsEnabled(false);
-                return;
-            }
-            TickManager.PerformanceSnapshot snapshot = tickManager.getPerformanceSnapshot();
-            tickManager.setPerformanceStatsEnabled(false);
-            sendPerformanceSnapshot(player, snapshot, durationTicks, "profile");
-            appendProxyDisplayStats(player);
-        }, durationTicks);
-    }
-
-    private void resetProxyDisplayStats() {
-        com.huidu.farmersdelight.visual.ItemDisplayManager mgr = plugin.getItemDisplayManager();
-        if (mgr instanceof com.huidu.farmersdelight.visual.ProxyItemDisplayManager proxy) {
-            proxy.resetDebugStats();
-        }
     }
 
     private void undo(Player player) {
@@ -1124,29 +1049,6 @@ public final class DebugToolsCommand {
         plugin.getTickManager().markActive(world, posKey, TickManager.BlockType.COOKING_POT);
     }
 
-    private void sendPerformanceSnapshot(Player player, TickManager.PerformanceSnapshot snapshot,
-                                         int durationTicks, String label) {
-        int worldPots = countCookingPots(player.getWorld());
-        player.sendMessage(MINI_MESSAGE.deserialize("<green>Debug " + label + ":</green> <gray>samples="
-                + snapshot.samples() + ", durationTicks=" + durationTicks
-                + ", tickInterval=" + snapshot.tickInterval()
-                + ", budget=" + snapshot.tickBudget()
-                + ", sampling=" + (snapshot.statsEnabled() ? "on" : "off") + "</gray>"));
-        player.sendMessage(MINI_MESSAGE.deserialize("<gray>active current=" + snapshot.currentActiveBlocks()
-                + ", snapshot=" + snapshot.snapshotActiveBlocks()
-                + ", last=" + snapshot.lastActiveBlocks()
-                + ", pending=+" + snapshot.pendingAdditions() + "/-" + snapshot.pendingRemovals()
-                + ", worldPots=" + worldPots + "</gray>"));
-        player.sendMessage(MINI_MESSAGE.deserialize("<gray>tick avg=" + formatMillis(snapshot.averageNanos())
-                + "ms, max=" + formatMillis(snapshot.maxNanos())
-                + "ms, last=" + formatMillis(snapshot.lastNanos())
-                + "ms, lastProcessed=" + snapshot.lastProcessedBlocks() + "</gray>"));
-    }
-
-    private int countCookingPots(World world) {
-        return world == null ? 0 : CookingPotBlockBehavior.getAllBlockEntities(world).size();
-    }
-
     private boolean placeBlock(Location location, String blockId, boolean playSound) {
         return placeBlock(location, blockId, playSound, false);
     }
@@ -1298,10 +1200,6 @@ public final class DebugToolsCommand {
         return Math.max(min, Math.min(max, value));
     }
 
-    private String formatMillis(double nanos) {
-        return String.format(Locale.ROOT, "%.3f", nanos / 1_000_000.0D);
-    }
-
     private String normalize(String value) {
         return value == null ? "" : value.toLowerCase(Locale.ROOT);
     }
@@ -1319,11 +1217,7 @@ public final class DebugToolsCommand {
                 "<yellow>/fd debugtools activate <cooking_pot|skillet|stove|all></yellow>"
         ));
         sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools status</yellow> <gray>- show current TickManager profile counters</gray>"
-        ));
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools profile [ticks]</yellow> <gray>- sample TickManager cost, default "
-                        + DEFAULT_PROFILE_TICKS + " ticks</gray>"
+                "<yellow>/fd debugtools undo</yellow> <gray>- revert the last debug placement batch</gray>"
         ));
         sender.sendMessage(MINI_MESSAGE.deserialize(
                 "<yellow>/fd debugtools inspect [distance]</yellow> <gray>- dump the CE block you look at / stand on</gray>"

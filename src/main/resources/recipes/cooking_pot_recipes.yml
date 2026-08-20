@@ -5,16 +5,28 @@
 # Format:
 #   <recipe_id>:
 #     ingredients:           # ingredient list, up to 6 entries
-#       - <item_id_or_tag>   # tags must start with #
+#       - <item_id_or_tag>   # tags must start with #; MMOItems ids use "mmoitems:<TYPE>:<ID>"
 #                            # tag exclusion: "#namespace:tag,!namespace:item,!#namespace:other_tag"
 #                            # alternatives for the same slot: "item_a|item_b|#namespace:tag"
 #     container: <item_id>   # optional, e.g. a bowl or glass bottle
-#     result: <item_id>
+#     result: <item_id>      # vanilla, CraftEngine custom, or MMOItems ("mmoitems:<TYPE>:<ID>")
 #     result-count: <count>  # optional, default 1
 #     experience: <number>   # optional, default 0
 #     cook-time: <ticks>     # optional; default and bounds are in cooking-pot.cooking in config.yml
 #     category: <type>       # optional: meals, drinks, misc
 #     priority: <number>     # optional; when recipes overlap, the higher priority wins
+#
+# Item id formats:
+#   minecraft:stone_axe            vanilla item
+#   farmersdelight:beef_stew       CraftEngine custom item
+#   mmoitems:AXE:TEST              MMOItems item (TYPE:ID); MMOItems must be installed
+#
+# A result/container may also be an object when the item needs extra data (e.g. an MMOItems item
+# built from custom_data instead of via the MMOItems id):
+#   result:
+#     item: minecraft:stone_axe
+#     components:
+#       minecraft:custom_data: "(snbt) {MMOITEMS_ITEM_ID: 'TEST', MMOITEMS_ITEM_TYPE: 'AXE'}"
 #
 # Custom cooking pot recipes:
 #   Use custom_cooking_pot_recipes.<id>, where <id> must match

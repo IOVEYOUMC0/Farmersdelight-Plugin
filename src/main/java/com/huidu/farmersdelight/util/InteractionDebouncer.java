@@ -23,7 +23,7 @@ public final class InteractionDebouncer {
     }
 
     public static boolean tryAcquire(UUID playerId, Location location) {
-        return tryAcquire(playerId, location, DEFAULT_COOLDOWN_MILLIS);
+        return !tryAcquire(playerId, location, DEFAULT_COOLDOWN_MILLIS);
     }
 
     public static boolean tryAcquire(UUID playerId, Location location, long cooldownMillis) {

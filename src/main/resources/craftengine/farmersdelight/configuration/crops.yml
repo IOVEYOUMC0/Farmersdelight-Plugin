@@ -157,24 +157,14 @@ blocks:
       variants:
         age=0,half=lower:
           appearance: age=0,half=lower
-          settings:
-            fluid_state: water
         age=1,half=lower:
           appearance: age=1,half=lower
-          settings:
-            fluid_state: water
         age=2,half=lower:
           appearance: age=2,half=lower
-          settings:
-            fluid_state: water
         age=3,half=lower:
           appearance: age=3,half=lower
-          settings:
-            fluid_state: water
         age=4,half=lower:
           appearance: age=4,half=lower
-          settings:
-            fluid_state: water
         age=0,half=upper:
           appearance: age=0,half=upper
         age=1,half=upper:

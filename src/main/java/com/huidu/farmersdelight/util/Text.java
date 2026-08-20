@@ -87,7 +87,7 @@ public final class Text {
                 char code = input.charAt(i + 1);
 
                 // &#rrggbb hex.
-                if (code == '#' && isHex(input, i + 2, 6)) {
+                if (code == '#' && isHex(input, i + 2)) {
                     out.append("<#").append(input, i + 2, i + 8).append('>');
                     i += 8;
                     continue;
@@ -134,11 +134,11 @@ public final class Text {
         };
     }
 
-    private static boolean isHex(String s, int offset, int count) {
-        if (offset + count > s.length()) {
+    private static boolean isHex(String s, int offset) {
+        if (offset + 6 > s.length()) {
             return false;
         }
-        for (int k = 0; k < count; k++) {
+        for (int k = 0; k < 6; k++) {
             if (Character.digit(s.charAt(offset + k), 16) < 0) {
                 return false;
             }

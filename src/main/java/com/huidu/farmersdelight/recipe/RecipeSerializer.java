@@ -7,7 +7,6 @@ import org.bukkit.inventory.ItemStack;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 
 public final class RecipeSerializer {
@@ -66,10 +65,8 @@ public final class RecipeSerializer {
         if (item == null) {
             return null;
         }
-        String customId = ItemUtils.getCustomItemId(item);
-        if (customId != null) {
-            return customId;
-        }
-        return "minecraft:" + item.getType().name().toLowerCase(Locale.ROOT);
+        // Resolve the full identity (CE custom id -> mmoitems:<TYPE>:<ID> -> vanilla id) so an
+        // ingredient or tool carrying an MMOItems identity survives the editor's save round-trip.
+        return ItemUtils.resolveItemId(item);
     }
 }

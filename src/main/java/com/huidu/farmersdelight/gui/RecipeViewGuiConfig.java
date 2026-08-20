@@ -17,6 +17,9 @@ public class RecipeViewGuiConfig {
     private final RecipeDetailConfig cookingPotDetail;
     private final Map<String, RecipeDetailConfig> customCookingPotDetails;
     private final RecipeDetailConfig cuttingBoardDetail;
+    private final SpecialRecipeListConfig specialRecipeList;
+    private final SpecialRecipeDetailConfig specialRecipeDetail;
+    private final SpecialRecipeDetailConfig specialRecipeDetailBasic;
     private final boolean backgroundItemsEnabled;
     private final boolean showIngredientIds;
     private final int recipeListMaxPreviewIngredients;
@@ -25,6 +28,9 @@ public class RecipeViewGuiConfig {
                                RecipeDetailConfig cookingPotDetail,
                                Map<String, RecipeDetailConfig> customCookingPotDetails,
                                RecipeDetailConfig cuttingBoardDetail,
+                               SpecialRecipeListConfig specialRecipeList,
+                               SpecialRecipeDetailConfig specialRecipeDetail,
+                               SpecialRecipeDetailConfig specialRecipeDetailBasic,
                                boolean backgroundItemsEnabled, boolean showIngredientIds,
                                int recipeListMaxPreviewIngredients) {
         this.mainMenu = mainMenu;
@@ -34,6 +40,10 @@ public class RecipeViewGuiConfig {
                 ? Collections.unmodifiableMap(customCookingPotDetails)
                 : Map.of();
         this.cuttingBoardDetail = cuttingBoardDetail;
+        this.specialRecipeList = specialRecipeList != null ? specialRecipeList : SpecialRecipeListConfig.createDefault();
+        this.specialRecipeDetail = specialRecipeDetail != null ? specialRecipeDetail : SpecialRecipeDetailConfig.createDefault();
+        this.specialRecipeDetailBasic = specialRecipeDetailBasic != null
+                ? specialRecipeDetailBasic : SpecialRecipeDetailConfig.createDefaultBasic();
         this.backgroundItemsEnabled = backgroundItemsEnabled;
         this.showIngredientIds = showIngredientIds;
         this.recipeListMaxPreviewIngredients = recipeListMaxPreviewIngredients;
@@ -65,6 +75,19 @@ public class RecipeViewGuiConfig {
 
     public RecipeDetailConfig getCuttingBoardDetail() {
         return cuttingBoardDetail;
+    }
+
+    public SpecialRecipeListConfig getSpecialRecipeList() {
+        return specialRecipeList;
+    }
+
+    public SpecialRecipeDetailConfig getSpecialRecipeDetail() {
+        return specialRecipeDetail;
+    }
+
+    /** Compact detail layout for special recipes without extra conditions. */
+    public SpecialRecipeDetailConfig getSpecialRecipeDetailBasic() {
+        return specialRecipeDetailBasic;
     }
 
     public boolean isBackgroundItemsEnabled() {
@@ -100,7 +123,14 @@ public class RecipeViewGuiConfig {
                 legacyDetail,
                 RecipeDetailConfig.createCuttingBoardDefault()
         );
+        SpecialRecipeListConfig specialRecipeList = SpecialRecipeListConfig.fromConfig(
+                section.getConfigurationSection("special-recipe-list"));
+        SpecialRecipeDetailConfig specialRecipeDetail = SpecialRecipeDetailConfig.fromConfig("special-recipe-detail",
+                section.getConfigurationSection("special-recipe-detail"));
+        SpecialRecipeDetailConfig specialRecipeDetailBasic = SpecialRecipeDetailConfig.fromConfig(
+                "special-recipe-detail-basic", section.getConfigurationSection("special-recipe-detail-basic"));
         return new RecipeViewGuiConfig(mainMenu, recipeList, cookingPotDetail, customCookingPotDetails, cuttingBoardDetail,
+                specialRecipeList, specialRecipeDetail, specialRecipeDetailBasic,
                 backgroundItemsEnabled, showIngredientIds, maxPreviewIngredients);
     }
 
@@ -295,15 +325,18 @@ public class RecipeViewGuiConfig {
         private final int cuttingBoardSlot;
         private final int backSlot;
         private final int recipeBookSlot;
+        private final int specialRecipesSlot;
 
         public MainMenuConfig(String title, int rows, List<String> layout,
                               Map<Character, String> legend, Map<String, GuiConfig.GuiItem> items,
-                              int cookingPotSlot, int cuttingBoardSlot, int backSlot, int recipeBookSlot) {
+                              int cookingPotSlot, int cuttingBoardSlot, int backSlot, int recipeBookSlot,
+                              int specialRecipesSlot) {
             super(title, rows, layout, legend, items);
             this.cookingPotSlot = cookingPotSlot;
             this.cuttingBoardSlot = cuttingBoardSlot;
             this.backSlot = backSlot;
             this.recipeBookSlot = recipeBookSlot;
+            this.specialRecipesSlot = specialRecipesSlot;
         }
 
         public int getCookingPotSlot() {
@@ -322,6 +355,10 @@ public class RecipeViewGuiConfig {
             return recipeBookSlot;
         }
 
+        public int getSpecialRecipesSlot() {
+            return specialRecipesSlot;
+        }
+
         public static MainMenuConfig fromConfig(ConfigurationSection section) {
             if (section == null) {
                 return createDefault();
@@ -336,9 +373,10 @@ public class RecipeViewGuiConfig {
             int cuttingBoardSlot = base.getFirstSlotByType("cutting_board");
             int backSlot = base.getFirstSlotByType("back");
             int recipeBookSlot = base.getFirstSlotByType("recipe_book");
+            int specialRecipesSlot = base.getFirstSlotByType("special_recipes");
 
             return new MainMenuConfig(base.title, base.rows, base.layout, base.legend,
-                    base.items, cookingPotSlot, cuttingBoardSlot, backSlot, recipeBookSlot);
+                    base.items, cookingPotSlot, cuttingBoardSlot, backSlot, recipeBookSlot, specialRecipesSlot);
         }
 
         private static MainMenuConfig createDefault() {
@@ -346,6 +384,7 @@ public class RecipeViewGuiConfig {
             legend.put('C', "cooking_pot");
             legend.put('D', "cutting_board");
             legend.put('R', "recipe_book");
+            legend.put('S', "special_recipes");
             legend.put('B', "back");
             legend.put('X', "background");
 
@@ -354,10 +393,11 @@ public class RecipeViewGuiConfig {
             items.put("cooking_pot", new GuiConfig.GuiItem(Material.CAULDRON, null, "Cooking Pot Recipes", List.of("Click to view cooking pot recipes")));
             items.put("cutting_board", new GuiConfig.GuiItem(Material.BAMBOO_MOSAIC, null, "Cutting Board Recipes", List.of("Click to view cutting board recipes")));
             items.put("recipe_book", new GuiConfig.GuiItem(Material.KNOWLEDGE_BOOK, null, "Addon Recipes", List.of("Click to view addon recipes")));
+            items.put("special_recipes", new GuiConfig.GuiItem(Material.ENCHANTED_BOOK, null, "Special Recipes", List.of("Click to view special recipes")));
             items.put("back", new GuiConfig.GuiItem(Material.BARRIER, null, "Close", List.of()));
 
-            List<String> layout = List.of("XXXXBXXXX", "XXCXRXDXX", "XXXXXXXXX");
-            return new MainMenuConfig("Recipe Viewer", 3, layout, legend, items, 11, 15, 4, 13);
+            List<String> layout = List.of("XXXXBXXXX", "XXCDRSXXX", "XXXXXXXXX");
+            return new MainMenuConfig("Recipe Viewer", 3, layout, legend, items, 11, 12, 4, 13, 14);
         }
     }
 
@@ -647,4 +687,211 @@ public class RecipeViewGuiConfig {
                     List.of(), 28, resultSlots, 32, -1, 30, -1, -1, 0, -1, -1, -1);
         }
     }
+
+    public static class SpecialRecipeListConfig extends BaseConfig {
+        private final List<Integer> recipeSlots;
+        private final int prevPageSlot;
+        private final int nextPageSlot;
+        private final int backSlot;
+
+        public SpecialRecipeListConfig(String title, int rows, List<String> layout,
+                                       Map<Character, String> legend, Map<String, GuiConfig.GuiItem> items,
+                                       List<Integer> recipeSlots, int prevPageSlot, int nextPageSlot,
+                                       int backSlot) {
+            super(title, rows, layout, legend, items);
+            this.recipeSlots = recipeSlots;
+            this.prevPageSlot = prevPageSlot;
+            this.nextPageSlot = nextPageSlot;
+            this.backSlot = backSlot;
+        }
+
+        public List<Integer> getRecipeSlots() {
+            return recipeSlots;
+        }
+
+        public int getPrevPageSlot() {
+            return prevPageSlot;
+        }
+
+        public int getNextPageSlot() {
+            return nextPageSlot;
+        }
+
+        public int getBackSlot() {
+            return backSlot;
+        }
+
+        public static SpecialRecipeListConfig fromConfig(ConfigurationSection section) {
+            if (section == null) {
+                return createDefault();
+            }
+            BaseConfig base = parseConfig(section);
+            if (base == null) {
+                return createDefault();
+            }
+            List<Integer> recipeSlots = base.getSlotsByType("recipe");
+            int prevPageSlot = base.getFirstSlotByType("prev_page");
+            int nextPageSlot = base.getFirstSlotByType("next_page");
+            int backSlot = base.getFirstSlotByType("back");
+            return new SpecialRecipeListConfig(base.title, base.rows, base.layout, base.legend,
+                    base.items, recipeSlots, prevPageSlot, nextPageSlot, backSlot);
+        }
+
+        static SpecialRecipeListConfig createDefault() {
+            Map<Character, String> legend = new HashMap<>();
+            legend.put('R', "recipe");
+            legend.put('P', "prev_page");
+            legend.put('N', "next_page");
+            legend.put('B', "back");
+            legend.put('X', "background");
+
+            Map<String, GuiConfig.GuiItem> items = new HashMap<>();
+            items.put("background", new GuiConfig.GuiItem(Material.GRAY_STAINED_GLASS_PANE, null, " ", List.of()));
+            items.put("prev_page", new GuiConfig.GuiItem(Material.ARROW, null, "Previous Page", List.of()));
+            items.put("next_page", new GuiConfig.GuiItem(Material.ARROW, null, "Next Page", List.of()));
+            items.put("back", new GuiConfig.GuiItem(Material.BARRIER, null, "Back", List.of()));
+
+            List<String> layout = List.of(
+                    "PXXXBXXXN",
+                    "RRRRRRRRR",
+                    "RRRRRRRRR",
+                    "RRRRRRRRR",
+                    "RRRRRRRRR",
+                    "RRRRRRRRR"
+            );
+
+            List<Integer> recipeSlots = new ArrayList<>();
+            for (int i = 9; i < 54; i++) {
+                recipeSlots.add(i);
+            }
+
+            return new SpecialRecipeListConfig("Special Recipes", 6, layout, legend, items,
+                    recipeSlots, 0, 8, 4);
+        }
+    }
+
+    public static class SpecialRecipeDetailConfig extends BaseConfig {
+        private final String guiKey;
+        private final List<Integer> descriptionSlots;
+        private final List<Integer> inputSlots;
+        private final List<Integer> outputSlots;
+        private final int backSlot;
+        private final int sunlightSlot;
+        private final int waterSlot;
+        private final int catalystInfoSlot;
+        private final List<Integer> catalystItemSlots;
+
+        public SpecialRecipeDetailConfig(String guiKey, String title, int rows, List<String> layout,
+                                         Map<Character, String> legend, Map<String, GuiConfig.GuiItem> items,
+                                         List<Integer> descriptionSlots, List<Integer> inputSlots,
+                                         List<Integer> outputSlots, int backSlot,
+                                         int sunlightSlot, int waterSlot, int catalystInfoSlot,
+                                         List<Integer> catalystItemSlots) {
+            super(title, rows, layout, legend, items);
+            this.guiKey = guiKey;
+            this.descriptionSlots = descriptionSlots;
+            this.inputSlots = inputSlots;
+            this.outputSlots = outputSlots;
+            this.backSlot = backSlot;
+            this.sunlightSlot = sunlightSlot;
+            this.waterSlot = waterSlot;
+            this.catalystInfoSlot = catalystInfoSlot;
+            this.catalystItemSlots = catalystItemSlots != null ? List.copyOf(catalystItemSlots) : List.of();
+        }
+
+        /** The gui.yml section key, used to read this layout's title-layout.craftengine image. */
+        public String guiKey() { return guiKey; }
+        public List<Integer> getDescriptionSlots() { return descriptionSlots; }
+        public List<Integer> getInputSlots() { return inputSlots; }
+        public List<Integer> getOutputSlots() { return outputSlots; }
+        public int getBackSlot() { return backSlot; }
+        public int getSunlightSlot() { return sunlightSlot; }
+        public int getWaterSlot() { return waterSlot; }
+        public int getCatalystInfoSlot() { return catalystInfoSlot; }
+        public List<Integer> getCatalystItemSlots() { return catalystItemSlots; }
+
+        public static SpecialRecipeDetailConfig fromConfig(String key, ConfigurationSection section) {
+            if (section == null) {
+                if ("special-recipe-detail-basic".equals(key)) return createDefaultBasic();
+                return createDefault();
+            }
+            BaseConfig base = parseConfig(section);
+            if (base == null) {
+                return createDefault();
+            }
+            List<Integer> descriptionSlots = base.getSlotsByType("description");
+            List<Integer> inputSlots = base.getSlotsByType("input");
+            List<Integer> outputSlots = base.getSlotsByType("output");
+            int backSlot = base.getFirstSlotByType("back");
+            int sunlightSlot = base.getFirstSlotByType("sunlight");
+            int waterSlot = base.getFirstSlotByType("water");
+            int catalystInfoSlot = base.getFirstSlotByType("catalyst_info");
+            List<Integer> catalystItemSlots = base.getSlotsByType("catalyst_item");
+            return new SpecialRecipeDetailConfig(key, base.title, base.rows, base.layout, base.legend,
+                    base.items, descriptionSlots, inputSlots, outputSlots, backSlot,
+                    sunlightSlot, waterSlot, catalystInfoSlot, catalystItemSlots);
+        }
+
+        /** Default 4-row layout used when the recipe has extra conditions (sunlight/water/catalyst). */
+        static SpecialRecipeDetailConfig createDefault() {
+            Map<Character, String> legend = new HashMap<>();
+            legend.put('H', "description");
+            legend.put('I', "input");
+            legend.put('O', "output");
+            legend.put('D', "sunlight");
+            legend.put('E', "water");
+            legend.put('F', "catalyst_info");
+            legend.put('G', "catalyst_item");
+            legend.put('B', "back");
+            legend.put('X', "background");
+
+            Map<String, GuiConfig.GuiItem> items = new HashMap<>();
+            items.put("background", new GuiConfig.GuiItem(Material.GRAY_STAINED_GLASS_PANE, null, " ", List.of()));
+            items.put("back", new GuiConfig.GuiItem(Material.ARROW, null, "Back", List.of()));
+
+            List<String> layout = List.of(
+                    "XXXXHXXXX",
+                    "XIXXXXXOX",
+                    "XXXDEFXXX",
+                    "BXXXXGXXX"
+            );
+
+            return new SpecialRecipeDetailConfig("special-recipe-detail", "Special Recipe", 4, layout, legend, items,
+                    List.of(4),
+                    List.of(10),
+                    List.of(16),
+                    27,
+                    21, 22, 23,
+                    List.of(32));
+        }
+
+        /** Default compact 3-row layout used when the recipe has no extra conditions. */
+        static SpecialRecipeDetailConfig createDefaultBasic() {
+            Map<Character, String> legend = new HashMap<>();
+            legend.put('C', "description");
+            legend.put('I', "input");
+            legend.put('O', "output");
+            legend.put('B', "back");
+            legend.put('X', "background");
+
+            Map<String, GuiConfig.GuiItem> items = new HashMap<>();
+            items.put("background", new GuiConfig.GuiItem(Material.GRAY_STAINED_GLASS_PANE, null, " ", List.of()));
+            items.put("back", new GuiConfig.GuiItem(Material.ARROW, null, "Back", List.of()));
+
+            List<String> layout = List.of(
+                    "XXXXCXXXX",
+                    "XIXXXXXOX",
+                    "BXXXXXXXX"
+            );
+
+            return new SpecialRecipeDetailConfig("special-recipe-detail-basic", "Special Recipe", 3, layout, legend, items,
+                    List.of(4),
+                    List.of(10),
+                    List.of(16),
+                    18,
+                    -1, -1, -1,
+                    List.of());
+        }
+    }
+
 }

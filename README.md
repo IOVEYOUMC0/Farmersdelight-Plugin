@@ -6,6 +6,8 @@ icon: weight-scale
 
 A CraftEngine-based port of the Forge mod **Farmer's Delight** for Paper/Folia servers. This page documents the runtime configuration knobs and the blocks/items/effects that ship out of the box.
 
+FarmersDelight is also the core of a family of optional **addons** — Brewin' And Chewin', End's Delight, Expanded Delight, Crabber's Delight, Barbeque's Delight and Villagers' Delight — that layer more content on top of it. For what each one adds, how it registers with FarmersDelight, and its config knobs, see the **[Addon Guide](addon-guide/README.md)**.
+
 ***
 
 ## Table of contents

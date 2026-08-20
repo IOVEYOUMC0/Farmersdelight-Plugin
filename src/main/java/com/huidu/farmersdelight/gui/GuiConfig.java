@@ -655,7 +655,7 @@ public class GuiConfig {
         }
 
         public boolean hasCommands() {
-            return commands != null && !commands.isEmpty();
+            return commands == null || commands.isEmpty();
         }
 
         public ItemStack createItem() {

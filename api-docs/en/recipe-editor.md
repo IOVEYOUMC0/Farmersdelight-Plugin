@@ -123,6 +123,23 @@ stores that 1-count template. No real item is ever moved, so there is no dupe an
 `draft.item(i).getAmount()` is always 1 and carries no meaning. Ingredient counts, if your format has them, must
 come from somewhere else. The result's quantity comes from `resultCount()`, not from `result().getAmount()`.
 
+### Identity and NBT retention
+
+The clone is small, but the item's **identity** is preserved in full, and the three slot kinds save differently:
+
+* **Input / tool / container slots** save an identity string, not an item snapshot: CraftEngine custom items
+  store their CE item id (`farmersdelight:straw`), MMOItems items store `mmoitems:<type>:<id>`
+  (e.g. `mmoitems:AXE:TEST`), everything else stores the vanilla id (`minecraft:stone_axe`); `#ns:tag` tags and
+  `a|b` choices are supported too. These strings stay readable in the recipe file and are rebuilt back into
+  display items when the editor reloads the recipe.
+* **Result slots** save the **full item** (all components / NBT), serialized as an `{item, count, nbt}` object,
+  so ordinary items carrying custom NBT (enchantments, custom names) survive the edit round-trip. **MMOItems
+  items are the exception**: their identity is uniquely determined by `mmoitems:<type>:<id>`, so they are saved
+  as that id string (`result: mmoitems:AXE:TEST` or `{item: mmoitems:AXE:TEST}`) and rebuilt through the
+  MMOItems plugin API on load — no NBT snapshot is written for them.
+
+Identity resolution order is: CE item id → `mmoitems:<type>:<id>` → vanilla id — mutually exclusive, first hit wins.
+
 ## NumericField
 
 ```java

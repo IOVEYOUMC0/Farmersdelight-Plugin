@@ -48,13 +48,13 @@ final class RecipeParsingSupport {
         return parseChoice(str, option -> {
             String trimmed = option.trim();
             return trimmed.startsWith("#")
-                    ? parseTagIngredientWithExclusions(trimmed, "ingredient")
+                    ? parseTagIngredientWithExclusions(trimmed)
                     : parseSimpleItemOrTag(trimmed);
         });
     }
 
-    static RecipeIngredient.Tag parseTagIngredientWithExclusions(String str, String contextName) {
-        ParsedKey parsed = parseKeyWithExclusions(str, contextName);
+    static RecipeIngredient.Tag parseTagIngredientWithExclusions(String str) {
+        ParsedKey parsed = parseKeyWithExclusions(str, "ingredient");
         return new RecipeIngredient.Tag(parsed.key(), parsed.excludedItems(), parsed.excludedTags());
     }
 

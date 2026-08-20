@@ -63,16 +63,18 @@ public final class RecipeEditorView implements InventoryHolder {
     }
 
     private void draw() {
-        Component title = Component.text("Edit: ", NamedTextColor.DARK_GRAY)
-                .append(Component.text(String.valueOf(draft.id()), NamedTextColor.DARK_AQUA));
-        inventory = Bukkit.createInventory(this, 54, title);
+        inventory = Bukkit.createInventory(this, 54,
+                tr("gui.editor.recipe_book.title", NamedTextColor.DARK_GRAY,
+                        Component.text(String.valueOf(draft.id()), NamedTextColor.DARK_AQUA)));
 
         List<Component> labelLore = new ArrayList<>();
         for (int i = 0; i < itemSlots.length; i++) {
-            labelLore.add(Component.text("Slot " + (i + 1) + ": " + slotLabels.get(i), NamedTextColor.GRAY));
+            // The slot label itself is supplied (and localized) by the addon's editor; only the "Slot N:"
+            // chrome is translated here.
+            labelLore.add(tr("gui.editor.recipe_book.slot_line", NamedTextColor.GRAY, i + 1, slotLabels.get(i)));
         }
         inventory.setItem(4, named(new ItemStack(Material.KNOWLEDGE_BOOK),
-                Component.text("Input slots", NamedTextColor.AQUA), labelLore));
+                tr("gui.editor.recipe_book.input_slots", NamedTextColor.AQUA), labelLore));
 
         for (int i = 0; i < itemSlots.length; i++) {
             inventory.setItem(itemSlots[i], draft.item(i));
@@ -85,11 +87,24 @@ public final class RecipeEditorView implements InventoryHolder {
         }
 
         inventory.setItem(SLOT_SAVE, named(new ItemStack(Material.LIME_CONCRETE),
-                Component.text("Save", NamedTextColor.GREEN), null));
+                tr("gui.editor.button.save", NamedTextColor.GREEN), null));
         inventory.setItem(SLOT_CANCEL, named(new ItemStack(Material.BARRIER),
-                Component.text("Cancel", NamedTextColor.RED), null));
+                tr("gui.editor.button.cancel", NamedTextColor.RED), null));
         inventory.setItem(SLOT_DELETE, named(new ItemStack(Material.LAVA_BUCKET),
-                Component.text("Delete", NamedTextColor.DARK_RED), null));
+                tr("gui.editor.button.delete", NamedTextColor.DARK_RED), null));
+    }
+
+    private static Component tr(String key, NamedTextColor color) {
+        return Component.translatable(key).color(color);
+    }
+
+    private static Component tr(String key, NamedTextColor color, Object... args) {
+        Component[] components = new Component[args.length];
+        for (int i = 0; i < args.length; i++) {
+            Object a = args[i];
+            components[i] = a instanceof Component c ? c : Component.text(String.valueOf(a));
+        }
+        return Component.translatable(key, components).color(color);
     }
 
     boolean isEditableSlot(int rawSlot) {
@@ -104,11 +119,11 @@ public final class RecipeEditorView implements InventoryHolder {
         return false;
     }
 
-    boolean handleButton(Player player, int rawSlot, boolean rightClick) {
+    void handleButton(Player player, int rawSlot, boolean rightClick) {
         if (rawSlot == RESULT_COUNT_SLOT) {
             draft.setResultCount(Math.max(1, draft.resultCount() + (rightClick ? -1 : 1)));
             inventory.setItem(RESULT_COUNT_SLOT, countButton());
-            return true;
+            return;
         }
         int numericIndex = rawSlot - NUMERIC_START;
         if (numericIndex >= 0 && numericIndex < numericFields.size()) {
@@ -118,28 +133,28 @@ public final class RecipeEditorView implements InventoryHolder {
             next = Math.max(field.min(), Math.min(field.max(), next));
             draft.setNumber(field.key(), next);
             inventory.setItem(rawSlot, numericButton(field));
-            return true;
+            return;
         }
         if (rawSlot == SLOT_SAVE) {
             commitItems();
             boolean ok = editor.save(draft);
-            player.sendMessage(Component.text(ok ? "Saved recipe " + draft.id() : "Save failed",
-                    ok ? NamedTextColor.GREEN : NamedTextColor.RED));
+            player.sendMessage(ok
+                    ? tr("gui.editor.recipe_book.saved", NamedTextColor.GREEN, draft.id())
+                    : tr("gui.editor.recipe_book.save_failed", NamedTextColor.RED));
             player.closeInventory();
-            return true;
+            return;
         }
         if (rawSlot == SLOT_CANCEL) {
             player.closeInventory();
-            return true;
+            return;
         }
         if (rawSlot == SLOT_DELETE) {
             boolean ok = editor.delete(draft.id());
-            player.sendMessage(Component.text(ok ? "Deleted recipe " + draft.id() : "Delete failed",
-                    ok ? NamedTextColor.GREEN : NamedTextColor.RED));
+            player.sendMessage(ok
+                    ? tr("gui.editor.recipe_book.deleted", NamedTextColor.GREEN, draft.id())
+                    : tr("gui.editor.recipe_book.delete_failed", NamedTextColor.RED));
             player.closeInventory();
-            return true;
         }
-        return false;
     }
 
     private void commitItems() {
@@ -151,8 +166,8 @@ public final class RecipeEditorView implements InventoryHolder {
 
     private ItemStack countButton() {
         return named(new ItemStack(Material.PAPER, Math.max(1, Math.min(64, draft.resultCount()))),
-                Component.text("Result count: " + draft.resultCount(), NamedTextColor.YELLOW),
-                List.of(Component.text("Left +1 / Right -1", NamedTextColor.GRAY)));
+                tr("gui.editor.result_count", NamedTextColor.YELLOW, draft.resultCount()),
+                List.of(tr("gui.editor.hint_pm1", NamedTextColor.GRAY)));
     }
 
     private ItemStack numericButton(NumericField field) {
@@ -160,9 +175,10 @@ public final class RecipeEditorView implements InventoryHolder {
         String shown = field.decimals() <= 0
                 ? String.valueOf((long) value)
                 : String.format("%." + field.decimals() + "f", value);
+        // field.label() is the addon's own (already-localized) field name; only the +/- hint chrome is translated.
         return named(new ItemStack(Material.COMPARATOR),
                 Component.text(field.label() + ": " + shown, NamedTextColor.YELLOW),
-                List.of(Component.text("Left +" + field.step() + " / Right -" + field.step(), NamedTextColor.GRAY)));
+                List.of(tr("gui.editor.recipe_book.step_hint", NamedTextColor.GRAY, field.step(), field.step())));
     }
 
     private static ItemStack named(ItemStack item, Component name, List<Component> lore) {

@@ -131,9 +131,16 @@ public final class ChoiceBuilderGui extends AbstractInventoryGui implements Edit
         int raw = event.getRawSlot();
         boolean top = raw >= 0 && raw < config.getSize();
         if (!top) {
-            ItemStack clicked = event.getCurrentItem();
-            if (clicked != null && !clicked.getType().isAir()) {
-                player.setItemOnCursor(cleanCopy(clicked));
+            ItemStack cursor = event.getCursor();
+            if (cursor != null && !cursor.getType().isAir()) {
+                // Picked-up copies never leave the inventory, so dropping the cursor cancels the pickup
+                // and lets the player put the item back without touching the GUI.
+                player.setItemOnCursor(null);
+            } else {
+                ItemStack clicked = event.getCurrentItem();
+                if (clicked != null && !clicked.getType().isAir()) {
+                    player.setItemOnCursor(cleanCopy(clicked));
+                }
             }
             return;
         }

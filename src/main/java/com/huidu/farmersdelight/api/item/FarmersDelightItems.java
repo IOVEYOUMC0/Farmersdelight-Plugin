@@ -4,14 +4,19 @@ import com.huidu.farmersdelight.api.text.FarmersDelightText;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextDecoration;
+import org.bukkit.Location;
+import org.bukkit.Sound;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.ApiStatus;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 
 @ApiStatus.NonExtendable
 public final class FarmersDelightItems {
@@ -37,6 +42,55 @@ public final class FarmersDelightItems {
 
     public static boolean isKnife(ItemStack item) {
         return matchesTag(item, "farmersdelight:tools/knives");
+    }
+
+    /**
+     * Damage a durable custom item (one carrying vanilla durability components, e.g. via the
+     * farmersdelight:durable item setting) by amount, the same way FarmersDelight's own tools wear: the
+     * Unbreaking enchant is rolled per point of damage, and when the item runs out it is consumed
+     * (amount set to 0). Returns true if the item broke. No-op (returns false) for a non-damageable or
+     * unbreakable item. This is the durability path decoupled from any weapon/attack behaviour.
+     */
+    public static boolean damage(ItemStack item, int amount) {
+        return damage(item, amount, null);
+    }
+
+    /**
+     * As damage(item, amount), but plays the vanilla item-break sound at breakSoundLocation when the item
+     * breaks (pass null to stay silent).
+     */
+    public static boolean damage(ItemStack item, int amount, Location breakSoundLocation) {
+        if (item == null || item.getType().isAir() || amount <= 0
+                || !(item.getItemMeta() instanceof Damageable damageable) || damageable.isUnbreakable()) {
+            return false;
+        }
+        int maxDamage = damageable.hasMaxDamage() ? damageable.getMaxDamage() : item.getType().getMaxDurability();
+        if (maxDamage <= 0) {
+            return false;
+        }
+        int unbreaking = damageable.getEnchantLevel(Enchantment.UNBREAKING);
+        int applied = 0;
+        for (int i = 0; i < amount; i++) {
+            // Vanilla rolls the Unbreaking skip per point of damage, not once for the whole amount.
+            if (unbreaking > 0 && ThreadLocalRandom.current().nextInt(unbreaking + 1) > 0) {
+                continue;
+            }
+            applied++;
+        }
+        if (applied <= 0) {
+            return false;
+        }
+        int next = Math.max(0, damageable.getDamage()) + applied;
+        if (next >= maxDamage) {
+            item.setAmount(0);
+            if (breakSoundLocation != null && breakSoundLocation.getWorld() != null) {
+                breakSoundLocation.getWorld().playSound(breakSoundLocation, Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
+            }
+            return true;
+        }
+        damageable.setDamage(next);
+        item.setItemMeta(damageable);
+        return false;
     }
 
     public static Component displayNameOf(ItemStack item, Player player) {

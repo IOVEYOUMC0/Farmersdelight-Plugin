@@ -54,7 +54,7 @@ public class CuttingBoardRecipeManager {
 
     public void loadRecipes() {
         Map<String, CuttingBoardRecipe> newRecipes = new LinkedHashMap<>();
-        RecipeFileLoader.loadRecipeSections(plugin, "recipes/cutting_board_recipes.yml", "cutting_board_recipes", "cutting board",
+        RecipeFileLoader.loadRecipeSections(plugin,
                 (recipeId, section) -> newRecipes.put(recipeId, parseRecipe(recipeId, section)));
 
         // Recipes an addon ships inside a CraftEngine pack (<pack>/farmersdelight/*.yml). Loaded after the
@@ -192,6 +192,20 @@ public class CuttingBoardRecipeManager {
             ItemStack result = createItem(itemId);
             if (result != null) {
                 result.setAmount(count);
+                // Full-item NBT snapshot (base64, written by the editor) beats the id-built item.
+                Object nbtValue = resultMap.get("nbt");
+                if (nbtValue != null) {
+                    ItemStack fromNbt = RecipeItemCodec.itemFromBase64(nbtValue.toString());
+                    if (fromNbt != null) {
+                        result = fromNbt;
+                        result.setAmount(count);
+                    }
+                }
+                Object componentsValue = resultMap.get("components");
+                if (componentsValue instanceof Map<?, ?> components) {
+                    result = RecipeItemCodec.applyComponents(result, RecipeItemCodec.coerceStringMap(components));
+                    result.setAmount(count);
+                }
                 results.add(new CuttingBoardRecipe.ResultEntry(result, chance));
             }
         }
@@ -439,23 +453,23 @@ public class CuttingBoardRecipeManager {
         if (toolRequirement.tag()
                 && Constants.TAG_KNIVES.equalsIgnoreCase(toolRequirement.key().toString())) {
             return (toolContext.knife() || toolContext.matchesCustomTag(toolRequirement.key()))
-                    && !isExcludedTool(toolContext, toolRequirement);
+                    && isExcludedTool(toolContext, toolRequirement);
         }
 
         if (matchesToolFallback(toolRequirement, toolContext)) {
-            return !isExcludedTool(toolContext, toolRequirement);
+            return isExcludedTool(toolContext, toolRequirement);
         }
 
         if (!toolRequirement.tag()) {
             return toolContext.matchesItemKey(toolRequirement.key())
-                    && !isExcludedTool(toolContext, toolRequirement);
+                    && isExcludedTool(toolContext, toolRequirement);
         }
 
         if (toolContext.matchesCustomTag(toolRequirement.key())) {
-            return !isExcludedTool(toolContext, toolRequirement);
+            return isExcludedTool(toolContext, toolRequirement);
         }
 
-        return toolContext.matchesVanillaTag(toolRequirement.key()) && !isExcludedTool(toolContext, toolRequirement);
+        return toolContext.matchesVanillaTag(toolRequirement.key()) && isExcludedTool(toolContext, toolRequirement);
     }
 
     private boolean matchesToolFallback(CuttingBoardRecipe.ToolRequirement requirement, ToolContext toolContext) {
@@ -474,18 +488,18 @@ public class CuttingBoardRecipeManager {
     private boolean isExcludedTool(ToolContext toolContext, CuttingBoardRecipe.ToolRequirement toolRequirement) {
         Key itemKey = toolContext.itemKey();
         if (itemKey == null) {
-            return false;
+            return true;
         }
         if (toolRequirement.excludedItems().contains(itemKey)) {
-            return true;
+            return false;
         }
 
         if (!toolContext.customTags().isEmpty()
                 && toolRequirement.excludedTags().stream().anyMatch(toolContext.customTags()::contains)) {
-            return true;
+            return false;
         }
 
-        return toolRequirement.excludedTags().stream().anyMatch(toolContext::matchesVanillaTag);
+        return toolRequirement.excludedTags().stream().noneMatch(toolContext::matchesVanillaTag);
     }
 
     private boolean matchesTaggedItem(ItemStack item, Key tagKey, Set<Key> excludedItems, Set<Key> excludedTags) {
@@ -536,6 +550,16 @@ public class CuttingBoardRecipeManager {
 
     public void registerExternalRecipe(String id, String inputSpec, String toolSpec,
                                        List<ItemStack> results, String sound) {
+        registerExternalRecipe(id, inputSpec, toolSpec, results, null, sound);
+    }
+
+    /**
+     * Registers an external cutting-board recipe with a per-result drop chance. chances is
+     * aligned to results by index; a null list or a null / out-of-range entry means the
+     * matching result is guaranteed (chance 1.0), matching the plain no-chance registration.
+     */
+    public void registerExternalRecipe(String id, String inputSpec, String toolSpec,
+                                       List<ItemStack> results, List<Double> chances, String sound) {
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("Recipe id is required");
         }
@@ -552,9 +576,12 @@ public class CuttingBoardRecipeManager {
         }
         List<CuttingBoardRecipe.ResultEntry> entries = new ArrayList<>();
         if (results != null) {
-            for (ItemStack result : results) {
+            for (int i = 0; i < results.size(); i++) {
+                ItemStack result = results.get(i);
                 if (result != null && !result.getType().isAir()) {
-                    entries.add(new CuttingBoardRecipe.ResultEntry(result.clone(), 1.0d));
+                    Double chance = chances != null && i < chances.size() ? chances.get(i) : null;
+                    double clamped = chance == null ? 1.0d : Math.max(0.0d, Math.min(1.0d, chance));
+                    entries.add(new CuttingBoardRecipe.ResultEntry(result.clone(), clamped));
                 }
             }
         }

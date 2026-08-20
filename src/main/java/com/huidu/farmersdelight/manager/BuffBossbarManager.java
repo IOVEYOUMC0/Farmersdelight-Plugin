@@ -178,7 +178,10 @@ public final class BuffBossbarManager implements Listener {
     private synchronized void ensureTickTask() {
         // The tick drives boss bar rotation AND the action bar's periodic re-send. Stacked boss bar and
         // the tab footer both persist without a tick, so neither keeps the task alive on its own.
+        // No player has any tracked bar: nothing to rotate or re-send, so the task must not run either —
+        // update() re-arms it the moment the first bar appears.
         boolean want = started && renderingEnabled()
+                && !players.isEmpty()
                 && ((channels.contains(Channel.BOSSBAR) && layoutMode == LayoutMode.ROTATING)
                     || channels.contains(Channel.ACTIONBAR));
         if (want && tickTask == null) {
@@ -207,6 +210,7 @@ public final class BuffBossbarManager implements Listener {
         Component t = title == null ? Component.empty() : title;
 
         UUID id = player.getUniqueId();
+        boolean wasEmpty = players.isEmpty();
         // Synchronize on the per-player state so two addons updating the same player don't race on
         // bars.put / showBossBar ordering. Cross-player updates remain parallel.
         PlayerBars state = players.computeIfAbsent(id, k -> new PlayerBars());
@@ -233,6 +237,12 @@ public final class BuffBossbarManager implements Listener {
                 // Boss bar already mutated in place above; refresh the push-only channels with the new text.
                 renderAuxiliary(player, state);
             }
+        }
+        // First bar of the session: the tick task may have self-cancelled while nobody had a bar;
+        // re-arm it now that there is something to rotate / re-send. Idempotent, so a racing second
+        // update() just re-checks the same state.
+        if (wasEmpty) {
+            ensureTickTask();
         }
     }
 
@@ -388,7 +398,13 @@ public final class BuffBossbarManager implements Listener {
 
     private void tick() {
         currentTick++;
-        if (!renderingEnabled() || players.isEmpty()) {
+        if (!renderingEnabled()) {
+            return;
+        }
+        if (players.isEmpty()) {
+            // Self-cancel when the last tracked bar is gone; the locked recheck pairs with update()'s
+            // computeIfAbsent + ensureTickTask so a fresh bar can never be stranded without a running pass.
+            ensureTickTask();
             return;
         }
         java.util.Set<Channel> ch = channels;

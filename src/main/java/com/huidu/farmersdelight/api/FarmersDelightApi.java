@@ -1,9 +1,12 @@
 package com.huidu.farmersdelight.api;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.block.CuttingBoardInteractionHandler;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
+import com.huidu.farmersdelight.api.recipe.ChanceResult;
 import com.huidu.farmersdelight.api.recipe.RecipeFiller;
 import com.huidu.farmersdelight.api.recipe.RecipeType;
+import com.huidu.farmersdelight.api.recipe.SpecialRecipeInfo;
 import com.huidu.farmersdelight.api.scheduler.ApiTask;
 import com.huidu.farmersdelight.gui.recipebook.RecipeBookGui;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
@@ -50,10 +53,25 @@ public final class FarmersDelightApi {
             "cooking-experience-location",
             // Knife extra-drop rule registration (FarmersDelightKnifeDrops).
             "knife-drop-rules",
+            // Runtime villager / wandering-trader trade registration (FarmersDelightVillagerTrades).
+            "villager-trades",
+            // Durability capability decoupled from the sword: the farmersdelight:durable item setting +
+            // FarmersDelightItems.damage(...).
+            "durable-items",
             // com.huidu.farmersdelight.api.util cross-version compatibility helpers.
             "compat-util",
             // Debug tool extension hooks for /fd debugtools.
-            "debug-tools"
+            "debug-tools",
+            // Programmatic special recipe registration (registerSpecialRecipe / unregisterSpecialRecipe /
+            // specialRecipes) with per-recipe display types (recipe / item_description).
+            "special-recipes",
+            // CraftEngine content existence checks (FarmersDelightContent).
+            "content-check",
+            // Chest loot table injection into the FD datapack (FarmersDelightLootInjections).
+            "loot-injections",
+            // Datapack world whitelist (isWorldWhitelisted): addons writing their own datapacks can
+            // follow FarmersDelight's datapacks.world-whitelist instead of installing into every world.
+            "datapack-whitelist"
     );
 
     private static final FarmersDelightApi INSTANCE = new FarmersDelightApi();
@@ -150,10 +168,75 @@ public final class FarmersDelightApi {
         plugin.getCuttingBoardRecipes().registerExternalRecipe(id, input, tool, copies, sound);
     }
 
+    /**
+     * Register a cutting-board recipe whose results carry a per-result drop chance (mirrors the mod's
+     * addResultWithChance). A chance of 1.0 is a guaranteed result; 0.5 drops half the time. Use this
+     * instead of the plain registerCuttingBoardRecipe when any result is not guaranteed.
+     */
+    public void registerCuttingBoardRecipeWithChances(String id, String input, String tool,
+                                                      List<ChanceResult> results, String sound) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin == null || !isAvailable() || id == null || input == null || tool == null || results == null) {
+            return;
+        }
+        List<ItemStack> items = new ArrayList<>();
+        List<Double> chances = new ArrayList<>();
+        for (ChanceResult result : results) {
+            if (result != null && result.item() != null) {
+                items.add(result.item());
+                chances.add((double) result.chance());
+            }
+        }
+        plugin.getCuttingBoardRecipes().registerExternalRecipe(id, input, tool, items, chances, sound);
+    }
+
     public void unregisterCuttingBoardRecipe(String id) {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin != null && isAvailable() && id != null) {
             plugin.getCuttingBoardRecipes().unregisterExternalRecipe(id);
+        }
+    }
+
+    /**
+     * Register a special recipe (composting, sunlight/water conditions, catalysts...). The recipe's
+     * displayType selects how it is shown: SpecialRecipeInfo#DISPLAY_RECIPE keeps the
+     * input → output → condition layout, SpecialRecipeInfo#DISPLAY_ITEM_DESCRIPTION renders a
+     * description-only info page.
+     */
+    public void registerSpecialRecipe(SpecialRecipeInfo info) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin != null && isAvailable() && info != null) {
+            plugin.getSpecialRecipeRegistry().register(info);
+        }
+    }
+
+    public void unregisterSpecialRecipe(String id) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin != null && isAvailable() && id != null) {
+            plugin.getSpecialRecipeRegistry().unregister(id);
+        }
+    }
+
+    public List<SpecialRecipeInfo> specialRecipes() {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin == null || !isAvailable()) {
+            return List.of();
+        }
+        return plugin.getSpecialRecipeRegistry().getAll();
+    }
+
+    /** Add a right-click handler for FarmersDelight cutting boards; first to consume wins. */
+    public void registerCuttingBoardInteractionHandler(CuttingBoardInteractionHandler handler) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin != null && isAvailable() && handler != null) {
+            plugin.registerCuttingBoardInteractionHandler(handler);
+        }
+    }
+
+    public void unregisterCuttingBoardInteractionHandler(CuttingBoardInteractionHandler handler) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin != null && isAvailable() && handler != null) {
+            plugin.unregisterCuttingBoardInteractionHandler(handler);
         }
     }
 
@@ -200,6 +283,17 @@ public final class FarmersDelightApi {
         return FarmersDelightPlugin.getInstance() != null && FarmersDelightPlugin.isEnabled0();
     }
 
+    /**
+     * Whether CraftEngine has finished its deferred item-load pass, so recipe results and advancement
+     * icons resolve to real custom items. False during an addon's own onEnable on a normal server start
+     * (CE items load later, announced by FarmersDelightWarmupEvent); an addon that registers
+     * content both eagerly at enable and again on warmup should gate the eager path on this to avoid
+     * registering — and logging — twice.
+     */
+    public boolean isContentLoaded() {
+        return com.huidu.farmersdelight.util.ItemUtils.isAnyCustomItemLoaded();
+    }
+
     public boolean isFolia() {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         return plugin != null && plugin.scheduler().isFolia();
@@ -216,6 +310,16 @@ public final class FarmersDelightApi {
     public static boolean isDebugEnabled(String category) {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         return plugin != null && plugin.isDebugEnabled(category);
+    }
+
+    /**
+     * Whether a world is on FarmersDelight's datapacks.world-whitelist ($primary, * or exact
+     * names). Addons that install their own datapacks should skip worlds this rejects so a Multiverse
+     * server keeps only the primary world's datapacks folder populated.
+     */
+    public boolean isWorldWhitelisted(org.bukkit.World world) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        return plugin != null && world != null && plugin.datapackWorldWhitelist().allows(world.getName());
     }
 
     public boolean isHeatSource(Block block) {
@@ -274,6 +378,17 @@ public final class FarmersDelightApi {
     public boolean updateItemDisplay(int handle, Location location, ItemStack item,
                                      org.bukkit.entity.ItemDisplay.ItemDisplayTransform itemTransform,
                                      org.bukkit.util.Transformation transformation) {
+        return updateItemDisplay(handle, location, item, itemTransform, transformation, 0);
+    }
+
+    /**
+     * As updateItemDisplay, but animate the transform change: the client smoothly interpolates from the
+     * display's current transform to the given one over interpolationDurationTicks ticks (0 = snap, the
+     * default overload). Use this for animated station displays such as flipping a skewer on the grill.
+     */
+    public boolean updateItemDisplay(int handle, Location location, ItemStack item,
+                                     org.bukkit.entity.ItemDisplay.ItemDisplayTransform itemTransform,
+                                     org.bukkit.util.Transformation transformation, int interpolationDurationTicks) {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin == null || !isAvailable() || location == null || item == null) {
             return false;
@@ -283,7 +398,7 @@ public final class FarmersDelightApi {
             return false;
         }
         return manager.updateDisplay(handle, new com.huidu.farmersdelight.visual.ItemDisplayManager.DisplaySpec(
-                location, item, itemTransform, transformation));
+                location, item, itemTransform, transformation, Math.max(0, interpolationDurationTicks), 0));
     }
 
     public void removeItemDisplay(int handle) {
@@ -295,6 +410,69 @@ public final class FarmersDelightApi {
         if (manager != null) {
             manager.destroyDisplay(handle);
         }
+    }
+
+    /**
+     * Whether a handle previously returned by createItemDisplay still refers to a managed display.
+     * FD removes displays on chunk unload / world unload / /fd cleanup without notifying the owner,
+     * so callers that cache handles should probe this periodically and recreate the display when it
+     * turns false. Pure map lookup, no packets, safe to call from a region thread.
+     */
+    public boolean isItemDisplayActive(int handle) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin == null || !isAvailable()) {
+            return false;
+        }
+        com.huidu.farmersdelight.visual.ItemDisplayManager manager = plugin.getItemDisplayManager();
+        return manager != null && manager.isActive(handle);
+    }
+
+    // Packet text displays
+    // Same packet-only lifecycle as the item displays above, but renders text (TextDisplay). Handles
+    // returned here are only valid for the text-* methods below.
+
+    public int createTextDisplay(Location location, net.kyori.adventure.text.Component text,
+                                 org.bukkit.util.Transformation transformation,
+                                 org.bukkit.Color backgroundColor, boolean shadowed, boolean seeThrough) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin == null || !isAvailable() || location == null || text == null) {
+            return -1;
+        }
+        com.huidu.farmersdelight.visual.ItemDisplayManager manager = plugin.getItemDisplayManager();
+        if (manager == null) {
+            return -1;
+        }
+        return manager.createTextDisplay(new com.huidu.farmersdelight.visual.ItemDisplayManager.TextDisplaySpec(
+                location, text, transformation, backgroundColor, shadowed, seeThrough));
+    }
+
+    public boolean updateTextDisplay(int handle, net.kyori.adventure.text.Component text) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin == null || !isAvailable() || text == null) {
+            return false;
+        }
+        com.huidu.farmersdelight.visual.ItemDisplayManager manager = plugin.getItemDisplayManager();
+        return manager != null && manager.updateText(handle, text);
+    }
+
+    public void removeTextDisplay(int handle) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin == null || !isAvailable()) {
+            return;
+        }
+        com.huidu.farmersdelight.visual.ItemDisplayManager manager = plugin.getItemDisplayManager();
+        if (manager != null) {
+            manager.destroyDisplay(handle);
+        }
+    }
+
+    public boolean isTextDisplayActive(int handle) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin == null || !isAvailable()) {
+            return false;
+        }
+        com.huidu.farmersdelight.visual.ItemDisplayManager manager = plugin.getItemDisplayManager();
+        return manager != null && manager.isActive(handle);
     }
 
     public void runAtLocation(Location location, Runnable task) {

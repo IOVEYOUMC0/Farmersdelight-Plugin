@@ -173,11 +173,8 @@ public boolean fill(Player player, ViewableRecipe recipe) {
             false, // exactSlots=false: extra, unrelated inventory items are allowed
             (slot, ingredient) -> FarmersDelightItems.matchesId(slot, FarmersDelightItems.idOf(ingredient)),
             ItemStack::getAmount);
-    if (!canFill) {
-        return false;
-    }
+    return canFill;
     // A real filler would now remove one matching item per ingredient and place it into the station.
-    return true;
 }
 ```
 

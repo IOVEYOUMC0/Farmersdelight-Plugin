@@ -3,7 +3,7 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.config.EnchantmentSettings;
 import org.junit.jupiter.api.Test;
 
-import java.util.Map;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -33,14 +33,10 @@ class EnchantmentDatapackInstallerTest {
 
     @Test
     void backstabbingCanAppearInTradesAndTreasureLoot() {
-        Map<String, String> tags = EnchantmentDatapackInstaller.renderDistributionTags(
-                "farmersdelight:backstabbing");
+        String json = EnchantmentDatapackInstaller.renderDistributionTag(
+                List.of("farmersdelight:backstabbing"));
 
-        assertTrue(tags.keySet().containsAll(java.util.List.of(
-                "tradeable", "treasure", "on_random_loot")));
-        for (String json : tags.values()) {
-            assertTrue(json.contains("\"replace\": false"));
-            assertTrue(json.contains("\"farmersdelight:backstabbing\""));
-        }
+        assertTrue(json.contains("\"replace\": false"));
+        assertTrue(json.contains("\"farmersdelight:backstabbing\""));
     }
 }

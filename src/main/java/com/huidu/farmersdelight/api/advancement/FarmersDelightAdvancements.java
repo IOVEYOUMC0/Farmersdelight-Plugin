@@ -17,6 +17,8 @@ public final class FarmersDelightAdvancements {
     private FarmersDelightAdvancements() {
     }
 
+    // Returns true only when the advancement system is usable: FarmersDelight loaded, its advancement
+    // feature enabled, and UltimateAdvancementAPI present & enabled.
     public static boolean isAvailable() {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         return plugin != null && plugin.isAdvancementsEnabled()

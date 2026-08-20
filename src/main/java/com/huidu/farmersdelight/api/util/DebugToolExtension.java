@@ -11,7 +11,9 @@ public interface DebugToolExtension {
 
     String name();
 
-    int place(Player player, Location origin, int count, int spacing, int layers, UndoSink undo);
+    default int place(Player player, Location origin, int count, int spacing, int layers, UndoSink undo) {
+        return 0;
+    }
 
     @FunctionalInterface
     interface UndoSink {

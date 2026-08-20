@@ -55,10 +55,10 @@ public record TomatoVineSettings(
         Resolver resolver = new Resolver(arguments, blockId);
 
         Map<String, Object> blocks = resolver.section(SECTION_BLOCKS, BLOCKS_KEYS);
-        String buddingBlock = resolver.string(blocks, SECTION_BLOCKS, "budding", "budding-block", DEFAULT_BUDDING_BLOCK);
-        String tomatoesBlock = resolver.string(blocks, SECTION_BLOCKS, "tomatoes", "tomatoes-block", DEFAULT_TOMATOES_BLOCK);
-        String cropOnRopeBlock = resolver.string(blocks, SECTION_BLOCKS, "crop-on-rope", "crop-on-rope-block", DEFAULT_CROP_ON_ROPE_BLOCK);
-        String ropeBlock = resolver.string(blocks, SECTION_BLOCKS, "rope", "rope-block", DEFAULT_ROPE_BLOCK);
+        String buddingBlock = resolver.string(blocks, "budding", "budding-block", DEFAULT_BUDDING_BLOCK);
+        String tomatoesBlock = resolver.string(blocks, "tomatoes", "tomatoes-block", DEFAULT_TOMATOES_BLOCK);
+        String cropOnRopeBlock = resolver.string(blocks, "crop-on-rope", "crop-on-rope-block", DEFAULT_CROP_ON_ROPE_BLOCK);
+        String ropeBlock = resolver.string(blocks, "rope", "rope-block", DEFAULT_ROPE_BLOCK);
 
         Map<String, Object> maxAge = resolver.section(SECTION_MAX_AGE, MAX_AGE_KEYS);
         int buddingMaxAge = resolver.integer(maxAge, SECTION_MAX_AGE, "budding", "budding-max-age", DEFAULT_MAX_AGE);
@@ -68,7 +68,7 @@ public record TomatoVineSettings(
         Map<String, Object> bonemeal = resolver.section(SECTION_BONEMEAL, BONEMEAL_KEYS);
         int bonemealBonusMin = resolver.integer(bonemeal, SECTION_BONEMEAL, "bonus-min", "bonemeal-bonus-min", DEFAULT_BONEMEAL_BONUS_MIN);
         int bonemealBonusMax = resolver.integer(bonemeal, SECTION_BONEMEAL, "bonus-max", "bonemeal-bonus-max", DEFAULT_BONEMEAL_BONUS_MAX);
-        float bonemealClimbChance = resolver.decimal(bonemeal, SECTION_BONEMEAL, "climb-chance", "bonemeal-climb-chance", DEFAULT_BONEMEAL_CLIMB_CHANCE);
+        float bonemealClimbChance = resolver.decimal(bonemeal);
 
         int matureAge = BehaviorArgParser.getInt(resolver.arguments, "mature-age", DEFAULT_MATURE_AGE);
         int minLight = BehaviorArgParser.getInt(resolver.arguments, "min-light", DEFAULT_MIN_LIGHT);
@@ -113,10 +113,10 @@ public record TomatoVineSettings(
             return nested;
         }
 
-        String string(Map<String, Object> nested, String sectionKey, String nestedKey, String flatKey, String fallback) {
+        String string(Map<String, Object> nested, String nestedKey, String flatKey, String fallback) {
             if (nested != null && BehaviorArgParser.isPresent(nested, nestedKey)) {
                 String value = BehaviorArgParser.getStringStrict(nested, nestedKey, fallback);
-                compare(sectionKey, nestedKey, flatKey, value,
+                compare(TomatoVineSettings.SECTION_BLOCKS, nestedKey, flatKey, value,
                         BehaviorArgParser.getStringStrict(arguments, flatKey, fallback));
                 return value;
             }
@@ -133,14 +133,14 @@ public record TomatoVineSettings(
             return BehaviorArgParser.getInt(arguments, flatKey, fallback);
         }
 
-        float decimal(Map<String, Object> nested, String sectionKey, String nestedKey, String flatKey, float fallback) {
-            if (nested != null && BehaviorArgParser.isPresent(nested, nestedKey)) {
-                float value = BehaviorArgParser.getFloat(nested, nestedKey, fallback);
-                compare(sectionKey, nestedKey, flatKey, value,
-                        BehaviorArgParser.getFloat(arguments, flatKey, fallback));
+        float decimal(Map<String, Object> nested) {
+            if (nested != null && BehaviorArgParser.isPresent(nested, "climb-chance")) {
+                float value = BehaviorArgParser.getFloat(nested, "climb-chance", TomatoVineSettings.DEFAULT_BONEMEAL_CLIMB_CHANCE);
+                compare(TomatoVineSettings.SECTION_BONEMEAL, "climb-chance", "bonemeal-climb-chance", value,
+                        BehaviorArgParser.getFloat(arguments, "bonemeal-climb-chance", TomatoVineSettings.DEFAULT_BONEMEAL_CLIMB_CHANCE));
                 return value;
             }
-            return BehaviorArgParser.getFloat(arguments, flatKey, fallback);
+            return BehaviorArgParser.getFloat(arguments, "bonemeal-climb-chance", TomatoVineSettings.DEFAULT_BONEMEAL_CLIMB_CHANCE);
         }
 
         private void compare(String sectionKey, String nestedKey, String flatKey, Object nestedValue, Object flatValue) {

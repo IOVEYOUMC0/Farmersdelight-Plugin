@@ -1,6 +1,8 @@
 package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.enchant.EnchantGroup;
+import com.huidu.farmersdelight.api.enchant.FarmersDelightEnchantments;
 import com.huidu.farmersdelight.config.EnchantmentSettings;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.tool.ToolAttackListener;
@@ -66,11 +68,12 @@ public final class KnifeEnchantFilter implements Listener {
         Map<EnchantmentSettings.GroupId, Set<Enchantment>> anvilGroups =
                 new EnumMap<>(EnchantmentSettings.GroupId.class);
         for (EnchantmentSettings.GroupId groupId : EnchantmentSettings.GroupId.values()) {
-            List<Enchantment> resolved = resolveEnchantments(
+            List<Enchantment> resolved = new ArrayList<>(resolveEnchantments(
                     settings.group(groupId).table().enchantments(),
                     backstabbingEnabled
-            );
-            tableGroups.put(groupId, resolved);
+            ));
+            appendRegisteredEnchants(groupId, resolved);
+            tableGroups.put(groupId, List.copyOf(resolved));
 
             Set<Enchantment> anvilSet = new LinkedHashSet<>(resolved);
             if (mending != null) {
@@ -186,7 +189,18 @@ public final class KnifeEnchantFilter implements Listener {
         ItemStack second = event.getInventory().getSecondItem();
         EnchantmentSettings.GroupId groupId = enchantmentGroup(first);
         EnchantmentSettings current = settings;
-        if (!current.enabled() || groupId == null || !current.group(groupId).anvilEnabled() || isEmpty(second)) {
+        if (!current.enabled()) {
+            return;
+        }
+        // A non-knife item (or a group whose anvil enchanting is off) must not carry the knife-only backstab
+        // enchant. Vanilla's supported_items guard is bypassed on the anvil in creative (and by some fork
+        // configs), so scrub any backstab the vanilla result leaked onto the item. We police only our own
+        // datapack enchant here, never vanilla enchants.
+        if (groupId == null || !current.group(groupId).anvilEnabled()) {
+            stripManagedEnchants(event);
+            return;
+        }
+        if (isEmpty(second)) {
             return;
         }
         Set<Enchantment> allowedEnchantments = anvilEnchantments.getOrDefault(groupId, Set.of());
@@ -260,6 +274,106 @@ public final class KnifeEnchantFilter implements Listener {
                 openAnvilView.setRepairCost(repairCost);
             }
         }, 1L);
+    }
+
+    // Removes our knife-only backstab enchant from an anvil result on an item that isn't an enchantable knife.
+    // Only backstab is touched, so a creative player anvil-ing vanilla enchants onto arbitrary items is left
+    // alone; if backstab was the only thing the anvil produced, the result is cancelled outright.
+    private void stripManagedEnchants(PrepareAnvilEvent event) {
+        ItemStack result = event.getResult();
+        if (isEmpty(result)) {
+            return;
+        }
+        Set<Enchantment> managed = managedEnchants();
+        if (managed.isEmpty()) {
+            return;
+        }
+        ItemMeta meta = result.getItemMeta();
+        if (meta == null) {
+            return;
+        }
+        boolean changed = false;
+        if (meta instanceof EnchantmentStorageMeta storage) {
+            for (Enchantment enchantment : managed) {
+                if (storage.hasStoredEnchant(enchantment)) {
+                    storage.removeStoredEnchant(enchantment);
+                    changed = true;
+                }
+            }
+        } else {
+            for (Enchantment enchantment : managed) {
+                if (meta.hasEnchant(enchantment)) {
+                    meta.removeEnchant(enchantment);
+                    changed = true;
+                }
+            }
+        }
+        if (!changed) {
+            return;
+        }
+        result.setItemMeta(meta);
+        ItemStack first = event.getInventory().getFirstItem();
+        event.setResult(first != null && result.isSimilar(first) ? null : result);
+    }
+
+    // The FarmersDelight-managed knife-only enchants (built-in backstab + every API-registered enchant): the
+    // only enchants scrubbed off a non-knife anvil result. Vanilla enchants a creative player applies to
+    // arbitrary items are left alone.
+    private Set<Enchantment> managedEnchants() {
+        Set<Enchantment> managed = new LinkedHashSet<>();
+        Enchantment backstab = resolveBackstab();
+        if (backstab != null) {
+            managed.add(backstab);
+        }
+        var registry = RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT);
+        for (String id : FarmersDelightEnchantments.registeredIds()) {
+            NamespacedKey key = NamespacedKey.fromString(id);
+            if (key != null) {
+                Enchantment enchantment = registry.get(key);
+                if (enchantment != null) {
+                    managed.add(enchantment);
+                }
+            }
+        }
+        return managed;
+    }
+
+    // Adds every API-registered enchant that targets this group into the group's candidate pool, so registered
+    // addon enchants are offered at the table and anvil alongside the config-listed ones.
+    private void appendRegisteredEnchants(EnchantmentSettings.GroupId groupId, List<Enchantment> into) {
+        Map<String, Set<EnchantGroup>> targets = FarmersDelightEnchantments.poolTargets();
+        if (targets.isEmpty()) {
+            return;
+        }
+        EnchantGroup apiGroup;
+        try {
+            apiGroup = EnchantGroup.valueOf(groupId.name());
+        } catch (IllegalArgumentException noMatchingGroup) {
+            return;
+        }
+        var registry = RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT);
+        for (Map.Entry<String, Set<EnchantGroup>> entry : targets.entrySet()) {
+            if (!entry.getValue().contains(apiGroup)) {
+                continue;
+            }
+            NamespacedKey key = NamespacedKey.fromString(entry.getKey());
+            if (key == null) {
+                continue;
+            }
+            Enchantment enchantment = registry.get(key);
+            if (enchantment != null && !into.contains(enchantment)) {
+                into.add(enchantment);
+            }
+        }
+    }
+
+    private Enchantment resolveBackstab() {
+        String id = settings.backstabbing().id();
+        if (id == null || id.isBlank()) {
+            return null;
+        }
+        NamespacedKey key = NamespacedKey.fromString(id);
+        return key == null ? null : RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT).get(key);
     }
 
     @EventHandler

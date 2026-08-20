@@ -1,18 +1,26 @@
-﻿items:
+items:
   farmersdelight:brown_mushroom_colony:
     data:
       item-name: <!i><lang:block.farmersdelight.brown_mushroom_colony>
     model: farmersdelight:item/brown_mushroom_colony
-    behavior:
-      type: block_item
-      block: farmersdelight:brown_mushroom_colony
+    behaviors:
+      - type: compostable_item
+        chance: 1.0
+      - type: block_item
+        block: farmersdelight:brown_mushroom_colony
+    settings:
+      compost_probability: 1.0
   farmersdelight:red_mushroom_colony:
     data:
       item-name: <!i><lang:block.farmersdelight.red_mushroom_colony>
     model: farmersdelight:item/red_mushroom_colony
-    behavior:
-      type: block_item
-      block: farmersdelight:red_mushroom_colony
+    behaviors:
+      - type: compostable_item
+        chance: 1.0
+      - type: block_item
+        block: farmersdelight:red_mushroom_colony
+    settings:
+      compost_probability: 1.0
   minecraft:brown_mushroom:
     behavior:
       type: farmersdelight:conditional_block_planting

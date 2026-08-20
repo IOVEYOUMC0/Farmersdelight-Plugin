@@ -6,6 +6,8 @@ items:
     behavior:
       type: block_item
       block: farmersdelight:rope
+    settings:
+      fuel_time: 200
 blocks:
   farmersdelight:rope:
     settings:

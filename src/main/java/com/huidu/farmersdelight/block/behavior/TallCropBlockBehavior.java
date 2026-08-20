@@ -18,7 +18,6 @@ import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.bukkit.world.BukkitExistingBlock;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
-import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.block.property.type.DoubleBlockHalf;
@@ -58,7 +57,13 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
-        return false;
+        // Rice is the only block using this behavior and CraftEngine builds it as a single behavior,
+        // so this method is called directly for mob navigation. Returning false marked it BLOCKED, so
+        // mobs (villager farmers included) could not path across a rice paddy the way they swim through
+        // vanilla kelp. Returning true lets the node evaluator derive the passable WATER/OPEN path type
+        // from the block's own water fluid state, matching vanilla kelp; rice has no collision so
+        // nothing else is affected.
+        return true;
     }
 
     private record Config(
@@ -129,7 +134,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
             
             int maxAgeLower = BehaviorArgParser.hasArgument(arguments, "max-age-lower")
                     ? BehaviorArgParser.getInt(arguments, "max-age-lower", 4)
-                    : inferMaxIntegerValue(ageProperty, 4);
+                    : inferMaxIntegerValue(ageProperty);
             int maxAgeUpper = BehaviorArgParser.hasArgument(arguments, "max-age-upper")
                     ? BehaviorArgParser.getInt(arguments, "max-age-upper", 3)
                     : Math.max(0, maxAgeLower - 1);
@@ -144,10 +149,10 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
             boolean requiresWater = BehaviorArgParser.getBoolean(arguments, "requires-water", false);
             boolean resetOnHarvest = BehaviorArgParser.getBoolean(arguments, "reset-on-harvest", true);
             Set<Key> harvestToolTags = SoilRuleSupport.parseKeys(arguments, "harvest-tool-tags");
-            Set<String> harvestToolItems = parseConfiguredItemIds(arguments, "harvest-tool-items");
+            Set<String> harvestToolItems = parseConfiguredItemIds(arguments);
             SoilRules soilRules = SoilRuleSupport.parseSoilRules(arguments);
-            Set<Key> extraPlantingItems = parseConfiguredKeys(arguments,
-                    "extra-planting-items", "extra_planting_items", "extraPlantingItems");
+            Set<Key> extraPlantingItems = parseConfiguredKeys(arguments
+            );
             
             String upperBlockStr = BehaviorArgParser.getString(arguments, "upper-block", "");
             Key upperBlockId = upperBlockStr.isEmpty() ? null : Key.of(upperBlockStr);
@@ -469,7 +474,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
                 // that pushes the lower half into its supporting stage only
                 // spawns a fresh upper half at age 0, without immediately
                 // carrying overflow growth into the panicles.
-                placeUpperHalfWithAge(upperBlock, 0);
+                placeUpperHalfWithAge(upperBlock);
             }
             return true;
         }
@@ -498,7 +503,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
             placeMatureLowerHalf(bukkitBlock, state);
             Block upperBlock = world.getBlockAt(pos.x(), pos.y() + 1, pos.z());
             if (upperBlock.getType().isAir()) {
-                placeUpperHalfWithAge(upperBlock, 0);
+                placeUpperHalfWithAge(upperBlock);
             }
             return;
         }
@@ -515,7 +520,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
         CraftEngineBlocks.place(bukkitBlock.getLocation(), matureState, false);
     }
 
-    private void placeUpperHalfWithAge(Block upperBlock, int age) {
+    private void placeUpperHalfWithAge(Block upperBlock) {
         BlockDefinition upperBlockDefinition = config.upperBlockId() != null
                 ? CraftEngineBlocks.byId(config.upperBlockId())
                 : CraftEngineBlocks.byId(block().id());
@@ -524,7 +529,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
         }
 
         ImmutableBlockState upperState = upperBlockDefinition.defaultState()
-                .with(config.ageProperty(), age)
+                .with(config.ageProperty(), 0)
                 ;
         upperState = withRaw(upperState, config.halfProperty(), config.halfUpperValue());
         CraftEngineBlocks.place(upperBlock.getLocation(), upperState, false);
@@ -681,8 +686,8 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
         
     }
 
-    private static Set<String> parseConfiguredItemIds(Map<String, Object> arguments, String key) {
-        Object raw = arguments != null ? arguments.get(key) : null;
+    private static Set<String> parseConfiguredItemIds(Map<String, Object> arguments) {
+        Object raw = arguments != null ? arguments.get("harvest-tool-items") : null;
         if (!(raw instanceof Iterable<?> iterable)) {
             return Collections.emptySet();
         }
@@ -700,10 +705,10 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
         return result;
     }
 
-    private static Set<Key> parseConfiguredKeys(Map<String, Object> arguments, String... keys) {
+    private static Set<Key> parseConfiguredKeys(Map<String, Object> arguments) {
         Object raw = null;
         if (arguments != null) {
-            for (String key : keys) {
+            for (String key : new String[]{"extra-planting-items", "extra_planting_items", "extraPlantingItems"}) {
                 if (arguments.containsKey(key)) {
                     raw = arguments.get(key);
                     break;
@@ -756,18 +761,18 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
         }
     }
 
-    private static int inferMaxIntegerValue(Property<Integer> property, int fallback) {
+    private static int inferMaxIntegerValue(Property<Integer> property) {
         if (property == null) {
-            return fallback;
+            return 4;
         }
         try {
             List<Integer> values = property.possibleValues();
             if (values == null || values.isEmpty()) {
-                return fallback;
+                return 4;
             }
             return Collections.max(values);
         } catch (Exception ignored) {
-            return fallback;
+            return 4;
         }
     }
 

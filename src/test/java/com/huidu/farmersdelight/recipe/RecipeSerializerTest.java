@@ -6,9 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 class RecipeSerializerTest {
 
@@ -41,7 +39,7 @@ class RecipeSerializerTest {
         String serialized = RecipeSerializer.serializeIngredient(original);
         assertTrue(serialized.startsWith("#farmersdelight:vegetables"), serialized);
 
-        RecipeIngredient.Tag parsed = RecipeParsingSupport.parseTagIngredientWithExclusions(serialized, "ingredient");
+        RecipeIngredient.Tag parsed = RecipeParsingSupport.parseTagIngredientWithExclusions(serialized);
         assertEquals(original.key(), parsed.key());
         assertEquals(original.excludedItems(), parsed.excludedItems());
         assertEquals(original.excludedTags(), parsed.excludedTags());
@@ -87,7 +85,7 @@ class RecipeSerializerTest {
         assertEquals(original.getKey(), parsed.key());
         assertEquals(original.getExcludedItems(), parsed.excludedItems());
         assertEquals(original.getExcludedTags(), parsed.excludedTags());
-        assertTrue(original.asIngredient() instanceof RecipeIngredient.Tag);
+        assertInstanceOf(RecipeIngredient.Tag.class, original.asIngredient());
     }
 
     @Test

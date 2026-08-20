@@ -13,7 +13,6 @@ import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
-import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.behavior.BonemealableBlock;
 import net.momirealms.craftengine.core.block.behavior.RandomTickBlock;
@@ -95,7 +94,7 @@ public class MushroomColonyBehavior extends FarmersDelightBlockBehavior implemen
             bonemealMaxAgeBonus = bonemealMinAgeBonus;
         }
         Set<Key> harvestToolTags = SoilRuleSupport.parseKeys(arguments, "harvest-tool-tags");
-        Set<String> harvestToolItems = parseConfiguredItemIds(arguments, "harvest-tool-items");
+        Set<String> harvestToolItems = parseConfiguredItemIds(arguments);
         SoilRuleSupport.SoilRules growSoilRules = parseGrowSoilRules(arguments);
         String mushroomItemId = BehaviorArgParser.getString(arguments, "mushroom-type", "");
 
@@ -281,9 +280,7 @@ public class MushroomColonyBehavior extends FarmersDelightBlockBehavior implemen
         String vanillaItemId = ItemUtils.getVanillaMaterialItemId(item);
         if (vanillaItemId != null) {
             if (specificItemId == null || specificItemId.equalsIgnoreCase(vanillaItemId)) {
-                if (config.harvestToolItems().contains(vanillaItemId)) {
-                    return true;
-                }
+                return config.harvestToolItems().contains(vanillaItemId);
             }
         }
 
@@ -395,8 +392,8 @@ public class MushroomColonyBehavior extends FarmersDelightBlockBehavior implemen
         
     }
 
-    private static Set<String> parseConfiguredItemIds(Map<String, Object> arguments, String key) {
-        Object raw = arguments != null ? arguments.get(key) : null;
+    private static Set<String> parseConfiguredItemIds(Map<String, Object> arguments) {
+        Object raw = arguments != null ? arguments.get("harvest-tool-items") : null;
         if (!(raw instanceof Iterable<?> iterable)) {
             return Collections.emptySet();
         }

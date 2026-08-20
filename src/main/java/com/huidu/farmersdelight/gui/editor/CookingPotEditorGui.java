@@ -176,9 +176,16 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
         boolean top = raw >= 0 && raw < config.getSize();
 
         if (!top) {
-            ItemStack clicked = event.getCurrentItem();
-            if (clicked != null && !clicked.getType().isAir()) {
-                player.setItemOnCursor(cleanCopy(clicked));
+            ItemStack cursor = event.getCursor();
+            if (cursor != null && !cursor.getType().isAir()) {
+                // Picked-up copies never leave the inventory, so dropping the cursor cancels the pickup
+                // and lets the player put the item back without touching the GUI.
+                player.setItemOnCursor(null);
+            } else {
+                ItemStack clicked = event.getCurrentItem();
+                if (clicked != null && !clicked.getType().isAir()) {
+                    player.setItemOnCursor(cleanCopy(clicked));
+                }
             }
             return;
         }
@@ -257,7 +264,9 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
                 render();
                 return;
             case "result-count":
-                resultCount = clamp(resultCount + (click.isRightClick() ? -1 : 1), 1, 64);
+                // Shift-click adjusts by tens, plain click by one.
+                resultCount = clamp(resultCount + (click.isRightClick()
+                        ? (click.isShiftClick() ? -10 : -1) : (click.isShiftClick() ? 10 : 1)), 1, 64);
                 if (result != null) {
                     result.setAmount(resultCount);
                 }
@@ -276,7 +285,8 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
                 return;
             }
             case "priority":
-                priority = clamp(priority + (click.isRightClick() ? -1 : 1), -100, 100);
+                priority = clamp(priority + (click.isRightClick()
+                        ? (click.isShiftClick() ? -10 : -1) : (click.isShiftClick() ? 10 : 1)), -100, 100);
                 render();
                 return;
             case "category": {

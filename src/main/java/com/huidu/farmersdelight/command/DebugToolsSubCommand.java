@@ -14,17 +14,24 @@ final class DebugToolsSubCommand extends SubCommand {
     private static final String DEBUG_TOOLS_CLASS = "com.huidu.farmersdelight.debug.DebugToolsCommand";
 
     private final Object delegate;
+    private final java.lang.reflect.Method executeMethod;
+    private final java.lang.reflect.Method tabCompleteMethod;
 
-    private DebugToolsSubCommand(Object delegate) {
+    private DebugToolsSubCommand(Object delegate, java.lang.reflect.Method executeMethod,
+                                 java.lang.reflect.Method tabCompleteMethod) {
         super("debugtools", List.of("debug", "perf"), "farmersdelight.admin", "literal:debug performance tools");
         this.delegate = delegate;
+        this.executeMethod = executeMethod;
+        this.tabCompleteMethod = tabCompleteMethod;
     }
 
     static DebugToolsSubCommand create(FarmersDelightPlugin plugin) {
         try {
             Class<?> type = Class.forName(DEBUG_TOOLS_CLASS);
             Object delegate = type.getConstructor(FarmersDelightPlugin.class).newInstance(plugin);
-            return new DebugToolsSubCommand(delegate);
+            java.lang.reflect.Method execute = type.getMethod("execute", CommandSender.class, String.class, String[].class);
+            java.lang.reflect.Method tabComplete = type.getMethod("tabComplete", CommandSender.class, String[].class);
+            return new DebugToolsSubCommand(delegate, execute, tabComplete);
         } catch (ReflectiveOperationException e) {
             I18n.logWarning("plugin.debug_tools_missing");
             return null;
@@ -34,9 +41,7 @@ final class DebugToolsSubCommand extends SubCommand {
     @Override
     void execute(CommandSender sender, String label, String[] args) {
         try {
-            delegate.getClass()
-                    .getMethod("execute", CommandSender.class, String.class, String[].class)
-                    .invoke(delegate, sender, label, args);
+            executeMethod.invoke(delegate, sender, label, args);
         } catch (ReflectiveOperationException e) {
             sender.sendMessage(MINI.deserialize("<red>Debug tools are not available in this build.</red>"));
         }
@@ -45,9 +50,7 @@ final class DebugToolsSubCommand extends SubCommand {
     @Override
     List<String> tabComplete(CommandSender sender, String[] args) {
         try {
-            Object result = delegate.getClass()
-                    .getMethod("tabComplete", CommandSender.class, String[].class)
-                    .invoke(delegate, sender, args);
+            Object result = tabCompleteMethod.invoke(delegate, sender, args);
             if (result instanceof List<?> list) {
                 List<String> completions = new ArrayList<>();
                 for (Object item : list) {
