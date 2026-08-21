@@ -153,8 +153,7 @@ public class AdvancementManager {
                 // best-effort
             }
             tab = null;
-            byId.clear();
-            multiTasks.clear();
+            clearRegistries();
             // A build failure discards the whole tab, so all 23 advancements vanish in-game at once. Log the
             // throwable with its stack trace (I18n.logWarning can't carry one) or the cause is undiagnosable.
             plugin.getLogger().log(java.util.logging.Level.WARNING,
@@ -193,8 +192,7 @@ public class AdvancementManager {
         gate.warnUnknownConfiguredIds(order);
         Set<String> currentGatedOff = AdvancementGate.orderedGatedOff(order, kept);
 
-        byId.clear();
-        multiTasks.clear();
+        clearRegistries();
         RootAdvancement root = null;
         Set<BaseAdvancement> children = new HashSet<>();
         for (NodeSpec spec : NODES) {
@@ -446,6 +444,11 @@ public class AdvancementManager {
         }
     }
 
+    private void clearRegistries() {
+        byId.clear();
+        multiTasks.clear();
+    }
+
     public void dispose() {
         try {
             UltimateAdvancementAPI api = UltimateAdvancementAPI.getInstance(plugin);
@@ -456,8 +459,7 @@ public class AdvancementManager {
             // UAA already unloaded / not enabled -- nothing to dispose.
         }
         tab = null;
-        byId.clear();
-        multiTasks.clear();
+        clearRegistries();
     }
 
     public void reload() {

@@ -111,6 +111,28 @@ public class ConnectedRugBlockBehavior extends RugBlockBehavior {
         refreshNeighbors(world, world.getBlockAt(pos.x(), pos.y(), pos.z()));
     }
 
+    // Each state names the edges whose fraying is removed: a connected neighbor removes that edge, so the
+    // variant string is exactly "no_" + the connected directions. Indexed by a 4-bit mask (N|S|E|W) so every
+    // combination maps to one value without a manual branching cascade.
+    private static final String[] VARIANT_BY_MASK = {
+            "none",                // no neighbors
+            "no_north",            // N
+            "no_south",            // S
+            "no_north_south",      // N, S
+            "no_east",             // E
+            "no_north_east",       // N, E
+            "no_south_east",       // S, E
+            "no_north_south_east", // N, S, E
+            "no_west",             // W
+            "no_north_west",       // N, W
+            "no_south_west",       // S, W
+            "no_north_south_west", // N, S, W
+            "no_east_west",        // E, W
+            "no_east_west_north",  // N, E, W
+            "no_east_west_south",  // S, E, W
+            "surrounded"           // N, S, E, W
+    };
+
     private void writeVariant(World world, Block self, ImmutableBlockState state) {
         Set<BlockFace> connected = EnumSet.noneOf(BlockFace.class);
         for (BlockFace face : HORIZONTAL) {
@@ -118,50 +140,15 @@ public class ConnectedRugBlockBehavior extends RugBlockBehavior {
                 connected.add(face);
             }
         }
-        boolean north = connected.contains(BlockFace.NORTH);
-        boolean south = connected.contains(BlockFace.SOUTH);
-        boolean east = connected.contains(BlockFace.EAST);
-        boolean west = connected.contains(BlockFace.WEST);
+        int mask = 0;
+        if (connected.contains(BlockFace.NORTH)) mask |= 1;
+        if (connected.contains(BlockFace.SOUTH)) mask |= 2;
+        if (connected.contains(BlockFace.EAST)) mask |= 4;
+        if (connected.contains(BlockFace.WEST)) mask |= 8;
 
-        // Each state names the edges whose fraying is removed; a connected neighbor removes that edge.
-        // Branches are ordered from most-connected to least-connected so every combination is unique.
-        String target;
-        if (north && south && east && west) {
-            target = "surrounded";
-        } else if (north && south && east) {
-            target = "no_north_south_east";
-        } else if (north && south && west) {
-            target = "no_north_south_west";
-        } else if (north && east && west) {
-            target = "no_east_west_north";
-        } else if (south && east && west) {
-            target = "no_east_west_south";
-        } else if (north && south) {
-            target = "no_north_south";
-        } else if (east && west) {
-            target = "no_east_west";
-        } else if (north && east) {
-            target = "no_north_east";
-        } else if (north && west) {
-            target = "no_north_west";
-        } else if (south && east) {
-            target = "no_south_east";
-        } else if (south && west) {
-            target = "no_south_west";
-        } else if (north) {
-            target = "no_north";
-        } else if (south) {
-            target = "no_south";
-        } else if (east) {
-            target = "no_east";
-        } else if (west) {
-            target = "no_west";
-        } else {
-            // No neighbors: fall back to the property default so removing a neighbor restores the plain
-            // unfrayed appearance instead of leaving a stale one-sided cull behind.
-            target = String.valueOf(variantProperty.defaultValue());
-        }
-
+        // With no neighbors the mask is 0, which restores the plain unfrayed appearance instead of leaving a
+        // stale one-sided cull behind.
+        String target = VARIANT_BY_MASK[mask];
         Object current = state.get(variantProperty);
         if (target.equals(String.valueOf(current))) {
             return;

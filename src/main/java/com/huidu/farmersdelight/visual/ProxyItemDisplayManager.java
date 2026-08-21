@@ -2,25 +2,15 @@ package com.huidu.farmersdelight.visual;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.util.ManagerSupport;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
-import it.unimi.dsi.fastutil.ints.IntList;
-import net.momirealms.craftengine.bukkit.entity.data.BaseEntityData;
-import net.momirealms.craftengine.bukkit.entity.data.DisplayData;
-import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
 import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
 import net.momirealms.craftengine.bukkit.plugin.network.BukkitNetworkManager;
 import net.momirealms.craftengine.core.plugin.network.NetWorkUser;
 import net.momirealms.craftengine.bukkit.util.EntityUtils;
-import net.momirealms.craftengine.proxy.minecraft.network.protocol.game.ClientboundAddEntityPacketProxy;
-import net.momirealms.craftengine.proxy.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacketProxy;
-import net.momirealms.craftengine.proxy.minecraft.network.protocol.game.ClientboundSetEntityDataPacketProxy;
-import net.momirealms.craftengine.proxy.minecraft.world.entity.EntityTypesProxy;
-import net.momirealms.craftengine.proxy.minecraft.world.phys.Vec3Proxy;
 import org.bukkit.Bukkit;
-import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -55,6 +45,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
     private static final int DEFAULT_SYNC_BATCH_SIZE = 256;
 
     private final FarmersDelightPlugin plugin;
+    private final ProxyDisplayPacketFactory packets;
     private final BukkitNetworkManager networkManager;
     private final Map<Integer, ProxyDisplay> displays = new ConcurrentHashMap<>();
     // Index of display ids by (world, chunk) so unload and player-centric visibility queries touch only
@@ -109,6 +100,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
 
     public ProxyItemDisplayManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
+        this.packets = new ProxyDisplayPacketFactory();
         BukkitCraftEngine craftEngine = BukkitCraftEngine.instance();
         if (craftEngine != null) {
             this.networkManager = craftEngine.networkManager();
@@ -152,6 +144,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
                 "performance.proxy-item-display-view-distance", DEFAULT_VIEW_DISTANCE));
         viewDistanceSquared = viewDistance * viewDistance;
         viewRangeMeta = (float) (viewDistance / 64.0D);
+        packets.reload(viewRangeMeta);
         syncIntervalTicks = Math.max(1, plugin.getConfig().getInt(
                 "performance.proxy-item-display-sync-interval-ticks", DEFAULT_SYNC_INTERVAL_TICKS));
         syncBatchSize = Math.max(1, plugin.getConfig().getInt(
@@ -176,9 +169,9 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
             DisplaySpec normalizedSpec = normalize(spec);
             int entityId = allocateEntityId();
             UUID entityUuid = UUID.randomUUID();
-            Object spawnPacket = createItemSpawnPacket(entityId, entityUuid, normalizedSpec);
-            Object metadataPacket = createItemMetadataPacket(entityId, normalizedSpec);
-            Object destroyPacket = createDestroyPacket(entityId);
+            Object spawnPacket = packets.createItemSpawnPacket(entityId, entityUuid, normalizedSpec);
+            Object metadataPacket = packets.createItemMetadataPacket(entityId, normalizedSpec);
+            Object destroyPacket = packets.createDestroyPacket(entityId);
             ProxyDisplay display = new ProxyDisplay(
                     entityId,
                     entityUuid,
@@ -214,9 +207,9 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         TextDisplaySpec normalizedSpec = normalizeText(spec);
         int entityId = allocateEntityId();
         UUID entityUuid = UUID.randomUUID();
-        Object spawnPacket = createTextSpawnPacket(entityId, entityUuid, normalizedSpec);
-        Object metadataPacket = createTextMetadataPacket(entityId, normalizedSpec);
-        Object destroyPacket = createDestroyPacket(entityId);
+        Object spawnPacket = packets.createTextSpawnPacket(entityId, entityUuid, normalizedSpec);
+        Object metadataPacket = packets.createTextMetadataPacket(entityId, normalizedSpec);
+        Object destroyPacket = packets.createDestroyPacket(entityId);
         ProxyDisplay display = new ProxyDisplay(
                 entityId,
                 entityUuid,
@@ -255,8 +248,8 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
                 current.location(), text, current.transformation(),
                 current.backgroundColor(), current.shadowed(), current.seeThrough());
         display.textSpec = updated;
-        display.metadataPacket = createTextMetadataPacket(entityId, updated);
-        display.spawnPacket = createTextSpawnPacket(entityId, display.entityUuid, updated);
+        display.metadataPacket = packets.createTextMetadataPacket(entityId, updated);
+        display.spawnPacket = packets.createTextSpawnPacket(entityId, display.entityUuid, updated);
         display.spawnPackets = List.of(display.spawnPacket, display.metadataPacket);
         sendUpdateForAllViewers(display, null, display.metadataPacket);
         textUpdateCount.incrementAndGet();
@@ -284,8 +277,8 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         try {
             // Build the packets before mutating the display so a build failure leaves the old visual intact
             // and cannot propagate into the caller (see createDisplay).
-            newSpawnPacket = createItemSpawnPacket(entityId, display.entityUuid, normalizedSpec);
-            newMetadataPacket = createItemMetadataPacket(entityId, normalizedSpec);
+            newSpawnPacket = packets.createItemSpawnPacket(entityId, display.entityUuid, normalizedSpec);
+            newMetadataPacket = packets.createItemMetadataPacket(entityId, normalizedSpec);
         } catch (Throwable t) {
             logDisplayBuildFailure("update", spec, t);
             return false;
@@ -297,7 +290,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         Object positionPacket = previousSpec != null
                 && sameDisplayPosition(previousSpec.location(), normalizedSpec.location())
                 ? null
-                : createPositionPacket(entityId, normalizedSpec.location());
+                : packets.createPositionPacket(entityId, normalizedSpec.location());
         synchronized (display) {
             // destroyDisplay removes from the map before taking this monitor. Abort if it won the race;
             // otherwise destroy waits and will de-index the new location after this update completes.
@@ -350,10 +343,6 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         }
     }
 
-    private static long chunkKeyOf(Location location) {
-        return ((long) (location.getBlockX() >> 4) << 32) | ((location.getBlockZ() >> 4) & 0xffffffffL);
-    }
-
     private void indexDisplay(ProxyDisplay display) {
         indexDisplayAt(display.entityId, display.location());
     }
@@ -363,7 +352,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
             return;
         }
         displaysByChunk.computeIfAbsent(loc.getWorld().getUID(), k -> new ConcurrentHashMap<>())
-                .computeIfAbsent(chunkKeyOf(loc), k -> ConcurrentHashMap.newKeySet())
+                .computeIfAbsent(ManagerSupport.chunkKey(loc), k -> ConcurrentHashMap.newKeySet())
                 .add(entityId);
     }
 
@@ -379,7 +368,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         if (byChunk == null) {
             return;
         }
-        long chunkKey = chunkKeyOf(loc);
+        long chunkKey = ManagerSupport.chunkKey(loc);
         Set<Integer> ids = byChunk.get(chunkKey);
         if (ids != null) {
             ids.remove(entityId);
@@ -458,28 +447,24 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
-        onlinePlayers.put(event.getPlayer().getUniqueId(), event.getPlayer());
-        plugin.scheduler().runLaterForEntity(event.getPlayer(), () -> syncPlayer(event.getPlayer()), 5L);
+        schedulePlayerSync(event.getPlayer(), 5L);
     }
 
     @EventHandler
     public void onPlayerChangedWorld(PlayerChangedWorldEvent event) {
-        onlinePlayers.put(event.getPlayer().getUniqueId(), event.getPlayer());
         clearViewer(event.getPlayer().getUniqueId());
-        plugin.scheduler().runLaterForEntity(event.getPlayer(), () -> syncPlayer(event.getPlayer()), 2L);
+        schedulePlayerSync(event.getPlayer(), 2L);
     }
 
     @EventHandler
     public void onPlayerTeleport(PlayerTeleportEvent event) {
-        onlinePlayers.put(event.getPlayer().getUniqueId(), event.getPlayer());
-        plugin.scheduler().runLaterForEntity(event.getPlayer(), () -> syncPlayer(event.getPlayer()), 2L);
+        schedulePlayerSync(event.getPlayer(), 2L);
     }
 
     @EventHandler
     public void onPlayerRespawn(PlayerRespawnEvent event) {
-        onlinePlayers.put(event.getPlayer().getUniqueId(), event.getPlayer());
         clearViewer(event.getPlayer().getUniqueId());
-        plugin.scheduler().runLaterForEntity(event.getPlayer(), () -> syncPlayer(event.getPlayer()), 2L);
+        schedulePlayerSync(event.getPlayer(), 2L);
     }
 
     @EventHandler
@@ -494,7 +479,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         if (byChunk == null) {
             return;
         }
-        long chunkKey = ((long) event.getChunk().getX() << 32) | (event.getChunk().getZ() & 0xffffffffL);
+        long chunkKey = ManagerSupport.chunkKey(event.getChunk().getX(), event.getChunk().getZ());
         Set<Integer> ids = byChunk.get(chunkKey);
         if (ids == null || ids.isEmpty()) {
             return;
@@ -503,6 +488,11 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         for (Integer entityId : new ArrayList<>(ids)) {
             destroyDisplay(entityId);
         }
+    }
+
+    private void schedulePlayerSync(Player player, long delayTicks) {
+        onlinePlayers.put(player.getUniqueId(), player);
+        plugin.scheduler().runLaterForEntity(player, () -> syncPlayer(player), delayTicks);
     }
 
     private void startSyncTask() {
@@ -708,7 +698,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         Set<Integer> candidates = new HashSet<>();
         for (int x = centerX - radius; x <= centerX + radius; x++) {
             for (int z = centerZ - radius; z <= centerZ + radius; z++) {
-                Set<Integer> ids = byChunk.get(((long) x << 32) | (z & 0xffffffffL));
+                Set<Integer> ids = byChunk.get(ManagerSupport.chunkKey(x, z));
                 if (ids != null) {
                     candidates.addAll(ids);
                 }
@@ -991,119 +981,10 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         }
     }
 
-    private Object createItemSpawnPacket(int entityId, UUID entityUuid, DisplaySpec spec) {
-        return buildSpawnPacket(entityId, entityUuid, spec.location(), EntityTypesProxy.ITEM_DISPLAY);
-    }
-
-    private Object createTextSpawnPacket(int entityId, UUID entityUuid, TextDisplaySpec spec) {
-        return buildSpawnPacket(entityId, entityUuid, spec.location(), EntityTypesProxy.TEXT_DISPLAY);
-    }
-
-    private Object buildSpawnPacket(int entityId, UUID entityUuid, Location location, Object entityType) {
-        return ClientboundAddEntityPacketProxy.INSTANCE.newInstance(
-                entityId,
-                entityUuid,
-                location.getX(),
-                location.getY(),
-                location.getZ(),
-                0.0F,
-                0.0F,
-                entityType,
-                0,
-                Vec3Proxy.ZERO,
-                0.0D
-        );
-    }
-
-    private Object createPositionPacket(int entityId, Location location) {
-        return EntityUtils.createUpdatePosPacket(entityId, location.getX(), location.getY(), location.getZ(), 0.0F, 0.0F, false);
-    }
-
     private void logDisplayBuildFailure(String op, DisplaySpec spec, Throwable t) {
         String item = spec != null && spec.itemStack() != null ? spec.itemStack().getType().name() : "null";
         plugin.getLogger().log(java.util.logging.Level.WARNING,
                 "Skipped item display " + op + " for " + item + " so the interaction is not aborted", t);
-    }
-
-    private Object createItemMetadataPacket(int entityId, DisplaySpec spec) {
-        List<Object> values = new ArrayList<>();
-        BaseEntityData.NoGravity.addEntityData(true, values);
-        BaseEntityData.Silent.addEntityData(true, values);
-
-        var wrappedItem = BukkitItemManager.instance().wrap(spec.itemStack());
-        if (wrappedItem != null && !wrappedItem.isEmpty()) {
-            DisplayData.ItemDisplayData.ItemStack.addEntityData(wrappedItem.minecraftItem(), values);
-        } else if (spec.itemStack() != null && !spec.itemStack().getType().isAir()) {
-            // The display item could not be wrapped into a client item, so the entity would render empty.
-            // Surface it rather than showing a silently invisible display.
-            I18n.logWarning("visual.item_display_no_client_item",
-                    "type", spec.itemStack().getType().name());
-        }
-
-        var transformation = spec.transformation();
-        DisplayData.ItemDisplayData.Translation.addEntityData(transformation.getTranslation(), values);
-        DisplayData.ItemDisplayData.Scale.addEntityData(transformation.getScale(), values);
-        DisplayData.ItemDisplayData.LeftRotation.addEntityData(transformation.getLeftRotation(), values);
-        DisplayData.ItemDisplayData.RightRotation.addEntityData(transformation.getRightRotation(), values);
-        if (spec.interpolationDurationTicks() > 0) {
-            // Animate transform changes (e.g. the grill's skewer flip): the client tweens from its current
-            // transform to this one over `duration` ticks, starting after `delay`. Only meaningful on an
-            // update that changes the transform; on a fresh spawn/resync of an unchanged transform it is a
-            // no-op tween. Floor is 1.21 (>=1.20.2), so only the Transformation* interpolation fields apply.
-            DisplayData.TransformationInterpolationDelay.addEntityData(spec.interpolationDelayTicks(), values);
-            DisplayData.TransformationInterpolationDuration.addEntityData(spec.interpolationDurationTicks(), values);
-        }
-        DisplayData.ItemDisplayData.ItemTransform.addEntityData(toCeDisplayContext(spec.itemTransform()), values);
-        DisplayData.ItemDisplayData.ShadowRadius.addEntityData(0.0F, values);
-        DisplayData.ItemDisplayData.ShadowStrength.addEntityData(0.0F, values);
-        DisplayData.ItemDisplayData.Width.addEntityData(0.0F, values);
-        DisplayData.ItemDisplayData.Height.addEntityData(0.0F, values);
-        DisplayData.ItemDisplayData.ViewRange.addEntityData(viewRangeMeta, values);
-        return createEntityDataPacket(entityId, values);
-    }
-
-    private Object createTextMetadataPacket(int entityId, TextDisplaySpec spec) {
-        List<Object> values = new ArrayList<>();
-        BaseEntityData.NoGravity.addEntityData(true, values);
-        BaseEntityData.Silent.addEntityData(true, values);
-
-        var transformation = spec.transformation();
-        DisplayData.Translation.addEntityData(transformation.getTranslation(), values);
-        DisplayData.Scale.addEntityData(transformation.getScale(), values);
-        DisplayData.LeftRotation.addEntityData(transformation.getLeftRotation(), values);
-        DisplayData.RightRotation.addEntityData(transformation.getRightRotation(), values);
-        // Billboard CENTER (3) — text always faces the viewer.
-        DisplayData.BillboardConstraints.addEntityData((byte) 3, values);
-        DisplayData.ViewRange.addEntityData(viewRangeMeta, values);
-
-        // Text bodies for cooking-pot progress are pure ASCII ("100%" / "Apple 80%"), so a plain-text
-        // round-trip through ComponentProxy.literal avoids the shaded-Adventure bridge in
-        // CE's ComponentUtils.adventureToMinecraft (whose Component arg resolves to CE's relocated
-        // adventure package, unreachable from addon compile classpath).
-        String plain = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(spec.text());
-        Object componentValue = net.momirealms.craftengine.proxy.minecraft.network.chat.ComponentProxy.INSTANCE.literal(plain);
-        DisplayData.TextDisplayData.Text.addEntityData(componentValue, values);
-        DisplayData.TextDisplayData.BackgroundColor.addEntityData(colorToArgb(spec.backgroundColor()), values);
-        byte flags = net.momirealms.craftengine.bukkit.entity.data.DisplayData.TextDisplayData.encodeFlags(
-                spec.shadowed(),
-                spec.seeThrough(),
-                false,
-                net.momirealms.craftengine.core.entity.display.TextDisplayAlignment.CENTER);
-        DisplayData.TextDisplayData.Flags.addEntityData(flags, values);
-        return createEntityDataPacket(entityId, values);
-    }
-
-    private static int colorToArgb(Color color) {
-        if (color == null) return 0;
-        return (color.getAlpha() << 24) | (color.getRed() << 16) | (color.getGreen() << 8) | color.getBlue();
-    }
-
-    private Object createEntityDataPacket(int entityId, List<?> values) {
-        return ClientboundSetEntityDataPacketProxy.INSTANCE.newInstance(entityId, values);
-    }
-
-    private Object createDestroyPacket(int entityId) {
-        return ClientboundRemoveEntitiesPacketProxy.INSTANCE.newInstance(IntList.of(entityId));
     }
 
     private void clearViewer(UUID playerId) {
@@ -1131,23 +1012,6 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         if (visible.isEmpty()) {
             visibleDisplaysByPlayer.remove(playerId, visible);
         }
-    }
-
-    private byte toCeDisplayContext(ItemDisplay.ItemDisplayTransform transform) {
-        if (transform == null) {
-            return 0;
-        }
-        return switch (transform) {
-            case THIRDPERSON_LEFTHAND -> 1;
-            case THIRDPERSON_RIGHTHAND -> 2;
-            case FIRSTPERSON_LEFTHAND -> 3;
-            case FIRSTPERSON_RIGHTHAND -> 4;
-            case HEAD -> 5;
-            case GUI -> 6;
-            case GROUND -> 7;
-            case FIXED -> 8;
-            default -> 0;
-        };
     }
 
     private DisplaySpec normalize(DisplaySpec spec) {
@@ -1187,17 +1051,16 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
     }
 
     public void resetDebugStats() {
-        itemSpawnCount.set(0);
-        itemUpdateCount.set(0);
-        textSpawnCount.set(0);
-        textUpdateCount.set(0);
-        textUpdateDiffHitCount.set(0);
-        destroyCount.set(0);
-        viewerSpawnPacketCount.set(0);
-        viewerDestroyPacketCount.set(0);
-        viewerUpdatePacketCount.set(0);
-        syncRunCount.set(0);
+        resetCounters(itemSpawnCount, itemUpdateCount, textSpawnCount, textUpdateCount,
+                textUpdateDiffHitCount, destroyCount, viewerSpawnPacketCount, viewerDestroyPacketCount,
+                viewerUpdatePacketCount, syncRunCount);
         debugStatsResetEpochMs = System.currentTimeMillis();
+    }
+
+    private static void resetCounters(AtomicLong... counters) {
+        for (AtomicLong counter : counters) {
+            counter.set(0);
+        }
     }
 
     private int countByKind(boolean text) {

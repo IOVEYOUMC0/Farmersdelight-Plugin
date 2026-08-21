@@ -3,9 +3,7 @@ package com.huidu.farmersdelight.gui;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.recipe.SpecialRecipeInfo;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
-import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
 import com.huidu.farmersdelight.i18n.I18n;
-import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
 import com.huidu.farmersdelight.recipe.RecipeDiscoveryManager;
@@ -30,13 +28,11 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -54,13 +50,10 @@ public class RecipeViewGui extends AbstractInventoryGui {
     // hot node); this collapses a warm open/page to one clone. Cleared on config reload and whenever a
     // recipe manager republishes (loadRecipes). Values and returns are cloned like itemCache.
     private static final Map<String, ItemStack> recipeListDisplayCache = new ConcurrentHashMap<>();
-    // Tag/choice ingredient option caches live in RecipeIngredientIcons (extracted with the resolvers).
-    // Tool preview options include item/tag identity and exclusions, so cache by the complete requirement.
-    private static final Map<CuttingBoardRecipe.ToolRequirement, List<ItemStack>> toolPreviewCache = new ConcurrentHashMap<>();
+    // Ingredient option caches live in RecipeIngredientIcons; tool preview options live in ToolPreviewRenderer.
     private static final ItemStack EMPTY_SLOT_BACKGROUND = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
     static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
-    private static final int MAX_COMPACT_INGREDIENT_LINE_LENGTH = 42;
     private static final int GUI_TICK_INTERVAL_TICKS = 4;
 
     static {
@@ -87,21 +80,21 @@ public class RecipeViewGui extends AbstractInventoryGui {
     private boolean craftableOnly = false;
     private GuiState recipeBackState = GuiState.COOKING_POT_LIST;
     volatile int currentToolIndex = 0;
-    private volatile int currentToolPreviewIndex = 0;
+    volatile int currentToolPreviewIndex = 0;
     // Auto-cycle drivers for the detail slots that rotate through candidates (cutting-board tool preview,
     // special-recipe catalyst items). The shared CyclicSlot keeps the per-tick advancing in one place,
     // mirroring how the cooking-pot progress bar owns its frame progression.
     private final CyclicSlot toolCycle = new CyclicSlot(INGREDIENT_SWITCH_INTERVAL);
     private final CyclicSlot catalystCycle = new CyclicSlot(INGREDIENT_SWITCH_INTERVAL);
+    private final SpecialRecipeRenderer specialRecipeRenderer;
+    final RecipeIngredientDisplay ingredientDisplay;
+    final ToolPreviewRenderer toolPreviewRenderer;
     // Expanded catalyst options for the currently shown special recipe (tag references expand into
     // their member items); rebuilt each time the detail page is drawn.
     private volatile List<ItemStack> specialCatalystOptions = List.of();
-    private final Map<Integer, List<ItemStack>> animatedIngredientSlots = new HashMap<>();
-    private final Map<Integer, RecipeIngredient> animatedIngredientDefinitions = new HashMap<>();
-    private final Map<Integer, CyclicSlot> ingredientCycles = new HashMap<>();
     int cookingProcessBarTicks = 0;
     final RecipeDetailRenderer detailRenderer = new RecipeDetailRenderer(this);
-    private static final int INGREDIENT_SWITCH_INTERVAL = 20;
+    static final int INGREDIENT_SWITCH_INTERVAL = 20;
     
     private final boolean fromCookingPot;
     private final Location cookingPotLocation;
@@ -112,7 +105,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
     private boolean recipeGroupResolved;
     private String cachedRecipeGroupId;
     private boolean ignoreNextClose = false;
-    private FillButtonState fillButtonState = FillButtonState.READY;
+    private CookingPotFiller.FillButtonState fillButtonState = CookingPotFiller.FillButtonState.READY;
+    private CookingPotFiller cookingPotFiller;
+    private RecipeCraftability craftability;
     // Detail-to-detail navigation history: clicking a linked recipe (an ingredient/result that is itself
     // another recipe's output) pushes the detail it left, so "back" returns to that recipe instead of always
     // dropping to the original list. Reset when a detail is opened fresh from a list; empty history keeps the
@@ -135,6 +130,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
         this.fromCookingPot = fromCookingPot;
         this.cookingPotLocation = cookingPotLocation;
         this.config = getOrCreateConfig();
+        this.specialRecipeRenderer = new SpecialRecipeRenderer(this, plugin);
+        this.ingredientDisplay = new RecipeIngredientDisplay(this);
+        this.toolPreviewRenderer = new ToolPreviewRenderer(this, plugin);
         
         if (fromCookingPot) {
             this.state = GuiState.COOKING_POT_LIST;
@@ -191,7 +189,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         // stale item names would linger in the recipe GUI after /fd reload lang/gui.
         RecipeIngredientIcons.clearCaches();
         recipeListDisplayCache.clear();
-        toolPreviewCache.clear();
+        ToolPreviewRenderer.clearToolPreviewCache();
         RecipeDetailRenderer.clearProcessBarFrameCache();
         warnedMissingCustomCookingPotDetailConfigs.clear();
         warnedCookingPotDetailCapacityConfigs.clear();
@@ -199,7 +197,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     public static void clearRecipeDisplayCache() {
         recipeListDisplayCache.clear();
-        toolPreviewCache.clear();
+        ToolPreviewRenderer.clearToolPreviewCache();
     }
 
     private RecipeViewGuiConfig createDefaultConfig() {
@@ -290,7 +288,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (info == null) {
             return;
         }
-        RecipeViewGuiConfig.SpecialRecipeDetailConfig detailConfig = specialDetailFor(info);
+        RecipeViewGuiConfig.SpecialRecipeDetailConfig detailConfig = specialRecipeRenderer.specialDetailFor(info);
         List<Integer> slots = detailConfig.getCatalystItemSlots();
         List<ItemStack> options = specialCatalystOptions;
         if (slots.isEmpty() || options.size() <= 1) {
@@ -305,7 +303,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             // Rebuild slot 0 with the full catalyst list so auto-cycle never wipes it (see createSpecialCycleDisplay).
             boolean showFullList = info.hasCatalystInfo() && i == 0;
             inventory.setItem(slots.get(i),
-                    createSpecialCycleDisplay(options.get(optionIndex), optionIndex, options.size(),
+                    specialRecipeRenderer.createSpecialCycleDisplay(options.get(optionIndex), optionIndex, options.size(),
                             showFullList, options, player));
         }
     }
@@ -329,29 +327,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
     }
 
     private void tickIngredientSwitch() {
-        if (animatedIngredientSlots.isEmpty()) {
-            return;
-        }
-        if (player == null || !player.isOnline()) {
-            return;
-        }
-
-        for (Map.Entry<Integer, List<ItemStack>> entry : animatedIngredientSlots.entrySet()) {
-            List<ItemStack> options = entry.getValue();
-            if (options.size() <= 1) {
-                continue;
-            }
-
-            int slot = entry.getKey();
-            CyclicSlot cycle = ingredientCycles.computeIfAbsent(slot, s -> new CyclicSlot(INGREDIENT_SWITCH_INTERVAL));
-            cycle.tick();
-            int nextIndex = cycle.current(options.size());
-            RecipeIngredient ingredient = animatedIngredientDefinitions.get(slot);
-            if (ingredient == null) {
-                continue;
-            }
-            inventory.setItem(slot, createAnimatedIngredientDisplay(ingredient, options.get(nextIndex), options, player));
-        }
+        ingredientDisplay.tickIngredientSwitch();
     }
 
     private void tickCookingPotProcessBar() {
@@ -380,9 +356,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
     }
 
     private void resetDetailAnimations() {
-        animatedIngredientSlots.clear();
-        animatedIngredientDefinitions.clear();
-        ingredientCycles.clear();
+        ingredientDisplay.resetAnimations();
         cookingProcessBarTicks = 0;
     }
 
@@ -429,7 +403,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         RecipeViewGuiConfig.RecipeListConfig listConfig = config.getRecipeList();
         List<CookingPotRecipe> recipes = plugin.getCookingPotRecipes().getSortedRecipes(getActiveCookingPotRecipeGroup());
         if (craftableOnly) {
-            recipes = filterCraftableCookingPotRecipes(recipes);
+            recipes = craftability().filterCraftableCookingPotRecipes(recipes, player);
         }
         recipes = applyDiscoveryFilter(recipes, true, player);
         drawRecipeList(player, listConfig, recipes, true);
@@ -440,7 +414,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         RecipeViewGuiConfig.RecipeListConfig listConfig = config.getRecipeList();
         List<CuttingBoardRecipe> recipes = plugin.getCuttingBoardRecipes().getSortedRecipes();
         if (craftableOnly) {
-            recipes = filterCraftableCuttingBoardRecipes(recipes);
+            recipes = craftability().filterCraftableCuttingBoardRecipes(recipes, player);
         }
         recipes = applyDiscoveryFilter(recipes, false, player);
         drawRecipeList(player, listConfig, recipes, false);
@@ -449,21 +423,8 @@ public class RecipeViewGui extends AbstractInventoryGui {
     private <T> void drawRecipeList(Player player, RecipeViewGuiConfig.RecipeListConfig listConfig, 
                                     List<T> recipes, boolean isCookingPot) {
         List<Integer> recipeSlots = listConfig.getRecipeSlots();
-        int itemsPerPage = recipeSlots.size();
-        int totalPages = Math.max(1, (int) Math.ceil(recipes.size() / (double) itemsPerPage));
-        if (currentPage < 0) {
-            currentPage = 0;
-        } else if (currentPage >= totalPages) {
-            currentPage = totalPages - 1;
-        }
-
-        Map<String, String> titlePlaceholders = new HashMap<>();
-        titlePlaceholders.put("page", String.valueOf(currentPage + 1));
-        titlePlaceholders.put("total", String.valueOf(totalPages));
-        String title = resolveMenuTitle("recipe-list", "level_1", listConfig.getTitle(), titlePlaceholders);
-        inventory = Bukkit.createInventory(this, listConfig.getSize(), coloredComponent(title));
-
-        fillBackground(listConfig);
+        int totalPages = beginListPage(listConfig, recipeSlots, recipes.size(), "recipe-list", "level_1");
+        int startIndex = currentPage * recipeSlots.size();
 
         // Locale + (for cooking pots) the per-instance preview-count and active group fully determine
         // a non-locked display item's content, so cache the built item across opens/pages/players.
@@ -472,7 +433,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 ? "pot|" + getActiveCookingPotRecipeGroup() + '|' + config.getRecipeListMaxPreviewIngredients() + '|'
                 : "board|" + config.getRecipeListMaxPreviewIngredients() + '|';
 
-        int startIndex = currentPage * itemsPerPage;
         for (int i = 0; i < recipeSlots.size(); i++) {
             int recipeIndex = startIndex + i;
             if (recipeIndex < recipes.size()) {
@@ -527,14 +487,41 @@ public class RecipeViewGui extends AbstractInventoryGui {
         return !discovery.isUnlocked(player.getUniqueId(), typeId, id);
     }
 
-    private void drawListNavigation(RecipeViewGuiConfig.RecipeListConfig listConfig, int totalPages) {
-        if (currentPage > 0) {
-            setGuiItem(listConfig, "prev_page", listConfig.getPrevPageSlot());
+    // Shared pagination skeleton for the plain and special recipe lists: computes the page bounds,
+    // creates the titled inventory (with {page}/{total} resolved) and fills the background. Returns
+    // the total page count; the caller derives the start index from the current page.
+    private int beginListPage(RecipeViewGuiConfig.BaseConfig listConfig, List<Integer> recipeSlots,
+                              int totalItems, String guiPath, String legacyPath) {
+        int itemsPerPage = recipeSlots.size();
+        int totalPages = Math.max(1, (int) Math.ceil(totalItems / (double) itemsPerPage));
+        if (currentPage < 0) {
+            currentPage = 0;
+        } else if (currentPage >= totalPages) {
+            currentPage = totalPages - 1;
         }
 
-        if (currentPage < totalPages - 1) {
-            setGuiItem(listConfig, "next_page", listConfig.getNextPageSlot());
+        Map<String, String> titlePlaceholders = new HashMap<>();
+        titlePlaceholders.put("page", String.valueOf(currentPage + 1));
+        titlePlaceholders.put("total", String.valueOf(totalPages));
+        String title = resolveMenuTitle(guiPath, legacyPath, listConfig.getTitle(), titlePlaceholders);
+        inventory = Bukkit.createInventory(this, listConfig.getSize(), coloredComponent(title));
+
+        fillBackground(listConfig);
+        return totalPages;
+    }
+
+    // Draws the shared prev/next page affordances; only renders a button when its page exists.
+    private void drawPageButtons(RecipeViewGuiConfig.BaseConfig listConfig, int prevSlot, int nextSlot, int totalPages) {
+        if (currentPage > 0) {
+            setGuiItem(listConfig, "prev_page", prevSlot);
         }
+        if (currentPage < totalPages - 1) {
+            setGuiItem(listConfig, "next_page", nextSlot);
+        }
+    }
+
+    private void drawListNavigation(RecipeViewGuiConfig.RecipeListConfig listConfig, int totalPages) {
+        drawPageButtons(listConfig, listConfig.getPrevPageSlot(), listConfig.getNextPageSlot(), totalPages);
 
         drawListBackOrCloseButton(listConfig);
         setFilterToggleItem(listConfig, player);
@@ -673,70 +660,21 @@ public class RecipeViewGui extends AbstractInventoryGui {
         RecipeViewGuiConfig.SpecialRecipeListConfig listConfig = config.getSpecialRecipeList();
         List<SpecialRecipeInfo> recipes = plugin.getSpecialRecipeRegistry() != null
                 ? plugin.getSpecialRecipeRegistry().getAll() : List.of();
-        int itemsPerPage = listConfig.getRecipeSlots().size();
-        int totalPages = Math.max(1, (int) Math.ceil(recipes.size() / (double) itemsPerPage));
-        if (currentPage < 0) {
-            currentPage = 0;
-        } else if (currentPage >= totalPages) {
-            currentPage = totalPages - 1;
-        }
-
-        Map<String, String> titlePlaceholders = new HashMap<>();
-        titlePlaceholders.put("page", String.valueOf(currentPage + 1));
-        titlePlaceholders.put("total", String.valueOf(totalPages));
-        String title = resolveMenuTitle("special-recipe-list", null, listConfig.getTitle(), titlePlaceholders);
-        inventory = Bukkit.createInventory(this, listConfig.getSize(), coloredComponent(title));
-
-        fillBackground(listConfig);
-
         List<Integer> recipeSlots = listConfig.getRecipeSlots();
-        int startIndex = currentPage * itemsPerPage;
+        int totalPages = beginListPage(listConfig, recipeSlots, recipes.size(), "special-recipe-list", null);
+        int startIndex = currentPage * recipeSlots.size();
+
         for (int i = 0; i < recipeSlots.size(); i++) {
             int recipeIndex = startIndex + i;
             if (recipeIndex < recipes.size()) {
                 SpecialRecipeInfo info = recipes.get(recipeIndex);
-                ItemStack display = createSpecialRecipeListDisplayItem(info, player);
+                ItemStack display = specialRecipeRenderer.createSpecialRecipeListDisplayItem(info, player);
                 inventory.setItem(recipeSlots.get(i), display);
             }
         }
 
-        if (currentPage > 0) {
-            setGuiItem(listConfig, "prev_page", listConfig.getPrevPageSlot());
-        }
-        if (currentPage < totalPages - 1) {
-            setGuiItem(listConfig, "next_page", listConfig.getNextPageSlot());
-        }
+        drawPageButtons(listConfig, listConfig.getPrevPageSlot(), listConfig.getNextPageSlot(), totalPages);
         setGuiItem(listConfig, "back", listConfig.getBackSlot());
-    }
-
-    private ItemStack createSpecialRecipeListDisplayItem(SpecialRecipeInfo info, Player player) {
-        ItemStack icon = ItemUtils.createItem(info.iconItemId());
-        if (icon == null || icon.getType().isAir()) {
-            icon = new ItemStack(Material.KNOWLEDGE_BOOK);
-        }
-        ItemMeta meta = icon.getItemMeta();
-        meta.displayName(Component.translatable(info.titleKey())
-                .color(NamedTextColor.GOLD)
-                .decoration(TextDecoration.ITALIC, false));
-        List<Component> lore = new ArrayList<>();
-        for (String descKey : info.descriptionKeys()) {
-            lore.add(Component.translatable(descKey)
-                    .color(NamedTextColor.GRAY)
-                    .decoration(TextDecoration.ITALIC, false));
-        }
-        if (!isListOnlySpecial(info)) {
-            lore.add(Component.text(""));
-            lore.add(tr("gui.recipe.click_to_view", NamedTextColor.YELLOW));
-        }
-        meta.lore(lore);
-        icon.setItemMeta(meta);
-        return icon;
-    }
-
-    // Item-description and text entries are pure information: their whole description is shown as list
-    // lore, so they stay in the list with no click-through to a separate detail page.
-    private boolean isListOnlySpecial(SpecialRecipeInfo info) {
-        return info != null && SpecialRecipeInfo.DISPLAY_ITEM_DESCRIPTION.equals(info.displayType());
     }
 
     private void drawSpecialRecipeDetail(Player player) {
@@ -748,7 +686,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         // Start the catalyst auto-cycle from its first item each time this detail page is (re)drawn.
         catalystCycle.reset();
 
-        RecipeViewGuiConfig.SpecialRecipeDetailConfig detailConfig = specialDetailFor(info);
+        RecipeViewGuiConfig.SpecialRecipeDetailConfig detailConfig = specialRecipeRenderer.specialDetailFor(info);
         String title = resolveSpecialDetailTitle(detailConfig.guiKey(), detailConfig.getTitle(),
                 Map.of("recipe_id", info.id()), info);
         inventory = Bukkit.createInventory(this, detailConfig.getSize(), coloredComponent(title));
@@ -758,7 +696,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         // Description — combined into single slot with all lines as lore
         List<Integer> descSlots = detailConfig.getDescriptionSlots();
         if (!descSlots.isEmpty() && !info.descriptionKeys().isEmpty()) {
-            inventory.setItem(descSlots.get(0), createCombinedDescriptionItem(info.descriptionKeys(), player));
+            inventory.setItem(descSlots.get(0), specialRecipeRenderer.createCombinedDescriptionItem(info.descriptionKeys(), player));
         }
 
         // Input slots
@@ -766,7 +704,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         List<SpecialRecipeInfo.SlotEntry> inputs = info.inputSlots();
         for (int i = 0; i < inputSlots.size(); i++) {
             if (i < inputs.size()) {
-                inventory.setItem(inputSlots.get(i), createSlotEntryItem(inputs.get(i), player, NamedTextColor.AQUA));
+                inventory.setItem(inputSlots.get(i), specialRecipeRenderer.createSlotEntryItem(inputs.get(i), player, NamedTextColor.AQUA));
             } else {
                 inventory.setItem(inputSlots.get(i), createBackgroundItem(detailConfig));
             }
@@ -777,7 +715,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         List<SpecialRecipeInfo.SlotEntry> outputs = info.outputSlots();
         for (int i = 0; i < outputSlots.size(); i++) {
             if (i < outputs.size()) {
-                inventory.setItem(outputSlots.get(i), createSlotEntryItem(outputs.get(i), player, NamedTextColor.GREEN));
+                inventory.setItem(outputSlots.get(i), specialRecipeRenderer.createSlotEntryItem(outputs.get(i), player, NamedTextColor.GREEN));
             } else {
                 inventory.setItem(outputSlots.get(i), createBackgroundItem(detailConfig));
             }
@@ -788,17 +726,17 @@ public class RecipeViewGui extends AbstractInventoryGui {
         // the hover text, or by the slot item itself (items.sunlight / items.water / items.catalyst_info in
         // gui.yml, falling back to torch / water bucket / paper). When the recipe lacks the condition, the
         // slot clears to plain background so the fillBackground copy and its tooltip do not linger.
-        setConditionSlot(detailConfig, "sunlight", detailConfig.getSunlightSlot(), info.hasSunlight(),
-                hasTitleConditionImage(detailConfig.guiKey(), "sunlight"),
+        specialRecipeRenderer.setConditionSlot(detailConfig, "sunlight", detailConfig.getSunlightSlot(), info.hasSunlight(),
+                specialRecipeRenderer.hasTitleConditionImage(detailConfig.guiKey(), "sunlight"),
                 "minecraft:torch", "gui.condition.sunlight", "gui.condition.sunlight_lore", NamedTextColor.YELLOW);
-        setConditionSlot(detailConfig, "water", detailConfig.getWaterSlot(), info.hasWater(),
-                hasTitleConditionImage(detailConfig.guiKey(), "water"),
+        specialRecipeRenderer.setConditionSlot(detailConfig, "water", detailConfig.getWaterSlot(), info.hasWater(),
+                specialRecipeRenderer.hasTitleConditionImage(detailConfig.guiKey(), "water"),
                 "minecraft:water_bucket", "gui.condition.water", "gui.condition.water_lore", NamedTextColor.BLUE);
         // Resolve the catalyst blocks once; they feed the switching catalyst item slots (G) and their lore.
-        List<ItemStack> catalystOptions = expandSpecialEntries(info.catalystSlots());
+        List<ItemStack> catalystOptions = specialRecipeRenderer.expandSpecialEntries(info.catalystSlots());
 
-        setConditionSlot(detailConfig, "catalyst_info", detailConfig.getCatalystInfoSlot(), info.hasCatalystInfo(),
-                hasTitleConditionImage(detailConfig.guiKey(), "catalyst_info"),
+        specialRecipeRenderer.setConditionSlot(detailConfig, "catalyst_info", detailConfig.getCatalystInfoSlot(), info.hasCatalystInfo(),
+                specialRecipeRenderer.hasTitleConditionImage(detailConfig.guiKey(), "catalyst_info"),
                 "minecraft:paper", "gui.condition.catalyst_info", "gui.condition.catalyst_info_lore", NamedTextColor.GOLD);
 
         // Catalyst item slots (G) — the auto-cycle timer rotates through the resolved items. The full
@@ -810,7 +748,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             if (!catalystOptions.isEmpty()) {
                 int optionIndex = (catalystCycle.current(catalystOptions.size()) + i) % catalystOptions.size();
                 inventory.setItem(catalystItemSlots.get(i),
-                        createSpecialCycleDisplay(catalystOptions.get(optionIndex), optionIndex, catalystOptions.size(),
+                        specialRecipeRenderer.createSpecialCycleDisplay(catalystOptions.get(optionIndex), optionIndex, catalystOptions.size(),
                                 info.hasCatalystInfo() && i == 0, catalystOptions, player));
             } else {
                 inventory.setItem(catalystItemSlots.get(i), createBackgroundItem(detailConfig));
@@ -818,154 +756,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
         }
 
         setGuiItem(detailConfig, "back", detailConfig.getBackSlot());
-    }
-
-    /** Expands special-recipe slot entries into concrete display items ("#tag" / behavior-list refs). */
-    private List<ItemStack> expandSpecialEntries(List<SpecialRecipeInfo.SlotEntry> entries) {
-        if (entries.isEmpty()) {
-            return List.of();
-        }
-        List<ItemStack> options = new ArrayList<>();
-        for (SpecialRecipeInfo.SlotEntry entry : entries) {
-            options.addAll(ItemUtils.createSlotItems(entry.itemId(), entry.behaviorBlockId(), entry.behaviorListKey()));
-        }
-        return options;
-    }
-
-    /**
-     * A catalyst cycle slot item. Unlike the tool/ingredient switchers (which rebuild the whole lore on
-     * every tick), this used to depend on a one-time appendCatalystListLore after page draw, so the full
-     * catalyst list was wiped as soon as auto-cycle overwrote the slot. Each candidate now carries its own
-     * copy of the list lore when showFullList is set, so switching can never lose it.
-     */
-    private ItemStack createSpecialCycleDisplay(ItemStack item, int currentIndex, int total,
-                                                boolean showFullList, List<ItemStack> options, Player player) {
-        ItemStack copy = item.clone();
-        ItemMeta meta = copy.getItemMeta();
-        List<Component> lore = meta.lore() == null ? new ArrayList<>() : new ArrayList<>(meta.lore());
-        if (showFullList && !options.isEmpty()) {
-            for (ItemStack catalyst : options) {
-                lore.add(Component.text("- " + ItemUtils.getDisplayName(catalyst, player))
-                        .color(NamedTextColor.GRAY)
-                        .decoration(TextDecoration.ITALIC, false));
-            }
-        }
-        lore.add(Component.text(""));
-        lore.add(tr("gui.recipe.auto_cycle", currentIndex + 1, total));
-        meta.lore(lore);
-        copy.setItemMeta(meta);
-        return copy;
-    }
-
-    private ItemStack createCombinedDescriptionItem(List<String> translationKeys, Player player) {
-        ItemStack item = new ItemStack(Material.PAPER);
-        ItemMeta meta = item.getItemMeta();
-        if (translationKeys.isEmpty()) {
-            meta.displayName(Component.text(""));
-            meta.lore(List.of());
-            item.setItemMeta(meta);
-            return item;
-        }
-        meta.displayName(Component.translatable(translationKeys.get(0))
-                .color(NamedTextColor.WHITE)
-                .decoration(TextDecoration.ITALIC, false));
-        List<Component> lore = new ArrayList<>();
-        for (int i = 1; i < translationKeys.size(); i++) {
-            lore.add(Component.translatable(translationKeys.get(i))
-                    .color(NamedTextColor.GRAY)
-                    .decoration(TextDecoration.ITALIC, false));
-        }
-        meta.lore(lore);
-        item.setItemMeta(meta);
-        return item;
-    }
-
-    private ItemStack createSlotEntryItem(SpecialRecipeInfo.SlotEntry entry, Player player, NamedTextColor nameColor) {
-        List<ItemStack> options = ItemUtils.createSlotItems(entry.itemId(), entry.behaviorBlockId(), entry.behaviorListKey());
-        ItemStack item = options.isEmpty() ? new ItemStack(Material.BARRIER) : options.get(0).clone();
-        ItemMeta meta = item.getItemMeta();
-        // A "#tag" / behavior-list reference has no single member name; keep each member's own display name.
-        boolean referenced = entry.itemId() != null && entry.itemId().startsWith("#") || entry.isBehaviorList();
-        // Only override the item's own name/lore when the entry supplies one, so an entry without a name
-        // or lore keeps the item's existing display name and tooltip.
-        if (!referenced && entry.nameKey() != null && !entry.nameKey().isEmpty()) {
-            meta.displayName(Component.translatable(entry.nameKey())
-                    .color(nameColor)
-                    .decoration(TextDecoration.ITALIC, false));
-        }
-        if (!entry.loreKeys().isEmpty()) {
-            List<Component> lore = new ArrayList<>();
-            for (String loreKey : entry.loreKeys()) {
-                lore.add(Component.translatable(loreKey)
-                        .color(NamedTextColor.GRAY)
-                        .decoration(TextDecoration.ITALIC, false));
-            }
-            meta.lore(lore);
-        }
-        item.setItemMeta(meta);
-        return item;
-    }
-
-    private void setConditionSlot(RecipeViewGuiConfig.SpecialRecipeDetailConfig detailConfig, String key, int slot,
-                                  boolean active, boolean titleDrawn, String defaultItemId, String nameKey, String loreKey, NamedTextColor color) {
-        if (slot < 0) {
-            return;
-        }
-        if (!active) {
-            inventory.setItem(slot, createBackgroundItem(detailConfig));
-            return;
-        }
-        if (titleDrawn) {
-            inventory.setItem(slot, createLoreCarrierItem(nameKey, loreKey, color));
-            return;
-        }
-        GuiConfig.GuiItem configured = detailConfig.getItem(key);
-        inventory.setItem(slot, configured != null
-                ? configured.createItem()
-                : createPredefinedConditionItem(defaultItemId, nameKey, loreKey, color));
-    }
-
-    // True when the title-layout craftengine section defines an <image> for this condition, meaning the
-    // icon's look is drawn by the title and the slot should only carry the hover text.
-    private boolean hasTitleConditionImage(String guiPath, String key) {
-        var guiSection = plugin.getRecipeViewGuiSection();
-        var layout = guiSection != null
-                ? guiSection.getConfigurationSection(guiPath + ".title-layout.craftengine")
-                : null;
-        if (layout == null) {
-            return false;
-        }
-        String image = layout.getString(key, "");
-        return image != null && !image.isEmpty();
-    }
-
-    // The condition icon is drawn by the title (title-layout <image>), so the slot item only carries the
-    // hover text. A near-invisible pane with the "air" item model keeps the grid slot clear while still
-    // offering the translated name/lore on hover.
-    private ItemStack createLoreCarrierItem(String nameKey, String loreKey, NamedTextColor nameColor) {
-        ItemStack item = new ItemStack(org.bukkit.Material.LIGHT_GRAY_STAINED_GLASS_PANE);
-        ItemMeta meta = item.getItemMeta();
-        meta.setItemModel(new org.bukkit.NamespacedKey("minecraft", "air"));
-        meta.displayName(Component.translatable(nameKey).color(nameColor).decoration(TextDecoration.ITALIC, false));
-        meta.lore(List.of(Component.translatable(loreKey).color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)));
-        item.setItemMeta(meta);
-        return item;
-    }
-
-    private ItemStack createPredefinedConditionItem(String itemId, String nameKey, String loreKey, NamedTextColor nameColor) {
-        ItemStack item = ItemUtils.createItem(itemId);
-        if (item == null || item.getType().isAir()) {
-            item = new ItemStack(Material.PAPER);
-        }
-        ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.translatable(nameKey)
-                .color(nameColor)
-                .decoration(TextDecoration.ITALIC, false));
-        meta.lore(List.of(Component.translatable(loreKey)
-                .color(NamedTextColor.GRAY)
-                .decoration(TextDecoration.ITALIC, false)));
-        item.setItemMeta(meta);
-        return item;
     }
 
     private void handleSpecialRecipeListClick(Player player, int slot) {
@@ -976,11 +766,10 @@ public class RecipeViewGui extends AbstractInventoryGui {
         int itemsPerPage = recipeSlots.size();
         int totalPages = (int) Math.ceil(recipes.size() / (double) itemsPerPage);
 
-        if (slot == listConfig.getPrevPageSlot() && currentPage > 0) {
-            changePage(player, -1);
-        } else if (slot == listConfig.getNextPageSlot() && currentPage < totalPages - 1) {
-            changePage(player, 1);
-        } else if (slot == listConfig.getBackSlot()) {
+        if (handlePageClick(player, slot, listConfig.getPrevPageSlot(), listConfig.getNextPageSlot(), totalPages)) {
+            return;
+        }
+        if (slot == listConfig.getBackSlot()) {
             if (runBackButtonCommands(player, listConfig.getItem("back"))) {
                 return;
             }
@@ -992,7 +781,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 SpecialRecipeInfo info = recipes.get(recipeIndex);
                 // Pure-description entries carry their whole description as list lore, so they open no
                 // separate detail page; only slot-based recipes navigate to a detail.
-                if (!isListOnlySpecial(info)) {
+                if (!specialRecipeRenderer.isListOnlySpecial(info)) {
                     selectedSpecialRecipeId = info.id();
                     navigateToState(player, GuiState.SPECIAL_RECIPE_DETAIL, false);
                 }
@@ -1003,21 +792,13 @@ public class RecipeViewGui extends AbstractInventoryGui {
     private void handleSpecialRecipeDetailClick(Player player, int slot) {
         SpecialRecipeInfo info = plugin.getSpecialRecipeRegistry() != null
                 ? plugin.getSpecialRecipeRegistry().get(selectedSpecialRecipeId) : null;
-        RecipeViewGuiConfig.SpecialRecipeDetailConfig detailConfig = specialDetailFor(info);
+        RecipeViewGuiConfig.SpecialRecipeDetailConfig detailConfig = specialRecipeRenderer.specialDetailFor(info);
         if (slot == detailConfig.getBackSlot()) {
             if (runBackButtonCommands(player, detailConfig.getItem("back"))) {
                 return;
             }
             navigateToState(player, GuiState.SPECIAL_RECIPE_LIST, true);
         }
-    }
-
-    /** The detail layout for a special recipe: the full 4-row one when it has extra conditions
-     * (sunlight/water/catalyst), otherwise the compact 3-row one. */
-    private RecipeViewGuiConfig.SpecialRecipeDetailConfig specialDetailFor(SpecialRecipeInfo info) {
-        boolean hasConditions = info != null && (info.hasSunlight() || info.hasWater()
-                || info.hasCatalystInfo() || !info.catalystSlots().isEmpty());
-        return hasConditions ? config.getSpecialRecipeDetail() : config.getSpecialRecipeDetailBasic();
     }
 
     int cookTimeSeconds(CookingPotRecipe recipe) {
@@ -1029,152 +810,18 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     ItemStack createToolDisplayItem(CuttingBoardRecipe.ToolRequirement tool, int totalTools,
                                     int currentIndex, Player player) {
-        List<ItemStack> previewOptions = resolveToolPreviewOptions(tool);
-        int safePreviewIndex = 0;
-        if (!previewOptions.isEmpty()) {
-            safePreviewIndex = currentToolPreviewIndex % previewOptions.size();
-        }
-        ItemStack toolItem = null;
-        if (!previewOptions.isEmpty()) {
-            toolItem = previewOptions.get(safePreviewIndex).clone();
-        }
-        if (toolItem == null || toolItem.getType() == Material.BARRIER) {
-            toolItem = new ItemStack(Material.IRON_AXE);
-        }
-
-        ItemMeta toolMeta = toolItem.getItemMeta();
-        toolMeta.displayName(itemNameComponent(toolItem, player).colorIfAbsent(NamedTextColor.WHITE));
-
-        // Same layout as animated ingredients: the requirement label stays fixed while the icon rotates, so
-        // a tag-based tool need (e.g. #minecraft:axes) never reads as a single specific tool.
-        List<Component> lore = new ArrayList<>();
-        lore.add(tr("gui.recipe.tool", NamedTextColor.GRAY));
-        if (!previewOptions.isEmpty()) {
-            lore.add(tr("gui.recipe.matches_line",
-                    Component.text(previewOptions.size()).color(NamedTextColor.YELLOW)));
-        }
-        if (totalTools > 1 || previewOptions.size() > 1) {
-            lore.add(tr("gui.recipe.auto_cycle",
-                    currentIndex + 1, totalTools > 1 ? totalTools : previewOptions.size()));
-        }
-        if (config.isShowIngredientIds()) {
-            lore.add(tr("gui.recipe.tag_line",
-                    Component.text("#" + tool.key()).color(NamedTextColor.WHITE)));
-        }
-        if (previewOptions.size() > 1) {
-            appendItemPreviewLore(lore, previewOptions, 5, player, toolItem);
-        }
-        toolMeta.lore(lore);
-        toolItem.setItemMeta(toolMeta);
-
-        return toolItem;
+        return toolPreviewRenderer.createToolDisplayItem(tool, totalTools, currentIndex, player);
     }
 
     private ItemStack createToolPreviewItem(CuttingBoardRecipe.ToolRequirement tool) {
-        List<ItemStack> previewOptions = resolveToolPreviewOptions(tool);
-        if (!previewOptions.isEmpty()) {
-            return previewOptions.getFirst().clone();
-        }
-
-        return new ItemStack(Material.IRON_AXE);
+        return toolPreviewRenderer.createToolPreviewItem(tool);
     }
 
     private List<ItemStack> resolveToolPreviewOptions(CuttingBoardRecipe.ToolRequirement tool) {
-        List<ItemStack> cached = toolPreviewCache.computeIfAbsent(tool, this::computeToolPreviewOptions);
-        List<ItemStack> copy = new ArrayList<>(cached.size());
-        for (ItemStack item : cached) {
-            copy.add(item.clone());
-        }
-        return copy;
+        return toolPreviewRenderer.resolveToolPreviewOptions(tool);
     }
 
-    private List<ItemStack> computeToolPreviewOptions(CuttingBoardRecipe.ToolRequirement tool) {
-        if (tool.tag() && "farmersdelight:knives".equals(tool.key().toString())) {
-            return finalizeToolPreviewOptions(createKnifePreviewItems(), tool);
-        }
-
-        List<ItemStack> previewOptions = finalizeToolPreviewOptions(
-                RecipeIngredientIcons.resolveIngredientOptions(tool.asIngredient()), tool);
-        if (!previewOptions.isEmpty()) {
-            return previewOptions;
-        }
-
-        // Action keys are predicates rather than item/tag IDs, so map them to their visible tool families.
-        previewOptions = new ArrayList<>();
-        switch (tool.key().toString()) {
-            case "farmersdelight:knives" -> previewOptions.addAll(createKnifePreviewItems());
-            case "farmersdelight:axe_dig", "farmersdelight:axe_strip", "minecraft:axes" -> previewOptions.addAll(createVanillaToolPreviewItems("_axe"));
-            case "farmersdelight:pickaxe_dig", "minecraft:pickaxes" -> previewOptions.addAll(createVanillaToolPreviewItems("_pickaxe"));
-            case "farmersdelight:shovel_dig", "minecraft:shovels" -> previewOptions.addAll(createVanillaToolPreviewItems("_shovel"));
-            case "minecraft:shears" -> previewOptions.add(new ItemStack(Material.SHEARS));
-            default -> { }
-        }
-        return finalizeToolPreviewOptions(previewOptions, tool);
-    }
-
-    private List<ItemStack> createKnifePreviewItems() {
-        List<ItemStack> knives = new ArrayList<>();
-        for (String knifeId : plugin.getConfigStringList("knife-items.items", "drops.knife-items.items", "knife-config.items")) {
-            ItemStack knife = RecipeIngredientIcons.createItemFromKey(Key.of(knifeId));
-            if (isDisplayableItem(knife)) {
-                knives.add(knife);
-            }
-        }
-        if (knives.isEmpty()) {
-            knives.add(new ItemStack(Material.IRON_SWORD));
-        }
-        return knives;
-    }
-
-    private List<ItemStack> createVanillaToolPreviewItems(String suffix) {
-        List<ItemStack> items = new ArrayList<>();
-        for (Material material : Material.values()) {
-            if (!material.isItem()) continue;
-            String name = material.name();
-            if (name.endsWith(suffix.toUpperCase(Locale.ROOT))) {
-                items.add(new ItemStack(material));
-            }
-        }
-        if (items.isEmpty()) {
-            // Last resort: show at least one iron tool.
-            items.add(switch (suffix) {
-                case "_axe" -> new ItemStack(Material.IRON_AXE);
-                case "_pickaxe" -> new ItemStack(Material.IRON_PICKAXE);
-                case "_shovel" -> new ItemStack(Material.IRON_SHOVEL);
-                default -> new ItemStack(Material.IRON_AXE);
-            });
-        }
-        return items;
-    }
-
-    private List<ItemStack> finalizeToolPreviewOptions(
-            List<ItemStack> candidates,
-            CuttingBoardRecipe.ToolRequirement tool
-    ) {
-        Map<String, ItemStack> unique = new LinkedHashMap<>();
-        for (ItemStack item : candidates) {
-            if (isDisplayableItem(item) && !isExcludedToolPreview(item, tool)) {
-                unique.putIfAbsent(RecipeIngredientIcons.buildIngredientDisplayKey(item), item);
-            }
-        }
-        return RecipeIngredientIcons.sortIngredientDisplayItems(unique.values());
-    }
-
-    private boolean isExcludedToolPreview(ItemStack item, CuttingBoardRecipe.ToolRequirement tool) {
-        if (tool.excludedItems().stream().anyMatch(excluded -> ItemUtils.matchesItemId(item, excluded))) {
-            return true;
-        }
-        Set<String> customTags = ItemUtils.getItemTagIds(item);
-        for (Key excludedTag : tool.excludedTags()) {
-            if (customTags.contains(excludedTag.toString())
-                    || ItemUtils.matchesVanillaItemTag(item, excludedTag, Set.of(), Set.of())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean isDisplayableItem(ItemStack item) {
+    boolean isDisplayableItem(ItemStack item) {
         return item != null && item.getType() != Material.BARRIER && !item.getType().isAir();
     }
 
@@ -1296,9 +943,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
         List<RecipeIngredient> ingredients = recipe.getIngredients();
         int displayedIngredients = Math.min(ingredients.size(), config.getRecipeListMaxPreviewIngredients());
         for (int i = 0; i < displayedIngredients; i++) {
-            appendCompactIngredientLore(lore, ingredients.get(i), player);
+            ingredientDisplay.appendCompactIngredientLore(lore, ingredients.get(i), player);
         }
-        appendMoreIngredientsLine(lore, ingredients.size() - displayedIngredients, player);
+        ingredientDisplay.appendMoreIngredientsLine(lore, ingredients.size() - displayedIngredients, player);
         if (recipe.needsContainer() && recipe.getContainer() != null) {
             lore.add(tr("gui.recipe.container_line",
                     itemNameComponent(recipe.getContainer(), player).colorIfAbsent(NamedTextColor.AQUA)));
@@ -1327,7 +974,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         lore.add(tr("gui.recipe.tool_line",
                 formatToolListComponent(recipe.getTools(), player).colorIfAbsent(NamedTextColor.YELLOW)));
         // Show the input type so players can see when multiple alternatives exist without opening details.
-        appendCuttingBoardInputLore(lore, recipe.getInput(), player);
+        ingredientDisplay.appendCuttingBoardInputLore(lore, recipe.getInput(), player);
         lore.add(tr("gui.recipe.results_label", NamedTextColor.GRAY));
         int maxPreview = config.getRecipeListMaxPreviewIngredients();
         List<CuttingBoardRecipe.ResultEntry> results = recipe.getResults();
@@ -1355,263 +1002,8 @@ public class RecipeViewGui extends AbstractInventoryGui {
         return input;
     }
 
-    private void appendCuttingBoardInputLore(List<Component> lore, RecipeIngredient input, Player player) {
-        if (input instanceof RecipeIngredient.Item) {
-            return; // A single item is already identifiable from its icon.
-        }
-        // Tag/choice input: list matching names in the same compact format used for cooking-pot ingredients.
-        appendCompactIngredientLore(lore, input, player);
-    }
-
-    private void appendCompactIngredientLore(List<Component> lore, RecipeIngredient ingredient, Player player) {
-        List<Component> lines = formatCompactIngredientLoreLines(ingredient, player);
-        if (lines.isEmpty()) {
-            return;
-        }
-        lore.add(colored("&8- ").append(lines.getFirst().colorIfAbsent(NamedTextColor.WHITE)));
-        for (int i = 1; i < lines.size(); i++) {
-            lore.add(colored("&8  ").append(lines.get(i).colorIfAbsent(NamedTextColor.WHITE)));
-        }
-    }
-
-    private void appendMoreIngredientsLine(List<Component> lore, int remainingCount, Player player) {
-        if (remainingCount <= 0) {
-            return;
-        }
-        lore.add(tr("gui.recipe.more_ingredients", remainingCount));
-        lore.add(tr("gui.recipe.click_to_view_materials", NamedTextColor.YELLOW));
-    }
-
     ItemStack createIngredientDisplay(RecipeIngredient ingredient, Player player, int slot) {
-        if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
-            List<Component> lore = new ArrayList<>();
-            ItemStack display = RecipeIngredientIcons.createItemFromKey(itemIngredient.key());
-            lore.add(tr("gui.recipe.ingredient", NamedTextColor.GRAY));
-            if (config.isShowIngredientIds()) {
-                lore.add(colored("&7" + itemIngredient.key()));
-            }
-            return createLabeledIngredientDisplay(display, lore, player, itemNameComponent(display, player));
-        }
-
-        if (ingredient instanceof RecipeIngredient.Tag tagIngredient) {
-            return createAnimatedOrStaticIngredientDisplay(slot, tagIngredient, RecipeIngredientIcons.resolveTagIngredientOptions(tagIngredient), player);
-        }
-
-        if (ingredient instanceof RecipeIngredient.Choice choiceIngredient) {
-            return createAnimatedOrStaticIngredientDisplay(slot, choiceIngredient, RecipeIngredientIcons.resolveIngredientOptions(choiceIngredient), player);
-        }
-
-        return createUnknownIngredientDisplay(player);
-    }
-
-    private ItemStack createAnimatedIngredientDisplay(RecipeIngredient ingredient, ItemStack currentDisplay, List<ItemStack> options, Player player) {
-        if (ingredient instanceof RecipeIngredient.Tag tagIngredient) {
-            return createTagIngredientDisplay(tagIngredient, currentDisplay, options, player);
-        }
-        if (ingredient instanceof RecipeIngredient.Choice choiceIngredient) {
-            return createChoiceIngredientDisplay(choiceIngredient, currentDisplay, options, player);
-        }
-
-        ItemStack display = currentDisplay.clone();
-        return createLabeledIngredientDisplay(
-                display,
-                List.of(tr("gui.recipe.ingredient", NamedTextColor.GRAY)),
-                player,
-                itemNameComponent(currentDisplay, player)
-        );
-    }
-
-    private ItemStack createTagIngredientDisplay(RecipeIngredient.Tag tagIngredient, ItemStack currentDisplay, List<ItemStack> options, Player player) {
-        ItemStack display = currentDisplay.clone();
-        ItemMeta meta = display.getItemMeta();
-
-        List<Component> lore = new ArrayList<>();
-        lore.add(tr("gui.recipe.ingredient", NamedTextColor.GRAY));
-        lore.add(tr("gui.recipe.matches_line",
-                Component.text(options.size()).color(NamedTextColor.YELLOW)));
-        appendCyclePosition(lore, currentDisplay, options, player);
-        if (config.isShowIngredientIds()) {
-            lore.add(tr("gui.recipe.tag_line",
-                    Component.text("#" + tagIngredient.key()).color(NamedTextColor.WHITE)));
-            appendTagExclusions(lore, tagIngredient, player);
-        }
-
-        appendItemPreviewLore(lore, options, 5, player, currentDisplay);
-
-        meta.displayName(itemNameComponent(currentDisplay, player).colorIfAbsent(NamedTextColor.AQUA));
-        meta.lore(lore);
-        display.setItemMeta(meta);
-        return display;
-    }
-
-    private ItemStack createChoiceIngredientDisplay(RecipeIngredient.Choice choiceIngredient, ItemStack currentDisplay, List<ItemStack> options, Player player) {
-        ItemStack display = currentDisplay.clone();
-        ItemMeta meta = display.getItemMeta();
-
-        List<Component> lore = new ArrayList<>();
-        lore.add(tr("gui.recipe.ingredient", NamedTextColor.GRAY));
-        lore.add(tr("gui.recipe.any_of_line",
-                Component.text(choiceIngredient.options().size()).color(NamedTextColor.YELLOW)));
-        lore.add(tr("gui.recipe.matches_line",
-                Component.text(options.size()).color(NamedTextColor.YELLOW)));
-        appendCyclePosition(lore, currentDisplay, options, player);
-        appendIngredientPreviewLore(lore, choiceIngredient.options(), choiceIngredient.options().size(), player, currentDisplay);
-
-        meta.displayName(itemNameComponent(currentDisplay, player).colorIfAbsent(NamedTextColor.AQUA));
-        meta.lore(lore);
-        display.setItemMeta(meta);
-        return display;
-    }
-
-    private void appendTagExclusions(List<Component> lore, RecipeIngredient.Tag tagIngredient, Player player) {
-        if (!config.isShowIngredientIds()) {
-            return;
-        }
-        for (Key excludedItem : tagIngredient.excludedItems()) {
-            lore.add(colored("&c- ").append(itemNameComponent(RecipeIngredientIcons.createItemFromKey(excludedItem), player).colorIfAbsent(NamedTextColor.RED)));
-        }
-        for (Key excludedTag : tagIngredient.excludedTags()) {
-            lore.add(colored("&c- #" + excludedTag));
-        }
-    }
-
-    private ItemStack createAnimatedOrStaticIngredientDisplay(
-            int slot,
-            RecipeIngredient ingredient,
-            List<ItemStack> options,
-            Player player
-    ) {
-        if (!options.isEmpty()) {
-            animatedIngredientSlots.put(slot, options);
-            ingredientCycles.put(slot, new CyclicSlot(INGREDIENT_SWITCH_INTERVAL));
-            animatedIngredientDefinitions.put(slot, ingredient);
-            return createAnimatedIngredientDisplay(ingredient, options.getFirst(), options, player);
-        }
-
-        return createIngredientPlaceholderDisplay(ingredient, player);
-    }
-
-    private ItemStack createIngredientPlaceholderDisplay(RecipeIngredient ingredient, Player player) {
-        return createLabeledIngredientDisplay(
-                new ItemStack(Material.NAME_TAG),
-                formatIngredientLoreLines(ingredient, player),
-                player,
-                tr("gui.recipe.ingredient", NamedTextColor.AQUA)
-        );
-    }
-
-    private ItemStack createUnknownIngredientDisplay(Player player) {
-        return createLabeledIngredientDisplay(
-                new ItemStack(Material.BARRIER),
-                List.of(tr("gui.recipe.unknown", NamedTextColor.WHITE)),
-                player,
-                tr("gui.recipe.ingredient", NamedTextColor.AQUA)
-        );
-    }
-
-    private ItemStack createLabeledIngredientDisplay(ItemStack baseDisplay, List<Component> lore, Player player, Component displayName) {
-        ItemStack display = baseDisplay.clone();
-        ItemMeta meta = display.getItemMeta();
-        meta.displayName(displayName.colorIfAbsent(NamedTextColor.AQUA));
-        meta.lore(lore);
-        display.setItemMeta(meta);
-        return display;
-    }
-
-
-    private List<Component> formatCompactIngredientLoreLines(RecipeIngredient ingredient, Player player) {
-        if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
-            return List.of(itemNameComponent(RecipeIngredientIcons.createItemFromKey(itemIngredient.key()), player));
-        }
-        if (ingredient instanceof RecipeIngredient.Choice choiceIngredient) {
-            List<ItemStack> options = RecipeIngredientIcons.resolveIngredientOptions(choiceIngredient);
-            if (options.isEmpty()) {
-                return List.of(tr("gui.recipe.no_matching_items", NamedTextColor.GRAY));
-            }
-            return formatCompactItemOptions(options, player);
-        }
-        if (ingredient instanceof RecipeIngredient.Tag tagIngredient) {
-            // Clone only the first 6 for showing names; read the full count from the cache.
-            int totalSize = RecipeIngredientIcons.resolveTagIngredientOptionsSize(tagIngredient);
-            if (totalSize == 0) {
-                return List.of(tr("gui.recipe.no_matching_items", NamedTextColor.GRAY));
-            }
-            List<ItemStack> previewOptions = RecipeIngredientIcons.resolveTagIngredientOptionsPreview(tagIngredient, 6);
-            int previewCount = previewOptions.size();
-            List<Component> lines = formatCompactItemOptions(previewOptions, player);
-            if (totalSize > previewCount) {
-                lines.add(tr("gui.recipe.more_items",
-                        totalSize - previewCount));
-            }
-            return lines;
-        }
-        return List.of(tr("gui.recipe.unknown", NamedTextColor.WHITE));
-    }
-
-    private List<Component> formatCompactItemOptions(List<ItemStack> options, Player player) {
-        List<Component> lines = new ArrayList<>();
-        Component current = Component.empty();
-        int currentLength = 0;
-        boolean hasCurrent = false;
-
-        for (ItemStack option : options) {
-            Component name = itemNameComponent(option, player).colorIfAbsent(NamedTextColor.WHITE);
-            int nameLength = Math.max(1, getItemDisplayName(option, player).length());
-            int extraLength = hasCurrent ? nameLength + 2 : nameLength;
-            if (hasCurrent && currentLength + extraLength > MAX_COMPACT_INGREDIENT_LINE_LENGTH) {
-                lines.add(current);
-                current = Component.empty();
-                currentLength = 0;
-                hasCurrent = false;
-            }
-            if (hasCurrent) {
-                current = current.append(Component.text(", ", NamedTextColor.GRAY));
-                currentLength += 2;
-            }
-            current = current.append(name);
-            currentLength += nameLength;
-            hasCurrent = true;
-        }
-
-        if (hasCurrent) {
-            lines.add(current);
-        }
-        return lines;
-    }
-
-    List<Component> formatIngredientLoreLines(RecipeIngredient ingredient, Player player) {
-        List<Component> lines = new ArrayList<>();
-        if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
-            lines.add(itemNameComponent(RecipeIngredientIcons.createItemFromKey(itemIngredient.key()), player).colorIfAbsent(NamedTextColor.WHITE));
-            return lines;
-        }
-        if (ingredient instanceof RecipeIngredient.Tag tagIngredient) {
-            List<ItemStack> options = RecipeIngredientIcons.resolveTagIngredientOptions(tagIngredient);
-            if (options.isEmpty()) {
-                lines.add(tr("gui.recipe.no_matching_items", NamedTextColor.GRAY));
-                if (config.isShowIngredientIds()) {
-                    lines.add(colored("&8#" + tagIngredient.key()));
-                }
-                return lines;
-            }
-            appendItemPreviewLore(lines, options, player);
-            if (config.isShowIngredientIds()) {
-                lines.add(colored("&8#" + tagIngredient.key()));
-                appendTagExclusions(lines, tagIngredient, player);
-            }
-            return lines;
-        }
-        if (ingredient instanceof RecipeIngredient.Choice choiceIngredient) {
-            List<ItemStack> options = RecipeIngredientIcons.resolveIngredientOptions(choiceIngredient);
-            if (options.isEmpty()) {
-                lines.add(tr("gui.recipe.no_matching_items", NamedTextColor.GRAY));
-                return lines;
-            }
-            appendItemPreviewLore(lines, options, player);
-            return lines;
-        }
-        lines.add(tr("gui.recipe.unknown", NamedTextColor.WHITE));
-        return lines;
+        return ingredientDisplay.createIngredientDisplay(ingredient, player, slot);
     }
 
     private Component formatToolListComponent(List<CuttingBoardRecipe.ToolRequirement> tools, Player player) {
@@ -1623,102 +1015,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
             result = result.append(itemNameComponent(createToolPreviewItem(tools.get(i)), player));
         }
         return result;
-    }
-
-    private void appendItemPreviewLore(List<Component> lore, List<ItemStack> options, Player player) {
-        appendItemPreviewLore(lore, options, 5, player, null);
-    }
-
-    private void appendItemPreviewLore(
-            List<Component> lore,
-            List<ItemStack> options,
-            int previewLimit,
-            Player player,
-            ItemStack currentDisplay
-    ) {
-        List<ItemStack> previewOptions = filterCurrentPreviewOption(options, currentDisplay);
-        if (previewOptions.isEmpty()) {
-            return;
-        }
-
-        int displayed = Math.min(previewOptions.size(), previewLimit);
-        for (int i = 0; i < displayed; i++) {
-            lore.add(colored("&8- ").append(itemNameComponent(previewOptions.get(i), player).colorIfAbsent(NamedTextColor.WHITE)));
-        }
-        appendMoreItemsLine(lore, previewOptions.size() - displayed, player);
-    }
-
-    private List<ItemStack> filterCurrentPreviewOption(List<ItemStack> options, ItemStack currentDisplay) {
-        if (currentDisplay == null) {
-            return options;
-        }
-        String currentKey = RecipeIngredientIcons.buildIngredientDisplayKey(currentDisplay);
-        List<ItemStack> filtered = new ArrayList<>();
-        for (ItemStack option : options) {
-            if (!RecipeIngredientIcons.buildIngredientDisplayKey(option).equals(currentKey)) {
-                filtered.add(option);
-            }
-        }
-        return filtered;
-    }
-
-    private void appendIngredientPreviewLore(
-            List<Component> lore,
-            List<RecipeIngredient> options,
-            int previewLimit,
-            Player player,
-            ItemStack currentDisplay
-    ) {
-        LinkedHashMap<String, ItemStack> displayOptions = new LinkedHashMap<>();
-        for (RecipeIngredient option : options) {
-            for (ItemStack display : RecipeIngredientIcons.resolveIngredientOptions(option)) {
-                if (!isDisplayableItem(display)) {
-                    continue;
-                }
-                displayOptions.putIfAbsent(RecipeIngredientIcons.buildIngredientDisplayKey(display), display);
-            }
-        }
-
-        if (displayOptions.isEmpty()) {
-            lore.add(tr("gui.recipe.no_matching_items", NamedTextColor.GRAY));
-            return;
-        }
-
-        appendItemPreviewLore(lore, new ArrayList<>(displayOptions.values()), previewLimit, player, currentDisplay);
-    }
-
-    private void appendCyclePosition(List<Component> lore, ItemStack currentDisplay, List<ItemStack> options, Player player) {
-        if (options.size() <= 1) {
-            return;
-        }
-        String currentKey = RecipeIngredientIcons.buildIngredientDisplayKey(currentDisplay);
-        int currentIndex = 0;
-        for (int i = 0; i < options.size(); i++) {
-            if (RecipeIngredientIcons.buildIngredientDisplayKey(options.get(i)).equals(currentKey)) {
-                currentIndex = i + 1;
-                break;
-            }
-        }
-        lore.add(tr("gui.recipe.auto_cycle",
-                Math.max(1, currentIndex), options.size()));
-    }
-
-    private void appendMoreItemsLine(List<Component> lore, int remainingCount, Player player) {
-        if (remainingCount <= 0) {
-            return;
-        }
-        lore.add(tr("gui.recipe.more_items", remainingCount));
-    }
-
-    private String unknownRecipeText(Player player) {
-        return I18n.get("gui.recipe.unknown", player);
-    }
-
-    private String getItemDisplayName(ItemStack item, Player player) {
-        if (item == null) {
-            return unknownRecipeText(player);
-        }
-        return ItemUtils.getDisplayName(item, player);
     }
 
     Component itemNameComponent(ItemStack item, Player player) {
@@ -1827,7 +1123,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         RecipeViewGuiConfig.RecipeListConfig listConfig = config.getRecipeList();
         List<CookingPotRecipe> recipes = plugin.getCookingPotRecipes().getSortedRecipes(getActiveCookingPotRecipeGroup());
         if (craftableOnly) {
-            recipes = filterCraftableCookingPotRecipes(recipes);
+            recipes = craftability().filterCraftableCookingPotRecipes(recipes, player);
         }
         recipes = applyDiscoveryFilter(recipes, true, player);
 
@@ -1838,7 +1134,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         RecipeViewGuiConfig.RecipeListConfig listConfig = config.getRecipeList();
         List<CuttingBoardRecipe> recipes = plugin.getCuttingBoardRecipes().getSortedRecipes();
         if (craftableOnly) {
-            recipes = filterCraftableCuttingBoardRecipes(recipes);
+            recipes = craftability().filterCraftableCuttingBoardRecipes(recipes, player);
         }
         recipes = applyDiscoveryFilter(recipes, false, player);
 
@@ -1851,11 +1147,10 @@ public class RecipeViewGui extends AbstractInventoryGui {
         int itemsPerPage = recipeSlots.size();
         int totalPages = (int) Math.ceil(recipes.size() / (double) itemsPerPage);
 
-        if (slot == listConfig.getPrevPageSlot() && currentPage > 0) {
-            changePage(player, -1);
-        } else if (slot == listConfig.getNextPageSlot() && currentPage < totalPages - 1) {
-            changePage(player, 1);
-        } else if (slot == listConfig.getFilterSlot()) {
+        if (handlePageClick(player, slot, listConfig.getPrevPageSlot(), listConfig.getNextPageSlot(), totalPages)) {
+            return;
+        }
+        if (slot == listConfig.getFilterSlot()) {
             craftableOnly = !craftableOnly;
             currentPage = 0;
             refreshContentsInPlace(player);
@@ -1876,7 +1171,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         } else if (recipeSlots.contains(slot)) {
             int slotIndex = recipeSlots.indexOf(slot);
             int recipeIndex = currentPage * itemsPerPage + slotIndex;
-        if (recipeIndex < recipes.size()) {
+            if (recipeIndex < recipes.size()) {
                 Object clickedRecipe = recipes.get(recipeIndex);
                 if (isRecipeLocked(clickedRecipe, isCookingPot, player)) {
                     player.sendMessage(Component.translatable("recipe-discovery.locked-click").color(NamedTextColor.RED));
@@ -1895,13 +1190,27 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 }
                 selectedRecipeId = recipeId;
                 cookingPotMode = isCookingPot;
-                fillButtonState = FillButtonState.READY;
+                fillButtonState = CookingPotFiller.FillButtonState.READY;
                 recipeBackState = isCookingPot ? GuiState.COOKING_POT_LIST : GuiState.CUTTING_BOARD_LIST;
                 // Fresh detail opened from a list: this is a new navigation root, so drop any prior jump chain.
                 detailHistory.clear();
                 navigateToState(player, GuiState.RECIPE_DETAIL, false);
             }
         }
+    }
+
+    private CookingPotFiller cookingPotFiller() {
+        if (cookingPotFiller == null) {
+            cookingPotFiller = new CookingPotFiller(plugin, cookingPotLocation, getActiveCookingPotRecipeGroup());
+        }
+        return cookingPotFiller;
+    }
+
+    private RecipeCraftability craftability() {
+        if (craftability == null) {
+            craftability = new RecipeCraftability(plugin, cookingPotLocation, getActiveCookingPotRecipeGroup());
+        }
+        return craftability;
     }
 
     private void handleRecipeDetailClick(Player player, int slot, boolean shiftClick) {
@@ -1918,7 +1227,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 selectedRecipeId = previous.selectedRecipeId();
                 recipeBackState = previous.recipeBackState();
                 currentToolIndex = 0;
-                fillButtonState = FillButtonState.READY;
+                fillButtonState = CookingPotFiller.FillButtonState.READY;
                 navigateToState(player, GuiState.RECIPE_DETAIL, false);
                 return;
             }
@@ -1927,7 +1236,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         }
 
         if (fromCookingPot && cookingPotMode && slot == detailConfig.getFillSlot()) {
-            FillResult result = fillCookingPotFromInventory(player, shiftClick);
+            CookingPotFiller.FillResult result = cookingPotFiller().fillFromInventory(player, shiftClick, selectedRecipeId);
             if (result.returnToPot()) {
                 closeGui(player);
                 returnToCookingPot(player);
@@ -1947,7 +1256,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             return;
         }
 
-        LinkedRecipe linkedRecipe = findLinkedRecipe(clickedItem);
+        RecipeCraftability.LinkedRecipe linkedRecipe = craftability().findLinkedRecipe(clickedItem, cookingPotMode);
         if (linkedRecipe == null) {
             return;
         }
@@ -1974,519 +1283,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
         selectedRecipeId = linkedRecipe.recipeId();
         cookingPotMode = linkedRecipe.cookingPot();
         currentToolIndex = 0;
-        fillButtonState = FillButtonState.READY;
+        fillButtonState = CookingPotFiller.FillButtonState.READY;
         navigateToState(player, GuiState.RECIPE_DETAIL, false);
     }
-
-    private LinkedRecipe findLinkedRecipe(ItemStack item) {
-        if (item == null || item.getType().isAir()) {
-            return null;
-        }
-
-        if (cookingPotMode) {
-            LinkedRecipe linked = findCookingPotRecipeByResult(item);
-            if (linked != null) {
-                return linked;
-            }
-            return findCuttingBoardRecipeByResult(item);
-        }
-
-        LinkedRecipe linked = findCuttingBoardRecipeByResult(item);
-        if (linked != null) {
-            return linked;
-        }
-        return findCookingPotRecipeByResult(item);
-    }
-
-    private LinkedRecipe findCookingPotRecipeByResult(ItemStack item) {
-        for (CookingPotRecipe recipe : plugin.getCookingPotRecipes().getSortedRecipes(getActiveCookingPotRecipeGroup())) {
-            if (sameRecipeItem(recipe.getResult(), item)) {
-                return new LinkedRecipe(recipe.getId(), true);
-            }
-        }
-        return null;
-    }
-
-    private LinkedRecipe findCuttingBoardRecipeByResult(ItemStack item) {
-        for (CuttingBoardRecipe recipe : plugin.getCuttingBoardRecipes().getSortedRecipes()) {
-            for (CuttingBoardRecipe.ResultEntry result : recipe.getResults()) {
-                if (sameRecipeItem(result.item(), item)) {
-                    return new LinkedRecipe(recipe.getId(), false);
-                }
-            }
-        }
-        return null;
-    }
-
-    private boolean sameRecipeItem(ItemStack expected, ItemStack actual) {
-        if (expected == null || actual == null || expected.getType().isAir() || actual.getType().isAir()) {
-            return false;
-        }
-
-        String expectedId = ItemUtils.getCustomItemId(expected);
-        String actualId = ItemUtils.getCustomItemId(actual);
-        if (expectedId != null || actualId != null) {
-            return expectedId != null && expectedId.equals(actualId);
-        }
-
-        return expected.getType() == actual.getType();
-    }
-
-    private record LinkedRecipe(String recipeId, boolean cookingPot) {}
-    private enum FillButtonState {
-        READY("fill", "gui.recipe.fill_ready"),
-        FILLED("fill-success", "gui.recipe.ingredients_filled"),
-        MISSING_INGREDIENTS("fill-missing", "gui.recipe.missing_ingredients"),
-        INVENTORY_FULL("fill-inventory-full", "gui.recipe.inventory_full");
-
-        private final String itemKey;
-        private final String messageKey;
-
-        FillButtonState(String itemKey, String messageKey) {
-            this.itemKey = itemKey;
-            this.messageKey = messageKey;
-        }
-
-        String itemKey() {
-            return itemKey;
-        }
-
-        Map<String, String> placeholders(Player player) {
-            return Map.of("status", I18n.get(messageKey, player));
-        }
-    }
-
-    private record FillResult(boolean returnToPot, FillButtonState buttonState) {
-        static FillResult returnToPot(FillButtonState buttonState) {
-            return new FillResult(true, buttonState);
-        }
-
-        static FillResult stay(FillButtonState buttonState) {
-            return new FillResult(false, buttonState);
-        }
-    }
-
-    private List<CookingPotRecipe> filterCraftableCookingPotRecipes(List<CookingPotRecipe> recipes) {
-        CookingPotBlockEntity entity = cookingPotLocation == null ? null : CookingPotBlockBehavior.getBlockEntity(cookingPotLocation);
-        List<ItemStack> available = getAvailableCookingPotItems(entity);
-        List<CookingPotRecipe> craftableRecipes = new ArrayList<>();
-        for (CookingPotRecipe recipe : recipes) {
-            if (canCraftCookingPotRecipe(recipe, entity, available)) {
-                craftableRecipes.add(recipe);
-            }
-        }
-        return craftableRecipes;
-    }
-
-    private List<CuttingBoardRecipe> filterCraftableCuttingBoardRecipes(List<CuttingBoardRecipe> recipes) {
-        List<ItemStack> available = Arrays.stream(player.getInventory().getStorageContents())
-                .filter(Objects::nonNull)
-                .filter(item -> !item.isEmpty())
-                .toList();
-        return plugin.getCuttingBoardRecipes().filterCraftable(recipes, available);
-    }
-
-    private boolean canCraftCookingPotRecipe(CookingPotRecipe recipe, CookingPotBlockEntity entity, List<ItemStack> available) {
-        if (entity != null && !canRecipeFitCookingPot(recipe, entity)) {
-            return false;
-        }
-        // The container is not part of "can I cook this": the pot cooks from ingredients alone and the bowl is
-        // supplied at extraction time, so a meal recipe stays craftable even when the player carries no bowl.
-        // Containment question, not the real cook: does the inventory (+ current pot inputs) hold enough of
-        // each ingredient, ignoring the unrelated items every inventory carries? canCraft's lenient pass would
-        // reject on the first foreign slot, so it can't be used here.
-        return plugin.getCookingPotRecipes().containsIngredientsFor(recipe, available);
-    }
-
-    private List<ItemStack> getAvailableCookingPotItems(CookingPotBlockEntity entity) {
-        List<ItemStack> items = new ArrayList<>();
-        for (ItemStack item : player.getInventory().getStorageContents()) {
-            if (item != null && !item.getType().isAir()) {
-                items.add(item.clone());
-            }
-        }
-        if (entity != null) {
-            for (ItemStack item : entity.getInventory()) {
-                if (item != null && !item.getType().isAir()) {
-                    items.add(item.clone());
-                }
-            }
-        }
-        return items;
-    }
-
-    private FillResult fillCookingPotFromInventory(Player player, boolean fillAll) {
-        if (!fromCookingPot || cookingPotLocation == null || selectedRecipeId == null) {
-            return FillResult.stay(FillButtonState.MISSING_INGREDIENTS);
-        }
-        // This runs on the player's Folia region thread (inventory click). All the pot-side work below
-        // (getBlockEntity, hopper inserts, markActive/checkHeatSource/saveBlockEntityData) touches the
-        // cooking-pot block entity, which must happen on the pot's own region. If the pot is in a
-        // different region (player teleported while the GUI stayed open), touching it here is a
-        // cross-region access — skip safely rather than throw. Always owned on Paper.
-        if (!plugin.scheduler().isOwnedByCurrentRegion(cookingPotLocation)) {
-            return FillResult.stay(FillButtonState.MISSING_INGREDIENTS);
-        }
-        CookingPotRecipe recipe = plugin.getCookingPotRecipes().getRecipe(getActiveCookingPotRecipeGroup(), selectedRecipeId);
-        var entity = CookingPotBlockBehavior.getBlockEntity(cookingPotLocation);
-        if (recipe == null || entity == null) {
-            return FillResult.stay(FillButtonState.MISSING_INGREDIENTS);
-        }
-
-        debugCookingPotFill("start recipe=" + recipe.getId() + ", fillAll=" + fillAll
-                + ", before=" + summarizeCookingPot(entity));
-
-        List<InventorySelection> selected = selectRecipeItemsFromInventory(recipe, entity, fillAll);
-        boolean hasRequiredContainer = !recipe.needsContainer() || sameRecipeItem(recipe.getContainer(), entity.getContainerItem());
-        InventorySelection selectedContainer = !hasRequiredContainer && entity.getLayout().containerSlots().length > 0
-                ? selectRecipeContainerFromInventory(recipe, selected)
-                : null;
-
-        if (selected.isEmpty() && selectedContainer == null) {
-            if (missingIngredients(recipe, getCurrentInputItems(entity)).isEmpty() && hasRequiredContainer) {
-                activateCookingPotAfterFill(entity);
-                debugCookingPotFill("already matched recipe=" + recipe.getId() + ", after=" + summarizeCookingPot(entity));
-                return FillResult.returnToPot(FillButtonState.FILLED);
-            }
-            debugCookingPotFill("missing recipe=" + recipe.getId() + ", selected=0, hasContainer=" + hasRequiredContainer
-                    + ", current=" + summarizeCookingPot(entity));
-            return FillResult.stay(FillButtonState.MISSING_INGREDIENTS);
-        }
-
-        int movedCount = 0;
-
-        for (InventorySelection selection : selected) {
-            ItemStack source = player.getInventory().getItem(selection.slot());
-            if (source == null || source.getType().isAir()) {
-                continue;
-            }
-            ItemStack moved = source.clone();
-            moved.setAmount(1);
-            ItemStack leftover = CookingPotBlockBehavior.insertIngredientLikeHopper(cookingPotLocation, moved);
-            if (leftover != null && !leftover.getType().isAir()) {
-                debugCookingPotFill("rollback ingredient leftover=" + summarizeItem(leftover)
-                        + ", recipe=" + recipe.getId() + ", after=" + summarizeCookingPot(entity));
-                player.updateInventory();
-                return FillResult.stay(FillButtonState.INVENTORY_FULL);
-            }
-            debitInventorySlot(player, selection.slot());
-            movedCount++;
-        }
-        if (selectedContainer != null) {
-            ItemStack source = player.getInventory().getItem(selectedContainer.slot());
-            if (source == null || source.getType().isAir()) {
-                debugCookingPotFill("rollback missing container source recipe=" + recipe.getId()
-                        + ", after=" + summarizeCookingPot(entity));
-                player.updateInventory();
-                return FillResult.stay(FillButtonState.MISSING_INGREDIENTS);
-            }
-            ItemStack container = source.clone();
-            container.setAmount(1);
-            ItemStack leftover = CookingPotBlockBehavior.insertContainerLikeHopper(cookingPotLocation, container);
-            if (leftover != null && !leftover.getType().isAir()) {
-                debugCookingPotFill("rollback container leftover=" + summarizeItem(leftover)
-                        + ", recipe=" + recipe.getId() + ", after=" + summarizeCookingPot(entity));
-                player.updateInventory();
-                return FillResult.stay(FillButtonState.INVENTORY_FULL);
-            }
-            debitInventorySlot(player, selectedContainer.slot());
-            movedCount++;
-        }
-        activateCookingPotAfterFill(entity);
-        debugCookingPotFill("filled recipe=" + recipe.getId() + ", moved=" + movedCount
-                + ", after=" + summarizeCookingPot(entity));
-        player.updateInventory();
-        return FillResult.returnToPot(FillButtonState.FILLED);
-    }
-
-    private void debitInventorySlot(Player player, int slot) {
-        if (player == null || 1 <= 0) {
-            return;
-        }
-        ItemStack source = player.getInventory().getItem(slot);
-        if (source == null || source.getType().isAir()) {
-            return;
-        }
-        int remaining = source.getAmount() - 1;
-        if (remaining <= 0) {
-            player.getInventory().setItem(slot, null);
-            return;
-        }
-        source.setAmount(remaining);
-        player.getInventory().setItem(slot, source);
-    }
-
-    private void activateCookingPotAfterFill(com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity entity) {
-        if (entity == null || cookingPotLocation == null || cookingPotLocation.getWorld() == null) {
-            return;
-        }
-        World world = cookingPotLocation.getWorld();
-        TickManager tickManager = plugin.getTickManager();
-        if (tickManager != null && entity.hasStoredContents()) {
-            tickManager.markActive(world, entity.getPosKey(), TickManager.BlockType.COOKING_POT);
-        }
-        CookingPotBlockBehavior behavior = CookingPotBlockBehavior.getBlockBehavior(cookingPotLocation);
-        if (behavior != null) {
-            entity.setHasHeatSource(behavior.checkHeatSource(entity.getPos(), world));
-        }
-        CookingPotBlockBehavior.saveBlockEntityData(world, entity.getPosKey());
-    }
-
-    private void debugCookingPotFill(String message) {
-        if (plugin.isDebugEnabled("cooking_pot")) {
-            plugin.getLogger().info(I18n.formatConsole("debug.cooking_pot_fill", "message", message));
-        }
-    }
-
-    private String summarizeCookingPot(CookingPotBlockEntity entity) {
-        if (entity == null) {
-            return "null";
-        }
-        List<String> parts = new ArrayList<>();
-        for (int slot : entity.getLayout().inputSlots()) {
-            ItemStack item = entity.getInventorySlot(slot);
-            if (item != null && !item.getType().isAir()) {
-                parts.add("i" + slot + "=" + summarizeItem(item));
-            }
-        }
-        for (int slot : entity.getLayout().containerSlots()) {
-            ItemStack item = entity.getInventorySlot(slot);
-            if (item != null && !item.getType().isAir()) {
-                parts.add("c" + slot + "=" + summarizeItem(item));
-            }
-        }
-        for (int slot : entity.getLayout().pendingOutputSlots()) {
-            ItemStack item = entity.getInventorySlot(slot);
-            if (item != null && !item.getType().isAir()) {
-                parts.add("p" + slot + "=" + summarizeItem(item));
-            }
-        }
-        for (int slot : entity.getLayout().outputSlots()) {
-            ItemStack item = entity.getInventorySlot(slot);
-            if (item != null && !item.getType().isAir()) {
-                parts.add("o" + slot + "=" + summarizeItem(item));
-            }
-        }
-        return parts.isEmpty() ? "empty" : String.join(",", parts);
-    }
-
-    private String summarizeItem(ItemStack item) {
-        if (item == null || item.getType().isAir()) {
-            return "empty";
-        }
-        String customId = ItemUtils.getCustomItemId(item);
-        String id = customId != null ? customId : item.getType().name();
-        return id + "x" + item.getAmount();
-    }
-
-    private List<ItemStack> getCurrentInputItems(com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity entity) {
-        if (entity == null) {
-            return List.of();
-        }
-        List<ItemStack> items = new ArrayList<>();
-        for (int slot : entity.getLayout().inputSlots()) {
-            ItemStack item = entity.getInventorySlot(slot);
-            if (item != null && !item.getType().isAir()) {
-                items.add(item);
-            }
-        }
-        return items;
-    }
-
-    private List<RecipeIngredient> missingIngredients(CookingPotRecipe recipe, List<ItemStack> currentItems) {
-        if (recipe == null) {
-            return List.of();
-        }
-        List<ItemStack> available = new ArrayList<>();
-        if (currentItems != null) {
-            for (ItemStack item : currentItems) {
-                if (item != null && !item.getType().isAir()) {
-                    available.add(item.clone());
-                }
-            }
-        }
-
-        List<RecipeIngredient> missing = new ArrayList<>();
-        for (RecipeIngredient ingredient : recipe.getIngredients()) {
-            int matchIndex = findMatchingAvailableStack(available, ingredient);
-            if (matchIndex < 0) {
-                missing.add(ingredient);
-                continue;
-            }
-            ItemStack matched = available.get(matchIndex);
-            matched.setAmount(matched.getAmount() - 1);
-            if (matched.getAmount() <= 0) {
-                available.remove(matchIndex);
-            }
-        }
-        return missing;
-    }
-
-    private int findMatchingAvailableStack(List<ItemStack> available, RecipeIngredient ingredient) {
-        for (int i = 0; i < available.size(); i++) {
-            ItemStack item = available.get(i);
-            if (item != null && item.getAmount() > 0 && plugin.getCookingPotRecipes().matchesIngredient(item, ingredient)) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    private boolean canRecipeFitCookingPot(CookingPotRecipe recipe, CookingPotBlockEntity entity) {
-        if (recipe == null || entity == null) {
-            return false;
-        }
-        return recipe.getIngredients().size() <= entity.getLayout().inputSlots().length;
-    }
-
-    private List<InventorySelection> selectRecipeItemsFromInventory(
-            CookingPotRecipe recipe,
-            com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity entity,
-            boolean fillAll
-    ) {
-        List<InventorySelection> available = new ArrayList<>();
-        ItemStack[] contents = player.getInventory().getStorageContents();
-        for (int slot = 0; slot < contents.length; slot++) {
-            ItemStack item = contents[slot];
-            if (item == null || item.getType().isAir()) {
-                continue;
-            }
-            for (int amount = 0; amount < item.getAmount(); amount++) {
-                ItemStack one = item.clone();
-                one.setAmount(1);
-                available.add(new InventorySelection(slot, one));
-            }
-        }
-
-        List<InventorySelection> selected = new ArrayList<>();
-        List<RecipeIngredient> ingredients = recipe.getIngredients();
-        if (ingredients.isEmpty() || entity == null) {
-            return selected;
-        }
-
-        ItemStack[] simulatedSlots = createInputSlotSimulation(entity);
-        boolean firstPass = true;
-        do {
-            int selectedBefore = selected.size();
-            List<RecipeIngredient> needed = firstPass
-                    ? missingIngredients(recipe, Arrays.asList(simulatedSlots))
-                    : ingredients;
-            if (needed.isEmpty()) {
-                if (!fillAll) {
-                    break;
-                }
-                needed = ingredients;
-            }
-
-            for (RecipeIngredient ingredient : needed) {
-                int matchIndex = findMatchingAvailableIngredient(available, ingredient, simulatedSlots);
-                if (matchIndex < 0) {
-                    return selected;
-                }
-                InventorySelection selection = available.remove(matchIndex);
-                insertIntoSimulatedSlots(simulatedSlots, selection.item());
-                selected.add(selection);
-            }
-
-            firstPass = false;
-            if (!fillAll || selected.size() == selectedBefore) {
-                break;
-            }
-        } while (true);
-        return selected;
-    }
-
-    private ItemStack[] createInputSlotSimulation(com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity entity) {
-        int[] inputSlots = entity.getLayout().inputSlots();
-        ItemStack[] simulated = new ItemStack[inputSlots.length];
-        for (int i = 0; i < inputSlots.length; i++) {
-            simulated[i] = entity.getInventorySlot(inputSlots[i]);
-        }
-        return simulated;
-    }
-
-    private int findMatchingAvailableIngredient(List<InventorySelection> available, RecipeIngredient ingredient, ItemStack[] simulatedSlots) {
-        for (int i = 0; i < available.size(); i++) {
-            ItemStack item = available.get(i).item();
-            if (plugin.getCookingPotRecipes().matchesIngredient(item, ingredient) && canInsertIntoSimulatedSlots(simulatedSlots, item)) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    private boolean canInsertIntoSimulatedSlots(ItemStack[] slots, ItemStack item) {
-        if (slots == null || item == null || item.getType().isAir()) {
-            return false;
-        }
-        for (ItemStack slotItem : slots) {
-            if (slotItem != null && !slotItem.getType().isAir() && slotItem.isSimilar(item)
-                    && slotItem.getAmount() < slotItem.getMaxStackSize()) {
-                return true;
-            }
-        }
-        for (ItemStack slotItem : slots) {
-            if (slotItem == null || slotItem.getType().isAir()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private void insertIntoSimulatedSlots(ItemStack[] slots, ItemStack item) {
-        if (slots == null || item == null || item.getType().isAir()) {
-            return;
-        }
-        for (ItemStack slotItem : slots) {
-            if (slotItem != null && !slotItem.getType().isAir() && slotItem.isSimilar(item)
-                    && slotItem.getAmount() < slotItem.getMaxStackSize()) {
-                slotItem.setAmount(slotItem.getAmount() + 1);
-                return;
-            }
-        }
-        for (int i = 0; i < slots.length; i++) {
-            if (slots[i] == null || slots[i].getType().isAir()) {
-                ItemStack placed = item.clone();
-                placed.setAmount(1);
-                slots[i] = placed;
-                return;
-            }
-        }
-    }
-
-    private InventorySelection selectRecipeContainerFromInventory(CookingPotRecipe recipe, List<InventorySelection> reservedItems) {
-        if (recipe == null || !recipe.needsContainer()) {
-            return null;
-        }
-        ItemStack required = recipe.getContainer();
-        if (required == null || required.getType().isAir()) {
-            return null;
-        }
-        Map<Integer, Integer> reservedBySlot = new HashMap<>();
-        if (reservedItems != null) {
-            for (InventorySelection selection : reservedItems) {
-                reservedBySlot.merge(selection.slot(), 1, Integer::sum);
-            }
-        }
-        ItemStack[] contents = player.getInventory().getStorageContents();
-        for (int slot = 0; slot < contents.length; slot++) {
-            ItemStack item = contents[slot];
-            if (item == null || item.getType().isAir()) {
-                continue;
-            }
-            if (item.getAmount() <= reservedBySlot.getOrDefault(slot, 0)) {
-                continue;
-            }
-            if (sameRecipeItem(required, item)) {
-                ItemStack selected = item.clone();
-                selected.setAmount(1);
-                return new InventorySelection(slot, selected);
-            }
-        }
-        return null;
-    }
-
-    private record InventorySelection(int slot, ItemStack item) {}
 
     private RecipeViewGuiConfig.RecipeDetailConfig getActiveDetailConfig() {
         if (cookingPotMode) {
@@ -2612,6 +1411,20 @@ public class RecipeViewGui extends AbstractInventoryGui {
     private void changePage(Player player, int delta) {
         currentPage += delta;
         refreshAndReopen(player);
+    }
+
+    // Returns true and flips the page when slot is a usable prev/next button; false otherwise, so callers
+    // can fall through to their other slot handlers.
+    private boolean handlePageClick(Player player, int slot, int prevSlot, int nextSlot, int totalPages) {
+        if (slot == prevSlot && currentPage > 0) {
+            changePage(player, -1);
+            return true;
+        }
+        if (slot == nextSlot && currentPage < totalPages - 1) {
+            changePage(player, 1);
+            return true;
+        }
+        return false;
     }
 
     private void reopenInventory(Player player) {

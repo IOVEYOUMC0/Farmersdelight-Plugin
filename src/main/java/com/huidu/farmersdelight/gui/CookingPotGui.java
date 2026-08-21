@@ -36,7 +36,6 @@ import org.bukkit.inventory.PlayerInventory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -58,6 +57,8 @@ public class CookingPotGui extends AbstractInventoryGui {
     private final CookingPotBlockEntity blockEntity;
     private final CookingPotBlockBehavior blockBehavior;
     private final GuiConfig config;
+    private final CookingPotItemDistributor itemDistributor;
+    private final CookingPotOutputTaker outputTaker;
 
     private final int[] ingredientSlots;
     private final int[] containerSlots;
@@ -120,6 +121,9 @@ public class CookingPotGui extends AbstractInventoryGui {
         mapSlots(outputSlots, layout.outputSlots(), false);
 
         this.inventory = Bukkit.createInventory(this, config.getSize(), resolveTitleComponent());
+        this.itemDistributor = new CookingPotItemDistributor(blockEntity, plugin, inventory,
+                writableSlotMapping, ingredientSlots, containerSlots, this::writeWritableSlot);
+        this.outputTaker = new CookingPotOutputTaker(blockEntity, plugin, slotMapping);
     }
 
     @Override
@@ -582,15 +586,15 @@ public class CookingPotGui extends AbstractInventoryGui {
         if (config.isOutputSlot(rawSlot)) {
             event.setCancelled(true);
             Player player = (Player) event.getWhoClicked();
-            int requestedAmount = resolveOutputTakeAmount(event, rawSlot);
+            int requestedAmount = outputTaker.resolveOutputTakeAmount(event, rawSlot);
             if (requestedAmount <= 0) {
                 return;
             }
 
-            ItemStack outputItem = takeOutputFromSlot(player, rawSlot, requestedAmount);
+            ItemStack outputItem = outputTaker.takeOutputFromSlot(player, rawSlot, requestedAmount);
             if (outputItem != null && !outputItem.getType().isAir()) {
-                deliverOutputToPlayer(event, player, outputItem);
-                applyOutputExperienceReward(player, outputItem);
+                outputTaker.deliverOutputToPlayer(event, player, outputItem);
+                outputTaker.applyOutputExperienceReward(player, outputItem);
                 player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.0f);
                 Bukkit.getPluginManager().callEvent(new com.huidu.farmersdelight.api.event.FarmersDelightProduceEvent(
                         player.getUniqueId(), "cooking_pot", outputItem, cookingPotLocation));
@@ -625,7 +629,7 @@ public class CookingPotGui extends AbstractInventoryGui {
                 // — a Folia cross-region ingredient dupe.
                 blockEntity.withInventoryLock(() -> {
                     refreshInputSlotsFromBlockEntity();
-                    smartMoveFromPlayerInventory(current);
+                    itemDistributor.smartMoveFromPlayerInventory(current);
                     event.setCurrentItem(current.getAmount() > 0 ? current : null);
                     syncToBlockEntity();
                 });
@@ -1107,234 +1111,6 @@ public class CookingPotGui extends AbstractInventoryGui {
                 gui.close();
             }
         }
-    }
-
-    private void smartMoveFromPlayerInventory(ItemStack item) {
-        if (item == null || item.getType().isAir()) {
-            return;
-        }
-
-        if (shouldPrioritizeContainer(item)) {
-            moveToContainerSlot(item);
-            moveToIngredientSlots(item);
-        } else {
-            moveToIngredientSlots(item);
-            moveToContainerSlot(item);
-        }
-    }
-
-    private int[] writableGuiSlots(int[] slots) {
-        if (slots == null || slots.length == 0) {
-            return new int[0];
-        }
-        List<Integer> writableSlots = new ArrayList<>();
-        for (int slot : slots) {
-            if (writableSlotMapping.containsKey(slot)) {
-                writableSlots.add(slot);
-            }
-        }
-        return writableSlots.stream().mapToInt(Integer::intValue).toArray();
-    }
-
-    private boolean shouldPrioritizeContainer(ItemStack item) {
-        int[] writableContainerSlots = writableGuiSlots(containerSlots);
-        if (writableContainerSlots.length == 0) {
-            return false;
-        }
-
-        for (int slot : writableContainerSlots) {
-            ItemStack containerItem = inventory.getItem(slot);
-            if (containerItem != null && !containerItem.getType().isAir()) {
-                return isContainerCandidate(item) && containerItem.isSimilar(item);
-            }
-        }
-
-        return blockEntity.doesMealHaveContainer() && isContainerCandidate(item);
-    }
-
-    private void moveToIngredientSlots(ItemStack item) {
-        if (item == null || item.getType().isAir()) {
-            return;
-        }
-
-        int[] writableIngredientSlots = writableGuiSlots(ingredientSlots);
-        Set<Integer> orderedSlots = new LinkedHashSet<>();
-        for (int slot : writableIngredientSlots) {
-            ItemStack target = inventory.getItem(slot);
-            if (target != null && !target.getType().isAir() && target.isSimilar(item)) {
-                orderedSlots.add(slot);
-            }
-        }
-        for (int slot : writableIngredientSlots) {
-            ItemStack target = inventory.getItem(slot);
-            if (target == null || target.getType().isAir()) {
-                orderedSlots.add(slot);
-            }
-        }
-
-        for (int slot : orderedSlots) {
-            if (item.getAmount() <= 0) {
-                return;
-            }
-
-            ItemStack target = inventory.getItem(slot);
-            if (target == null || target.getType().isAir()) {
-                ItemStack placed = item.clone();
-                writeWritableSlot(slot, placed);
-                item.setAmount(0);
-                return;
-            }
-
-            if (!target.isSimilar(item)) {
-                continue;
-            }
-
-            int space = target.getMaxStackSize() - target.getAmount();
-            if (space <= 0) {
-                continue;
-            }
-
-            int toMove = Math.min(space, item.getAmount());
-            target.setAmount(target.getAmount() + toMove);
-            item.setAmount(item.getAmount() - toMove);
-            writeWritableSlot(slot, target);
-        }
-    }
-
-    private void moveToContainerSlot(ItemStack item) {
-        int[] writableContainerSlots = writableGuiSlots(containerSlots);
-        if (writableContainerSlots.length == 0 || item == null || item.getType().isAir()) {
-            return;
-        }
-
-        if (!isContainerCandidate(item)) {
-            return;
-        }
-
-        for (int slot : writableContainerSlots) {
-            ItemStack target = inventory.getItem(slot);
-            if (target == null || target.getType().isAir() || !target.isSimilar(item)) {
-                continue;
-            }
-
-            int space = target.getMaxStackSize() - target.getAmount();
-            if (space <= 0) {
-                continue;
-            }
-
-            int toMove = Math.min(space, item.getAmount());
-            target.setAmount(target.getAmount() + toMove);
-            item.setAmount(item.getAmount() - toMove);
-            writeWritableSlot(slot, target);
-            if (item.getAmount() <= 0) {
-                return;
-            }
-        }
-
-        for (int slot : writableContainerSlots) {
-            ItemStack target = inventory.getItem(slot);
-            if (target != null && !target.getType().isAir()) {
-                continue;
-            }
-            ItemStack placed = item.clone();
-            writeWritableSlot(slot, placed);
-            item.setAmount(0);
-            return;
-        }
-    }
-
-    private int resolveOutputTakeAmount(InventoryClickEvent event, int guiSlot) {
-        Integer entitySlot = slotMapping.get(guiSlot);
-        if (entitySlot == null) {
-            return 0;
-        }
-        ItemStack currentOutput = blockEntity.getInventorySlot(entitySlot);
-        if (currentOutput == null || currentOutput.getType().isAir()) {
-            return 0;
-        }
-
-        @SuppressWarnings("null")
-        @Nonnull
-        ItemStack cursor = event.getCursor();
-        boolean cursorEmpty = cursor == null || cursor.getType().isAir();
-        boolean rightClick = event.isRightClick();
-        boolean shiftClick = event.isShiftClick();
-
-        if (shiftClick) {
-            return currentOutput.getAmount();
-        }
-
-        if (cursorEmpty) {
-            return rightClick ? 1 : currentOutput.getAmount();
-        }
-
-        if (!cursor.isSimilar(currentOutput)) {
-            return 0;
-        }
-
-        int availableCursorSpace = cursor.getMaxStackSize() - cursor.getAmount();
-        if (availableCursorSpace <= 0) {
-            return 0;
-        }
-
-        return Math.min(rightClick ? 1 : currentOutput.getAmount(), availableCursorSpace);
-    }
-
-    private ItemStack takeOutputFromSlot(Player player, int guiSlot, int requestedAmount) {
-        Integer entitySlot = slotMapping.get(guiSlot);
-        if (entitySlot == null) {
-            return null;
-        }
-        return blockEntity.takeOutputSlotPortionForDelivery(player, entitySlot, requestedAmount);
-    }
-
-    private void applyOutputExperienceReward(Player player, ItemStack result) {
-        blockEntity.awardUsedRecipes(player);
-        plugin.callCookingPotExperienceEvent(player, result, 0.0D);
-    }
-
-    private void deliverOutputToPlayer(InventoryClickEvent event, Player player, ItemStack meal) {
-        if (event.isShiftClick()) {
-            var leftover = player.getInventory().addItem(meal);
-            for (var entry : leftover.entrySet()) {
-                player.getWorld().dropItemNaturally(player.getLocation(), entry.getValue());
-            }
-            return;
-        }
-
-        ItemStack cursor = event.getCursor();
-        if (cursor == null || cursor.getType().isAir()) {
-            player.setItemOnCursor(meal);
-            return;
-        }
-
-        if (cursor.isSimilar(meal) && cursor.getAmount() + meal.getAmount() <= cursor.getMaxStackSize()) {
-            cursor.setAmount(cursor.getAmount() + meal.getAmount());
-            player.setItemOnCursor(cursor);
-            return;
-        }
-
-        var leftover = player.getInventory().addItem(meal);
-        for (var entry : leftover.entrySet()) {
-            player.getWorld().dropItemNaturally(player.getLocation(), entry.getValue());
-        }
-    }
-
-    private boolean isContainerCandidate(ItemStack item) {
-        if (item == null || item.getType().isAir()) {
-            return false;
-        }
-
-        if (blockEntity.doesMealHaveContainer() && blockEntity.isContainerValid(item)) {
-            return true;
-        }
-
-        String customId = ItemUtils.getCustomItemId(item);
-        if (customId != null && plugin.getCookingPotRecipes().getValidContainerKeys().contains(customId)) {
-            return true;
-        }
-        String materialKey = "minecraft:" + item.getType().name().toLowerCase(java.util.Locale.ROOT);
-        return plugin.getCookingPotRecipes().getValidContainerKeys().contains(materialKey);
     }
 
 }

@@ -18,12 +18,10 @@ import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
-import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.CookingRecipe;
@@ -40,8 +38,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -49,19 +45,11 @@ public class SkilletManager {
 
     private static final int HEARTBEAT_LOG_INTERVAL = 20;
     private static final int DEFAULT_TICK_BUDGET = 512;
-    // Squared player-proximity radius for gating per-tick smoke/sizzle broadcasts. Default 32 blocks =
-    // vanilla particle/sound range; read from skillet.effects.viewer-distance on reload.
-    private static final double DEFAULT_EFFECT_VIEWER_DISTANCE = 32.0D;
-    // Written in reloadConfig (reload thread), read on Folia region tick threads — volatile for a
-    // happens-before edge, matching the other reload-mutated tick-read fields.
-    private volatile double effectViewerDistanceSquared = DEFAULT_EFFECT_VIEWER_DISTANCE * DEFAULT_EFFECT_VIEWER_DISTANCE;
     private static final int DEFAULT_COOK_TIME = Constants.DEFAULT_COOKING_TIME_SKILLET;
     private static final int DEFAULT_MIN_COOK_TIME = 60;
     private static final int DEFAULT_COOLING_DECREMENT = 2;
     private static final double DEFAULT_COOK_TIME_MULTIPLIER = Constants.SKILLET_COOKING_TIME_REDUCTION;
     private static final double DEFAULT_FIRE_ASPECT_BONUS = Constants.SKILLET_FIRE_ASPECT_BONUS;
-    private static final double DEFAULT_SMOKE_CHANCE = Constants.SKILLET_PARTICLE_CHANCE;
-    private static final double DEFAULT_SIZZLE_CHANCE = Constants.SKILLET_SIZZLE_CHANCE;
     // Heat-source state changes rarely (only on block break/place below the skillet). Cache the result
     // for this many ticks so the per-tick hasHeatSource probe — which does two getBlockAt + HeatSourceConfig
     // queries — is skipped in the steady state. 20 ticks = 1s max staleness, acceptable for cook progress.
@@ -69,6 +57,7 @@ public class SkilletManager {
 
     private final FarmersDelightPlugin plugin;
     private final SkilletVisualManager visualManager;
+    private final SkilletEffectManager effectManager;
     private final Map<Location, SkilletData> skillets = new ConcurrentHashMap<>();
     private final Map<UUID, Set<Location>> skilletsByWorld = new ConcurrentHashMap<>();
     private final Map<UUID, Map<Long, Set<Location>>> skilletsByChunk = new ConcurrentHashMap<>();
@@ -90,50 +79,13 @@ public class SkilletManager {
     private int coolingDecrement = DEFAULT_COOLING_DECREMENT;
     private double cookTimeMultiplier = DEFAULT_COOK_TIME_MULTIPLIER;
     private double fireAspectBonus = DEFAULT_FIRE_ASPECT_BONUS;
-    private boolean smokeEnabled = true;
-    private Particle smokeParticle = Particle.SMOKE;
-    private double smokeChance = DEFAULT_SMOKE_CHANCE;
-    private int smokeCount = 2;
-    private double smokeYOffset = 0.2D;
-    private double smokeOffsetX = 0.1D;
-    private double smokeOffsetY = 0.1D;
-    private double smokeOffsetZ = 0.1D;
-    private double smokeSpeed = 0.02D;
-    private boolean sizzleEnabled = true;
-    private double sizzleChance = DEFAULT_SIZZLE_CHANCE;
-    private float sizzleVolume = 0.5F;
-    private float sizzlePitch = 1.0F;
-    // Per-chunk hard cap on particle+sound packets emitted per dispatch from THIS manager, mirroring
-    // StoveManager's budget — stops a dense pocket of cooking skillets from steamrolling the packet
-    // queue when many cook rolls land in one Bukkit tick. Reset once per bukkit tick, shared across the
-    // whole tick pass. No chunk stagger is applied: the manager dispatches on a period-4 timer at a
-    // fixed tick residue, so a Bukkit.getCurrentTick()-derived stagger would never rotate — it would
-    // permanently silence 3/4 of chunks — so only the hard budget cap is used here.
-    private volatile int chunkEffectBudgetLimit = 50;
-    // Keyed by world UID (like StoveManager.chunkFx) so two worlds' chunks sharing a chunkKey don't collide on
-    // one budget entry. The outer map is cleared wholesale once per Bukkit tick across the whole tick pass.
-    private final Map<java.util.UUID, Map<Long, AtomicInteger>> chunkEffectBudget = new ConcurrentHashMap<>();
-    // volatile: Folia ticks skillets in different regions concurrently, so this per-tick budget-reset guard is
-    // read/written across region threads (matches StoveManager and TickManager). Without it a stale read lets a
-    // second region clear the per-chunk budget map again mid-tick, wiping another chunk's accumulated cap.
-    private volatile long effectBudgetResetTick = -1L;
-    // Reusable per-thread recipient list for targeted particle/sound sends (per-thread for Folia's
-    // concurrent per-region skillet ticks; refilled per skillet and consumed synchronously).
-    private static final ThreadLocal<List<Player>> NEARBY_VIEWER_SCRATCH = ThreadLocal.withInitial(ArrayList::new);
 
     public SkilletManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
         this.visualManager = new SkilletVisualManager(plugin);
+        this.effectManager = new SkilletEffectManager(plugin);
         reloadConfig();
         campfireRecipes.rebuild();
-    }
-
-    private long chunkKey(int chunkX, int chunkZ) {
-        return (((long) chunkX) << 32) ^ (chunkZ & 0xffffffffL);
-    }
-
-    private long chunkKey(Location location) {
-        return chunkKey(location.getBlockX() >> 4, location.getBlockZ() >> 4);
     }
 
     public void reloadConfig() {
@@ -155,37 +107,8 @@ public class SkilletManager {
         this.fireAspectBonus = ManagerSupport.clampChance(plugin.getConfigDouble(DEFAULT_FIRE_ASPECT_BONUS,
                 "skillet.cooking.fire-aspect-bonus",
                 "skillet.fire-aspect-bonus"));
-        double viewerDistance = Math.max(0.0D, plugin.getConfigDouble(DEFAULT_EFFECT_VIEWER_DISTANCE,
-                "skillet.effects.viewer-distance"));
-        this.effectViewerDistanceSquared = viewerDistance * viewerDistance;
-        this.chunkEffectBudgetLimit = Math.max(1, plugin.getConfigInt(50,
-                "performance.chunk-effect-packet-budget"));
-        loadEffectsConfig();
+        effectManager.reloadConfig();
         refreshVisualsAfterConfigReload();
-    }
-
-    private void loadEffectsConfig() {
-        ConfigurationSection effectsSection = plugin.getFirstConfigSection("skillet.effects");
-        ConfigurationSection smokeSection = effectsSection != null ? effectsSection.getConfigurationSection("smoke") : null;
-        smokeEnabled = smokeSection == null || smokeSection.getBoolean("enabled", true);
-        smokeParticle = ManagerSupport.resolveParticle(smokeSection == null ? null : smokeSection.getString("type"), Particle.SMOKE);
-        smokeChance = ManagerSupport.clampChance(smokeSection == null
-                ? DEFAULT_SMOKE_CHANCE
-                : smokeSection.getDouble("chance", DEFAULT_SMOKE_CHANCE));
-        smokeCount = Math.max(1, smokeSection == null ? 2 : smokeSection.getInt("count", 2));
-        smokeYOffset = smokeSection == null ? 0.2D : smokeSection.getDouble("y-offset", 0.2D);
-        smokeOffsetX = Math.max(0.0D, smokeSection == null ? 0.1D : smokeSection.getDouble("offset-x", 0.1D));
-        smokeOffsetY = Math.max(0.0D, smokeSection == null ? 0.1D : smokeSection.getDouble("offset-y", 0.1D));
-        smokeOffsetZ = Math.max(0.0D, smokeSection == null ? 0.1D : smokeSection.getDouble("offset-z", 0.1D));
-        smokeSpeed = Math.max(0.0D, smokeSection == null ? 0.02D : smokeSection.getDouble("speed", 0.02D));
-
-        ConfigurationSection sizzleSection = effectsSection != null ? effectsSection.getConfigurationSection("sizzle") : null;
-        sizzleEnabled = sizzleSection == null || sizzleSection.getBoolean("enabled", true);
-        sizzleChance = ManagerSupport.clampChance(sizzleSection == null
-                ? DEFAULT_SIZZLE_CHANCE
-                : sizzleSection.getDouble("chance", DEFAULT_SIZZLE_CHANCE));
-        sizzleVolume = (float) Math.max(0.0D, sizzleSection == null ? 0.5D : sizzleSection.getDouble("volume", 0.5D));
-        sizzlePitch = (float) Math.max(0.0D, sizzleSection == null ? 1.0D : sizzleSection.getDouble("pitch", 1.0D));
     }
 
     private void ensureTaskRunning() {
@@ -712,7 +635,7 @@ public class SkilletManager {
             return;
         }
         Map<Long, Set<Location>> worldChunks = skilletsByChunk.get(world.getUID());
-        Set<Location> locations = worldChunks == null ? null : worldChunks.get(chunkKey(minX >> 4, minZ >> 4));
+        Set<Location> locations = worldChunks == null ? null : worldChunks.get(ManagerSupport.chunkKey(minX, minZ));
         if (locations == null || locations.isEmpty()) {
             return;
         }
@@ -925,7 +848,7 @@ public class SkilletManager {
                 .add(location);
         skilletsByChunk
                 .computeIfAbsent(location.getWorld().getUID(), ignored -> new ConcurrentHashMap<>())
-                .computeIfAbsent(chunkKey(location), ignored -> ConcurrentHashMap.newKeySet())
+                .computeIfAbsent(ManagerSupport.chunkKey(location), ignored -> ConcurrentHashMap.newKeySet())
                 .add(location);
     }
 
@@ -947,7 +870,7 @@ public class SkilletManager {
         if (worldChunks == null) {
             return;
         }
-        long chunkKey = chunkKey(location);
+        long chunkKey = ManagerSupport.chunkKey(location);
         Set<Location> chunkLocations = worldChunks.get(chunkKey);
         if (chunkLocations == null) {
             return;
@@ -1125,39 +1048,7 @@ public class SkilletManager {
 
         skillet.cookingProgress++;
 
-        // Skip the per-tick smoke/sizzle broadcast when no player is close (R-PERF-003) — mirrors
-        // StoveManager/TickManager. cookingProgress++ above stays unconditional so unattended
-        // skillets still finish cooking.
-        ThreadLocalRandom random = ThreadLocalRandom.current();
-        // Collect the chunk-tracked nearby players once: this is both the "any player near?" gate and the
-        // recipient set for the sends below, so the particle/sound target player.spawnParticle/playSound
-        // instead of world.spawnParticle re-walking the whole world player list per call (R-PERF-006).
-        List<Player> nearbyViewers = ManagerSupport.collectNearbyPlayers(
-                world, location, effectViewerDistanceSquared, NEARBY_VIEWER_SCRATCH.get());
-        // Per-chunk per-dispatch packet budget (mirrors StoveManager): a dense pocket of cooking skillets
-        // can't emit more than chunkEffectBudgetLimit particle/sound packets from one chunk in a single
-        // Bukkit tick, capping the peak packet burst. Emission chance is unchanged, so per-skillet
-        // visuals are identical to before — only pathological density (~50+ cooking skillets in one
-        // chunk) is clipped. The budget map is cleared once per bukkit tick across the whole tick pass.
-        long chunkKey = chunkKey(location);
-        if (currentBukkitTick != effectBudgetResetTick) {
-            chunkEffectBudget.clear();
-            effectBudgetResetTick = currentBukkitTick;
-        }
-        AtomicInteger chunkBudget = nearbyViewers.isEmpty()
-                ? null
-                : chunkEffectBudget.computeIfAbsent(world.getUID(), w -> new ConcurrentHashMap<>())
-                        .computeIfAbsent(chunkKey, k -> new AtomicInteger());
-        boolean canSpawnEffects = chunkBudget != null && chunkBudget.get() < chunkEffectBudgetLimit;
-        if (canSpawnEffects && smokeEnabled && random.nextDouble() < smokeChance) {
-            spawnCookingParticles(nearbyViewers, location);
-            chunkBudget.incrementAndGet();
-        }
-        if (canSpawnEffects && chunkBudget.get() < chunkEffectBudgetLimit
-                && sizzleEnabled && random.nextDouble() < sizzleChance) {
-            SoundUtils.play(nearbyViewers, location, getSizzleSound(carrierState), Sound.BLOCK_CAMPFIRE_CRACKLE, sizzleVolume, sizzlePitch);
-            chunkBudget.incrementAndGet();
-        }
+        effectManager.dispatchTickEffects(world, location, carrierState);
         if (skillet.cookingProgress >= skillet.cookingDuration) {
             debug(() -> "tick finish: progress reached duration for " + formatItem(skillet.storedItem)
                     + " at " + formatLocation(location));
@@ -1273,16 +1164,6 @@ public class SkilletManager {
         return Constants.SOUND_SKILLET_ADD_FOOD;
     }
 
-    // Resolves the sizzle sound from the already-fetched carrier state, avoiding a second CE custom-state
-    // fetch during the sizzle branch (the state is validated once at the top of tickSkillet).
-    private String getSizzleSound(ImmutableBlockState state) {
-        SkilletBlockBehavior behavior = CustomBlockUtils.getBehavior(state, SkilletBlockBehavior.class);
-        if (behavior != null) {
-            return behavior.getSizzleSound();
-        }
-        return Constants.SOUND_SKILLET_SIZZLE;
-    }
-
     private BlockFace getClockWise(BlockFace facing) {
         return switch (facing) {
             case NORTH -> BlockFace.EAST;
@@ -1291,14 +1172,6 @@ public class SkilletManager {
             case WEST -> BlockFace.NORTH;
             default -> facing;
         };
-    }
-
-    private void spawnCookingParticles(List<Player> viewers, Location location) {
-        double px = location.getX() + 0.5;
-        double py = location.getY() + smokeYOffset;
-        double pz = location.getZ() + 0.5;
-        ManagerSupport.spawnParticleFor(viewers, smokeParticle, px, py, pz,
-                smokeCount, smokeOffsetX, smokeOffsetY, smokeOffsetZ, smokeSpeed);
     }
 
     private void createVisual(Location location, SkilletData skillet) {

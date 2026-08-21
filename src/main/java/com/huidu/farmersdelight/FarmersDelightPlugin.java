@@ -429,6 +429,16 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         ProtectionCompat.registerFlags();
     }
 
+    // Registers several transient listeners in one shot. Transient listeners own no long-lived state and are
+    // never retained as fields (they are not individually torn down or reloaded), so a bulk-varargs registration
+    // keeps the onEnable bootstrap readable without changing behaviour or order.
+    private void registerEvents(org.bukkit.event.Listener... listeners) {
+        org.bukkit.plugin.java.JavaPlugin plugin = this;
+        for (org.bukkit.event.Listener listener : listeners) {
+            getServer().getPluginManager().registerEvents(listener, plugin);
+        }
+    }
+
     private static final String RELOAD_GUARD_PROPERTY = "farmersdelight.enabled.in.this.jvm";
     private boolean enabledSuccessfully = false;
 
@@ -528,17 +538,17 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         blockPlaceListener = new BlockPlaceListener();
         getServer().getPluginManager().registerEvents(blockPlaceListener, this);
         BlockPlaceListener.reloadMushroomSupportCache(this);
-        getServer().getPluginManager().registerEvents(new SkilletPlaceListener(), this);
-        getServer().getPluginManager().registerEvents(new ToolAttackListener(), this);
-        getServer().getPluginManager().registerEvents(new RottenTomatoListener(this), this);
-        getServer().getPluginManager().registerEvents(new CuttingBoardInteractListener(), this);
-        getServer().getPluginManager().registerEvents(new CuttingBoardDispenseListener(this), this);
+        registerEvents(
+                new SkilletPlaceListener(),
+                new ToolAttackListener(),
+                new RottenTomatoListener(this),
+                new CuttingBoardInteractListener(),
+                new CuttingBoardDispenseListener(this));
 
         strawDropListener = new StrawDropListener(this);
         getServer().getPluginManager().registerEvents(strawDropListener, this);
 
-        getServer().getPluginManager().registerEvents(new RicePlantListener(this), this);
-        getServer().getPluginManager().registerEvents(new UpperHalfLootRelayListener(), this);
+        registerEvents(new RicePlantListener(this), new UpperHalfLootRelayListener());
 
         // Awards master_chef criteria and preserves addon/legacy food registrations. Built-in food buffs run as CE functions.
         foodEatListener = new FoodEatListener(this);
@@ -553,9 +563,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(effectListener, this);
         effectListener.start();
 
-        getServer().getPluginManager().registerEvents(this, this);
-        getServer().getPluginManager().registerEvents(
-                new com.huidu.farmersdelight.api.util.PluginManagerGuard(getName()), this);
+        registerEvents(this, new com.huidu.farmersdelight.api.util.PluginManagerGuard(getName()));
 
         tickManager = new TickManager(this);
         tickManager.start();
@@ -583,9 +591,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         buffBossbarManager.start();
         ropeBlockListener = new RopeBlockListener(this);
         getServer().getPluginManager().registerEvents(ropeBlockListener, this);
-        getServer().getPluginManager().registerEvents(new TatamiBreakListener(), this);
-        getServer().getPluginManager().registerEvents(new RichSoilHoeListener(this), this);
-        getServer().getPluginManager().registerEvents(new CropInteractProtectionListener(), this);
+        registerEvents(
+                new TatamiBreakListener(),
+                new RichSoilHoeListener(this),
+                new CropInteractProtectionListener());
 
         backstabListener = new BackstabListener(this);
         getServer().getPluginManager().registerEvents(backstabListener, this);
@@ -599,8 +608,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
         // Villager and wandering trader trades (world-data section). Composting chances and furnace burn
         // times now live in the CraftEngine item configurations instead.
-        getServer().getPluginManager().registerEvents(
-                new com.huidu.farmersdelight.listener.worlddata.VillagerTradeListener(), this);
+        registerEvents(new com.huidu.farmersdelight.listener.worlddata.VillagerTradeListener());
 
         indexLoadedChunkContentWhenReady();
 

@@ -11,6 +11,7 @@ import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.ManagerSupport;
 import com.huidu.farmersdelight.util.PermissionChecker;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
@@ -240,20 +241,16 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         return Set.of();
     }
 
-    private static long chunkKey(int blockX, int blockZ) {
-        return (((long) (blockX >> 4)) << 32) | ((blockZ >> 4) & 0xFFFFFFFFL);
-    }
-
     private static void indexAdd(UUID worldId, BlockPosKey posKey) {
         chunkIndex.computeIfAbsent(worldId, k -> new ConcurrentHashMap<>())
-                .computeIfAbsent(chunkKey(posKey.x(), posKey.z()), k -> ConcurrentHashMap.newKeySet())
+                .computeIfAbsent(ManagerSupport.chunkKey(posKey.x(), posKey.z()), k -> ConcurrentHashMap.newKeySet())
                 .add(posKey);
     }
 
     private static void indexRemove(UUID worldId, BlockPosKey posKey) {
         Map<Long, Set<BlockPosKey>> worldChunks = chunkIndex.get(worldId);
         if (worldChunks == null) return;
-        long ck = chunkKey(posKey.x(), posKey.z());
+        long ck = ManagerSupport.chunkKey(posKey.x(), posKey.z());
         Set<BlockPosKey> set = worldChunks.get(ck);
         if (set == null) return;
         set.remove(posKey);
@@ -266,7 +263,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         if (world == null) return result;
         Map<Long, Set<BlockPosKey>> worldChunks = chunkIndex.get(world.getUID());
         if (worldChunks == null) return result;
-        Set<BlockPosKey> posKeys = worldChunks.get((((long) chunkX) << 32) | (chunkZ & 0xFFFFFFFFL));
+        Set<BlockPosKey> posKeys = worldChunks.get(ManagerSupport.chunkKey(chunkX, chunkZ));
         if (posKeys == null) return result;
         Map<BlockPosKey, CookingPotBlockEntity> worldEntities = worldBlockEntities.get(world.getUID());
         if (worldEntities == null) return result;
