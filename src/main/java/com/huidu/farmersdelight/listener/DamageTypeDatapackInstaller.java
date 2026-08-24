@@ -30,6 +30,32 @@ public final class DamageTypeDatapackInstaller implements Listener {
     private static final String LEGACY_DAMAGE_DIR = "data/farmersdelight/damage_type";
     private static final String LEGACY_NO_KNOCKBACK = "data/minecraft/tags/damage_type/no_knockback.json";
 
+    // Removes the old FarmersDelight loot datapack (datapacks/farmersdelight) that pre-CE-native
+    // builds installed to inject items into vanilla chest/grass/mob loot tables. The injections now
+    // live as CraftEngine vanilla/container loot sources, so keeping the stale datapack would
+    // double-add CE items. The damage files that old datapack also carried are migrated by
+    // removeLegacyFiles first, so nothing is lost when the whole folder is deleted afterwards.
+    public void cleanupLegacyLootDatapack() {
+        if (!installEnabled) {
+            return;
+        }
+        for (World world : Bukkit.getWorlds()) {
+            if (plugin.isDatapackWorldAllowed(world)) {
+                continue;
+            }
+            Path legacy = DatapackSupport.worldRoot(world).resolve("datapacks").resolve(LEGACY_LOOT_DATAPACK);
+            try {
+                if (Files.exists(legacy)) {
+                    DatapackSupport.deleteRecursively(legacy);
+                    I18n.logInfo("loot_datapack_legacy_removed", "world", world.getName());
+                }
+            } catch (IOException e) {
+                plugin.getLogger().warning("FarmersDelight loot datapack: failed to remove legacy folder under "
+                        + legacy + ": " + e.getMessage());
+            }
+        }
+    }
+
     private final FarmersDelightPlugin plugin;
     private final boolean installEnabled;
 

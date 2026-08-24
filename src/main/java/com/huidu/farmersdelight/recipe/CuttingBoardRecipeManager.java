@@ -36,6 +36,9 @@ public class CuttingBoardRecipeManager {
     // filtered by that set — sortedRecipes order (priority + id) preserved exactly.
     private volatile Map<String, Set<String>> byInputItemId = Map.of();
     private volatile Set<String> tagInputRecipeIds = Set.of();
+    // Reverse index result item id -> producing recipes, built at load time and published as a whole
+    // (single volatile write) so API cross-reference / GUI can answer "which recipes produce X" in O(1).
+    private volatile Map<String, List<CuttingBoardRecipe>> resultToRecipes = Map.of();
     private volatile List<CuttingBoardRecipe.ToolRequirement> toolRequirements = List.of();
     // Recipes registered at runtime by addons via the public API; kept separate so they survive a
     // /fd reload (which rebuilds the file-backed map) and merged into the published map in loadRecipes().
@@ -120,6 +123,7 @@ public class CuttingBoardRecipeManager {
             uniqueTools.addAll(recipe.getTools());
         }
         this.toolRequirements = List.copyOf(uniqueTools);
+        this.resultToRecipes = buildResultIndex(newSorted);
         vanillaItemIdsByTagCache.clear();
         // Invalidate the recipe-list GUI display cache: this republish path (incl. addon register/
         // unregister) bypasses RecipeViewGui.clearConfigCache.
@@ -385,6 +389,46 @@ public class CuttingBoardRecipeManager {
         return List.copyOf(craftable);
     }
 
+    private Map<String, List<CuttingBoardRecipe>> buildResultIndex(List<CuttingBoardRecipe> recipesToIndex) {
+        Map<String, List<CuttingBoardRecipe>> index = new HashMap<>();
+        for (CuttingBoardRecipe recipe : recipesToIndex) {
+            for (CuttingBoardRecipe.ResultEntry result : recipe.getResults()) {
+                if (result.item() == null) {
+                    continue;
+                }
+                String key = ItemUtils.getCustomItemId(result.item());
+                if (key == null) {
+                    key = ItemUtils.getVanillaMaterialItemId(result.item());
+                }
+                if (key == null) {
+                    continue;
+                }
+                index.computeIfAbsent(key, k -> new ArrayList<>(1)).add(recipe);
+            }
+        }
+        Map<String, List<CuttingBoardRecipe>> frozen = new HashMap<>(index.size());
+        for (Map.Entry<String, List<CuttingBoardRecipe>> entry : index.entrySet()) {
+            frozen.put(entry.getKey(), List.copyOf(entry.getValue()));
+        }
+        return Collections.unmodifiableMap(frozen);
+    }
+
+    /** Recipes that produce this item, from the reverse result index (O(1), no full scan). */
+    public List<CuttingBoardRecipe> getRecipesProducing(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return List.of();
+        }
+        String key = ItemUtils.getCustomItemId(item);
+        if (key == null) {
+            key = ItemUtils.getVanillaMaterialItemId(item);
+        }
+        if (key == null) {
+            return List.of();
+        }
+        List<CuttingBoardRecipe> matches = resultToRecipes.get(key);
+        return matches == null ? List.of() : matches;
+    }
+
     private Set<String> candidateRecipeIds(ItemStack input) {
         Map<String, Set<String>> byId = this.byInputItemId;
         Set<String> tagIds = this.tagInputRecipeIds;
@@ -407,32 +451,29 @@ public class CuttingBoardRecipeManager {
     }
 
     private boolean matchesInput(CuttingBoardRecipe recipe, ItemStack input) {
-        if (input == null || input.getType().isAir()) {
+        return matchesIngredient(input, recipe.getInput());
+    }
+
+    // Public ingredient check so API cross-reference / addons can test an item against a recipe input
+    // without re-implementing item/tag/choice matching.
+    public boolean matchesIngredient(ItemStack input, RecipeIngredient ingredient) {
+        if (input == null || input.getType().isAir() || ingredient == null) {
             return false;
         }
-
-        RecipeIngredient ingredient = recipe.getInput();
         if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
             return ItemUtils.matchesItemId(input, itemIngredient.key());
         }
-
         if (ingredient instanceof RecipeIngredient.Tag tagIngredient) {
             return matchesTaggedItem(input, tagIngredient.key(), tagIngredient.excludedItems(), tagIngredient.excludedTags());
         }
-
         if (ingredient instanceof RecipeIngredient.Choice choice) {
             for (RecipeIngredient option : choice.options()) {
-                if (option instanceof RecipeIngredient.Item optItem && ItemUtils.matchesItemId(input, optItem.key())) {
-                    return true;
-                }
-                if (option instanceof RecipeIngredient.Tag optTag
-                        && matchesTaggedItem(input, optTag.key(), optTag.excludedItems(), optTag.excludedTags())) {
+                if (matchesIngredient(input, option)) {
                     return true;
                 }
             }
             return false;
         }
-
         return false;
     }
 

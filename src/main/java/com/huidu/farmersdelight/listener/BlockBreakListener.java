@@ -30,7 +30,6 @@ import net.momirealms.craftengine.libraries.nbt.CompoundTag;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.block.Block;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -63,23 +62,26 @@ public class BlockBreakListener implements Listener {
         FarmersDelightPlugin.getInstance().getStoveManager()
                 .invalidateBlockedAboveCache(event.bukkitBlock().getLocation().add(0, -1, 0));
         syncTraysAroundSupportChange(event.bukkitBlock());
-        if (!isManagedInteractiveBlock(event.blockState())) {
+        // Resolve the block state once and reuse it across the managed-type checks and cleanup, avoiding
+        // the repeated lookups the per-call event.blockState() would otherwise perform.
+        ImmutableBlockState state = event.blockState();
+        if (!isManagedInteractiveBlock(state)) {
             return;
         }
-        if (isCookingPotBlock(event.blockState())) {
+        if (isCookingPotBlock(state)) {
             boolean shouldDropItems = event.dropItems() && event.getPlayer().getGameMode() != GameMode.CREATIVE;
             event.setDropItems(false);
             boolean preserveContents = FarmersDelightPlugin.getInstance().isCookingPotPackContentsOnBreak();
-            cleanupBlockAt(event.bukkitBlock(), event.blockState(), preserveContents, shouldDropItems);
+            cleanupBlockAt(event.bukkitBlock(), state, preserveContents, shouldDropItems);
             return;
         }
-        if (!isSkilletBlock(event.blockState())) {
-            cleanupBlockAt(event.bukkitBlock(), event.dropItems());
+        if (!isSkilletBlock(state)) {
+            cleanupBlockAt(event.bukkitBlock(), state, false, event.dropItems());
             return;
         }
         boolean shouldDropItems = event.dropItems() && event.getPlayer().getGameMode() != GameMode.CREATIVE;
         event.setDropItems(false);
-        cleanupBlockAt(event.bukkitBlock(), shouldDropItems);
+        cleanupBlockAt(event.bukkitBlock(), state, false, shouldDropItems);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -111,10 +113,6 @@ public class BlockBreakListener implements Listener {
 
     private void cleanupExplodedBlockAt(org.bukkit.block.Block block) {
         cleanupBlockAt(block, CustomBlockUtils.getState(block), false, true, true);
-    }
-
-    private void cleanupBlockAt(Block block, boolean shouldDropItems) {
-        cleanupBlockAt(block, CustomBlockUtils.getState(block), false, shouldDropItems);
     }
 
     private void cleanupBlockAt(org.bukkit.block.Block block, ImmutableBlockState state, boolean preserveCookingPotContents, boolean shouldDropItems) {

@@ -164,3 +164,531 @@ vanilla_loots:
           entries:
             - type: item
               item: farmersdelight:straw
+
+  farmersdelight:chest_simple_dungeon:
+    type: container
+    target: minecraft:chests/simple_dungeon
+    loot:
+      pools:
+        - rolls:
+            type: uniform
+            min: 1
+            max: 4
+          entries:
+            - type: item
+              item: farmersdelight:tomato_seeds
+              weight: 1
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 2
+                    max: 4
+            - type: item
+              item: farmersdelight:cabbage_seeds
+              weight: 1
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 2
+                    max: 4
+            - type: empty
+              functions: []
+              weight: 2
+        - rolls: 3
+          entries:
+            - type: item
+              item: farmersdelight:rope
+              weight: 1
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 2
+                    max: 12
+            - type: empty
+              functions: []
+              weight: 2
+
+  farmersdelight:chest_village_plains_house:
+    type: container
+    target: minecraft:chests/village/village_plains_house
+    loot:
+      pools:
+        - rolls:
+            type: uniform
+            min: 1
+            max: 3
+          entries:
+            - type: item
+              item: farmersdelight:onion
+              weight: 1
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 1
+                    max: 3
+            - type: item
+              item: farmersdelight:tomato_seeds
+              weight: 1
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 1
+                    max: 3
+
+  farmersdelight:chest_village_taiga_house:
+    type: container
+    target: minecraft:chests/village/village_taiga_house
+    loot:
+      pools:
+        - rolls:
+            type: uniform
+            min: 1
+            max: 3
+          entries:
+            - type: item
+              item: farmersdelight:cabbage_seeds
+              weight: 1
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 1
+                    max: 3
+            - type: item
+              item: farmersdelight:rice
+              weight: 1
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 1
+                    max: 3
+
+  farmersdelight:chest_village_snowy_house:
+    type: container
+    target: minecraft:chests/village/village_snowy_house
+    loot:
+      pools:
+        - rolls:
+            type: uniform
+            min: 1
+            max: 3
+          entries:
+            - type: item
+              item: farmersdelight:onion
+              weight: 1
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 1
+                    max: 3
+            - type: item
+              item: farmersdelight:cabbage_seeds
+              weight: 1
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 1
+                    max: 3
+
+  farmersdelight:chest_village_savanna_house:
+    type: container
+    target: minecraft:chests/village/village_savanna_house
+    loot:
+      pools:
+        - rolls:
+            type: uniform
+            min: 1
+            max: 3
+          entries:
+            - type: item
+              item: farmersdelight:tomato_seeds
+              weight: 1
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 1
+                    max: 3
+            - type: item
+              item: farmersdelight:cabbage_seeds
+              weight: 1
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 1
+                    max: 3
+
+  farmersdelight:chest_village_desert_house:
+    type: container
+    target: minecraft:chests/village/village_desert_house
+    loot:
+      pools:
+        - rolls:
+            type: uniform
+            min: 1
+            max: 3
+          entries:
+            - type: item
+              item: farmersdelight:tomato_seeds
+              weight: 1
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 1
+                    max: 3
+            - type: item
+              item: farmersdelight:rice
+              weight: 1
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 1
+                    max: 3
+
+  farmersdelight:chest_village_butcher:
+    type: container
+    target: minecraft:chests/village/village_butcher
+    loot:
+      pools:
+        - rolls: 1
+          entries:
+            - type: item
+              item: farmersdelight:flint_knife
+              weight: 1
+            - type: item
+              item: farmersdelight:iron_knife
+              weight: 1
+            - type: empty
+              functions: []
+              weight: 1
+        - rolls:
+            type: uniform
+            min: 1
+            max: 2
+          entries:
+            - type: item
+              item: farmersdelight:ham
+              weight: 1
+            - type: item
+              item: farmersdelight:minced_beef
+              weight: 3
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 2
+                    max: 6
+            - type: item
+              item: farmersdelight:bacon
+              weight: 3
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 2
+                    max: 6
+            - type: item
+              item: farmersdelight:mutton_chops
+              weight: 3
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 2
+                    max: 6
+            - type: empty
+              functions: []
+              weight: 1
+
+  farmersdelight:chest_shipwreck_supply:
+    type: container
+    target: minecraft:chests/shipwreck_supply
+    loot:
+      pools:
+        - rolls:
+            type: uniform
+            min: 1
+            max: 2
+          entries:
+            - type: item
+              item: farmersdelight:tomato_seeds
+              weight: 6
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 2
+                    max: 4
+            - type: item
+              item: farmersdelight:cabbage_seeds
+              weight: 6
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 2
+                    max: 4
+            - type: item
+              item: farmersdelight:onion
+              weight: 6
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 2
+                    max: 4
+            - type: item
+              item: farmersdelight:rice
+              weight: 6
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 2
+                    max: 4
+        - rolls:
+            type: uniform
+            min: 1
+            max: 3
+          entries:
+            - type: item
+              item: farmersdelight:rope
+              weight: 2
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 4
+                    max: 12
+            - type: empty
+              functions: []
+              weight: 1
+
+  farmersdelight:chest_ruined_portal:
+    type: container
+    target: minecraft:chests/ruined_portal
+    loot:
+      pools:
+        - rolls: 1
+          entries:
+            - type: item
+              item: farmersdelight:golden_knife
+              weight: 1
+            - type: empty
+              functions: []
+              weight: 3
+
+  farmersdelight:chest_pillager_outpost:
+    type: container
+    target: minecraft:chests/pillager_outpost
+    loot:
+      pools:
+        - rolls:
+            type: uniform
+            min: 1
+            max: 2
+          entries:
+            - type: item
+              item: farmersdelight:onion
+              weight: 5
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 4
+                    max: 12
+            - type: item
+              item: farmersdelight:onion_crate
+              weight: 2
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 1
+                    max: 3
+            - type: empty
+              functions: []
+              weight: 2
+
+  farmersdelight:chest_abandoned_mineshaft:
+    type: container
+    target: minecraft:chests/abandoned_mineshaft
+    loot:
+      pools:
+        - rolls: 1
+          entries:
+            - type: item
+              item: farmersdelight:cooking_pot
+              weight: 1
+            - type: item
+              item: farmersdelight:skillet
+              weight: 1
+            - type: empty
+              functions: []
+              weight: 6
+        - rolls:
+            type: uniform
+            min: 1
+            max: 4
+          entries:
+            - type: item
+              item: farmersdelight:tomato_seeds
+              weight: 1
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 2
+                    max: 4
+            - type: item
+              item: farmersdelight:cabbage_seeds
+              weight: 1
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 2
+                    max: 4
+            - type: item
+              item: farmersdelight:rice
+              weight: 1
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 2
+                    max: 4
+            - type: empty
+              functions: []
+              weight: 2
+        - rolls: 3
+          entries:
+            - type: item
+              item: farmersdelight:rope
+              weight: 1
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 2
+                    max: 12
+            - type: empty
+              functions: []
+              weight: 2
+
+  farmersdelight:chest_end_city_treasure:
+    type: container
+    target: minecraft:chests/end_city_treasure
+    loot:
+      pools:
+        - rolls: 1
+          entries:
+            - type: item
+              item: farmersdelight:diamond_knife
+              weight: 1
+            - type: item
+              item: farmersdelight:iron_knife
+              weight: 1
+            - type: empty
+              functions: []
+              weight: 6
+
+  farmersdelight:chest_bastion_treasure:
+    type: container
+    target: minecraft:chests/bastion_treasure
+    loot:
+      pools:
+        - rolls: 1
+          entries:
+            - type: item
+              item: farmersdelight:diamond_knife
+              weight: 1
+            - type: item
+              item: farmersdelight:diamond_knife
+              weight: 1
+            - type: empty
+              functions: []
+              weight: 6
+
+  farmersdelight:chest_bastion_hoglin_stable:
+    type: container
+    target: minecraft:chests/bastion_hoglin_stable
+    loot:
+      pools:
+        - rolls: 1
+          entries:
+            - type: item
+              item: farmersdelight:diamond_knife
+              weight: 1
+            - type: item
+              item: farmersdelight:golden_knife
+              weight: 2
+            - type: empty
+              functions: []
+              weight: 2
+        - rolls:
+            type: uniform
+            min: 1
+            max: 2
+          entries:
+            - type: item
+              item: farmersdelight:ham
+              weight: 4
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 2
+                    max: 5
+            - type: item
+              item: farmersdelight:smoked_ham
+              weight: 2
+              functions:
+                - type: set_count
+                  add: false
+                  count:
+                    type: uniform
+                    min: 2
+                    max: 5
+            - type: empty
+              functions: []
+              weight: 2

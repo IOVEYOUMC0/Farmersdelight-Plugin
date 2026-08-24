@@ -15,6 +15,7 @@ import com.huidu.farmersdelight.recipe.RecipeDiscoveryManager;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.Text;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -106,6 +107,19 @@ public final class RecipeBookGui implements InventoryHolder {
         gui.viewer = player;
         gui.singleType = true;
         gui.drawList(type, 0);
+        player.openInventory(gui.inventory);
+    }
+
+    // Opens the addon book directly at one workstation recipe's detail (used by FD's linked-recipe jumps
+    // into an addon station). singleType/singleType book: backing out of the detail reaches the type's list,
+    // and fully exiting runs onExit so the caller (FD recipe view) can hand the player back.
+    public static void openRecipe(Player player, RecipeType type, String recipeId, Runnable onExit) {
+        RecipeBookListener.ensureRegistered();
+        RecipeBookGui gui = new RecipeBookGui();
+        gui.viewer = player;
+        gui.singleType = true;
+        gui.onExit = onExit;
+        gui.drawDetail(type, recipeId, player);
         player.openInventory(gui.inventory);
     }
 
@@ -632,6 +646,31 @@ public final class RecipeBookGui implements InventoryHolder {
                 }
             }
         }
+    }
+
+    // Builds an FD-style recipe-list item: the recipe result/icon renamed and given a lore that previews the
+    // materials, so the addon book's list reads like FarmersDelight's own recipe list rather than bare icons.
+    // Extra per-recipe lines (e.g. keg temperature) are appended after the materials block.
+    private ItemStack buildListDisplayItem(ViewableRecipe recipe, Player viewer) {
+        ItemStack item = clone(recipe.icon(), Material.PAPER);
+        List<Component> lore = new ArrayList<>();
+        List<ItemStack> inputs = recipe.inputs();
+        if (!inputs.isEmpty()) {
+            lore.add(I18n.getComponent("gui.recipe.ingredients_label", viewer).color(NamedTextColor.GRAY));
+            for (ItemStack input : inputs) {
+                if (input == null || input.getType().isAir()) {
+                    continue;
+                }
+                lore.add(Component.text("- ").color(NamedTextColor.DARK_GRAY)
+                        .append(input.displayName().colorIfAbsent(NamedTextColor.WHITE)));
+            }
+            lore.add(Component.empty());
+        }
+        lore.addAll(recipe.infoLines(viewer));
+        if (!lore.isEmpty()) {
+            applyLore(item, lore);
+        }
+        return item;
     }
 
     static ItemStack clone(ItemStack source, Material fallback) {

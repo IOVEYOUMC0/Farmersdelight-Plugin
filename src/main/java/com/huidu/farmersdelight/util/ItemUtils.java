@@ -178,8 +178,11 @@ public final class ItemUtils {
                     items.add(item);
                 }
             }
-        } catch (Exception ignored) {
-            // Unknown tag or CraftEngine not ready; the slot renders as empty/barrier elsewhere.
+        } catch (Exception ex) {
+            // Unknown tag or CraftEngine not ready: the slot renders as empty/barrier elsewhere, but
+            // surface the failure so a misconfigured tag is not silently swallowed.
+            Bukkit.getLogger().warning("Failed to resolve CraftEngine tag '" + itemId + "' in slot items: "
+                    + (ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage()));
         }
         return items;
     }
@@ -866,6 +869,20 @@ public final class ItemUtils {
             return null;
         }
         return item.clone();
+    }
+
+    // Identity comparison used by recipe cross-reference / GUI linking: custom items match by custom id
+    // (ignoring base material), everything else by material type. Amount and NBT are not compared.
+    public static boolean isSameItem(ItemStack a, ItemStack b) {
+        if (a == null || b == null || a.getType().isAir() || b.getType().isAir()) {
+            return false;
+        }
+        String aId = getCustomItemId(a);
+        String bId = getCustomItemId(b);
+        if (aId != null || bId != null) {
+            return aId != null && aId.equals(bId);
+        }
+        return a.getType() == b.getType();
     }
 
     public static String normalizeBlank(String value) {

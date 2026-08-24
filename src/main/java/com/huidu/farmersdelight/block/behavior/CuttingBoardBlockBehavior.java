@@ -622,10 +622,10 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
             }
 
             FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-            float volume = (float) Math.max(0.0D, plugin.getConfigDouble(Constants.CUTTING_BOARD_FAIL_VOLUME,
-                    "cutting-board.sounds.retrieve-volume"));
-            float pitch = (float) Math.max(0.0D, plugin.getConfigDouble(Constants.CUTTING_BOARD_FAIL_PITCH,
-                    "cutting-board.sounds.retrieve-pitch"));
+            // Sound config is cached on the plugin (reload-refreshed volatile); reading it here instead of
+            // re-parsing YAML on every retrieval right-click, matching the other real-time config getters.
+            float volume = plugin.getCuttingBoardFailVolume();
+            float pitch = plugin.getCuttingBoardFailPitch();
             bukkitPlayer.playSound(bukkitPlayer.getLocation(), Sound.BLOCK_WOOD_HIT, volume, pitch);
             bukkitPlayer.swingMainHand();
             return InteractionResult.SUCCESS_AND_CANCEL;

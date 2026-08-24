@@ -27,7 +27,6 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -73,23 +72,25 @@ public class StoveManager {
     private int heartbeatTicks;
     private int tickCursor;
     private int tickBudget;
-    private int defaultCookTime = DEFAULT_COOK_TIME;
-    private int coolingDecrement = DEFAULT_COOLING_DECREMENT;
-    private boolean smokeEnabled = true;
-    private Particle smokeParticle = Particle.SMOKE;
-    private double smokeChance = DEFAULT_SMOKE_CHANCE;
-    private int smokeCount = 1;
-    private double smokeYOffset = 0.0D;
-    private double smokeOffsetX = 0.0D;
-    private double smokeOffsetY = 0.0D;
-    private double smokeOffsetZ = 0.0D;
-    private double smokeSpeed = 0.02D;
-    private boolean crackleEnabled = true;
-    private double crackleChance = DEFAULT_CRACKLE_CHANCE;
-    private float crackleVolume = 1.0F;
-    private float cracklePitch = 1.0F;
-    private boolean fireParticlesEnabled = true;
-    private double fireParticleChance = 0.15D;
+    // The following are reload-written (reload/command thread) and read on Folia region tick threads —
+    // volatile for a happens-before edge, matching effectViewerDistance below.
+    private volatile int defaultCookTime = DEFAULT_COOK_TIME;
+    private volatile int coolingDecrement = DEFAULT_COOLING_DECREMENT;
+    private volatile boolean smokeEnabled = true;
+    private volatile Particle smokeParticle = Particle.SMOKE;
+    private volatile double smokeChance = DEFAULT_SMOKE_CHANCE;
+    private volatile int smokeCount = 1;
+    private volatile double smokeYOffset = 0.0D;
+    private volatile double smokeOffsetX = 0.0D;
+    private volatile double smokeOffsetY = 0.0D;
+    private volatile double smokeOffsetZ = 0.0D;
+    private volatile double smokeSpeed = 0.02D;
+    private volatile boolean crackleEnabled = true;
+    private volatile double crackleChance = DEFAULT_CRACKLE_CHANCE;
+    private volatile float crackleVolume = 1.0F;
+    private volatile float cracklePitch = 1.0F;
+    private volatile boolean fireParticlesEnabled = true;
+    private volatile double fireParticleChance = 0.15D;
     // Written in reloadConfig (reload thread), read on Folia region tick threads (effect/burn) — volatile
     // for a happens-before edge, matching the other reload-mutated tick-read fields.
     private volatile double effectViewerDistance = 32.0D;
@@ -603,9 +604,6 @@ public class StoveManager {
             visualManager.cleanupAllVisuals(stove);
         }
         stopTaskIfIdle();
-        if (false) {
-            removeStoredData(normalized);
-        }
     }
 
     private void putStove(Location location, StoveData stove) {

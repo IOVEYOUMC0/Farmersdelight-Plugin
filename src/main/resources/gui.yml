@@ -5,12 +5,8 @@
 # Optional fields: name, lore, name-key, lore-keys, custom-model-data, item-model/item_model, hide-tooltip/hide_tooltip.
 
 cooking-pot-gui:
-  title: "<white><offset><icon><shift:-1600><lang:gui.cooking_pot.title>"
+  title: "<white><shift:-5><image:farmersdelight:cooking_pot_gui>"
   fillers-enabled: true
-  title-layout:
-    craftengine:
-      offset: "<shift:-5>"
-      icon: "<image:farmersdelight:cooking_pot_gui>"
   rows: 3
 
   layout:
@@ -133,7 +129,7 @@ recipe-view-gui:
   max-preview-ingredients: 4
 
   main-menu:
-    title: "<white><lang:gui.recipe.title>"
+    title: "<white><black><lang:gui.recipe.title>"
     rows: 3
     layout:
       - "XXXXXXXXX"
@@ -177,11 +173,11 @@ recipe-view-gui:
         name: "<red><lang:gui.recipe.close>"
 
   recipe-list:
-    title: "<white><offset><icon><shift:-1600><lang:gui.recipe.list_title> <gray>{page}/{total}</gray>"
+    title: "<white><offset><icon><shift:-163><black><lang:gui.recipe.list_title> <gray>{page}/{total}</gray>"
     rows: 6
     title-layout:
       craftengine:
-        offset: "<shift:-1>"
+        offset: "<shift:-2>"
         icon: "<image:farmersdelight:recipelist>"
     layout:
       - "RRRRRRRRR"
@@ -243,11 +239,11 @@ recipe-view-gui:
         name: "<gray><lang:gui.recipe.filter_craftable_off>"
 
   recipe-detail-cooking-pot:
-    title: "<white><offset><icon><shift:-1600><lang:gui.recipe.detail_title>"
+    title: "<white><offset><icon><shift:-163><black><lang:gui.recipe.detail_title>"
     rows: 6
     title-layout:
       craftengine:
-        offset: "<shift:-1>"
+        offset: "<shift:-2>"
         icon: "<image:farmersdelight:cooking_pot_menu>"
     layout:
       - "BXXXXXXPX"
@@ -348,11 +344,11 @@ recipe-view-gui:
   #         name: "<green><lang:gui.recipe.fill>"
 
   recipe-detail-cutting-board:
-    title: "<white><offset><icon><shift:-1600><lang:gui.recipe.detail_title>"
+    title: "<white><offset><icon><shift:-163><black><lang:gui.recipe.detail_title>"
     rows: 6
     title-layout:
       craftengine:
-        offset: "<shift:-1>"
+        offset: "<shift:-2>"
         icon: "<image:farmersdelight:cutting_board_menu>"
     layout:
       - "BXXXXXXXX"
@@ -380,19 +376,19 @@ recipe-view-gui:
 
   # Special recipe list — the paged chest GUI of special recipes.
   special-recipe-list:
-    title: "<white><offset><icon><shift:-1600><lang:gui.recipe.special_recipes> <gray>{page}/{total}</gray>"
+    title: "<white><offset><icon><shift:-163><black><lang:gui.recipe.special_recipes> <gray>{page}/{total}</gray>"
     rows: 6
     title-layout:
       craftengine:
-        offset: "<shift:-1>"
+        offset: "<shift:-2>"
         icon: "<image:farmersdelight:recipelist>"
     layout:
+      - "RRRRRRRRR"
+      - "RRRRRRRRR"
+      - "RRRRRRRRR"
+      - "RRRRRRRRR"
+      - "RRRRRRRRR"
       - "PXXXBXXXN"
-      - "RRRRRRRRR"
-      - "RRRRRRRRR"
-      - "RRRRRRRRR"
-      - "RRRRRRRRR"
-      - "RRRRRRRRR"
     legend:
       R: recipe
       P: prev_page
@@ -421,7 +417,7 @@ recipe-view-gui:
   # slots sit on the decomposition background like the mod's JEI category: description centered on top,
   # input left / output right, sunlight/water/catalyst conditions in the middle, catalyst items lower-right.
   special-recipe-detail:
-    title: "<white><offset><icon><sunlight><water><catalyst_info><shift:-1600><lang:gui.recipe.special_recipes>"
+    title: "<white><offset><icon><sunlight><water><catalyst_info><shift:-162><black><lang:gui.recipe.special_recipes>"
     rows: 4
     title-layout:
       craftengine:
@@ -432,10 +428,10 @@ recipe-view-gui:
         # condition is missing. Tune the absolute shifts if an icon sits off its slot.
         sunlight: "<shift:-163><image:farmersdelight:sun>"
         sunlight-off: "<shift:-163><image:farmersdelight:none>"
-        water: "<shift:-71><image:farmersdelight:water>"
-        water-off: "<shift:-71><image:farmersdelight:none>"
-        catalyst_info: "<shift:-87><image:farmersdelight:mushroom>"
-        catalyst_info-off: "<shift:-87><image:farmersdelight:none>"
+        water: "<shift:-163><image:farmersdelight:water>"
+        water-off: "<shift:-163><image:farmersdelight:none>"
+        catalyst_info: "<shift:-163><image:farmersdelight:mushroom>"
+        catalyst_info-off: "<shift:-163><image:farmersdelight:mushroom_none>"
     layout:
       - "XXXXHXXXX"
       - "XIXXXXXOX"
@@ -461,15 +457,18 @@ recipe-view-gui:
         material: ARROW
         item_model: "air"
         name: "<gray><lang:gui.recipe.back>"
+      description:
+        material: paper
+        item_model: "air"
 
   # Compact special recipe detail used when a recipe has no extra conditions (no sunlight/water/catalyst).
   # 3 rows match the decomposition_none title image height (54 px).
   special-recipe-detail-basic:
-    title: "<white><offset><icon><shift:-1600><lang:gui.recipe.special_recipes>"
+    title: "<white><offset><icon><shift:-163><lang:gui.recipe.special_recipes>"
     rows: 3
     title-layout:
       craftengine:
-        offset: "<shift:-1>"
+        offset: "<shift:-2>"
         icon: "<image:farmersdelight:decomposition_none>"
     layout:
       - "XXXXCXXXX"
@@ -499,15 +498,15 @@ recipe-view-gui:
 # prev_page, next_page, fill, back, background. List/detail titles come from the recipe type itself.
 recipe-book-gui:
   menu:
-    title: "<white><lang:gui.recipe.book_title>"
+    title: "<white><shift:-2><image:farmersdelight:recipelist><shift:-163><black><lang:gui.recipe.book_title>"
     rows: 6
     layout:
-      - "XXXXXXXXX"
-      - "XCCCCCCCX"
-      - "XCCCCCCCX"
-      - "XCCCCCCCX"
-      - "XCCCCCCCX"
-      - "XXXXBXXXX"
+      - "CCCCCCCCC"
+      - "CCCCCCCCC"
+      - "CCCCCCCCC"
+      - "CCCCCCCCC"
+      - "CCCCCCCCC"
+      - "PXXXBXXXN"
     legend:
       C: category
       B: back
@@ -592,7 +591,7 @@ recipe-editor-gui:
     - "#III###N#"
     - "#########"
     - "#T#E#P#G#"
-    - "X###D###S"
+    - "X#O#D#K#S"
   legend:
     i: info
     I: ingredient
@@ -606,6 +605,8 @@ recipe-editor-gui:
     X: cancel
     D: delete
     S: save
+    O: undo
+    K: redo
     "#": background
   items:
     background:
@@ -680,6 +681,16 @@ recipe-editor-gui:
       name: "<dark_red><lang:gui.editor.button.delete>"
       lore:
         - "<gray><lang:gui.editor.button.delete_hint>"
+    undo:
+      material: CLOCK
+      name: "<yellow><lang:gui.editor.button.undo>"
+      lore:
+        - "<gray><lang:gui.editor.button.undo_hint>"
+    redo:
+      material: RECOVERY_COMPASS
+      name: "<aqua><lang:gui.editor.button.redo>"
+      lore:
+        - "<gray><lang:gui.editor.button.redo_hint>"
 
 # Custom cooking pot (large pot) editor GUI overrides. Key names must equal behavior.custom.id.
 # When missing, falls back to recipe-editor-gui and warns once in the console.

@@ -49,10 +49,12 @@ public class TickManager {
     private volatile int activeCookingPotCount;
     private boolean activeBlockLimitWarningShown;
     private int activeBlockCursor;
-    private int cookingPotTickBudget = 512;
-    private int cookingPotProgressDisplayUpdateIntervalTicks = 8;
-    private int cookingPotProgressDisplayDisableAboveActivePots = 512;
-    private int activeBlockWarningThreshold = 1000;
+    // Reload-written on the reload/command thread, read by the global tick thread — volatile for a
+    // happens-before edge (Folia keeps reload on a different thread than the tick).
+    private volatile int cookingPotTickBudget = 512;
+    private volatile int cookingPotProgressDisplayUpdateIntervalTicks = 8;
+    private volatile int cookingPotProgressDisplayDisableAboveActivePots = 512;
+    private volatile int activeBlockWarningThreshold = 1000;
     private final AtomicLong foliaTickClock = new AtomicLong();
 
     private static final int TICK_INTERVAL = 4;

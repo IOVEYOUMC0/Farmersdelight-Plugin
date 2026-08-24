@@ -197,6 +197,13 @@ public final class KnifeEnchantFilter implements Listener {
         // configs), so scrub any backstab the vanilla result leaked onto the item. We police only our own
         // datapack enchant here, never vanilla enchants.
         if (groupId == null || !current.group(groupId).anvilEnabled()) {
+            // If the incoming book holds a FarmersDelight-managed enchant (backstab or a registered addon),
+            // merely stripping it leaves the anvil clickable: the player spends the book and levels but the
+            // enchant never lands. Block the whole combine so the slot shows grey and cannot be clicked.
+            if (hasManagedEnchant(second)) {
+                event.setResult(null);
+                return;
+            }
             stripManagedEnchants(event);
             return;
         }
@@ -274,6 +281,28 @@ public final class KnifeEnchantFilter implements Listener {
                 openAnvilView.setRepairCost(repairCost);
             }
         }, 1L);
+    }
+
+    // True when an incoming anvil book carries any FarmersDelight-managed enchant (backstab or an API
+    // registered addon). Used to block such books from combining onto a non-knife target outright.
+    private boolean hasManagedEnchant(ItemStack book) {
+        if (isEmpty(book)) {
+            return false;
+        }
+        ItemMeta meta = book.getItemMeta();
+        if (!(meta instanceof EnchantmentStorageMeta storage) || storage.getStoredEnchants().isEmpty()) {
+            return false;
+        }
+        Set<Enchantment> managed = managedEnchants();
+        if (managed.isEmpty()) {
+            return false;
+        }
+        for (Enchantment enchantment : storage.getStoredEnchants().keySet()) {
+            if (managed.contains(enchantment)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // Removes our knife-only backstab enchant from an anvil result on an item that isn't an enchantable knife.
@@ -486,6 +515,11 @@ public final class KnifeEnchantFilter implements Listener {
             return null;
         }
         String customId = ItemUtils.getCustomItemId(item);
+        // Durability-only custom items (farmersdelight:durable) are not weapons: route them to their own
+        // group so the minimal whitelist is enforced instead of letting any enchant through the anvil.
+        if (customId != null && ToolRegistry.isDurable(customId)) {
+            return EnchantmentSettings.GroupId.DURABLE;
+        }
         if (Constants.ITEM_SKILLET.equalsIgnoreCase(customId)) {
             return EnchantmentSettings.GroupId.SKILLET;
         }

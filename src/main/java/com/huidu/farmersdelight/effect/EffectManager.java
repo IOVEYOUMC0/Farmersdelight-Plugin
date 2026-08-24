@@ -252,6 +252,13 @@ public final class EffectManager {
             }
             pushBossbar(player, playerId);
         } catch (Exception e) {
+            // Surface a buff-logic bug instead of silently hiding it: the untrack still stops repeated
+            // attempts for this player, while propagating would abort the caller's loop over the rest.
+            FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+            if (plugin != null) {
+                plugin.getLogger().log(java.util.logging.Level.WARNING,
+                        "Buff tick failed for " + player.getName(), e);
+            }
             EffectListener.untrackPlayer(player.getUniqueId());
         }
     }

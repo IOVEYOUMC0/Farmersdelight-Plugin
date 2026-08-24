@@ -3,9 +3,12 @@ package com.huidu.farmersdelight.gui;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
+import com.huidu.farmersdelight.api.FarmersDelightApi;
+import com.huidu.farmersdelight.api.item.FarmersDelightItems;
+import com.huidu.farmersdelight.api.recipe.RecipeType;
+import com.huidu.farmersdelight.api.recipe.ViewableRecipe;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
-import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -22,6 +25,11 @@ import java.util.Objects;
 final class RecipeCraftability {
 
     record LinkedRecipe(String recipeId, boolean cookingPot) {
+    }
+
+    // A linked jump that resolves to an addon workstation recipe (keg, BBQ station, ...) instead of FD's
+    // own pot/board. The target lives in the addon's RecipeType, so the jump hands off to its book view.
+    record LinkedAddonRecipe(RecipeType type, String recipeId) {
     }
 
     private final FarmersDelightPlugin plugin;
@@ -75,8 +83,11 @@ final class RecipeCraftability {
     }
 
     private LinkedRecipe findCookingPotRecipeByResult(ItemStack item) {
-        for (CookingPotRecipe recipe : plugin.getCookingPotRecipes().getSortedRecipes(recipeGroupId)) {
-            if (sameRecipeItem(recipe.getResult(), item)) {
+        // O(1) reverse result index instead of scanning every recipe. First match wins, as before.
+        for (CookingPotRecipe recipe : plugin.getCookingPotRecipes().getRecipesProducing(item)) {
+            if (recipeGroupId == null
+                    || plugin.getCookingPotRecipes().getRecipe(recipeGroupId, recipe.getId()) != null
+                    || plugin.getCookingPotRecipes().getRecipe(recipe.getId()) != null) {
                 return new LinkedRecipe(recipe.getId(), true);
             }
         }
@@ -84,28 +95,32 @@ final class RecipeCraftability {
     }
 
     private LinkedRecipe findCuttingBoardRecipeByResult(ItemStack item) {
-        for (CuttingBoardRecipe recipe : plugin.getCuttingBoardRecipes().getSortedRecipes()) {
-            for (CuttingBoardRecipe.ResultEntry result : recipe.getResults()) {
-                if (sameRecipeItem(result.item(), item)) {
-                    return new LinkedRecipe(recipe.getId(), false);
-                }
-            }
+        for (CuttingBoardRecipe recipe : plugin.getCuttingBoardRecipes().getRecipesProducing(item)) {
+            return new LinkedRecipe(recipe.getId(), false);
         }
         return null;
     }
 
-    private boolean sameRecipeItem(ItemStack expected, ItemStack actual) {
-        if (expected == null || actual == null || expected.getType().isAir() || actual.getType().isAir()) {
-            return false;
+    // Finds an addon workstation recipe (keg, BBQ station, crab trap, ...) whose result matches the item.
+    // FD's own pot/board indexes never contain these, so linked jumps fall back here and hand off to the
+    // addon RecipeBook view. First registered match wins, matching the pot/board first-match policy.
+    LinkedAddonRecipe findLinkedAddonRecipe(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return null;
         }
-
-        String expectedId = ItemUtils.getCustomItemId(expected);
-        String actualId = ItemUtils.getCustomItemId(actual);
-        if (expectedId != null || actualId != null) {
-            return expectedId != null && expectedId.equals(actualId);
+        for (RecipeType type : FarmersDelightApi.get().recipeTypes()) {
+            for (ViewableRecipe recipe : type.recipes()) {
+                if (recipe == null) {
+                    continue;
+                }
+                ItemStack result = recipe.result();
+                if (result != null && !result.getType().isAir()
+                        && FarmersDelightItems.isSameItem(item, result)) {
+                    return new LinkedAddonRecipe(type, recipe.id());
+                }
+            }
         }
-
-        return expected.getType() == actual.getType();
+        return null;
     }
 
     private boolean canCraftCookingPotRecipe(CookingPotRecipe recipe, CookingPotBlockEntity entity, List<ItemStack> available) {

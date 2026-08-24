@@ -114,7 +114,14 @@ public class RecipeViewGui extends AbstractInventoryGui {
     // old behavior (back to recipeBackState). Touched only inside the click handler (single-threaded per viewer).
     private final java.util.Deque<DetailState> detailHistory = new java.util.ArrayDeque<>();
 
-    private record DetailState(boolean cookingPotMode, String selectedRecipeId, GuiState recipeBackState) {
+    // Chain node for the detail-to-detail back stack. Records whichever detail page was left so "back"
+    // can restore it exactly: either a normal (pot/board) recipe detail or a special-recipe detail.
+    private record DetailState(
+            boolean specialDetail,
+            boolean cookingPotMode,
+            String selectedRecipeId,
+            String selectedSpecialRecipeId,
+            GuiState recipeBackState) {
     }
 
     public RecipeViewGui(FarmersDelightPlugin plugin, Player player) {
@@ -228,6 +235,13 @@ public class RecipeViewGui extends AbstractInventoryGui {
         state = GuiState.CUTTING_BOARD_LIST;
         cookingPotMode = false;
         recipeBackState = GuiState.CUTTING_BOARD_LIST;
+        currentPage = 0;
+        open(player);
+    }
+
+    public void openSpecialRecipes(Player player) {
+        backButtonCommandsEnabled = true;
+        state = GuiState.SPECIAL_RECIPE_LIST;
         currentPage = 0;
         open(player);
     }
@@ -544,7 +558,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         }
         GuiConfig.GuiItem backItem = listConfig.getItem("back");
         boolean closesOnBack = backButtonCommandsEnabled && !fromCookingPot
-                && (backItem == null || backItem.hasCommands());
+                && (backItem == null || backItem.hasNoCommands());
         if (closesOnBack) {
             GuiConfig.GuiItem closeItem = listConfig.getItem("close");
             GuiConfig.GuiItem rendered = closeItem != null ? closeItem : backItem;
@@ -798,7 +812,69 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 return;
             }
             navigateToState(player, GuiState.SPECIAL_RECIPE_LIST, true);
+            return;
         }
+
+        // Linked-recipe jump: clicking a shown item opens the pot/board recipe that produces it, if any.
+        ItemStack clickedItem = inventory.getItem(slot);
+        if (clickedItem == null || clickedItem.getType().isAir()) {
+            return;
+        }
+        RecipeCraftability.LinkedRecipe linkedRecipe = craftability().findLinkedRecipe(clickedItem, cookingPotMode);
+        if (linkedRecipe == null) {
+            navigateToAddonRecipe(player, clickedItem);
+            return;
+        }
+        Object linkedTarget = linkedRecipe.cookingPot()
+                ? plugin.getCookingPotRecipes().getRecipe(getActiveCookingPotRecipeGroup(), linkedRecipe.recipeId())
+                : plugin.getCuttingBoardRecipes().getRecipe(linkedRecipe.recipeId());
+        if (linkedTarget != null && isRecipeLocked(linkedTarget, linkedRecipe.cookingPot(), player)) {
+            player.sendMessage(Component.translatable("recipe-discovery.locked-click").color(NamedTextColor.RED));
+            return;
+        }
+        // Snapshot the special detail so "back" restores it, then switch to the linked recipe detail.
+        detailHistory.push(new DetailState(true, cookingPotMode, selectedRecipeId, selectedSpecialRecipeId,
+                GuiState.SPECIAL_RECIPE_LIST));
+        selectedRecipeId = linkedRecipe.recipeId();
+        cookingPotMode = linkedRecipe.cookingPot();
+        currentToolIndex = 0;
+        fillButtonState = CookingPotFiller.FillButtonState.READY;
+        navigateToState(player, GuiState.RECIPE_DETAIL, false);
+    }
+
+    // Linked jump fallback when no FD pot/board recipe produces the clicked item: hand off to the addon
+    // RecipeBook at the workstation recipe that does (keg, BBQ station, ...). The workstation view is a
+    // separate GUI, so fully backing out of it re-opens this FD recipe view EXACTLY at the page we left
+    // (not dropped onto the main menu), preserving the special/pot/board detail the user jumped from.
+    private void navigateToAddonRecipe(Player player, ItemStack clickedItem) {
+        RecipeCraftability.LinkedAddonRecipe addon = craftability().findLinkedAddonRecipe(clickedItem);
+        if (addon == null) {
+            return;
+        }
+        // Capture the page being left before the handoff rebinds this GUI's fields.
+        GuiState leftState = state;
+        String leftSelected = selectedRecipeId;
+        String leftSpecial = selectedSpecialRecipeId;
+        boolean leftCookingPot = cookingPotMode;
+        int leftPage = currentPage;
+        GuiState leftBackState = recipeBackState;
+        boolean leftBackCommands = backButtonCommandsEnabled;
+        plugin.scheduler().runLaterForEntity(player, () -> {
+            if (player.isOnline()) {
+                com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.openRecipe(player, addon.type(),
+                        addon.recipeId(), () -> {
+                    RecipeViewGui gui = new RecipeViewGui(plugin, player);
+                    gui.state = leftState;
+                    gui.selectedRecipeId = leftSelected;
+                    gui.selectedSpecialRecipeId = leftSpecial;
+                    gui.cookingPotMode = leftCookingPot;
+                    gui.currentPage = leftPage;
+                    gui.recipeBackState = leftBackState;
+                    gui.backButtonCommandsEnabled = leftBackCommands;
+                    gui.open(player);
+                });
+            }
+        }, 1L);
     }
 
     int cookTimeSeconds(CookingPotRecipe recipe) {
@@ -854,7 +930,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 ? guiSection.getConfigurationSection(guiPath + ".title-layout.craftengine")
                 : null;
         if (currentLayout != null) {
-            offset = parseOffset(currentLayout.getString("offset", ""));
+            offset = currentLayout.getString("offset", "");
             icon = currentLayout.getString("icon", "");
         }
 
@@ -881,7 +957,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 ? guiSection.getConfigurationSection(guiPath + ".title-layout.craftengine")
                 : null;
         if (layout != null) {
-            offset = parseOffset(layout.getString("offset", ""));
+            offset = layout.getString("offset", "");
             icon = layout.getString("icon", "");
             sunlight = conditionImage(layout, "sunlight", info != null && info.hasSunlight());
             water = conditionImage(layout, "water", info != null && info.hasWater());
@@ -901,15 +977,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
     // one (e.g. catalyst_info-off draws the none image over the mushroom slot); both default to empty.
     private String conditionImage(org.bukkit.configuration.ConfigurationSection layout, String key, boolean active) {
         return active ? layout.getString(key, "") : layout.getString(key + "-off", "");
-    }
-
-    // Offsets in the title-layout are ordinary <shift:N> tags handled by CraftEngine's network layer
-    // (it wraps the offset glyphs in the offset font). Keep them as-is so CE resolves them correctly.
-    private String parseOffset(String raw) {
-        if (raw == null) {
-            return "";
-        }
-        return raw;
     }
 
     private void fillBackground(RecipeViewGuiConfig.BaseConfig guiConfig) {
@@ -1223,6 +1290,12 @@ public class RecipeViewGui extends AbstractInventoryGui {
             if (!detailHistory.isEmpty()) {
                 // Came here via a linked-recipe jump: return to the recipe it was opened from.
                 DetailState previous = detailHistory.pop();
+                if (previous.specialDetail()) {
+                    // Jump target was a special-recipe detail; restore it.
+                    selectedSpecialRecipeId = previous.selectedSpecialRecipeId();
+                    navigateToState(player, GuiState.SPECIAL_RECIPE_DETAIL, false);
+                    return;
+                }
                 cookingPotMode = previous.cookingPotMode();
                 selectedRecipeId = previous.selectedRecipeId();
                 recipeBackState = previous.recipeBackState();
@@ -1258,6 +1331,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
         RecipeCraftability.LinkedRecipe linkedRecipe = craftability().findLinkedRecipe(clickedItem, cookingPotMode);
         if (linkedRecipe == null) {
+            navigateToAddonRecipe(player, clickedItem);
             return;
         }
         // Already viewing this exact recipe (e.g. clicking the result of the recipe on screen): don't
@@ -1279,7 +1353,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         // Remember the recipe being left (and its own back destination) so back returns here, not straight to
         // the original list. recipeBackState is snapshotted too, so this recipe's own back still works after a
         // deeper jump chain unwinds to it.
-        detailHistory.push(new DetailState(cookingPotMode, selectedRecipeId, recipeBackState));
+        detailHistory.push(new DetailState(false, cookingPotMode, selectedRecipeId, null, recipeBackState));
         selectedRecipeId = linkedRecipe.recipeId();
         cookingPotMode = linkedRecipe.cookingPot();
         currentToolIndex = 0;
@@ -1441,7 +1515,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
     }
 
     private boolean runBackButtonCommands(Player player, GuiConfig.GuiItem backItem) {
-        if (!backButtonCommandsEnabled || player == null || backItem == null || backItem.hasCommands()) {
+        if (!backButtonCommandsEnabled || player == null || backItem == null || backItem.hasNoCommands()) {
             return false;
         }
 

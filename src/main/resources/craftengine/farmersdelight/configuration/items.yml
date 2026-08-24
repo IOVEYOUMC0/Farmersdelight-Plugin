@@ -47,8 +47,8 @@ templates:
             particles: false
   farmersdelight:food_block_template:
     data:
-      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
-      item-name: <!i><l10n:block.${__NAMESPACE__}.${__ID__}>
+      lore: '<!i><dark_gray><lang:farmersdelight.tooltip.placeable></dark_gray>'
+      item-name: <!i><lang:block.${__NAMESPACE__}.${__ID__}>
     model:
       type: minecraft:model
       path: ${__NAMESPACE__}:item/${__ID__}
@@ -135,7 +135,7 @@ items:
     template: farmersdelight:drink_template
     data:
       item-name: <!i><lang:item.farmersdelight.melon_juice>
-      lore: '<!i><blue><l10n:farmersdelight.tooltip.melon_juice.effect></blue>'
+      lore: '<!i><blue><lang:farmersdelight.tooltip.melon_juice.effect></blue>'
     events:
       - on: consume
         functions:
@@ -145,7 +145,7 @@ items:
     template: farmersdelight:drink_template
     data:
       item-name: <!i><lang:item.farmersdelight.hot_cocoa>
-      lore: '<!i><blue><l10n:farmersdelight.tooltip.hot_cocoa.effect></blue>'
+      lore: '<!i><blue><lang:farmersdelight.tooltip.hot_cocoa.effect></blue>'
     events:
       - on: consume 
         functions:
@@ -169,7 +169,7 @@ items:
     template: farmersdelight:drink_template
     data:
       item-name: <!i><lang:item.farmersdelight.milk_bottle>
-      lore: '<!i><blue><l10n:farmersdelight.tooltip.milk_bottle.effect></blue>'
+      lore: '<!i><blue><lang:farmersdelight.tooltip.milk_bottle.effect></blue>'
     settings:
       tags:
         - farmersdelight:milk
@@ -311,7 +311,7 @@ items:
         saturation: 3.2
         can-always-eat: false
   farmersdelight:tomato_sauce:
-    template: farmersdelight:food_template
+    template: farmersdelight:soup_template
     data:
       item-name: <!i><lang:item.farmersdelight.tomato_sauce>
       food:
@@ -552,7 +552,7 @@ items:
     template: farmersdelight:pie_template
     data:
       item-name: <!i><lang:block.farmersdelight.apple_pie>
-      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
+      lore: '<!i><dark_gray><lang:farmersdelight.tooltip.placeable></dark_gray>'
     behaviors:
       - type: compostable_item
         chance: 1.0
@@ -564,7 +564,7 @@ items:
     template: farmersdelight:pie_template
     data:
       item-name: <!i><lang:block.farmersdelight.sweet_berry_cheesecake>
-      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
+      lore: '<!i><dark_gray><lang:farmersdelight.tooltip.placeable></dark_gray>'
     behaviors:
       - type: compostable_item
         chance: 1.0
@@ -576,7 +576,7 @@ items:
     template: farmersdelight:pie_template
     data:
       item-name: <!i><lang:block.farmersdelight.chocolate_pie>
-      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
+      lore: '<!i><dark_gray><lang:farmersdelight.tooltip.placeable></dark_gray>'
     behaviors:
       - type: compostable_item
         chance: 1.0
@@ -635,7 +635,7 @@ items:
   minecraft:pumpkin_pie:
     material: pumpkin_pie
     data:
-      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable_sneaking></dark_gray>'
+      lore: '<!i><dark_gray><lang:farmersdelight.tooltip.placeable_sneaking></dark_gray>'
     behavior:
       type: ground_block_item
       block: farmersdelight:pumpkin_pie
@@ -877,7 +877,7 @@ items:
       - farmersdelight:nourishment_30_template
     data:
       item-name: <!i><lang:item.farmersdelight.cooked_rice>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (00:30)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (00:30)</blue>'
       food:
         nutrition: 6
         saturation: 4.8
@@ -900,7 +900,7 @@ items:
       - farmersdelight:nourishment_60_template
     data:
       item-name: <!i><lang:item.farmersdelight.bone_broth>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (01:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (01:00)</blue>'
       food:
         nutrition: 8
         saturation: 11.2
@@ -911,7 +911,7 @@ items:
       - farmersdelight:nourishment_180_template
     data:
       item-name: <!i><lang:item.farmersdelight.beef_stew>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
         saturation: 19.2
@@ -922,7 +922,7 @@ items:
       - farmersdelight:nourishment_180_template
     data:
       item-name: <!i><lang:item.farmersdelight.chicken_soup>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
         saturation: 19.2
@@ -933,7 +933,7 @@ items:
       - farmersdelight:nourishment_180_template
     data:
       item-name: <!i><lang:item.farmersdelight.vegetable_soup>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
         saturation: 19.2
@@ -944,7 +944,7 @@ items:
       - farmersdelight:nourishment_180_template
     data:
       item-name: <!i><lang:item.farmersdelight.onion_soup>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
         saturation: 19.2
@@ -955,7 +955,7 @@ items:
       - farmersdelight:nourishment_180_template
     data:
       item-name: <!i><lang:item.farmersdelight.fish_stew>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
         saturation: 19.2
@@ -966,7 +966,7 @@ items:
       - farmersdelight:nourishment_180_template
     data:
       item-name: <!i><lang:item.farmersdelight.fried_rice>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
         saturation: 19.2
@@ -977,7 +977,7 @@ items:
       - farmersdelight:nourishment_300_template
     data:
       item-name: <!i><lang:item.farmersdelight.pumpkin_soup>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
         saturation: 21
@@ -988,7 +988,7 @@ items:
       - farmersdelight:nourishment_300_template
     data:
       item-name: <!i><lang:item.farmersdelight.baked_cod_stew>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
         saturation: 21
@@ -999,7 +999,7 @@ items:
       - farmersdelight:nourishment_300_template
     data:
       item-name: <!i><lang:item.farmersdelight.noodle_soup>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
         saturation: 21
@@ -1012,7 +1012,7 @@ items:
       components:
         minecraft:max_stack_size: 16
       item-name: <!i><lang:item.farmersdelight.bacon_and_eggs>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (01:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (01:00)</blue>'
       food:
         nutrition: 10
         saturation: 12
@@ -1023,7 +1023,7 @@ items:
       - farmersdelight:nourishment_180_template
     data:
       item-name: <!i><lang:item.farmersdelight.pasta_with_meatballs>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
         saturation: 19.2
@@ -1034,7 +1034,7 @@ items:
       - farmersdelight:nourishment_180_template
     data:
       item-name: <!i><lang:item.farmersdelight.pasta_with_mutton_chop>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
         saturation: 19.2
@@ -1045,7 +1045,7 @@ items:
       - farmersdelight:nourishment_180_template
     data:
       item-name: <!i><lang:item.farmersdelight.mushroom_rice>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
         saturation: 19.2
@@ -1056,7 +1056,7 @@ items:
       - farmersdelight:nourishment_300_template
     data:
       item-name: <!i><lang:item.farmersdelight.roasted_mutton_chops>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
         saturation: 21
@@ -1067,7 +1067,7 @@ items:
       - farmersdelight:nourishment_300_template
     data:
       item-name: <!i><lang:item.farmersdelight.vegetable_noodles>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
         saturation: 21
@@ -1078,7 +1078,7 @@ items:
       - farmersdelight:nourishment_180_template
     data:
       item-name: <!i><lang:item.farmersdelight.steak_and_potatoes>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
         saturation: 19.2
@@ -1089,7 +1089,7 @@ items:
       - farmersdelight:nourishment_60_template
     data:
       item-name: <!i><lang:item.farmersdelight.ratatouille>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (01:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (01:00)</blue>'
       food:
         nutrition: 10
         saturation: 12
@@ -1100,7 +1100,7 @@ items:
       - farmersdelight:nourishment_300_template
     data:
       item-name: <!i><lang:item.farmersdelight.squid_ink_pasta>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
         saturation: 21
@@ -1111,7 +1111,7 @@ items:
       - farmersdelight:nourishment_180_template
     data:
       item-name: <!i><lang:item.farmersdelight.grilled_salmon>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (03:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 14
         saturation: 21
@@ -1122,14 +1122,14 @@ items:
       components:
         minecraft:max_stack_size: 1
       item-name: <!i><lang:block.farmersdelight.roast_chicken_block>
-      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
+      lore: '<!i><dark_gray><lang:farmersdelight.tooltip.placeable></dark_gray>'
   farmersdelight:roast_chicken:
     template:
       - farmersdelight:soup_template
       - farmersdelight:nourishment_300_template
     data:
       item-name: <!i><lang:item.farmersdelight.roast_chicken>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
         saturation: 21
@@ -1140,7 +1140,7 @@ items:
       components:
         minecraft:max_stack_size: 1
       item-name: <!i><lang:block.farmersdelight.stuffed_pumpkin_block>
-      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
+      lore: '<!i><dark_gray><lang:farmersdelight.tooltip.placeable></dark_gray>'
     behaviors:
       - type: compostable_item
         chance: 1.0
@@ -1154,7 +1154,7 @@ items:
       - farmersdelight:nourishment_300_template
     data:
       item-name: <!i><lang:item.farmersdelight.stuffed_pumpkin>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
         saturation: 21
@@ -1165,14 +1165,14 @@ items:
       components:
         minecraft:max_stack_size: 1
       item-name: <!i><lang:block.farmersdelight.honey_glazed_ham_block>
-      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
+      lore: '<!i><dark_gray><lang:farmersdelight.tooltip.placeable></dark_gray>'
   farmersdelight:honey_glazed_ham:
     template:
       - farmersdelight:soup_template
       - farmersdelight:nourishment_300_template
     data:
       item-name: <!i><lang:item.farmersdelight.honey_glazed_ham>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
         saturation: 21
@@ -1183,14 +1183,14 @@ items:
       components:
         minecraft:max_stack_size: 1
       item-name: <!i><lang:block.farmersdelight.shepherds_pie_block>
-      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
+      lore: '<!i><dark_gray><lang:farmersdelight.tooltip.placeable></dark_gray>'
   farmersdelight:shepherds_pie:
     template:
       - farmersdelight:soup_template
       - farmersdelight:nourishment_300_template
     data:
       item-name: <!i><lang:item.farmersdelight.shepherds_pie>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
         saturation: 21
@@ -1201,14 +1201,14 @@ items:
       components:
         minecraft:max_stack_size: 1
       item-name: <!i><lang:block.farmersdelight.gleaming_salad_block>
-      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
+      lore: '<!i><dark_gray><lang:farmersdelight.tooltip.placeable></dark_gray>'
   farmersdelight:gleaming_salad:
     template:
       - farmersdelight:soup_template
       - farmersdelight:nourishment_300_template
     data:
       item-name: <!i><lang:item.farmersdelight.gleaming_salad>
-      lore: '<!i><blue><l10n:effect.farmersdelight.nourishment> (05:00)</blue>'
+      lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
         saturation: 21
@@ -1220,13 +1220,13 @@ items:
       components:
         minecraft:max_stack_size: 1
       item-name: <!i><lang:block.farmersdelight.rice_roll_medley_block>
-      lore: '<!i><dark_gray><l10n:farmersdelight.tooltip.placeable></dark_gray>'
+      lore: '<!i><dark_gray><lang:farmersdelight.tooltip.placeable></dark_gray>'
   farmersdelight:dog_food:
     template: farmersdelight:soup_template
     data:
       item-name: <!i><lang:item.farmersdelight.dog_food>
       lore:
-        - '<!i><gray><l10n:farmersdelight.tooltip.dog_food.when_feeding></gray>'
+        - '<!i><gray><lang:farmersdelight.tooltip.dog_food.when_feeding></gray>'
         - '<!i><blue>  <lang:effect.minecraft.speed> (05:00)</blue>'
         - '<!i><blue>  <lang:effect.minecraft.strength> (05:00)</blue>'
         - '<!i><blue>  <lang:effect.minecraft.resistance> (05:00)</blue>'
@@ -1267,7 +1267,7 @@ items:
         minecraft:max_stack_size: 16
       item-name: <!i><lang:item.farmersdelight.horse_feed>
       lore:
-        - '<!i><gray><l10n:farmersdelight.tooltip.horse_feed.when_feeding></gray>'
+        - '<!i><gray><lang:farmersdelight.tooltip.horse_feed.when_feeding></gray>'
         - '<!i><blue>  <lang:effect.minecraft.speed> <lang:potion.potency.1> (05:00)</blue>'
         - '<!i><blue>  <lang:effect.minecraft.jump_boost> (05:00)</blue>'
     settings:

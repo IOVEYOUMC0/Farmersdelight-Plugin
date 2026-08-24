@@ -36,19 +36,19 @@ public class SkilletEffectManager {
     // Written in reloadConfig (reload thread), read on Folia region tick threads — volatile for a
     // happens-before edge, matching the other reload-mutated tick-read fields.
     private volatile double effectViewerDistanceSquared = DEFAULT_EFFECT_VIEWER_DISTANCE * DEFAULT_EFFECT_VIEWER_DISTANCE;
-    private boolean smokeEnabled = true;
-    private Particle smokeParticle = Particle.SMOKE;
-    private double smokeChance = DEFAULT_SMOKE_CHANCE;
-    private int smokeCount = 2;
-    private double smokeYOffset = 0.2D;
-    private double smokeOffsetX = 0.1D;
-    private double smokeOffsetY = 0.1D;
-    private double smokeOffsetZ = 0.1D;
-    private double smokeSpeed = 0.02D;
-    private boolean sizzleEnabled = true;
-    private double sizzleChance = DEFAULT_SIZZLE_CHANCE;
-    private float sizzleVolume = 0.5F;
-    private float sizzlePitch = 1.0F;
+    private volatile boolean smokeEnabled = true;
+    private volatile Particle smokeParticle = Particle.SMOKE;
+    private volatile double smokeChance = DEFAULT_SMOKE_CHANCE;
+    private volatile int smokeCount = 2;
+    private volatile double smokeYOffset = 0.2D;
+    private volatile double smokeOffsetX = 0.1D;
+    private volatile double smokeOffsetY = 0.1D;
+    private volatile double smokeOffsetZ = 0.1D;
+    private volatile double smokeSpeed = 0.02D;
+    private volatile boolean sizzleEnabled = true;
+    private volatile double sizzleChance = DEFAULT_SIZZLE_CHANCE;
+    private volatile float sizzleVolume = 0.5F;
+    private volatile float sizzlePitch = 1.0F;
 
     // Per-chunk hard cap on particle+sound packets emitted per dispatch from this manager, mirroring
     // StoveManager's budget — stops a dense pocket of cooking skillets from steamrolling the packet

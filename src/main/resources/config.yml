@@ -44,7 +44,6 @@ enchantments:
         override-offers: true
         # Fallback enchantability for items without farmersdelight:sword settings in their CE YAML.
         default-enchantability: 12
-        # $backstabbing resolves to backstabbing.id, so changing the custom ID needs no duplicate edits.
         enchantments:
           - minecraft:sharpness
           - minecraft:smite
@@ -54,6 +53,7 @@ enchantments:
           - minecraft:knockback
           - minecraft:looting
           - minecraft:fortune
+          - minecraft:vanishing_curse
           - $backstabbing
       # Anvil auto-inherits this group's table list and also allows mending.
       anvil:
@@ -72,7 +72,22 @@ enchantments:
           - minecraft:fire_aspect
           - minecraft:knockback
           - minecraft:looting
+          - minecraft:vanishing_curse
       # Anvil auto-inherits this group's table list and also allows mending.
+      anvil:
+        enabled: true
+
+    # Durability-only custom items (the farmersdelight:durable setting). They are not weapons, so the
+    # whitelist defaults to just unbreaking and vanishing_curse; the anvil inherits both and also allows
+    # mending. Leave it as-is to keep that minimal default instead of letting every enchant be applied.
+    durable:
+      table:
+        enabled: true
+        override-offers: true
+        default-enchantability: 14
+        enchantments:
+          - minecraft:unbreaking
+          - minecraft:vanishing_curse
       anvil:
         enabled: true
 
@@ -107,16 +122,6 @@ enchantments:
 debug:
   enabled: false
   categories: []
-
-# Vanilla loot table injection. The plugin ships a built-in datapack (`farmersdelight_loot`)
-# that overrides vanilla chest / mob drop / grass loot tables to inject FarmersDelight items
-# via CraftEngine's `craftengine:item` loot pool entry type. The datapack is copied into each
-# whitelisted world's `datapacks/` folder on first enable and requires a server restart (or /reload) to
-# take effect. Once installed, admin edits to the datapack files survive plugin updates
-# (already-present datapack folders are not overwritten). Set to false to skip the install
-# (useful if you want to author your own loot tables manually or use another loot plugin).
-loot-injection:
-  install-datapack: true
 
 # Vanilla damage-type injection (farmersdelight_damage datapack): the custom farmersdelight:stove_burn
 # damage type used by the stove grilling surface, plus its no_knockback tag entry. Installed into each

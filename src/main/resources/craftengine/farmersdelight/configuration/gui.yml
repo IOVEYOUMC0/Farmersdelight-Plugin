@@ -22,14 +22,14 @@ items:
   farmersdelight:cooking_pot_heated:
     template: farmersdelight:icons
     data:
-      item-name: <!i><red><l10n:farmersdelight.gui.heated></red>
+      item-name: <!i><red><lang:farmersdelight.gui.heated></red>
   farmersdelight:cooking_pot_not_heated:
     template: farmersdelight:icons
     data:
-      item-name: <!i><gray><l10n:farmersdelight.gui.not_heated></gray>
+      item-name: <!i><gray><lang:farmersdelight.gui.not_heated></gray>
   farmersdelight:cooking_pot_can_cooked_enabled:
     data:
-      item-name: <!i><green><l10n:farmersdelight.gui.cancooked.enabled></green>
+      item-name: <!i><green><lang:farmersdelight.gui.cancooked.enabled></green>
     model:
       type: minecraft:model
       path: farmersdelight:gui/icons/${__ID__}
@@ -42,7 +42,7 @@ items:
             scale: [1.5, 1, 1.5]
   farmersdelight:cooking_pot_can_cooked_disenabled:
     data:
-      item-name: <!i><red><l10n:farmersdelight.gui.cancooked.disenabled></red>
+      item-name: <!i><red><lang:farmersdelight.gui.cancooked.disenabled></red>
     model:
       type: minecraft:model
       path: farmersdelight:gui/icons/${__ID__}
@@ -56,97 +56,97 @@ items:
   farmersdelight:recipe_book:
     template: farmersdelight:icons
     data:
-      item-name: <!i><red><l10n:farmersdelight.gui.recipe_book></red>
+      item-name: <!i><red><lang:farmersdelight.gui.recipe_book></red>
   farmersdelight:slot:
     template: farmersdelight:icons
   farmersdelight:0:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.0></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.0></white>
   farmersdelight:1:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.5></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.5></white>
   farmersdelight:2:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.10></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.10></white>
   farmersdelight:3:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.15></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.15></white>
   farmersdelight:4:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.20></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.20></white>
   farmersdelight:5:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.25></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.25></white>
   farmersdelight:6:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.30></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.30></white>
   farmersdelight:7:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.35></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.35></white>
   farmersdelight:8:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.40></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.40></white>
   farmersdelight:9:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.45></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.45></white>
   farmersdelight:10:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.50></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.50></white>
   farmersdelight:11:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.55></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.55></white>
   farmersdelight:12:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.60></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.60></white>
   farmersdelight:13:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.65></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.65></white>
   farmersdelight:14:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.70></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.70></white>
   farmersdelight:15:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.75></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.75></white>
   farmersdelight:16:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.80></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.80></white>
   farmersdelight:17:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.85></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.85></white>
   farmersdelight:18:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.90></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.90></white>
   farmersdelight:19:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.95></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.95></white>
   farmersdelight:20:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.progress.100></white>
+      item-name: <!i><white><lang:farmersdelight.gui.progress.100></white>
   farmersdelight:cooking_time:
     template: farmersdelight:icons_big
     data:
-      item-name: <!i><white><l10n:farmersdelight.gui.cooking_time></white>
+      item-name: <!i><white><lang:farmersdelight.gui.cooking_time></white>
 images:
   farmersdelight:cooking_pot_gui:
     file: farmersdelight:gui/cooking_pot.png
@@ -190,6 +190,11 @@ images:
     font: farmersdelight:custom
   farmersdelight:mushroom:
     file: farmersdelight:gui/mushroom.png
+    height: 72
+    ascent: -4
+    font: farmersdelight:custom
+  farmersdelight:mushroom_none:
+    file: farmersdelight:gui/mushroom_none.png
     height: 72
     ascent: -4
     font: farmersdelight:custom

@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.recipe.SpecialRecipeInfo;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -70,6 +71,24 @@ final class SpecialRecipeRenderer {
         return lore;
     }
 
+    // Reserved for future compat: when a lang key embeds '\n' the client renders it as one squashed
+    // line, so the key must be split into separate lore lines server-side. Descriptions currently
+    // avoid '\n' by listing each line as its own translation key, so this stays unused for now.
+    private static List<Component> translatedLines(List<String> keys, NamedTextColor color, Player player) {
+        List<Component> lore = new ArrayList<>();
+        for (String key : keys) {
+            if (key == null) {
+                continue;
+            }
+            String resolved = I18n.get(key, player);
+            String[] lines = resolved.split("\n", -1);
+            for (String line : lines) {
+                lore.add(Component.text(line).color(color).decoration(TextDecoration.ITALIC, false));
+            }
+        }
+        return lore;
+    }
+
     /** Expands special-recipe slot entries into concrete display items ("#tag" / behavior-list refs). */
     List<ItemStack> expandSpecialEntries(List<SpecialRecipeInfo.SlotEntry> entries) {
         if (entries.isEmpty()) {
@@ -110,6 +129,9 @@ final class SpecialRecipeRenderer {
     ItemStack createCombinedDescriptionItem(List<String> translationKeys, Player player) {
         ItemStack item = new ItemStack(Material.PAPER);
         ItemMeta meta = item.getItemMeta();
+        // Hide the carrier: the description is text shown on hover, so render the slot with the
+        // transparent "air" item model instead of a visible paper icon.
+        meta.setItemModel(new org.bukkit.NamespacedKey("minecraft", "air"));
         if (translationKeys.isEmpty()) {
             meta.displayName(Component.text(""));
             meta.lore(List.of());

@@ -35,7 +35,6 @@ import com.huidu.farmersdelight.listener.SkilletPlaceListener;
 import com.huidu.farmersdelight.listener.StrawDropListener;
 import com.huidu.farmersdelight.listener.TatamiBreakListener;
 import com.huidu.farmersdelight.tool.ToolAttackListener;
-import com.huidu.farmersdelight.listener.UpperHalfLootRelayListener;
 import com.huidu.farmersdelight.command.FarmersDelightCommand;
 import com.huidu.farmersdelight.config.ContainerReturnConfig;
 import com.huidu.farmersdelight.config.CookingPotExperienceRewardConfig;
@@ -155,8 +154,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private BackstabListener backstabListener;
     private KnifeEnchantFilter knifeEnchantFilter;
     private EnchantmentDatapackInstaller enchantmentDatapackInstaller;
-    private com.huidu.farmersdelight.loot.LootDatapackInstaller lootDatapackInstaller;
-    private com.huidu.farmersdelight.loot.LootInjectionRegistry lootInjectionRegistry;
     private com.huidu.farmersdelight.listener.DamageTypeDatapackInstaller damageTypeDatapackInstaller;
     private final com.huidu.farmersdelight.config.ConfigBootstrap configBootstrap = new com.huidu.farmersdelight.config.ConfigBootstrap(this);
     // Collects the per-subsystem content counts into the single summary line a healthy boot prints.
@@ -205,6 +202,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private int cookingPotProgressDisplayUpdateIntervalTicks = 8;
     private int cookingPotProgressDisplayDisableAboveActivePots = 512;
     private CuttingBoardInteractionMode cuttingBoardInteractionMode;
+    // Reload-written on the reload/command thread, read on world-region threads (including the retrieval
+    // right-click path in CuttingBoardBlockBehavior) — volatile for the happens-before edge.
+    private volatile float cuttingBoardFailVolume = Constants.CUTTING_BOARD_FAIL_VOLUME;
+    private volatile float cuttingBoardFailPitch = Constants.CUTTING_BOARD_FAIL_PITCH;
     private final List<CuttingBoardInteractionHandler> cuttingBoardInteractionHandlers = new CopyOnWriteArrayList<>();
     private boolean hopperInteractionsEnabled;
     private boolean cookingPotHopperInteractionsEnabled;
@@ -548,7 +549,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         strawDropListener = new StrawDropListener(this);
         getServer().getPluginManager().registerEvents(strawDropListener, this);
 
-        registerEvents(new RicePlantListener(this), new UpperHalfLootRelayListener());
+        registerEvents(new RicePlantListener(this));
 
         // Awards master_chef criteria and preserves addon/legacy food registrations. Built-in food buffs run as CE functions.
         foodEatListener = new FoodEatListener(this);
@@ -616,17 +617,12 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(chunkLoadListener, this);
         chunkLoadListener.loadAlreadyLoadedChunks();
 
-        com.huidu.farmersdelight.loot.LootDatapackInstaller lootInstaller =
-                new com.huidu.farmersdelight.loot.LootDatapackInstaller(this);
-        this.lootDatapackInstaller = lootInstaller;
-        this.lootInjectionRegistry = new com.huidu.farmersdelight.loot.LootInjectionRegistry();
-        lootInstaller.installToAllWorlds();
-        getServer().getPluginManager().registerEvents(lootInstaller, this);
-
         com.huidu.farmersdelight.listener.DamageTypeDatapackInstaller damageInstaller =
                 new com.huidu.farmersdelight.listener.DamageTypeDatapackInstaller(this);
         this.damageTypeDatapackInstaller = damageInstaller;
         damageInstaller.installToAllWorlds();
+        // Remove the now-obsolete loot datapack folder (chest/grass/mob injections migrated to CE native loot sources).
+        damageInstaller.cleanupLegacyLootDatapack();
         getServer().getPluginManager().registerEvents(damageInstaller, this);
 
         refreshAdvancementSystemWhenReady(false);
@@ -1267,15 +1263,14 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         I18n.logInfo("plugin.advancement_data_reloaded");
     }
 
-    // Re-runs the loot datapack install (vanilla tables merged with the FD append pools). Deliberately
-    // NOT part of /fd reload or the CraftEngine reload pass: a datapack write only takes effect after a
-    // server restart, so it stays an explicit operator action. The installer prints its own banner.
+    // Reroutes the historical /fd reload loot: the chest/grass/mob injections now live as CraftEngine
+    // native loot sources, so a datapack reinstatement no longer applies. This pass only removes the
+    // stale loot datapack folder old builds left in world datapacks/, which is idempotent.
     public void reloadLootDatapack() {
-        if (lootDatapackInstaller == null) {
-            I18n.logWarning("loot_datapack_not_ready");
+        if (damageTypeDatapackInstaller == null) {
             return;
         }
-        lootDatapackInstaller.installToAllWorlds();
+        damageTypeDatapackInstaller.cleanupLegacyLootDatapack();
     }
 
     // Re-runs the standalone damage-type datapack install (farmersdelight_damage) plus the legacy
@@ -1288,17 +1283,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             return;
         }
         damageTypeDatapackInstaller.installToAllWorlds();
-    }
-
-    // CE item existence probe for the loot datapack filter, delegating to the same public API the
-    // addon-facing FarmersDelightContent exposes (which in turn reuses the advancement gate's
-    // ContentRequirement). Absence is only trusted once CraftEngine has finished loading items.
-    public boolean isCeItemPresent(String itemId) {
-        return com.huidu.farmersdelight.api.content.FarmersDelightContent.isItemPresent(itemId);
-    }
-
-    public com.huidu.farmersdelight.loot.LootInjectionRegistry getLootInjections() {
-        return lootInjectionRegistry;
+        damageTypeDatapackInstaller.cleanupLegacyLootDatapack();
     }
 
     private void loadDebugFlags() {
@@ -1409,6 +1394,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         CuttingBoardDisplayConfig newCuttingBoardDisplayConfig = new CuttingBoardDisplayConfig();
         newCuttingBoardDisplayConfig.loadFromConfig(getConfig().getConfigurationSection("cutting-board"));
         cuttingBoardDisplayConfig = newCuttingBoardDisplayConfig;
+        cuttingBoardFailVolume = (float) Math.max(0.0D, getConfigDouble((double) cuttingBoardFailVolume,
+                "cutting-board.sounds.retrieve-volume"));
+        cuttingBoardFailPitch = (float) Math.max(0.0D, getConfigDouble((double) cuttingBoardFailPitch,
+                "cutting-board.sounds.retrieve-pitch"));
         CuttingBoardDisplayConfig newSkilletDisplayConfig = createSkilletDisplayConfig();
         newSkilletDisplayConfig.loadFromConfig(getFirstConfigSection("skillet.display", "display-visuals.skillet"));
         skilletDisplayConfig = newSkilletDisplayConfig;
@@ -1567,6 +1556,14 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     public boolean isCuttingBoardRecipeOnlyPlacement() {
         return getConfig().getBoolean("cutting-board.recipe-only-placement", false);
+    }
+
+    public float getCuttingBoardFailVolume() {
+        return cuttingBoardFailVolume;
+    }
+
+    public float getCuttingBoardFailPitch() {
+        return cuttingBoardFailPitch;
     }
 
     public boolean isCuttingBoardDispenserBehaviorEnabled() {

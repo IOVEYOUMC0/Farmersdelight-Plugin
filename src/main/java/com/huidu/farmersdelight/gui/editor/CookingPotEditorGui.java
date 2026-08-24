@@ -20,10 +20,12 @@ import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public final class CookingPotEditorGui extends AbstractInventoryGui implements EditorGui {
@@ -31,6 +33,14 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
     private static final List<String> CATEGORY_PRESETS = List.of("meals", "soups", "drinks", "misc");
     private static final int MAX_COOK_TIME = 6000;
     private static final int MIN_COOK_TIME = 20;
+    private static final int HISTORY_LIMIT = 50;
+
+    // Every field the editor lets the admin mutate. Each click on one of these snapshots the state
+    // before the change so the undo button can step back; a snapshot is a cheap shallow copy because the
+    // ingredient records are immutable (Item/Tag/Choice) and only the two ItemStacks need cloning.
+    private static final Set<String> MUTABLE_TYPES = Set.of(
+            "ingredient", "container", "result", "result-count",
+            "cook-time", "experience", "priority", "category");
 
     private final String recipeId;
     private final String customGroupId;
@@ -48,6 +58,9 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
     private float experience = 0.0f;
     private int priority = 0;
     private String category = "meals";
+
+    private final ArrayDeque<Snapshot> undoStack = new ArrayDeque<>();
+    private final ArrayDeque<Snapshot> redoStack = new ArrayDeque<>();
 
     public CookingPotEditorGui(FarmersDelightPlugin plugin, Player player, String recipeId,
                                String customGroupId, CookingPotRecipe existing,
@@ -161,6 +174,11 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
                 return configItem("cancel", noPlaceholders());
             case "delete":
                 return editingExisting ? configItem("delete", noPlaceholders()) : configItem("background", noPlaceholders());
+            case "undo":
+                // Buttons only appear when there is a history to step through.
+                return undoStack.isEmpty() ? configItem("background", noPlaceholders()) : configItem("undo", noPlaceholders());
+            case "redo":
+                return redoStack.isEmpty() ? configItem("background", noPlaceholders()) : configItem("redo", noPlaceholders());
             default:
                 return configItem("background", noPlaceholders());
         }
@@ -198,6 +216,12 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
         String type = slotTypeByIndex.get(slot);
         if (type == null) {
             return;
+        }
+
+        // Snapshot the pre-edit state so the undo button can step back; stepping also resets the redo
+        // branch, since a fresh edit invalidates anything that was reverted.
+        if (MUTABLE_TYPES.contains(type)) {
+            pushHistory();
         }
 
         switch (type) {
@@ -306,8 +330,72 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
                     delete();
                 }
                 return;
+            case "undo":
+                if (!undoStack.isEmpty()) {
+                    undo();
+                }
+                return;
+            case "redo":
+                if (!redoStack.isEmpty()) {
+                    redo();
+                }
+                return;
             default:
         }
+    }
+
+    /** A frozen copy of every editable field. Ingredient records are immutable, so the array is copied
+     * shallowly; the two ItemStacks are cloned since they carry mutable stack data. */
+    private record Snapshot(RecipeIngredient[] ingredients, ItemStack container, ItemStack result,
+                            int resultCount, int cookTime, float experience, int priority, String category) {
+    }
+
+    private Snapshot capture() {
+        RecipeIngredient[] ingredientsCopy = new RecipeIngredient[ingredients.length];
+        System.arraycopy(ingredients, 0, ingredientsCopy, 0, ingredients.length);
+        return new Snapshot(ingredientsCopy,
+                container == null ? null : container.clone(),
+                result == null ? null : result.clone(),
+                resultCount, cookTime, experience, priority, category);
+    }
+
+    private void apply(Snapshot snapshot) {
+        System.arraycopy(snapshot.ingredients, 0, ingredients, 0, ingredients.length);
+        container = snapshot.container == null ? null : snapshot.container.clone();
+        result = snapshot.result == null ? null : snapshot.result.clone();
+        resultCount = snapshot.resultCount;
+        cookTime = snapshot.cookTime;
+        experience = snapshot.experience;
+        priority = snapshot.priority;
+        category = snapshot.category;
+        if (result != null) {
+            result.setAmount(resultCount);
+        }
+        render();
+    }
+
+    private void pushHistory() {
+        undoStack.push(capture());
+        if (undoStack.size() > HISTORY_LIMIT) {
+            undoStack.removeLast();
+        }
+        redoStack.clear();
+    }
+
+    private void undo() {
+        if (undoStack.isEmpty()) {
+            return;
+        }
+        redoStack.push(capture());
+        apply(undoStack.pop());
+    }
+
+    private void redo() {
+        if (redoStack.isEmpty()) {
+            return;
+        }
+        undoStack.push(capture());
+        apply(redoStack.pop());
     }
 
     @Override
@@ -398,12 +486,14 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
     private void openTagPicker(int idx, ItemStack source) {
         RecipeViewGuiConfig.BaseConfig pickerConfig = plugin.getRecipeEditorGuiConfig().getTagPickerConfig();
         if (pickerConfig == null) {
-            player.sendMessage(Component.translatable("gui.editor.feedback.advanced_coming")
-                    .color(NamedTextColor.YELLOW));
+            player.sendMessage(Component.translatable("gui.editor.feedback.not_configured")
+                    .color(NamedTextColor.RED));
             return;
         }
         List<String> tags = ItemUtils.getAllItemTagIds(source);
         if (tags.isEmpty()) {
+            plugin.getLogger().warning("Recipe editor: item '" + ItemUtils.resolveItemId(source)
+                    + "' belongs to no tag; tag selection skipped.");
             player.sendMessage(Component.translatable("gui.editor.feedback.no_tags")
                     .color(NamedTextColor.RED));
             return;
@@ -420,8 +510,8 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
     private void openChoiceBuilder(int idx) {
         RecipeViewGuiConfig.BaseConfig choiceConfig = plugin.getRecipeEditorGuiConfig().getChoiceBuilderConfig();
         if (choiceConfig == null) {
-            player.sendMessage(Component.translatable("gui.editor.feedback.advanced_coming")
-                    .color(NamedTextColor.YELLOW));
+            player.sendMessage(Component.translatable("gui.editor.feedback.not_configured")
+                    .color(NamedTextColor.RED));
             return;
         }
         closed = true;

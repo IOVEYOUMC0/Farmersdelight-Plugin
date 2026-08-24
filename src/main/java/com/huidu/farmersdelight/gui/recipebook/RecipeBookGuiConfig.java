@@ -56,6 +56,9 @@ public final class RecipeBookGuiConfig {
         private final List<String> layout;
         private final Map<Character, String> legend;
         private final Map<String, GuiConfig.GuiItem> items;
+        // Lazily computed per role; the layout/legend maps are immutable after construction, so a plain
+        // map is safe. Guest roles from recipes (fluid/return/temperature) are computed on first access.
+        private final Map<String, List<Integer>> slotsCache = new HashMap<>();
 
         public ViewConfig(String title, int rows, List<String> layout,
                           Map<Character, String> legend, Map<String, GuiConfig.GuiItem> items) {
@@ -79,16 +82,18 @@ public final class RecipeBookGuiConfig {
         }
 
         public List<Integer> slotsByType(String type) {
-            List<Integer> slots = new ArrayList<>();
-            for (int row = 0; row < layout.size(); row++) {
-                String line = layout.get(row);
-                for (int col = 0; col < line.length(); col++) {
-                    if (type.equals(legend.get(line.charAt(col)))) {
-                        slots.add(row * 9 + col);
+            return slotsCache.computeIfAbsent(type, t -> {
+                List<Integer> slots = new ArrayList<>();
+                for (int row = 0; row < layout.size(); row++) {
+                    String line = layout.get(row);
+                    for (int col = 0; col < line.length(); col++) {
+                        if (t.equals(legend.get(line.charAt(col)))) {
+                            slots.add(row * 9 + col);
+                        }
                     }
                 }
-            }
-            return slots;
+                return slots;
+            });
         }
 
         public int firstSlotByType(String type) {

@@ -75,7 +75,7 @@ templates:
         step: minecraft:block.wood.step
     behavior:
       type: simple_storage_block
-      title: <!i><l10n:block.farmersdelight.cabinet>
+      title: <!i><lang:block.farmersdelight.cabinet>
       rows: 3
       allow-input: true
       allow-output: true
@@ -188,7 +188,7 @@ items:
         operation: add_value
       lore:
       - content:
-        - <!i><dark_gray><l10n:farmersdelight.tooltip.placeable_sneaking></dark_gray>
+        - <!i><dark_gray><lang:farmersdelight.tooltip.placeable_sneaking></dark_gray>
         - ''
         - <!i><gray><lang:item.modifiers.mainhand></gray>
         - <!i><dark_green>  8 <lang:attribute.name.attack_damage></dark_green>
@@ -220,7 +220,7 @@ items:
       item-name: <!i><lang:block.farmersdelight.tray>
       lore:
       - content:
-        - <!i><red><l10n:farmersdelight.tooltip.no_collision></red>
+        - <!i><red><lang:farmersdelight.tooltip.no_collision></red>
     model: ${__NAMESPACE__}:block/${__ID__}
     behavior:
       type: furniture_item
@@ -1369,7 +1369,7 @@ block:
         step: minecraft:block.scaffolding.step
     behavior:
     - type: simple_storage_block
-      title: <!i><l10n:block.farmersdelight.basket>
+      title: <!i><lang:block.farmersdelight.basket>
       rows: 3
       allow-input: true
       allow-output: true
@@ -1788,97 +1788,97 @@ block:
           default: none
       appearances:
         none:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_north:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_north_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_south:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_south_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_east:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_east_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_west:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_west_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_north_south:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_north_south_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_east_west:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_east_west_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_north_east:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_north_east_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_north_west:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_north_west_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_south_east:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_south_east_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_south_west:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_south_west_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_north_south_east:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_north_south_east_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_north_south_west:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_north_south_west_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_east_west_north:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_east_west_north_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_east_west_south:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_east_west_south_elements
             scale: 1.005
             translation: 0,0.00245,0
         surrounded:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_surrounded_elements
             scale: 1.005
@@ -1899,21 +1899,21 @@ block:
         variant=no_east_west:
           appearance: no_east_west
         variant=no_north_east:
-          appearance: no_north_east
-        variant=no_north_west:
-          appearance: no_north_west
-        variant=no_south_east:
-          appearance: no_south_east
-        variant=no_south_west:
           appearance: no_south_west
+        variant=no_north_west:
+          appearance: no_south_east
+        variant=no_south_east:
+          appearance: no_north_west
+        variant=no_south_west:
+          appearance: no_north_east
         variant=no_north_south_east:
-          appearance: no_north_south_east
-        variant=no_north_south_west:
           appearance: no_north_south_west
+        variant=no_north_south_west:
+          appearance: no_north_south_east
         variant=no_east_west_north:
-          appearance: no_east_west_north
-        variant=no_east_west_south:
           appearance: no_east_west_south
+        variant=no_east_west_south:
+          appearance: no_east_west_north
         variant=surrounded:
           appearance: surrounded
   farmersdelight:half_tatami_mat:
@@ -1933,7 +1933,7 @@ block:
         place: minecraft:block.wool.place
         step: minecraft:block.wool.step
     state:
-      state: white_carpet
+      state: gray_carpet
       entity_renderer:
         item: ${__NAMESPACE__}:half_tatami_mat_elements
         scale: 1.003
@@ -1971,54 +1971,54 @@ block:
           default: north
       appearances:
         north_head:
-          state: white_carpet
+          state: gray_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:full_tatami_mat_head_elements
             rotation: 180
             scale: 1.003
             translation: 0,-0.0002,0
         north_foot:
-          state: white_carpet
+          state: gray_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:full_tatami_mat_foot_elements
             rotation: 180
             scale: 1.003
             translation: 0,-0.0002,0
         south_head:
-          state: white_carpet
+          state: gray_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:full_tatami_mat_head_elements
             scale: 1.003
             translation: 0,-0.0002,0
         south_foot:
-          state: white_carpet
+          state: gray_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:full_tatami_mat_foot_elements
             scale: 1.003
             translation: 0,-0.0002,0
         east_head:
-          state: white_carpet
+          state: gray_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:full_tatami_mat_head_elements
             rotation: 270
             scale: 1.003
             translation: 0,-0.0002,0
         east_foot:
-          state: white_carpet
+          state: gray_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:full_tatami_mat_foot_elements
             rotation: 270
             scale: 1.003
             translation: 0,-0.0002,0
         west_head:
-          state: white_carpet
+          state: gray_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:full_tatami_mat_head_elements
             rotation: 90
             scale: 1.003
             translation: 0,-0.0002,0
         west_foot:
-          state: white_carpet
+          state: gray_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:full_tatami_mat_foot_elements
             rotation: 90

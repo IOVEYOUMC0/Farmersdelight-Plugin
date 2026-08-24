@@ -19,6 +19,7 @@ import net.momirealms.craftengine.core.util.ResourceKey;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class ToolRegistry {
@@ -40,6 +41,9 @@ public final class ToolRegistry {
 
     private static boolean registered = false;
     private static volatile Map<Key, ToolData> cache = Map.of();
+    // Durable-only items (farmersdelight:durable): tracked by id only, purely so the enchant filter can
+    // apply their minimal whitelist. They never enter the weapon cache above.
+    private static volatile Set<Key> durableIds = Set.of();
 
     private ToolRegistry() {}
 
@@ -81,10 +85,17 @@ public final class ToolRegistry {
 
         ItemManager itemManager = ce.itemManager();
         Map<Key, ToolData> newCache = new ConcurrentHashMap<>();
+        Set<Key> newDurableIds = ConcurrentHashMap.newKeySet();
 
         for (Map.Entry<Key, ItemDefinition> entry : itemManager.loadedItems().entrySet()) {
             Key id = entry.getKey();
             ItemSettings settings = entry.getValue().settings();
+
+            ToolData durableData = settings.getCustomData(DURABLE_KEY);
+            if (durableData != null && durableData.isValid()) {
+                newDurableIds.add(id);
+            }
+
             ToolData data = settings.getCustomData(KEY);
             if (data == null) continue;
 
@@ -99,6 +110,7 @@ public final class ToolRegistry {
         }
 
         cache = Collections.unmodifiableMap(newCache);
+        durableIds = Collections.unmodifiableSet(newDurableIds);
         I18n.logInfo("plugin.tool.loaded", "count", newCache.size());
     }
 
@@ -112,5 +124,12 @@ public final class ToolRegistry {
 
     public static Map<Key, ToolData> all() {
         return cache;
+    }
+
+    public static boolean isDurable(String id) {
+        if (id == null || id.isBlank()) {
+            return false;
+        }
+        return durableIds.contains(Key.of(id));
     }
 }

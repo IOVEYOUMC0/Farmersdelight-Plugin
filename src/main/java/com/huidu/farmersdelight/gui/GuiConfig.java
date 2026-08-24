@@ -654,7 +654,7 @@ public class GuiConfig {
             return commands;
         }
 
-        public boolean hasCommands() {
+        public boolean hasNoCommands() {
             return commands == null || commands.isEmpty();
         }
 

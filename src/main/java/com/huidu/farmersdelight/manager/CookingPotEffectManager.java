@@ -31,11 +31,12 @@ import java.util.function.Function;
 class CookingPotEffectManager {
 
     private final FarmersDelightPlugin plugin;
-    private EffectSpec bubbleEffect = new EffectSpec(true, Particle.BUBBLE_POP, 0.20f, 1,
+    // Reassigned on reload, read on Folia region tick threads — volatile for a happens-before edge.
+    private volatile EffectSpec bubbleEffect = new EffectSpec(true, Particle.BUBBLE_POP, 0.20f, 1,
             0.02D, 0.0D, 0.0D, 0.0D, 0.01D);
-    private EffectSpec steamEffect = new EffectSpec(true, Particle.CLOUD, 0.05f, 1,
+    private volatile EffectSpec steamEffect = new EffectSpec(true, Particle.CLOUD, 0.05f, 1,
             0.08D, 0.0D, 0.03D, 0.0D, 0.02D);
-    private EffectSpec secondarySteamEffect = new EffectSpec(false, Particle.SMOKE, 1.0f, 1,
+    private volatile EffectSpec secondarySteamEffect = new EffectSpec(false, Particle.SMOKE, 1.0f, 1,
             0.05D, 0.0D, 0.025D, 0.0D, 0.02D);
 
     // Squared player-proximity radius for gating cooking-pot particle/sound broadcasts. Default 32 blocks =

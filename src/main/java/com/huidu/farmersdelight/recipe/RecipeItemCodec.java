@@ -243,15 +243,23 @@ public final class RecipeItemCodec {
             snbtParseTarget = null;
             return;
         } catch (Exception ignored) {
+            // fall through to the proxy fallback below
         }
         try {
             Class<?> proxy = Class.forName("net.momirealms.craftengine.proxy.minecraft.nbt.TagParserProxy");
             snbtParseMethod = proxy.getMethod("parseCompoundFully", String.class);
             snbtParseTarget = proxy.getField("INSTANCE").get(null);
+            return;
         } catch (Exception ignored) {
-            snbtParseMethod = null;
-            snbtParseTarget = null;
+            // no supported parser: silence here would make every "(snbt)" recipe fail with no trace
         }
+        snbtParseMethod = null;
+        snbtParseTarget = null;
+        throw new IllegalStateException(
+                "Unsupported CraftEngine build: no SNBT TagParser found (" +
+                "net.momirealms.craftengine.core.util.TagParser / " +
+                "net.momirealms.craftengine.proxy.minecraft.nbt.TagParserProxy missing). " +
+                "Refusing to run with silently broken recipe decoding.");
     }
 
     private static int countOf(Map<String, Object> map, int fallback) {

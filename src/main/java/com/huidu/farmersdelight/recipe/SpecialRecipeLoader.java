@@ -9,17 +9,19 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 public final class SpecialRecipeLoader {
 
-    private static final String FILE_NAME = "special_recipes.yml";
+    private static final String FILE_NAME = "recipes/special_recipes.yml";
     private static final String ROOT_KEY = "special_recipes";
 
     private SpecialRecipeLoader() {
@@ -75,12 +77,28 @@ public final class SpecialRecipeLoader {
     private static YamlConfiguration loadConfig(FarmersDelightPlugin plugin) {
         File file = new File(plugin.getDataFolder(), FILE_NAME);
         if (!file.exists()) {
-            try {
-                plugin.saveResource(FILE_NAME, false);
-            } catch (IllegalArgumentException e) {
-                I18n.logWarning("plugin.special_recipe_save_failed",
-                        "file", FILE_NAME, "error", e.getMessage());
-                return null;
+            // Carry over a server's old root-level special_recipes.yml (keeps player edits) before
+            // falling back to releasing the bundled default under recipes/.
+            File legacy = new File(plugin.getDataFolder(), "special_recipes.yml");
+            if (legacy.exists() && !legacy.isDirectory()) {
+                try {
+                    File parent = file.getParentFile();
+                    if (parent != null && !parent.exists()) {
+                        parent.mkdirs();
+                    }
+                    Files.copy(legacy.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException e) {
+                    I18n.logWarning("plugin.special_recipe_save_failed",
+                            "file", FILE_NAME, "error", e.getMessage());
+                }
+            } else {
+                try {
+                    plugin.saveResource(FILE_NAME, false);
+                } catch (IllegalArgumentException e) {
+                    I18n.logWarning("plugin.special_recipe_save_failed",
+                            "file", FILE_NAME, "error", e.getMessage());
+                    return null;
+                }
             }
         }
 
@@ -109,7 +127,9 @@ public final class SpecialRecipeLoader {
         }
     }
 
-    private static SpecialRecipeInfo parseRecipe(String id, ConfigurationSection section) {
+    /** Parses one special-recipe config entry into a SpecialRecipeInfo; exposed so addons can drive their
+     *  special recipes from a config file exactly like their other recipes. */
+    public static SpecialRecipeInfo parseRecipe(String id, ConfigurationSection section) {
         String titleKey = section.getString("title", "gui.special_recipe." + id + ".title");
         String iconItemId = section.getString("icon", "minecraft:barrier");
         List<String> descriptionKeys = section.getStringList("description");

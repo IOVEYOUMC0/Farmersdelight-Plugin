@@ -15,8 +15,10 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.MerchantRecipe;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class VillagerTradeListener implements Listener {
@@ -59,11 +61,15 @@ public final class VillagerTradeListener implements Listener {
             return;
         }
 
+        // Resolve the merchant's already-offered trade keys once and reuse them across both the weighted-sum
+        // pass and the weighted-pick pass, instead of re-scanning all recipes for every candidate.
+        Set<String> offeredKeys = offeredTradeKeys(merchant);
+
         // One roll against the summed chance, then a weighted pick, so the substitution probability matches
         // the share the mod's listings hold in that pool rather than compounding per candidate.
         double total = 0.0D;
         for (TradeOffer offer : candidates) {
-            if (!alreadyOffered(merchant, offer)) {
+            if (!offeredKeys.contains(tradeKey(offer))) {
                 total += offer.chance();
             }
         }
@@ -76,7 +82,7 @@ public final class VillagerTradeListener implements Listener {
         }
         double cursor = 0.0D;
         for (TradeOffer offer : candidates) {
-            if (alreadyOffered(merchant, offer)) {
+            if (offeredKeys.contains(tradeKey(offer))) {
                 continue;
             }
             cursor += offer.chance();
@@ -107,20 +113,24 @@ public final class VillagerTradeListener implements Listener {
         return result != null && result.getType() == Material.EMERALD;
     }
 
-    private static boolean alreadyOffered(AbstractVillager merchant, TradeOffer offer) {
+    private static Set<String> offeredTradeKeys(AbstractVillager merchant) {
+        Set<String> keys = new HashSet<>();
         for (MerchantRecipe recipe : merchant.getRecipes()) {
             List<ItemStack> ingredients = recipe.getIngredients();
             if (ingredients.isEmpty()) {
                 continue;
             }
-            if (!offer.ingredient().equals(ItemUtils.resolveItemId(ingredients.getFirst()))) {
-                continue;
-            }
-            if (offer.result().equals(ItemUtils.resolveItemId(recipe.getResult()))) {
-                return true;
+            String ingredientId = ItemUtils.resolveItemId(ingredients.getFirst());
+            String resultId = ItemUtils.resolveItemId(recipe.getResult());
+            if (ingredientId != null && resultId != null) {
+                keys.add(ingredientId + '\u0000' + resultId);
             }
         }
-        return false;
+        return keys;
+    }
+
+    private static String tradeKey(TradeOffer offer) {
+        return offer.ingredient() + '\u0000' + offer.result();
     }
 
     private static MerchantRecipe buildRecipe(TradeOffer offer) {

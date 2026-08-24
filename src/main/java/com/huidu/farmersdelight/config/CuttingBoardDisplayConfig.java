@@ -25,8 +25,9 @@ public final class CuttingBoardDisplayConfig {
     private final Map<String, DisplayOverride> tagOverrides = java.util.Collections.synchronizedMap(new LinkedHashMap<>());
     private final DisplayOverride fallbackDefaults;
     private final float fallbackItemSpread;
-    private DisplayOverride defaultOverride;
-    private float itemSpread;
+    // Reload writes, event handlers read on Folia region threads — volatile publishes the new values.
+    private volatile DisplayOverride defaultOverride;
+    private volatile float itemSpread;
 
     public CuttingBoardDisplayConfig() {
         this(DisplayOverride.empty(), DEFAULT_ITEM_SPREAD);
@@ -95,12 +96,14 @@ public final class CuttingBoardDisplayConfig {
         }
 
         DisplayOverride resolved = defaultOverride;
-        for (Map.Entry<String, DisplayOverride> entry : tagOverrides.entrySet()) {
-            try {
-                if (ItemUtils.matchesCustomOrVanillaTag(storedItem, entry.getKey())) {
-                    resolved = resolved.merge(entry.getValue());
+        synchronized (tagOverrides) { // iterate under the monitor; see field javadoc
+            for (Map.Entry<String, DisplayOverride> entry : tagOverrides.entrySet()) {
+                try {
+                    if (ItemUtils.matchesCustomOrVanillaTag(storedItem, entry.getKey())) {
+                        resolved = resolved.merge(entry.getValue());
+                    }
+                } catch (Exception ignored) {
                 }
-            } catch (Exception ignored) {
             }
         }
 

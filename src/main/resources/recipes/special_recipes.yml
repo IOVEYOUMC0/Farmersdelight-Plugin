@@ -1,7 +1,6 @@
 special_recipes:
-  # Aligned with the mod's JEI "Decomposition" category: Organic Compost breaks down into Rich Soil,
-  # sped up by sunlight, adjacent water and nearby activators (mushrooms, podzol/mycelium, other
-  # compost-family blocks, mushroom colonies...).
+  # Organic Compost breaks down into Rich Soil, sped up by sunlight, adjacent water and nearby
+  # activators (mushrooms, podzol/mycelium, other compost-family blocks, mushroom colonies...).
   organic_compost:
     title: "gui.special_recipe.organic_compost.title"
     icon: "farmersdelight:organic_compost"
@@ -26,8 +25,8 @@ special_recipes:
     catalysts:
       - behavior: farmersdelight:organic_compost
         list: activators
-  # Wild crops — pure description pages, mirroring the mod's JEI ingredient-info entries (where each
-  # wild plant can be found). Only the wild crops this plugin actually registers are listed.
+  # Wild crops — pure description pages (where each wild plant can be found). Only the wild crops
+  # this plugin actually registers are listed.
   wild_cabbages:
     title: "gui.special_recipe.wild_cabbages.title"
     icon: "farmersdelight:wild_cabbages"
@@ -52,7 +51,7 @@ special_recipes:
     display-type: "item_description"
     description:
       - "gui.special_recipe.wild_rice.desc.1"
-  # Item info pages — mirroring the mod's JEI ingredient-info entries for non-craftable items.
+  # Item info pages — ingredient-info style entries for non-craftable items.
   wheat_dough:
     title: "gui.special_recipe.wheat_dough.title"
     icon: "farmersdelight:wheat_dough"
@@ -71,9 +70,11 @@ special_recipes:
     display-type: "item_description"
     description:
       - "gui.special_recipe.ham.desc.1"
+      - "gui.special_recipe.ham.desc.2"
   knife:
     title: "gui.special_recipe.knife.title"
     icon: "farmersdelight:flint_knife"
     display-type: "item_description"
     description:
       - "gui.special_recipe.knife.desc.1"
+      - "gui.special_recipe.knife.desc.2"

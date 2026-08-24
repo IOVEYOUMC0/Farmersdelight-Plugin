@@ -8,11 +8,18 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class Text {
 
     private static final MiniMessage MINI = MiniMessage.miniMessage();
     private static final PlainTextComponentSerializer PLAIN = PlainTextComponentSerializer.plainText();
+
+    // Components are immutable (append/colorIfAbsent return new instances), so a parsed component is
+    // safe to share. GUI rendering re-parses the same fixed strings repeatedly; cache by raw input.
+    // Bounded so transient player-scoped messages are not retained forever.
+    private static final int COMPONENT_CACHE_CAPACITY = 1024;
+    private static final ConcurrentHashMap<String, Component> COMPONENT_CACHE = new ConcurrentHashMap<>();
 
     // Indexed by legacy color code character (0-9, a-f).
     private static final String[] COLOR_TAGS = {
@@ -28,12 +35,22 @@ public final class Text {
         if (raw == null || raw.isEmpty()) {
             return Component.empty();
         }
-        String miniMessage = legacyToMiniMessage(raw);
-        try {
-            return MINI.deserialize(miniMessage);
-        } catch (RuntimeException ex) {
-            return Component.text(stripFormatting(raw));
+        Component cached = COMPONENT_CACHE.get(raw);
+        if (cached != null) {
+            return cached;
         }
+        String miniMessage = legacyToMiniMessage(raw);
+        Component result;
+        try {
+            result = MINI.deserialize(miniMessage);
+        } catch (RuntimeException ex) {
+            result = Component.text(stripFormatting(raw));
+        }
+        if (COMPONENT_CACHE.size() >= COMPONENT_CACHE_CAPACITY) {
+            COMPONENT_CACHE.clear();
+        }
+        COMPONENT_CACHE.put(raw, result);
+        return result;
     }
 
     public static Component name(String raw) {

@@ -393,8 +393,8 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
     private void openTagPicker(ItemStack source) {
         RecipeViewGuiConfig.BaseConfig pickerConfig = plugin.getRecipeEditorGuiConfig().getTagPickerConfig();
         if (pickerConfig == null) {
-            player.sendMessage(Component.translatable("gui.editor.feedback.advanced_coming")
-                    .color(NamedTextColor.YELLOW));
+            player.sendMessage(Component.translatable("gui.editor.feedback.not_configured")
+                    .color(NamedTextColor.RED));
             return;
         }
         List<String> tags = ItemUtils.getAllItemTagIds(source);
@@ -415,8 +415,8 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
     private void openToolTagPicker(int idx, ItemStack source) {
         RecipeViewGuiConfig.BaseConfig pickerConfig = plugin.getRecipeEditorGuiConfig().getTagPickerConfig();
         if (pickerConfig == null) {
-            player.sendMessage(Component.translatable("gui.editor.feedback.advanced_coming")
-                    .color(NamedTextColor.YELLOW));
+            player.sendMessage(Component.translatable("gui.editor.feedback.not_configured")
+                    .color(NamedTextColor.RED));
             return;
         }
         List<String> tags = ItemUtils.getAllItemTagIds(source);
@@ -446,14 +446,15 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
         Key tagKey = tool.getKey();
         List<ItemStack> members = resolveTagMembers(tagKey);
         if (members.isEmpty()) {
+            plugin.getLogger().warning("Recipe editor: tag '" + tagKey + "' has no matching items.");
             player.sendMessage(Component.translatable("gui.editor.feedback.no_tag_items")
                     .color(NamedTextColor.RED));
             return;
         }
         RecipeViewGuiConfig.BaseConfig pickerConfig = plugin.getRecipeEditorGuiConfig().getTagPickerConfig();
         if (pickerConfig == null) {
-            player.sendMessage(Component.translatable("gui.editor.feedback.advanced_coming")
-                    .color(NamedTextColor.YELLOW));
+            player.sendMessage(Component.translatable("gui.editor.feedback.not_configured")
+                    .color(NamedTextColor.RED));
             return;
         }
         closed = true;

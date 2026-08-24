@@ -213,6 +213,10 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
         return config.maxAgeLower();
     }
 
+    public boolean resetsOnHarvest() {
+        return config.resetOnHarvest();
+    }
+
     public int getMaxAgeUpper() {
         return config.maxAgeUpper();
     }

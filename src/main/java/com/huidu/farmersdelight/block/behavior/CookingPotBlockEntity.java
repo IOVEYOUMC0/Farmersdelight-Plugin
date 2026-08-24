@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.event.FarmersDelightCookStartEvent;
+import com.huidu.farmersdelight.api.event.FarmersDelightProduceEvent;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.ItemUtils;
@@ -506,7 +507,18 @@ public class CookingPotBlockEntity {
         lastRecipeId.set(null);
 
         syncWorldlyContainer();
+        fireCookFinished(world, blockLoc, recipe);
         return true;
+    }
+
+    private void fireCookFinished(World world, Location blockLoc, CookingPotRecipe recipe) {
+        if (!FarmersDelightPlugin.isEnabled0() || world == null || blockLoc == null || recipe == null) {
+            return;
+        }
+        // Notify addons (achievements, statistics, loot) that the pot produced a meal. The id is null when a
+        // villager cooked, letting listeners tell player vs automated production via getPlayerId() == null.
+        org.bukkit.Bukkit.getPluginManager().callEvent(new FarmersDelightProduceEvent(
+                null, "cooking", recipe.getResult(), blockLoc));
     }
 
     private boolean canCookInternal() {

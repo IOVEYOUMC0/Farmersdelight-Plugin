@@ -38,6 +38,10 @@ public class CookingPotRecipeManager {
     private volatile List<CookingPotRecipe> sortedRecipes = List.of();
     private volatile Map<String, List<CookingPotRecipe>> sortedCustomRecipes = Map.of();
     private volatile Map<String, List<CookingPotRecipe>> sortedCustomOnlyRecipes = Map.of();
+    // Reverse index result item id -> producing recipes, built at load time and published as a whole
+    // (single volatile write). Lets API cross-reference / GUI "which recipes produce X" answer in O(1)
+    // instead of scanning every recipe. Keyed the same way as getItemKey (custom id, else vanilla id).
+    private volatile Map<String, List<CookingPotRecipe>> resultToRecipes = Map.of();
     private final VanillaTagItemIdCache vanillaItemIdsByTagCache;
     // LRU access-order LinkedHashMap mutates internal state on get(), so concurrent reads from
     // multiple region threads (Folia) would corrupt the doubly-linked list. Wrap in synchronizedMap;
@@ -134,6 +138,13 @@ public class CookingPotRecipeManager {
             newSortedCustomRecipes.put(entry.getKey(), sortedRecipeList(merged));
         }
 
+        Map<String, List<CookingPotRecipe>> newResultToRecipes = buildResultIndex(newSortedRecipes);
+        for (List<CookingPotRecipe> groupRecipes : newSortedCustomOnlyRecipes.values()) {
+            for (CookingPotRecipe recipe : groupRecipes) {
+                newResultToRecipes.computeIfAbsent(getItemKey(recipe.getResult()), k -> new ArrayList<>(1)).add(recipe);
+            }
+        }
+
         // Publish the freshly built structures (each a single volatile write).
         this.recipes = newRecipes;
         this.customRecipes = newCustomRecipes;
@@ -142,6 +153,7 @@ public class CookingPotRecipeManager {
         this.sortedRecipes = newSortedRecipes;
         this.sortedCustomRecipes = newSortedCustomRecipes;
         this.sortedCustomOnlyRecipes = newSortedCustomOnlyRecipes;
+        this.resultToRecipes = freezeResultIndex(newResultToRecipes);
         this.validContainerKeys = Collections.unmodifiableSet(newValidContainerKeys);
 
         vanillaItemIdsByTagCache.clear();
@@ -234,6 +246,35 @@ public class CookingPotRecipeManager {
             }
             containerKeys.add("minecraft:" + container.getType().name().toLowerCase(java.util.Locale.ROOT));
         }
+    }
+
+    private Map<String, List<CookingPotRecipe>> buildResultIndex(List<CookingPotRecipe> recipesToIndex) {
+        Map<String, List<CookingPotRecipe>> index = new HashMap<>();
+        for (CookingPotRecipe recipe : recipesToIndex) {
+            if (recipe.getResult() == null) {
+                continue;
+            }
+            index.computeIfAbsent(getItemKey(recipe.getResult()), k -> new ArrayList<>(1)).add(recipe);
+        }
+        return index;
+    }
+
+    // Deep-freeze a mutable result index into an immutable publish snapshot (unmodifiable map + lists).
+    private static Map<String, List<CookingPotRecipe>> freezeResultIndex(Map<String, List<CookingPotRecipe>> source) {
+        Map<String, List<CookingPotRecipe>> frozen = new HashMap<>(source.size());
+        for (Map.Entry<String, List<CookingPotRecipe>> entry : source.entrySet()) {
+            frozen.put(entry.getKey(), Collections.unmodifiableList(entry.getValue()));
+        }
+        return Collections.unmodifiableMap(frozen);
+    }
+
+    /** Recipes (default + external, excluding custom-group duplicates) that produce this item. */
+    public List<CookingPotRecipe> getRecipesProducing(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return List.of();
+        }
+        List<CookingPotRecipe> matches = resultToRecipes.get(getItemKey(item));
+        return matches == null ? List.of() : matches;
     }
 
     private CookingPotRecipe parseRecipe(String id, ConfigurationSection section, int maxIngredients) {

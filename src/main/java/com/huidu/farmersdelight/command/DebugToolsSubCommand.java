@@ -16,13 +16,15 @@ final class DebugToolsSubCommand extends SubCommand {
     private final Object delegate;
     private final java.lang.reflect.Method executeMethod;
     private final java.lang.reflect.Method tabCompleteMethod;
+    private final java.util.logging.Logger logger;
 
     private DebugToolsSubCommand(Object delegate, java.lang.reflect.Method executeMethod,
-                                 java.lang.reflect.Method tabCompleteMethod) {
+                                 java.lang.reflect.Method tabCompleteMethod, java.util.logging.Logger logger) {
         super("debugtools", List.of("debug", "perf"), "farmersdelight.admin", "literal:debug performance tools");
         this.delegate = delegate;
         this.executeMethod = executeMethod;
         this.tabCompleteMethod = tabCompleteMethod;
+        this.logger = logger;
     }
 
     static DebugToolsSubCommand create(FarmersDelightPlugin plugin) {
@@ -31,7 +33,7 @@ final class DebugToolsSubCommand extends SubCommand {
             Object delegate = type.getConstructor(FarmersDelightPlugin.class).newInstance(plugin);
             java.lang.reflect.Method execute = type.getMethod("execute", CommandSender.class, String.class, String[].class);
             java.lang.reflect.Method tabComplete = type.getMethod("tabComplete", CommandSender.class, String[].class);
-            return new DebugToolsSubCommand(delegate, execute, tabComplete);
+            return new DebugToolsSubCommand(delegate, execute, tabComplete, plugin.getLogger());
         } catch (ReflectiveOperationException e) {
             I18n.logWarning("plugin.debug_tools_missing");
             return null;
@@ -43,6 +45,12 @@ final class DebugToolsSubCommand extends SubCommand {
         try {
             executeMethod.invoke(delegate, sender, label, args);
         } catch (ReflectiveOperationException e) {
+            // Reflection wraps a throw from the target method in InvocationTargetException; unwrap it so
+            // the real failure is logged with its stack instead of being masked as "not available".
+            Throwable cause = (e instanceof java.lang.reflect.InvocationTargetException ite && ite.getCause() != null)
+                    ? ite.getCause() : e;
+            logger.warning("Debug tools execution failed: " + cause);
+            cause.printStackTrace();
             sender.sendMessage(MINI.deserialize("<red>Debug tools are not available in this build.</red>"));
         }
     }

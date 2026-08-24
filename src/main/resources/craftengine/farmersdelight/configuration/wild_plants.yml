@@ -219,6 +219,7 @@ blocks:
       - minecraft:flowers
       - minecraft:tall_flowers
     behaviors:
+      - type: liquid_flowable_block
       - type: double_high_block
       - type: farmersdelight:wild_rice
         requires-water: true
@@ -229,7 +230,6 @@ blocks:
           - minecraft:mud
           - minecraft:sand
           - minecraft:red_sand
-      - type: farmersdelight:upper_half_loot_relay
     states:
       properties:
         half:
@@ -247,29 +247,27 @@ blocks:
           appearance: half=lower
         half=upper:
           appearance: half=upper
-    loot:
-      pools:
-        - rolls: 1
-          entries:
-            - type: alternatives
-              children:
-                - type: item
-                  item: farmersdelight:wild_rice
-                  conditions:
-                    - type: match_item
-                      item: minecraft:shears
-                    - type: match_block_property
-                      properties:
-                        half: lower
-                - type: item
-                  item: farmersdelight:rice
-                  count: 1
-                  conditions:
-                    - type: survives_explosion
-                    - type: match_block_property
-                      properties:
-                        half: lower
-placed-features:
+    events:
+      - on: break
+        functions:
+          - type: drop_loot
+            x: <arg:block.block_x> + 0.5
+            y: <arg:block.block_y> + 0.5
+            z: <arg:block.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: alternatives
+                      children:
+                        - type: item
+                          item: farmersdelight:wild_rice
+                          conditions:
+                            - type: match_item
+                              item: minecraft:shears
+                        - type: item
+                          item: farmersdelight:rice
+                          count: 1
   farmersdelight:wild_cabbages:
     biome:
       - minecraft:beach

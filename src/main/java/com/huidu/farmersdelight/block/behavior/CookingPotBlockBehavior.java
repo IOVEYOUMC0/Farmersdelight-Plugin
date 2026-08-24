@@ -182,9 +182,13 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         }
         World world = location.getWorld();
         BlockPosKey posKey = new BlockPosKey(location);
+        return getOrCreateBlockEntity(world, posKey, getBlockBehavior(location));
+    }
+
+    // Behaviour is resolved once by the caller so the guard and the create share a single block-state lookup.
+    private static CookingPotBlockEntity getOrCreateBlockEntity(World world, BlockPosKey posKey, CookingPotBlockBehavior behavior) {
         Map<BlockPosKey, CookingPotBlockEntity> worldEntities = worldBlockEntities.computeIfAbsent(
                 world.getUID(), k -> new ConcurrentHashMap<>());
-        CookingPotBlockBehavior behavior = getBlockBehavior(location);
         // Maintain the index only when a new entity is actually created: the mapping function running means a structural write happened.
         boolean[] created = {false};
         CookingPotBlockEntity entity = worldEntities.computeIfAbsent(posKey, key -> {
@@ -676,12 +680,14 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
             return item.clone();
         }
 
+        // Resolve the behaviour once and reuse it (via the private overload) instead of probing the
+        // block state again inside getOrCreateBlockEntity.
         CookingPotBlockBehavior behavior = getBlockBehavior(location);
         if (behavior == null) {
             return item.clone();
         }
 
-        CookingPotBlockEntity entity = getOrCreateBlockEntity(location);
+        CookingPotBlockEntity entity = getOrCreateBlockEntity(world, posKey, behavior);
         if (entity == null) {
             return item.clone();
         }
@@ -785,11 +791,20 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
                         || bukkitPlayer.getInventory().getItemInMainHand().getType().isAir())) {
             FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
             com.huidu.farmersdelight.manager.HandleManager hm = plugin == null ? null : plugin.getHandleManager();
-            if (hm != null) {
-                hm.toggleHandle(bukkitPlayer.getWorld(), pos, bukkitPlayer);
-                bukkitPlayer.swingMainHand();
-                return InteractionResult.SUCCESS_AND_CANCEL;
+            if (hm == null) {
+                return InteractionResult.PASS;
             }
+            // Handle toggling mutates the block, so gate it like the other pot interactions.
+            if (!PermissionChecker.check(bukkitPlayer, config.permission())) {
+                return InteractionResult.PASS;
+            }
+            if (!ProtectionCompat.canUse(bukkitPlayer, bukkitPlayer.getWorld().getBlockAt(
+                    pos.x(), pos.y(), pos.z()), ProtectionCompat.Feature.COOKING_POT)) {
+                return InteractionResult.PASS;
+            }
+            hm.toggleHandle(bukkitPlayer.getWorld(), pos, bukkitPlayer);
+            bukkitPlayer.swingMainHand();
+            return InteractionResult.SUCCESS_AND_CANCEL;
         }
 
         if (bukkitPlayer.isSneaking() && !config.openWhileSneaking()) {
