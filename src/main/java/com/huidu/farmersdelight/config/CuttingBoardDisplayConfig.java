@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.config;
 
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
@@ -287,7 +288,7 @@ public final class CuttingBoardDisplayConfig {
         private static String firstString(ConfigurationSection section) {
             for (String key : new String[]{"default-display-style", "default-style", "style"}) {
                 if (section.contains(key)) {
-                    String value = section.getString(key);
+                    String value = ConfigSectionReader.optionalString(section, key);
                     if (value != null) {
                         return value;
                     }
@@ -347,9 +348,9 @@ public final class CuttingBoardDisplayConfig {
                 }
                 if (value instanceof ConfigurationSection vectorSection) {
                     return new Vector3f(
-                            (float) vectorSection.getDouble("x", 0.0D),
-                            (float) vectorSection.getDouble("y", 0.0D),
-                            (float) vectorSection.getDouble("z", 0.0D)
+                            (float) ConfigSectionReader.optionalDouble(vectorSection, "x", 0.0D),
+                            (float) ConfigSectionReader.optionalDouble(vectorSection, "y", 0.0D),
+                            (float) ConfigSectionReader.optionalDouble(vectorSection, "z", 0.0D)
                     );
                 }
             } catch (Exception ignored) {

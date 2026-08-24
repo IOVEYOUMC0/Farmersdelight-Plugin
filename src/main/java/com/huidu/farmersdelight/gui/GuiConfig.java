@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.gui;
 
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.CompatItemMeta;
 import com.huidu.farmersdelight.util.ItemUtils;
@@ -115,12 +116,12 @@ public class GuiConfig {
     }
 
     public static GuiConfig fromConfig(ConfigurationSection section) {
-        String title = section.getString("title", "GUI");
-        String titleLayoutOffset = section.getString("title-layout.craftengine.offset", "");
-        String titleLayoutIcon = section.getString("title-layout.craftengine.icon", "");
-        boolean fillersEnabled = section.getBoolean("fillers-enabled", true);
-        int rows = section.getInt("rows", 3);
-        List<String> layout = section.getStringList("layout");
+        String title = ConfigSectionReader.optionalString(section, "title", "GUI");
+        String titleLayoutOffset = ConfigSectionReader.optionalString(section, "title-layout.craftengine.offset", "");
+        String titleLayoutIcon = ConfigSectionReader.optionalString(section, "title-layout.craftengine.icon", "");
+        boolean fillersEnabled = ConfigSectionReader.optionalBoolean(section, "fillers-enabled", true);
+        int rows = ConfigSectionReader.optionalInt(section, "rows", 3);
+        List<String> layout = ConfigSectionReader.optionalStringList(section, "layout");
 
         Map<Character, String> legend = new HashMap<>();
         ConfigurationSection legendSection = section.getConfigurationSection("legend");
@@ -145,7 +146,7 @@ public class GuiConfig {
         inheritBackgroundVisualOptions(items);
 
         List<GuiItem> progressItems = new ArrayList<>();
-        List<Map<?, ?>> progressItemsList = section.getMapList("progress-items");
+        List<Map<?, ?>> progressItemsList = ConfigSectionReader.optionalMapList(section, "progress-items");
         if (progressItemsList.isEmpty() && itemsSection != null) {
             progressItemsList = itemsSection.getMapList("progress-items");
         }
@@ -480,7 +481,7 @@ public class GuiConfig {
         }
 
         public static GuiItem fromConfig(ConfigurationSection section) {
-            String materialName = section.getString("material");
+            String materialName = ConfigSectionReader.optionalString(section, "material");
             Material material = null;
             if (materialName != null && !materialName.isEmpty()) {
                 try {
@@ -493,7 +494,7 @@ public class GuiConfig {
                 }
             }
 
-            String customItemIdStr = section.getString("item");
+            String customItemIdStr = ConfigSectionReader.optionalString(section, "item");
             Key customItemId = null;
             if (customItemIdStr != null && !customItemIdStr.isEmpty()) {
                 customItemId = Key.of(customItemIdStr);
@@ -503,22 +504,14 @@ public class GuiConfig {
                 material = Material.GRAY_STAINED_GLASS_PANE;
             }
 
-            String name = section.getString("name", " ");
-            List<String> lore = section.getStringList("lore");
-            String nameKey = section.getString("name-key");
-            List<String> loreKeys = section.getStringList("lore-keys");
-            Integer customModelData = null;
-            if (section.contains("custom-model-data")) {
-                customModelData = section.getInt("custom-model-data");
-            } else if (section.contains("customModelData")) {
-                customModelData = section.getInt("customModelData");
-            }
-            String itemModel = section.getString("item-model");
-            if (itemModel == null) {
-                itemModel = section.getString("item_model");
-            }
-            boolean hideTooltip = section.getBoolean("hide-tooltip",
-                    section.getBoolean("hide_tooltip", section.getBoolean("hideTooltip", false)));
+            String name = ConfigSectionReader.optionalString(section, "name", " ");
+            List<String> lore = ConfigSectionReader.optionalStringList(section, "lore");
+            String nameKey = ConfigSectionReader.optionalString(section, "name-key");
+            List<String> loreKeys = ConfigSectionReader.optionalStringList(section, "lore-keys");
+            Integer customModelData = ConfigSectionReader.optionalIntOrNull(section, "custom-model-data", "customModelData");
+            String itemModel = ConfigSectionReader.optionalString(section, "item-model", null, "item_model");
+            boolean hideTooltip = ConfigSectionReader.optionalBoolean(section, "hide-tooltip", false,
+                    "hide_tooltip", "hideTooltip");
             List<String> commands = readCommands(section);
 
             return new GuiItem(material, customItemId, customModelData, itemModel, hideTooltip,

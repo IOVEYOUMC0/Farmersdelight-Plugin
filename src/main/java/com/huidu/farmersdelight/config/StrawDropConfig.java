@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.config;
 
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.configuration.ConfigurationSection;
 
@@ -24,9 +25,9 @@ public class StrawDropConfig {
             ConfigurationSection ruleSection = section.getConfigurationSection(blockType);
             if (ruleSection == null) continue;
 
-            String dropItem = ruleSection.getString("drop", "farmersdelight:straw");
-            int minAmount = ruleSection.getInt("min-amount", 1);
-            int maxAmount = ruleSection.getInt("max-amount", 2);
+            String dropItem = ConfigSectionReader.optionalString(ruleSection, "drop", "farmersdelight:straw");
+            int minAmount = ConfigSectionReader.optionalInt(ruleSection, "min-amount", 1);
+            int maxAmount = ConfigSectionReader.optionalInt(ruleSection, "max-amount", 2);
 
             if (minAmount > maxAmount) {
                 int temp = minAmount;

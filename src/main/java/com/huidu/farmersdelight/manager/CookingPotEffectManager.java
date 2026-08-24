@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.manager;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
 import com.huidu.farmersdelight.util.BlockPosKey;
@@ -263,15 +264,15 @@ class CookingPotEffectManager {
             double defaultSpeed
     ) {
         return new EffectSpec(
-                section == null ? defaultEnabled : section.getBoolean("enabled", defaultEnabled),
-                ManagerSupport.resolveParticle(section == null ? null : section.getString("type"), defaultParticle),
-                section == null ? defaultChance : (float) section.getDouble("chance", defaultChance),
-                Math.max(1, section == null ? 1 : section.getInt("count", 1)),
-                section == null ? defaultYOffset : section.getDouble("y-offset", defaultYOffset),
-                section == null ? 0.0 : section.getDouble("offset-x", 0.0),
-                section == null ? defaultOffsetY : section.getDouble("offset-y", defaultOffsetY),
-                section == null ? 0.0 : section.getDouble("offset-z", 0.0),
-                Math.max(0.001D, section == null ? defaultSpeed : section.getDouble("speed", defaultSpeed))
+                section == null ? defaultEnabled : ConfigSectionReader.optionalBoolean(section, "enabled", defaultEnabled),
+                ManagerSupport.resolveParticle(section == null ? null : ConfigSectionReader.optionalString(section, "type"), defaultParticle),
+                section == null ? defaultChance : (float) ConfigSectionReader.optionalDouble(section, "chance", defaultChance),
+                Math.max(1, section == null ? 1 : ConfigSectionReader.optionalInt(section, "count", 1)),
+                section == null ? defaultYOffset : ConfigSectionReader.optionalDouble(section, "y-offset", defaultYOffset),
+                section == null ? 0.0 : ConfigSectionReader.optionalDouble(section, "offset-x", 0.0),
+                section == null ? defaultOffsetY : ConfigSectionReader.optionalDouble(section, "offset-y", defaultOffsetY),
+                section == null ? 0.0 : ConfigSectionReader.optionalDouble(section, "offset-z", 0.0),
+                Math.max(0.001D, section == null ? defaultSpeed : ConfigSectionReader.optionalDouble(section, "speed", defaultSpeed))
         );
     }
 

@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.advancement;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.i18n.I18n;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.api.CraftEngineItems;
@@ -55,7 +56,7 @@ final class AdvancementGate {
     }
 
     private static Set<String> readIds(FarmersDelightPlugin plugin, String path) {
-        List<String> configured = plugin.getConfig().getStringList(path);
+        List<String> configured = ConfigSectionReader.optionalStringList(plugin.getConfig(), path);
         if (configured.isEmpty()) {
             return Set.of();
         }

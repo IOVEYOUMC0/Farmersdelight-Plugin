@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.gui;
 
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
@@ -103,9 +104,9 @@ public class RecipeViewGuiConfig {
     }
 
     public static RecipeViewGuiConfig fromConfig(ConfigurationSection section) {
-        boolean backgroundItemsEnabled = section.getBoolean("background-items-enabled", true);
-        boolean showIngredientIds = section.getBoolean("show-ingredient-ids", false);
-        int maxPreviewIngredients = Math.max(1, section.getInt("max-preview-ingredients", 4));
+        boolean backgroundItemsEnabled = ConfigSectionReader.optionalBoolean(section, "background-items-enabled", true);
+        boolean showIngredientIds = ConfigSectionReader.optionalBoolean(section, "show-ingredient-ids", false);
+        int maxPreviewIngredients = Math.max(1, ConfigSectionReader.optionalInt(section, "max-preview-ingredients", 4));
         MainMenuConfig mainMenu = MainMenuConfig.fromConfig(section.getConfigurationSection("main-menu"));
         RecipeListConfig recipeList = RecipeListConfig.fromConfig(section.getConfigurationSection("recipe-list"));
         ConfigurationSection legacyDetail = section.getConfigurationSection("recipe-detail");
@@ -243,9 +244,9 @@ public class RecipeViewGuiConfig {
                 return null;
             }
 
-            String title = section.getString("title", "GUI");
-            int rows = section.getInt("rows", 3);
-            List<String> layout = section.getStringList("layout");
+            String title = ConfigSectionReader.optionalString(section, "title", "GUI");
+            int rows = ConfigSectionReader.optionalInt(section, "rows", 3);
+            List<String> layout = ConfigSectionReader.optionalStringList(section, "layout");
 
             Map<Character, String> legend = new HashMap<>();
             ConfigurationSection legendSection = section.getConfigurationSection("legend");

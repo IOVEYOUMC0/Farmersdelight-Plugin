@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.config;
 
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.LinkedHashSet;
@@ -250,7 +251,7 @@ public record EnchantmentSettings(
         if (section == null) {
             return "farmersdelight:backstabbing";
         }
-        String value = section.getString("id");
+        String value = ConfigSectionReader.optionalString(section, "id");
         return value == null || value.isBlank() ? "farmersdelight:backstabbing" : value.trim();
     }
 

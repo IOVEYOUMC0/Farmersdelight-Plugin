@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.config;
 
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.util.Constants;
 import net.momirealms.craftengine.core.item.ItemDefinition;
 import net.momirealms.craftengine.core.item.ItemManager;
@@ -128,7 +129,7 @@ public class PetFoodConfig {
 
         // Load visual / sound effects
         Sound sound = Sound.ENTITY_GENERIC_EAT;
-        String soundName = section.getString("sound");
+        String soundName = ConfigSectionReader.optionalString(section, "sound");
         if (soundName != null) {
             Sound resolvedSound = resolveSound(soundName);
             if (resolvedSound != null) {
@@ -152,7 +153,7 @@ public class PetFoodConfig {
             }
         }
 
-        int particleCount = section.getInt("particle-count", 5);
+        int particleCount = ConfigSectionReader.optionalInt(section, "particle-count", 5);
         FeedVisual visual = new FeedVisual(sound, soundVolume, soundPitch, particles, particleType, particleCount);
 
         // Load tempt settings

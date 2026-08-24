@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.recipe;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.api.event.FarmersDelightRecipeDiscoveryEvent;
 import com.huidu.farmersdelight.api.event.FarmersDelightRecipeDiscoveryEvent.Action;
 import com.huidu.farmersdelight.api.event.FarmersDelightRecipeDiscoveryEvent.Source;
@@ -68,12 +69,12 @@ public final class RecipeDiscoveryManager {
 
     private void readConfig() {
         ConfigurationSection section = plugin.getFirstConfigSection("recipes.discovery", "recipe-discovery");
-        enabled = section != null && section.getBoolean("enabled", false);
-        String lockedDisplay = section == null ? "placeholder" : section.getString("locked-display", "placeholder");
+        enabled = section != null && ConfigSectionReader.optionalBoolean(section, "enabled", false);
+        String lockedDisplay = section == null ? "placeholder" : ConfigSectionReader.optionalString(section, "locked-display", "placeholder");
         hideLocked = "hidden".equalsIgnoreCase(lockedDisplay);
-        unlockOnObtain = section == null || section.getBoolean("unlock-on-obtain", true);
-        notifyOnUnlock = section == null || section.getBoolean("notify", true);
-        Material icon = section == null ? null : Material.matchMaterial(section.getString("locked-icon", "BARRIER"));
+        unlockOnObtain = section == null || ConfigSectionReader.optionalBoolean(section, "unlock-on-obtain", true);
+        notifyOnUnlock = section == null || ConfigSectionReader.optionalBoolean(section, "notify", true);
+        Material icon = section == null ? null : Material.matchMaterial(ConfigSectionReader.optionalString(section, "locked-icon", "BARRIER"));
         lockedIcon = icon != null ? icon : Material.BARRIER;
     }
 

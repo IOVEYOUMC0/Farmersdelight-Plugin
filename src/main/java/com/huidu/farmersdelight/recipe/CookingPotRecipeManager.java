@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.recipe;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.api.recipe.IngredientMatching;
 import com.huidu.farmersdelight.util.Constants;
@@ -278,7 +279,7 @@ public class CookingPotRecipeManager {
     }
 
     private CookingPotRecipe parseRecipe(String id, ConfigurationSection section, int maxIngredients) {
-        List<String> ingredientStrings = section.getStringList("ingredients");
+        List<String> ingredientStrings = ConfigSectionReader.optionalStringList(section, "ingredients");
         if (ingredientStrings.isEmpty()) {
             throw new IllegalArgumentException("Recipe must have at least one ingredient");
         }
@@ -304,10 +305,10 @@ public class CookingPotRecipeManager {
             throw new IllegalArgumentException("Invalid result item: " + resultValue);
         }
         if (!(resultValue instanceof Map)) {
-            result.setAmount(Math.max(1, section.getInt("result-count", 1)));
+            result.setAmount(Math.max(1, ConfigSectionReader.optionalInt(section, "result-count", 1)));
         }
 
-        float experience = Math.max(0, (float) section.getDouble("experience", 0.0));
+        float experience = Math.max(0, (float) ConfigSectionReader.optionalDouble(section, "experience", 0.0));
         int defaultCookTime = Math.max(1, plugin.getConfigInt(Constants.DEFAULT_COOKING_TIME_COOKING_POT,
                 "cooking-pot.cooking.default-cook-time",
                 "cooking-pot.default-cook-time"));
@@ -320,8 +321,8 @@ public class CookingPotRecipeManager {
         int cookTime = Math.max(minCookTime, Math.min(maxCookTime, getInt(section,
                 defaultCookTime
         )));
-        String category = section.getString("category", "misc");
-        int priority = section.getInt("priority", 0);
+        String category = ConfigSectionReader.optionalString(section, "category", "misc");
+        int priority = ConfigSectionReader.optionalInt(section, "priority", 0);
 
         return new CookingPotRecipe(id, ingredients, container, needsContainer, result, experience, cookTime, category, priority);
     }
@@ -329,7 +330,7 @@ public class CookingPotRecipeManager {
     private int getInt(ConfigurationSection section, int defaultValue) {
         for (String key : new String[]{"cooking_time", "cooking-time", "cook-time"}) {
             if (section.contains(key)) {
-                return section.getInt(key, defaultValue);
+                return ConfigSectionReader.optionalInt(section, key, defaultValue);
             }
         }
         return defaultValue;

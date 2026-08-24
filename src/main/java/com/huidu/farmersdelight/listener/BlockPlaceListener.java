@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntityController;
@@ -188,8 +189,8 @@ public class BlockPlaceListener implements Listener {
             cachedMushroomSupports = DEFAULT_MUSHROOM_ALWAYS_VALID_SUPPORTS;
             return;
         }
-        Set<String> normalized = normalizeMushroomSupports(plugin.getConfig().getStringList(
-                "mushroom-colonies.placement.always-valid-supports"));
+        Set<String> normalized = normalizeMushroomSupports(ConfigSectionReader.optionalStringList(
+                plugin.getConfig(), "mushroom-colonies.placement.always-valid-supports"));
         cachedMushroomSupports = normalized.isEmpty() ? DEFAULT_MUSHROOM_ALWAYS_VALID_SUPPORTS : normalized;
     }
 

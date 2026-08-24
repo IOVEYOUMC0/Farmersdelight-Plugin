@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.visual;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.ManagerSupport;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
@@ -140,14 +141,17 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
     }
 
     public void reload() {
-        viewDistance = Math.max(8.0D, plugin.getConfig().getDouble(
+        viewDistance = Math.max(8.0D, ConfigSectionReader.optionalDouble(
+                plugin.getConfig(),
                 "performance.proxy-item-display-view-distance", DEFAULT_VIEW_DISTANCE));
         viewDistanceSquared = viewDistance * viewDistance;
         viewRangeMeta = (float) (viewDistance / 64.0D);
         packets.reload(viewRangeMeta);
-        syncIntervalTicks = Math.max(1, plugin.getConfig().getInt(
+        syncIntervalTicks = Math.max(1, ConfigSectionReader.optionalInt(
+                plugin.getConfig(),
                 "performance.proxy-item-display-sync-interval-ticks", DEFAULT_SYNC_INTERVAL_TICKS));
-        syncBatchSize = Math.max(1, plugin.getConfig().getInt(
+        syncBatchSize = Math.max(1, ConfigSectionReader.optionalInt(
+                plugin.getConfig(),
                 "performance.proxy-item-display-sync-batch-size", DEFAULT_SYNC_BATCH_SIZE));
         // Restart the sync task so the new interval takes effect.
         synchronized (syncTaskLock) {

@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.gui.recipebook;
 
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.gui.GuiConfig;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
@@ -125,9 +126,9 @@ public final class RecipeBookGuiConfig {
             if (section == null) {
                 return fallback;
             }
-            String title = section.getString("title", fallback.title);
-            int rows = section.getInt("rows", fallback.rows);
-            List<String> layout = section.getStringList("layout");
+            String title = ConfigSectionReader.optionalString(section, "title", fallback.title);
+            int rows = ConfigSectionReader.optionalInt(section, "rows", fallback.rows);
+            List<String> layout = ConfigSectionReader.optionalStringList(section, "layout");
             if (layout.isEmpty()) {
                 layout = fallback.layout;
             }

@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.effect;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.buff.BuffBossbar;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.api.text.FarmersDelightText;
 import com.huidu.farmersdelight.util.CompatAttributes;
 import net.kyori.adventure.bossbar.BossBar;
@@ -108,8 +109,8 @@ public final class EffectManager {
     private static void updateStyle(ConfigurationSection section, String key, BuffKind kind) {
         ConfigurationSection s = section.getConfigurationSection(key);
         if (s == null) return;
-        kind.barColor = BuffBossbar.parseColor(s.getString("color"), kind.barColor);
-        kind.barOverlay = BuffBossbar.parseOverlay(s.getString("overlay"), kind.barOverlay);
+        kind.barColor = BuffBossbar.parseColor(ConfigSectionReader.optionalString(s, "color"), kind.barColor);
+        kind.barOverlay = BuffBossbar.parseOverlay(ConfigSectionReader.optionalString(s, "overlay"), kind.barOverlay);
     }
 
     // Tick interval: the actual elapsed ticks of EffectListener's resolved tick interval,

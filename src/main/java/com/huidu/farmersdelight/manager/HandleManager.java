@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.manager;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
@@ -37,9 +38,9 @@ public final class HandleManager {
         if (config == null) {
             config = new org.bukkit.configuration.MemoryConfiguration();
         }
-        toggleSoundId = config.getString("toggle-sound", DEFAULT_TOGGLE_SOUND);
-        toggleSoundVolume = (float) config.getDouble("toggle-sound-volume", DEFAULT_TOGGLE_SOUND_VOLUME);
-        toggleSoundPitch = (float) config.getDouble("toggle-sound-pitch", DEFAULT_TOGGLE_SOUND_PITCH);
+        toggleSoundId = ConfigSectionReader.optionalString(config, "toggle-sound", DEFAULT_TOGGLE_SOUND);
+        toggleSoundVolume = (float) ConfigSectionReader.optionalDouble(config, "toggle-sound-volume", DEFAULT_TOGGLE_SOUND_VOLUME);
+        toggleSoundPitch = (float) ConfigSectionReader.optionalDouble(config, "toggle-sound-pitch", DEFAULT_TOGGLE_SOUND_PITCH);
     }
 
     public boolean hasHandle(World world, BlockPos potPos) {

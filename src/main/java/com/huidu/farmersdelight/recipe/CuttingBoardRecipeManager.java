@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.recipe;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
@@ -131,7 +132,7 @@ public class CuttingBoardRecipeManager {
     }
 
     private CuttingBoardRecipe parseRecipe(String id, ConfigurationSection section) {
-        String inputStr = section.getString("input");
+        String inputStr = ConfigSectionReader.optionalString(section, "input");
         if (inputStr == null) {
             throw new IllegalArgumentException("Recipe must have an input");
         }
@@ -144,8 +145,8 @@ public class CuttingBoardRecipeManager {
 
         // Support a scalar 'tool:' or a plural 'tools:' list (or both). 'tools' takes precedence;
         // 'tool' is the fallback. Only requires at least one of the two.
-        String toolStr = section.getString("tool");
-        List<String> toolStrings = section.getStringList("tools");
+        String toolStr = ConfigSectionReader.optionalString(section, "tool");
+        List<String> toolStrings = ConfigSectionReader.optionalStringList(section, "tools");
         if (toolStrings.isEmpty() && toolStr != null && !toolStr.isBlank()) {
             toolStrings = Collections.singletonList(toolStr);
         }
@@ -160,7 +161,7 @@ public class CuttingBoardRecipeManager {
 
         List<CuttingBoardRecipe.ResultEntry> results = new ArrayList<>();
         
-        List<Map<?, ?>> resultsList = section.getMapList("results");
+        List<Map<?, ?>> resultsList = ConfigSectionReader.optionalMapList(section, "results");
         for (Map<?, ?> resultMap : resultsList) {
             // Cache each .get(...) once — Map.get is O(1) but allocates an entry traversal under
             // contention and the resultsList loop runs per-recipe on every config (re)load.
@@ -215,12 +216,14 @@ public class CuttingBoardRecipeManager {
         }
 
         if (results.isEmpty()) {
-            String resultStr = section.getString("result");
+            String resultStr = ConfigSectionReader.optionalString(section, "result");
             if (resultStr != null) {
                 ItemStack result = createItem(resultStr);
                 if (result != null) {
-                    int count = Math.max(1, section.getInt("amount", section.getInt("count", 1)));
-                    double chance = Math.max(0.0d, Math.min(1.0d, section.getDouble("chance", 1.0d)));
+                    int count = Math.max(1, ConfigSectionReader.optionalInt(section, "amount",
+                            ConfigSectionReader.optionalInt(section, "count", 1)));
+                    double chance = Math.max(0.0d, Math.min(1.0d,
+                            ConfigSectionReader.optionalDouble(section, "chance", 1.0d)));
                     result.setAmount(count);
                     results.add(new CuttingBoardRecipe.ResultEntry(result, chance));
                 }
@@ -230,8 +233,8 @@ public class CuttingBoardRecipeManager {
             throw new IllegalArgumentException("Recipe must have at least one valid result");
         }
 
-        String sound = normalizeSound(section.getString("sound", Constants.SOUND_CUTTING_BOARD_KNIFE));
-        int priority = section.getInt("priority", 0);
+        String sound = normalizeSound(ConfigSectionReader.optionalString(section, "sound", Constants.SOUND_CUTTING_BOARD_KNIFE));
+        int priority = ConfigSectionReader.optionalInt(section, "priority", 0);
         return new CuttingBoardRecipe(id, input, inputDisplay, tools, results, sound, priority);
     }
 

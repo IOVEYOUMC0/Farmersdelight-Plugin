@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.loot;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
@@ -77,10 +78,10 @@ public class KnifeDropHandler implements Listener {
                 ConfigurationSection entitySection = dropsSection.getConfigurationSection(entityType);
                 if (entitySection == null) continue;
 
-                String normalItem = entitySection.getString("normal", "minecraft:air");
-                String burningItem = entitySection.getString("burning", null);
-                double baseChance = entitySection.getDouble("chance", 1.0);
-                double lootingMultiplier = entitySection.getDouble("looting-multiplier", 0.0);
+                String normalItem = ConfigSectionReader.optionalString(entitySection, "normal", "minecraft:air");
+                String burningItem = ConfigSectionReader.optionalString(entitySection, "burning", null);
+                double baseChance = ConfigSectionReader.optionalDouble(entitySection, "chance", 1.0);
+                double lootingMultiplier = ConfigSectionReader.optionalDouble(entitySection, "looting-multiplier", 0.0);
                 List<String> toolItems = loadRuleToolItems(entitySection);
                 List<String> toolTags = loadRuleToolTags(entitySection);
 
@@ -155,12 +156,11 @@ public class KnifeDropHandler implements Listener {
     }
 
     private List<String> firstStringList(ConfigurationSection section, String... keys) {
-        for (String key : keys) {
-            if (section.contains(key)) {
-                return section.getStringList(key);
-            }
+        if (keys.length == 0) {
+            return List.of();
         }
-        return List.of();
+        return ConfigSectionReader.optionalStringList(section, keys[0],
+                java.util.Arrays.copyOfRange(keys, 1, keys.length));
     }
 
     private List<String> normalizeIds(List<String> ids) {

@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.manager;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
@@ -81,25 +82,25 @@ public class SkilletEffectManager {
     private void loadEffectsConfig() {
         ConfigurationSection effectsSection = plugin.getFirstConfigSection("skillet.effects");
         ConfigurationSection smokeSection = effectsSection != null ? effectsSection.getConfigurationSection("smoke") : null;
-        smokeEnabled = smokeSection == null || smokeSection.getBoolean("enabled", true);
-        smokeParticle = ManagerSupport.resolveParticle(smokeSection == null ? null : smokeSection.getString("type"), Particle.SMOKE);
+        smokeEnabled = smokeSection == null || ConfigSectionReader.optionalBoolean(smokeSection, "enabled", true);
+        smokeParticle = ManagerSupport.resolveParticle(smokeSection == null ? null : ConfigSectionReader.optionalString(smokeSection, "type"), Particle.SMOKE);
         smokeChance = ManagerSupport.clampChance(smokeSection == null
                 ? DEFAULT_SMOKE_CHANCE
-                : smokeSection.getDouble("chance", DEFAULT_SMOKE_CHANCE));
-        smokeCount = Math.max(1, smokeSection == null ? 2 : smokeSection.getInt("count", 2));
-        smokeYOffset = smokeSection == null ? 0.2D : smokeSection.getDouble("y-offset", 0.2D);
-        smokeOffsetX = Math.max(0.0D, smokeSection == null ? 0.1D : smokeSection.getDouble("offset-x", 0.1D));
-        smokeOffsetY = Math.max(0.0D, smokeSection == null ? 0.1D : smokeSection.getDouble("offset-y", 0.1D));
-        smokeOffsetZ = Math.max(0.0D, smokeSection == null ? 0.1D : smokeSection.getDouble("offset-z", 0.1D));
-        smokeSpeed = Math.max(0.0D, smokeSection == null ? 0.02D : smokeSection.getDouble("speed", 0.02D));
+                : ConfigSectionReader.optionalDouble(smokeSection, "chance", DEFAULT_SMOKE_CHANCE));
+        smokeCount = Math.max(1, smokeSection == null ? 2 : ConfigSectionReader.optionalInt(smokeSection, "count", 2));
+        smokeYOffset = smokeSection == null ? 0.2D : ConfigSectionReader.optionalDouble(smokeSection, "y-offset", 0.2D);
+        smokeOffsetX = Math.max(0.0D, smokeSection == null ? 0.1D : ConfigSectionReader.optionalDouble(smokeSection, "offset-x", 0.1D));
+        smokeOffsetY = Math.max(0.0D, smokeSection == null ? 0.1D : ConfigSectionReader.optionalDouble(smokeSection, "offset-y", 0.1D));
+        smokeOffsetZ = Math.max(0.0D, smokeSection == null ? 0.1D : ConfigSectionReader.optionalDouble(smokeSection, "offset-z", 0.1D));
+        smokeSpeed = Math.max(0.0D, smokeSection == null ? 0.02D : ConfigSectionReader.optionalDouble(smokeSection, "speed", 0.02D));
 
         ConfigurationSection sizzleSection = effectsSection != null ? effectsSection.getConfigurationSection("sizzle") : null;
-        sizzleEnabled = sizzleSection == null || sizzleSection.getBoolean("enabled", true);
+        sizzleEnabled = sizzleSection == null || ConfigSectionReader.optionalBoolean(sizzleSection, "enabled", true);
         sizzleChance = ManagerSupport.clampChance(sizzleSection == null
                 ? DEFAULT_SIZZLE_CHANCE
-                : sizzleSection.getDouble("chance", DEFAULT_SIZZLE_CHANCE));
-        sizzleVolume = (float) Math.max(0.0D, sizzleSection == null ? 0.5D : sizzleSection.getDouble("volume", 0.5D));
-        sizzlePitch = (float) Math.max(0.0D, sizzleSection == null ? 1.0D : sizzleSection.getDouble("pitch", 1.0D));
+                : ConfigSectionReader.optionalDouble(sizzleSection, "chance", DEFAULT_SIZZLE_CHANCE));
+        sizzleVolume = (float) Math.max(0.0D, sizzleSection == null ? 0.5D : ConfigSectionReader.optionalDouble(sizzleSection, "volume", 0.5D));
+        sizzlePitch = (float) Math.max(0.0D, sizzleSection == null ? 1.0D : ConfigSectionReader.optionalDouble(sizzleSection, "pitch", 1.0D));
     }
 
     // Dispatches one batch of smoke particles/sizzle sounds for a cooking skillet. Returns the collected

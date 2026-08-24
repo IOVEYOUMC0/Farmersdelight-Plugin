@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.recipe;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.api.recipe.SpecialRecipeInfo;
 import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.configuration.ConfigurationSection;
@@ -130,10 +131,10 @@ public final class SpecialRecipeLoader {
     /** Parses one special-recipe config entry into a SpecialRecipeInfo; exposed so addons can drive their
      *  special recipes from a config file exactly like their other recipes. */
     public static SpecialRecipeInfo parseRecipe(String id, ConfigurationSection section) {
-        String titleKey = section.getString("title", "gui.special_recipe." + id + ".title");
-        String iconItemId = section.getString("icon", "minecraft:barrier");
-        List<String> descriptionKeys = section.getStringList("description");
-        String displayType = section.getString("display-type", SpecialRecipeInfo.DISPLAY_RECIPE);
+        String titleKey = ConfigSectionReader.optionalString(section, "title", "gui.special_recipe." + id + ".title");
+        String iconItemId = ConfigSectionReader.optionalString(section, "icon", "minecraft:barrier");
+        List<String> descriptionKeys = ConfigSectionReader.optionalStringList(section, "description");
+        String displayType = ConfigSectionReader.optionalString(section, "display-type", SpecialRecipeInfo.DISPLAY_RECIPE);
 
         List<SpecialRecipeInfo.SlotEntry> inputSlots = parseSlotEntries(section, "inputs");
         List<SpecialRecipeInfo.SlotEntry> outputSlots = parseSlotEntries(section, "outputs");
@@ -146,9 +147,9 @@ public final class SpecialRecipeLoader {
         List<SpecialRecipeInfo.SlotEntry> catalystSlots = List.of();
 
         if (conditions != null) {
-            hasSunlight = conditions.getBoolean("sunlight", false);
-            hasWater = conditions.getBoolean("water", false);
-            hasCatalystInfo = conditions.getBoolean("catalyst_info", false);
+            hasSunlight = ConfigSectionReader.optionalBoolean(conditions, "sunlight", false);
+            hasWater = ConfigSectionReader.optionalBoolean(conditions, "water", false);
+            hasCatalystInfo = ConfigSectionReader.optionalBoolean(conditions, "catalyst_info", false);
         }
 
         // Top-level catalysts list (for recipes without a conditions block)
@@ -182,14 +183,14 @@ public final class SpecialRecipeLoader {
     }
 
     private static SpecialRecipeInfo.SlotEntry parseSlotEntry(ConfigurationSection section) {
-        String itemId = section.getString("item");
+        String itemId = ConfigSectionReader.optionalString(section, "item");
         // Behavior-list reference: "behavior: <block id>" + "list: <config key>" (e.g. the
         // organic_compost behavior's "activators"). Resolved lazily at display time.
-        String behaviorBlockId = section.getString("behavior");
-        String behaviorListKey = section.getString("list");
+        String behaviorBlockId = ConfigSectionReader.optionalString(section, "behavior");
+        String behaviorListKey = ConfigSectionReader.optionalString(section, "list");
         if (itemId == null && behaviorBlockId == null) return null;
-        String nameKey = section.getString("name", "");
-        List<String> loreKeys = section.getStringList("lore");
+        String nameKey = ConfigSectionReader.optionalString(section, "name", "");
+        List<String> loreKeys = ConfigSectionReader.optionalStringList(section, "lore");
         return new SpecialRecipeInfo.SlotEntry(itemId, behaviorBlockId, behaviorListKey, nameKey, loreKeys);
     }
 }

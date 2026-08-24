@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.recipe;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.config.ConfigFileUpdater;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -92,7 +93,7 @@ final class RecipeFileLoader {
             return;
         }
 
-        if (!plugin.getConfig().getBoolean(MERGE_MISSING_SETTING, false)) {
+        if (!ConfigSectionReader.optionalBoolean(plugin.getConfig(), MERGE_MISSING_SETTING, false)) {
             if (REPORTED_MISSING_FILES.add(relativePath)) {
                 I18n.logInfo("plugin.recipe_bundled_missing",
                         "file", relativePath,

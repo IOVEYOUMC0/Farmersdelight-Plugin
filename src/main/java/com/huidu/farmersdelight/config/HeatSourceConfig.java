@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.config;
 
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.i18n.I18n;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -59,22 +60,22 @@ public class HeatSourceConfig {
     public void loadFromConfig(ConfigurationSection section) {
         if (section == null) return;
 
-        List<String> vanillaBlockList = section.getStringList("vanilla-blocks");
+        List<String> vanillaBlockList = ConfigSectionReader.optionalStringList(section, "vanilla-blocks");
         for (String blockId : vanillaBlockList) {
             addVanillaBlock(blockId);
         }
 
-        List<String> vanillaTagList = section.getStringList("vanilla-tags");
+        List<String> vanillaTagList = ConfigSectionReader.optionalStringList(section, "vanilla-tags");
         for (String tagId : vanillaTagList) {
             addVanillaTag(tagId);
         }
 
-        List<String> tagList = section.getStringList("tags");
+        List<String> tagList = ConfigSectionReader.optionalStringList(section, "tags");
         for (String tagId : tagList) {
             addCustomBlockTag(Key.of(tagId));
         }
 
-        List<String> customBlockList = section.getStringList("custom-blocks");
+        List<String> customBlockList = ConfigSectionReader.optionalStringList(section, "custom-blocks");
         for (String blockId : customBlockList) {
             CustomBlockStateMatcher matcher = parseBlockState(blockId);
             if (matcher != null) {
@@ -82,12 +83,12 @@ public class HeatSourceConfig {
             }
         }
 
-        List<String> conductorList = section.getStringList("conductors");
+        List<String> conductorList = ConfigSectionReader.optionalStringList(section, "conductors");
         for (String conductorId : conductorList) {
             addVanillaConductor(conductorId);
         }
 
-        List<String> conductorTagList = section.getStringList("conductor-tags");
+        List<String> conductorTagList = ConfigSectionReader.optionalStringList(section, "conductor-tags");
         for (String tagId : conductorTagList) {
             addConductorTag(Key.of(tagId));
         }

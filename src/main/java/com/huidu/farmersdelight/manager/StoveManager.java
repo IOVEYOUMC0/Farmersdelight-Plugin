@@ -10,6 +10,7 @@ import com.huidu.farmersdelight.util.CampfireRecipeCache;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -152,34 +153,34 @@ public class StoveManager {
     private void loadEffectsConfig() {
         ConfigurationSection effectsSection = plugin.getFirstConfigSection("stove.effects");
         ConfigurationSection smokeSection = effectsSection != null ? effectsSection.getConfigurationSection("smoke") : null;
-        smokeEnabled = smokeSection == null || smokeSection.getBoolean("enabled", true);
-        smokeParticle = ManagerSupport.resolveParticle(smokeSection == null ? null : smokeSection.getString("type"), Particle.SMOKE);
+        smokeEnabled = smokeSection == null || ConfigSectionReader.optionalBoolean(smokeSection, "enabled", true);
+        smokeParticle = ManagerSupport.resolveParticle(smokeSection == null ? null : ConfigSectionReader.optionalString(smokeSection, "type"), Particle.SMOKE);
         smokeChance = ManagerSupport.clampChance(smokeSection == null
                 ? DEFAULT_SMOKE_CHANCE
-                : smokeSection.getDouble("chance", DEFAULT_SMOKE_CHANCE));
-        smokeCount = Math.max(1, smokeSection == null ? 1 : smokeSection.getInt("count", 1));
-        smokeYOffset = smokeSection == null ? 0.0D : smokeSection.getDouble("y-offset", 0.0D);
-        smokeOffsetX = Math.max(0.0D, smokeSection == null ? 0.0D : smokeSection.getDouble("offset-x", 0.0D));
-        smokeOffsetY = Math.max(0.0D, smokeSection == null ? 0.0D : smokeSection.getDouble("offset-y", 0.0D));
-        smokeOffsetZ = Math.max(0.0D, smokeSection == null ? 0.0D : smokeSection.getDouble("offset-z", 0.0D));
-        smokeSpeed = Math.max(0.0D, smokeSection == null ? 0.02D : smokeSection.getDouble("speed", 0.02D));
+                : ConfigSectionReader.optionalDouble(smokeSection, "chance", DEFAULT_SMOKE_CHANCE));
+        smokeCount = Math.max(1, smokeSection == null ? 1 : ConfigSectionReader.optionalInt(smokeSection, "count", 1));
+        smokeYOffset = smokeSection == null ? 0.0D : ConfigSectionReader.optionalDouble(smokeSection, "y-offset", 0.0D);
+        smokeOffsetX = Math.max(0.0D, smokeSection == null ? 0.0D : ConfigSectionReader.optionalDouble(smokeSection, "offset-x", 0.0D));
+        smokeOffsetY = Math.max(0.0D, smokeSection == null ? 0.0D : ConfigSectionReader.optionalDouble(smokeSection, "offset-y", 0.0D));
+        smokeOffsetZ = Math.max(0.0D, smokeSection == null ? 0.0D : ConfigSectionReader.optionalDouble(smokeSection, "offset-z", 0.0D));
+        smokeSpeed = Math.max(0.0D, smokeSection == null ? 0.02D : ConfigSectionReader.optionalDouble(smokeSection, "speed", 0.02D));
 
         ConfigurationSection crackleSection = effectsSection != null ? effectsSection.getConfigurationSection("crackle") : null;
-        crackleEnabled = crackleSection == null || crackleSection.getBoolean("enabled", true);
+        crackleEnabled = crackleSection == null || ConfigSectionReader.optionalBoolean(crackleSection, "enabled", true);
         crackleChance = ManagerSupport.clampChance(crackleSection == null
                 ? DEFAULT_CRACKLE_CHANCE
-                : crackleSection.getDouble("chance", DEFAULT_CRACKLE_CHANCE));
-        crackleVolume = (float) Math.max(0.0D, crackleSection == null ? 1.0D : crackleSection.getDouble("volume", 1.0D));
-        cracklePitch = (float) Math.max(0.0D, crackleSection == null ? 1.0D : crackleSection.getDouble("pitch", 1.0D));
+                : ConfigSectionReader.optionalDouble(crackleSection, "chance", DEFAULT_CRACKLE_CHANCE));
+        crackleVolume = (float) Math.max(0.0D, crackleSection == null ? 1.0D : ConfigSectionReader.optionalDouble(crackleSection, "volume", 1.0D));
+        cracklePitch = (float) Math.max(0.0D, crackleSection == null ? 1.0D : ConfigSectionReader.optionalDouble(crackleSection, "pitch", 1.0D));
 
         ConfigurationSection fireSection = effectsSection != null ? effectsSection.getConfigurationSection("fire") : null;
-        fireParticlesEnabled = fireSection == null || fireSection.getBoolean("enabled", true);
+        fireParticlesEnabled = fireSection == null || ConfigSectionReader.optionalBoolean(fireSection, "enabled", true);
         fireParticleChance = ManagerSupport.clampChance(fireSection == null
                 ? 0.15D
-                : fireSection.getDouble("chance", 0.15D));
+                : ConfigSectionReader.optionalDouble(fireSection, "chance", 0.15D));
         effectViewerDistance = Math.max(0.0D, effectsSection == null
                 ? 32.0D
-                : effectsSection.getDouble("viewer-distance", 32.0D));
+                : ConfigSectionReader.optionalDouble(effectsSection, "viewer-distance", 32.0D));
     }
 
     private void ensureTaskRunning() {
