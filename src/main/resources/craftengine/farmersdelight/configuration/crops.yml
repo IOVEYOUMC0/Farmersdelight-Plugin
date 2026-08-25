@@ -112,7 +112,7 @@ blocks:
           max: 4
         requires-water: true
         harvest-tool-tags:
-          - "#farmersdelight:knives"
+          - "#farmersdelight:tools/knives"
         bottom-block-tags:
           - "#minecraft:dirt"
         bottom-blocks:

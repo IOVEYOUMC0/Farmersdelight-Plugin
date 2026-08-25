@@ -131,6 +131,9 @@ items:
             amplifier: 0
             particles: true
             potion-effect: minecraft:absorption
+    settings:
+      tags:
+        - farmersdelight:drinks
   farmersdelight:melon_juice:
     template: farmersdelight:drink_template
     data:
@@ -141,6 +144,9 @@ items:
         functions:
           - type: heal
             amount: 2
+    settings:
+      tags:
+        - farmersdelight:drinks
   farmersdelight:hot_cocoa:
     template: farmersdelight:drink_template
     data:
@@ -165,6 +171,9 @@ items:
             potion-effect: minecraft:hunger
           - type: remove_potion_effect
             potion-effect: minecraft:wither
+    settings:
+      tags:
+        - farmersdelight:drinks
   farmersdelight:milk_bottle:
     template: farmersdelight:drink_template
     data:
@@ -173,6 +182,7 @@ items:
     settings:
       tags:
         - farmersdelight:milk
+        - c:drinks/milk
       craft-remainder:
         type: recipe_based
         terms:
@@ -200,6 +210,9 @@ items:
     settings:
       tags:
         - farmersdelight:leafs
+        - c:crops/cabbage
+        - c:foods/vegetable
+        - c:vegetables
       compost_probability: 0.65
   farmersdelight:tomato:
     template: farmersdelight:food_template
@@ -213,6 +226,12 @@ items:
       type: compostable_item
       chance: 0.65
     settings:
+      tags:
+        - c:crops/tomato
+        - c:foods/tomato
+        - c:foods/vegetable
+        - c:vegetables
+        - minecraft:pig_food
       compost_probability: 0.65
   farmersdelight:onion:
     template: farmersdelight:food_template
@@ -228,6 +247,12 @@ items:
       - type: block_item
         block: farmersdelight:onions
     settings:
+      tags:
+        - c:crops/onion
+        - c:foods/onion
+        - c:foods/vegetable
+        - c:vegetables
+        - minecraft:villager_plantable_seeds
       compost_probability: 0.65
   farmersdelight:rice_panicle:
     model: ${__NAMESPACE__}:item/${__ID__}
@@ -248,6 +273,12 @@ items:
       - type: liquid_collision_block_item
         block: farmersdelight:rice
     settings:
+      tags:
+        - c:crops/grain
+        - c:crops/rice
+        - c:seeds
+        - minecraft:chicken_food
+        - minecraft:parrot_food
       compost_probability: 0.3
   farmersdelight:cabbage_seeds:
     model: ${__NAMESPACE__}:item/${__ID__}
@@ -259,6 +290,11 @@ items:
       - type: block_item
         block: farmersdelight:cabbages
     settings:
+      tags:
+        - c:seeds
+        - minecraft:chicken_food
+        - minecraft:parrot_food
+        - minecraft:villager_plantable_seeds
       compost_probability: 0.3
   farmersdelight:tomato_seeds:
     model: ${__NAMESPACE__}:item/${__ID__}
@@ -270,6 +306,11 @@ items:
       - type: block_item
         block: farmersdelight:budding_tomatoes
     settings:
+      tags:
+        - c:seeds
+        - minecraft:chicken_food
+        - minecraft:parrot_food
+        - minecraft:villager_plantable_seeds
       compost_probability: 0.3
   farmersdelight:organic_compost:
     model: ${__NAMESPACE__}:item/${__ID__}
@@ -310,6 +351,9 @@ items:
         nutrition: 4
         saturation: 3.2
         can-always-eat: false
+    settings:
+      tags:
+        - c:foods/cooked_egg
   farmersdelight:tomato_sauce:
     template: farmersdelight:soup_template
     data:
@@ -318,6 +362,10 @@ items:
         nutrition: 4
         saturation: 3.2
         can-always-eat: false
+    settings:
+      tags:
+        - c:foods
+        - c:foods/vegetable
   farmersdelight:wheat_dough:
     template: farmersdelight:food_template
     data:
@@ -337,6 +385,10 @@ items:
             duration: 600
             amplifier: 0
             particles: true
+    settings:
+      tags:
+        - c:foods/dough/wheat
+        - c:foods/food_poisoning
   farmersdelight:raw_pasta:
     template: farmersdelight:food_template
     data:
@@ -349,6 +401,9 @@ items:
       type: compostable_item
       chance: 0.85
     settings:
+      tags:
+        - c:foods/food_poisoning
+        - c:foods/pasta
       compost_probability: 0.85
     events:
       - on: consume
@@ -373,6 +428,9 @@ items:
       type: compostable_item
       chance: 0.5
     settings:
+      tags:
+        - c:foods
+        - c:foods/vegetable
       compost_probability: 0.5
   farmersdelight:cabbage_leaf:
     template: farmersdelight:food_cut_template
@@ -397,6 +455,7 @@ items:
     settings:
       tags:
         - minecraft:meat
+        - c:foods/raw_meat
   farmersdelight:beef_patty:
     template: farmersdelight:food_cut_template
     data:
@@ -405,6 +464,10 @@ items:
         nutrition: 4
         saturation: 6.4
         can-always-eat: false
+    settings:
+      tags:
+        - c:foods/cooked_beef
+        - minecraft:meat
   farmersdelight:chicken_cuts:
     template: farmersdelight:food_cut_template
     data:
@@ -416,6 +479,7 @@ items:
     settings:
       tags:
         - minecraft:meat
+        - c:foods/raw_meat
     events:
       - on: consume
         conditions:
@@ -435,6 +499,10 @@ items:
         nutrition: 3
         saturation: 3.6
         can-always-eat: false
+    settings:
+      tags:
+        - c:foods/cooked_chicken
+        - minecraft:meat
   farmersdelight:bacon:
     template: farmersdelight:food_cut_template
     data:
@@ -446,6 +514,7 @@ items:
     settings:
       tags:
         - minecraft:meat
+        - c:foods/raw_meat
   farmersdelight:cooked_bacon:
     template: farmersdelight:food_cut_template
     data:
@@ -454,6 +523,10 @@ items:
         nutrition: 4
         saturation: 6.4
         can-always-eat: false
+    settings:
+      tags:
+        - c:foods/cooked_bacon
+        - minecraft:meat
   farmersdelight:cod_slice:
     template: farmersdelight:food_cut_template
     data:
@@ -465,6 +538,7 @@ items:
     settings:
       tags:
         - minecraft:cat_food
+        - c:foods/raw_fish
   farmersdelight:cooked_cod_slice:
     template: farmersdelight:food_cut_template
     data:
@@ -473,6 +547,9 @@ items:
         nutrition: 3
         saturation: 3
         can-always-eat: false
+    settings:
+      tags:
+        - c:foods/cooked_cod
   farmersdelight:salmon_slice:
     template: farmersdelight:food_cut_template
     data:
@@ -484,6 +561,7 @@ items:
     settings:
       tags:
         - minecraft:cat_food
+        - c:foods/raw_fish
   farmersdelight:cooked_salmon_slice:
     template: farmersdelight:food_cut_template
     data:
@@ -492,6 +570,9 @@ items:
         nutrition: 3
         saturation: 4.8
         can-always-eat: false
+    settings:
+      tags:
+        - c:foods/cooked_salmon
   farmersdelight:mutton_chops:
     template: farmersdelight:food_cut_template
     data:
@@ -503,6 +584,7 @@ items:
     settings:
       tags:
         - minecraft:meat
+        - c:foods/raw_meat
   farmersdelight:cooked_mutton_chops:
     template: farmersdelight:food_cut_template
     data:
@@ -511,6 +593,10 @@ items:
         nutrition: 3
         saturation: 4.8
         can-always-eat: false
+    settings:
+      tags:
+        - c:foods/cooked_mutton
+        - minecraft:meat
   farmersdelight:ham:
     template: farmersdelight:food_template
     data:
@@ -523,6 +609,11 @@ items:
         minecraft:use_remainder:
           id: minecraft:bone
           count: 1
+    settings:
+      tags:
+        - c:foods
+        - c:foods/cooked_meat
+        - minecraft:meat
   farmersdelight:smoked_ham:
     template: farmersdelight:food_template
     data:
@@ -535,6 +626,11 @@ items:
         minecraft:use_remainder:
           id: minecraft:bone
           count: 1
+    settings:
+      tags:
+        - c:foods
+        - c:foods/cooked_meat
+        - minecraft:meat
   farmersdelight:pie_crust:
     template: farmersdelight:food_template
     data:
@@ -547,6 +643,9 @@ items:
       type: compostable_item
       chance: 0.65
     settings:
+      tags:
+        - c:foods
+        - c:foods/dough
       compost_probability: 0.65
   farmersdelight:apple_pie:
     template: farmersdelight:pie_template
@@ -559,6 +658,9 @@ items:
       - type: ground_block_item
         block: farmersdelight:apple_pie
     settings:
+      tags:
+        - c:foods/edible_when_placed
+        - farmersdelight:pies
       compost_probability: 1.0
   farmersdelight:sweet_berry_cheesecake:
     template: farmersdelight:pie_template
@@ -571,6 +673,9 @@ items:
       - type: ground_block_item
         block: farmersdelight:sweet_berry_cheesecake
     settings:
+      tags:
+        - c:foods/edible_when_placed
+        - farmersdelight:pies
       compost_probability: 1.0
   farmersdelight:chocolate_pie:
     template: farmersdelight:pie_template
@@ -583,6 +688,9 @@ items:
       - type: ground_block_item
         block: farmersdelight:chocolate_pie
     settings:
+      tags:
+        - c:foods/edible_when_placed
+        - farmersdelight:pies
       compost_probability: 1.0
   farmersdelight:cake_slice:
     template: farmersdelight:food_template
@@ -596,6 +704,8 @@ items:
       type: compostable_item
       chance: 0.85
     settings:
+      tags:
+        - farmersdelight:sweets
       compost_probability: 0.85
     events:
       - on: consume
@@ -613,6 +723,9 @@ items:
       type: compostable_item
       chance: 0.85
     settings:
+      tags:
+        - c:foods/pie
+        - farmersdelight:sweets
       compost_probability: 0.85
   farmersdelight:sweet_berry_cheesecake_slice:
     template: farmersdelight:pie_slice_template
@@ -622,6 +735,9 @@ items:
       type: compostable_item
       chance: 0.85
     settings:
+      tags:
+        - c:foods/pie
+        - farmersdelight:sweets
       compost_probability: 0.85
   farmersdelight:chocolate_pie_slice:
     template: farmersdelight:pie_slice_template
@@ -631,6 +747,9 @@ items:
       type: compostable_item
       chance: 0.85
     settings:
+      tags:
+        - c:foods/pie
+        - farmersdelight:sweets
       compost_probability: 0.85
   minecraft:pumpkin_pie:
     material: pumpkin_pie
@@ -649,6 +768,10 @@ items:
     template: farmersdelight:pie_slice_template
     data:
       item-name: <!i><lang:block.farmersdelight.pumpkin_pie_slice>
+    settings:
+      tags:
+        - c:foods/pie
+        - farmersdelight:sweets
   farmersdelight:sweet_berry_cookie:
     template: farmersdelight:food_cut_template
     data:
@@ -658,6 +781,9 @@ items:
         saturation: 0.4
         can-always-eat: false
     settings:
+      tags:
+        - c:foods/cookie
+        - farmersdelight:sweets
       compost_probability: 0.85
   farmersdelight:honey_cookie:
     template: farmersdelight:food_cut_template
@@ -668,6 +794,9 @@ items:
         saturation: 0.4
         can-always-eat: false
     settings:
+      tags:
+        - c:foods/cookie
+        - farmersdelight:sweets
       compost_probability: 0.85
   farmersdelight:melon_popsicle:
     template: farmersdelight:food_cut_template
@@ -681,6 +810,9 @@ items:
         minecraft:use_remainder:
           id: minecraft:stick
           count: 1
+    settings:
+      tags:
+        - farmersdelight:sweets
   farmersdelight:glow_berry_custard:
     template: farmersdelight:drink_template
     data:
@@ -698,6 +830,9 @@ items:
             duration: 100
             amplifier: 0
             particles: false
+    settings:
+      tags:
+        - farmersdelight:sweets
   farmersdelight:fruit_salad:
     template: farmersdelight:soup_template
     data:
@@ -715,6 +850,9 @@ items:
             duration: 100
             amplifier: 0
             particles: true
+    settings:
+      tags:
+        - farmersdelight:sweets
   farmersdelight:mixed_salad:
     template: farmersdelight:soup_template
     data:
@@ -732,6 +870,9 @@ items:
             duration: 100
             amplifier: 0
             particles: true
+    settings:
+      tags:
+        - farmersdelight:meals
   farmersdelight:nether_salad:
     template: farmersdelight:soup_template
     data:
@@ -751,6 +892,9 @@ items:
             duration: 240
             amplifier: 0
             particles: true
+    settings:
+      tags:
+        - c:foods/food_poisoning
   farmersdelight:barbecue_stick:
     template: farmersdelight:food_template
     data:
@@ -763,6 +907,9 @@ items:
         minecraft:use_remainder:
           id: minecraft:stick
           count: 1
+    settings:
+      tags:
+        - farmersdelight:snacks
   farmersdelight:egg_sandwich:
     template: farmersdelight:food_template
     data:
@@ -771,6 +918,9 @@ items:
         nutrition: 8
         saturation: 12.8
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:snacks
   farmersdelight:chicken_sandwich:
     template: farmersdelight:food_template
     data:
@@ -779,6 +929,9 @@ items:
         nutrition: 10
         saturation: 16
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:snacks
   farmersdelight:hamburger:
     template: farmersdelight:food_template
     data:
@@ -787,6 +940,9 @@ items:
         nutrition: 11
         saturation: 17.6
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:snacks
   farmersdelight:bacon_sandwich:
     template: farmersdelight:food_template
     data:
@@ -795,6 +951,9 @@ items:
         nutrition: 10
         saturation: 16
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:snacks
   farmersdelight:mutton_wrap:
     template: farmersdelight:food_template
     data:
@@ -803,6 +962,9 @@ items:
         nutrition: 10
         saturation: 16
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:snacks
   farmersdelight:dumplings:
     template: farmersdelight:food_template
     data:
@@ -815,6 +977,8 @@ items:
       type: compostable_item
       chance: 1.0
     settings:
+      tags:
+        - farmersdelight:snacks
       compost_probability: 1.0
   farmersdelight:stuffed_potato:
     template: farmersdelight:food_template
@@ -824,6 +988,9 @@ items:
         nutrition: 10
         saturation: 14
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:snacks
   farmersdelight:cabbage_rolls:
     template: farmersdelight:food_template
     data:
@@ -832,6 +999,9 @@ items:
         nutrition: 5
         saturation: 5
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:snacks
   farmersdelight:salmon_roll:
     template: farmersdelight:food_template
     data:
@@ -840,6 +1010,9 @@ items:
         nutrition: 7
         saturation: 8.4
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:snacks
   farmersdelight:cod_roll:
     template: farmersdelight:food_template
     data:
@@ -848,6 +1021,9 @@ items:
         nutrition: 7
         saturation: 8.4
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:snacks
   farmersdelight:kelp_roll:
     template: farmersdelight:food_template
     data:
@@ -860,6 +1036,8 @@ items:
       type: compostable_item
       chance: 0.85
     settings:
+      tags:
+        - farmersdelight:snacks
       compost_probability: 0.85
   farmersdelight:kelp_roll_slice:
     template: farmersdelight:food_cut_template
@@ -870,6 +1048,8 @@ items:
         saturation: 6
         can-always-eat: false
     settings:
+      tags:
+        - farmersdelight:snacks
       compost_probability: 0.5
   farmersdelight:cooked_rice:
     template:
@@ -883,6 +1063,8 @@ items:
         saturation: 4.8
         can-always-eat: false
     settings:
+      tags:
+        - farmersdelight:meals
       craft-remainder:
         type: recipe_based
         terms:
@@ -905,6 +1087,10 @@ items:
         nutrition: 8
         saturation: 11.2
         can-always-eat: false
+    settings:
+      tags:
+        - c:foods/soup
+        - farmersdelight:meals
   farmersdelight:beef_stew:
     template:
       - farmersdelight:soup_template
@@ -916,6 +1102,10 @@ items:
         nutrition: 12
         saturation: 19.2
         can-always-eat: false
+    settings:
+      tags:
+        - c:foods/soup
+        - farmersdelight:meals
   farmersdelight:chicken_soup:
     template:
       - farmersdelight:soup_template
@@ -927,6 +1117,10 @@ items:
         nutrition: 12
         saturation: 19.2
         can-always-eat: false
+    settings:
+      tags:
+        - c:foods/soup
+        - farmersdelight:meals
   farmersdelight:vegetable_soup:
     template:
       - farmersdelight:soup_template
@@ -938,6 +1132,10 @@ items:
         nutrition: 12
         saturation: 19.2
         can-always-eat: false
+    settings:
+      tags:
+        - c:foods/soup
+        - farmersdelight:meals
   farmersdelight:onion_soup:
     template:
       - farmersdelight:soup_template
@@ -949,6 +1147,9 @@ items:
         nutrition: 12
         saturation: 19.2
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:meals
   farmersdelight:fish_stew:
     template:
       - farmersdelight:soup_template
@@ -960,6 +1161,10 @@ items:
         nutrition: 12
         saturation: 19.2
         can-always-eat: false
+    settings:
+      tags:
+        - c:foods/soup
+        - farmersdelight:meals
   farmersdelight:fried_rice:
     template:
       - farmersdelight:soup_template
@@ -971,6 +1176,9 @@ items:
         nutrition: 12
         saturation: 19.2
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:meals
   farmersdelight:pumpkin_soup:
     template:
       - farmersdelight:soup_template
@@ -982,6 +1190,10 @@ items:
         nutrition: 14
         saturation: 21
         can-always-eat: false
+    settings:
+      tags:
+        - c:foods/soup
+        - farmersdelight:meals
   farmersdelight:baked_cod_stew:
     template:
       - farmersdelight:soup_template
@@ -993,6 +1205,10 @@ items:
         nutrition: 14
         saturation: 21
         can-always-eat: false
+    settings:
+      tags:
+        - c:foods/soup
+        - farmersdelight:meals
   farmersdelight:noodle_soup:
     template:
       - farmersdelight:soup_template
@@ -1004,6 +1220,10 @@ items:
         nutrition: 14
         saturation: 21
         can-always-eat: false
+    settings:
+      tags:
+        - c:foods/soup
+        - farmersdelight:meals
   farmersdelight:bacon_and_eggs:
     template:
       - farmersdelight:food_template
@@ -1017,6 +1237,9 @@ items:
         nutrition: 10
         saturation: 12
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:meals
   farmersdelight:pasta_with_meatballs:
     template:
       - farmersdelight:soup_template
@@ -1028,6 +1251,9 @@ items:
         nutrition: 12
         saturation: 19.2
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:meals
   farmersdelight:pasta_with_mutton_chop:
     template:
       - farmersdelight:soup_template
@@ -1039,6 +1265,9 @@ items:
         nutrition: 12
         saturation: 19.2
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:meals
   farmersdelight:mushroom_rice:
     template:
       - farmersdelight:soup_template
@@ -1050,6 +1279,9 @@ items:
         nutrition: 12
         saturation: 19.2
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:meals
   farmersdelight:roasted_mutton_chops:
     template:
       - farmersdelight:soup_template
@@ -1061,6 +1293,9 @@ items:
         nutrition: 14
         saturation: 21
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:meals
   farmersdelight:vegetable_noodles:
     template:
       - farmersdelight:soup_template
@@ -1072,6 +1307,9 @@ items:
         nutrition: 14
         saturation: 21
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:meals
   farmersdelight:steak_and_potatoes:
     template:
       - farmersdelight:soup_template
@@ -1083,6 +1321,9 @@ items:
         nutrition: 12
         saturation: 19.2
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:meals
   farmersdelight:ratatouille:
     template:
       - farmersdelight:soup_template
@@ -1094,6 +1335,9 @@ items:
         nutrition: 10
         saturation: 12
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:meals
   farmersdelight:squid_ink_pasta:
     template:
       - farmersdelight:soup_template
@@ -1105,6 +1349,9 @@ items:
         nutrition: 14
         saturation: 21
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:meals
   farmersdelight:grilled_salmon:
     template:
       - farmersdelight:soup_template
@@ -1116,6 +1363,9 @@ items:
         nutrition: 14
         saturation: 21
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:meals
   farmersdelight:roast_chicken_block:
     template: farmersdelight:pie_template
     data:
@@ -1123,6 +1373,9 @@ items:
         minecraft:max_stack_size: 1
       item-name: <!i><lang:block.farmersdelight.roast_chicken_block>
       lore: '<!i><dark_gray><lang:farmersdelight.tooltip.placeable></dark_gray>'
+    settings:
+      tags:
+        - farmersdelight:feasts
   farmersdelight:roast_chicken:
     template:
       - farmersdelight:soup_template
@@ -1134,6 +1387,9 @@ items:
         nutrition: 14
         saturation: 21
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:meals
   farmersdelight:stuffed_pumpkin_block:
     template: farmersdelight:pie_template
     data:
@@ -1147,6 +1403,8 @@ items:
       - type: ground_block_item
         block: farmersdelight:stuffed_pumpkin_block
     settings:
+      tags:
+        - farmersdelight:feasts
       compost_probability: 1.0
   farmersdelight:stuffed_pumpkin:
     template:
@@ -1159,6 +1417,9 @@ items:
         nutrition: 14
         saturation: 21
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:meals
   farmersdelight:honey_glazed_ham_block:
     template: farmersdelight:pie_template
     data:
@@ -1166,6 +1427,9 @@ items:
         minecraft:max_stack_size: 1
       item-name: <!i><lang:block.farmersdelight.honey_glazed_ham_block>
       lore: '<!i><dark_gray><lang:farmersdelight.tooltip.placeable></dark_gray>'
+    settings:
+      tags:
+        - farmersdelight:feasts
   farmersdelight:honey_glazed_ham:
     template:
       - farmersdelight:soup_template
@@ -1177,6 +1441,9 @@ items:
         nutrition: 14
         saturation: 21
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:meals
   farmersdelight:shepherds_pie_block:
     template: farmersdelight:pie_template
     data:
@@ -1184,6 +1451,9 @@ items:
         minecraft:max_stack_size: 1
       item-name: <!i><lang:block.farmersdelight.shepherds_pie_block>
       lore: '<!i><dark_gray><lang:farmersdelight.tooltip.placeable></dark_gray>'
+    settings:
+      tags:
+        - farmersdelight:feasts
   farmersdelight:shepherds_pie:
     template:
       - farmersdelight:soup_template
@@ -1195,6 +1465,9 @@ items:
         nutrition: 14
         saturation: 21
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:meals
   farmersdelight:gleaming_salad_block:
     template: farmersdelight:pie_template
     data:
@@ -1202,6 +1475,9 @@ items:
         minecraft:max_stack_size: 1
       item-name: <!i><lang:block.farmersdelight.gleaming_salad_block>
       lore: '<!i><dark_gray><lang:farmersdelight.tooltip.placeable></dark_gray>'
+    settings:
+      tags:
+        - farmersdelight:feasts
   farmersdelight:gleaming_salad:
     template:
       - farmersdelight:soup_template
@@ -1213,6 +1489,9 @@ items:
         nutrition: 14
         saturation: 21
         can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:meals
   farmersdelight:rice_roll_medley_block:
     template: farmersdelight:pie_template
     model: ${__NAMESPACE__}:item/${__ID__}
@@ -1221,6 +1500,9 @@ items:
         minecraft:max_stack_size: 1
       item-name: <!i><lang:block.farmersdelight.rice_roll_medley_block>
       lore: '<!i><dark_gray><lang:farmersdelight.tooltip.placeable></dark_gray>'
+    settings:
+      tags:
+        - farmersdelight:feasts
   farmersdelight:dog_food:
     template: farmersdelight:soup_template
     data:
@@ -1426,6 +1708,14 @@ recipes:
     category: misc
     ingredients:
     - "farmersdelight:rotten_tomato"
+    result:
+      id: farmersdelight:tomato_seeds
+      count: 1
+  farmersdelight:tomato_to_seeds:
+    type: shapeless
+    category: misc
+    ingredients:
+    - "farmersdelight:tomato"
     result:
       id: farmersdelight:tomato_seeds
       count: 1

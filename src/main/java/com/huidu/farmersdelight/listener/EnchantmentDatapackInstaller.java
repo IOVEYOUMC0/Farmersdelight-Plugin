@@ -5,13 +5,13 @@ import com.huidu.farmersdelight.api.enchant.EnchantmentDefinition;
 import com.huidu.farmersdelight.api.enchant.FarmersDelightEnchantments;
 import com.huidu.farmersdelight.config.EnchantmentSettings;
 import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.util.DatapackSupport;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.server.ServerLoadEvent;
-import org.bukkit.event.world.WorldLoadEvent;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -54,39 +54,47 @@ public final class EnchantmentDatapackInstaller implements Listener {
         this.installEnabled = plugin.getConfig().getBoolean("enchantments.install-datapack", true);
     }
 
-    public void installToAllWorlds() {
-        EnchantmentSettings settings = plugin.getEnchantmentSettings();
-        if (!shouldInstall(settings)) {
-            return;
-        }
-        List<World> worlds = Bukkit.getWorlds();
-        if (worlds.isEmpty()) {
+    // Registry-scoped datapack content (enchantments, enchantment tags) is loaded by the server from
+    // the primary world's datapacks folder and shared by every world, so the pack is written once into
+    // the primary world. Copies the old all-world installer may have left in other worlds are removed.
+    public void installToPrimaryWorld(World primaryWorld) {
+        if (primaryWorld == null) {
             I18n.logWarning("enchantment_datapack_no_worlds");
             return;
         }
-        int changedWorlds = 0;
-        for (World world : worlds) {
-            if (plugin.isDatapackWorldAllowed(world)) {
-                continue;
-            }
-            if (installToWorld(world, settings)) {
-                changedWorlds++;
-            }
-        }
-        if (changedWorlds > 0) {
-            printRestartBanner(changedWorlds);
+        EnchantmentSettings settings = plugin.getEnchantmentSettings();
+        boolean wrote = shouldInstall(settings) && installToWorld(primaryWorld, settings);
+        int cleaned = cleanupRedundantDatapacks(primaryWorld);
+        if (wrote || cleaned > 0) {
+            printRestartBanner();
         }
     }
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onWorldLoad(WorldLoadEvent event) {
-        if (plugin.isDatapackWorldAllowed(event.getWorld())) {
-            return;
+    // Deletes the farmersdelight_enchant datapack from every non-primary world. Those folders were only
+    // ever written by the old per-world installer and are never read by the server (only the primary
+    // world's datapacks/ is scanned), so they are harmless-but-stale files. Skips the primary world.
+    private int cleanupRedundantDatapacks(World primaryWorld) {
+        String primaryName = primaryWorld.getName();
+        int removed = 0;
+        for (World world : Bukkit.getWorlds()) {
+            if (primaryName.equals(world.getName())) {
+                continue;
+            }
+            Path redundant = DatapackSupport.worldRoot(world)
+                    .resolve("datapacks")
+                    .resolve(DATAPACK_DIRECTORY);
+            try {
+                if (Files.exists(redundant)) {
+                    DatapackSupport.deleteRecursively(redundant);
+                    removed++;
+                    I18n.logInfo("enchantment_datapack_redundant_removed", "world", world.getName());
+                }
+            } catch (IOException e) {
+                plugin.getLogger().warning("FarmersDelight enchant datapack: failed to remove redundant folder under "
+                        + redundant + ": " + e.getMessage());
+            }
         }
-        EnchantmentSettings settings = plugin.getEnchantmentSettings();
-        if (shouldInstall(settings) && installToWorld(event.getWorld(), settings)) {
-            printRestartBanner(1);
-        }
+        return removed;
     }
 
     // Startup plugin-enable order is not guaranteed, so a conflicting enchantment plugin that enabled after
@@ -187,9 +195,9 @@ public final class EnchantmentDatapackInstaller implements Listener {
                 .resolve(id.path() + ".json");
     }
 
-    private void printRestartBanner(int worlds) {
+    private void printRestartBanner() {
         plugin.getLogger().warning("==================================================================");
-        plugin.getLogger().warning(" Updated FarmersDelight enchantment datapack in " + worlds + " world(s).");
+        plugin.getLogger().warning(" Updated FarmersDelight enchantment datapack (primary world only).");
         plugin.getLogger().warning(" RESTART the server to apply registry-level enchantment changes.");
         plugin.getLogger().warning("==================================================================");
     }

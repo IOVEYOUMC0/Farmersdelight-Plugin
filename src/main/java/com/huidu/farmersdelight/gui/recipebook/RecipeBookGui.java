@@ -317,7 +317,7 @@ public final class RecipeBookGui implements InventoryHolder {
             ViewableRecipe recipe = recipes.get(start + i);
             ItemStack icon = isLocked(discovery, target, recipe)
                     ? discovery.lockedPlaceholder(viewer)
-                    : clone(recipe.icon(), Material.PAPER);
+                    : buildListDisplayItem(recipe, viewer);
             inventory.setItem(recipeSlots.get(i), icon);
         }
         if (page > 0) {
@@ -653,16 +653,27 @@ public final class RecipeBookGui implements InventoryHolder {
     // Extra per-recipe lines (e.g. keg temperature) are appended after the materials block.
     private ItemStack buildListDisplayItem(ViewableRecipe recipe, Player viewer) {
         ItemStack item = clone(recipe.icon(), Material.PAPER);
+        // Resolve the recipe's real localized item name instead of whatever raw text the underlying
+        // fluid/container carries (e.g. an unresolved CraftEngine placeholder such as "[item]"), so the
+        // addon book's list names line up with FarmersDelight's own recipe list.
+        rename(item, ItemUtils.getDisplayComponent(recipe.result(), viewer)
+                .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE));
         List<Component> lore = new ArrayList<>();
+        // When the result keeps its own original lore, drop a blank line above the recipe block to separate it.
+        ItemMeta meta = item.getItemMeta();
+        boolean hasOriginalLore = meta != null && meta.lore() != null && !meta.lore().isEmpty();
         List<ItemStack> inputs = recipe.inputs();
         if (!inputs.isEmpty()) {
-            lore.add(I18n.getComponent("gui.recipe.ingredients_label", viewer).color(NamedTextColor.GRAY));
+            if (hasOriginalLore) {
+                lore.add(Component.empty());
+            }
+            lore.add(Component.translatable("gui.recipe.ingredients_label").color(NamedTextColor.GRAY));
             for (ItemStack input : inputs) {
                 if (input == null || input.getType().isAir()) {
                     continue;
                 }
                 lore.add(Component.text("- ").color(NamedTextColor.DARK_GRAY)
-                        .append(input.displayName().colorIfAbsent(NamedTextColor.WHITE)));
+                        .append(ItemUtils.getDisplayComponent(input, viewer).colorIfAbsent(NamedTextColor.WHITE)));
             }
             lore.add(Component.empty());
         }
@@ -688,14 +699,19 @@ public final class RecipeBookGui implements InventoryHolder {
         }
     }
 
+    // Appends the supplied lore lines to the item's existing lore instead of replacing it, so an item's own
+    // description (original lore) is preserved when we add recipe-derived lines.
     static void applyLore(ItemStack item, List<Component> lore) {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            List<Component> formatted = new ArrayList<>();
-            for (Component line : lore) {
-                formatted.add(line.decoration(TextDecoration.ITALIC, false));
+            List<Component> merged = new ArrayList<>();
+            if (meta.lore() != null) {
+                merged.addAll(meta.lore());
             }
-            meta.lore(formatted);
+            for (Component line : lore) {
+                merged.add(line.decoration(TextDecoration.ITALIC, false));
+            }
+            meta.lore(merged);
             item.setItemMeta(meta);
         }
     }

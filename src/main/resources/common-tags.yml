@@ -1,0 +1,33 @@
+# Maps NeoForge/Fabric "common tag" conventions (c:...) used by mod recipes onto concrete item ids
+# so that CraftEngine/Paper plugins can recognize them. Addon recipes written with #c:... expand to
+# the member list below; a member matching a slot's item satisfies the tag for recipe lookup, matching
+# and the recipe-book ingredient icon. The recipe's excluded-items/tags still apply on top.
+tags:
+  "c:drinks/milk":
+    - "minecraft:milk_bucket"
+    - "crabbersdelight:coconut_milk"
+  "c:vegetables":
+    - "minecraft:beetroot"
+    - "minecraft:carrot"
+    - "minecraft:golden_carrot"
+    - "minecraft:potato"
+  "c:foods/raw_meat":
+    - "minecraft:beef"
+    - "minecraft:porkchop"
+    - "minecraft:chicken"
+    - "minecraft:mutton"
+    - "minecraft:rabbit"
+  "c:foods/raw_fish":
+    - "minecraft:cod"
+    - "minecraft:salmon"
+    - "minecraft:tropical_fish"
+  "c:foods/mushroom":
+    - "minecraft:brown_mushroom"
+    - "minecraft:red_mushroom"
+  "c:foods/cooked_fish":
+    - "minecraft:cooked_cod"
+    - "minecraft:cooked_salmon"
+    - "crabbersdelight:cooked_crab"
+    - "crabbersdelight:cooked_shrimp"
+    - "crabbersdelight:cooked_clam_meat"
+    - "crabbersdelight:cooked_clawster"

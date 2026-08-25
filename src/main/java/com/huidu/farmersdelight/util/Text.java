@@ -9,11 +9,17 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class Text {
 
     private static final MiniMessage MINI = MiniMessage.miniMessage();
     private static final PlainTextComponentSerializer PLAIN = PlainTextComponentSerializer.plainText();
+
+    // "<lang:'key'>" or "<lang:key>": replaced by a client-side translatable component so the raw
+    // translation key never leaks into chat/GUI text. MiniMessage does not understand this tag natively.
+    private static final Pattern LANG_TAG = Pattern.compile("<lang:\\s*'([^']*)'\\s*>|<lang:([^>]*)>");
 
     // Components are immutable (append/colorIfAbsent return new instances), so a parsed component is
     // safe to share. GUI rendering re-parses the same fixed strings repeatedly; cache by raw input.
@@ -40,17 +46,44 @@ public final class Text {
             return cached;
         }
         String miniMessage = legacyToMiniMessage(raw);
-        Component result;
-        try {
-            result = MINI.deserialize(miniMessage);
-        } catch (RuntimeException ex) {
-            result = Component.text(stripFormatting(raw));
-        }
+        Component result = miniMessage.contains("<lang:")
+                ? resolveLangTags(miniMessage)
+                : parseMiniMessage(miniMessage);
         if (COMPONENT_CACHE.size() >= COMPONENT_CACHE_CAPACITY) {
             COMPONENT_CACHE.clear();
         }
         COMPONENT_CACHE.put(raw, result);
         return result;
+    }
+
+    private static Component parseMiniMessage(String miniMessage) {
+        try {
+            return MINI.deserialize(miniMessage);
+        } catch (RuntimeException ex) {
+            return Component.text(stripFormatting(miniMessage));
+        }
+    }
+
+    // Splits a MiniMessage string at each language-key tag, deserializing the plain runs and converting
+    // the "<lang:...>" tags into translatable components resolved on the client.
+    private static Component resolveLangTags(String miniMessage) {
+        net.kyori.adventure.text.TextComponent.Builder builder = Component.text();
+        Matcher matcher = LANG_TAG.matcher(miniMessage);
+        int last = 0;
+        while (matcher.find()) {
+            if (matcher.start() > last) {
+                builder.append(parseMiniMessage(miniMessage.substring(last, matcher.start())));
+            }
+            String key = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
+            if (key != null) {
+                builder.append(Component.translatable(key.trim()));
+            }
+            last = matcher.end();
+        }
+        if (last < miniMessage.length()) {
+            builder.append(parseMiniMessage(miniMessage.substring(last)));
+        }
+        return builder.build();
     }
 
     public static Component name(String raw) {

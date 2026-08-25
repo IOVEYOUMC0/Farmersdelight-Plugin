@@ -976,13 +976,15 @@ public final class DebugToolsCommand {
             int[] cookingTime = (int[]) getField(stove, "cookingTime");
             int[] maxTime = (int[]) getField(stove, "maxTime");
             BlockFace facing = CustomBlockUtils.getFacing(location.getBlock()).getOppositeFace();
+            // StoveManager has no createVisual of its own; it lives on the inner StoveVisualManager.
+            Object visualManager = getField(manager, "visualManager");
             for (int slot = 0; slot < items.length; slot++) {
                 ItemStack stack = food.clone();
                 stack.setAmount(1);
                 items[slot] = stack;
                 cookingTime[slot] = 0;
                 maxTime[slot] = duration;
-                invoke(manager, "createVisual",
+                invoke(visualManager, "createVisual",
                         new Class<?>[]{Location.class, stove.getClass(), int.class, BlockFace.class},
                         location, stove, slot, facing);
             }

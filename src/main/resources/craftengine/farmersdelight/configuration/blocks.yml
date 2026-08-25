@@ -1310,7 +1310,7 @@ block:
     - type: farmersdelight:cutting_board
       knife-sound: farmersdelight:block.cutting_board.knife
       tool-tags:
-      - '#farmersdelight:knives'
+      - '#farmersdelight:tools/knives'
       - '#minecraft:axes'
       - '#minecraft:pickaxes'
       - '#minecraft:shovels'

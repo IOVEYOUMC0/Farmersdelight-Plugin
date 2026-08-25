@@ -67,9 +67,9 @@ public final class FarmersDelightApi {
             "special-recipes",
             // CraftEngine content existence checks (FarmersDelightContent).
             "content-check",
-            // Datapack world whitelist (isWorldWhitelisted): addons writing their own datapacks can
-            // follow FarmersDelight's datapacks.world-whitelist instead of installing into every world.
-            "datapack-whitelist"
+            // Central tag registry: addons register their tag→item mappings here from their own config
+            // so the whole family resolves the same tags (registerCommonTags / unregisterCommonTags).
+            "common-tags"
     );
 
     private static final FarmersDelightApi INSTANCE = new FarmersDelightApi();
@@ -110,6 +110,20 @@ public final class FarmersDelightApi {
 
     public java.util.Set<String> addonBlockNamespaces() {
         return java.util.Set.copyOf(addonBlockNamespaces);
+    }
+
+    /**
+     * Registers (or replaces) an addon's tag→item mapping into the family-wide tag registry. Members
+     * are merged across sources, so multiple addons may contribute to the same tag. Call this at addon
+     * enable with a mapping read from the addon's own config, and unregister on disable / reload.
+     */
+    public void registerCommonTags(String source, Map<String, List<String>> tagToMemberItems) {
+        com.huidu.farmersdelight.util.CommonTagResolver.registerSource(source, tagToMemberItems);
+    }
+
+    /** Removes a previously registered addon tag source (idempotent). */
+    public void unregisterCommonTags(String source) {
+        com.huidu.farmersdelight.util.CommonTagResolver.unregisterSource(source);
     }
 
     public void registerRecipeType(RecipeType type) {
@@ -332,13 +346,14 @@ public final class FarmersDelightApi {
     }
 
     /**
-     * Whether a world is on FarmersDelight's datapacks.world-whitelist ($primary, * or exact
-     * names). Addons that install their own datapacks should skip worlds this rejects so a Multiverse
-     * server keeps only the primary world's datapacks folder populated.
+     * The server's primary (overworld) world, resolved from server.properties level-name. Registry
+     * data packs (tags, damage types, enchantments, advancements) are server-global and loaded only
+     * from this world's datapacks folder, so addons installing their own registry data packs should
+     * target exactly this world instead of copying the pack into every world.
      */
-    public boolean isWorldWhitelisted(org.bukkit.World world) {
+    public org.bukkit.World primaryWorld() {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        return plugin != null && world != null && plugin.datapackWorldWhitelist().allows(world.getName());
+        return plugin != null ? plugin.getPrimaryWorld() : null;
     }
 
     public boolean isHeatSource(Block block) {

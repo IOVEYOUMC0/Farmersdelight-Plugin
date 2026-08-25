@@ -10,7 +10,7 @@ FarmersDelight 有一条管理员命令 `/fd debugtools`，用于压力测试：
 
 ## 前提：只有 debug 构建才会真的跑
 
-`/fd debugtools` 来自一个独立的源集，只有在用 `-PdebugTools=true` 构建 FarmersDelight 时才会被编入；否则 命令类根本不在 jar 里，命令也不会注册。在正常的发布构建上，注册表处于**休眠**状态：`register` 照常成功， 但你的 `place`、`activate`、`status`、`cleanupBeforeUndo` 永远不会被调用。
+`/fd debugtools` 来自一个独立的源集，只有在用 `-PdebugTools=true` 构建 FarmersDelight 时才会被编入；否则 命令类根本不在 jar 里，该命令也不会注册。在正常的发布构建上，注册表大部分处于**休眠**状态：`register` 照常成功， 你的 `place`、`activate`、`cleanupBeforeUndo` 永远不会被调用。`status` 是例外——主插件常驻的 `/fd stats addon <name>`（见下文 `status` 小节）在普通构建里同样会调用它。
 
 这就是为什么无条件注册是安全的，也是 FDAddonTemplate 和 BrewinAndChewin 都在 `onEnable` 里直接注册、不做 任何探测的原因。
 
@@ -84,7 +84,7 @@ public interface DebugToolExtension {
 /fd debugtools place keg 64 2 3
 ```
 
-它同时用于 Tab 补全，以及给你的状态行加前缀。`DebugToolRegistry` 注册时会把它转小写，所以直接返回小写形式 以免混淆。
+它同时用于 Tab 补全，以及作为 `/fd stats addon <name>` 里的扩展名。`DebugToolRegistry` 注册时会把它转小写，所以直接返回小写形式 以免混淆。
 
 ### `int place(Player player, Location origin, int count, int spacing, int layers, UndoSink undo)`
 
@@ -151,7 +151,7 @@ FDAddonTemplate 自己维护了一个 `ConcurrentHashMap.newKeySet()` 记录放�
 
 ### `List<String> status(Player player)`
 
-可选，默认返回空列表。在 `/fd debugtools status` 时、紧跟 FarmersDelight 自己的 `TickManager` 快照之后被 调用。每个元素是一行，发给玩家时会加上 `[<name>]` 前缀。
+可选，默认返回空列表。由主插件**常驻**的子命令 `/fd stats addon <name>` 触发（`/fd stats` 总览会把每个已注册扩展显示为可点击的名字，点进去即查看对应状态行），因此普通构建也会被调用，无需 `-PdebugTools=true`。每条返回一行，通过把 `{line}` 占位填进翻译键 `command.stats_addon_line` 发送给玩家（`{name}` 为扩展名），自身不带前缀。
 
 ```java
 @Override
@@ -160,7 +160,7 @@ public List<String> status(Player player) {
 }
 ```
 
-这些行在发送前会经过 MiniMessage 解析，所以文本里字面的 `<` 会被当成标记解析。请转义或避开尖括号——或者 刻意用它来上色。
+发送时这一行会作为 `{line}` 替换进 `command.stats_addon_line` 模板，所以不要在行里放字面的 `{line}` 或 `{name}`——它们会被当作替换占位；想带前缀/颜色就写在这一行里，或改那个翻译键。
 
 返回 `null` 是被容忍的（等同于"没有行"），但文档化的退出方式是返回空列表。
 

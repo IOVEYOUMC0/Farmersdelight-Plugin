@@ -80,7 +80,7 @@ public static Set<String>  tagIdsOf(ItemStack item);
 `tagIdsOf` —— 已在实现处（`ItemUtils.getItemTagIds`）核实：它**只**返回该物品携带的 CraftEngine 自定义标签， 不包含原版标签，与名字给人的直觉不同。需要按原版标签判断时请用 `matchesTag`，那个方法确实会查原版标签。空气或 null 返回空集合。
 
 ```java
-if (FarmersDelightItems.matchesTag(tool, "#farmersdelight:knives")) {
+if (FarmersDelightItems.matchesTag(tool, "#farmersdelight:tools/knives")) {
     // 自定义标签和同名原版标签都能命中
 }
 ```

@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
+import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -101,7 +102,7 @@ final class ToolPreviewRenderer {
     }
 
     private List<ItemStack> computeToolPreviewOptions(CuttingBoardRecipe.ToolRequirement tool) {
-        if (tool.tag() && "farmersdelight:knives".equals(tool.key().toString())) {
+        if (tool.tag() && Constants.TAG_KNIVES.equals(tool.key().toString())) {
             return finalizeToolPreviewOptions(createKnifePreviewItems(), tool);
         }
 
@@ -114,7 +115,7 @@ final class ToolPreviewRenderer {
         // Action keys are predicates rather than item/tag IDs, so map them to their visible tool families.
         previewOptions = new ArrayList<>();
         switch (tool.key().toString()) {
-            case "farmersdelight:knives" -> previewOptions.addAll(createKnifePreviewItems());
+            case Constants.TAG_KNIVES -> previewOptions.addAll(createKnifePreviewItems());
             case "farmersdelight:axe_dig", "farmersdelight:axe_strip", "minecraft:axes" -> previewOptions.addAll(createVanillaToolPreviewItems("_axe"));
             case "farmersdelight:pickaxe_dig", "minecraft:pickaxes" -> previewOptions.addAll(createVanillaToolPreviewItems("_pickaxe"));
             case "farmersdelight:shovel_dig", "minecraft:shovels" -> previewOptions.addAll(createVanillaToolPreviewItems("_shovel"));

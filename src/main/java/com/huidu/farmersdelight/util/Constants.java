@@ -2,7 +2,7 @@ package com.huidu.farmersdelight.util;
 
 public final class Constants {
 
-    public static final String TAG_KNIVES = "farmersdelight:knives";
+    public static final String TAG_KNIVES = "farmersdelight:tools/knives";
     public static final String TAG_AXES = "minecraft:axes";
     public static final String TAG_PICKAXES = "minecraft:pickaxes";
     public static final String TAG_SHOVELS = "minecraft:shovels";

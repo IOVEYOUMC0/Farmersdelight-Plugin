@@ -57,7 +57,7 @@ class RecipeSerializerTest {
     @Test
     void toolRequirementRoundTrips() {
         CuttingBoardRecipe.ToolRequirement original = new CuttingBoardRecipe.ToolRequirement(
-                Key.of("farmersdelight:knives"),
+                Key.of("farmersdelight:tools/knives"),
                 Set.of(Key.of("minecraft:wooden_sword")),
                 Set.of());
         String serialized = RecipeSerializer.serializeTool(original);
@@ -72,13 +72,13 @@ class RecipeSerializerTest {
     @Test
     void taggedToolRequirementKeepsTagIdentityAndExclusions() {
         CuttingBoardRecipe.ToolRequirement original = new CuttingBoardRecipe.ToolRequirement(
-                Key.of("farmersdelight:knives"),
+                Key.of("farmersdelight:tools/knives"),
                 true,
                 Set.of(Key.of("farmersdelight:flint_knife")),
                 Set.of(Key.of("example:disabled_tools")));
 
         String serialized = RecipeSerializer.serializeTool(original);
-        assertTrue(serialized.startsWith("#farmersdelight:knives"), serialized);
+        assertTrue(serialized.startsWith("#farmersdelight:tools/knives"), serialized);
 
         RecipeParsingSupport.ParsedKey parsed = RecipeParsingSupport.parseKeyWithExclusions(serialized, "tool");
         assertTrue(parsed.tag());
@@ -103,7 +103,7 @@ class RecipeSerializerTest {
     @Test
     void cuttingBoardToolParserDistinguishesTagsItemsAndActions() {
         assertTrue(CuttingBoardRecipeManager.parseTool("#minecraft:hoes").isTag());
-        assertTrue(CuttingBoardRecipeManager.parseTool("farmersdelight:knives").isTag());
+        assertTrue(CuttingBoardRecipeManager.parseTool("farmersdelight:tools/knives").isTag());
         assertFalse(CuttingBoardRecipeManager.parseTool("minecraft:shears").isTag());
         assertFalse(CuttingBoardRecipeManager.parseTool("farmersdelight:axe_strip").isTag());
     }

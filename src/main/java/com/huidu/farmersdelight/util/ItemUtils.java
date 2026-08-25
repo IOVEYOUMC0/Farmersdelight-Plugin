@@ -25,6 +25,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -171,7 +172,30 @@ public final class ItemUtils {
         }
         List<ItemStack> items = new ArrayList<>();
         try {
-            Key tag = Key.of(itemId.substring(1));
+            String tagString = itemId.substring(1);
+            // Common tags (c:...) expand through the mapping table; CE / vanilla tags expand via CraftEngine.
+            if (CommonTagResolver.isCommonTag(tagString)) {
+                // CE items now declare c: tags in their settings.tags instead of tags.yml, so merge
+                // CraftEngine members onto the mapping-table members to keep every tagged item visible.
+                Set<UniqueKey> seen = new HashSet<>();
+                for (String memberId : CommonTagResolver.getMembers(tagString)) {
+                    ItemStack item = createItem(memberId);
+                    if (item != null && !item.getType().isAir()) {
+                        items.add(item);
+                    }
+                }
+                CommonTagResolver.getMembers(tagString).forEach(memberId -> seen.add(UniqueKey.create(Key.of(memberId))));
+                for (UniqueKey member : BukkitItemManager.instance().itemIdsByTag(Key.of(tagString))) {
+                    if (seen.add(member)) {
+                        ItemStack item = createItem(member.toString());
+                        if (item != null && !item.getType().isAir()) {
+                            items.add(item);
+                        }
+                    }
+                }
+                return items;
+            }
+            Key tag = Key.of(tagString);
             for (UniqueKey member : BukkitItemManager.instance().itemIdsByTag(tag)) {
                 ItemStack item = createItem(member.toString());
                 if (item != null && !item.getType().isAir()) {
@@ -745,11 +769,18 @@ public final class ItemUtils {
             return Set.of();
         }
         java.util.LinkedHashSet<String> tags = new java.util.LinkedHashSet<>();
+        // CE-declared tags (self-identifying, e.g. a knife declaring farmersdelight:tools/knives).
         String customId = getCustomItemId(item);
         if (customId != null) {
             for (Key tag : getCustomItemTags(Key.of(customId))) {
                 tags.add(tag.toString());
             }
+        }
+        // Registered tags (c:... conventions plus any addon-registered tags). Consult the central
+        // registry for every id form the item reports (custom, mmoitems, vanilla) so recipes that
+        // reference those tags match regardless of the item's origin.
+        for (String id : getItemIds(item)) {
+            tags.addAll(CommonTagResolver.getTagsForItemId(id));
         }
         return Set.copyOf(tags);
     }

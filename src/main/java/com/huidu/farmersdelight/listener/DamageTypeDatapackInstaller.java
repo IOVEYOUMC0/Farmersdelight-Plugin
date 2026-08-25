@@ -5,10 +5,6 @@ import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.DatapackSupport;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
-import org.bukkit.event.Listener;
-import org.bukkit.event.world.WorldLoadEvent;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -22,7 +18,7 @@ import java.util.jar.JarFile;
 // own. Also migrates the damage files out of the legacy loot datapack folder (pre-split installs
 // wrote them to datapacks/farmersdelight/), otherwise both datapacks would define stove_burn and the
 // duplicate definition would clash at load time.
-public final class DamageTypeDatapackInstaller implements Listener {
+public final class DamageTypeDatapackInstaller {
 
     private static final String DATAPACK_NAME = "farmersdelight_damage";
     private static final String RESOURCE_PREFIX = "datapack/damage/";
@@ -30,19 +26,17 @@ public final class DamageTypeDatapackInstaller implements Listener {
     private static final String LEGACY_DAMAGE_DIR = "data/farmersdelight/damage_type";
     private static final String LEGACY_NO_KNOCKBACK = "data/minecraft/tags/damage_type/no_knockback.json";
 
-    // Removes the old FarmersDelight loot datapack (datapacks/farmersdelight) that pre-CE-native
+    // Deletes the old FarmersDelight loot datapack (datapacks/farmersdelight) that pre-CE-native
     // builds installed to inject items into vanilla chest/grass/mob loot tables. The injections now
     // live as CraftEngine vanilla/container loot sources, so keeping the stale datapack would
     // double-add CE items. The damage files that old datapack also carried are migrated by
     // removeLegacyFiles first, so nothing is lost when the whole folder is deleted afterwards.
+    // Runs across every world (the legacy folder is stale wherever it exists).
     public void cleanupLegacyLootDatapack() {
         if (!installEnabled) {
             return;
         }
         for (World world : Bukkit.getWorlds()) {
-            if (plugin.isDatapackWorldAllowed(world)) {
-                continue;
-            }
             Path legacy = DatapackSupport.worldRoot(world).resolve("datapacks").resolve(LEGACY_LOOT_DATAPACK);
             try {
                 if (Files.exists(legacy)) {
@@ -64,41 +58,56 @@ public final class DamageTypeDatapackInstaller implements Listener {
         this.installEnabled = plugin.getConfig().getBoolean("damage-type.install-datapack", true);
     }
 
-    public void installToAllWorlds() {
+    // Registry-scoped datapack content (damage types, damage_type tags) is loaded by the server from
+    // the primary world's datapacks folder and shared by every world, so the pack is written once into
+    // the primary world. Copies the old all-world installer may have left in other worlds are removed.
+    public void installToPrimaryWorld(World primaryWorld) {
         if (!installEnabled) {
             I18n.logInfo("damage_datapack_disabled");
             return;
         }
-        var worlds = Bukkit.getWorlds();
-        if (worlds.isEmpty()) {
+        if (primaryWorld == null) {
             I18n.logWarning("damage_datapack_no_worlds");
             return;
         }
-        int installed = 0;
-        for (World world : worlds) {
-            if (plugin.isDatapackWorldAllowed(world)) {
+        boolean wrote = installToWorld(primaryWorld);
+        int cleaned = cleanupRedundantDatapacks(primaryWorld);
+        if (wrote || cleaned > 0) {
+            printRestartBanner();
+        }
+    }
+
+    // Deletes the farmersdelight_damage datapack from every non-primary world. Those folders were only
+    // ever written by the old per-world installer and are never read by the server (only the primary
+    // world's datapacks/ is scanned), so they are harmless-but-stale files. The legacy farmersdelight
+    // loot folder cleanup is a separate pass (cleanupLegacyLootDatapack) that covers every world.
+    private int cleanupRedundantDatapacks(World primaryWorld) {
+        String primaryName = primaryWorld.getName();
+        int removed = 0;
+        for (World world : Bukkit.getWorlds()) {
+            if (primaryName.equals(world.getName())) {
                 continue;
             }
-            if (installToWorld(world)) installed++;
+            Path redundant = DatapackSupport.worldRoot(world)
+                    .resolve("datapacks")
+                    .resolve(DATAPACK_NAME);
+            try {
+                if (Files.exists(redundant)) {
+                    DatapackSupport.deleteRecursively(redundant);
+                    removed++;
+                    I18n.logInfo("damage_datapack_redundant_removed", "world", world.getName());
+                }
+            } catch (IOException e) {
+                plugin.getLogger().warning("FarmersDelight damage datapack: failed to remove redundant folder under "
+                        + redundant + ": " + e.getMessage());
+            }
         }
-        if (installed > 0) {
-            printRestartBanner(installed);
-        }
+        return removed;
     }
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onWorldLoad(WorldLoadEvent event) {
-        if (plugin.isDatapackWorldAllowed(event.getWorld())) {
-            return;
-        }
-        if (installEnabled && installToWorld(event.getWorld())) {
-            printRestartBanner(1);
-        }
-    }
-
-    private void printRestartBanner(int worlds) {
+    private void printRestartBanner() {
         plugin.getLogger().warning("==================================================================");
-        plugin.getLogger().warning(" Installed FarmersDelight damage-type datapack into " + worlds + " world(s).");
+        plugin.getLogger().warning(" Installed FarmersDelight damage-type datapack (primary world only).");
         plugin.getLogger().warning(" RESTART the server (or run /reload) for the stove_burn damage type");
         plugin.getLogger().warning(" to take effect.");
         plugin.getLogger().warning("==================================================================");

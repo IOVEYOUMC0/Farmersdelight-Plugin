@@ -1006,6 +1006,11 @@ public class RecipeViewGui extends AbstractInventoryGui {
         ItemMeta meta = result.getItemMeta();
 
         List<Component> lore = new ArrayList<>();
+        // Keep the result item's own description instead of replacing it, matching the addon recipe books.
+        if (meta.lore() != null && !meta.lore().isEmpty()) {
+            lore.addAll(meta.lore());
+            lore.add(Component.text(""));
+        }
         lore.add(tr("gui.recipe.ingredients_label", NamedTextColor.GRAY));
         List<RecipeIngredient> ingredients = recipe.getIngredients();
         int displayedIngredients = Math.min(ingredients.size(), config.getRecipeListMaxPreviewIngredients());
@@ -1038,6 +1043,11 @@ public class RecipeViewGui extends AbstractInventoryGui {
         ItemMeta meta = input.getItemMeta();
 
         List<Component> lore = new ArrayList<>();
+        // Keep the input item's own description instead of replacing it, matching the addon recipe books.
+        if (meta.lore() != null && !meta.lore().isEmpty()) {
+            lore.addAll(meta.lore());
+            lore.add(Component.text(""));
+        }
         lore.add(tr("gui.recipe.tool_line",
                 formatToolListComponent(recipe.getTools(), player).colorIfAbsent(NamedTextColor.YELLOW)));
         // Show the input type so players can see when multiple alternatives exist without opening details.

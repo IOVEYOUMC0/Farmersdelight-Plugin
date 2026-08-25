@@ -83,7 +83,7 @@ Rice is a **water crop** grown in two stacked halves, and is harvested with a kn
 
 **Maturing:** the lower stalk grows through its stages (age 0–4); once it reaches its supporting stage it sends up a second block of **rice panicles** on top, which then ripen (age 0–3). Bone meal helps it along.
 
-**Harvesting:** when the panicles on top are fully grown, harvest them **with a knife** (any item in the `#farmersdelight:knives` tag). You get:
+**Harvesting:** when the panicles on top are fully grown, harvest them **with a knife** (any item in the `#farmersdelight:tools/knives` tag). You get:
 
 - `farmersdelight:rice` when you cut the ripe top with a knife (or `farmersdelight:rice_panicle` if it is broken another way),
 - `farmersdelight:rice` from the lower stalk,

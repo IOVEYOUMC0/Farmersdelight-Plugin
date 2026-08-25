@@ -83,7 +83,7 @@
 
 **成熟：** 下截稻秆逐阶段生长（age 0–4）；到达支撑阶段后，会在顶部长出第二截**稻穗**方块，稻穗再逐渐成熟（age 0–3）。骨粉可助其生长。
 
-**收获：** 顶部稻穗完全成熟后，**用小刀**（任意属于 `#farmersdelight:knives` 标签的物品）收获。你会得到：
+**收获：** 顶部稻穗完全成熟后，**用小刀**（任意属于 `#farmersdelight:tools/knives` 标签的物品）收获。你会得到：
 
 - 用小刀割下成熟顶部时得 `farmersdelight:rice`（若以其他方式破坏则得 `farmersdelight:rice_panicle`）；
 - 下截稻秆掉落 `farmersdelight:rice`；

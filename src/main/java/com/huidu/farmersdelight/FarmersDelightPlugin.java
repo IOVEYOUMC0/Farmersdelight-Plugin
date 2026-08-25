@@ -22,6 +22,7 @@ import com.huidu.farmersdelight.listener.CropInteractProtectionListener;
 import com.huidu.farmersdelight.listener.CuttingBoardDispenseListener;
 import com.huidu.farmersdelight.listener.CuttingBoardInteractListener;
 import com.huidu.farmersdelight.listener.EnchantmentDatapackInstaller;
+import com.huidu.farmersdelight.listener.TagDatapackInstaller;
 import com.huidu.farmersdelight.listener.FoodEatListener;
 import com.huidu.farmersdelight.listener.HorseFeedTemptListener;
 import com.huidu.farmersdelight.listener.KnifeEnchantFilter;
@@ -39,7 +40,6 @@ import com.huidu.farmersdelight.command.FarmersDelightCommand;
 import com.huidu.farmersdelight.config.ContainerReturnConfig;
 import com.huidu.farmersdelight.config.CookingPotExperienceRewardConfig;
 import com.huidu.farmersdelight.config.CuttingBoardDisplayConfig;
-import com.huidu.farmersdelight.config.DatapackWorldWhitelist;
 import com.huidu.farmersdelight.config.EnchantmentSettings;
 import com.huidu.farmersdelight.config.HeatSourceConfig;
 import com.huidu.farmersdelight.config.PetFoodConfig;
@@ -65,6 +65,7 @@ import com.huidu.farmersdelight.recipe.CuttingBoardRecipeManager;
 import com.huidu.farmersdelight.recipe.SpecialRecipeLoader;
 import com.huidu.farmersdelight.recipe.SpecialRecipeRegistry;
 import com.huidu.farmersdelight.util.BlockPosKey;
+import com.huidu.farmersdelight.util.CommonTagResolver;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.InteractionDebouncer;
@@ -113,6 +114,9 @@ import java.util.stream.Collectors;
 
 public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
+    // After a rebuild (/ce reload, /fd reload) the immediate advancement re-show can be dropped by a client
+    // still re-applying CraftEngine's resource pack; force a second re-send after this many ticks.
+    private static final long ADVANCEMENT_RESYNC_DELAY_TICKS = 20L;
 
     private static volatile FarmersDelightPlugin instance;
     private static volatile boolean enabled = false;
@@ -120,8 +124,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private volatile boolean startupSyncCompleted = false;
     private volatile boolean datapackSyncQueued = false;
     private volatile boolean datapackRemovalQueued = false;
-    private volatile DatapackWorldWhitelist datapackWorldWhitelist =
-            DatapackWorldWhitelist.from(List.of(), null);
     private PluginTask pendingCraftEngineReloadTask;
     private PluginTask pendingDatapackReloadTask;
     private PluginTask pendingDatapackSyncRetryTask;
@@ -155,6 +157,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private KnifeEnchantFilter knifeEnchantFilter;
     private EnchantmentDatapackInstaller enchantmentDatapackInstaller;
     private com.huidu.farmersdelight.listener.DamageTypeDatapackInstaller damageTypeDatapackInstaller;
+    private TagDatapackInstaller tagDatapackInstaller;
     private final com.huidu.farmersdelight.config.ConfigBootstrap configBootstrap = new com.huidu.farmersdelight.config.ConfigBootstrap(this);
     // Collects the per-subsystem content counts into the single summary line a healthy boot prints.
     private final StartupSummary startupSummary = new StartupSummary(this);
@@ -406,6 +409,18 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // A rebuild (/ce reload) recreates the UAA tab, which drops it from online clients. Re-show FD's own
         // tab to online players (no-op on first load — no one is online yet). Addon tabs re-sync in onSystemReady.
         advancementManager.resyncOnlinePlayers();
+
+        // On a rebuild the first resync packet can land while the client is still re-applying CraftEngine's
+        // resource pack, so it is dropped and the tab only returns after the player re-fetches. Force a full
+        // re-send a short while later so the settled client receives the tree.
+        if (reloading) {
+            scheduler().runLater(() -> {
+                if (advancementManager != null) {
+                    advancementManager.forceResyncOnlinePlayers();
+                }
+                getAddonAdvancementRegistry().forceResyncOnline();
+            }, ADVANCEMENT_RESYNC_DELAY_TICKS);
+        }
     }
 
     @Override
@@ -604,8 +619,13 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(knifeEnchantFilter, this);
 
         enchantmentDatapackInstaller = new EnchantmentDatapackInstaller(this);
-        enchantmentDatapackInstaller.installToAllWorlds();
+        enchantmentDatapackInstaller.installToPrimaryWorld(getPrimaryWorld());
         getServer().getPluginManager().registerEvents(enchantmentDatapackInstaller, this);
+
+        // Registry tags are server-global (shared by every world), so the common-item tag data pack is
+        // written once into the primary world's datapacks folder; a per-world inject would be redundant.
+        tagDatapackInstaller = new TagDatapackInstaller(this);
+        tagDatapackInstaller.installToPrimaryWorld(getPrimaryWorld());
 
         // Villager and wandering trader trades (world-data section). Composting chances and furnace burn
         // times now live in the CraftEngine item configurations instead.
@@ -620,10 +640,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         com.huidu.farmersdelight.listener.DamageTypeDatapackInstaller damageInstaller =
                 new com.huidu.farmersdelight.listener.DamageTypeDatapackInstaller(this);
         this.damageTypeDatapackInstaller = damageInstaller;
-        damageInstaller.installToAllWorlds();
+        damageInstaller.installToPrimaryWorld(getPrimaryWorld());
         // Remove the now-obsolete loot datapack folder (chest/grass/mob injections migrated to CE native loot sources).
         damageInstaller.cleanupLegacyLootDatapack();
-        getServer().getPluginManager().registerEvents(damageInstaller, this);
 
         refreshAdvancementSystemWhenReady(false);
         // Warm CE item/GUI/behavior caches now IF CE is already up (FD enabled after CraftEngine). When CE
@@ -998,7 +1017,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             return;
         }
         org.bukkit.World primaryWorld = getPrimaryWorld();
-        if (primaryWorld == null || isDatapackWorldAllowed(primaryWorld)) {
+        if (primaryWorld == null) {
             return;
         }
         datapackSyncQueued = true;
@@ -1141,7 +1160,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             knifeEnchantFilter.reload(enchantmentSettings, backstabEnchantmentEnabled);
         }
         if (enchantmentDatapackInstaller != null) {
-            enchantmentDatapackInstaller.installToAllWorlds();
+            enchantmentDatapackInstaller.installToPrimaryWorld(getPrimaryWorld());
         }
         if (reloadLanguages) {
             I18n.reload();
@@ -1263,6 +1282,18 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         I18n.logInfo("plugin.advancement_data_reloaded");
     }
 
+    public void reloadTags() {
+        com.huidu.farmersdelight.util.CommonTagResolver.reload(this);
+        // The recipe-book tag icons are cached per tag ingredient; drop them so the edited members
+        // take effect on the next render.
+        com.huidu.farmersdelight.gui.RecipeIngredientIcons.clearCaches();
+        // Refresh the exported vanilla-member tag data pack; takes effect after a server restart.
+        if (tagDatapackInstaller != null) {
+            tagDatapackInstaller.installToPrimaryWorld(getPrimaryWorld());
+        }
+        I18n.logInfo("plugin.tags_reloaded");
+    }
+
     // Reroutes the historical /fd reload loot: the chest/grass/mob injections now live as CraftEngine
     // native loot sources, so a datapack reinstatement no longer applies. This pass only removes the
     // stale loot datapack folder old builds left in world datapacks/, which is idempotent.
@@ -1282,7 +1313,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             I18n.logWarning("loot_datapack_not_ready");
             return;
         }
-        damageTypeDatapackInstaller.installToAllWorlds();
+        damageTypeDatapackInstaller.installToPrimaryWorld(getPrimaryWorld());
         damageTypeDatapackInstaller.cleanupLegacyLootDatapack();
     }
 
@@ -1299,13 +1330,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     private void loadConfigs() {
         advancementsEnabled = getConfig().getBoolean("advancements.enabled", true);
-        String primaryWorldName = getConfiguredPrimaryLevelName();
-        if (primaryWorldName == null || primaryWorldName.isBlank()) {
-            org.bukkit.World primaryWorld = getPrimaryWorld();
-            primaryWorldName = primaryWorld != null ? primaryWorld.getName() : null;
-        }
-        datapackWorldWhitelist = DatapackWorldWhitelist.from(
-                getConfig().getStringList("datapacks.world-whitelist"), primaryWorldName);
         // No legacy path: buff.enabled is new, and a config that predates it has the buff system on.
         buffSystemEnabled = getConfigBoolean(true, "buff.enabled");
         // Mirror the switch into the addon-facing registry so its entry points can degrade to no-ops
@@ -1455,6 +1479,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         skilletDisplaySpread = skilletDisplayConfig.getItemSpread();
         stoveDisplayScale = stoveDisplayConfig.getDefaultUniformScale(0.375F);
         com.huidu.farmersdelight.listener.worlddata.WorldDataConfig.reload(this);
+        // Load the c: common-tag mapping before recipes load; it feeds recipe tag matching/indexing.
+        com.huidu.farmersdelight.util.CommonTagResolver.reload(this);
     }
 
     private boolean configFileHas(String path) {
@@ -1653,7 +1679,23 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     public boolean isKnifeItemId(String itemId) {
-        return itemId != null && knifeItemIds.contains(itemId.toLowerCase(Locale.ROOT));
+        if (itemId == null) {
+            return false;
+        }
+        String id = itemId.toLowerCase(Locale.ROOT);
+        if (knifeItemIds.contains(id)) {
+            return true;
+        }
+        // Knives registered by addons through the family tag registry (tag to members) are honored
+        // wherever we check knife behavior, so an addon adding its knives to farmersdelight:tools/knives
+        // via its own tags.yml works as a cutting tool without editing the central knife-items config.
+        Set<String> tags = CommonTagResolver.getTagsForItemId(id);
+        for (String tag : knifeTagIds) {
+            if (tags.contains(tag)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public Set<String> getKnifeItemIds() {
@@ -2023,15 +2065,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return tickManager;
     }
 
-    public boolean isDatapackWorldAllowed(org.bukkit.World world) {
-        return world == null || !this.datapackWorldWhitelist.allows(world.getName());
-    }
-
-    public DatapackWorldWhitelist datapackWorldWhitelist() {
-        return datapackWorldWhitelist;
-    }
-
-    private org.bukkit.World getPrimaryWorld() {
+    public org.bukkit.World getPrimaryWorld() {
         List<org.bukkit.World> worlds = getServer().getWorlds();
         if (worlds.isEmpty()) {
             return null;
@@ -2157,7 +2191,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
      *  still needs a server restart to become usable — the installer prints its own banner. */
     public void refreshEnchantSystem() {
         if (enchantmentDatapackInstaller != null) {
-            enchantmentDatapackInstaller.installToAllWorlds();
+            enchantmentDatapackInstaller.installToPrimaryWorld(getPrimaryWorld());
         }
         if (knifeEnchantFilter != null) {
             knifeEnchantFilter.reload(enchantmentSettings, backstabEnchantmentEnabled);

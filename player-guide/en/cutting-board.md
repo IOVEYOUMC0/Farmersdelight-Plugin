@@ -35,7 +35,7 @@ recipe at all, you're told there's no recipe.
 
 The board accepts:
 
-- **Knives** — the `#farmersdelight:knives` tag (Flint, Iron, Golden, Diamond and
+- **Knives** — the `#farmersdelight:tools/knives` tag (Flint, Iron, Golden, Diamond and
   Netherite knives). Knives are the primary cutting-board tool and unlock the most
   recipes.
 - **Axes** — `#minecraft:axes`

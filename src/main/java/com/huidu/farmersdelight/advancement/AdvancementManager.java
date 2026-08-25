@@ -55,66 +55,72 @@ public class AdvancementManager {
     private static final Map<String, ContentRequirement> DISH_REQUIREMENTS = dishRequirements();
 
     private static final List<NodeSpec> NODES = List.of(
-            // Awarded on join, unconditionally.
-            node(ROOT_ID, null, "farmersdelight:cooking_pot", Material.BRICKS, AdvancementFrameType.TASK, 0, 0),
-            // Crafting any id in the configurable knife item set (FarmersDelightPlugin.isKnifeItemId).
-            node("craft_knife", ROOT_ID, "farmersdelight:flint_knife", Material.WOODEN_SWORD, AdvancementFrameType.TASK, 1, 0),
+            // Root, awarded on join, sits centre-left; the tree spreads rightward like the original mod,
+            // with one generation per column (along +x) and sibling branches stacked in y. The three main
+            // branches read top-to-bottom as: cooking (campfire), farming (seed), harvesting (knife).
+            // UltimateAdvancementAPI requires every x,y to be non-negative.
+            node(ROOT_ID, null, "farmersdelight:cooking_pot", Material.BRICKS, AdvancementFrameType.TASK, 0, 3),
+            // ---- Cooking branch (top) ----
             // Placing a vanilla campfire / soul campfire.
-            node("place_campfire", ROOT_ID, null, Material.CAMPFIRE, AdvancementFrameType.TASK, 1, 3),
-            // Crafting or picking up any of AchievementListener.FD_SEED_IDS.
-            node("get_fd_seed", ROOT_ID, "farmersdelight:cabbage_seeds", Material.WHEAT_SEEDS, AdvancementFrameType.TASK, 1, 6,
+            node("place_campfire", ROOT_ID, null, Material.CAMPFIRE, AdvancementFrameType.TASK, 1, 0),
+            // Cooking on any block carrying SkilletBlockBehavior.
+            node("use_skillet", "place_campfire", "farmersdelight:skillet", Material.IRON_SWORD, AdvancementFrameType.TASK, 2, 0),
+            node("place_skillet", "use_skillet", "farmersdelight:skillet", Material.IRON_SWORD, AdvancementFrameType.TASK, 3, 0),
+            // Placing any block carrying CookingPotBlockBehavior.
+            node("place_cooking_pot", "place_campfire", "farmersdelight:cooking_pot", Material.BRICKS, AdvancementFrameType.GOAL, 2, 1),
+            // Gaining the nourishment effect, whose food list is plugin config.
+            node("eat_nourishing_food", "place_cooking_pot", "farmersdelight:steak_and_potatoes", Material.COOKED_BEEF, AdvancementFrameType.TASK, 3, 1),
+            // Placing any block carrying the farmersdelight:feast_blocks block tag.
+            node("place_feast", "eat_nourishing_food", "farmersdelight:roast_chicken", Material.COOKED_CHICKEN, AdvancementFrameType.TASK, 4, 1),
+            // Eating every dish; unobtainable only once every dish item is gone. Original icon is honey-glazed ham.
+            multiNode("master_chef", "place_feast", "farmersdelight:honey_glazed_ham", Material.COOKED_PORKCHOP, 5, 1,
+                    DISHES, ContentRequirement.anyItem(prefixed())),
+            // ---- Farming branch (centre) ----
+            // Crafting or picking up any of AchievementListener.FD_SEED_IDS. Original icon is wild onions.
+            node("get_fd_seed", ROOT_ID, "farmersdelight:wild_onions", Material.SHORT_GRASS, AdvancementFrameType.TASK, 1, 3,
                     ContentRequirement.anyItem(Constants.ITEM_CABBAGE_SEEDS, Constants.ITEM_TOMATO_SEEDS,
                             Constants.ITEM_ONION, Constants.ITEM_RICE)),
-            // Crafting ham / smoked ham, or a knife drop of any ham item (KnifeDropHandler.isHamItem).
-            node("get_ham", "craft_knife", "farmersdelight:ham", Material.COOKED_BEEF, AdvancementFrameType.TASK, 2, 0,
-                    ContentRequirement.anyItem(Constants.ITEM_HAM, Constants.ITEM_SMOKED_HAM,
-                            Constants.ITEM_HONEY_GLAZED_HAM)),
-            // Breaking any block matched by the straw-drop config with a knife.
-            node("harvest_straw", "craft_knife", "farmersdelight:straw", Material.WHEAT, AdvancementFrameType.TASK, 2, 1),
-            // Placing any block carrying OrganicCompostBlockBehavior.
-            node("place_organic_compost", "harvest_straw", "farmersdelight:organic_compost", Material.DIRT, AdvancementFrameType.TASK, 3, 1),
-            // Cutting on any block carrying CuttingBoardBlockBehavior.
-            node("use_cutting_board", "craft_knife", "farmersdelight:cutting_board", Material.OAK_SLAB, AdvancementFrameType.TASK, 2, 2),
-            // Crafting/smithing exactly farmersdelight:netherite_knife.
-            node("obtain_netherite_knife", "use_cutting_board", "farmersdelight:netherite_knife", Material.NETHERITE_SWORD, AdvancementFrameType.CHALLENGE, 3, 2,
-                    ContentRequirement.anyItem(Constants.ITEM_NETHERITE_KNIFE)),
-            // Cooking on any block carrying SkilletBlockBehavior.
-            node("use_skillet", "place_campfire", "farmersdelight:skillet", Material.IRON_SWORD, AdvancementFrameType.TASK, 2, 3),
-            node("place_skillet", "use_skillet", "farmersdelight:skillet", Material.IRON_SWORD, AdvancementFrameType.TASK, 3, 3),
-            // Placing any block carrying CookingPotBlockBehavior.
-            node("place_cooking_pot", "place_campfire", "farmersdelight:cooking_pot", Material.BRICKS, AdvancementFrameType.GOAL, 2, 4),
-            // Placing any block carrying the farmersdelight:feast_blocks block tag.
-            node("place_feast", "place_cooking_pot", "farmersdelight:roast_chicken", Material.COOKED_CHICKEN, AdvancementFrameType.TASK, 3, 4),
-            // Eating every dish; unobtainable only once every dish item is gone.
-            multiNode("master_chef", "place_feast", "farmersdelight:beef_stew", Material.COOKED_PORKCHOP, 4, 4,
-                    DISHES, ContentRequirement.anyItem(prefixed())),
-            // Gaining the nourishment effect, whose food list is plugin config.
-            node("eat_nourishing_food", "place_cooking_pot", "farmersdelight:steak_and_potatoes", Material.COOKED_BEEF, AdvancementFrameType.TASK, 3, 5),
-            // Hitting a raider with a thrown farmersdelight:rotten_tomato.
-            node("hit_raider_with_rotten_tomato", "get_fd_seed", "farmersdelight:rotten_tomato", Material.RED_DYE, AdvancementFrameType.TASK, 2, 5,
-                    ContentRequirement.anyItem(Constants.ITEM_ROTTEN_TOMATO)),
             // Obtaining either colony item (the mod's requirement is an OR of the two).
-            node("get_mushroom_colony", "get_fd_seed", "farmersdelight:red_mushroom_colony", Material.RED_MUSHROOM, AdvancementFrameType.TASK, 2, 6,
+            node("get_mushroom_colony", "get_fd_seed", "farmersdelight:red_mushroom_colony", Material.RED_MUSHROOM, AdvancementFrameType.TASK, 2, 2,
                     ContentRequirement.anyItemOrBlock(List.of(Constants.BLOCK_BROWN_MUSHROOM_COLONY,
                             Constants.BLOCK_RED_MUSHROOM_COLONY))),
             // RicePlantListener places the rice block and bails out when it is not registered.
-            node("plant_rice", "get_fd_seed", "farmersdelight:rice", Material.WHEAT_SEEDS, AdvancementFrameType.TASK, 2, 7,
+            node("plant_rice", "get_fd_seed", "farmersdelight:rice", Material.WHEAT_SEEDS, AdvancementFrameType.TASK, 2, 3,
                     ContentRequirement.anyBlock(Constants.BLOCK_RICE)),
             // Its vanilla subtasks keep it obtainable whatever happens to the FarmersDelight crops.
-            multiNode("plant_all_crops", "plant_rice", "farmersdelight:cabbage_seeds", Material.WHEAT_SEEDS, 3, 7,
+            multiNode("plant_all_crops", "plant_rice", "farmersdelight:cabbage", Material.IRON_SHOVEL, 3, 3,
                     CROPS, ContentRequirement.ALWAYS),
+            // Right-clicking the rope-grown tomato block.
+            node("harvest_ropelogged_tomato", "get_fd_seed", "farmersdelight:tomato", Material.RED_DYE, AdvancementFrameType.TASK, 2, 4,
+                    ContentRequirement.anyBlock(Constants.BLOCK_TOMATO_CROP_ON_ROPE)),
+            // Hitting a raider with a thrown farmersdelight:rotten_tomato.
+            node("hit_raider_with_rotten_tomato", "harvest_ropelogged_tomato", "farmersdelight:rotten_tomato", Material.RED_DYE, AdvancementFrameType.TASK, 3, 4,
+                    ContentRequirement.anyItem(Constants.ITEM_ROTTEN_TOMATO)),
+            // ---- Harvesting branch (bottom) ----
+            // Crafting any id in the configurable knife item set (FarmersDelightPlugin.isKnifeItemId).
+            node("craft_knife", ROOT_ID, "farmersdelight:flint_knife", Material.WOODEN_SWORD, AdvancementFrameType.TASK, 1, 6),
+            // Crafting ham / smoked ham, or a knife drop of any ham item (KnifeDropHandler.isHamItem).
+            node("get_ham", "craft_knife", "farmersdelight:ham", Material.COOKED_BEEF, AdvancementFrameType.TASK, 2, 5,
+                    ContentRequirement.anyItem(Constants.ITEM_HAM, Constants.ITEM_SMOKED_HAM,
+                            Constants.ITEM_HONEY_GLAZED_HAM)),
+            // Breaking any block matched by the straw-drop config with a knife.
+            node("harvest_straw", "craft_knife", "farmersdelight:straw", Material.WHEAT, AdvancementFrameType.TASK, 2, 6),
+            // Cutting on any block carrying CuttingBoardBlockBehavior.
+            node("use_cutting_board", "craft_knife", "farmersdelight:cutting_board", Material.OAK_SLAB, AdvancementFrameType.TASK, 2, 7),
+            // Crafting/smithing exactly farmersdelight:netherite_knife.
+            node("obtain_netherite_knife", "use_cutting_board", "farmersdelight:netherite_knife", Material.NETHERITE_SWORD, AdvancementFrameType.CHALLENGE, 3, 7,
+                    ContentRequirement.anyItem(Constants.ITEM_NETHERITE_KNIFE)),
             // Crafting or picking up the compost item.
-            node("get_organic_compost", "get_fd_seed", "farmersdelight:organic_compost", Material.DIRT, AdvancementFrameType.TASK, 2, 8,
+            node("get_organic_compost", "harvest_straw", "farmersdelight:organic_compost", Material.DIRT, AdvancementFrameType.TASK, 3, 6,
                     ContentRequirement.anyItem(Constants.ITEM_ORGANIC_COMPOST)),
+            // Placing any block carrying OrganicCompostBlockBehavior.
+            node("place_organic_compost", "get_organic_compost", "farmersdelight:organic_compost", Material.DIRT, AdvancementFrameType.TASK, 4, 6),
             // Picking up the rich soil item.
-            node("get_rich_soil", "get_organic_compost", "farmersdelight:rich_soil", Material.DIRT, AdvancementFrameType.GOAL, 3, 8,
+            node("get_rich_soil", "place_organic_compost", "farmersdelight:rich_soil", Material.DIRT, AdvancementFrameType.GOAL, 5, 6,
                     ContentRequirement.anyItem(Constants.ITEM_RICH_SOIL)),
             // RichSoilHoeListener places the farmland block and bails out when it is not registered.
-            node("hoe_rich_soil", "get_rich_soil", "farmersdelight:rich_soil_farmland", Material.FARMLAND, AdvancementFrameType.CHALLENGE, 4, 8,
-                    ContentRequirement.anyBlock(Constants.BLOCK_RICH_SOIL_FARMLAND)),
-            // Right-clicking the rope-grown tomato block.
-            node("harvest_ropelogged_tomato", "get_fd_seed", "farmersdelight:tomato", Material.RED_DYE, AdvancementFrameType.TASK, 2, 9,
-                    ContentRequirement.anyBlock(Constants.BLOCK_TOMATO_CROP_ON_ROPE)));
+            node("hoe_rich_soil", "get_rich_soil", "farmersdelight:rich_soil_farmland", Material.FARMLAND, AdvancementFrameType.CHALLENGE, 6, 6,
+                    ContentRequirement.anyBlock(Constants.BLOCK_RICH_SOIL_FARMLAND)));
 
     private final FarmersDelightPlugin plugin;
     private final Map<String, Advancement> byId = new ConcurrentHashMap<>();
@@ -334,6 +340,21 @@ public class AdvancementManager {
                 // A player whose data is not loaded yet (UserNotLoadedException) must not block the others.
                 plugin.getLogger().log(java.util.logging.Level.WARNING,
                         "Failed to resync advancements for " + player.getName() + ':', e);
+            }
+        }
+    }
+
+    // Forces a full tree re-send to every online player, bypassing UAA's already-shown guard. Used shortly after
+    // a /ce reload, when the first resync's packet may have been dropped by clients still re-applying resources.
+    public void forceResyncOnlinePlayers() {
+        if (tab == null || !tab.isInitialised()) {
+            return;
+        }
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            try {
+                tab.updateAdvancementsToTeam(player);
+            } catch (Exception ignored) {
+                // data not loaded; UAA re-shows the tab once the player's data finishes loading
             }
         }
     }

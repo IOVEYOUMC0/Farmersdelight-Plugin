@@ -66,12 +66,34 @@ public final class AddonAdvancementRegistry {
         // A rebuild (e.g. /ce reload) recreates each UAA tab, which drops it from online clients. Re-show
         // every rebuilt tab to players already online so they don't lose it until they rejoin or re-trigger
         // an award.
+        resyncOnline();
+    }
+
+    // Re-shows every registered addon tab to all players currently online. Safe to call repeatedly; each
+    // showTab re-pushes the advancement tree (a fresh tab instance re-sends even to already-shown players).
+    public void resyncOnline() {
         var online = Bukkit.getOnlinePlayers();
-        if (!online.isEmpty()) {
-            for (AddonAdvancementTab tab : tabs.values()) {
-                for (Player player : online) {
-                    tab.resyncPlayer(player);
-                }
+        if (online.isEmpty()) {
+            return;
+        }
+        for (AddonAdvancementTab tab : tabs.values()) {
+            for (Player player : online) {
+                tab.resyncPlayer(player);
+            }
+        }
+    }
+
+    // Forces every tab to re-send its full tree to online players, bypassing UAA's already-shown guard. Used a
+    // short time after a reload/rebuild when the immediate resync's packet may have been dropped by clients
+    // still re-applying CraftEngine resources.
+    public void forceResyncOnline() {
+        var online = Bukkit.getOnlinePlayers();
+        if (online.isEmpty()) {
+            return;
+        }
+        for (AddonAdvancementTab tab : tabs.values()) {
+            for (Player player : online) {
+                tab.forceResend(player);
             }
         }
     }

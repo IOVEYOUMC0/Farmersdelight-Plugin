@@ -93,7 +93,7 @@ of the name suggests. If you need a vanilla-tag decision, use `matchesTag`, whic
 tags. Returns an empty set for null/air.
 
 ```java
-if (FarmersDelightItems.matchesTag(tool, "#farmersdelight:knives")) {
+if (FarmersDelightItems.matchesTag(tool, "#farmersdelight:tools/knives")) {
     // works for both a CraftEngine custom tag and a vanilla tag of that id
 }
 ```
