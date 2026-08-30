@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/recipes-overview.md)
 # The recipe package
 
 `com.huidu.farmersdelight.api.recipe` is the largest part of the FarmersDelight addon API. It covers three

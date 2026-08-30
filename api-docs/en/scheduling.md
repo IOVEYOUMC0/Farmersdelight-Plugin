@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/scheduling.md)
 # Scheduling and `ApiTask`
 
 FarmersDelight supports both Paper and Folia. Its internal scheduler adapter detects which one it is running
@@ -62,9 +64,8 @@ public interface ApiTask {
 }
 ```
 
-That is the entire type. It exists because the internal scheduler task class is renamed by ProGuard and must
-not leak across the api boundary — `ApiTask` is a stable wrapper you can hold in a field for the lifetime of
-your plugin.
+That is the entire type. It prevents the internal scheduler implementation from leaking across the API
+boundary and gives addons a stable wrapper they can hold for the lifetime of the plugin.
 
 `@ApiStatus.NonExtendable` on an interface means: use it, do not implement it. FarmersDelight supplies the
 instances.

@@ -40,6 +40,16 @@ public final class FarmersDelightItems {
         return ItemUtils.matchesCustomOrVanillaTag(item, tagId);
     }
 
+    /**
+     * Whether two stacks are the same item for recipe/display linking: custom items match by custom id
+     * (ignoring base material), everything else by material type. Amount and NBT are not compared, so a
+     * single custom item is "the same" as a 64-stack of itself. Cross-references and ingredient checks
+     * throughout the addons use this.
+     */
+    public static boolean isSameItem(ItemStack a, ItemStack b) {
+        return ItemUtils.isSameItem(a, b);
+    }
+
     public static boolean isKnife(ItemStack item) {
         return matchesTag(item, "farmersdelight:tools/knives");
     }

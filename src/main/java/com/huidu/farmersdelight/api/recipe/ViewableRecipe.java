@@ -15,10 +15,20 @@ public interface ViewableRecipe {
 
     List<ItemStack> inputs();
 
+    /** Inputs shown in the recipe-list lore; defaults to the detail-page inputs. */
+    default List<ItemStack> listInputs() {
+        return inputs();
+    }
+
     ItemStack result();
 
     default List<Component> infoLines(Player viewer) {
         return List.of();
+    }
+
+    /** Lines shown on the result item in the detail view; defaults to the list/detail info lines. */
+    default List<Component> detailInfoLines(Player viewer) {
+        return infoLines(viewer);
     }
 
     default Component detailTitle() {

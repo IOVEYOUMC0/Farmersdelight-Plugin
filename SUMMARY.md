@@ -1,7 +1,9 @@
 # Table of contents
 
 * [FarmersDelight Admin Wiki](README.md)
+* [管理员 Wiki（中文）](README.zh-cn.md)
 * [Addon Guide](addon-guide/README.md)
+* [附属指南（中文）](addon-guide/README.zh-cn.md)
 * [API Docs](api-docs/README.md)
   * [English](api-docs/en/README.md)
     * [Table of contents](api-docs/en/summary.md)
@@ -56,6 +58,7 @@
     * [Installation](server-guide/en/install.md)
     * [Resource pack](server-guide/en/resource-pack.md)
     * [First config tweaks](server-guide/en/first-config.md)
+    * [Block behavior configuration](server-guide/en/block-behaviors.md)
     * [Verifying behaviours loaded](server-guide/en/verifying.md)
     * [Troubleshooting](server-guide/en/troubleshooting.md)
     * [Migration & upgrades](server-guide/en/migration.md)
@@ -65,6 +68,7 @@
     * [安装](server-guide/zh-cn/install.md)
     * [资源包](server-guide/zh-cn/resource-pack.md)
     * [首要配置项](server-guide/zh-cn/first-config.md)
+    * [方块行为配置](server-guide/zh-cn/block-behaviors.md)
     * [确认行为已加载](server-guide/zh-cn/verifying.md)
     * [故障排查](server-guide/zh-cn/troubleshooting.md)
     * [迁移与升级](server-guide/zh-cn/migration.md)

@@ -2,6 +2,8 @@
 icon: compass-drafting
 ---
 
+[English](../en/recipe-filler-matching.md)
+
 # RecipeFiller 与 IngredientMatching
 
 两块相关的东西：把配方原料从玩家背包搬进你工作站的 Fill 按钮，以及和厨锅用同一套语义回答「这些槽位能不能满足这些 原料」的匹配器。

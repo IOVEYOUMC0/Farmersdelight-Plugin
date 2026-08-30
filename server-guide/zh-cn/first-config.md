@@ -2,6 +2,8 @@
 icon: sliders
 ---
 
+[English](../en/first-config.md)
+
 # 首要配置项
 
 `plugins/FarmersDelight/config.yml` 的默认值是照着原模组调的，全新安装原样就能玩。本页只列**大多数服主第一天会改**的
@@ -100,8 +102,9 @@ advancements:
 
 ## 更深的开关在哪
 
-性能预算、粒子 / 音效、显示偏移、热源、生物额外掉落、村民 / 流浪商人交易、堆肥与熔炉燃料值位于 `config.yml`。
-宠物食物和食物 Buff 关联位于 CraftEngine 物品配置中。两个配置文件都带说明，并在管理员 Wiki 中有文档。第一天基本用不到。
+性能预算、粒子 / 音效、显示偏移、热源和自定义物品的 `container-returns` 位于 `config.yml`。生物额外掉落和稻草掉落规则位于
+`plugins/FarmersDelight/drops.yml`。村民 / 流浪商人交易位于 `plugins/FarmersDelight/world-data.yml`，删掉其中一个条目即可禁用该交易。堆肥、熔炉燃料、宠物食物和食物 Buff
+关联位于 CraftEngine 物品配置中。CE 配置有意保持无注释，字段说明见[方块行为配置](block-behaviors.md)。第一天基本用不到。
 
 ## 下一步
 

@@ -2,18 +2,15 @@ package com.huidu.farmersdelight.manager;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior;
-import com.huidu.farmersdelight.config.CuttingBoardDisplayConfig;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.ManagerSupport;
-import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.SoundUtils;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CampfireRecipeCache;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
-import com.huidu.farmersdelight.util.compat.DisplayTransformUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
-import com.huidu.farmersdelight.visual.ItemDisplayManager;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -25,22 +22,12 @@ import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
-import org.bukkit.NamespacedKey;
-import io.papermc.paper.registry.RegistryAccess;
-import io.papermc.paper.registry.RegistryKey;
-import org.bukkit.damage.DamageSource;
-import org.bukkit.damage.DamageType;
-import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.CookingRecipe;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.util.Transformation;
-import org.joml.Quaternionf;
-import org.joml.Vector3f;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -66,6 +53,7 @@ public class StoveManager {
 
     private final FarmersDelightPlugin plugin;
     private final StoveBurnLogic burnLogic;
+    private final StoveVisualManager visualManager;
     private final Map<Location, StoveData> stoves = new ConcurrentHashMap<>();
     private final Map<UUID, Set<Location>> stovesByWorld = new ConcurrentHashMap<>();
     private final Map<UUID, Map<Long, Set<Location>>> stovesByChunk = new ConcurrentHashMap<>();
@@ -85,23 +73,25 @@ public class StoveManager {
     private int heartbeatTicks;
     private int tickCursor;
     private int tickBudget;
-    private int defaultCookTime = DEFAULT_COOK_TIME;
-    private int coolingDecrement = DEFAULT_COOLING_DECREMENT;
-    private boolean smokeEnabled = true;
-    private Particle smokeParticle = Particle.SMOKE;
-    private double smokeChance = DEFAULT_SMOKE_CHANCE;
-    private int smokeCount = 1;
-    private double smokeYOffset = 0.0D;
-    private double smokeOffsetX = 0.0D;
-    private double smokeOffsetY = 0.0D;
-    private double smokeOffsetZ = 0.0D;
-    private double smokeSpeed = 0.02D;
-    private boolean crackleEnabled = true;
-    private double crackleChance = DEFAULT_CRACKLE_CHANCE;
-    private float crackleVolume = 1.0F;
-    private float cracklePitch = 1.0F;
-    private boolean fireParticlesEnabled = true;
-    private double fireParticleChance = 0.15D;
+    // The following are reload-written (reload/command thread) and read on Folia region tick threads —
+    // volatile for a happens-before edge, matching effectViewerDistance below.
+    private volatile int defaultCookTime = DEFAULT_COOK_TIME;
+    private volatile int coolingDecrement = DEFAULT_COOLING_DECREMENT;
+    private volatile boolean smokeEnabled = true;
+    private volatile Particle smokeParticle = Particle.SMOKE;
+    private volatile double smokeChance = DEFAULT_SMOKE_CHANCE;
+    private volatile int smokeCount = 1;
+    private volatile double smokeYOffset = 0.0D;
+    private volatile double smokeOffsetX = 0.0D;
+    private volatile double smokeOffsetY = 0.0D;
+    private volatile double smokeOffsetZ = 0.0D;
+    private volatile double smokeSpeed = 0.02D;
+    private volatile boolean crackleEnabled = true;
+    private volatile double crackleChance = DEFAULT_CRACKLE_CHANCE;
+    private volatile float crackleVolume = 1.0F;
+    private volatile float cracklePitch = 1.0F;
+    private volatile boolean fireParticlesEnabled = true;
+    private volatile double fireParticleChance = 0.15D;
     // Written in reloadConfig (reload thread), read on Folia region tick threads (effect/burn) — volatile
     // for a happens-before edge, matching the other reload-mutated tick-read fields.
     private volatile double effectViewerDistance = 32.0D;
@@ -123,17 +113,12 @@ public class StoveManager {
     // effect emission and consumed synchronously within the same tick, so it never escapes.
     private static final ThreadLocal<List<Player>> NEARBY_VIEWER_SCRATCH = ThreadLocal.withInitial(ArrayList::new);
 
-    private volatile double[][] slotOffsets = StoveSlotOffsets.defaults();
-
     public StoveManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
         this.burnLogic = new StoveBurnLogic(plugin);
+        this.visualManager = new StoveVisualManager(plugin);
         reloadConfig();
         campfireRecipes.rebuild();
-    }
-
-    private long chunkKey(int chunkX, int chunkZ) {
-        return (((long) chunkX) << 32) ^ (chunkZ & 0xffffffffL);
     }
 
     public void trackBurnStove(Location location) {
@@ -146,10 +131,6 @@ public class StoveManager {
 
     private void untrackBurnStoveChunk(World world, int chunkX, int chunkZ) {
         burnLogic.untrackBurnStoveChunk(world, chunkX, chunkZ);
-    }
-
-    private long chunkKey(Location location) {
-        return chunkKey(location.getBlockX() >> 4, location.getBlockZ() >> 4);
     }
 
     public void reloadConfig() {
@@ -165,41 +146,41 @@ public class StoveManager {
         burnLogic.reload(plugin.getConfigDouble(StoveBurnLogic.DEFAULT_BURN_MOB_RADIUS, "stove.burn.mob-scan-radius"));
         this.chunkEffectBudgetLimit = Math.max(1, plugin.getConfigInt(50, "performance.chunk-effect-packet-budget"));
         loadEffectsConfig();
-        this.slotOffsets = StoveSlotOffsets.load(plugin, SLOT_COUNT);
-        refreshVisualsAfterConfigReload();
+        visualManager.reloadSlotOffsets();
+        visualManager.refreshAll(stoves.values());
     }
 
     private void loadEffectsConfig() {
         ConfigurationSection effectsSection = plugin.getFirstConfigSection("stove.effects");
         ConfigurationSection smokeSection = effectsSection != null ? effectsSection.getConfigurationSection("smoke") : null;
-        smokeEnabled = smokeSection == null || smokeSection.getBoolean("enabled", true);
-        smokeParticle = ManagerSupport.resolveParticle(smokeSection == null ? null : smokeSection.getString("type"), Particle.SMOKE);
+        smokeEnabled = smokeSection == null || ConfigSectionReader.optionalBoolean(smokeSection, "enabled", true);
+        smokeParticle = ManagerSupport.resolveParticle(smokeSection == null ? null : ConfigSectionReader.optionalString(smokeSection, "type"), Particle.SMOKE);
         smokeChance = ManagerSupport.clampChance(smokeSection == null
                 ? DEFAULT_SMOKE_CHANCE
-                : smokeSection.getDouble("chance", DEFAULT_SMOKE_CHANCE));
-        smokeCount = Math.max(1, smokeSection == null ? 1 : smokeSection.getInt("count", 1));
-        smokeYOffset = smokeSection == null ? 0.0D : smokeSection.getDouble("y-offset", 0.0D);
-        smokeOffsetX = Math.max(0.0D, smokeSection == null ? 0.0D : smokeSection.getDouble("offset-x", 0.0D));
-        smokeOffsetY = Math.max(0.0D, smokeSection == null ? 0.0D : smokeSection.getDouble("offset-y", 0.0D));
-        smokeOffsetZ = Math.max(0.0D, smokeSection == null ? 0.0D : smokeSection.getDouble("offset-z", 0.0D));
-        smokeSpeed = Math.max(0.0D, smokeSection == null ? 0.02D : smokeSection.getDouble("speed", 0.02D));
+                : ConfigSectionReader.optionalDouble(smokeSection, "chance", DEFAULT_SMOKE_CHANCE));
+        smokeCount = Math.max(1, smokeSection == null ? 1 : ConfigSectionReader.optionalInt(smokeSection, "count", 1));
+        smokeYOffset = smokeSection == null ? 0.0D : ConfigSectionReader.optionalDouble(smokeSection, "y-offset", 0.0D);
+        smokeOffsetX = Math.max(0.0D, smokeSection == null ? 0.0D : ConfigSectionReader.optionalDouble(smokeSection, "offset-x", 0.0D));
+        smokeOffsetY = Math.max(0.0D, smokeSection == null ? 0.0D : ConfigSectionReader.optionalDouble(smokeSection, "offset-y", 0.0D));
+        smokeOffsetZ = Math.max(0.0D, smokeSection == null ? 0.0D : ConfigSectionReader.optionalDouble(smokeSection, "offset-z", 0.0D));
+        smokeSpeed = Math.max(0.0D, smokeSection == null ? 0.02D : ConfigSectionReader.optionalDouble(smokeSection, "speed", 0.02D));
 
         ConfigurationSection crackleSection = effectsSection != null ? effectsSection.getConfigurationSection("crackle") : null;
-        crackleEnabled = crackleSection == null || crackleSection.getBoolean("enabled", true);
+        crackleEnabled = crackleSection == null || ConfigSectionReader.optionalBoolean(crackleSection, "enabled", true);
         crackleChance = ManagerSupport.clampChance(crackleSection == null
                 ? DEFAULT_CRACKLE_CHANCE
-                : crackleSection.getDouble("chance", DEFAULT_CRACKLE_CHANCE));
-        crackleVolume = (float) Math.max(0.0D, crackleSection == null ? 1.0D : crackleSection.getDouble("volume", 1.0D));
-        cracklePitch = (float) Math.max(0.0D, crackleSection == null ? 1.0D : crackleSection.getDouble("pitch", 1.0D));
+                : ConfigSectionReader.optionalDouble(crackleSection, "chance", DEFAULT_CRACKLE_CHANCE));
+        crackleVolume = (float) Math.max(0.0D, crackleSection == null ? 1.0D : ConfigSectionReader.optionalDouble(crackleSection, "volume", 1.0D));
+        cracklePitch = (float) Math.max(0.0D, crackleSection == null ? 1.0D : ConfigSectionReader.optionalDouble(crackleSection, "pitch", 1.0D));
 
         ConfigurationSection fireSection = effectsSection != null ? effectsSection.getConfigurationSection("fire") : null;
-        fireParticlesEnabled = fireSection == null || fireSection.getBoolean("enabled", true);
+        fireParticlesEnabled = fireSection == null || ConfigSectionReader.optionalBoolean(fireSection, "enabled", true);
         fireParticleChance = ManagerSupport.clampChance(fireSection == null
                 ? 0.15D
-                : fireSection.getDouble("chance", 0.15D));
+                : ConfigSectionReader.optionalDouble(fireSection, "chance", 0.15D));
         effectViewerDistance = Math.max(0.0D, effectsSection == null
                 ? 32.0D
-                : effectsSection.getDouble("viewer-distance", 32.0D));
+                : ConfigSectionReader.optionalDouble(effectsSection, "viewer-distance", 32.0D));
     }
 
     private void ensureTaskRunning() {
@@ -317,7 +298,7 @@ public class StoveManager {
                     + ", duration=" + stove.maxTime[emptySlot] + ", location=" + formatLocation(location));
         }
 
-        createVisual(location, stove, emptySlot, CustomBlockUtils.getFacing(block).getOppositeFace());
+        visualManager.createVisual(location, stove, emptySlot, CustomBlockUtils.getFacing(block).getOppositeFace());
         saveStove(location, stove);
         if (player.getGameMode() != GameMode.CREATIVE) {
             debug("consume: slot=" + emptySlot + ", before=" + itemInHand.getAmount() + ", after=" + (itemInHand.getAmount() - 1)
@@ -371,7 +352,7 @@ public class StoveManager {
         flushControllerPendingData(normalized);
         StoveData stove = removeTrackedStove(normalized);
         if (stove != null) {
-            cleanupAllVisuals(stove);
+            visualManager.cleanupAllVisuals(stove);
             if (shouldDropItems) {
                 for (ItemStack item : stove.items) {
                     if (item != null && !item.getType().isAir()) {
@@ -451,7 +432,7 @@ public class StoveManager {
             if (stove != null) {
                 removedAny = true;
                 scheduledStoveTicks.remove(location);
-                cleanupAllVisuals(stove);
+                visualManager.cleanupAllVisuals(stove);
             }
         }
         if (removedAny) {
@@ -466,7 +447,7 @@ public class StoveManager {
         }
         untrackBurnStoveChunk(world, minX >> 4, minZ >> 4);
         Map<Long, Set<Location>> worldChunks = stovesByChunk.get(world.getUID());
-        Set<Location> locations = worldChunks == null ? null : worldChunks.get(chunkKey(minX >> 4, minZ >> 4));
+        Set<Location> locations = worldChunks == null ? null : worldChunks.get(ManagerSupport.chunkKey(minX, minZ));
         if (locations == null || locations.isEmpty()) {
             return;
         }
@@ -542,7 +523,7 @@ public class StoveManager {
                 if (data.get("slot_" + i + "_owner_name") instanceof String ownerName) {
                     stove.ownerNames[i] = ownerName;
                 }
-                createVisual(location, stove, i, facing);
+                visualManager.createVisual(location, stove, i, facing);
                 hasAnyItem = true;
             }
         }
@@ -602,7 +583,7 @@ public class StoveManager {
         burnLogic.shutdown();
         burnLogic.clearAll();
         for (StoveData stove : stoves.values()) {
-            cleanupAllVisuals(stove);
+            visualManager.cleanupAllVisuals(stove);
         }
         stoves.clear();
         stovesByWorld.clear();
@@ -621,12 +602,9 @@ public class StoveManager {
         Location normalized = ManagerSupport.normalize(location);
         StoveData stove = removeTrackedStove(normalized);
         if (stove != null) {
-            cleanupAllVisuals(stove);
+            visualManager.cleanupAllVisuals(stove);
         }
         stopTaskIfIdle();
-        if (false) {
-            removeStoredData(normalized);
-        }
     }
 
     private void putStove(Location location, StoveData stove) {
@@ -635,7 +613,7 @@ public class StoveManager {
         if (previous != null && previous != stove) {
             // Overwriting a still-tracked stove (double chunk-load / reload re-scan): destroy the old stove's
             // item displays so they don't orphan (the incoming stove already created its own visuals).
-            cleanupAllVisuals(previous);
+            visualManager.cleanupAllVisuals(previous);
         }
         indexStove(normalized);
         markTickLocationsDirty();
@@ -684,7 +662,7 @@ public class StoveManager {
                 .add(location);
         stovesByChunk
                 .computeIfAbsent(location.getWorld().getUID(), ignored -> new ConcurrentHashMap<>())
-                .computeIfAbsent(chunkKey(location), ignored -> ConcurrentHashMap.newKeySet())
+                .computeIfAbsent(ManagerSupport.chunkKey(location), ignored -> ConcurrentHashMap.newKeySet())
                 .add(location);
     }
 
@@ -706,7 +684,7 @@ public class StoveManager {
         if (worldChunks == null) {
             return;
         }
-        long chunkKey = chunkKey(location);
+        long chunkKey = ManagerSupport.chunkKey(location);
         Set<Location> chunkLocations = worldChunks.get(chunkKey);
         if (chunkLocations == null) {
             return;
@@ -805,7 +783,7 @@ public class StoveManager {
         Block block = location.getBlock();
         if (block.getType().isAir()) {
             debug(() -> "tick remove: stove carrier block is air at " + formatLocation(location));
-            cleanupAllVisuals(stove);
+            visualManager.cleanupAllVisuals(stove);
             removeStoredData(location);
             removeTrackedStove(location);
             return;
@@ -831,7 +809,7 @@ public class StoveManager {
         if (stove.blockedAbove) {
             debug(() -> "tick remove: stove blocked above, ejecting all items at " + formatLocation(location));
             ejectAllItems(location, stove);
-            cleanupAllVisuals(stove);
+            visualManager.cleanupAllVisuals(stove);
             removeStoredData(location);
             removeTrackedStove(location);
             return;
@@ -875,7 +853,7 @@ public class StoveManager {
         // fixed tick residue, so a Bukkit.getCurrentTick()-derived stagger never rotates — it would
         // permanently silence 3/4 of chunks. The chunk was checked loaded at the top of this method and
         // cannot unload within the same region tick, so getChunkAt cannot trigger a sync load here.
-        long chunkKey = ((long) stoveChunkX << 32) | (stoveChunkZ & 0xffffffffL);
+        long chunkKey = ManagerSupport.chunkKey(stoveChunkX, stoveChunkZ);
         if (currentBukkitTick != effectBudgetResetTick) {
             chunkFx.clear();
             effectBudgetResetTick = currentBukkitTick;
@@ -921,7 +899,7 @@ public class StoveManager {
                 continue;
             }
 
-            ensureVisualExists(location, stove, i, facing);
+            visualManager.ensureVisualExists(location, stove, i, facing);
             int slot = i;
             if (debugStove) {
                 debug(() -> "tick slot: slot=" + slot + ", progress=" + stove.cookingTime[slot] + "/" + stove.maxTime[slot]
@@ -1027,7 +1005,7 @@ public class StoveManager {
         stove.maxTime[slot] = defaultCookTime;
         stove.ownerIds[slot] = null;
         stove.ownerNames[slot] = null;
-        removeVisual(location, stove, slot);
+        visualManager.removeVisual(location, stove, slot);
 
         // Mark unconditionally: with other slots still occupied the disk copy would otherwise keep the
         // finished slot until the next unrelated write, and a crash would restore the already-dropped item.
@@ -1048,7 +1026,7 @@ public class StoveManager {
     }
 
     private void spawnCookingParticles(List<Player> viewers, Location location, int slot, BlockFace facing) {
-        double[] offset = getRotatedSlotOffset(slot, facing);
+        double[] offset = visualManager.getRotatedSlotOffset(slot, facing);
         double px = location.getX() + 0.5 + offset[0];
         double py = location.getY() + offset[1] + smokeYOffset;
         double pz = location.getZ() + 0.5 + offset[2];
@@ -1070,135 +1048,6 @@ public class StoveManager {
         ManagerSupport.spawnParticleFor(viewers, Particle.FLAME, px, py, pz, 1, 0.0D, 0.0D, 0.0D, 0.0D);
     }
 
-    private void createVisual(Location location, StoveData stove, int slot, BlockFace facing) {
-        removeVisual(location, stove, slot);
-
-        ItemStack item = stove.items[slot];
-        if (item == null || item.getType().isAir()) {
-            debug("spawn display: skipped empty item for slot=" + slot + ", location=" + formatLocation(location));
-            return;
-        }
-
-        double[] offset = getRotatedSlotOffset(slot, facing);
-        ItemDisplayManager visualManager = plugin.getItemDisplayManager();
-        if (visualManager == null || !visualManager.isAvailable()) {
-            debug("spawn display: visual manager unavailable for slot=" + slot + ", item=" + formatItem(item)
-                    + ", location=" + formatLocation(location));
-            return;
-        }
-
-        Location displayLocation = location.clone().add(0.5 + offset[0], offset[1], 0.5 + offset[2]);
-        CuttingBoardDisplayConfig displayConfig = plugin.getStoveDisplayConfig();
-        CuttingBoardDisplayConfig.DisplayOverride displayOverride = displayConfig.getOverride(item);
-        ItemStack visualItem = displayConfig.resolveDisplayItem(item, displayOverride);
-        if (visualItem == null || visualItem.getType().isAir()) {
-            debug("spawn display: skipped unresolved display item for slot=" + slot + ", item=" + formatItem(item)
-                    + ", location=" + formatLocation(location));
-            return;
-        }
-        if (displayOverride.offset() != null) {
-            double[] configuredOffset = DisplayTransformUtils.stoveSlotOffset(
-                    (double) displayOverride.offset().x(),
-                    (double) displayOverride.offset().y(),
-                    (double) displayOverride.offset().z(),
-                    facing
-            );
-            displayLocation.add(configuredOffset[0], configuredOffset[1], configuredOffset[2]);
-        }
-
-        boolean isBlockItem = switch (displayOverride.style()) {
-            case BLOCK -> true;
-            case ITEM -> false;
-            default -> ItemUtils.shouldUseBlockStyleDisplay(visualItem);
-        };
-        float xRotation = isBlockItem ? 0.0F : -90.0F;
-        float yRotation = DisplayTransformUtils.stoveYaw(facing);
-        float zRotation = 0.0F;
-        if (displayOverride.rotationDegrees() != null) {
-            xRotation = displayOverride.rotationDegrees().x();
-            yRotation = displayOverride.rotationDegrees().y();
-            zRotation = displayOverride.rotationDegrees().z();
-        }
-
-        Quaternionf leftRotation = new Quaternionf();
-        leftRotation.rotationYXZ(
-                (float) Math.toRadians(yRotation),
-                (float) Math.toRadians(xRotation),
-                (float) Math.toRadians(zRotation)
-        );
-
-        Vector3f translation = displayOverride.translation() == null
-                ? new Vector3f(0.0F, 0.0F, 0.0F)
-                : new Vector3f(displayOverride.translation());
-        Vector3f scale = displayOverride.scale() == null
-                ? new Vector3f(plugin.getStoveDisplayScale(), plugin.getStoveDisplayScale(), plugin.getStoveDisplayScale())
-                : new Vector3f(displayOverride.scale());
-        Transformation transformation = new Transformation(
-                translation,
-                leftRotation,
-                scale,
-                new Quaternionf()
-        );
-
-        stove.displayEntities[slot] = visualManager.createDisplay(new ItemDisplayManager.DisplaySpec(
-                displayLocation,
-                visualItem,
-                org.bukkit.entity.ItemDisplay.ItemDisplayTransform.FIXED,
-                transformation
-        ));
-        debug("spawn display: slot=" + slot + ", entityId=" + stove.displayEntities[slot] + ", item=" + formatItem(visualItem)
-                + ", location=" + formatLocation(location));
-    }
-
-    private void ensureVisualExists(Location location, StoveData stove, int slot, BlockFace facing) {
-        int entityId = stove.displayEntities[slot];
-        if (entityId < 0) {
-            createVisual(location, stove, slot, facing);
-        }
-    }
-
-    private double[] getRotatedSlotOffset(int slot, BlockFace facing) {
-        double[] offset = slotOffsets[slot];
-        return DisplayTransformUtils.stoveSlotOffset(offset[0], offset[1], offset[2], facing);
-    }
-
-    private void refreshVisualsAfterConfigReload() {
-        if (stoves.isEmpty()) {
-            return;
-        }
-        for (StoveData stove : stoves.values()) {
-            if (stove == null || stove.location == null) {
-                continue;
-            }
-            Location stoveLoc = stove.location;
-            plugin.scheduler().runAt(stoveLoc, () -> {
-                BlockFace facing = CustomBlockUtils.getFacing(stoveLoc.getBlock()).getOppositeFace();
-                for (int slot = 0; slot < SLOT_COUNT; slot++) {
-                    if (stove.items[slot] != null && !stove.items[slot].getType().isAir()) {
-                        createVisual(stoveLoc, stove, slot, facing);
-                    }
-                }
-            });
-        }
-    }
-
-    private void removeVisual(Location location, StoveData stove, int slot) {
-        int entityId = stove.displayEntities[slot];
-        if (entityId < 0) return;
-        stove.displayEntities[slot] = -1;
-
-        ItemDisplayManager visualManager = plugin.getItemDisplayManager();
-        if (visualManager != null) {
-            visualManager.destroyDisplay(entityId);
-        }
-    }
-
-    private void cleanupAllVisuals(StoveData stove) {
-        for (int i = 0; i < SLOT_COUNT; i++) {
-            removeVisual(stove.location, stove, i);
-        }
-    }
-
     private boolean retrieveItem(Player player, Location location, StoveData stove) {
         int slot = findBestRetrievalSlot(stove);
         if (slot < 0) {
@@ -1216,7 +1065,7 @@ public class StoveManager {
         stove.maxTime[slot] = defaultCookTime;
         stove.ownerIds[slot] = null;
         stove.ownerNames[slot] = null;
-        removeVisual(location, stove, slot);
+        visualManager.removeVisual(location, stove, slot);
 
         if (player.getInventory().getItemInMainHand().getType().isAir()) {
             player.getInventory().setItemInMainHand(toReturn);

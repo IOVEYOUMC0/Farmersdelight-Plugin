@@ -57,8 +57,7 @@ public abstract class RugBlockBehavior extends FarmersDelightBlockBehavior {
                 .orElse(null);
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    protected static ImmutableBlockState withPropertyValue(ImmutableBlockState state, Property property, String valueName) {
+    protected static ImmutableBlockState withPropertyValue(ImmutableBlockState state, Property<?> property, String valueName) {
         Comparable<?> value = property.valueByName(valueName);
         return value == null ? state : ImmutableBlockState.with(state, property, value);
     }

@@ -1,5 +1,7 @@
 package com.huidu.farmersdelight.config;
 
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
@@ -19,7 +21,14 @@ public class ContainerReturnConfig {
         if (section == null) return;
 
         for (String itemId : section.getKeys(false)) {
-            String returnItemStr = section.getString(itemId);
+            String returnItemStr;
+            try {
+                returnItemStr = ConfigSectionReader.optionalString(section, itemId);
+            } catch (RuntimeException e) {
+                I18n.logWarning("plugin.config_value_invalid", "file", "config.yml",
+                        "path", section.getCurrentPath() + "." + itemId, "error", e.getMessage());
+                continue;
+            }
             if (ItemUtils.isEmptyItemId(returnItemStr)) {
                 containerReturnMap.remove(itemId.toLowerCase(java.util.Locale.ROOT));
                 continue;
@@ -33,6 +42,8 @@ public class ContainerReturnConfig {
         ItemStack returnItem = ItemUtils.createItem(returnItemId);
         if (returnItem != null) {
             containerReturnMap.put(itemId.toLowerCase(java.util.Locale.ROOT), returnItem);
+        } else {
+            I18n.logWarning("plugin.item_not_found", "path", itemId, "id", returnItemId);
         }
     }
 

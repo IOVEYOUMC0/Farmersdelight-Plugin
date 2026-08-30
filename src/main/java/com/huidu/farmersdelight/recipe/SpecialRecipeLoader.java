@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.recipe;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.api.recipe.SpecialRecipeInfo;
 import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.configuration.ConfigurationSection;
@@ -9,17 +10,19 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 public final class SpecialRecipeLoader {
 
-    private static final String FILE_NAME = "special_recipes.yml";
+    private static final String FILE_NAME = "recipes/special_recipes.yml";
     private static final String ROOT_KEY = "special_recipes";
 
     private SpecialRecipeLoader() {
@@ -75,12 +78,28 @@ public final class SpecialRecipeLoader {
     private static YamlConfiguration loadConfig(FarmersDelightPlugin plugin) {
         File file = new File(plugin.getDataFolder(), FILE_NAME);
         if (!file.exists()) {
-            try {
-                plugin.saveResource(FILE_NAME, false);
-            } catch (IllegalArgumentException e) {
-                I18n.logWarning("plugin.special_recipe_save_failed",
-                        "file", FILE_NAME, "error", e.getMessage());
-                return null;
+            // Carry over a server's old root-level special_recipes.yml (keeps player edits) before
+            // falling back to releasing the bundled default under recipes/.
+            File legacy = new File(plugin.getDataFolder(), "special_recipes.yml");
+            if (legacy.exists() && !legacy.isDirectory()) {
+                try {
+                    File parent = file.getParentFile();
+                    if (parent != null && !parent.exists()) {
+                        parent.mkdirs();
+                    }
+                    Files.copy(legacy.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException e) {
+                    I18n.logWarning("plugin.special_recipe_save_failed",
+                            "file", FILE_NAME, "error", e.getMessage());
+                }
+            } else {
+                try {
+                    plugin.saveResource(FILE_NAME, false);
+                } catch (IllegalArgumentException e) {
+                    I18n.logWarning("plugin.special_recipe_save_failed",
+                            "file", FILE_NAME, "error", e.getMessage());
+                    return null;
+                }
             }
         }
 
@@ -109,11 +128,13 @@ public final class SpecialRecipeLoader {
         }
     }
 
-    private static SpecialRecipeInfo parseRecipe(String id, ConfigurationSection section) {
-        String titleKey = section.getString("title", "gui.special_recipe." + id + ".title");
-        String iconItemId = section.getString("icon", "minecraft:barrier");
-        List<String> descriptionKeys = section.getStringList("description");
-        String displayType = section.getString("display-type", SpecialRecipeInfo.DISPLAY_RECIPE);
+    /** Parses one special-recipe config entry into a SpecialRecipeInfo; exposed so addons can drive their
+     *  special recipes from a config file exactly like their other recipes. */
+    public static SpecialRecipeInfo parseRecipe(String id, ConfigurationSection section) {
+        String titleKey = ConfigSectionReader.optionalString(section, "title", "gui.special_recipe." + id + ".title");
+        String iconItemId = ConfigSectionReader.optionalString(section, "icon", "minecraft:barrier");
+        List<String> descriptionKeys = ConfigSectionReader.optionalStringList(section, "description");
+        String displayType = ConfigSectionReader.optionalString(section, "display-type", SpecialRecipeInfo.DISPLAY_RECIPE);
 
         List<SpecialRecipeInfo.SlotEntry> inputSlots = parseSlotEntries(section, "inputs");
         List<SpecialRecipeInfo.SlotEntry> outputSlots = parseSlotEntries(section, "outputs");
@@ -126,9 +147,9 @@ public final class SpecialRecipeLoader {
         List<SpecialRecipeInfo.SlotEntry> catalystSlots = List.of();
 
         if (conditions != null) {
-            hasSunlight = conditions.getBoolean("sunlight", false);
-            hasWater = conditions.getBoolean("water", false);
-            hasCatalystInfo = conditions.getBoolean("catalyst_info", false);
+            hasSunlight = ConfigSectionReader.optionalBoolean(conditions, "sunlight", false);
+            hasWater = ConfigSectionReader.optionalBoolean(conditions, "water", false);
+            hasCatalystInfo = ConfigSectionReader.optionalBoolean(conditions, "catalyst_info", false);
         }
 
         // Top-level catalysts list (for recipes without a conditions block)
@@ -162,14 +183,14 @@ public final class SpecialRecipeLoader {
     }
 
     private static SpecialRecipeInfo.SlotEntry parseSlotEntry(ConfigurationSection section) {
-        String itemId = section.getString("item");
+        String itemId = ConfigSectionReader.optionalString(section, "item");
         // Behavior-list reference: "behavior: <block id>" + "list: <config key>" (e.g. the
         // organic_compost behavior's "activators"). Resolved lazily at display time.
-        String behaviorBlockId = section.getString("behavior");
-        String behaviorListKey = section.getString("list");
+        String behaviorBlockId = ConfigSectionReader.optionalString(section, "behavior");
+        String behaviorListKey = ConfigSectionReader.optionalString(section, "list");
         if (itemId == null && behaviorBlockId == null) return null;
-        String nameKey = section.getString("name", "");
-        List<String> loreKeys = section.getStringList("lore");
+        String nameKey = ConfigSectionReader.optionalString(section, "name", "");
+        List<String> loreKeys = ConfigSectionReader.optionalStringList(section, "lore");
         return new SpecialRecipeInfo.SlotEntry(itemId, behaviorBlockId, behaviorListKey, nameKey, loreKeys);
     }
 }

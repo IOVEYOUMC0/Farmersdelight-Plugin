@@ -2,6 +2,8 @@
 icon: gamepad
 ---
 
+[简体中文](../zh-cn/README.md)
+
 # Player Guide
 
 Everything Farmer's Delight adds to the game, explained for players: the cooking

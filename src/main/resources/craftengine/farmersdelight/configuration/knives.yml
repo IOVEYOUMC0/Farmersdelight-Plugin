@@ -28,7 +28,7 @@ items:
         enchantability: 14
         attack-sound: minecraft:entity.player.attack.sweep
       tags:
-      - farmersdelight:knives
+      - farmersdelight:tools/knives
   farmersdelight:iron_knife:
     material: nether_brick
     model: ${__NAMESPACE__}:item/${__ID__}
@@ -58,7 +58,7 @@ items:
         enchantability: 14
         attack-sound: minecraft:entity.player.attack.sweep
       tags:
-      - farmersdelight:knives
+      - farmersdelight:tools/knives
   farmersdelight:golden_knife:
     material: nether_brick
     model: ${__NAMESPACE__}:item/${__ID__}
@@ -88,7 +88,7 @@ items:
         enchantability: 22
         attack-sound: minecraft:entity.player.attack.sweep
       tags:
-      - farmersdelight:knives
+      - farmersdelight:tools/knives
   farmersdelight:diamond_knife:
     material: nether_brick
     model: ${__NAMESPACE__}:item/${__ID__}
@@ -118,7 +118,7 @@ items:
         enchantability: 10
         attack-sound: minecraft:entity.player.attack.sweep
       tags:
-      - farmersdelight:knives
+      - farmersdelight:tools/knives
   farmersdelight:netherite_knife:
     material: nether_brick
     model: ${__NAMESPACE__}:item/${__ID__}
@@ -149,7 +149,7 @@ items:
         enchantability: 15
         attack-sound: minecraft:entity.player.attack.sweep
       tags:
-      - farmersdelight:knives
+      - farmersdelight:tools/knives
 recipes:
   farmersdelight:flint_knife:
     type: shaped

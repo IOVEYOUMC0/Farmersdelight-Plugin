@@ -2,6 +2,8 @@
 icon: text
 ---
 
+[English](../en/text-and-messages.md)
+
 # 文本与消息
 
 `com.huidu.farmersdelight.api.text` 下有两个 final 工具类。`FarmersDelightText` 把模板字符串渲染成 Adventure 的 `Component`；`FarmersDelightMessages` 则是渲染加发送一步到位。两个类都是纯静态、私有构造，只能调用，不能继承 也不能实例化。两者都没有 `@ApiStatus` 注解。

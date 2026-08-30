@@ -2,6 +2,8 @@
 icon: circle-check
 ---
 
+[English](../en/verifying.md)
+
 # 确认行为已加载
 
 ## 启动摘要

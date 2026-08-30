@@ -2,6 +2,8 @@
 icon: download
 ---
 
+[English](../en/install.md)
+
 # 安装
 
 五步就能从「下载好的 jar」到「手里拿着一口能用的烹饪锅」。

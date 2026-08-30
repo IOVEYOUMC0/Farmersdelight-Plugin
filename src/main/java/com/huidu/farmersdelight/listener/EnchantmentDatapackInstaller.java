@@ -5,13 +5,13 @@ import com.huidu.farmersdelight.api.enchant.EnchantmentDefinition;
 import com.huidu.farmersdelight.api.enchant.FarmersDelightEnchantments;
 import com.huidu.farmersdelight.config.EnchantmentSettings;
 import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.util.DatapackSupport;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.server.ServerLoadEvent;
-import org.bukkit.event.world.WorldLoadEvent;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -28,7 +28,6 @@ import java.util.Map;
 public final class EnchantmentDatapackInstaller implements Listener {
 
     private static final String DATAPACK_DIRECTORY = "farmersdelight_enchant";
-    private static final int PACK_FORMAT = 48;
     private static final String PACK_DESCRIPTION = "FarmersDelight configurable enchantments";
 
     private static final int MIN_COST_BASE = 15;
@@ -54,39 +53,53 @@ public final class EnchantmentDatapackInstaller implements Listener {
         this.installEnabled = plugin.getConfig().getBoolean("enchantments.install-datapack", true);
     }
 
-    public void installToAllWorlds() {
-        EnchantmentSettings settings = plugin.getEnchantmentSettings();
-        if (!shouldInstall(settings)) {
-            return;
-        }
-        List<World> worlds = Bukkit.getWorlds();
-        if (worlds.isEmpty()) {
+    // Registry-scoped datapack content (enchantments, enchantment tags) is loaded by the server from
+    // the primary world's datapacks folder and shared by every world, so the pack is written once into
+    // the primary world. Copies the old all-world installer may have left in other worlds are removed.
+    public void installToPrimaryWorld(World primaryWorld) {
+        if (primaryWorld == null) {
             I18n.logWarning("enchantment_datapack_no_worlds");
             return;
         }
-        int changedWorlds = 0;
-        for (World world : worlds) {
-            if (plugin.isDatapackWorldAllowed(world)) {
-                continue;
-            }
-            if (installToWorld(world, settings)) {
-                changedWorlds++;
-            }
+        EnchantmentSettings settings = plugin.getEnchantmentSettings();
+        boolean wrote;
+        if (shouldInstall(settings)) {
+            wrote = installToWorld(primaryWorld, settings);
+        } else {
+            wrote = deletePack(DatapackSupport.worldRoot(primaryWorld)
+                    .resolve("datapacks").resolve(DATAPACK_DIRECTORY));
         }
-        if (changedWorlds > 0) {
-            printRestartBanner(changedWorlds);
+        int cleaned = cleanupRedundantDatapacks(primaryWorld);
+        if (wrote || cleaned > 0) {
+            printRestartBanner();
         }
     }
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onWorldLoad(WorldLoadEvent event) {
-        if (plugin.isDatapackWorldAllowed(event.getWorld())) {
-            return;
+    // Deletes the farmersdelight_enchant datapack from every non-primary world. Those folders were only
+    // ever written by the old per-world installer and are never read by the server (only the primary
+    // world's datapacks/ is scanned), so they are harmless-but-stale files. Skips the primary world.
+    private int cleanupRedundantDatapacks(World primaryWorld) {
+        String primaryName = primaryWorld.getName();
+        int removed = 0;
+        for (World world : Bukkit.getWorlds()) {
+            if (primaryName.equals(world.getName())) {
+                continue;
+            }
+            Path redundant = DatapackSupport.worldRoot(world)
+                    .resolve("datapacks")
+                    .resolve(DATAPACK_DIRECTORY);
+            try {
+                if (Files.exists(redundant)) {
+                    DatapackSupport.deleteRecursively(redundant);
+                    removed++;
+                    I18n.logInfo("enchantment_datapack_redundant_removed", "world", world.getName());
+                }
+            } catch (IOException e) {
+                plugin.getLogger().warning("FarmersDelight enchant datapack: failed to remove redundant folder under "
+                        + redundant + ": " + e.getMessage());
+            }
         }
-        EnchantmentSettings settings = plugin.getEnchantmentSettings();
-        if (shouldInstall(settings) && installToWorld(event.getWorld(), settings)) {
-            printRestartBanner(1);
-        }
+        return removed;
     }
 
     // Startup plugin-enable order is not guaranteed, so a conflicting enchantment plugin that enabled after
@@ -109,7 +122,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
     }
 
     private boolean installToWorld(World world, EnchantmentSettings settings) {
-        Path datapackDir = getWorldRoot(world)
+        Path datapackDir = DatapackSupport.worldRoot(world)
                 .resolve("datapacks")
                 .resolve(DATAPACK_DIRECTORY);
         try {
@@ -168,6 +181,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
                     changed++;
                 }
             }
+            changed += deleteStaleFiles(datapackDir, generated);
             if (changed > 0) {
                 I18n.logDetail("startup", "plugin.enchantment_datapack_written",
                         "count", changed, "dir", datapackDir);
@@ -187,20 +201,15 @@ public final class EnchantmentDatapackInstaller implements Listener {
                 .resolve(id.path() + ".json");
     }
 
-    private void printRestartBanner(int worlds) {
+    private void printRestartBanner() {
         plugin.getLogger().warning("==================================================================");
-        plugin.getLogger().warning(" Updated FarmersDelight enchantment datapack in " + worlds + " world(s).");
+        plugin.getLogger().warning(" Updated FarmersDelight enchantment datapack (primary world only).");
         plugin.getLogger().warning(" RESTART the server to apply registry-level enchantment changes.");
         plugin.getLogger().warning("==================================================================");
     }
 
     static String renderPackMetadata() {
-        return "{\n"
-                + "  \"pack\": {\n"
-                + "    \"pack_format\": " + PACK_FORMAT + ",\n"
-                + "    \"description\": \"" + json(PACK_DESCRIPTION) + "\"\n"
-                + "  }\n"
-                + "}\n";
+        return DatapackSupport.renderPackMetadata(PACK_DESCRIPTION);
     }
 
     static String renderDefinition(EnchantmentSettings.Backstabbing backstabbing) {
@@ -326,12 +335,38 @@ public final class EnchantmentDatapackInstaller implements Listener {
         return escaped.toString();
     }
 
-    private static Path getWorldRoot(World world) {
-        Path folder = world.getWorldFolder().toPath();
-        while (folder != null && !Files.exists(folder.resolve("level.dat"))) {
-            folder = folder.getParent();
+    private boolean deletePack(Path datapackDir) {
+        try {
+            if (!Files.exists(datapackDir)) {
+                return false;
+            }
+            DatapackSupport.deleteRecursively(datapackDir);
+            return true;
+        } catch (IOException exception) {
+            plugin.getLogger().warning("Failed to remove enchantment datapack: " + exception.getMessage());
+            return false;
         }
-        return folder != null ? folder : world.getWorldFolder().toPath();
+    }
+
+    private static int deleteStaleFiles(Path root, List<GeneratedFile> generated) throws IOException {
+        java.util.Set<Path> expected = new java.util.HashSet<>();
+        for (GeneratedFile file : generated) {
+            expected.add(file.path().toAbsolutePath().normalize());
+        }
+        Path data = root.resolve("data");
+        if (!Files.isDirectory(data)) {
+            return 0;
+        }
+        int removed = 0;
+        try (java.util.stream.Stream<Path> paths = Files.walk(data)) {
+            for (Path path : paths.filter(Files::isRegularFile).filter(p -> p.toString().endsWith(".json")).toList()) {
+                if (!expected.contains(path.toAbsolutePath().normalize())) {
+                    Files.deleteIfExists(path);
+                    removed++;
+                }
+            }
+        }
+        return removed;
     }
 
     private record GeneratedFile(Path path, String content) {

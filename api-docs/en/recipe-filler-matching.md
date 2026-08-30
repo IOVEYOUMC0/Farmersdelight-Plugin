@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/recipe-filler-matching.md)
 # RecipeFiller and IngredientMatching
 
 Two related pieces: the Fill button that moves a recipe's ingredients from a player's inventory into your

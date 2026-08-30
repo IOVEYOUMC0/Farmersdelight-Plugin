@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/recipe-editor.md)
 # RecipeEditor, EditableRecipe and NumericField
 
 Returning a `RecipeEditor` from `RecipeType.editor()` makes your recipes editable in game through

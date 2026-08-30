@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.util;
 
+import org.bukkit.Bukkit;
 import org.bukkit.World;
 
 import java.io.IOException;
@@ -64,6 +65,47 @@ public final class DatapackSupport {
         } catch (IOException e) {
             return false;
         }
+    }
+
+    // The datapack pack_format is version-specific: single value up to 1.21.8, a min_format/max_format
+    // range from 1.21.9 onward. Generating it from the running server avoids the "incompatible pack"
+    // warning and keeps the installers working across the whole 1.21.4~26.x range.
+    public static String renderPackMetadata(String description) {
+        return renderPackMetadata(description, Bukkit.getBukkitVersion());
+    }
+
+    // Exposed with an explicit version so installers can be unit-tested without a live server.
+    public static String renderPackMetadata(String description, String version) {
+        PackFormat format = packFormatFor(version);
+        String line = format.range
+                ? "    \"min_format\": " + format.value + ",\n    \"max_format\": " + MAX_RANGE_FORMAT
+                : "    \"pack_format\": " + format.value;
+        return "{\n  \"pack\": {\n" + line + ",\n    \"description\": \"" + description + "\"\n  }\n}\n";
+    }
+
+    private static final int MAX_RANGE_FORMAT = 150;
+
+    private static final PackFormat PACK_FORMAT_1_21_4 = new PackFormat(61, false);
+    private static final PackFormat PACK_FORMAT_1_21_5 = new PackFormat(71, false);
+    private static final PackFormat PACK_FORMAT_1_21_6_8 = new PackFormat(80, false);
+    private static final PackFormat PACK_FORMAT_RANGE = new PackFormat(88, true);
+
+    // Data pack format history: 1.21.4=61, 1.21.5=71, 1.21.6/7/8=80; 1.21.9 and every 26.x release use
+    // the min_format/max_format range form (88 is the 1.21.9 data pack major format).
+    private static PackFormat packFormatFor(String version) {
+        if (version.contains("1.21.4")) {
+            return PACK_FORMAT_1_21_4;
+        }
+        if (version.contains("1.21.5")) {
+            return PACK_FORMAT_1_21_5;
+        }
+        if (version.contains("1.21.6") || version.contains("1.21.7") || version.contains("1.21.8")) {
+            return PACK_FORMAT_1_21_6_8;
+        }
+        return PACK_FORMAT_RANGE;
+    }
+
+    private record PackFormat(int value, boolean range) {
     }
 
     // Writes content only when it differs from what is on disk; returns true when a write happened.

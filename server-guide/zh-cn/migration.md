@@ -2,6 +2,8 @@
 icon: arrows-rotate
 ---
 
+[English](../en/migration.md)
+
 # 迁移与升级
 
 无论你是从原模组第一次过来，还是在升级现有的 FarmersDelight 安装，以下这些的行为都和「直接覆盖文件」不一样。方块层面的
@@ -31,6 +33,9 @@ icon: arrows-rotate
 
 所以插件更新后你**不需要**手动迁移 `config.yml`——你调过的值都活着，新设置以默认值出现，死键被清掉。（这过程中若备份失败，
 会记录到日志里，而不是中止更新。）
+
+村民与流浪商人交易现已放入 `world-data.yml`，生物额外掉落和稻草掉落规则现已放入 `drops.yml`。只要旧版 `config.yml` 仍含有
+`world-data:` 或 `drops:` 段，对应段就会自动移入对应文件。移动前相关文件都会备份；之后请编辑独立文件。
 
 ## 随包文件只在缺失时安装
 
@@ -70,7 +75,7 @@ recipes:
 
 1. 停服（`/stop`）——不要热换 jar。
 2. 替换 FarmersDelight 的 jar，以及（若有更新）资源包。
-3. 启动服务器。让 `config.yml` 自动迁移、CraftEngine 资源自动补全。
+3. 启动服务器。让 `config.yml`、`world-data.yml` 和 `drops.yml` 自动迁移、CraftEngine 资源自动补全。
 4. 读控制台：看 *Content ready* 行，以及那条一次性的「缺失随包配方」提示，决定你是否要这些配方（`merge-missing-bundled`）。
 5. 如果这次更新改动了你曾编辑过的随包 CE 资源文件，手动合并这些改动。
 6. 重新生成包（`/ce reload all`），在游戏内确认贴图。

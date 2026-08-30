@@ -2,6 +2,8 @@
 icon: book-bookmark
 ---
 
+[English](../en/recipe-book-layout.md)
+
 # RecipeBookLayout 与打开配方书
 
 默认情况下，注册进来的 `RecipeType` 会渲染在 FarmersDelight 的共享配方书里，样式由服务端 `gui.yml` → `recipe-book-gui` 决定。这很省事，但只要有几个附属都注册了类型，它们就得共用一个分类菜单。而只要从 `RecipeType.listLayout()` / `RecipeType.detailLayout()` 返回一个 `RecipeBookLayout`，FarmersDelight 就会把**你的** 类型渲染成一本独立的书：你的标题、你的格子、你的装饰。
@@ -86,7 +88,7 @@ category  recipe  ingredient  result  prev_page  next_page  fill  filter  switch
 
 ### progress 角色
 
-详情页里映射到 `progress` 的任何格子，会在页面打开期间按 GUI tick 循环播放 FarmersDelight 的进度箭头帧 （`farmersdelight:0` … `farmersdelight:20`，CraftEngine 物品），和 FarmersDelight 自己的配方界面一致。动画跑在观看 者的区域线程上，界面真正关闭时停止。若 CraftEngine 帧物品尚未加载（例如 CE 正在重载），会临时用浅灰色玻璃板顶上， 之后的 tick 会重试。
+详情页里映射到 `progress` 的格子会放置单个 `farmersdelight:animated` CraftEngine 物品。竖向动画纹理由客户端播放，服务器不再逐 tick 替换槽位，减少发包。若物品尚未加载（例如 CE 正在重载），会临时使用浅灰色玻璃板，下一次打开详情页时重试。
 
 这个角色你什么都不用提供，映射一个字符上去就行。
 

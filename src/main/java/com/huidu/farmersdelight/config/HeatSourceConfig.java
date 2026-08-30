@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.config;
 
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.i18n.I18n;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -59,37 +60,56 @@ public class HeatSourceConfig {
     public void loadFromConfig(ConfigurationSection section) {
         if (section == null) return;
 
-        List<String> vanillaBlockList = section.getStringList("vanilla-blocks");
+        List<String> vanillaBlockList = ConfigSectionReader.optionalStringList(section, "vanilla-blocks");
         for (String blockId : vanillaBlockList) {
             addVanillaBlock(blockId);
         }
 
-        List<String> vanillaTagList = section.getStringList("vanilla-tags");
+        List<String> vanillaTagList = ConfigSectionReader.optionalStringList(section, "vanilla-tags");
         for (String tagId : vanillaTagList) {
             addVanillaTag(tagId);
         }
 
-        List<String> tagList = section.getStringList("tags");
+        List<String> tagList = ConfigSectionReader.optionalStringList(section, "tags");
         for (String tagId : tagList) {
-            addCustomBlockTag(Key.of(tagId));
-        }
-
-        List<String> customBlockList = section.getStringList("custom-blocks");
-        for (String blockId : customBlockList) {
-            CustomBlockStateMatcher matcher = parseBlockState(blockId);
-            if (matcher != null) {
-                customBlockStates.add(matcher);
+            try {
+                addCustomBlockTag(Key.of(tagId));
+            } catch (IllegalArgumentException e) {
+                I18n.logWarning("plugin.config_value_invalid", "file", "config.yml",
+                        "path", section.getCurrentPath() + ".tags", "error", "invalid tag " + tagId);
             }
         }
 
-        List<String> conductorList = section.getStringList("conductors");
+        List<String> customBlockList = ConfigSectionReader.optionalStringList(section, "custom-blocks");
+        for (String blockId : customBlockList) {
+            try {
+                CustomBlockStateMatcher matcher = parseBlockState(blockId);
+                if (matcher != null) {
+                    customBlockStates.add(matcher);
+                    continue;
+                }
+            } catch (IllegalArgumentException ignored) {
+                // Fall through to the same per-entry diagnostic as a malformed state expression.
+            }
+            {
+                I18n.logWarning("plugin.config_value_invalid", "file", "config.yml",
+                        "path", section.getCurrentPath() + ".custom-blocks", "error", "invalid block state " + blockId);
+            }
+        }
+
+        List<String> conductorList = ConfigSectionReader.optionalStringList(section, "conductors");
         for (String conductorId : conductorList) {
             addVanillaConductor(conductorId);
         }
 
-        List<String> conductorTagList = section.getStringList("conductor-tags");
+        List<String> conductorTagList = ConfigSectionReader.optionalStringList(section, "conductor-tags");
         for (String tagId : conductorTagList) {
-            addConductorTag(Key.of(tagId));
+            try {
+                addConductorTag(Key.of(tagId));
+            } catch (IllegalArgumentException e) {
+                I18n.logWarning("plugin.config_value_invalid", "file", "config.yml",
+                        "path", section.getCurrentPath() + ".conductor-tags", "error", "invalid tag " + tagId);
+            }
         }
     }
 
@@ -263,7 +283,6 @@ public class HeatSourceConfig {
 
     private record CustomBlockStateMatcher(Key blockId, Map<String, String> requiredProperties) {
 
-        @SuppressWarnings("unchecked")
         public boolean matches(ImmutableBlockState state) {
             if (!state.owner().matchesKey(blockId)) {
                 return false;
@@ -287,9 +306,8 @@ public class HeatSourceConfig {
                     return false;
                 }
 
-                @SuppressWarnings("rawtypes")
-                String actualValueStr = ((Property) property).valueName(actualValue);
-                if (!actualValueStr.equalsIgnoreCase(requiredValue)) {
+                Comparable<?> expectedValue = property.valueByName(requiredValue);
+                if (expectedValue == null || !actualValue.equals(expectedValue)) {
                     return false;
                 }
             }

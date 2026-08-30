@@ -38,9 +38,8 @@ import java.util.Map;
  */
 public final class RecipeItemCodec {
 
-    // SNBT parser lives in different classes across CraftEngine versions: 26.8 ships
-    // core.util.TagParser (returns a sparrow Tag), 26.7.4 ships proxy.minecraft.nbt.TagParserProxy
-    // (returns a NMS tag). Resolve reflectively so FD compiles and runs on both.
+    // CE 26.8 exposes core.util.TagParser and its proxy artifact. Resolve the parser lazily so the
+    // plugin does not link parser classes during config bootstrap, while still using only the 26.8 API.
     private static volatile Method snbtParseMethod;
     private static volatile Object snbtParseTarget;
 
@@ -243,15 +242,23 @@ public final class RecipeItemCodec {
             snbtParseTarget = null;
             return;
         } catch (Exception ignored) {
+            // fall through to the proxy fallback below
         }
         try {
             Class<?> proxy = Class.forName("net.momirealms.craftengine.proxy.minecraft.nbt.TagParserProxy");
             snbtParseMethod = proxy.getMethod("parseCompoundFully", String.class);
             snbtParseTarget = proxy.getField("INSTANCE").get(null);
+            return;
         } catch (Exception ignored) {
-            snbtParseMethod = null;
-            snbtParseTarget = null;
+            // no supported parser: silence here would make every "(snbt)" recipe fail with no trace
         }
+        snbtParseMethod = null;
+        snbtParseTarget = null;
+        throw new IllegalStateException(
+                "Unsupported CraftEngine build: no SNBT TagParser found (" +
+                "net.momirealms.craftengine.core.util.TagParser / " +
+                "net.momirealms.craftengine.proxy.minecraft.nbt.TagParserProxy missing). " +
+                "Refusing to run with silently broken recipe decoding.");
     }
 
     private static int countOf(Map<String, Object> map, int fallback) {

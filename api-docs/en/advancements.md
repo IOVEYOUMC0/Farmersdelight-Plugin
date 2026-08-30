@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/advancements.md)
 # Advancements
 
 Package: `com.huidu.farmersdelight.api.advancement`

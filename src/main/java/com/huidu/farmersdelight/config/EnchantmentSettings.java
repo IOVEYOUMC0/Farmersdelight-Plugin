@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.config;
 
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.LinkedHashSet;
@@ -12,6 +13,7 @@ public record EnchantmentSettings(
         boolean autoDisableOnConflict,
         Group knives,
         Group skillet,
+        Group durable,
         Backstabbing backstabbing
 ) {
 
@@ -25,6 +27,7 @@ public record EnchantmentSettings(
         this(
                 enabled,
                 autoDisableOnConflict,
+                new Group(table, anvilEnabled),
                 new Group(table, anvilEnabled),
                 new Group(table, anvilEnabled),
                 backstabbing
@@ -51,6 +54,14 @@ public record EnchantmentSettings(
             "minecraft:fire_aspect",
             "minecraft:knockback",
             "minecraft:looting"
+    );
+
+    // Durability-only custom items (the farmersdelight:durable setting) are not weapons, so they default
+    // to a minimal whitelist: unbreaking and vanishing_curse on the table; the anvil inherits both and
+    // also allows mending. Without this, every vanilla enchant could be applied to such items.
+    private static final List<String> DEFAULT_DURABLE_ENCHANTMENTS = List.of(
+            "minecraft:unbreaking",
+            "minecraft:vanishing_curse"
     );
 
     public static EnchantmentSettings defaults() {
@@ -83,6 +94,13 @@ public record EnchantmentSettings(
                 14,
                 DEFAULT_SKILLET_ENCHANTMENTS
         );
+        Group durable = loadGroup(
+                child(groupsSection, "durable"),
+                legacyTableSection,
+                legacyAnvilSection,
+                14,
+                DEFAULT_DURABLE_ENCHANTMENTS
+        );
 
         String enchantmentId = namespaced(string(backstabSection),
                 "farmersdelight:backstabbing");
@@ -105,7 +123,7 @@ public record EnchantmentSettings(
                 combat
         );
 
-        return new EnchantmentSettings(enabled, autoDisableOnConflict, knives, skillet, backstabbing);
+        return new EnchantmentSettings(enabled, autoDisableOnConflict, knives, skillet, durable, backstabbing);
     }
 
     public boolean isBackstabbingConfigured() {
@@ -113,7 +131,11 @@ public record EnchantmentSettings(
     }
 
     public Group group(GroupId groupId) {
-        return groupId == GroupId.SKILLET ? skillet : knives;
+        return switch (groupId) {
+            case SKILLET -> skillet;
+            case DURABLE -> durable;
+            case KNIVES -> knives;
+        };
     }
 
     public Table table() {
@@ -126,7 +148,8 @@ public record EnchantmentSettings(
 
     public enum GroupId {
         KNIVES,
-        SKILLET
+        SKILLET,
+        DURABLE
     }
 
     public record Group(Table table, boolean anvilEnabled) {
@@ -228,7 +251,7 @@ public record EnchantmentSettings(
         if (section == null) {
             return "farmersdelight:backstabbing";
         }
-        String value = section.getString("id");
+        String value = ConfigSectionReader.optionalString(section, "id");
         return value == null || value.isBlank() ? "farmersdelight:backstabbing" : value.trim();
     }
 

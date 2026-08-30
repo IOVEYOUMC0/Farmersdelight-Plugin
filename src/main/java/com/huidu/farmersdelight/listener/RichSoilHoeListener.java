@@ -54,11 +54,11 @@ public final class RichSoilHoeListener implements Listener {
         BlockDefinition farmland = CraftEngineBlocks.byId(RICH_SOIL_FARMLAND_KEY);
         if (farmland == null) return;
 
-        event.setCancelled(true);
         Location loc = target.getLocation().add(0.5, 0, 0.5);
         boolean placed = CraftEngineBlocks.place(loc, farmland.defaultState(), true);
         if (!placed) return;
 
+        event.setCancelled(true);
         Player player = event.player();
         target.getWorld().playSound(target.getLocation().add(0.5, 0.5, 0.5),
                 org.bukkit.Sound.ITEM_HOE_TILL, 1.0F, 1.0F);

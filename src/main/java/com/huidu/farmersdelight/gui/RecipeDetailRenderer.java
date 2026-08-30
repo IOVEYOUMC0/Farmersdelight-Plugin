@@ -17,10 +17,7 @@ import java.util.Map;
 
 final class RecipeDetailRenderer {
 
-    private static final int COOKING_PROCESS_BAR_FRAMES = 20;
-    // These N+1 distinct progress bar frame items are identical per frame; cache them (cleared on reload) so the
-    // GUI tick animation does not recreate a CraftEngine item every 4 ticks.
-    private static final ItemStack[] processBarFrameCache = new ItemStack[COOKING_PROCESS_BAR_FRAMES + 1];
+    private static volatile ItemStack processBarItem;
 
     private final RecipeViewGui gui;
 
@@ -29,7 +26,7 @@ final class RecipeDetailRenderer {
     }
 
     static void clearProcessBarFrameCache() {
-        java.util.Arrays.fill(processBarFrameCache, null);
+        processBarItem = null;
     }
 
     void drawCookingPotDetail(CookingPotRecipe recipe, RecipeViewGuiConfig.RecipeDetailConfig detailConfig, Player player) {
@@ -88,7 +85,7 @@ final class RecipeDetailRenderer {
             return;
         }
 
-        gui.inventory.setItem(progressSlot, createCookingPotProcessBarItem(cookingProcessBarFrame(recipe)));
+        gui.inventory.setItem(progressSlot, createCookingPotProcessBarItem());
     }
 
     int getCookingPotProcessBarSlot(RecipeViewGuiConfig.RecipeDetailConfig detailConfig) {
@@ -113,15 +110,14 @@ final class RecipeDetailRenderer {
         return fallbackSlot;
     }
 
-    static ItemStack createCookingPotProcessBarItem(int frame) {
-        int safeFrame = Math.max(0, Math.min(COOKING_PROCESS_BAR_FRAMES, frame));
-        ItemStack cached = processBarFrameCache[safeFrame];
-        if (cached != null) {
-            return cached.clone();
+    static ItemStack createCookingPotProcessBarItem() {
+        if (processBarItem != null) {
+            return processBarItem.clone();
         }
 
-        ItemStack item = ItemUtils.createItem("farmersdelight:" + safeFrame);
-        if (item == null) {
+        ItemStack item = ItemUtils.createItem("farmersdelight:animated");
+        boolean resolved = item != null && !item.getType().isAir();
+        if (!resolved) {
             item = new ItemStack(Material.LIGHT_GRAY_STAINED_GLASS_PANE);
         }
 
@@ -131,17 +127,10 @@ final class RecipeDetailRenderer {
             meta.lore(List.of());
             item.setItemMeta(meta);
         }
-        processBarFrameCache[safeFrame] = item.clone();
-        return item;
-    }
-
-    int cookingProcessBarFrame(CookingPotRecipe recipe) {
-        int duration = recipe == null ? 0 : recipe.getCookTime();
-        if (duration <= 0) {
-            return 0;
+        if (resolved) {
+            processBarItem = item.clone();
         }
-        int percent = Math.min(100, gui.cookingProcessBarTicks * 100 / duration);
-        return Math.max(0, Math.min(COOKING_PROCESS_BAR_FRAMES, percent / 5));
+        return item;
     }
 
     private String formatCookTime(CookingPotRecipe recipe, Player player) {

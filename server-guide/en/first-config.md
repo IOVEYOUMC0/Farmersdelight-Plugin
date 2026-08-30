@@ -2,6 +2,8 @@
 icon: sliders
 ---
 
+[简体中文](../zh-cn/first-config.md)
+
 # First config tweaks
 
 The defaults in `plugins/FarmersDelight/config.yml` are tuned to behave like the original mod, so a fresh
@@ -108,10 +110,13 @@ commands/migration notes and the developer *Advancements* page.
 
 ## Where the deeper knobs live
 
-Performance budgets, particle/sound effects, display offsets, heat sources, mob-extra drops,
-villager/wandering-trader trades, composting and furnace-fuel values are in `config.yml`. Pet food and food-buff
-assignments are in the CraftEngine item configuration. Both files contain inline comments and are documented in
-the Admin Wiki. You will rarely need them on day one.
+Performance budgets, particle/sound effects, display offsets, heat sources and custom-item `container-returns`
+are in `config.yml`. Mob-extra and straw drop rules are in `plugins/FarmersDelight/drops.yml`. Villager and
+wandering-trader offers are in
+`plugins/FarmersDelight/world-data.yml`; deleting an offer there disables it. Composting, furnace-fuel values,
+pet food and food-buff assignments are in the CraftEngine item configuration. CraftEngine files are deliberately
+comment-free; their field reference is in [Block behavior configuration](block-behaviors.md). You will rarely
+need them on day one.
 
 ## Next
 

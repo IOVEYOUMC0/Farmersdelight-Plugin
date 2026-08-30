@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/advancements.md)
 # Advancements
 
 Farmer's Delight comes with its own advancement tree — a **Farmer's Delight** tab

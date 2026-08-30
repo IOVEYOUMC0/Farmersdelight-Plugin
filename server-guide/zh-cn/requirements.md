@@ -2,6 +2,8 @@
 icon: list-check
 ---
 
+[English](../en/requirements.md)
+
 # 环境要求与加载顺序
 
 ## 服务端软件
@@ -31,7 +33,7 @@ FarmersDelight 是一个 **CraftEngine 移植**。它提供的每个方块、物
 - 服务端会**自动**在 FarmersDelight 之前加载 CraftEngine——加载顺序不需要你操心；
 - 启动时 FarmersDelight 会等 CraftEngine 把物品和方块解析完，再去注册配方和内容。
 
-装一个与你服务端兼容的 CraftEngine 构建。FarmersDelight 针对 **CraftEngine 26.7** 编译，请匹配或高于该版本。
+装一个与你服务端兼容的 CraftEngine 26.8 构建。当前 FarmersDelight 使用仓库内固定的 **CraftEngine 26.8** API，不能用 26.7.x 构建替代。
 
 ## 可选集成（软依赖）
 

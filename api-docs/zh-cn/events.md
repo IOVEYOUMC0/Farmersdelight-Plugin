@@ -2,6 +2,8 @@
 icon: arrow-progress
 ---
 
+[English](../en/events.md)
+
 # 事件
 
 `com.huidu.farmersdelight.api.event` 下的所有类都是普通的 Bukkit `org.bukkit.event.Event`。用常规 `@EventHandler` 方法订阅，在自己的 `onEnable` 里注册监听器即可：

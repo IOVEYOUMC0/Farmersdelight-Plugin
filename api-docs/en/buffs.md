@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/buffs.md)
 # Custom buffs
 
 Package: `com.huidu.farmersdelight.api.buff`

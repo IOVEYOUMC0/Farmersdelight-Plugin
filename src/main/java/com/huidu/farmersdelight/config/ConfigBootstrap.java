@@ -5,21 +5,29 @@ import com.huidu.farmersdelight.api.config.ConfigFileUpdater;
 import com.huidu.farmersdelight.api.config.ConfigKeyRename;
 import com.huidu.farmersdelight.api.config.ConfigUpdatePolicy;
 import com.huidu.farmersdelight.i18n.I18n;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
 
 public final class ConfigBootstrap {
+
+    private static final String WORLD_DATA_FILE = "world-data.yml";
+    private static final String DROPS_FILE = "drops.yml";
 
     private static final ConfigUpdatePolicy CONFIG_POLICY = ConfigUpdatePolicy.builder()
             .migrate("knife-drops", "mob-extra-drops")
             .migrate("entity-extra-drops", "mob-extra-drops")
             .migrate("knife-drop-tools", "mob-extra-drop-tools")
             .migrate("entity-extra-drop-tools", "mob-extra-drop-tools")
-            // The four drop/tool sections group under one drops parent.
+            // Legacy drop keys first group under one temporary drops parent, then move to drops.yml.
             .migrate("knife-config", "drops.knife-items")
             .migrate("mob-extra-drop-tools", "drops.mob-extra-tools")
             .migrate("mob-extra-drops", "drops.mob-extra")
@@ -27,10 +35,8 @@ public final class ConfigBootstrap {
             // The knife list defines what counts as a knife for the cutting board, the skillet, mushroom
             // colonies, rice harvesting, the recipe viewer and addon drop rules, not only for drops.
             .migrate("drops.knife-items", "knife-items")
-            // Settings several stations consume return to the top level: the tray belongs to the cooking pot
-            // and the skillet, the experience reward and the container returns are also read by addon
-            // stations through the public API.
-            .migrate("cooking-pot.tray", "tray")
+            // Settings several stations consume return to the top level: the experience reward and the
+            // container returns are also read by addon stations through the public API.
             .migrate("cooking-pot.experience-reward", "experience-reward")
             .migrate("cooking-pot.container-returns", "container-returns")
             // Recipe discovery joins the other recipe settings.
@@ -45,14 +51,12 @@ public final class ConfigBootstrap {
             .retire("buff.comfort.fade-warning-ticks",
                     "comfort-foods.fade-warning-ticks",
                     "buff.nourishment.fade-warning-ticks",
-                    "nourishment-foods.fade-warning-ticks")
-            .registrySection("drops.mob-extra",
-                    "mob-extra-drops",
-                    "drops.mob-extra-tools",
-                    "mob-extra-drop-tools",
-                    "heat-sources",
-                    "drops.straw",
-                    "straw-drops",
+                    "nourishment-foods.fade-warning-ticks",
+                    "tray",
+                    "cooking-pot.tray",
+                    "handle",
+                    "cooking-pot.handle")
+            .registrySection("heat-sources",
                     // Guarded at the parent, not at the foods child: an admin who disables every food by
                     // deleting the whole foods block leaves no foods path for a narrower guard to match, and
                     // the merge would write the bundled entries back one by one. The cost is that a genuinely
@@ -67,14 +71,16 @@ public final class ConfigBootstrap {
                     // Keyed by item id, so a deleted entry is a deliberate opt-out of that item's display
                     // override.
                     "cutting-board.display-overrides",
-                    "cutting-board.display-tag-overrides",
-                    // The offers are a list under a single trades key rather than a section of their own, and
-                    // a list the admin emptied still counts as present. Guarding at the parent is what covers
-                    // the admin who deletes the whole trades key instead, at the same cost the buff parents
-                    // carry above.
-                    "world-data.trades.villager",
-                    "world-data.trades.wandering-trader")
+                    "cutting-board.display-tag-overrides")
             .build();
+
+    private static final List<String> WORLD_DATA_REGISTRY_SECTIONS = List.of(
+            "trades.villager",
+            "trades.wandering-trader");
+    private static final List<String> DROPS_REGISTRY_SECTIONS = List.of(
+            "mob-extra-tools",
+            "mob-extra",
+            "straw");
 
     private final FarmersDelightPlugin plugin;
 
@@ -86,12 +92,16 @@ public final class ConfigBootstrap {
         Path dataFolder = plugin.getDataFolder().toPath();
         Path configPath = dataFolder.resolve("config.yml");
         Path guiPath = dataFolder.resolve("gui.yml");
+        Path worldDataPath = dataFolder.resolve(WORLD_DATA_FILE);
+        Path dropsPath = dataFolder.resolve(DROPS_FILE);
         try {
             Files.createDirectories(dataFolder);
             if (Files.notExists(configPath)) {
                 writeBundledConfig(configPath);
             }
             writeBundledResourceIfMissing(guiPath);
+            writeBundledResourceIfMissing(worldDataPath, WORLD_DATA_FILE);
+            writeBundledResourceIfMissing(dropsPath, DROPS_FILE);
 
             if (ConfigFileUpdater.needsRestore(configPath)) {
                 ConfigFileUpdater.backup(configPath);
@@ -103,19 +113,138 @@ public final class ConfigBootstrap {
                 ConfigFileUpdater.installBundledResource(plugin, "gui.yml", guiPath, true);
                 I18n.logWarning("plugin.config_restored_unreadable", "file", "gui.yml");
             }
+            if (ConfigFileUpdater.needsRestore(worldDataPath)) {
+                ConfigFileUpdater.backup(worldDataPath);
+                ConfigFileUpdater.installBundledResource(plugin, WORLD_DATA_FILE, worldDataPath, true);
+                I18n.logWarning("plugin.config_restored_unreadable", "file", WORLD_DATA_FILE);
+            }
+            if (ConfigFileUpdater.needsRestore(dropsPath)) {
+                ConfigFileUpdater.backup(dropsPath);
+                ConfigFileUpdater.installBundledResource(plugin, DROPS_FILE, dropsPath, true);
+                I18n.logWarning("plugin.config_restored_unreadable", "file", DROPS_FILE);
+            }
         } catch (IOException e) {
             I18n.logWarning("plugin.config_prepare_failed", "error", e.getMessage());
         }
     }
 
+    /** Validates only keys present in the operator file against the bundled value type. */
+    public void validateConfigTypes() {
+        validateFile("config.yml", plugin.getConfig(), readBundledYaml("config.yml"), CONFIG_POLICY.registrySections());
+        validateExternalTypes(WORLD_DATA_FILE, WORLD_DATA_REGISTRY_SECTIONS);
+        validateExternalTypes(DROPS_FILE, DROPS_REGISTRY_SECTIONS);
+        Path guiPath = plugin.getDataFolder().toPath().resolve("gui.yml");
+        if (Files.exists(guiPath)) {
+            try {
+                validateFile("gui.yml", ConfigFileUpdater.readYamlFile(guiPath), readBundledYaml("gui.yml"), List.of());
+            } catch (Exception e) {
+                I18n.logWarning("plugin.config_load_failed", "file", "gui.yml", "error", e.getMessage());
+            }
+        }
+    }
+
+    private void validateExternalTypes(String fileName, List<String> registrySections) {
+        Path path = plugin.getDataFolder().toPath().resolve(fileName);
+        if (!Files.exists(path)) {
+            return;
+        }
+        try {
+            validateFile(fileName, ConfigFileUpdater.readYamlFile(path), readBundledYaml(fileName), registrySections);
+        } catch (Exception e) {
+            I18n.logWarning("plugin.config_load_failed", "file", fileName, "error", e.getMessage());
+        }
+    }
+
+    private void validateFile(String fileName, ConfigurationSection existing, YamlConfiguration bundled,
+                               List<String> registrySections) {
+        if (existing == null || bundled == null) {
+            return;
+        }
+        List<String> issues = new ArrayList<>();
+        Set<String> registry = new HashSet<>(registrySections);
+        for (String path : bundled.getKeys(true)) {
+            if (isUnderRegistry(path, registry)) {
+                continue;
+            }
+            if (bundled.isConfigurationSection(path)) {
+                if (existing.isSet(path) && !existing.isConfigurationSection(path)) {
+                    issues.add(path + " - " + String.valueOf(existing.get(path)) + " (expected section)");
+                }
+                continue;
+            }
+            if (!existing.contains(path, true)) {
+                continue;
+            }
+            Object expected = bundled.get(path);
+            Object actual = existing.get(path);
+            if (expected == null || compatibleType(expected, actual)) {
+                continue;
+            }
+            issues.add(path + " - " + String.valueOf(actual) + " (expected " + typeName(expected) + ")");
+        }
+        if (!issues.isEmpty()) {
+            I18n.logWarning("plugin.config_issues_header", "file", fileName, "count", issues.size());
+            for (int i = 0; i < issues.size(); i++) {
+                I18n.logWarning("plugin.config_issue_detail", "index", i + 1, "detail", issues.get(i));
+            }
+        }
+    }
+
+    private static boolean isUnderRegistry(String path, Set<String> registrySections) {
+        for (String section : registrySections) {
+            if (path.startsWith(section + ".")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean compatibleType(Object expected, Object actual) {
+        if (actual == null) {
+            return false;
+        }
+        if (expected instanceof Number) {
+            return actual instanceof Number || actual instanceof String && isNumeric((String) actual);
+        }
+        if (expected instanceof Boolean) {
+            return actual instanceof Boolean || actual instanceof String s &&
+                    (s.equalsIgnoreCase("true") || s.equalsIgnoreCase("false"));
+        }
+        if (expected instanceof List<?>) {
+            return actual instanceof List<?>;
+        }
+        if (expected instanceof Map<?, ?> || expected instanceof ConfigurationSection) {
+            return actual instanceof ConfigurationSection || actual instanceof Map<?, ?>;
+        }
+        return actual instanceof String || actual instanceof Number || actual instanceof Boolean;
+    }
+
+    private static boolean isNumeric(String value) {
+        try {
+            Double.parseDouble(value.trim().replace("_", ""));
+            return true;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
+    }
+
+    private static String typeName(Object value) {
+        if (value instanceof Number) return "number";
+        if (value instanceof Boolean) return "boolean";
+        if (value instanceof List<?>) return "list";
+        if (value instanceof Map<?, ?> || value instanceof ConfigurationSection) return "section";
+        return "string";
+    }
+
     public void migrateConfigKeys() {
-        boolean changed = migrateLegacyEnchantmentGroups();
+        boolean changed = migrateLegacyWorldData() | migrateLegacyEnchantmentGroups();
         List<ConfigKeyRename> migrated =
                 ConfigFileUpdater.applyMigrations(plugin.getConfig(), CONFIG_POLICY.migrations());
         for (ConfigKeyRename rename : migrated) {
             I18n.logInfo("plugin.config_key_migrated", "old", rename.oldPath(), "new", rename.newPath());
             changed = true;
         }
+        changed |= migrateLegacyDrops();
         changed |= removeRetiredConfigKeys();
         int addedKeys = mergeMissingConfigKeys();
         if (changed || addedKeys > 0) {
@@ -124,6 +253,96 @@ public final class ConfigBootstrap {
             plugin.reloadConfig();
         }
         mergeMissingGuiKeys();
+    }
+
+    public YamlConfiguration loadWorldDataConfig() {
+        return loadExternalConfig(WORLD_DATA_FILE, WORLD_DATA_REGISTRY_SECTIONS);
+    }
+
+    public YamlConfiguration loadDropsConfig() {
+        return loadExternalConfig(DROPS_FILE, DROPS_REGISTRY_SECTIONS);
+    }
+
+    private YamlConfiguration loadExternalConfig(String fileName, List<String> registrySections) {
+        Path configPath = plugin.getDataFolder().toPath().resolve(fileName);
+        try {
+            YamlConfiguration existing = ConfigFileUpdater.readYamlFile(configPath);
+            YamlConfiguration bundled = readBundledYaml(fileName);
+            if (bundled == null) {
+                return existing;
+            }
+            int added = ConfigFileUpdater.copyMissingKeys(bundled, existing, registrySections);
+            if (added > 0) {
+                backupQuietly(configPath);
+                ConfigFileUpdater.tidy(existing);
+                ConfigFileUpdater.writeStringAtomically(configPath, existing.saveToString(), true);
+                I18n.logInfo("plugin.config_keys_added", "file", fileName, "count", added);
+            }
+            return existing;
+        } catch (Exception e) {
+            I18n.logWarning("plugin.config_merge_failed", "file", fileName, "error", e.getMessage());
+            return new YamlConfiguration();
+        }
+    }
+
+    private boolean migrateLegacyDrops() {
+        ConfigurationSection legacy = plugin.getConfig().getConfigurationSection("drops");
+        if (legacy == null) {
+            return false;
+        }
+        Path mainConfigPath = plugin.getDataFolder().toPath().resolve("config.yml");
+        Path dropsPath = plugin.getDataFolder().toPath().resolve(DROPS_FILE);
+        try {
+            backupQuietly(mainConfigPath);
+            backupQuietly(dropsPath);
+            copyLegacyDrops(legacy, dropsPath);
+            plugin.getConfig().set("drops", null);
+            I18n.logInfo("plugin.config_key_migrated", "old", "drops", "new", DROPS_FILE);
+            return true;
+        } catch (Exception e) {
+            I18n.logWarning("plugin.config_merge_failed", "file", DROPS_FILE, "error", e.getMessage());
+            return false;
+        }
+    }
+
+    static void copyLegacyDrops(ConfigurationSection legacy, Path dropsPath)
+            throws IOException, org.bukkit.configuration.InvalidConfigurationException {
+        YamlConfiguration drops = ConfigFileUpdater.readYamlFile(dropsPath);
+        for (String section : DROPS_REGISTRY_SECTIONS) {
+            drops.set(section, null);
+        }
+        ConfigFileUpdater.copySection(legacy, drops);
+        ConfigFileUpdater.tidy(drops);
+        ConfigFileUpdater.writeStringAtomically(dropsPath, drops.saveToString(), true);
+    }
+
+    private boolean migrateLegacyWorldData() {
+        ConfigurationSection legacy = plugin.getConfig().getConfigurationSection("world-data");
+        if (legacy == null) {
+            return false;
+        }
+        Path mainConfigPath = plugin.getDataFolder().toPath().resolve("config.yml");
+        Path worldDataPath = plugin.getDataFolder().toPath().resolve(WORLD_DATA_FILE);
+        try {
+            backupQuietly(mainConfigPath);
+            backupQuietly(worldDataPath);
+            copyLegacyWorldData(legacy, worldDataPath);
+            plugin.getConfig().set("world-data", null);
+            I18n.logInfo("plugin.config_key_migrated", "old", "world-data", "new", WORLD_DATA_FILE);
+            return true;
+        } catch (Exception e) {
+            I18n.logWarning("plugin.config_merge_failed", "file", WORLD_DATA_FILE, "error", e.getMessage());
+            return false;
+        }
+    }
+
+    static void copyLegacyWorldData(ConfigurationSection legacy, Path worldDataPath)
+            throws IOException, org.bukkit.configuration.InvalidConfigurationException {
+        YamlConfiguration worldData = ConfigFileUpdater.readYamlFile(worldDataPath);
+        worldData.set("trades", null);
+        ConfigFileUpdater.copySection(legacy, worldData);
+        ConfigFileUpdater.tidy(worldData);
+        ConfigFileUpdater.writeStringAtomically(worldDataPath, worldData.saveToString(), true);
     }
 
     private boolean migrateLegacyEnchantmentGroups() {
@@ -178,16 +397,37 @@ public final class ConfigBootstrap {
         try {
             YamlConfiguration existing = ConfigFileUpdater.readYamlFile(guiPath);
 
-            int added = ConfigFileUpdater.copyMissingKeys(bundled, existing, CONFIG_POLICY.registrySections());
-            if (added > 0) {
+            int migrated = migrateLegacyGuiSections(existing.getConfigurationSection("recipe-view-gui"));
+            int added = ConfigFileUpdater.copyMissingKeys(bundled, existing, List.of());
+            if (migrated > 0 || added > 0) {
                 backupQuietly(guiPath);
                 ConfigFileUpdater.tidy(existing);
                 ConfigFileUpdater.writeStringAtomically(guiPath, existing.saveToString(), true);
-                I18n.logInfo("plugin.config_keys_added", "file", "gui.yml", "count", added);
+                I18n.logInfo("plugin.config_keys_added", "file", "gui.yml", "count", migrated + added);
             }
         } catch (Exception e) {
             I18n.logWarning("plugin.config_merge_failed", "file", "gui.yml", "error", e.getMessage());
         }
+    }
+
+    /** Copies the pre-split recipe detail layout into any newly introduced detail sections. */
+    static int migrateLegacyGuiSections(ConfigurationSection recipeView) {
+        if (recipeView == null) {
+            return 0;
+        }
+        ConfigurationSection legacy = recipeView.getConfigurationSection("recipe-detail");
+        if (legacy == null) {
+            return 0;
+        }
+        int migrated = 0;
+        for (String target : List.of("recipe-detail-cooking-pot", "recipe-detail-cutting-board")) {
+            if (recipeView.getConfigurationSection(target) != null || recipeView.isSet(target)) {
+                continue;
+            }
+            ConfigFileUpdater.copySection(legacy, recipeView.createSection(target));
+            migrated++;
+        }
+        return migrated;
     }
 
     private YamlConfiguration readBundledYaml(String resourcePath) {
@@ -225,8 +465,12 @@ public final class ConfigBootstrap {
     }
 
     private void writeBundledResourceIfMissing(Path targetPath) throws IOException {
+        writeBundledResourceIfMissing(targetPath, "gui.yml");
+    }
+
+    private void writeBundledResourceIfMissing(Path targetPath, String resourcePath) throws IOException {
         if (Files.notExists(targetPath)) {
-            ConfigFileUpdater.installBundledResource(plugin, "gui.yml", targetPath, false);
+            ConfigFileUpdater.installBundledResource(plugin, resourcePath, targetPath, false);
         }
     }
 }

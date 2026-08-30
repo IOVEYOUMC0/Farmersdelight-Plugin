@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.recipe;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.api.recipe.IngredientMatching;
 import com.huidu.farmersdelight.util.Constants;
@@ -38,6 +39,10 @@ public class CookingPotRecipeManager {
     private volatile List<CookingPotRecipe> sortedRecipes = List.of();
     private volatile Map<String, List<CookingPotRecipe>> sortedCustomRecipes = Map.of();
     private volatile Map<String, List<CookingPotRecipe>> sortedCustomOnlyRecipes = Map.of();
+    // Reverse index result item id -> producing recipes, built at load time and published as a whole
+    // (single volatile write). Lets API cross-reference / GUI "which recipes produce X" answer in O(1)
+    // instead of scanning every recipe. Keyed the same way as getItemKey (custom id, else vanilla id).
+    private volatile Map<String, List<CookingPotRecipe>> resultToRecipes = Map.of();
     private final VanillaTagItemIdCache vanillaItemIdsByTagCache;
     // LRU access-order LinkedHashMap mutates internal state on get(), so concurrent reads from
     // multiple region threads (Folia) would corrupt the doubly-linked list. Wrap in synchronizedMap;
@@ -89,7 +94,7 @@ public class CookingPotRecipeManager {
 
         YamlConfiguration config = RecipeFileLoader.loadRecipeFile(plugin, "recipes/cooking_pot_recipes.yml");
         RecipeFileLoader.loadRecipeSections(plugin, config, "cooking_pot_recipes", "cooking pot",
-                (recipeId, section) -> {
+                "recipes/cooking_pot_recipes.yml", (recipeId, section) -> {
                     CookingPotRecipe recipe = parseRecipe(recipeId, section, 6);
                     newRecipes.put(recipeId, recipe);
 
@@ -104,6 +109,7 @@ public class CookingPotRecipeManager {
         for (PackRecipeSource.Loaded loaded : PackRecipeSource.load(plugin)) {
             RecipeFileLoader.loadRecipeSections(plugin, loaded.config(), "cooking_pot_recipes",
                     "cooking pot [" + loaded.source() + "]",
+                    loaded.source(),
                     (recipeId, section) -> {
                         if (newRecipes.containsKey(recipeId)) {
                             I18n.logWarning("recipe.pack_duplicate_skipped", "id", recipeId, "source", loaded.source());
@@ -134,6 +140,13 @@ public class CookingPotRecipeManager {
             newSortedCustomRecipes.put(entry.getKey(), sortedRecipeList(merged));
         }
 
+        Map<String, List<CookingPotRecipe>> newResultToRecipes = buildResultIndex(newSortedRecipes);
+        for (List<CookingPotRecipe> groupRecipes : newSortedCustomOnlyRecipes.values()) {
+            for (CookingPotRecipe recipe : groupRecipes) {
+                newResultToRecipes.computeIfAbsent(getItemKey(recipe.getResult()), k -> new ArrayList<>(1)).add(recipe);
+            }
+        }
+
         // Publish the freshly built structures (each a single volatile write).
         this.recipes = newRecipes;
         this.customRecipes = newCustomRecipes;
@@ -142,6 +155,7 @@ public class CookingPotRecipeManager {
         this.sortedRecipes = newSortedRecipes;
         this.sortedCustomRecipes = newSortedCustomRecipes;
         this.sortedCustomOnlyRecipes = newSortedCustomOnlyRecipes;
+        this.resultToRecipes = freezeResultIndex(newResultToRecipes);
         this.validContainerKeys = Collections.unmodifiableSet(newValidContainerKeys);
 
         vanillaItemIdsByTagCache.clear();
@@ -191,6 +205,7 @@ public class CookingPotRecipeManager {
                 } catch (Exception e) {
                     I18n.logWarning("recipe.custom_cooking_pot_load_failed",
                             "id", groupId + "." + recipeId,
+                            "path", groupSection.getCurrentPath() + "." + recipeId,
                             "error", e.getMessage());
                 }
             }
@@ -236,22 +251,66 @@ public class CookingPotRecipeManager {
         }
     }
 
+    private Map<String, List<CookingPotRecipe>> buildResultIndex(List<CookingPotRecipe> recipesToIndex) {
+        Map<String, List<CookingPotRecipe>> index = new HashMap<>();
+        for (CookingPotRecipe recipe : recipesToIndex) {
+            if (recipe.getResult() == null) {
+                continue;
+            }
+            index.computeIfAbsent(getItemKey(recipe.getResult()), k -> new ArrayList<>(1)).add(recipe);
+        }
+        return index;
+    }
+
+    // Deep-freeze a mutable result index into an immutable publish snapshot (unmodifiable map + lists).
+    private static Map<String, List<CookingPotRecipe>> freezeResultIndex(Map<String, List<CookingPotRecipe>> source) {
+        Map<String, List<CookingPotRecipe>> frozen = new HashMap<>(source.size());
+        for (Map.Entry<String, List<CookingPotRecipe>> entry : source.entrySet()) {
+            frozen.put(entry.getKey(), Collections.unmodifiableList(entry.getValue()));
+        }
+        return Collections.unmodifiableMap(frozen);
+    }
+
+    /** Recipes (default + external, excluding custom-group duplicates) that produce this item. */
+    public List<CookingPotRecipe> getRecipesProducing(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return List.of();
+        }
+        List<CookingPotRecipe> matches = resultToRecipes.get(getItemKey(item));
+        return matches == null ? List.of() : matches;
+    }
+
     private CookingPotRecipe parseRecipe(String id, ConfigurationSection section, int maxIngredients) {
-        List<String> ingredientStrings = section.getStringList("ingredients");
-        if (ingredientStrings.isEmpty()) {
+        Object rawIngredients = section.get("ingredients");
+        if (!(rawIngredients instanceof List<?> ingredientValues) || ingredientValues.isEmpty()) {
             throw new IllegalArgumentException("Recipe must have at least one ingredient");
         }
-        if (ingredientStrings.size() > maxIngredients) {
+        if (ingredientValues.size() > maxIngredients) {
             throw new IllegalArgumentException("Recipe can have at most " + maxIngredients + " ingredients");
         }
 
         List<RecipeIngredient> ingredients = new ArrayList<>();
-        for (String ingredientStr : ingredientStrings) {
-            ingredients.add(parseIngredient(ingredientStr));
+        for (int ingredientIndex = 0; ingredientIndex < ingredientValues.size(); ingredientIndex++) {
+            Object rawIngredient = ingredientValues.get(ingredientIndex);
+            if (rawIngredient instanceof ConfigurationSection nested) {
+                rawIngredient = sectionToMap(nested);
+            }
+            try {
+                RecipeIngredient ingredient = RecipeParsingSupport.parseIngredientValue(rawIngredient);
+                if (!ingredientHasMembers(ingredient)) {
+                    throw new IllegalArgumentException("Ingredient item or tag has no loaded items at ingredients[" + ingredientIndex + "]: " + rawIngredient);
+                }
+                ingredients.add(ingredient);
+            } catch (RuntimeException e) {
+                throw new IllegalArgumentException("Invalid ingredient at ingredients[" + ingredientIndex + "]: " + e.getMessage(), e);
+            }
         }
 
         Object containerValue = section.get("container");
         ItemStack container = containerValue == null ? null : parseItemValue(containerValue);
+        if (containerValue != null && (container == null || container.getType().isAir())) {
+            throw new IllegalArgumentException("Invalid container item: " + containerValue);
+        }
         boolean needsContainer = container != null;
 
         Object resultValue = section.get("result");
@@ -263,10 +322,10 @@ public class CookingPotRecipeManager {
             throw new IllegalArgumentException("Invalid result item: " + resultValue);
         }
         if (!(resultValue instanceof Map)) {
-            result.setAmount(Math.max(1, section.getInt("result-count", 1)));
+            result.setAmount(Math.max(1, ConfigSectionReader.optionalInt(section, "result-count", 1)));
         }
 
-        float experience = Math.max(0, (float) section.getDouble("experience", 0.0));
+        float experience = Math.max(0, (float) ConfigSectionReader.optionalDouble(section, "experience", 0.0));
         int defaultCookTime = Math.max(1, plugin.getConfigInt(Constants.DEFAULT_COOKING_TIME_COOKING_POT,
                 "cooking-pot.cooking.default-cook-time",
                 "cooking-pot.default-cook-time"));
@@ -279,16 +338,32 @@ public class CookingPotRecipeManager {
         int cookTime = Math.max(minCookTime, Math.min(maxCookTime, getInt(section,
                 defaultCookTime
         )));
-        String category = section.getString("category", "misc");
-        int priority = section.getInt("priority", 0);
+        String category = ConfigSectionReader.optionalString(section, "category", "misc");
+        int priority = ConfigSectionReader.optionalInt(section, "priority", 0);
 
         return new CookingPotRecipe(id, ingredients, container, needsContainer, result, experience, cookTime, category, priority);
+    }
+
+    private boolean ingredientHasMembers(RecipeIngredient ingredient) {
+        if (ingredient instanceof RecipeIngredient.Item item) {
+            ItemStack stack = item.createStack();
+            return stack != null && !stack.getType().isAir();
+        }
+        if (ingredient instanceof RecipeIngredient.Tag tag) {
+            return !plugin.getCraftEngine().itemManager().itemIdsByTag(tag.key()).isEmpty()
+                    || !getVanillaItemIdsByTag(tag.key()).isEmpty()
+                    || !com.huidu.farmersdelight.util.CommonTagResolver.getMembers(tag.key()).isEmpty();
+        }
+        if (ingredient instanceof RecipeIngredient.Choice choice) {
+            return choice.options().stream().anyMatch(this::ingredientHasMembers);
+        }
+        return false;
     }
 
     private int getInt(ConfigurationSection section, int defaultValue) {
         for (String key : new String[]{"cooking_time", "cooking-time", "cook-time"}) {
             if (section.contains(key)) {
-                return section.getInt(key, defaultValue);
+                return ConfigSectionReader.optionalInt(section, key, defaultValue);
             }
         }
         return defaultValue;
@@ -615,7 +690,14 @@ public class CookingPotRecipeManager {
 
     private boolean matchIngredient(ItemStack item, RecipeIngredient ingredient) {
         if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
-            return ItemUtils.matchesItemId(item, itemIngredient.key());
+            if (!ItemUtils.matchesItemId(item, itemIngredient.key())) {
+                return false;
+            }
+            if (itemIngredient.nbt() == null) {
+                return true;
+            }
+            ItemStack expected = RecipeItemCodec.itemFromBase64(itemIngredient.nbt());
+            return expected != null && expected.isSimilar(item);
         } else if (ingredient instanceof RecipeIngredient.Choice choiceIngredient) {
             for (RecipeIngredient option : choiceIngredient.options()) {
                 if (matchIngredient(item, option)) {
@@ -766,7 +848,11 @@ public class CookingPotRecipeManager {
             throw new IllegalArgumentException("Recipe must have a result");
         }
         List<RecipeIngredient> ingredients = new ArrayList<>();
-        for (String spec : ingredientSpecs) {
+        for (int i = 0; i < ingredientSpecs.size(); i++) {
+            String spec = ingredientSpecs.get(i);
+            if (spec == null || spec.isBlank()) {
+                throw new IllegalArgumentException("Invalid ingredient at ingredients[" + i + "]: empty");
+            }
             ingredients.add(parseIngredient(spec));
         }
         boolean needsContainer = container != null && !container.getType().isAir();

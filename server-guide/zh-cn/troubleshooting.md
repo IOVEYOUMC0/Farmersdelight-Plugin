@@ -2,6 +2,8 @@
 icon: wrench
 ---
 
+[English](../en/troubleshooting.md)
+
 # 故障排查
 
 ## 日志在哪
@@ -39,7 +41,7 @@ debug:
 
 | 现象 | 可能原因 | 解决 |
 | --- | --- | --- |
-| FarmersDelight 从不启用，日志说缺依赖 | 没装 CraftEngine | 装一个兼容的 CraftEngine（针对 **26.7** 编译）；它是硬 `depend`。 |
+| FarmersDelight 从不启用，日志说缺依赖 | 没装 CraftEngine | 安装与服务器匹配的 CraftEngine **26.8**；它是硬 `depend`。 |
 | 插件加载失败，报版本不支持 / 类错误 | 服务端低于 MC 1.21 或 Java 低于 21 | 用 **Paper/Folia 1.21.1** 跑在 **Java 21+** 上。 |
 | 自定义物品 / 方块显示紫黑贴图 | 客户端没用上当前资源包 | 执行 **`/ce reload all`** 重建包（单独的 `/ce reload` 不会）；确认玩家接受了包。见 [资源包](resource-pack.md)。 |
 | `/ce item give ... farmersdelight:cooking_pot` 报未知物品 | CraftEngine 内容没解析 | 查控制台有无 CraftEngine 行为报错（[确认行为已加载](verifying.md)）；修好点名的方块配置；`/ce reload`。 |

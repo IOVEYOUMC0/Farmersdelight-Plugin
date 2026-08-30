@@ -48,6 +48,8 @@ templates:
       resistance: 3
       tags:
       - minecraft:mineable/axe
+      - farmersdelight:cabinets
+      - farmersdelight:cabinets/wooden
       sounds:
         break: minecraft:block.wood.break
         fall: minecraft:block.wood.fall
@@ -75,7 +77,7 @@ templates:
         step: minecraft:block.wood.step
     behavior:
       type: simple_storage_block
-      title: <!i><l10n:block.farmersdelight.cabinet>
+      title: <!i><lang:block.farmersdelight.cabinet>
       rows: 3
       allow-input: true
       allow-output: true
@@ -188,7 +190,7 @@ items:
         operation: add_value
       lore:
       - content:
-        - <!i><dark_gray><l10n:farmersdelight.tooltip.placeable_sneaking></dark_gray>
+        - <!i><dark_gray><lang:farmersdelight.tooltip.placeable_sneaking></dark_gray>
         - ''
         - <!i><gray><lang:item.modifiers.mainhand></gray>
         - <!i><dark_green>  8 <lang:attribute.name.attack_damage></dark_green>
@@ -220,7 +222,7 @@ items:
       item-name: <!i><lang:block.farmersdelight.tray>
       lore:
       - content:
-        - <!i><red><l10n:farmersdelight.tooltip.no_collision></red>
+        - <!i><red><lang:farmersdelight.tooltip.no_collision></red>
     model: ${__NAMESPACE__}:block/${__ID__}
     behavior:
       type: furniture_item
@@ -560,6 +562,7 @@ furniture:
         - item: farmersdelight:tray
           position: 0,0.5,0
           translation: 0,0,0
+          scale: 0.999
         hitboxes:
         - position: 0,0,0
           type: interaction
@@ -585,6 +588,7 @@ block:
       - minecraft:netherite_pickaxe
       tags:
       - minecraft:mineable/pickaxe
+      - farmersdelight:heat_sources
       sounds:
         break: minecraft:block.stone.break
         fall: minecraft:block.stone.fall
@@ -776,6 +780,7 @@ block:
       tags:
       - minecraft:mineable/shovel
       - minecraft:mushroom_grow_block
+      - farmersdelight:compost_activators
       sounds:
         break: minecraft:block.gravel.break
         fall: minecraft:block.gravel.fall
@@ -920,6 +925,8 @@ block:
       - minecraft:dirt
       - minecraft:bamboo_plantable_on
       - minecraft:mushroom_grow_block
+      - farmersdelight:compost_activators
+      - farmersdelight:mushroom_colony_growable_on
       sounds:
         break: minecraft:block.gravel.break
         fall: minecraft:block.gravel.fall
@@ -975,6 +982,7 @@ block:
       is-randomly-ticking: true
       tags:
       - minecraft:mineable/shovel
+      - farmersdelight:compost_activators
       sounds:
         break: minecraft:block.gravel.break
         fall: minecraft:block.gravel.fall
@@ -1040,6 +1048,11 @@ block:
         step: minecraft:block.lantern.step
     behavior:
     - type: farmersdelight:cooking_pot
+      display-support: true
+      require-non-full-support: true
+      handle-toggle-sound: minecraft:block.lantern.place
+      handle-toggle-sound-volume: 0.7
+      handle-toggle-sound-pitch: 1.0
       boil-sound: farmersdelight:block.cooking_pot.boil
       soup-boil-sound: farmersdelight:block.cooking_pot.boil_soup
       sound-chance: 0.1
@@ -1198,6 +1211,9 @@ block:
         step: minecraft:block.lantern.step
     behavior:
     - type: farmersdelight:skillet
+      permission: farmersdelight.use.skillet
+      display-support: true
+      require-non-full-support: true
       add-food-sound: farmersdelight:block.skillet.add_food
       sizzle-sound: farmersdelight:block.skillet.sizzle
     states:
@@ -1310,7 +1326,7 @@ block:
     - type: farmersdelight:cutting_board
       knife-sound: farmersdelight:block.cutting_board.knife
       tool-tags:
-      - '#farmersdelight:knives'
+      - '#farmersdelight:tools/knives'
       - '#minecraft:axes'
       - '#minecraft:pickaxes'
       - '#minecraft:shovels'
@@ -1369,7 +1385,7 @@ block:
         step: minecraft:block.scaffolding.step
     behavior:
     - type: simple_storage_block
-      title: <!i><l10n:block.farmersdelight.basket>
+      title: <!i><lang:block.farmersdelight.basket>
       rows: 3
       allow-input: true
       allow-output: true
@@ -1465,6 +1481,7 @@ block:
       fire-spread-chance: 20
       tags:
       - minecraft:mineable/hoe
+      - farmersdelight:campfire_signal_smoke
       sounds:
         break: minecraft:block.grass.break
         fall: minecraft:block.grass.fall
@@ -1554,6 +1571,7 @@ block:
       fire-spread-chance: 20
       tags:
       - minecraft:mineable/hoe
+      - farmersdelight:campfire_signal_smoke
       sounds:
         break: minecraft:block.grass.break
         fall: minecraft:block.grass.fall
@@ -1608,6 +1626,7 @@ block:
       resistance: 0.8
       tags:
       - minecraft:mineable/shears
+      - farmersdelight:straw_blocks
       sounds:
         break: minecraft:block.wool.break
         fall: minecraft:block.wool.fall
@@ -1727,6 +1746,9 @@ block:
       hardness: 0.2
       resistance: 0.2
       push-reaction: destroy
+      tags:
+      - farmersdelight:straw_blocks
+      - farmersdelight:mineable/knife
       sounds:
         break: minecraft:block.wool.break
         fall:  minecraft:block.wool.fall
@@ -1774,6 +1796,9 @@ block:
       burn_chance: 60
       fire_spread_chance: 20
       push-reaction: destroy
+      tags:
+      - farmersdelight:straw_blocks
+      - farmersdelight:mineable/knife
       sounds:
         break: minecraft:block.grass.break
         fall: minecraft:block.grass.fall
@@ -1788,97 +1813,97 @@ block:
           default: none
       appearances:
         none:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_north:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_north_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_south:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_south_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_east:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_east_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_west:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_west_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_north_south:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_north_south_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_east_west:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_east_west_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_north_east:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_north_east_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_north_west:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_north_west_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_south_east:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_south_east_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_south_west:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_south_west_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_north_south_east:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_north_south_east_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_north_south_west:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_north_south_west_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_east_west_north:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_east_west_north_elements
             scale: 1.005
             translation: 0,0.00245,0
         no_east_west_south:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_no_east_west_south_elements
             scale: 1.005
             translation: 0,0.00245,0
         surrounded:
-          state: white_carpet
+          state: yellow_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:canvas_rug_surrounded_elements
             scale: 1.005
@@ -1899,21 +1924,21 @@ block:
         variant=no_east_west:
           appearance: no_east_west
         variant=no_north_east:
-          appearance: no_north_east
-        variant=no_north_west:
-          appearance: no_north_west
-        variant=no_south_east:
-          appearance: no_south_east
-        variant=no_south_west:
           appearance: no_south_west
+        variant=no_north_west:
+          appearance: no_south_east
+        variant=no_south_east:
+          appearance: no_north_west
+        variant=no_south_west:
+          appearance: no_north_east
         variant=no_north_south_east:
-          appearance: no_north_south_east
-        variant=no_north_south_west:
           appearance: no_north_south_west
+        variant=no_north_south_west:
+          appearance: no_north_south_east
         variant=no_east_west_north:
-          appearance: no_east_west_north
-        variant=no_east_west_south:
           appearance: no_east_west_south
+        variant=no_east_west_south:
+          appearance: no_east_west_north
         variant=surrounded:
           appearance: surrounded
   farmersdelight:half_tatami_mat:
@@ -1926,6 +1951,9 @@ block:
       burn_chance: 30
       fire_spread_chance: 60
       push-reaction: destroy
+      tags:
+      - farmersdelight:straw_blocks
+      - farmersdelight:mineable/knife
       sounds:
         break: minecraft:block.wool.break
         fall: minecraft:block.wool.fall
@@ -1933,7 +1961,7 @@ block:
         place: minecraft:block.wool.place
         step: minecraft:block.wool.step
     state:
-      state: white_carpet
+      state: gray_carpet
       entity_renderer:
         item: ${__NAMESPACE__}:half_tatami_mat_elements
         scale: 1.003
@@ -1954,6 +1982,9 @@ block:
       burn_chance: 30
       fire_spread_chance: 60
       push-reaction: destroy
+      tags:
+      - farmersdelight:straw_blocks
+      - farmersdelight:mineable/knife
       sounds:
         break: minecraft:block.wool.break
         fall: minecraft:block.wool.fall
@@ -1971,54 +2002,54 @@ block:
           default: north
       appearances:
         north_head:
-          state: white_carpet
+          state: gray_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:full_tatami_mat_head_elements
             rotation: 180
             scale: 1.003
             translation: 0,-0.0002,0
         north_foot:
-          state: white_carpet
+          state: gray_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:full_tatami_mat_foot_elements
             rotation: 180
             scale: 1.003
             translation: 0,-0.0002,0
         south_head:
-          state: white_carpet
+          state: gray_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:full_tatami_mat_head_elements
             scale: 1.003
             translation: 0,-0.0002,0
         south_foot:
-          state: white_carpet
+          state: gray_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:full_tatami_mat_foot_elements
             scale: 1.003
             translation: 0,-0.0002,0
         east_head:
-          state: white_carpet
+          state: gray_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:full_tatami_mat_head_elements
             rotation: 270
             scale: 1.003
             translation: 0,-0.0002,0
         east_foot:
-          state: white_carpet
+          state: gray_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:full_tatami_mat_foot_elements
             rotation: 270
             scale: 1.003
             translation: 0,-0.0002,0
         west_head:
-          state: white_carpet
+          state: gray_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:full_tatami_mat_head_elements
             rotation: 90
             scale: 1.003
             translation: 0,-0.0002,0
         west_foot:
-          state: white_carpet
+          state: gray_carpet
           entity_renderer:
             item: ${__NAMESPACE__}:full_tatami_mat_foot_elements
             rotation: 90

@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/recipe-registration.md)
 # Cooking pot and cutting board recipes
 
 This is the other half of the recipe API: instead of rendering your own station's recipes, you contribute
@@ -201,7 +203,7 @@ public record RecipeInfo(String id, String type, List<String> ingredients, List<
 }
 ```
 
-A read-only snapshot carrying only Bukkit and java types, so it crosses the obfuscation-stable API boundary.
+A read-only snapshot carrying only Bukkit and java types, so it crosses the supported API boundary.
 `ingredients` and `tools` come back as id strings in the recipe-file syntax above — internal ingredient records
 never leave the plugin. `container()` and `results()` clone on every access, and the list fields are immutable
 copies, so nothing you do to a `RecipeInfo` can reach a live recipe.

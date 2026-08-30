@@ -152,7 +152,6 @@ public final class AuraSkillsHook {
         return skill;
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     private Object resolveDefaultSkill(String skillId) {
         if (skillsEnumClass == null || (skillId.contains("/") && !skillId.startsWith("auraskills/"))) {
             return null;
@@ -165,11 +164,16 @@ public final class AuraSkillsHook {
         }
         enumName = enumName.toUpperCase(Locale.ROOT).replace('-', '_').replace('.', '_');
 
-        try {
-            return Enum.valueOf((Class<? extends Enum>) skillsEnumClass.asSubclass(Enum.class), enumName);
-        } catch (IllegalArgumentException ignored) {
+        Object[] constants = skillsEnumClass.getEnumConstants();
+        if (constants == null) {
             return null;
         }
+        for (Object constant : constants) {
+            if (constant instanceof Enum<?> value && value.name().equals(enumName)) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private Object resolveRegisteredSkill(String skillId) throws ReflectiveOperationException {

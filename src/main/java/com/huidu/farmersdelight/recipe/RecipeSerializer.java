@@ -6,7 +6,9 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public final class RecipeSerializer {
@@ -33,6 +35,29 @@ public final class RecipeSerializer {
             return builder.toString();
         }
         return "";
+    }
+
+    /** Returns the YAML value used by the editor, retaining an optional item snapshot. */
+    public static Object serializeIngredientValue(RecipeIngredient ingredient) {
+        if (ingredient instanceof RecipeIngredient.Item item && item.nbt() != null) {
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("item", item.key().toString());
+            value.put("nbt", item.nbt());
+            return value;
+        }
+        if (ingredient instanceof RecipeIngredient.Choice choice) {
+            List<Object> values = new ArrayList<>(choice.options().size());
+            boolean hasSnapshot = false;
+            for (RecipeIngredient option : choice.options()) {
+                Object value = serializeIngredientValue(option);
+                values.add(value);
+                hasSnapshot |= value instanceof Map<?, ?>;
+            }
+            if (hasSnapshot) {
+                return Map.of("choice", values);
+            }
+        }
+        return serializeIngredient(ingredient);
     }
 
     public static String serializeTool(CuttingBoardRecipe.ToolRequirement tool) {

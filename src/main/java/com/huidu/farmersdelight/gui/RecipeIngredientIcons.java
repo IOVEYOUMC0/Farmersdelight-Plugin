@@ -131,7 +131,7 @@ public final class RecipeIngredientIcons {
 
     public static List<ItemStack> resolveIngredientOptions(RecipeIngredient ingredient) {
         if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
-            ItemStack item = createItemFromKey(itemIngredient.key());
+            ItemStack item = itemIngredient.createStack();
             if (item == null || item.getType().isAir() || item.getType() == Material.BARRIER) {
                 return List.of();
             }
@@ -185,6 +185,17 @@ public final class RecipeIngredientIcons {
                 tagIngredient.excludedItems(),
                 tagIngredient.excludedTags())) {
             uniqueDisplays.putIfAbsent(buildIngredientDisplayKey(item), item);
+        }
+        // Expand registered tag (c:... and addon) members from the central registry; CE has no native c: tags.
+        if (com.huidu.farmersdelight.util.CommonTagResolver.isCommonTag(tagIngredient.key().toString())) {
+            for (String memberId : com.huidu.farmersdelight.util.CommonTagResolver.getMembers(tagIngredient.key())) {
+                // ItemUtils.createItem routes mmoitems:/custom/vanilla ids, unlike createItemFromKey.
+                ItemStack item = ItemUtils.createItem(memberId);
+                if (item == null || item.getType().isAir() || item.getType() == Material.BARRIER) {
+                    continue;
+                }
+                uniqueDisplays.putIfAbsent(buildIngredientDisplayKey(item), item);
+            }
         }
         return sortIngredientDisplayItems(uniqueDisplays.values());
     }

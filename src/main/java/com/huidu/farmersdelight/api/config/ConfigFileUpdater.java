@@ -111,7 +111,7 @@ public final class ConfigFileUpdater {
         return true;
     }
 
-    private static void copySection(ConfigurationSection source, ConfigurationSection target) {
+    public static void copySection(ConfigurationSection source, ConfigurationSection target) {
         for (String key : source.getKeys(false)) {
             ConfigurationSection child = source.getConfigurationSection(key);
             if (child != null) {

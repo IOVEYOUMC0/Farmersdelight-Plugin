@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/farmersdelight-api.md)
 # FarmersDelightApi — the entry point
 
 `com.huidu.farmersdelight.api.FarmersDelightApi` is the single addon-facing entry point. It is

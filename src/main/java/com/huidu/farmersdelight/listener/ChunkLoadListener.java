@@ -9,8 +9,6 @@ import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntity;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntityController;
 import com.huidu.farmersdelight.block.behavior.SkilletBlockEntityController;
 import com.huidu.farmersdelight.block.behavior.StoveBlockEntityController;
-import com.huidu.farmersdelight.manager.HandleManager;
-import com.huidu.farmersdelight.manager.TrayManager;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
@@ -104,18 +102,6 @@ public class ChunkLoadListener implements Listener {
 
     private void loadBlockEntitiesInChunk(World world, int chunkX, int chunkZ) {
         loadCraftEngineBlockEntitiesInChunk(world, chunkX, chunkZ);
-        sweepOrphanFurnitureInChunk(world, chunkX, chunkZ);
-    }
-
-    private void sweepOrphanFurnitureInChunk(World world, int chunkX, int chunkZ) {
-        TrayManager trayManager = plugin.getTrayManager();
-        HandleManager handleManager = plugin.getHandleManager();
-        if (trayManager == null && handleManager == null) {
-            return;
-        }
-        plugin.scheduler().runAt(world, chunkX, chunkZ, () -> {
-            // Trays and handles now use entity_renderer, so furniture entity cleanup is unnecessary.
-        });
     }
 
     private void loadCraftEngineBlockEntitiesInChunk(World world, int chunkX, int chunkZ) {

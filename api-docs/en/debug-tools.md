@@ -1,18 +1,25 @@
+
+[简体中文](../zh-cn/debug-tools.md)
 # Debug tools — `DebugToolExtension` and `DebugToolRegistry`
 
 FarmersDelight has an admin command, `/fd debugtools`, for stress-testing: mass-place blocks, mass-activate
-them so they actually tick, print a performance snapshot, and undo the placement. The two types in
+them so they actually tick, inspect live state, validate loaded recipes, and undo the placement. The two types in
 `com.huidu.farmersdelight.api.util` let an addon plug its own block into that command instead of shipping a
 debug CLI of its own.
 
 The feature id is `debug-tools`.
 
+The `recipe validate` action checks loaded cooking-pot and cutting-board recipes for empty structure,
+missing results/containers, and tags that resolve to no vanilla, CraftEngine, or registered common-tag
+members. Parse failures are still reported by the normal `recipe.load_failed` logger.
+
 ## Availability: this only runs on a debug build
 
 `/fd debugtools` is compiled from a separate source set that is only included when FarmersDelight is built
 with `-PdebugTools=true`; the command class is otherwise excluded from the jar and the command is never
-registered. On a normal release build the registry is simply **dormant**: `register` still works, nothing ever
-calls your `place`, `activate`, `status` or `cleanupBeforeUndo`.
+registered. On a normal release build the registry is mostly **dormant**: `register` still works and nothing
+ever calls your `place`, `activate` or `cleanupBeforeUndo`. `status` is the exception — it is invoked by the
+always-resident `/fd stats addon` subcommand, which works even on a release build.
 
 That is why registering unconditionally is safe, and why both FDAddonTemplate and BrewinAndChewin do exactly
 that in `onEnable` without probing anything.
@@ -93,8 +100,8 @@ The lowercase target keyword. It becomes the word an admin types:
 /fd debugtools place keg 64 2 3
 ```
 
-It is also used for tab-completion and to prefix your status lines. `DebugToolRegistry` lowercases it on
-registration, so return it already lowercase to avoid surprises.
+It is also used for tab-completion and as the extension name in `/fd stats addon <name>`. `DebugToolRegistry`
+lowercases it on registration, so return it already lowercase to avoid surprises.
 
 ### `int place(Player player, Location origin, int count, int spacing, int layers, UndoSink undo)`
 
@@ -173,8 +180,11 @@ does), iterate that instead of duplicating tracking.
 
 ### `List<String> status(Player player)`
 
-Optional; default returns an empty list. Called for `/fd debugtools status`, after FarmersDelight's own
-`TickManager` snapshot. Each entry is one line, sent to the player prefixed with `[<name>]`.
+Optional; default returns an empty list. Called by the **always-resident** `/fd stats addon <name>` subcommand
+(the `/fd stats` overview lists every registered addon as a clickable name that drills into it), so it runs on a
+release build too — no `-PdebugTools=true` needed. Each entry is one line, sent to the player by filling the
+`{line}` placeholder of the translation key `command.stats_addon_line` (`{name}` is the extension name); the
+line carries whatever prefix it has itself.
 
 ```java
 @Override
@@ -183,8 +193,9 @@ public List<String> status(Player player) {
 }
 ```
 
-The lines are passed through MiniMessage before being sent, so a literal `<` in your text will be parsed as
-markup. Escape or avoid angle brackets — or use them deliberately for colour.
+Because each line is slotted into the `command.stats_addon_line` template, avoid a literal `{line}` or `{name}`
+in your text — they are treated as placeholders. Put any prefix/colour inside your own line or in that translation
+key.
 
 Returning `null` is tolerated (treated as "no lines"), but an empty list is the documented way to opt out.
 

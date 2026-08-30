@@ -30,6 +30,17 @@ public final class ManagerSupport {
         return normalize(posKey.toLocation(world));
     }
 
+    // Single source of truth for the world+chunk -> long index used by the multidimensional-entity
+    // registries. The 64-bit key packs the 32-bit chunk column and the unsigned low 32-bit Z; OR is enough
+    // because the two words never overlap, so consumers must not vary the formula or keys stop matching.
+    public static long chunkKey(int chunkX, int chunkZ) {
+        return (((long) chunkX) << 32) | (chunkZ & 0xffffffffL);
+    }
+
+    public static long chunkKey(Location location) {
+        return chunkKey(location.getBlockX() >> 4, location.getBlockZ() >> 4);
+    }
+
     public static <T> void saveAllData(Map<Location, T> entries, BiConsumer<Location, T> saver) {
         for (Map.Entry<Location, T> entry : entries.entrySet()) {
             saver.accept(entry.getKey(), entry.getValue());

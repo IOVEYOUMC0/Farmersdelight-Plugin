@@ -63,7 +63,9 @@ public final class AddonAdvancementTab {
         try {
             UltimateAdvancementAPI api = UltimateAdvancementAPI.getInstance(plugin);
             if (api.isAdvancementTabRegistered(tabName)) {
-                api.unregisterAdvancementTab(tabName);
+                // Rebuilds follow CE/datapack reloads; the client may have already discarded the old
+                // virtual tree, so do not send stale remove packets for it.
+                api.unregisterAdvancementTab(tabName, false);
             }
             tab = api.createAdvancementTab(tabName);
             buildTree();
@@ -221,6 +223,20 @@ public final class AddonAdvancementTab {
             award(player, rootId);
         }
         showTo(player);
+    }
+
+    // Forces a full tree re-send to an online player even if the tab was already shown (UAA's showTab no-ops
+    // once a player is marked shown). Used to re-push the tree after a reload/rebuild, when the first send may
+    // have been dropped while the client re-applied CraftEngine's resource pack.
+    public void forceResend(Player player) {
+        if (tab == null || !tab.isInitialised() || player == null) {
+            return;
+        }
+        try {
+            tab.updateAdvancementsToTeam(player);
+        } catch (Exception ignored) {
+            // team data not loaded yet; UAA re-shows the tab once the player's data finishes loading
+        }
     }
 
     public void award(Player player, String advancementId) {

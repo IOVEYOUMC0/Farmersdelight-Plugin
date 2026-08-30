@@ -126,11 +126,7 @@ public final class CampfireRecipeCache {
                 return false;
             }
 
-            if (recipe.getInputChoice().test(input)) {
-                return true;
-            }
-
-            return recipe.getInputChoice().test(new ItemStack(input.getType()));
+            return recipe.getInputChoice().test(input);
         } catch (Exception ignored) {
             return false;
         }
@@ -146,4 +142,3 @@ public final class CampfireRecipeCache {
         return normalized;
     }
 }
-

@@ -76,6 +76,5 @@ public class CuttingBoardInteractListener implements Listener {
         player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_HIT, 1.0f, 1.2f);
         player.swingMainHand();
         event.setCancelled(true);
-        player.updateInventory();
     }
 }

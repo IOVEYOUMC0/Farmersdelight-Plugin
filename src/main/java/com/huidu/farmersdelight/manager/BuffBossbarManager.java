@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.manager;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
@@ -105,14 +106,14 @@ public final class BuffBossbarManager implements Listener {
             this.channels = java.util.EnumSet.of(Channel.BOSSBAR);
             this.actionbarSeparator = Component.text("   ");
         } else {
-            this.enabled = section.getBoolean("enabled", true);
-            this.layoutMode = LayoutMode.parse(section.getString("layout-mode", "stacked"));
+            this.enabled = ConfigSectionReader.optionalBoolean(section, "enabled", true);
+            this.layoutMode = LayoutMode.parse(ConfigSectionReader.optionalString(section, "layout-mode", "stacked"));
             this.rotationIntervalTicks = Math.max(20L,
-                    section.getLong("rotation-interval-ticks", 80L));
+                    ConfigSectionReader.optionalLong(section, "rotation-interval-ticks", 80L));
             this.actionbarRefreshTicks = Math.max(1L,
-                    section.getLong("actionbar-refresh-ticks", 30L));
-            this.channels = parseChannels(section.getStringList("channels"));
-            this.actionbarSeparator = Component.text(section.getString("actionbar-separator", "   "));
+                    ConfigSectionReader.optionalLong(section, "actionbar-refresh-ticks", 30L));
+            this.channels = parseChannels(ConfigSectionReader.optionalStringList(section, "channels"));
+            this.actionbarSeparator = Component.text(ConfigSectionReader.optionalString(section, "actionbar-separator", "   "));
         }
         if (wasRendering && !renderingEnabled()) {
             hideAndClearAll();

@@ -12,7 +12,6 @@ import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.BlockPos;
-import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -31,6 +30,8 @@ public class RichSoilBlockBehavior extends FarmersDelightBlockBehavior {
     private final float boostChance;
     private final Key brownMushroomColonyId;
     private final Key redMushroomColonyId;
+    private final ConfiguredBlockSet brownMushrooms;
+    private final ConfiguredBlockSet redMushrooms;
     // The reference mod keeps a single UNAFFECTED_BY_RICH_SOIL block tag consulted by both the rich soil block
     // and the rich soil farmland. Each configured block carries its own parsed copy: the list belongs to the
     // behavior instance the factory built it from, so two blocks declaring this behavior cannot overwrite one
@@ -40,12 +41,16 @@ public class RichSoilBlockBehavior extends FarmersDelightBlockBehavior {
 
     private RichSoilBlockBehavior(BlockDefinition block, float boostChance,
                                    Key brownMushroomColonyId, Key redMushroomColonyId,
-                                   ConfiguredBlockSet unaffectedBlocks) {
+                                   ConfiguredBlockSet unaffectedBlocks,
+                                   ConfiguredBlockSet brownMushrooms,
+                                   ConfiguredBlockSet redMushrooms) {
         super(block);
         this.boostChance = boostChance;
         this.brownMushroomColonyId = brownMushroomColonyId;
         this.redMushroomColonyId = redMushroomColonyId;
         this.unaffectedBlocks = unaffectedBlocks;
+        this.brownMushrooms = brownMushrooms;
+        this.redMushrooms = redMushrooms;
     }
 
     public ConfiguredBlockSet unaffectedBlocks() {
@@ -66,7 +71,12 @@ public class RichSoilBlockBehavior extends FarmersDelightBlockBehavior {
         String brownId = BehaviorArgParser.getStringStrict(arguments, "brown-mushroom-colony", "farmersdelight:brown_mushroom_colony");
         String redId = BehaviorArgParser.getStringStrict(arguments, "red-mushroom-colony", "farmersdelight:red_mushroom_colony");
         ConfiguredBlockSet unaffected = ConfiguredBlockSet.parse(arguments.get("unaffected-blocks"));
-        return new RichSoilBlockBehavior(block, chance, Key.of(brownId), Key.of(redId), unaffected);
+        ConfiguredBlockSet brownMushrooms = configuredMushrooms(arguments, "brown-mushroom-blocks",
+                "minecraft:brown_mushroom", Constants.BLOCK_BROWN_MUSHROOM);
+        ConfiguredBlockSet redMushrooms = configuredMushrooms(arguments, "red-mushroom-blocks",
+                "minecraft:red_mushroom", Constants.BLOCK_RED_MUSHROOM);
+        return new RichSoilBlockBehavior(block, chance, Key.of(brownId), Key.of(redId), unaffected,
+                brownMushrooms, redMushrooms);
     };
 
     @Override
@@ -94,22 +104,20 @@ public class RichSoilBlockBehavior extends FarmersDelightBlockBehavior {
     }
 
     private boolean convertMushroomToColony(Block target) {
-        if (target.getType() == Material.BROWN_MUSHROOM) {
+        if (brownMushrooms.contains(target)) {
             return replaceWithColony(target, brownMushroomColonyId);
         }
-        if (target.getType() == Material.RED_MUSHROOM) {
-            return replaceWithColony(target, redMushroomColonyId);
-        }
-        // A vanilla mushroom cannot survive on the rich-soil series (CraftEngine block tags are client-only),
-        // so a mushroom planted here is our look-alike custom block instead. Convert it the same way, mirroring
-        // the mod where the rich soil turns the mushroom sitting above it into a colony on its own random tick.
-        if (CustomBlockUtils.hasId(target, Constants.BLOCK_BROWN_MUSHROOM)) {
-            return replaceWithColony(target, brownMushroomColonyId);
-        }
-        if (CustomBlockUtils.hasId(target, Constants.BLOCK_RED_MUSHROOM)) {
+        if (redMushrooms.contains(target)) {
             return replaceWithColony(target, redMushroomColonyId);
         }
         return false;
+    }
+
+    private static ConfiguredBlockSet configuredMushrooms(Map<String, Object> arguments, String key,
+                                                         String... defaults) {
+        Object configured = BehaviorArgParser.getRaw(arguments, key);
+        return configured == null ? ConfiguredBlockSet.parse(java.util.List.of(defaults))
+                : ConfiguredBlockSet.parse(configured);
     }
 
     private boolean replaceWithColony(Block target, Key colonyId) {
@@ -124,11 +132,9 @@ public class RichSoilBlockBehavior extends FarmersDelightBlockBehavior {
         return true;
     }
 
-    @SuppressWarnings("unchecked")
     private static ImmutableBlockState colonyAgeZero(BlockDefinition colony) {
-        Property<?> property = colony.getProperty("age");
-        if (property == null || property.valueClass() != Integer.class) return null;
-        return colony.defaultState().with((Property<Integer>) property, 0);
+        Property<Integer> property = BlockBehaviorFactory.getOptionalProperty(colony, "age", Integer.class);
+        return property == null ? null : colony.defaultState().with(property, 0);
     }
 
     private boolean boostPlant(Block plant) {

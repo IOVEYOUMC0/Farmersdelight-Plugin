@@ -25,13 +25,13 @@ import java.util.Set;
 // survives. Facing and part are looked up by name from config so any property pair can drive the pairing.
 public class DoubleBlockRugBlockBehavior extends RugBlockBehavior {
 
-    private final Property<?> facingProperty;
+    private final Property<Direction> facingProperty;
     private final Property<?> partProperty;
     private final Set<String> partnerIds;
 
     private DoubleBlockRugBlockBehavior(
             BlockDefinition block,
-            Property<?> facingProperty,
+            Property<Direction> facingProperty,
             Property<?> partProperty,
             Set<String> partnerIds) {
         super(block);
@@ -46,9 +46,10 @@ public class DoubleBlockRugBlockBehavior extends RugBlockBehavior {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
             String facingPropertyName = BehaviorArgParser.getString(arguments, "facing-property", "facing");
             String partPropertyName = BehaviorArgParser.getString(arguments, "part-property", "part");
-            Property<?> facingProperty = block.getProperty(facingPropertyName);
+            Property<Direction> facingProperty = BlockBehaviorFactory.getOptionalProperty(
+                    block, facingPropertyName, Direction.class);
             Property<?> partProperty = block.getProperty(partPropertyName);
-            Set<String> partnerIds = parseStringList(arguments.get("partner-ids"));
+            Set<String> partnerIds = new java.util.HashSet<>(BehaviorArgParser.getStringList(arguments, "partner-ids"));
             if (partnerIds.isEmpty()) {
                 partnerIds.add(block.id().namespace() + ":" + block.id().value());
             }
@@ -185,27 +186,20 @@ public class DoubleBlockRugBlockBehavior extends RugBlockBehavior {
         }
     }
 
-    // Prefers the player's nearest looking direction (the cell the foot extends into); falls back to the
-    // clicked face so a horizontal wall placement still records a sensible facing.
+    // Prefers the player's horizontal facing (their yaw). That stays stable when placing on a floor or
+    // ceiling, where the raw look direction is vertical and the nearest-looking-axis based fallback would
+    // degrade to one fixed horizontal direction regardless of where the player turns. The clicked face
+    // only backs up non-player or wall placements.
     private BlockFace lookingHorizontalFace(BlockPlaceContext context) {
-        Direction nearest = context.getNearestLookingDirection();
-        if (nearest != null && nearest.axis().isHorizontal()) {
-            return fromDirection(nearest);
-        }
-        for (Direction direction : context.getNearestLookingDirections()) {
-            if (direction != null && direction.axis().isHorizontal()) {
-                return fromDirection(direction);
-            }
+        Direction facing = context.getHorizontalDirection();
+        if (facing != null && facing.axis().isHorizontal()) {
+            return fromDirection(facing);
         }
         return fromDirection(context.getClickedFace());
     }
 
-    @SuppressWarnings("unchecked")
     private ImmutableBlockState withFacing(ImmutableBlockState state, BlockFace face) {
-        if (facingProperty.valueClass() != Direction.class) {
-            return state;
-        }
-        return state.with((Property<Direction>) facingProperty, toDirection(face));
+        return state.with(facingProperty, toDirection(face));
     }
 
     private Block partnerOf(Block self, ImmutableBlockState state) {

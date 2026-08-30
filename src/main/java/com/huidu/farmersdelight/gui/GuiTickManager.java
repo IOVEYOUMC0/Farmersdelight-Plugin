@@ -1,7 +1,6 @@
 package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
-import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import org.bukkit.entity.Player;
 
@@ -56,10 +55,12 @@ public class GuiTickManager {
                                 callback.accept(null);
                             }
                         } catch (Exception e) {
-                            if (plugin.isDebugEnabled()) {
-                                plugin.getLogger().warning(I18n.formatConsole("gui_runtime.tick_callback_failed",
-                                        "error", e.getMessage()));
-                            }
+                            // A broken GUI callback is a bug, not a recoverable condition: always surface
+                            // it with the stack so it stays observable in production, not just in debug.
+                            // The finally block drops the scheduled flag so the failing GUI still stops
+                            // being retried this tick without aborting the loop over the other callbacks.
+                            plugin.getLogger().log(java.util.logging.Level.WARNING,
+                                    "GUI tick callback failed for " + player.getName(), e);
                         } finally {
                             scheduledCallbacks.remove(callback);
                         }
