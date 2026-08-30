@@ -2,6 +2,8 @@
 icon: fire-burner
 ---
 
+[English](../en/recipe-registration.md)
+
 # 厨锅与砧板配方
 
 这是配方 API 的另一半：不是渲染你自己工作站的配方，而是往 **FarmersDelight 的**工作站里加配方。这样注册的配方会被 真正的厨锅煮、被真正的砧板切，会出现在 FarmersDelight 自己的配方界面里，也会参与配方发现。

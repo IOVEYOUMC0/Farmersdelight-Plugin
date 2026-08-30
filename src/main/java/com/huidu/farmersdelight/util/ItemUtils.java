@@ -10,6 +10,7 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.momirealms.craftengine.bukkit.api.CraftEngineItems;
 import net.momirealms.craftengine.bukkit.item.BukkitItemDefinition;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
+import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.item.component.DataComponentKeys;
 import net.momirealms.craftengine.core.util.Key;
@@ -25,6 +26,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -65,6 +67,35 @@ public final class ItemUtils {
     }
 
     private ItemUtils() {
+    }
+
+    /** Returns the Bukkit stack represented by a CraftEngine interaction hand. */
+    public static ItemStack getItemInHand(Player player, InteractionHand hand) {
+        if (player == null) {
+            return null;
+        }
+        return hand == InteractionHand.OFF_HAND
+                ? player.getInventory().getItemInOffHand()
+                : player.getInventory().getItemInMainHand();
+    }
+
+    /** Sends the matching arm animation for a CraftEngine interaction hand. */
+    public static void swingHand(Player player, InteractionHand hand) {
+        if (player == null) {
+            return;
+        }
+        if (hand == InteractionHand.OFF_HAND) {
+            player.swingOffHand();
+        } else {
+            player.swingMainHand();
+        }
+    }
+
+    /** Returns the Bukkit player already wrapped by CraftEngine, or null for non-Bukkit contexts. */
+    public static org.bukkit.entity.Player getBukkitPlayer(
+            net.momirealms.craftengine.core.entity.player.Player player) {
+        return player != null && player.platformPlayer() instanceof org.bukkit.entity.Player bukkitPlayer
+                ? bukkitPlayer : null;
     }
 
     public static String getCustomItemId(ItemStack item) {
@@ -171,15 +202,41 @@ public final class ItemUtils {
         }
         List<ItemStack> items = new ArrayList<>();
         try {
-            Key tag = Key.of(itemId.substring(1));
+            String tagString = itemId.substring(1);
+            // Common tags (c:...) expand through the mapping table; CE / vanilla tags expand via CraftEngine.
+            if (CommonTagResolver.isCommonTag(tagString)) {
+                // CE items now declare c: tags in their settings.tags instead of tags.yml, so merge
+                // CraftEngine members onto the mapping-table members to keep every tagged item visible.
+                Set<UniqueKey> seen = new HashSet<>();
+                for (String memberId : CommonTagResolver.getMembers(tagString)) {
+                    ItemStack item = createItem(memberId);
+                    if (item != null && !item.getType().isAir()) {
+                        items.add(item);
+                    }
+                }
+                CommonTagResolver.getMembers(tagString).forEach(memberId -> seen.add(UniqueKey.create(Key.of(memberId))));
+                for (UniqueKey member : BukkitItemManager.instance().itemIdsByTag(Key.of(tagString))) {
+                    if (seen.add(member)) {
+                        ItemStack item = createItem(member.toString());
+                        if (item != null && !item.getType().isAir()) {
+                            items.add(item);
+                        }
+                    }
+                }
+                return items;
+            }
+            Key tag = Key.of(tagString);
             for (UniqueKey member : BukkitItemManager.instance().itemIdsByTag(tag)) {
                 ItemStack item = createItem(member.toString());
                 if (item != null && !item.getType().isAir()) {
                     items.add(item);
                 }
             }
-        } catch (Exception ignored) {
-            // Unknown tag or CraftEngine not ready; the slot renders as empty/barrier elsewhere.
+        } catch (Exception ex) {
+            // Unknown tag or CraftEngine not ready: the slot renders as empty/barrier elsewhere, but
+            // surface the failure so a misconfigured tag is not silently swallowed.
+            Bukkit.getLogger().warning("Failed to resolve CraftEngine tag '" + itemId + "' in slot items: "
+                    + (ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage()));
         }
         return items;
     }
@@ -258,7 +315,7 @@ public final class ItemUtils {
         return built;
     }
 
-    public static net.momirealms.craftengine.libraries.nbt.Tag saveBukkitItemAsTag(ItemStack item) {
+    public static net.momirealms.craftengine.libraries.nbt.CompoundTag saveBukkitItemAsTag(ItemStack item) {
         return net.momirealms.craftengine.bukkit.util.ItemStackUtils.saveBukkitItemAsTag(item);
     }
 
@@ -674,15 +731,26 @@ public final class ItemUtils {
             return false;
         }
 
-        Key itemKey = Key.of("minecraft:" + item.getType().name().toLowerCase(java.util.Locale.ROOT));
-        if (excludedItems.contains(itemKey)) {
+        // A custom item may use a vanilla material as its render/base type, but that does not make
+        // it a member of the material's vanilla tags. Custom tags are checked by getItemTagIds().
+        if (getCustomItemId(item) != null || MMOItemsCompat.getItemId(item) != null) {
             return false;
         }
-        if (!isVanillaMaterialInTag(item.getType(), tagKey)) {
+
+        if (excludedItems.stream().anyMatch(excluded -> matchesItemId(item, excluded))) {
+            return false;
+        }
+        boolean inVanillaTag = isVanillaMaterialInTag(item.getType(), tagKey);
+        boolean inRegisteredTag = CommonTagResolver.getMembers(tagKey).stream()
+                .anyMatch(member -> matchesItemId(item, member));
+        if (!inVanillaTag && !inRegisteredTag) {
             return false;
         }
         for (Key excludedTag : excludedTags) {
-            if (isVanillaMaterialInTag(item.getType(), excludedTag)) {
+            boolean excludedByVanillaTag = isVanillaMaterialInTag(item.getType(), excludedTag);
+            boolean excludedByRegisteredTag = CommonTagResolver.getMembers(excludedTag).stream()
+                    .anyMatch(member -> matchesItemId(item, member));
+            if (excludedByVanillaTag || excludedByRegisteredTag) {
                 return false;
             }
         }
@@ -742,12 +810,24 @@ public final class ItemUtils {
             return Set.of();
         }
         java.util.LinkedHashSet<String> tags = new java.util.LinkedHashSet<>();
+        // CE-declared tags (self-identifying, e.g. a knife declaring farmersdelight:tools/knives).
         String customId = getCustomItemId(item);
         if (customId != null) {
             for (Key tag : getCustomItemTags(Key.of(customId))) {
                 tags.add(tag.toString());
             }
         }
+        // Registered tags (c:... conventions plus any addon-registered tags) are resolved against
+        // the item's authoritative identity. Do not include the base material for custom items: a CE
+        // custom apple rendered as cooked beef must not inherit cooked-beef recipe tags.
+        String identity = customId;
+        if (identity == null) {
+            identity = MMOItemsCompat.getItemId(item);
+        }
+        if (identity == null) {
+            identity = getVanillaMaterialItemId(item);
+        }
+        tags.addAll(CommonTagResolver.getTagsForItemId(identity));
         return Set.copyOf(tags);
     }
 
@@ -868,6 +948,20 @@ public final class ItemUtils {
         return item.clone();
     }
 
+    // Identity comparison used by recipe cross-reference / GUI linking: custom items match by custom id
+    // (ignoring base material), everything else by material type. Amount and NBT are not compared.
+    public static boolean isSameItem(ItemStack a, ItemStack b) {
+        if (a == null || b == null || a.getType().isAir() || b.getType().isAir()) {
+            return false;
+        }
+        String aId = getCustomItemId(a);
+        String bId = getCustomItemId(b);
+        if (aId != null || bId != null) {
+            return aId != null && aId.equals(bId);
+        }
+        return a.getType() == b.getType();
+    }
+
     public static String normalizeBlank(String value) {
         if (value == null) {
             return null;
@@ -930,4 +1024,3 @@ public final class ItemUtils {
         };
     }
 }
-

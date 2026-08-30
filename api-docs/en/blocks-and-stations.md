@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/blocks-and-stations.md)
 # Blocks and Stations
 
 Package: `com.huidu.farmersdelight.api.block`

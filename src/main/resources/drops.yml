@@ -1,0 +1,110 @@
+# Extra drops that knives (and other configured tools) produce.
+
+# Default trigger tools for mob extra drops. This does not define the plugin-wide knife list.
+# Items can be any minecraft:* or CraftEngine item ID; tags can be vanilla/CraftEngine item tags.
+mob-extra-tools:
+  tags:
+    - farmersdelight:tools/knives
+  items:
+    - farmersdelight:flint_knife
+    - farmersdelight:iron_knife
+    - farmersdelight:golden_knife
+    - farmersdelight:diamond_knife
+    - farmersdelight:netherite_knife
+
+# Extra drops when killing an adult mob with a configured tool.
+# normal is the regular drop, burning is the drop when the target is on fire, chance is the base probability,
+# and looting-multiplier is the added probability per looting level. Rules may override the tools with
+# tool-item, tool-items or tool-tags.
+mob-extra:
+  pig:
+    normal: farmersdelight:ham
+    burning: farmersdelight:smoked_ham
+    chance: 0.5
+    looting-multiplier: 0.1
+  hoglin:
+    normal: farmersdelight:ham
+    burning: farmersdelight:smoked_ham
+    chance: 1.0
+    looting-multiplier: 0.0
+  cow:
+    normal: minecraft:leather
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  mooshroom:
+    normal: minecraft:leather
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  donkey:
+    normal: minecraft:leather
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  horse:
+    normal: minecraft:leather
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  mule:
+    normal: minecraft:leather
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  llama:
+    normal: minecraft:leather
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  trader_llama:
+    normal: minecraft:leather
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  chicken:
+    normal: minecraft:feather
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  spider:
+    normal: minecraft:string
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  cave_spider:
+    normal: minecraft:string
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  rabbit:
+    normal: minecraft:rabbit_hide
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+  shulker:
+    normal: minecraft:shulker_shell
+    burning: ""
+    chance: 1.0
+    looting-multiplier: 0.0
+
+# Extra straw drops when breaking grass, mature wheat or mature rice with a knife.
+# short_grass, tall_grass and mature_wheat use CraftEngine vanilla loot for their item drop; these values
+# still define their advancement match. mature_rice and any additional key are dropped by the plugin listener.
+straw:
+  short_grass:
+    drop: farmersdelight:straw
+    min-amount: 1
+    max-amount: 1
+  tall_grass:
+    drop: farmersdelight:straw
+    min-amount: 1
+    max-amount: 1
+  mature_wheat:
+    drop: farmersdelight:straw
+    min-amount: 1
+    max-amount: 1
+  mature_rice:
+    drop: farmersdelight:straw
+    min-amount: 1
+    max-amount: 1

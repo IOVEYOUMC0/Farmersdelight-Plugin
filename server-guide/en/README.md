@@ -4,6 +4,8 @@ icon: rocket
 
 # Server Owner Guide
 
+[简体中文](../zh-cn/README.md)
+
 This is the friendly getting-started flow for running **FarmersDelight** on your server: what you need, how to
 install it, how to confirm it worked, the first knobs most owners touch, and how to read the console when
 something is off.
@@ -23,10 +25,12 @@ server, and hands you off to the Admin Wiki once you are running.
    actually hit.
 4. **[First config tweaks](first-config.md)** — the handful of `config.yml` settings most owners change on day
    one, with links into the Admin Wiki for the details.
-5. **[Verifying behaviours loaded](verifying.md)** — how to read a CraftEngine behavior error, which is a
+5. **[Block behavior configuration](block-behaviors.md)** — CE block lists, tags and every configurable FD
+   behavior mode.
+6. **[Verifying behaviours loaded](verifying.md)** — how to read a CraftEngine behavior error, which is a
    signal that a block's config is wrong, not a crash.
-6. **[Troubleshooting](troubleshooting.md)** — symptom → cause → fix, plus where the logs are.
-7. **[Migration & upgrades](migration.md)** — what carries over from a fresh install or an update, and why some
+7. **[Troubleshooting](troubleshooting.md)** — symptom → cause → fix, plus where the logs are.
+8. **[Migration & upgrades](migration.md)** — what carries over from a fresh install or an update, and why some
    shipped files are never overwritten.
 
 ## The 60-second version

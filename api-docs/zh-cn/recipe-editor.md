@@ -2,6 +2,8 @@
 icon: book-copy
 ---
 
+[English](../en/recipe-editor.md)
+
 # RecipeEditor、EditableRecipe 与 NumericField
 
 从 `RecipeType.editor()` 返回一个 `RecipeEditor`，你的配方就能通过 FarmersDelight 的通用编辑器 GUI 在游戏内编辑。 GUI 由 FarmersDelight 驱动，**存储归你的附属所有**：编辑器把一个 `EditableRecipe` 草稿交给你去落盘或删除，自己 从不碰你的文件。

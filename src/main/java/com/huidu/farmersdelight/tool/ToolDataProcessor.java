@@ -34,4 +34,8 @@ public final class ToolDataProcessor implements ItemProcessor {
         }
         return item;
     }
+
+    public void apply(ItemBuildContext context) {
+        apply(context.item(), context);
+    }
 }

@@ -11,7 +11,8 @@ public enum ReloadTarget {
     ADVANCEMENTS("advancements", "advancement"),
     LOOT("loot", "lootreload"),
     ENCHANT("enchant", "enchantment"),
-    DAMAGE("damage", "damagetype", "damage-type");
+    DAMAGE("damage", "damagetype", "damage-type"),
+    TAGS("tags", "tag");
 
     private final String[] aliases;
 

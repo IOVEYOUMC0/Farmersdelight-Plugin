@@ -116,16 +116,9 @@ public final class CustomBlockUtils {
         }
     }
 
-    // Compat shim: 26.7.4 returns CEWorld directly; 26.8 returns BukkitWorld (World), so bridge via ceWorld().
     private static CEWorld resolveCEWorld(BukkitWorldManager worldManager, java.util.UUID uuid) {
-        Object world = worldManager.getWorld(uuid);
-        if (world instanceof CEWorld ceWorld) {
-            return ceWorld;
-        }
-        if (world instanceof net.momirealms.craftengine.core.world.World ceWorld) {
-            return ceWorld.ceWorld();
-        }
-        return null;
+        net.momirealms.craftengine.bukkit.world.BukkitWorld world = worldManager.getWorld(uuid);
+        return world == null ? null : world.ceWorld();
     }
 
     public static World getBukkitWorld(BlockEntity blockEntity) {
@@ -311,9 +304,8 @@ public final class CustomBlockUtils {
         return parseFacing(value.toString());
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     private static Object getPropertyValue(ImmutableBlockState state, String propertyName) {
-        Property property = state.getProperty(propertyName);
+        Property<?> property = state.getProperty(propertyName);
         if (property != null) {
             return state.getNullable(property);
         }
@@ -392,4 +384,3 @@ public final class CustomBlockUtils {
         };
     }
 }
-

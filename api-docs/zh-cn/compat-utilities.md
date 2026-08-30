@@ -2,6 +2,8 @@
 icon: code-branch
 ---
 
+[English](../en/compat-utilities.md)
+
 # 版本兼容工具
 
 `com.huidu.farmersdelight.api.util` 里有三个小工具类，存在的意义只有一个：让附属用同一个编译产物同时跑在 Minecraft 1.21 到当前版本上。其中两个抹平 Bukkit API 变更，另一个是 CraftEngine 的提示框工具。

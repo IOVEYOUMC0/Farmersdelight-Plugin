@@ -2,6 +2,8 @@
 icon: list
 ---
 
+[English](../en/recipes-overview.md)
+
 # 配方包总览
 
 `com.huidu.farmersdelight.api.recipe` 是附属 API 里最大的一块。它其实同时承担三件容易混淆的事：

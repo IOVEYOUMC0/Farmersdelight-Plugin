@@ -2,7 +2,7 @@ package com.huidu.farmersdelight.util;
 
 public final class Constants {
 
-    public static final String TAG_KNIVES = "farmersdelight:knives";
+    public static final String TAG_KNIVES = "farmersdelight:tools/knives";
     public static final String TAG_AXES = "minecraft:axes";
     public static final String TAG_PICKAXES = "minecraft:pickaxes";
     public static final String TAG_SHOVELS = "minecraft:shovels";
@@ -44,7 +44,6 @@ public final class Constants {
     public static final String BEHAVIOR_STOVE = "farmersdelight:stove";
     public static final String BEHAVIOR_TALL_CROP = "farmersdelight:tall_crop";
     public static final String BEHAVIOR_TATAMI = "farmersdelight:tatami";
-    public static final String BEHAVIOR_UPPER_HALF_LOOT_RELAY = "farmersdelight:upper_half_loot_relay";
     public static final String BEHAVIOR_WILD_RICE = "farmersdelight:wild_rice";
     public static final String BEHAVIOR_ROPE = "farmersdelight:rope";
     public static final String BEHAVIOR_MUSHROOM_COLONY = "farmersdelight:mushroom_colony";

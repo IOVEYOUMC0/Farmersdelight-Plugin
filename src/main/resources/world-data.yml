@@ -1,0 +1,83 @@
+# Villager and wandering-trader offers bundled with the mod. Composting chances and furnace burn times live in
+# the CraftEngine item configuration under settings: compost_probability and fuel_time. Deleting an entry
+# disables it; the plugin does not add deleted trade entries back during updates.
+trades:
+  villager:
+    enabled: true
+    trades:
+      - profession: farmer
+        level: 1
+        ingredient: farmersdelight:onion
+        ingredient-amount: 26
+        result: minecraft:emerald
+        result-amount: 1
+        max-uses: 16
+        villager-xp: 2
+        price-multiplier: 0.05
+        chance: 0.14285714285714285
+      - profession: farmer
+        level: 1
+        ingredient: farmersdelight:tomato
+        ingredient-amount: 26
+        result: minecraft:emerald
+        result-amount: 1
+        max-uses: 16
+        villager-xp: 2
+        price-multiplier: 0.05
+        chance: 0.14285714285714285
+      - profession: farmer
+        level: 2
+        ingredient: farmersdelight:cabbage
+        ingredient-amount: 16
+        result: minecraft:emerald
+        result-amount: 1
+        max-uses: 16
+        villager-xp: 5
+        price-multiplier: 0.05
+        chance: 0.2
+      - profession: farmer
+        level: 2
+        ingredient: farmersdelight:rice
+        ingredient-amount: 20
+        result: minecraft:emerald
+        result-amount: 1
+        max-uses: 16
+        villager-xp: 5
+        price-multiplier: 0.05
+        chance: 0.2
+  wandering-trader:
+    enabled: true
+    generic-trade-count: 5
+    trades:
+      - ingredient: minecraft:emerald
+        ingredient-amount: 1
+        result: farmersdelight:cabbage_seeds
+        result-amount: 1
+        max-uses: 1
+        villager-xp: 12
+        price-multiplier: 0.05
+        chance: 0.014705882352941176
+      - ingredient: minecraft:emerald
+        ingredient-amount: 1
+        result: farmersdelight:tomato_seeds
+        result-amount: 1
+        max-uses: 1
+        villager-xp: 12
+        price-multiplier: 0.05
+        chance: 0.014705882352941176
+      - ingredient: minecraft:emerald
+        ingredient-amount: 1
+        result: farmersdelight:rice
+        result-amount: 1
+        max-uses: 1
+        villager-xp: 12
+        price-multiplier: 0.05
+        chance: 0.014705882352941176
+      - ingredient: minecraft:emerald
+        ingredient-amount: 1
+        result: farmersdelight:onion
+        result-amount: 1
+        max-uses: 1
+        villager-xp: 12
+        price-multiplier: 0.05
+        chance: 0.014705882352941176

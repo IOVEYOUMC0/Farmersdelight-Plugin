@@ -3,6 +3,8 @@ description: 包名：com.huidu.farmersdelight.api.config
 icon: folder-open
 ---
 
+[English](../en/config-updates.md)
+
 # 让服主的 config.yml 保持最新
 
 ## 这个包要解决的问题

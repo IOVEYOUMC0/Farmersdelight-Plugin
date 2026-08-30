@@ -88,7 +88,7 @@ public class StrawDropListener implements Listener {
     // the two grasses. Dropping it here as well would give those blocks two independent straw sources, so
     // this listener yields the item for them and keeps only the advancement award. Mature rice stays with
     // this listener: it is a CraftEngine block, which the vanilla loot injection cannot target. Any other
-    // block key an admin adds under drops.straw also keeps dropping through this listener.
+    // block key an admin adds under drops.yml's straw section also keeps dropping through this listener.
     private boolean isStrawDroppedByVanillaLootEntry(Block block) {
         Material type = block.getType();
         if (type == Material.SHORT_GRASS || type == Material.TALL_GRASS) {
@@ -221,4 +221,3 @@ public class StrawDropListener implements Listener {
         }
     }
 }
-

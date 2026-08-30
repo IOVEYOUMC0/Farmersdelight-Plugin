@@ -30,7 +30,6 @@ class ConfigBootstrapEquivalenceTest {
             {"mob-extra-drops", "drops.mob-extra"},
             {"straw-drops", "drops.straw"},
             {"drops.knife-items", "knife-items"},
-            {"cooking-pot.tray", "tray"},
             {"cooking-pot.experience-reward", "experience-reward"},
             {"cooking-pot.container-returns", "container-returns"},
             {"recipe-discovery", "recipes.discovery"},
@@ -44,16 +43,14 @@ class ConfigBootstrapEquivalenceTest {
             "buff.comfort.fade-warning-ticks",
             "comfort-foods.fade-warning-ticks",
             "buff.nourishment.fade-warning-ticks",
-            "nourishment-foods.fade-warning-ticks");
+            "nourishment-foods.fade-warning-ticks",
+            "tray",
+            "cooking-pot.tray",
+            "handle",
+            "cooking-pot.handle");
 
     private static final List<String> LEGACY_REGISTRY_SECTIONS = List.of(
-            "drops.mob-extra",
-            "mob-extra-drops",
-            "drops.mob-extra-tools",
-            "mob-extra-drop-tools",
             "heat-sources",
-            "drops.straw",
-            "straw-drops",
             "buff.comfort",
             "comfort-foods",
             "buff.nourishment",
@@ -61,9 +58,7 @@ class ConfigBootstrapEquivalenceTest {
             "container-returns",
             "cooking-pot.container-returns",
             "cutting-board.display-overrides",
-            "cutting-board.display-tag-overrides",
-            "world-data.trades.villager",
-            "world-data.trades.wandering-trader");
+            "cutting-board.display-tag-overrides");
 
     @Test
     void policyCarriesTheSameTablesTheLegacyCodeHad() throws Exception {
@@ -97,6 +92,7 @@ class ConfigBootstrapEquivalenceTest {
         existing.set("knife-config", List.of("farmersdelight:iron_knife"));
         existing.set("straw-drops.minecraft:wheat", 3);
         existing.set("cooking-pot.tray.enabled", false);
+        existing.set("cooking-pot.handle.toggle-sound", "minecraft:block.note_block.harp");
         existing.set("cooking-pot.experience-reward", 7);
         existing.set("cooking-pot.container-returns.minecraft:bowl", "minecraft:bowl");
         existing.set("recipe-discovery.enabled", false);
@@ -120,7 +116,6 @@ class ConfigBootstrapEquivalenceTest {
         YamlConfiguration existing = bundledConfig();
         // An operator who disabled content by deleting entries: the merge must not put any of them back.
         clearChildrenButOne(existing, "heat-sources");
-        clearChildrenButOne(existing, "drops.mob-extra");
         assertSameResult(existing);
     }
 
@@ -129,17 +124,97 @@ class ConfigBootstrapEquivalenceTest {
         YamlConfiguration existing = bundledConfig();
         // A section absent altogether is the pre-feature case: the merge fills it in completely.
         existing.set("heat-sources", null);
-        existing.set("world-data.trades.villager", null);
         assertSameResult(existing);
     }
 
     @Test
     void configMissingWholeFeatureBranchesMatches() {
         YamlConfiguration existing = bundledConfig();
-        existing.set("world-data", null);
         existing.set("cutting-board", null);
         existing.set("buff", null);
         assertSameResult(existing);
+    }
+
+    @Test
+    void legacyGuiRecipeDetailIsCopiedOnlyToMissingSplitSections() {
+        YamlConfiguration root = new YamlConfiguration();
+        root.set("recipe-view-gui.recipe-detail.title", "custom");
+        root.set("recipe-view-gui.recipe-detail.rows", 4);
+        root.set("recipe-view-gui.recipe-detail-cooking-pot.title", "kept");
+
+        ConfigurationSection recipeView = root.getConfigurationSection("recipe-view-gui");
+        assertNotNull(recipeView);
+        assertEquals(1, ConfigBootstrap.migrateLegacyGuiSections(recipeView));
+        assertEquals("kept", recipeView.getString("recipe-detail-cooking-pot.title"));
+        assertEquals("custom", recipeView.getString("recipe-detail-cutting-board.title"));
+        assertEquals(4, recipeView.getInt("recipe-detail-cutting-board.rows"));
+    }
+
+    @Test
+    void bundledWorldDataIsSeparateFromMainConfig() {
+        assertFalse(bundledConfig().contains("world-data", true));
+        Path path = Path.of("src", "main", "resources", "world-data.yml");
+        YamlConfiguration worldData = YamlConfiguration.loadConfiguration(path.toFile());
+        assertTrue(worldData.contains("trades.villager", true));
+        assertTrue(worldData.contains("trades.wandering-trader", true));
+    }
+
+    @Test
+    void bundledDropsAreSeparateFromMainConfig() {
+        assertFalse(bundledConfig().contains("drops", true));
+        Path path = Path.of("src", "main", "resources", "drops.yml");
+        YamlConfiguration drops = YamlConfiguration.loadConfiguration(path.toFile());
+        assertTrue(drops.contains("mob-extra-tools", true));
+        assertTrue(drops.contains("mob-extra", true));
+        assertTrue(drops.contains("straw", true));
+    }
+
+    @Test
+    void legacyWorldDataReplacesTheBundledTradeLists() throws Exception {
+        Path worldDataPath = Files.createTempFile("farmersdelight-world-data", ".yml");
+        try {
+            YamlConfiguration bundled = new YamlConfiguration();
+            bundled.set("trades.villager.enabled", true);
+            bundled.set("trades.wandering-trader.enabled", true);
+            ConfigFileUpdater.tidy(bundled);
+            Files.writeString(worldDataPath, bundled.saveToString(), StandardCharsets.UTF_8);
+
+            YamlConfiguration legacy = new YamlConfiguration();
+            legacy.set("trades.villager.enabled", false);
+            ConfigBootstrap.copyLegacyWorldData(legacy, worldDataPath);
+
+            YamlConfiguration migrated = YamlConfiguration.loadConfiguration(worldDataPath.toFile());
+            assertFalse(migrated.getBoolean("trades.villager.enabled", true));
+            assertFalse(migrated.contains("trades.wandering-trader", true));
+        } finally {
+            Files.deleteIfExists(worldDataPath);
+        }
+    }
+
+    @Test
+    void legacyDropsReplaceTheBundledDropGroups() throws Exception {
+        Path dropsPath = Files.createTempFile("farmersdelight-drops", ".yml");
+        try {
+            YamlConfiguration bundled = new YamlConfiguration();
+            bundled.set("mob-extra.pig.normal", "farmersdelight:ham");
+            bundled.set("mob-extra.hoglin.normal", "farmersdelight:ham");
+            bundled.set("mob-extra-tools.items", List.of("farmersdelight:iron_knife"));
+            bundled.set("straw.mature_rice.drop", "farmersdelight:straw");
+            ConfigFileUpdater.tidy(bundled);
+            Files.writeString(dropsPath, bundled.saveToString(), StandardCharsets.UTF_8);
+
+            YamlConfiguration legacy = new YamlConfiguration();
+            legacy.set("mob-extra.pig.normal", "minecraft:porkchop");
+            ConfigBootstrap.copyLegacyDrops(legacy, dropsPath);
+
+            YamlConfiguration migrated = YamlConfiguration.loadConfiguration(dropsPath.toFile());
+            assertEquals("minecraft:porkchop", migrated.getString("mob-extra.pig.normal"));
+            assertFalse(migrated.contains("mob-extra.hoglin", true));
+            assertFalse(migrated.contains("mob-extra-tools", true));
+            assertFalse(migrated.contains("straw", true));
+        } finally {
+            Files.deleteIfExists(dropsPath);
+        }
     }
 
     private void assertSameResult(YamlConfiguration input) {

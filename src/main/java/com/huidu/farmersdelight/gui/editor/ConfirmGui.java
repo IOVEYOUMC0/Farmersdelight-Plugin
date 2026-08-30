@@ -97,6 +97,11 @@ public final class ConfirmGui extends AbstractInventoryGui implements EditorGui 
         if (item == null) {
             item = config.getItem("background");
         }
-        return item == null ? new ItemStack(Material.AIR) : item.createItem(new HashMap<>(placeholders));
+        if (item == null) {
+            return new ItemStack(Material.AIR);
+        }
+        // Reuse the immutable-empty createItem() (with its cached item) for empty placeholders instead of
+        // allocating a HashMap per slot on every render.
+        return placeholders.isEmpty() ? item.createItem() : item.createItem(new HashMap<>(placeholders));
     }
 }

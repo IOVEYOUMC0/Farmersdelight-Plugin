@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/knives.md)
 # Knives
 
 The knife is Farmer's Delight's signature tool. It is both a **kitchen tool** (used on the
@@ -48,7 +50,7 @@ prep mechanics:
   `farmersdelight:straw`, an early crafting material.
 
 Any of the five knives counts for all of these — the server tracks them as a group (the
-`farmersdelight:knives` tag), so a flint knife works everywhere a netherite knife does.
+`farmersdelight:tools/knives` tag), so a flint knife works everywhere a netherite knife does.
 
 ## Knife mob drops
 

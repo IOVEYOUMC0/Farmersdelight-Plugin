@@ -16,6 +16,7 @@ import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockBreakEvent;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
+import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.GameMode;
@@ -39,7 +40,6 @@ import org.bukkit.inventory.ItemStack;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-@SuppressWarnings("unchecked")
 public class RicePlantListener implements Listener {
 
     private static final String RICE_BLOCK_ID = Constants.BLOCK_RICE;
@@ -343,7 +343,8 @@ public class RicePlantListener implements Listener {
         }
 
         try {
-            Property<Boolean> supportingProperty = (Property<Boolean>) state.owner().value().getProperty("supporting");
+            Property<Boolean> supportingProperty = BlockBehaviorFactory.getOptionalProperty(
+                    state.owner().value(), "supporting", Boolean.class);
             if (supportingProperty == null) {
                 return;
             }
@@ -429,12 +430,13 @@ public class RicePlantListener implements Listener {
             return null;
         }
 
-        Property<Integer> cropStageProperty = (Property<Integer>) block.getProperty("crop_stage");
+        Property<Integer> cropStageProperty = BlockBehaviorFactory.getOptionalProperty(
+                block, "crop_stage", Integer.class);
         if (cropStageProperty != null) {
             return cropStageProperty;
         }
 
-        return (Property<Integer>) block.getProperty("age");
+        return BlockBehaviorFactory.getOptionalProperty(block, "age", Integer.class);
     }
 
     private Property<Integer> getAgeProperty(ImmutableBlockState state) {
@@ -637,7 +639,8 @@ public class RicePlantListener implements Listener {
                 resetState = withRawProperty(resetState, half, inferRiceHalfValue(lowerState.owner().value(), "lower"));
             }
 
-            Property<Boolean> supporting = (Property<Boolean>) lowerState.owner().value().getProperty("supporting");
+            Property<Boolean> supporting = BlockBehaviorFactory.getOptionalProperty(
+                    lowerState.owner().value(), "supporting", Boolean.class);
             if (supporting != null) {
                 resetState = resetState.with(supporting, false);
             }
@@ -756,7 +759,8 @@ public class RicePlantListener implements Listener {
             state = withRawProperty(state, half, inferRiceHalfValue(riceBlock, "lower"));
         }
 
-        Property<Boolean> supporting = (Property<Boolean>) riceBlock.getProperty("supporting");
+        Property<Boolean> supporting = BlockBehaviorFactory.getOptionalProperty(
+                riceBlock, "supporting", Boolean.class);
         if (supporting != null) {
             state = state.with(supporting, false);
         }
@@ -794,12 +798,11 @@ public class RicePlantListener implements Listener {
         }, 1L);
     }
 
-    @SuppressWarnings({"rawtypes"})
     private ImmutableBlockState withRawProperty(ImmutableBlockState state, Property<?> property, Object value) {
         if (state == null || property == null || value == null) {
             return state;
         }
-        return state.with((Property) property, (Comparable) value);
+        return ImmutableBlockState.with(state, property, value);
     }
 
     private void ensureRiceStable(Location location, int attemptsRemaining) {

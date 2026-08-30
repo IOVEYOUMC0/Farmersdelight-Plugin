@@ -43,6 +43,16 @@ public final class FarmersDelightText {
         return PresentationUtils.resolveGlyphTags(text);
     }
 
+    // Parsed Components are immutable and cached in Text, so addons parsing the same fixed template
+    // repeatedly (GUI titles, lore, display names) reuse the parse result instead of re-parsing.
+    public static Component deserialize(String raw) {
+        return Text.deserialize(raw);
+    }
+
+    public static Component deserializeGlyphs(String raw) {
+        return Text.deserialize(PresentationUtils.resolveGlyphTags(raw));
+    }
+
     public static Component glyph(String glyphId) {
         return Text.deserialize(PresentationUtils.imageGlyph(glyphId));
     }

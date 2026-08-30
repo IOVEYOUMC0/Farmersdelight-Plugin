@@ -1,9 +1,11 @@
 package com.huidu.farmersdelight.recipe;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.compat.MMOItemsCompat;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
@@ -36,6 +38,9 @@ public class CuttingBoardRecipeManager {
     // filtered by that set — sortedRecipes order (priority + id) preserved exactly.
     private volatile Map<String, Set<String>> byInputItemId = Map.of();
     private volatile Set<String> tagInputRecipeIds = Set.of();
+    // Reverse index result item id -> producing recipes, built at load time and published as a whole
+    // (single volatile write) so API cross-reference / GUI can answer "which recipes produce X" in O(1).
+    private volatile Map<String, List<CuttingBoardRecipe>> resultToRecipes = Map.of();
     private volatile List<CuttingBoardRecipe.ToolRequirement> toolRequirements = List.of();
     // Recipes registered at runtime by addons via the public API; kept separate so they survive a
     // /fd reload (which rebuilds the file-backed map) and merged into the published map in loadRecipes().
@@ -63,6 +68,7 @@ public class CuttingBoardRecipeManager {
         for (PackRecipeSource.Loaded loaded : PackRecipeSource.load(plugin)) {
             RecipeFileLoader.loadRecipeSections(plugin, loaded.config(), "cutting_board_recipes",
                     "cutting board [" + loaded.source() + "]",
+                    loaded.source(),
                     (recipeId, section) -> {
                         if (newRecipes.containsKey(recipeId)) {
                             I18n.logWarning("recipe.pack_duplicate_skipped", "id", recipeId, "source", loaded.source());
@@ -120,6 +126,7 @@ public class CuttingBoardRecipeManager {
             uniqueTools.addAll(recipe.getTools());
         }
         this.toolRequirements = List.copyOf(uniqueTools);
+        this.resultToRecipes = buildResultIndex(newSorted);
         vanillaItemIdsByTagCache.clear();
         // Invalidate the recipe-list GUI display cache: this republish path (incl. addon register/
         // unregister) bypasses RecipeViewGui.clearConfigCache.
@@ -127,21 +134,23 @@ public class CuttingBoardRecipeManager {
     }
 
     private CuttingBoardRecipe parseRecipe(String id, ConfigurationSection section) {
-        String inputStr = section.getString("input");
-        if (inputStr == null) {
+        Object rawInput = section.get("input");
+        if (rawInput == null) {
             throw new IllegalArgumentException("Recipe must have an input");
         }
-
-        RecipeIngredient input = parseIngredient(inputStr);
+        if (rawInput instanceof ConfigurationSection nested) {
+            rawInput = sectionToMap(nested);
+        }
+        RecipeIngredient input = RecipeParsingSupport.parseIngredientValue(rawInput);
         ItemStack inputDisplay = createDisplayItem(input);
         if (inputDisplay == null) {
-            throw new IllegalArgumentException("Invalid input ingredient: " + inputStr);
+            throw new IllegalArgumentException("Input item or tag has no loaded items: " + rawInput);
         }
 
         // Support a scalar 'tool:' or a plural 'tools:' list (or both). 'tools' takes precedence;
         // 'tool' is the fallback. Only requires at least one of the two.
-        String toolStr = section.getString("tool");
-        List<String> toolStrings = section.getStringList("tools");
+        String toolStr = ConfigSectionReader.optionalString(section, "tool");
+        List<String> toolStrings = ConfigSectionReader.optionalStringList(section, "tools");
         if (toolStrings.isEmpty() && toolStr != null && !toolStr.isBlank()) {
             toolStrings = Collections.singletonList(toolStr);
         }
@@ -151,17 +160,24 @@ public class CuttingBoardRecipeManager {
 
         List<CuttingBoardRecipe.ToolRequirement> tools = new ArrayList<>();
         for (String tool : toolStrings) {
-            tools.add(parseTool(tool));
+            CuttingBoardRecipe.ToolRequirement requirement = parseTool(tool);
+            if (!toolHasMembers(requirement)) {
+                throw new IllegalArgumentException("Tool item or tag has no loaded items: " + tool);
+            }
+            tools.add(requirement);
         }
 
         List<CuttingBoardRecipe.ResultEntry> results = new ArrayList<>();
         
-        List<Map<?, ?>> resultsList = section.getMapList("results");
-        for (Map<?, ?> resultMap : resultsList) {
+        List<Map<?, ?>> resultsList = ConfigSectionReader.optionalMapList(section, "results");
+        for (int resultIndex = 0; resultIndex < resultsList.size(); resultIndex++) {
+            Map<?, ?> resultMap = resultsList.get(resultIndex);
             // Cache each .get(...) once — Map.get is O(1) but allocates an entry traversal under
             // contention and the resultsList loop runs per-recipe on every config (re)load.
             Object itemValue = resultMap.get("item");
-            if (itemValue == null) continue;
+            if (itemValue == null) {
+                throw new IllegalArgumentException("Missing result item at results[" + resultIndex + "].item");
+            }
             String itemId = itemValue.toString();
 
             int count = 1;
@@ -170,9 +186,7 @@ public class CuttingBoardRecipeManager {
                 try {
                     count = Integer.parseInt(countValue.toString());
                 } catch (NumberFormatException e) {
-                    if (plugin.isDebugEnabled()) {
-                        plugin.getLogger().fine(I18n.formatConsole("recipe.invalid_count", "error", e.getMessage()));
-                    }
+                    throw new IllegalArgumentException("Invalid count at results[" + resultIndex + "].count: " + countValue, e);
                 }
             }
             count = Math.max(1, count);
@@ -183,51 +197,53 @@ public class CuttingBoardRecipeManager {
                 try {
                     chance = Math.max(0.0d, Math.min(1.0d, Double.parseDouble(chanceValue.toString())));
                 } catch (NumberFormatException e) {
-                    if (plugin.isDebugEnabled()) {
-                        plugin.getLogger().fine(I18n.formatConsole("recipe.invalid_chance", "error", e.getMessage()));
-                    }
+                    throw new IllegalArgumentException("Invalid chance at results[" + resultIndex + "].chance: " + chanceValue, e);
                 }
             }
             
             ItemStack result = createItem(itemId);
-            if (result != null) {
-                result.setAmount(count);
-                // Full-item NBT snapshot (base64, written by the editor) beats the id-built item.
-                Object nbtValue = resultMap.get("nbt");
-                if (nbtValue != null) {
-                    ItemStack fromNbt = RecipeItemCodec.itemFromBase64(nbtValue.toString());
-                    if (fromNbt != null) {
-                        result = fromNbt;
-                        result.setAmount(count);
-                    }
-                }
-                Object componentsValue = resultMap.get("components");
-                if (componentsValue instanceof Map<?, ?> components) {
-                    result = RecipeItemCodec.applyComponents(result, RecipeItemCodec.coerceStringMap(components));
+            if (result == null || result.getType().isAir()) {
+                throw new IllegalArgumentException("Result item not found at results[" + resultIndex + "].item: " + itemId);
+            }
+            result.setAmount(count);
+            // Full-item NBT snapshot (base64, written by the editor) beats the id-built item.
+            Object nbtValue = resultMap.get("nbt");
+            if (nbtValue != null) {
+                ItemStack fromNbt = RecipeItemCodec.itemFromBase64(nbtValue.toString());
+                if (fromNbt != null) {
+                    result = fromNbt;
                     result.setAmount(count);
                 }
-                results.add(new CuttingBoardRecipe.ResultEntry(result, chance));
             }
+            Object componentsValue = resultMap.get("components");
+            if (componentsValue instanceof Map<?, ?> components) {
+                result = RecipeItemCodec.applyComponents(result, RecipeItemCodec.coerceStringMap(components));
+                result.setAmount(count);
+            }
+            results.add(new CuttingBoardRecipe.ResultEntry(result, chance));
         }
 
         if (results.isEmpty()) {
-            String resultStr = section.getString("result");
+            String resultStr = ConfigSectionReader.optionalString(section, "result");
             if (resultStr != null) {
                 ItemStack result = createItem(resultStr);
-                if (result != null) {
-                    int count = Math.max(1, section.getInt("amount", section.getInt("count", 1)));
-                    double chance = Math.max(0.0d, Math.min(1.0d, section.getDouble("chance", 1.0d)));
-                    result.setAmount(count);
-                    results.add(new CuttingBoardRecipe.ResultEntry(result, chance));
+                if (result == null || result.getType().isAir()) {
+                    throw new IllegalArgumentException("Result item not found at result: " + resultStr);
                 }
+                int count = Math.max(1, ConfigSectionReader.optionalInt(section, "amount",
+                        ConfigSectionReader.optionalInt(section, "count", 1)));
+                double chance = Math.max(0.0d, Math.min(1.0d,
+                        ConfigSectionReader.optionalDouble(section, "chance", 1.0d)));
+                result.setAmount(count);
+                results.add(new CuttingBoardRecipe.ResultEntry(result, chance));
             }
         }
         if (results.isEmpty()) {
             throw new IllegalArgumentException("Recipe must have at least one valid result");
         }
 
-        String sound = normalizeSound(section.getString("sound", Constants.SOUND_CUTTING_BOARD_KNIFE));
-        int priority = section.getInt("priority", 0);
+        String sound = normalizeSound(ConfigSectionReader.optionalString(section, "sound", Constants.SOUND_CUTTING_BOARD_KNIFE));
+        int priority = ConfigSectionReader.optionalInt(section, "priority", 0);
         return new CuttingBoardRecipe(id, input, inputDisplay, tools, results, sound, priority);
     }
 
@@ -261,7 +277,7 @@ public class CuttingBoardRecipeManager {
 
     private ItemStack createDisplayItem(RecipeIngredient ingredient) {
         if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
-            return createItem(itemIngredient.key().toString());
+            return itemIngredient.createStack();
         }
 
         if (ingredient instanceof RecipeIngredient.Tag tagIngredient) {
@@ -301,6 +317,38 @@ public class CuttingBoardRecipeManager {
 
     private ItemStack createItem(String itemId) {
         return ItemUtils.createItem(itemId);
+    }
+
+    private boolean toolHasMembers(CuttingBoardRecipe.ToolRequirement requirement) {
+        // These are FarmersDelight action selectors, not registry items. They are resolved by
+        // ToolContext/matchesToolFallback at click time (axe strip/dig, pickaxe dig, shovel dig).
+        if (!requirement.isTag() && isVirtualToolAction(requirement.key())) {
+            return true;
+        }
+        if (requirement.isTag()) {
+            return !plugin.getCraftEngine().itemManager().itemIdsByTag(requirement.key()).isEmpty()
+                    || !vanillaItemIdsByTagCache.getIds(requirement.key()).isEmpty()
+                    || !com.huidu.farmersdelight.util.CommonTagResolver.getMembers(requirement.key()).isEmpty();
+        }
+        ItemStack item = createItem(requirement.key().toString());
+        return item != null && !item.getType().isAir();
+    }
+
+    private static boolean isVirtualToolAction(Key key) {
+        String id = key == null ? "" : key.toString();
+        return Constants.ACTION_AXE_DIG.equalsIgnoreCase(id)
+                || Constants.ACTION_AXE_STRIP.equalsIgnoreCase(id)
+                || Constants.ACTION_PICKAXE_DIG.equalsIgnoreCase(id)
+                || Constants.ACTION_SHOVEL_DIG.equalsIgnoreCase(id);
+    }
+
+    private static Map<String, Object> sectionToMap(ConfigurationSection section) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        for (String key : section.getKeys(false)) {
+            Object value = section.get(key);
+            map.put(key, value instanceof ConfigurationSection nested ? sectionToMap(nested) : value);
+        }
+        return map;
     }
 
     public CuttingBoardRecipe matchRecipe(ItemStack input, ItemStack tool) {
@@ -385,6 +433,46 @@ public class CuttingBoardRecipeManager {
         return List.copyOf(craftable);
     }
 
+    private Map<String, List<CuttingBoardRecipe>> buildResultIndex(List<CuttingBoardRecipe> recipesToIndex) {
+        Map<String, List<CuttingBoardRecipe>> index = new HashMap<>();
+        for (CuttingBoardRecipe recipe : recipesToIndex) {
+            for (CuttingBoardRecipe.ResultEntry result : recipe.getResults()) {
+                if (result.item() == null) {
+                    continue;
+                }
+                String key = ItemUtils.getCustomItemId(result.item());
+                if (key == null) {
+                    key = ItemUtils.getVanillaMaterialItemId(result.item());
+                }
+                if (key == null) {
+                    continue;
+                }
+                index.computeIfAbsent(key, k -> new ArrayList<>(1)).add(recipe);
+            }
+        }
+        Map<String, List<CuttingBoardRecipe>> frozen = new HashMap<>(index.size());
+        for (Map.Entry<String, List<CuttingBoardRecipe>> entry : index.entrySet()) {
+            frozen.put(entry.getKey(), List.copyOf(entry.getValue()));
+        }
+        return Collections.unmodifiableMap(frozen);
+    }
+
+    /** Recipes that produce this item, from the reverse result index (O(1), no full scan). */
+    public List<CuttingBoardRecipe> getRecipesProducing(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return List.of();
+        }
+        String key = ItemUtils.getCustomItemId(item);
+        if (key == null) {
+            key = ItemUtils.getVanillaMaterialItemId(item);
+        }
+        if (key == null) {
+            return List.of();
+        }
+        List<CuttingBoardRecipe> matches = resultToRecipes.get(key);
+        return matches == null ? List.of() : matches;
+    }
+
     private Set<String> candidateRecipeIds(ItemStack input) {
         Map<String, Set<String>> byId = this.byInputItemId;
         Set<String> tagIds = this.tagInputRecipeIds;
@@ -407,32 +495,36 @@ public class CuttingBoardRecipeManager {
     }
 
     private boolean matchesInput(CuttingBoardRecipe recipe, ItemStack input) {
-        if (input == null || input.getType().isAir()) {
+        return matchesIngredient(input, recipe.getInput());
+    }
+
+    // Public ingredient check so API cross-reference / addons can test an item against a recipe input
+    // without re-implementing item/tag/choice matching.
+    public boolean matchesIngredient(ItemStack input, RecipeIngredient ingredient) {
+        if (input == null || input.getType().isAir() || ingredient == null) {
             return false;
         }
-
-        RecipeIngredient ingredient = recipe.getInput();
         if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
-            return ItemUtils.matchesItemId(input, itemIngredient.key());
+            if (!ItemUtils.matchesItemId(input, itemIngredient.key())) {
+                return false;
+            }
+            if (itemIngredient.nbt() == null) {
+                return true;
+            }
+            ItemStack expected = RecipeItemCodec.itemFromBase64(itemIngredient.nbt());
+            return expected != null && expected.isSimilar(input);
         }
-
         if (ingredient instanceof RecipeIngredient.Tag tagIngredient) {
             return matchesTaggedItem(input, tagIngredient.key(), tagIngredient.excludedItems(), tagIngredient.excludedTags());
         }
-
         if (ingredient instanceof RecipeIngredient.Choice choice) {
             for (RecipeIngredient option : choice.options()) {
-                if (option instanceof RecipeIngredient.Item optItem && ItemUtils.matchesItemId(input, optItem.key())) {
-                    return true;
-                }
-                if (option instanceof RecipeIngredient.Tag optTag
-                        && matchesTaggedItem(input, optTag.key(), optTag.excludedItems(), optTag.excludedTags())) {
+                if (matchesIngredient(input, option)) {
                     return true;
                 }
             }
             return false;
         }
-
         return false;
     }
 
@@ -505,6 +597,7 @@ public class CuttingBoardRecipeManager {
     private boolean matchesTaggedItem(ItemStack item, Key tagKey, Set<Key> excludedItems, Set<Key> excludedTags) {
         String customId = ItemUtils.getCustomItemId(item);
         String vanillaId = ItemUtils.getVanillaMaterialItemId(item);
+        boolean nonVanillaIdentity = customId != null || MMOItemsCompat.getItemId(item) != null;
 
         if (excludedItems.stream().anyMatch(excluded -> ItemUtils.matchesItemId(item, excluded))) {
             return false;
@@ -515,13 +608,15 @@ public class CuttingBoardRecipeManager {
             return excludedTags.stream().map(Key::toString).noneMatch(itemTags::contains);
         }
 
-        boolean matchesBase = vanillaId != null && (vanillaItemIdsByTagCache.getIds(tagKey).contains(vanillaId)
+        boolean matchesBase = !nonVanillaIdentity && vanillaId != null
+                && (vanillaItemIdsByTagCache.getIds(tagKey).contains(vanillaId)
                 || ItemUtils.matchesVanillaItemTag(item, tagKey, excludedItems, excludedTags));
         if (!matchesBase) {
             return false;
         }
         return excludedTags.stream().noneMatch(excludedTag ->
-                vanillaId != null && vanillaItemIdsByTagCache.getIds(excludedTag).contains(vanillaId));
+                !nonVanillaIdentity && vanillaId != null
+                        && vanillaItemIdsByTagCache.getIds(excludedTag).contains(vanillaId));
     }
 
     public Map<String, CuttingBoardRecipe> getRecipes() {
@@ -574,6 +669,10 @@ public class CuttingBoardRecipeManager {
         if (inputDisplay == null) {
             throw new IllegalArgumentException("Invalid input ingredient: " + inputSpec);
         }
+        CuttingBoardRecipe.ToolRequirement toolRequirement = parseTool(toolSpec);
+        if (!toolHasMembers(toolRequirement)) {
+            throw new IllegalArgumentException("Tool item or tag has no loaded items: " + toolSpec);
+        }
         List<CuttingBoardRecipe.ResultEntry> entries = new ArrayList<>();
         if (results != null) {
             for (int i = 0; i < results.size(); i++) {
@@ -588,7 +687,7 @@ public class CuttingBoardRecipeManager {
         if (entries.isEmpty()) {
             throw new IllegalArgumentException("Recipe must have at least one valid result");
         }
-        List<CuttingBoardRecipe.ToolRequirement> tools = List.of(parseTool(toolSpec));
+        List<CuttingBoardRecipe.ToolRequirement> tools = List.of(toolRequirement);
         CuttingBoardRecipe recipe = new CuttingBoardRecipe(id, input, inputDisplay, tools, entries,
                 normalizeSound(sound), 0);
         externalRecipes.put(id, recipe);

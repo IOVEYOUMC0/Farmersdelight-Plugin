@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/knife-drops.md)
 # Knife Drops
 
 Package: `com.huidu.farmersdelight.api.loot`

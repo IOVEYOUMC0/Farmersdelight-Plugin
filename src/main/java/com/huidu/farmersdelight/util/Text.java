@@ -8,11 +8,26 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class Text {
 
     private static final MiniMessage MINI = MiniMessage.miniMessage();
     private static final PlainTextComponentSerializer PLAIN = PlainTextComponentSerializer.plainText();
+
+    // "<lang:'key'>" / "<lang:key>" and the one-argument form used by resource-pack translations:
+    // "<lang:'key':'argument'>". MiniMessage does not understand these tags natively.
+    private static final Pattern LANG_TAG = Pattern.compile(
+            "<lang:\\s*'([^']*)'(?:\\s*:\\s*'([^']*)')?\\s*>"
+                    + "|<lang:([a-zA-Z0-9_.-]+)(?::([^>]*))?>");
+
+    // Components are immutable (append/colorIfAbsent return new instances), so a parsed component is
+    // safe to share. GUI rendering re-parses the same fixed strings repeatedly; cache by raw input.
+    // Bounded so transient player-scoped messages are not retained forever.
+    private static final int COMPONENT_CACHE_CAPACITY = 1024;
+    private static final ConcurrentHashMap<String, Component> COMPONENT_CACHE = new ConcurrentHashMap<>();
 
     // Indexed by legacy color code character (0-9, a-f).
     private static final String[] COLOR_TAGS = {
@@ -28,12 +43,55 @@ public final class Text {
         if (raw == null || raw.isEmpty()) {
             return Component.empty();
         }
+        Component cached = COMPONENT_CACHE.get(raw);
+        if (cached != null) {
+            return cached;
+        }
         String miniMessage = legacyToMiniMessage(raw);
+        Component result = miniMessage.contains("<lang:")
+                ? resolveLangTags(miniMessage)
+                : parseMiniMessage(miniMessage);
+        if (COMPONENT_CACHE.size() >= COMPONENT_CACHE_CAPACITY) {
+            COMPONENT_CACHE.clear();
+        }
+        COMPONENT_CACHE.put(raw, result);
+        return result;
+    }
+
+    private static Component parseMiniMessage(String miniMessage) {
         try {
             return MINI.deserialize(miniMessage);
         } catch (RuntimeException ex) {
-            return Component.text(stripFormatting(raw));
+            return Component.text(stripFormatting(miniMessage));
         }
+    }
+
+    // Splits a MiniMessage string at each language-key tag, deserializing the plain runs and converting
+    // the "<lang:...>" tags into translatable components resolved on the client.
+    private static Component resolveLangTags(String miniMessage) {
+        net.kyori.adventure.text.TextComponent.Builder builder = Component.text();
+        Matcher matcher = LANG_TAG.matcher(miniMessage);
+        int last = 0;
+        while (matcher.find()) {
+            if (matcher.start() > last) {
+                builder.append(parseMiniMessage(miniMessage.substring(last, matcher.start())));
+            }
+            String key = matcher.group(1) != null ? matcher.group(1) : matcher.group(3);
+            if (key != null) {
+                String rawArgument = matcher.group(2) != null ? matcher.group(2) : matcher.group(4);
+                if (rawArgument == null) {
+                    builder.append(Component.translatable(key.trim()));
+                } else {
+                    Component argument = resolveLangTags(legacyToMiniMessage(rawArgument));
+                    builder.append(Component.translatable(key.trim(), argument));
+                }
+            }
+            last = matcher.end();
+        }
+        if (last < miniMessage.length()) {
+            builder.append(parseMiniMessage(miniMessage.substring(last)));
+        }
+        return builder.build();
     }
 
     public static Component name(String raw) {

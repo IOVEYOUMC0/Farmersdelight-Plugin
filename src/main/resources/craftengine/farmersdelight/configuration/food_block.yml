@@ -191,6 +191,9 @@ blocks:
       hardness: 0.5
       template:
         - default:hardness/none
+      tags:
+        - farmersdelight:pies
+        - farmersdelight:mineable/knife
       sounds:
         break: minecraft:block.wool.break
         fall: minecraft:block.wool.fall
@@ -490,6 +493,9 @@ blocks:
       hardness: 0.5
       template:
         - default:hardness/none
+      tags:
+        - farmersdelight:pies
+        - farmersdelight:mineable/knife
       sounds:
         break: minecraft:block.wool.break
         fall: minecraft:block.wool.fall
@@ -789,6 +795,9 @@ blocks:
       hardness: 0.5
       template:
         - default:hardness/none
+      tags:
+        - farmersdelight:pies
+        - farmersdelight:mineable/knife
       sounds:
         break: minecraft:block.wool.break
         fall: minecraft:block.wool.fall
@@ -1087,7 +1096,7 @@ blocks:
       template:
         - default:hardness/none
       tags:
-        - farmersdelight:feast_blocks
+        - farmersdelight:feasts
       sounds:
         break: minecraft:block.wool.break
         hit: minecraft:block.wool.hit
@@ -1529,7 +1538,7 @@ blocks:
       template:
         - default:hardness/none
       tags:
-        - farmersdelight:feast_blocks
+        - farmersdelight:feasts
       sounds:
         break: minecraft:block.wood.break
         hit: minecraft:block.wood.hit
@@ -1873,7 +1882,7 @@ blocks:
       template:
         - default:hardness/none
       tags:
-        - farmersdelight:feast_blocks
+        - farmersdelight:feasts
       sounds:
         break: minecraft:block.wool.break
         hit: minecraft:block.wool.hit
@@ -2315,7 +2324,7 @@ blocks:
       template:
         - default:hardness/none
       tags:
-        - farmersdelight:feast_blocks
+        - farmersdelight:feasts
       sounds:
         break: minecraft:block.wool.break
         hit: minecraft:block.wool.hit
@@ -2746,7 +2755,7 @@ blocks:
       template:
         - default:hardness/none
       tags:
-        - farmersdelight:feast_blocks
+        - farmersdelight:feasts
       sounds:
         break: minecraft:block.wool.break
         hit: minecraft:block.wool.hit
@@ -3209,7 +3218,7 @@ blocks:
       template:
         - default:hardness/none
       tags:
-        - farmersdelight:feast_blocks
+        - farmersdelight:feasts
       sounds:
         break: minecraft:block.wool.break
         hit: minecraft:block.wool.hit
@@ -3928,6 +3937,9 @@ blocks:
       hardness: 0.5
       template:
         - default:hardness/none
+      tags:
+        - farmersdelight:pies
+        - farmersdelight:mineable/knife
       sounds:
         break: minecraft:block.wool.break
         fall: minecraft:block.wool.fall

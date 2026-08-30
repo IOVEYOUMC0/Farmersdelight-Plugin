@@ -2,6 +2,8 @@
 icon: list-check
 ---
 
+[简体中文](../zh-cn/requirements.md)
+
 # Requirements & load order
 
 ## Server software
@@ -33,8 +35,8 @@ CraftEngine content. CraftEngine is listed under `depend:` in the plugin's `plug
 - on startup FarmersDelight waits for CraftEngine to finish parsing its items and blocks before it registers
   recipes and content.
 
-Install a CraftEngine build compatible with your server. FarmersDelight is compiled against **CraftEngine
-26.7**; match or exceed that.
+Install a CraftEngine 26.8 build compatible with your server. FarmersDelight is pinned to the **CraftEngine
+26.8** API; do not substitute a 26.7.x build.
 
 ## Optional integrations (soft dependencies)
 

@@ -404,11 +404,23 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     }
 
     public ItemStack insertStackThroughFace(ItemStack stack, Direction direction) {
+        return insertStackThroughFace(stack, direction, false);
+    }
+
+    public ItemStack insertStackThroughFace(ItemStack stack, Direction direction, boolean preferEmptySlots) {
         if (stack == null || stack.getType().isAir()) {
             return null;
         }
         ItemStack pending = stack.clone();
-        for (int slot : getSlotsForFace(direction)) {
+        int[] slots = getSlotsForFace(direction);
+        if (preferEmptySlots) {
+            pending = insertIntoEmptySlots(pending, slots, direction);
+            if (pending == null || pending.getType().isAir()) {
+                setChanged();
+                return null;
+            }
+        }
+        for (int slot : slots) {
             if (pending.getAmount() <= 0) {
                 break;
             }
@@ -429,6 +441,30 @@ public final class CookingPotBlockEntityController extends BlockEntityController
             setChanged();
         }
         return pending;
+    }
+
+    private ItemStack insertIntoEmptySlots(ItemStack pending, int[] slots, Direction direction) {
+        for (int slot : slots) {
+            if (pending.getAmount() <= 0) {
+                return null;
+            }
+            if (!isValidSlot(slot) || !isEmpty(toBukkitPreserving(slot))) {
+                continue;
+            }
+            Item pendingItem = normalize(BukkitItemManager.instance().wrap(pending));
+            if (pendingItem.isEmpty() || !canPlaceItemThroughFace(slot, pendingItem, direction)) {
+                continue;
+            }
+            pending = insertBukkitStackIntoControllerSlot(slot, pending);
+            if (pending == null || pending.getType().isAir()) {
+                return null;
+            }
+        }
+        return pending;
+    }
+
+    private static boolean isEmpty(ItemStack item) {
+        return item == null || item.getType().isAir() || item.getAmount() <= 0;
     }
 
     private ItemStack insertBukkitStackIntoControllerSlot(int slot, ItemStack stack) {

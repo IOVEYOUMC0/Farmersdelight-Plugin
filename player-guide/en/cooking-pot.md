@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/cooking-pot.md)
 # The Cooking Pot
 
 The **Cooking Pot** is the heart of Farmer's Delight. It simmers ingredients over a

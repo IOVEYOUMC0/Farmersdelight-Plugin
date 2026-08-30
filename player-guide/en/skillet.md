@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/skillet.md)
 # The Skillet
 
 The **Skillet** is a two-in-one item: a fast frying pan you place on a heat source,

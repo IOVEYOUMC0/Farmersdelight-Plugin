@@ -19,6 +19,7 @@ import net.momirealms.craftengine.core.block.behavior.WorldlyContainerHolder;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.block.entity.BlockEntityController;
 import net.momirealms.craftengine.core.block.property.Property;
+import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.CEWorld;
@@ -43,29 +44,40 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
 
     public static final String SUPPORT_PROPERTY = "support";
 
+    private final String permission;
     private final String addFoodSound;
     private final String sizzleSound;
+    private final boolean supportDisplayEnabled;
+    private final boolean requireNonFullSupport;
     private final Property<Boolean> supportProperty;
     private int controllerId;
 
     public static final BlockBehaviorFactory<SkilletBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
+        String permission = BehaviorArgParser.getString(arguments, "permission", "farmersdelight.use.skillet");
         String addFoodSound = BehaviorArgParser.getArgumentString(arguments, "add-food-sound", Constants.SOUND_SKILLET_ADD_FOOD);
         String sizzleSound = BehaviorArgParser.getArgumentString(arguments, "sizzle-sound", Constants.SOUND_SKILLET_SIZZLE);
+        boolean supportDisplayEnabled = BehaviorArgParser.getBoolean(arguments, "display-support", true);
+        boolean requireNonFullSupport = BehaviorArgParser.getBoolean(arguments, "require-non-full-support", true);
         Property<Boolean> supportProperty = BlockBehaviorFactory.getOptionalProperty(block, SUPPORT_PROPERTY, Boolean.class);
         if (supportProperty == null) {
             FarmersDelightPlugin.getInstance().getLogger()
                     .warning("[FarmersDelight] Block " + block.id() + " is missing the 'support' property"
                             + " — tray entity_renderer switching is disabled for this block.");
         }
-        return new SkilletBlockBehavior(block, addFoodSound, sizzleSound, supportProperty);
+        return new SkilletBlockBehavior(block, permission, addFoodSound, sizzleSound, supportDisplayEnabled,
+                requireNonFullSupport, supportProperty);
     };
 
-    private SkilletBlockBehavior(BlockDefinition block, String addFoodSound, String sizzleSound,
+    private SkilletBlockBehavior(BlockDefinition block, String permission, String addFoodSound, String sizzleSound,
+                                  boolean supportDisplayEnabled, boolean requireNonFullSupport,
                                   Property<Boolean> supportProperty) {
         super(block);
+        this.permission = permission;
         this.addFoodSound = addFoodSound;
         this.sizzleSound = sizzleSound;
+        this.supportDisplayEnabled = supportDisplayEnabled;
+        this.requireNonFullSupport = requireNonFullSupport;
         this.supportProperty = supportProperty;
     }
 
@@ -79,6 +91,14 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
 
     public Property<Boolean> getSupportProperty() {
         return supportProperty;
+    }
+
+    public boolean isSupportDisplayEnabled() {
+        return supportDisplayEnabled;
+    }
+
+    public boolean requiresNonFullSupport() {
+        return requireNonFullSupport;
     }
 
     @Override
@@ -108,7 +128,7 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
             return InteractionResult.PASS;
         }
 
-        Player player = Bukkit.getPlayer(context.getPlayer().uuid());
+        Player player = ItemUtils.getBukkitPlayer(context.getPlayer());
         if (player == null) {
             return InteractionResult.PASS;
         }
@@ -116,7 +136,11 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
         World world = player.getWorld();
         BlockPos pos = context.getClickedPos();
         Block block = world.getBlockAt(pos.x(), pos.y(), pos.z());
-        ItemStack mainHand = player.getInventory().getItemInMainHand();
+        InteractionHand hand = context.getHand();
+        EquipmentSlot equipmentSlot = hand == InteractionHand.OFF_HAND
+                ? EquipmentSlot.OFF_HAND
+                : EquipmentSlot.HAND;
+        ItemStack heldItem = ItemUtils.getItemInHand(player, hand);
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         SkilletManager manager = getManager();
         if (plugin == null || manager == null) {
@@ -124,9 +148,9 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
         }
 
         if (plugin.isDebugEnabled("skillet")) {
-            logDebug(player, block, mainHand, manager.findRecipeId(mainHand));
+            logDebug(player, block, heldItem, manager.findRecipeId(heldItem));
         }
-        if (!PermissionChecker.check(player, "farmersdelight.use.skillet")) {
+        if (!PermissionChecker.check(player, permission)) {
             return InteractionResult.PASS;
         }
         if (!ProtectionCompat.canUse(player, block, ProtectionCompat.Feature.SKILLET)
@@ -134,17 +158,16 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
             return InteractionResult.PASS;
         }
 
-        if (player.isSneaking() && isSkilletItem(mainHand)) {
+        if (player.isSneaking() && isSkilletItem(heldItem)) {
             return InteractionResult.PASS;
         }
 
-        if (isEquippable(mainHand)) {
+        if (isEquippable(heldItem)) {
             return InteractionResult.PASS;
         }
 
-        if (manager.handleInteract(player, block, mainHand, EquipmentSlot.HAND)) {
-            player.updateInventory();
-            player.swingMainHand();
+        if (manager.handleInteract(player, block, heldItem, equipmentSlot)) {
+            ItemUtils.swingHand(player, hand);
             return InteractionResult.SUCCESS_AND_CANCEL;
         }
 

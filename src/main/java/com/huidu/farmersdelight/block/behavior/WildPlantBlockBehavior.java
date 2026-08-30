@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
 import com.huidu.farmersdelight.util.SoilRuleSupport.SoilRules;
@@ -52,12 +53,12 @@ public class WildPlantBlockBehavior extends FarmersDelightBlockBehavior {
         if (!isBoneMealTarget || context.getPlayer() == null) {
             return InteractionResult.PASS;
         }
-        Player player = Bukkit.getPlayer(context.getPlayer().uuid());
+        Player player = ItemUtils.getBukkitPlayer(context.getPlayer());
         if (player == null) {
             return InteractionResult.PASS;
         }
-        ItemStack mainHand = player.getInventory().getItemInMainHand();
-        if (mainHand.getType() != Material.BONE_MEAL) {
+        ItemStack mainHand = ItemUtils.getItemInHand(player, context.getHand());
+        if (mainHand == null || mainHand.getType() != Material.BONE_MEAL) {
             return InteractionResult.PASS;
         }
 
@@ -80,6 +81,7 @@ public class WildPlantBlockBehavior extends FarmersDelightBlockBehavior {
         if (player.getGameMode() != GameMode.CREATIVE) {
             mainHand.setAmount(mainHand.getAmount() - 1);
         }
+        ItemUtils.swingHand(player, context.getHand());
         return InteractionResult.SUCCESS_AND_CANCEL;
     }
 

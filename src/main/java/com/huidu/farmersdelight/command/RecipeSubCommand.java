@@ -27,6 +27,12 @@ import static com.huidu.farmersdelight.command.CommandSupport.sendNoPermission;
 
 final class RecipeSubCommand extends SubCommand {
 
+    // Primary subcommands plus the FD station keywords already handled before type resolution. A recipe
+    // type whose short name collides with any of these is only reachable by its full prefixed id.
+    private static final Set<String> RESERVED_SUBCOMMANDS = Set.of(
+            "book", "addon", "addons", "recipebook", "special", "special_recipes",
+            "edit", "discovery", "cooking_pot", "cutting_board");
+
     private final FarmersDelightPlugin plugin;
 
     RecipeSubCommand(FarmersDelightPlugin plugin) {
@@ -68,13 +74,54 @@ final class RecipeSubCommand extends SubCommand {
         }
 
         String sub = normalize(args[1]);
-        if (RecipeStationType.isCookingPot(sub)) {
+        if (sub.equals("special") || sub.equals("special_recipes")) {
+            gui.openSpecialRecipes(player);
+        } else if (RecipeStationType.isCookingPot(sub)) {
             gui.openCookingPotRecipes(player);
         } else if (RecipeStationType.isCuttingBoard(sub)) {
             gui.openCuttingBoardRecipes(player);
         } else {
-            gui.open(player);
+            com.huidu.farmersdelight.api.recipe.RecipeType type = resolveRecipeType(sub);
+            if (type != null) {
+                // Hand-off to the addon recipe book so a named type (e.g.
+                // barbequesdelight:grilling) opens straight into its own list, rendered with
+                // FarmersDelight's recipe-list style rather than FD's cooking-pot list.
+                com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.openType(player, type, null);
+            } else {
+                gui.open(player);
+            }
         }
+    }
+
+    // Matches a recipe type by its short name (the segment after the namespace colon, e.g. "grilling")
+    // or, when that short name is ambiguous, by the full prefixed id (e.g. "barbequesdelight:grilling").
+    // The exact id always wins; a repeated short name resolves to null, forcing the caller to disambiguate.
+    private com.huidu.farmersdelight.api.recipe.RecipeType resolveRecipeType(String token) {
+        if (token.isEmpty()) {
+            return null;
+        }
+        List<com.huidu.farmersdelight.api.recipe.RecipeType> types =
+                com.huidu.farmersdelight.api.FarmersDelightApi.get().recipeTypes();
+        for (com.huidu.farmersdelight.api.recipe.RecipeType type : types) {
+            if (type.id().equalsIgnoreCase(token)) {
+                return type;
+            }
+        }
+        com.huidu.farmersdelight.api.recipe.RecipeType unique = null;
+        for (com.huidu.farmersdelight.api.recipe.RecipeType type : types) {
+            if (shortId(type.id()).equalsIgnoreCase(token)) {
+                if (unique != null) {
+                    return null;
+                }
+                unique = type;
+            }
+        }
+        return unique;
+    }
+
+    private static String shortId(String id) {
+        int colon = id.indexOf(':');
+        return colon >= 0 ? id.substring(colon + 1) : id;
     }
 
     private void executeRecipeEdit(Player player, String[] args) {
@@ -366,7 +413,24 @@ final class RecipeSubCommand extends SubCommand {
         boolean discovery = canUseDiscovery(sender);
         if (args.length == 2) {
             String partial = normalize(args[1]);
-            List<String> base = new ArrayList<>(List.of("cooking_pot", "cutting_board", "book"));
+            List<String> base = new ArrayList<>(List.of("cooking_pot", "cutting_board", "book", "special"));
+            java.util.List<com.huidu.farmersdelight.api.recipe.RecipeType> types =
+                    com.huidu.farmersdelight.api.FarmersDelightApi.get().recipeTypes();
+            Map<String, Integer> shortCount = new java.util.HashMap<>();
+            for (com.huidu.farmersdelight.api.recipe.RecipeType type : types) {
+                shortCount.merge(shortId(type.id()), 1, Integer::sum);
+            }
+            for (com.huidu.farmersdelight.api.recipe.RecipeType type : types) {
+                String id = type.id();
+                String shortName = shortId(id);
+                // A short name is only offered when it is unambiguous and does not collide with a reserved
+                // primary command; otherwise the type is reachable by its full prefixed id alone.
+                if (shortCount.getOrDefault(shortName, 0) == 1
+                        && !RESERVED_SUBCOMMANDS.contains(shortName)) {
+                    base.add(shortName);
+                }
+                base.add(id);
+            }
             if (admin) {
                 base.add("edit");
             }

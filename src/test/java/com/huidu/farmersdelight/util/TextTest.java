@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.util;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
+import net.kyori.adventure.text.TranslatableComponent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TextTest {
 
@@ -125,6 +127,21 @@ class TextTest {
         assertEquals("Green", PLAIN.serialize(Text.deserialize("&aGreen")));
         assertEquals("Red", PLAIN.serialize(Text.deserialize("<red>Red")));
         assertEquals("Hi MM", PLAIN.serialize(Text.deserialize("&7Hi <green>MM")));
+    }
+
+    @Test
+    void deserializeSupportsTranslatableArguments() {
+        Component component = Text.deserialize("<gray><lang:'test.key':'<white>12'>");
+        TranslatableComponent translatable = component.children().stream()
+                .filter(TranslatableComponent.class::isInstance)
+                .map(TranslatableComponent.class::cast)
+                .findFirst()
+                .orElseThrow();
+        assertEquals("test.key", translatable.key());
+        assertEquals("12", PLAIN.serialize(translatable.arguments().getFirst().asComponent()));
+
+        assertTrue(Text.deserialize("<lang:test.key>").children().stream()
+                .anyMatch(TranslatableComponent.class::isInstance));
     }
 
     @Test

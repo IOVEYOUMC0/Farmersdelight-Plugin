@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/soil.md)
 # Rich Soil & Compost
 
 Farmer's Delight adds a small chain of fertile soils that make your farm grow faster. You compost scraps into **organic compost**, which matures into **rich soil**, which you can till into **rich soil farmland**. Any of them can also grow mushrooms — see [Mushroom Colonies](mushrooms.md).

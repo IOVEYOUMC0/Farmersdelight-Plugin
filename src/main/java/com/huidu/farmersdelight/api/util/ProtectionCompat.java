@@ -41,6 +41,14 @@ public final class ProtectionCompat {
         return block == null || canBuild(player, block.getLocation(), flagName);
     }
 
+    public static boolean canBreak(Player player, Location location, String flagName) {
+        return com.huidu.farmersdelight.util.compat.ProtectionCompat.canBreak(player, location, flagName);
+    }
+
+    public static boolean canBreak(Player player, Block block, String flagName) {
+        return block == null || canBreak(player, block.getLocation(), flagName);
+    }
+
     public static boolean canUse(Player player, Location location, String flagName) {
         return com.huidu.farmersdelight.util.compat.ProtectionCompat.canUse(player, location, flagName);
     }

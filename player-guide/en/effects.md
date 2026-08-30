@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/effects.md)
 # Effects: Nourishment & Comfort
 
 Farmer's Delight adds two custom food buffs on top of vanilla potion effects:

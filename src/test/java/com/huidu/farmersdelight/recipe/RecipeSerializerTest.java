@@ -4,6 +4,7 @@ import net.momirealms.craftengine.core.util.Key;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -57,7 +58,7 @@ class RecipeSerializerTest {
     @Test
     void toolRequirementRoundTrips() {
         CuttingBoardRecipe.ToolRequirement original = new CuttingBoardRecipe.ToolRequirement(
-                Key.of("farmersdelight:knives"),
+                Key.of("farmersdelight:tools/knives"),
                 Set.of(Key.of("minecraft:wooden_sword")),
                 Set.of());
         String serialized = RecipeSerializer.serializeTool(original);
@@ -72,13 +73,13 @@ class RecipeSerializerTest {
     @Test
     void taggedToolRequirementKeepsTagIdentityAndExclusions() {
         CuttingBoardRecipe.ToolRequirement original = new CuttingBoardRecipe.ToolRequirement(
-                Key.of("farmersdelight:knives"),
+                Key.of("farmersdelight:tools/knives"),
                 true,
                 Set.of(Key.of("farmersdelight:flint_knife")),
                 Set.of(Key.of("example:disabled_tools")));
 
         String serialized = RecipeSerializer.serializeTool(original);
-        assertTrue(serialized.startsWith("#farmersdelight:knives"), serialized);
+        assertTrue(serialized.startsWith("#farmersdelight:tools/knives"), serialized);
 
         RecipeParsingSupport.ParsedKey parsed = RecipeParsingSupport.parseKeyWithExclusions(serialized, "tool");
         assertTrue(parsed.tag());
@@ -103,7 +104,7 @@ class RecipeSerializerTest {
     @Test
     void cuttingBoardToolParserDistinguishesTagsItemsAndActions() {
         assertTrue(CuttingBoardRecipeManager.parseTool("#minecraft:hoes").isTag());
-        assertTrue(CuttingBoardRecipeManager.parseTool("farmersdelight:knives").isTag());
+        assertTrue(CuttingBoardRecipeManager.parseTool("farmersdelight:tools/knives").isTag());
         assertFalse(CuttingBoardRecipeManager.parseTool("minecraft:shears").isTag());
         assertFalse(CuttingBoardRecipeManager.parseTool("farmersdelight:axe_strip").isTag());
     }
@@ -116,5 +117,22 @@ class RecipeSerializerTest {
                 Set.of());
         // Two serializations of the same model must be byte-identical, regardless of set iteration order.
         assertEquals(RecipeSerializer.serializeIngredient(tag), RecipeSerializer.serializeIngredient(tag));
+    }
+
+    @Test
+    void parsesEditorItemSnapshotValue() {
+        RecipeIngredient parsed = RecipeParsingSupport.parseIngredientValue(Map.of(
+                "item", "minecraft:paper", "nbt", "AQ=="));
+        assertInstanceOf(RecipeIngredient.Item.class, parsed);
+        RecipeIngredient.Item item = (RecipeIngredient.Item) parsed;
+        assertEquals(Key.of("minecraft:paper"), item.key());
+        assertEquals("AQ==", item.nbt());
+    }
+
+    @Test
+    void serializesItemSnapshotValue() {
+        RecipeIngredient.Item item = new RecipeIngredient.Item(Key.of("minecraft:paper"), "AQ==");
+        assertEquals(Map.of("item", "minecraft:paper", "nbt", "AQ=="),
+                RecipeSerializer.serializeIngredientValue(item));
     }
 }

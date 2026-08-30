@@ -32,14 +32,7 @@ public final class SoundUtils {
             world.playSound(location, fallback, category, volume, pitch);
             return;
         }
-
-        Object resolved = RESOLUTION_CACHE.get(soundKey);
-        if (resolved == null) {
-            resolved = resolve(soundKey);
-            if (RESOLUTION_CACHE.size() < RESOLUTION_CACHE_MAX) {
-                RESOLUTION_CACHE.put(soundKey, resolved);
-            }
-        }
+        Object resolved = resolveCached(soundKey);
         if (resolved instanceof Sound sound) {
             world.playSound(location, sound, category, volume, pitch);
         } else {
@@ -57,13 +50,7 @@ public final class SoundUtils {
             }
             return;
         }
-        Object resolved = RESOLUTION_CACHE.get(soundKey);
-        if (resolved == null) {
-            resolved = resolve(soundKey);
-            if (RESOLUTION_CACHE.size() < RESOLUTION_CACHE_MAX) {
-                RESOLUTION_CACHE.put(soundKey, resolved);
-            }
-        }
+        Object resolved = resolveCached(soundKey);
         if (resolved instanceof Sound sound) {
             for (Player viewer : viewers) {
                 viewer.playSound(location, sound, volume, pitch);
@@ -84,6 +71,17 @@ public final class SoundUtils {
             player.playSound(location, fallback, category, volume, pitch);
             return;
         }
+        Object resolved = resolveCached(soundKey);
+        if (resolved instanceof Sound sound) {
+            player.playSound(location, sound, category, volume, pitch);
+        } else {
+            player.playSound(location, (String) resolved, category, volume, pitch);
+        }
+    }
+
+    // Resolve a sound key to a registered Sound or, falling back, the raw key string, memoizing from the
+    // shared resolution cache so the hot play paths skip the registry lookup and key parsing per call.
+    private static Object resolveCached(String soundKey) {
         Object resolved = RESOLUTION_CACHE.get(soundKey);
         if (resolved == null) {
             resolved = resolve(soundKey);
@@ -91,11 +89,7 @@ public final class SoundUtils {
                 RESOLUTION_CACHE.put(soundKey, resolved);
             }
         }
-        if (resolved instanceof Sound sound) {
-            player.playSound(location, sound, category, volume, pitch);
-        } else {
-            player.playSound(location, (String) resolved, category, volume, pitch);
-        }
+        return resolved;
     }
 
     private static Object resolve(String soundKey) {

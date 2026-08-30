@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/getting-started.md)
 # Getting Started
 
 FarmersDelight is a Paper/Folia plugin built on CraftEngine. An addon is a **separate Bukkit plugin** that
@@ -9,19 +11,9 @@ guards every addon is expected to install.
 
 ## Only `com.huidu.farmersdelight.api.**` is stable
 
-Release builds of FarmersDelight are processed by ProGuard. The keep rule is exactly this:
-
-```
-keep public class com.huidu.farmersdelight.api.** {
-    public protected *;
-}
-```
-
-Everything outside that package is renamed and repackaged. If your addon references
-`com.huidu.farmersdelight.recipe.CookingPotRecipeManager` (or any other internal), it compiles against your
-local copy and then throws `NoClassDefFoundError` on a real server. The `api` package is the whole contract:
-its signatures use only Bukkit types, JDK types, Adventure types and other `api` types, so nothing renamed can
-leak through a parameter or return value.
+Everything outside that package is internal and may change without compatibility guarantees. The `api`
+package is the whole contract: its signatures use only Bukkit types, JDK types, Adventure types and other
+`api` types, so internal implementations do not leak through parameters or return values.
 
 The corollary is that the api jar is all you need to compile.
 
@@ -33,7 +25,7 @@ internals, not a runnable plugin:
 ```bash
 # in the FarmersDelight repo
 ./gradlew apiJar
-# -> build/libs/farmersdelight-plugin-1.0.0-api.jar
+# -> build/libs/farmersdelight-1.0.2-api.jar
 ```
 
 There are two ways real addons consume it.
@@ -59,8 +51,8 @@ repositories {
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
     compileOnly("org.jetbrains:annotations:26.1.0")
-    compileOnly("net.momirealms:craft-engine-core:26.7")
-    compileOnly("net.momirealms:craft-engine-bukkit:26.7")
+    compileOnly("net.momirealms:craft-engine-core:26.8")
+    compileOnly("net.momirealms:craft-engine-bukkit:26.8")
     compileOnly(files("libs/farmersdelight-api-1.0.0.jar"))
 }
 

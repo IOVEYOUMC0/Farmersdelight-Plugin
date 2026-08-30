@@ -1,3 +1,5 @@
+
+[English](../en/cutting-board.md)
 # 切菜板
 
 **切菜板（Cutting Board）** 让你用工具加工单个物品 —— 把肉和鱼切成小份、剥原木、把作物拆成部件等等。
@@ -30,7 +32,7 @@
 
 切菜板接受：
 
-- **各类小刀** —— `#farmersdelight:knives` 标签（燧石刀、铁刀、金刀、钻石刀、下界合金刀）。小刀是切菜板的主力工具，
+- **各类小刀** —— `#farmersdelight:tools/knives` 标签（燧石刀、铁刀、金刀、钻石刀、下界合金刀）。小刀是切菜板的主力工具，
   能解锁最多配方。
 - **斧** —— `#minecraft:axes`
 - **镐** —— `#minecraft:pickaxes`

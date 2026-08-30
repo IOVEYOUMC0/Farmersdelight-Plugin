@@ -1,6 +1,6 @@
 categories:
   farmersdelight:categories:
-    name: <!i><white><l10n:farmersdelight.category.root></white>
+    name: <!i><white><lang:farmersdelight.category.root></white>
     icon: farmersdelight:cooking_pot
     list:
       - '#farmersdelight:block'
@@ -10,7 +10,7 @@ categories:
       - '#farmersdelight:gui'
       - '#farmersdelight:item_display'
   farmersdelight:block:
-    name: <!i><l10n:farmersdelight.category.block>
+    name: <!i><lang:farmersdelight.category.block>
     hidden: true
     icon: farmersdelight:stove
     list:
@@ -57,7 +57,7 @@ categories:
       - farmersdelight:crimson_cabinet
       - farmersdelight:warped_cabinet
   farmersdelight:item:
-    name: <!i><l10n:farmersdelight.category.item>
+    name: <!i><lang:farmersdelight.category.item>
     hidden: true
     icon: farmersdelight:canvas
     list:
@@ -69,7 +69,7 @@ categories:
       - farmersdelight:tomato_seeds
       - farmersdelight:rotten_tomato
   farmersdelight:food:
-    name: <!i><l10n:farmersdelight.category.food>
+    name: <!i><lang:farmersdelight.category.food>
     hidden: true
     icon: farmersdelight:hot_cocoa
     list:
@@ -165,7 +165,7 @@ categories:
       - farmersdelight:dog_food
       - farmersdelight:horse_feed
   farmersdelight:weapon:
-    name: <!i><l10n:farmersdelight.category.weapon>
+    name: <!i><lang:farmersdelight.category.weapon>
     hidden: true
     icon: farmersdelight:diamond_knife
     list:
@@ -175,7 +175,7 @@ categories:
       - farmersdelight:diamond_knife
       - farmersdelight:netherite_knife
   farmersdelight:gui:
-    name: <!i><l10n:farmersdelight.category.gui>
+    name: <!i><lang:farmersdelight.category.gui>
     hidden: true
     icon: farmersdelight:cooking_pot_heated
     list:
@@ -208,7 +208,7 @@ categories:
       - farmersdelight:recipe_book
       - farmersdelight:slot
   farmersdelight:item_display:
-    name: <!i><l10n:farmersdelight.category.item_display>
+    name: <!i><lang:farmersdelight.category.item_display>
     hidden: true
     icon: farmersdelight:apple_pie_slice0
     list:

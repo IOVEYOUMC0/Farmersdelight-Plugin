@@ -127,8 +127,8 @@ public class RopeBlockListener implements Listener {
         if (!isCreative) {
             ItemStack recovered = RopeBlockBehavior.createItemForRopeBlock(bottomBlock);
             if (recovered != null) {
-                if (!player.getInventory().addItem(recovered).isEmpty()) {
-                    world.dropItemNaturally(bottomBlock.getLocation(), recovered);
+                for (ItemStack leftover : player.getInventory().addItem(recovered).values()) {
+                    world.dropItemNaturally(bottomBlock.getLocation(), leftover);
                 }
             }
         }
@@ -369,4 +369,3 @@ public class RopeBlockListener implements Listener {
         placedRopes.removeIf(cell -> worldId.equals(cell.worldId()));
     }
 }
-

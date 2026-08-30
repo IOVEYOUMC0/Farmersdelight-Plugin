@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.api.event.FarmersDelightHarvestEvent;
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.Constants;
@@ -10,6 +11,7 @@ import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
+import net.momirealms.craftengine.bukkit.block.behavior.AbstractCanSurviveBlockBehavior;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -27,20 +29,24 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
+import org.bukkit.Tag;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class MushroomColonyBehavior extends FarmersDelightBlockBehavior implements BonemealableBlock, RandomTickBlock {
+public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior implements BonemealableBlock, RandomTickBlock {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
@@ -57,19 +63,133 @@ public class MushroomColonyBehavior extends FarmersDelightBlockBehavior implemen
             Set<Key> harvestToolTags,
             Set<String> harvestToolItems,
             SoilRuleSupport.SoilRules growSoilRules,
+            SoilRuleSupport.SoilRules placementSoilRules,
+            boolean placementOverridesDefault,
             String mushroomItemId
     ) {}
 
     private static final Map<Key, MushroomColonyBehavior> BEHAVIORS = new ConcurrentHashMap<>();
+    private static final Key MUSHROOM_GROW_BLOCK_TAG = Key.of("minecraft:mushroom_grow_block");
+    private static final Set<String> DEFAULT_MUSHROOM_ALWAYS_VALID_SUPPORTS = Set.of(
+            "minecraft:mycelium",
+            "minecraft:podzol",
+            "minecraft:crimson_nylium",
+            "minecraft:warped_nylium",
+            "minecraft:mushroom_stem"
+    );
+    private static volatile Set<String> cachedMushroomSupports = DEFAULT_MUSHROOM_ALWAYS_VALID_SUPPORTS;
 
     private final Config config;
 
     private MushroomColonyBehavior(BlockDefinition block, Config config) {
-        super(block);
+        super(block, 0);
         this.config = config;
     }
 
-    @SuppressWarnings("unchecked")
+    @Override
+    public void fallOn(Object thisBlock, Object[] args) {
+    }
+
+    @Override
+    public void updateEntityMovementAfterFallOn(Object thisBlock, Object[] args) {
+    }
+
+    @Override
+    protected boolean canSurvive(Object thisBlock, Object state, Object level, Object blockPos) {
+        World world = CraftEngineAdapter.toWorld(level);
+        BlockPos pos = CraftEngineAdapter.toBlockPos(blockPos);
+        if (world == null || pos == null) {
+            return false;
+        }
+        Block target = world.getBlockAt(pos.x(), pos.y(), pos.z());
+        return canSurviveAtWithRules(world, target, target.getRelative(BlockFace.DOWN));
+    }
+
+    public static boolean canSurviveAt(World world, Block target, Block blockBelow) {
+        MushroomColonyBehavior behavior = target == null ? null
+                : getBehavior(CustomBlockUtils.getState(target));
+        return behavior == null
+                ? canSurviveAtDefault(world, target, blockBelow)
+                : behavior.canSurviveAtWithRules(world, target, blockBelow);
+    }
+
+    public static boolean canSurviveAt(String customBlockId, World world, Block target, Block blockBelow) {
+        MushroomColonyBehavior behavior = null;
+        if (customBlockId != null) {
+            try {
+                behavior = getBehavior(Key.of(customBlockId));
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        return behavior == null
+                ? canSurviveAtDefault(world, target, blockBelow)
+                : behavior.canSurviveAtWithRules(world, target, blockBelow);
+    }
+
+    private boolean canSurviveAtWithRules(World world, Block target, Block blockBelow) {
+        if (config.placementSoilRules().isConfigured()
+                && SoilRuleSupport.matches(blockBelow, config.placementSoilRules())) {
+            return true;
+        }
+        if (config.placementOverridesDefault()) {
+            return false;
+        }
+        return canSurviveAtDefault(world, target, blockBelow);
+    }
+
+    private static boolean canSurviveAtDefault(World world, Block target, Block blockBelow) {
+        if (world == null || target == null || blockBelow == null) {
+            return false;
+        }
+        if (isMushroomGrowBlock(blockBelow) || isAlwaysValidSupport(blockBelow)) {
+            return true;
+        }
+
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin != null && !plugin.getConfigBoolean(true,
+                "mushroom-colonies.placement.allow-solid-supports-below-max-light")) {
+            return false;
+        }
+        int maxLight = plugin == null ? 12 : Math.max(0, Math.min(15, plugin.getConfigInt(12,
+                "mushroom-colonies.placement.max-light")));
+        return target.getLightLevel() <= maxLight && blockBelow.isSolid();
+    }
+
+    private static boolean isMushroomGrowBlock(Block block) {
+        if (Tag.MUSHROOM_GROW_BLOCK.isTagged(block.getType())) {
+            return true;
+        }
+        ImmutableBlockState state = CustomBlockUtils.getState(block);
+        return state != null && !state.isEmpty() && state.settings().tags().contains(MUSHROOM_GROW_BLOCK_TAG);
+    }
+
+    private static boolean isAlwaysValidSupport(Block block) {
+        String customId = CustomBlockUtils.getId(block);
+        if (customId != null && cachedMushroomSupports.contains(customId.toLowerCase(Locale.ROOT))) {
+            return true;
+        }
+        return cachedMushroomSupports.contains("minecraft:" + block.getType().name().toLowerCase(Locale.ROOT));
+    }
+
+    public static void reloadMushroomSupportCache(FarmersDelightPlugin plugin) {
+        if (plugin == null) {
+            cachedMushroomSupports = DEFAULT_MUSHROOM_ALWAYS_VALID_SUPPORTS;
+            return;
+        }
+        Set<String> normalized = new HashSet<>();
+        for (String support : ConfigSectionReader.optionalStringList(
+                plugin.getConfig(), "mushroom-colonies.placement.always-valid-supports")) {
+            String value = support == null ? "" : support.trim().toLowerCase(Locale.ROOT);
+            if (value.isEmpty()) {
+                continue;
+            }
+            normalized.add(value.contains(":") ? value : "minecraft:" + value);
+        }
+        cachedMushroomSupports = normalized.isEmpty()
+                ? DEFAULT_MUSHROOM_ALWAYS_VALID_SUPPORTS
+                : Set.copyOf(normalized);
+    }
+
     public static final BlockBehaviorFactory<MushroomColonyBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         // The age is not optional: it carries how many mushrooms the colony holds, so without it the
@@ -96,12 +216,16 @@ public class MushroomColonyBehavior extends FarmersDelightBlockBehavior implemen
         Set<Key> harvestToolTags = SoilRuleSupport.parseKeys(arguments, "harvest-tool-tags");
         Set<String> harvestToolItems = parseConfiguredItemIds(arguments);
         SoilRuleSupport.SoilRules growSoilRules = parseGrowSoilRules(arguments);
+        SoilRuleSupport.SoilRules placementSoilRules = parsePlacementSoilRules(arguments);
+        boolean placementOverridesDefault = BehaviorArgParser.getBoolean(arguments,
+                "place-on-overrides-default", false);
         String mushroomItemId = BehaviorArgParser.getString(arguments, "mushroom-type", "");
 
         MushroomColonyBehavior behavior = new MushroomColonyBehavior(block, new Config(
                 ageProperty, maxAge, growSpeed, minGrowLight,
                 bonemealMinAgeBonus, bonemealMaxAgeBonus,
-                harvestToolTags, harvestToolItems, growSoilRules, mushroomItemId
+                harvestToolTags, harvestToolItems, growSoilRules, placementSoilRules,
+                placementOverridesDefault, mushroomItemId
         ));
         BEHAVIORS.put(block.id(), behavior);
         return behavior;
@@ -139,13 +263,13 @@ public class MushroomColonyBehavior extends FarmersDelightBlockBehavior implemen
             return InteractionResult.PASS;
         }
 
-        Player player = Bukkit.getPlayer(context.getPlayer().uuid());
+        Player player = ItemUtils.getBukkitPlayer(context.getPlayer());
         if (player == null) {
             return InteractionResult.PASS;
         }
 
-        ItemStack mainHand = player.getInventory().getItemInMainHand();
-        if (mainHand.getType().isAir()) {
+        ItemStack heldItem = ItemUtils.getItemInHand(player, context.getHand());
+        if (heldItem == null || heldItem.getType().isAir()) {
             return InteractionResult.PASS;
         }
 
@@ -154,8 +278,8 @@ public class MushroomColonyBehavior extends FarmersDelightBlockBehavior implemen
             return InteractionResult.PASS;
         }
 
-        boolean shearsHarvest = isShearsHarvestTool(mainHand);
-        boolean knifeHarvest = !shearsHarvest && isKnifeHarvestTool(mainHand);
+        boolean shearsHarvest = isShearsHarvestTool(heldItem);
+        boolean knifeHarvest = !shearsHarvest && isKnifeHarvestTool(heldItem);
         if (!shearsHarvest && !knifeHarvest) {
             return InteractionResult.PASS;
         }
@@ -177,13 +301,17 @@ public class MushroomColonyBehavior extends FarmersDelightBlockBehavior implemen
         if (shearsHarvest) {
             mushroomDrop.setAmount(1);
             ImmutableBlockState nextState = state.with(config.ageProperty(), Math.max(0, currentAge - 1));
-            CraftEngineBlocks.place(block.getLocation(), nextState, false);
+            if (!CraftEngineBlocks.place(block.getLocation(), nextState, false)) {
+                return InteractionResult.PASS;
+            }
             world.playSound(loc, Sound.ENTITY_SHEEP_SHEAR, 1.0f, 1.0f);
             spawnHarvestParticles(world, loc, 3, 0.1, 0.001);
         } else {
             mushroomDrop.setAmount(currentAge);
             ImmutableBlockState resetState = state.with(config.ageProperty(), 0);
-            CraftEngineBlocks.place(block.getLocation(), resetState, false);
+            if (!CraftEngineBlocks.place(block.getLocation(), resetState, false)) {
+                return InteractionResult.PASS;
+            }
             // Mirrors original MushroomColonyBlock: knife harvest plays the block's break sound
             // (colony copies vanilla mushroom = SoundType.GRASS) rather than a crop-growth sound.
             world.playSound(loc, Sound.BLOCK_GRASS_BREAK, 1.0f, 1.0f);
@@ -194,12 +322,12 @@ public class MushroomColonyBehavior extends FarmersDelightBlockBehavior implemen
         // the drop exists, so a listener sees the harvest exactly once with the final drop amount.
         // Outside any block-entity monitor: this behavior holds none.
         Bukkit.getPluginManager().callEvent(new FarmersDelightHarvestEvent(
-                player, block.getLocation(), CustomBlockUtils.getId(state), mainHand,
+                player, block.getLocation(), CustomBlockUtils.getId(state), heldItem,
                 java.util.List.of(mushroomDrop)));
 
         world.dropItemNaturally(loc, mushroomDrop);
-        player.swingMainHand();
-        damageHeldTool(player, mainHand);
+        ItemUtils.swingHand(player, context.getHand());
+        damageHeldTool(player, heldItem);
         return InteractionResult.SUCCESS_AND_CANCEL;
     }
 
@@ -424,5 +552,18 @@ public class MushroomColonyBehavior extends FarmersDelightBlockBehavior implemen
         }
         return SoilRuleSupport.parseSoilRules(arguments);
     }
-}
 
+    private static SoilRuleSupport.SoilRules parsePlacementSoilRules(Map<String, Object> arguments) {
+        if (!BehaviorArgParser.hasArgument(arguments, "place-on-blocks")
+                && !BehaviorArgParser.hasArgument(arguments, "place-on-block-tags")) {
+            return new SoilRuleSupport.SoilRules(Set.of(), Set.of(), Set.of(), List.of(), Set.of());
+        }
+        Map<String, Object> aliasedArguments = new java.util.HashMap<>();
+        if (arguments != null) {
+            aliasedArguments.putAll(arguments);
+        }
+        aliasedArguments.put("bottom-blocks", BehaviorArgParser.getRaw(arguments, "place-on-blocks"));
+        aliasedArguments.put("bottom-block-tags", BehaviorArgParser.getRaw(arguments, "place-on-block-tags"));
+        return SoilRuleSupport.parseSoilRules(aliasedArguments);
+    }
+}

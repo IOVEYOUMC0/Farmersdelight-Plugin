@@ -352,7 +352,7 @@ public class HorseFeedTemptListener implements Listener {
 
     // Scan chunk entity lists instead of getNearbyEntities to avoid blocking on Folia region threads.
     // Since the tempt range is bounded (configurable, default 10), we iterate loaded chunks within range.
-    private static List<Entity> getChunkEntitiesInRange(Location center, double range) {
+    private List<Entity> getChunkEntitiesInRange(Location center, double range) {
         World world = center.getWorld();
         if (world == null) return List.of();
         int minCX = (center.getBlockX() - (int) Math.ceil(range)) >> 4;
@@ -362,6 +362,14 @@ public class HorseFeedTemptListener implements Listener {
         List<Entity> result = new ArrayList<>();
         for (int cx = minCX; cx <= maxCX; cx++) {
             for (int cz = minCZ; cz <= maxCZ; cz++) {
+                // Folia rejects world/chunk access owned by another region. Keep the bounded scan
+                // useful for chunks owned by this player's region and skip the rest; those mobs are
+                // picked up when the player enters their region.
+                if (plugin.scheduler().isFolia()
+                        && !plugin.scheduler().isOwnedByCurrentRegion(
+                        new Location(world, (cx << 4) + 8, 0, (cz << 4) + 8))) {
+                    continue;
+                }
                 if (world.isChunkLoaded(cx, cz)) {
                     result.addAll(List.of(world.getChunkAt(cx, cz).getEntities()));
                 }

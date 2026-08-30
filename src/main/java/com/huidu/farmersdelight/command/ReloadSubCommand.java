@@ -46,6 +46,7 @@ final class ReloadSubCommand extends SubCommand {
             case LOOT -> plugin.reloadLootDatapack();
             case ENCHANT -> plugin.refreshEnchantSystem();
             case DAMAGE -> plugin.reloadDamageTypeDatapack();
+            case TAGS -> plugin.reloadTags();
         }
 
         // Notify addons so they reload in sync. "all" already fires this inside reloadAll().

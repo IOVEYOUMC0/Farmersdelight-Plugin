@@ -7,7 +7,6 @@ import com.huidu.farmersdelight.gui.RecipeViewGuiConfig;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.recipe.RecipeSerializer;
 import com.huidu.farmersdelight.util.ItemUtils;
-import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
@@ -37,7 +36,7 @@ public final class ChoiceBuilderGui extends AbstractInventoryGui implements Edit
     private record IngredientEntry(RecipeIngredient ingredient, ItemStack display) {
         static IngredientEntry of(RecipeIngredient ingredient) {
             if (ingredient instanceof RecipeIngredient.Item item) {
-                ItemStack stack = ItemUtils.createItem(item.key().toString());
+                ItemStack stack = item.createStack();
                 if (stack != null && !stack.getType().isAir()) {
                     stack.setAmount(1);
                     return new IngredientEntry(ingredient, stack);
@@ -167,15 +166,17 @@ public final class ChoiceBuilderGui extends AbstractInventoryGui implements Edit
                     return;
                 }
                 if (hasCursorItem) {
-                    options[idx] = IngredientEntry.of(
-                            new RecipeIngredient.Item(Key.of(RecipeSerializer.itemIdString(cursor))));
+                    options[idx] = IngredientEntry.of(RecipeIngredient.Item.fromStack(cursor));
                     clearCursor();
                 } else if (click.isRightClick()) {
                     options[idx] = null;
                 } else if (options[idx] != null) {
                     IngredientEntry existing = options[idx];
                     if (existing.ingredient() instanceof RecipeIngredient.Item) {
-                        player.setItemOnCursor(cleanCopy(existing.display()));
+                        if (existing.ingredient() instanceof RecipeIngredient.Item item) {
+                            ItemStack stack = item.createStack();
+                            player.setItemOnCursor(stack != null ? cleanCopy(stack) : cleanCopy(existing.display()));
+                        }
                     }
                     options[idx] = null;
                 }

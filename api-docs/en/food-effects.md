@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/food-effects.md)
 # Food Effects
 
 Package: `com.huidu.farmersdelight.api.effect`

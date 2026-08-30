@@ -18,6 +18,9 @@ blocks:
         - minecraft:sword_efficient
         - minecraft:climbable
         - minecraft:fall_damage_resetting
+        - farmersdelight:ropes
+        - farmersdelight:straw_blocks
+        - farmersdelight:mineable/knife
       sounds:
         break: minecraft:block.wool.break
         fall: minecraft:block.wool.fall
@@ -26,6 +29,8 @@ blocks:
         step: minecraft:block.wool.step
     behaviors:
       - type: farmersdelight:rope
+        placement-mode: vanilla
+        connection-mode: restricted
     states:
       properties:
         north:

@@ -87,6 +87,24 @@ public final class ProtectionCompat {
                 && (!antiGriefReady || AntiGriefBridge.canPlace(player, location));
     }
 
+    /** Checks a block break. WorldGuard exposes this through BUILD; AntiGriefLib has a distinct BREAK flag. */
+    public static boolean canBreak(Player player, Block block, Feature feature) {
+        return canBreak(player, block, feature == null ? null : feature.flagName());
+    }
+
+    public static boolean canBreak(Player player, Location location, Feature feature) {
+        return canBreak(player, location, feature == null ? null : feature.flagName());
+    }
+
+    public static boolean canBreak(Player player, Block block, String flagName) {
+        return block == null || canBreak(player, block.getLocation(), flagName);
+    }
+
+    public static boolean canBreak(Player player, Location location, String flagName) {
+        return WorldGuardCompat.canBuild(player, location, flagName)
+                && (!antiGriefReady || AntiGriefBridge.canBreak(player, location));
+    }
+
     public static boolean canUse(Player player, Block block, Feature feature) {
         return canUse(player, block, feature == null ? null : feature.flagName());
     }

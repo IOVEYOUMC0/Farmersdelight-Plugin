@@ -2,6 +2,8 @@
 icon: box
 ---
 
+[English](../en/resource-pack.md)
+
 # 资源包
 
 ## 发包的是 CraftEngine，不是 FarmersDelight

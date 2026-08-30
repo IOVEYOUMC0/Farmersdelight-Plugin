@@ -95,18 +95,15 @@ blocks:
         push-reaction: destroy
         is-randomly-ticking: true
     behaviors:
-      - type: bush_block
-        bottom-block-tags:
-          - minecraft:mushroom_grow_block
-        bottom-blocks:
-          - farmersdelight:rich_soil
-          - farmersdelight:organic_compost
       - type: farmersdelight:mushroom_colony
         mushroom-type: "minecraft:brown_mushroom"
         light-requirement: 0
         grow-on-blocks:
           - farmersdelight:rich_soil
           - farmersdelight:organic_compost
+        place-on-block-tags:
+          - minecraft:mushroom_grow_block
+        place-on-overrides-default: false
     states:
       properties:
         age:
@@ -190,18 +187,15 @@ blocks:
         push-reaction: destroy
         is-randomly-ticking: true
     behaviors:
-      - type: bush_block
-        bottom-block-tags:
-          - minecraft:mushroom_grow_block
-        bottom-blocks:
-          - farmersdelight:rich_soil
-          - farmersdelight:organic_compost
       - type: farmersdelight:mushroom_colony
         mushroom-type: "minecraft:red_mushroom"
         light-requirement: 0
         grow-on-blocks:
           - farmersdelight:rich_soil
           - farmersdelight:organic_compost
+        place-on-block-tags:
+          - minecraft:mushroom_grow_block
+        place-on-overrides-default: false
     states:
       properties:
         age:
@@ -456,4 +450,3 @@ placed-features:
         - type: 'minecraft:heightmap'
           heightmap: MOTION_BLOCKING
         - type: 'minecraft:biome'
-

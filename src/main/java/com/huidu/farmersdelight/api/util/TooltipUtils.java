@@ -12,7 +12,6 @@ public final class TooltipUtils {
 
     private TooltipUtils() {}
 
-    @SuppressWarnings("unchecked")
     public static void hideDurabilityLine(Item wrapped) {
         List<String> hidden = List.of(
                 DataComponentKeys.DAMAGE.asString(),
@@ -25,7 +24,12 @@ public final class TooltipUtils {
             return;
         }
         if (!(existing instanceof Map<?, ?> rawMap)) return;
-        Map<String, Object> data = new HashMap<>((Map<String, Object>) rawMap);
+        Map<String, Object> data = new HashMap<>();
+        for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
+            if (entry.getKey() instanceof String key) {
+                data.put(key, entry.getValue());
+            }
+        }
         Object prev = data.get("hidden_components");
         if (prev instanceof List<?> list) {
             List<String> merged = Stream.concat(

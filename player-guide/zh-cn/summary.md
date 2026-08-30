@@ -2,6 +2,8 @@
 icon: grid-4
 ---
 
+[English](../en/summary.md)
+
 # 目录
 
 * [玩家指南](./)

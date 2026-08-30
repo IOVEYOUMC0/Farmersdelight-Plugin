@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.manager;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.Arrays;
@@ -79,9 +80,9 @@ final class StoveSlotOffsets {
             }
             if (value instanceof ConfigurationSection vectorSection) {
                 return new double[]{
-                        vectorSection.getDouble("x", 0.0D),
-                        vectorSection.getDouble("y", 0.0D),
-                        vectorSection.getDouble("z", 0.0D)
+                        ConfigSectionReader.optionalDouble(vectorSection, "x", 0.0D),
+                        ConfigSectionReader.optionalDouble(vectorSection, "y", 0.0D),
+                        ConfigSectionReader.optionalDouble(vectorSection, "z", 0.0D)
                 };
             }
         } catch (Exception ignored) {

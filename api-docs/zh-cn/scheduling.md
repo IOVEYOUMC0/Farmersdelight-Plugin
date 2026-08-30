@@ -2,6 +2,8 @@
 icon: square-kanban
 ---
 
+[English](../en/scheduling.md)
+
 # 调度与 ApiTask
 
 FarmersDelight 同时支持 Paper 与 Folia。它内部的调度适配层会判断当前服务端，并相应选择全局、区域或实体 调度器。`FarmersDelightApi` 上有三个方法把这套适配暴露给附属，而 `com.huidu.farmersdelight.api.scheduler.ApiTask` 是重复任务返回给你的句柄。
@@ -46,7 +48,7 @@ public interface ApiTask {
 }
 ```
 
-整个类型就这些。它存在的理由是：内部的调度任务类会被 ProGuard 改名，不能穿过 api 边界——`ApiTask` 是一个 名称稳定的包装，你可以放在字段里存活整个插件生命周期。
+整个类型就这些。它避免内部调度实现泄漏到 API 边界之外，并为附属提供可在插件生命周期内持有的稳定包装。
 
 接口上的 `@ApiStatus.NonExtendable` 意思是：可以用，但不要实现。实例由 FarmersDelight 提供。
 

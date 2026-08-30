@@ -56,7 +56,10 @@ public final class CuttingBoardDispenseListener implements Listener {
         World world = target.getWorld();
         // Use int coordinates directly to skip the Location allocation per event.
         BlockPosKey boardPos = new BlockPosKey(target.getX(), target.getY(), target.getZ());
-        if (!CuttingBoardBlockBehavior.isCuttingBoardBlock(world, boardPos)) {
+        // isCuttingBoardBlock returns true when the facing block is NOT a FarmersDelight cutting
+        // board (its body inverts the has-behavior/has-id checks for the save/load guard paths), so a
+        // truthy result means skip the cut; otherwise a non-board would reach the cutter with no tool.
+        if (CuttingBoardBlockBehavior.isCuttingBoardBlock(world, boardPos)) {
             return;
         }
 

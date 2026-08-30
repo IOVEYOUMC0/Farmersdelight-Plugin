@@ -32,9 +32,6 @@ final class CleanupSubCommand extends SubCommand {
             displays = displayManager.cleanupOrphans(liveIds);
         }
 
-        int trays = 0;
-        // Trays now use entity_renderer, so no furniture entity cleanup is needed.
-
         // Same hook style as FarmersDelightReloadEvent — addons (BAC etc.) clean their own orphan
         // state in step and report counts back via event.addRemoved().
         com.huidu.farmersdelight.api.event.FarmersDelightCleanupEvent cleanupEvent =
@@ -42,11 +39,10 @@ final class CleanupSubCommand extends SubCommand {
         org.bukkit.Bukkit.getPluginManager().callEvent(cleanupEvent);
         int addon = cleanupEvent.getRemoved();
 
-        sender.sendMessage(I18n.getComponent("command.cleanup_done", Map.of(
+        sender.sendMessage(I18n.getComponent("command.cleanup_done_displays", Map.of(
                 "displays", String.valueOf(displays),
-                "trays", String.valueOf(trays),
                 "addon", String.valueOf(addon),
-                "count", String.valueOf(displays + trays + addon))));
+                "count", String.valueOf(displays + addon))));
     }
 
     @Override

@@ -62,9 +62,9 @@ public final class RecipeEditorStore {
     private Map<String, Object> buildCookingPotBody(CookingPotRecipe recipe) {
         Map<String, Object> body = new LinkedHashMap<>();
 
-        List<String> ingredients = new ArrayList<>();
+        List<Object> ingredients = new ArrayList<>();
         for (RecipeIngredient ingredient : recipe.getIngredients()) {
-            ingredients.add(RecipeSerializer.serializeIngredient(ingredient));
+            ingredients.add(RecipeSerializer.serializeIngredientValue(ingredient));
         }
         body.put("ingredients", ingredients);
 
@@ -99,7 +99,7 @@ public final class RecipeEditorStore {
 
     private Map<String, Object> buildCuttingBoardBody(CuttingBoardRecipe recipe) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("input", RecipeSerializer.serializeIngredient(recipe.getInput()));
+        body.put("input", RecipeSerializer.serializeIngredientValue(recipe.getInput()));
 
         List<String> tools = new ArrayList<>();
         for (CuttingBoardRecipe.ToolRequirement tool : recipe.getTools()) {

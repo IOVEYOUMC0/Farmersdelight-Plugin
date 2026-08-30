@@ -1,3 +1,5 @@
+
+[English](../en/README.md)
 # 中文
 
 这里是 FarmersDelight 附属 API 的参考文档——第三方插件用来在服务端内部扩展 FarmersDelight 的那套接口。
@@ -22,15 +24,8 @@ FarmersDelight 建立在 CraftEngine 之上。CraftEngine 负责自定义物品�
 
 ## 稳定性约定
 
-**`com.huidu.farmersdelight.api.**` 名称稳定，可以放心编译依赖。** 混淆构建会保留该包下公开类的 public 与 protected 成员的原始名字：
-
-```
-keep public class com.huidu.farmersdelight.api.** {
-    public protected *;
-}
-```
-
-**这个包以外的一切都会被重打包重命名，绝对不要碰。** 一旦你伸手去用 `com.huidu.farmersdelight.block`、`...util`、 `...i18n` 或任何其它内部包，你的附属在开发版上能编译通过，换成发布版 jar 就会在运行时抛 `NoClassDefFoundError` 或 `NoSuchMethodError`——因为那些名字已经不存在了。另外注意，被保留的只有**公开类**的 **public 与 protected** 成员： api 包里的包级私有类（比如 `SnapshotItems`）属于实现细节，不在约定范围内。
+**`com.huidu.farmersdelight.api.**` 是唯一受支持的兼容面。** 这个包以外的内容都是内部实现，
+可能在版本更新时变化或删除。api 包里的包级私有类（例如 `SnapshotItems`）同样属于实现细节，不在约定范围内。
 
 请对着 api-only jar（`gradlew apiJar`）编译，而不是完整插件 jar。这样越界会变成一个编译错误，而不是一次线上事故。 详见[快速上手](getting-started.md)。
 

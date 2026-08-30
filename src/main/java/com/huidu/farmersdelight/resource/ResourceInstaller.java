@@ -1,7 +1,11 @@
 package com.huidu.farmersdelight.resource;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.config.ConfigFileUpdater;
 import com.huidu.farmersdelight.i18n.I18n;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.InvalidConfigurationException;
+import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
@@ -56,6 +60,7 @@ public final class ResourceInstaller {
                 if (plugin.getConfig().getBoolean("craftengine-resources.auto-completion", true)) {
                     changedFiles += copyMissingBundledResourceFiles(targetRoot);
                 }
+                changedFiles += migrateKnownResourceFixes(targetRoot);
             } else {
                 changedFiles = copyBundledResourceDirectory(targetRoot);
             }
@@ -66,6 +71,66 @@ public final class ResourceInstaller {
             }
         } catch (IOException e) {
             I18n.logWarning("plugin.craftengine_resources_release_failed", "error", e.getMessage());
+        }
+    }
+
+    private int migrateKnownResourceFixes(Path targetRoot) throws IOException {
+        int changed = migrateItemsEggTag(targetRoot.resolve("configuration").resolve("items.yml"));
+        changed += migrateAnimatedGuiItem(targetRoot.resolve("configuration").resolve("gui.yml"));
+        return changed;
+    }
+
+    private int migrateItemsEggTag(Path items) throws IOException {
+        if (!Files.isRegularFile(items)) {
+            return 0;
+        }
+        String content = Files.readString(items);
+        String migrated = content
+                .replace("\"#c:eggs\"", "\"#eggs\"")
+                .replace("\"#minecraft:eggs\"", "\"#eggs\"");
+        if (content.equals(migrated)) {
+            return 0;
+        }
+        Files.writeString(items, migrated);
+        return 1;
+    }
+
+    private int migrateAnimatedGuiItem(Path guiPath) throws IOException {
+        if (!Files.isRegularFile(guiPath)) {
+            return 0;
+        }
+        String resourcePath = CRAFTENGINE_RESOURCE_ROOT + "/configuration/gui.yml";
+        try {
+            YamlConfiguration bundled = ConfigFileUpdater.readBundledYaml(plugin, resourcePath);
+            if (bundled == null) {
+                return 0;
+            }
+            YamlConfiguration existing = ConfigFileUpdater.readYamlFile(guiPath);
+            ConfigurationSection bundledItems = bundled.getConfigurationSection("items");
+            ConfigurationSection animated = bundledItems == null
+                    ? null : bundledItems.getConfigurationSection("farmersdelight:animated");
+            if (animated == null) {
+                return 0;
+            }
+            ConfigurationSection existingItems = existing.getConfigurationSection("items");
+            if (existingItems != null
+                    && (existingItems.getConfigurationSection("farmersdelight:animated") != null
+                    || existingItems.isSet("farmersdelight:animated"))) {
+                return 0;
+            }
+            if (existingItems == null) {
+                if (existing.isSet("items")) {
+                    return 0;
+                }
+                existingItems = existing.createSection("items");
+            }
+            ConfigFileUpdater.copySection(animated, existingItems.createSection("farmersdelight:animated"));
+            ConfigFileUpdater.backup(guiPath);
+            ConfigFileUpdater.tidy(existing);
+            ConfigFileUpdater.writeStringAtomically(guiPath, existing.saveToString(), true);
+            return 1;
+        } catch (InvalidConfigurationException e) {
+            throw new IOException("CraftEngine gui.yml is not valid YAML", e);
         }
     }
 
@@ -177,9 +242,8 @@ public final class ResourceInstaller {
     }
 
     private List<String> listBundledResourceFiles(String resourceRoot) throws IOException {
-        // Primary strategy: scan the plugin jar's entries directly. Directory entries are not guaranteed to exist in the jar --
-        // the ProGuard-obfuscated Folia jar (obfuscateFoliaJar) strips them --
-        // so getClassLoader().getResource(<directory>) returns null and the URL-based walk below
+        // Primary strategy: scan the plugin jar's entries directly. Packaging tools may omit directory entries,
+        // so getClassLoader().getResource(<directory>) can return null and the URL-based walk below
         // finds nothing ("No bundled CraftEngine resources found"). Reading file entries by prefix
         // is unaffected by missing directory entries and per-platform classloader differences.
         List<String> fromJar = listJarFileResourceFiles(resourceRoot);

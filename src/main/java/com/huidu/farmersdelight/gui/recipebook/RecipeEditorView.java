@@ -16,6 +16,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public final class RecipeEditorView implements InventoryHolder {
 
@@ -137,6 +138,30 @@ public final class RecipeEditorView implements InventoryHolder {
         }
         if (rawSlot == SLOT_SAVE) {
             commitItems();
+            String id = draft.id() == null ? "" : draft.id().trim();
+            if (!id.matches("[a-z0-9_.-]+:[a-z0-9_/.-]+")) {
+                player.sendMessage(tr("gui.editor.feedback.invalid_id", NamedTextColor.RED));
+                return;
+            }
+            draft.setId(id.toLowerCase(Locale.ROOT));
+            if (draft.result() == null || draft.result().getType().isAir()) {
+                player.sendMessage(tr("gui.editor.feedback.no_result", NamedTextColor.RED));
+                return;
+            }
+            if (draft.itemSlotCount() > 0) {
+                boolean hasInput = false;
+                for (int i = 0; i < draft.itemSlotCount(); i++) {
+                    ItemStack item = draft.item(i);
+                    if (item != null && !item.getType().isAir()) {
+                        hasInput = true;
+                        break;
+                    }
+                }
+                if (!hasInput) {
+                    player.sendMessage(tr("gui.editor.feedback.no_input", NamedTextColor.RED));
+                    return;
+                }
+            }
             boolean ok = editor.save(draft);
             player.sendMessage(ok
                     ? tr("gui.editor.recipe_book.saved", NamedTextColor.GREEN, draft.id())

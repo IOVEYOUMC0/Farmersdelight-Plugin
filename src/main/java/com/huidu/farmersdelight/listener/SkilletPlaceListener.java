@@ -8,6 +8,7 @@ import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
+import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.util.Direction;
 import net.momirealms.craftengine.core.util.Key;
@@ -103,20 +104,20 @@ public class SkilletPlaceListener implements Listener {
         return block != null && BlockStateUtils.isReplaceable(BlockStateUtils.getBlockState(block));
     }
 
-    @SuppressWarnings("unchecked")
     private ImmutableBlockState applyFacing(ImmutableBlockState state, BlockFace playerFacing) {
         if (state == null) {
             return null;
         }
-        Property<?> facingProperty = state.owner().value().getProperty("facing");
-        if (facingProperty == null || facingProperty.valueClass() != Direction.class) {
+        Property<Direction> facingProperty = BlockBehaviorFactory.getOptionalProperty(
+                state.owner().value(), "facing", Direction.class);
+        if (facingProperty == null) {
             return state;
         }
         Direction direction = toDirection(playerFacing);
         if (direction == null) {
             return state;
         }
-        return state.with((Property<Direction>) facingProperty, direction);
+        return state.with(facingProperty, direction);
     }
 
     private Direction toDirection(BlockFace face) {
@@ -128,4 +129,3 @@ public class SkilletPlaceListener implements Listener {
         };
     }
 }
-

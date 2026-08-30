@@ -1,5 +1,7 @@
 package com.huidu.farmersdelight.config;
 
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
@@ -12,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 public final class CuttingBoardDisplayConfig {
 
@@ -25,8 +28,9 @@ public final class CuttingBoardDisplayConfig {
     private final Map<String, DisplayOverride> tagOverrides = java.util.Collections.synchronizedMap(new LinkedHashMap<>());
     private final DisplayOverride fallbackDefaults;
     private final float fallbackItemSpread;
-    private DisplayOverride defaultOverride;
-    private float itemSpread;
+    // Reload writes, event handlers read on Folia region threads — volatile publishes the new values.
+    private volatile DisplayOverride defaultOverride;
+    private volatile float itemSpread;
 
     public CuttingBoardDisplayConfig() {
         this(DisplayOverride.empty(), DEFAULT_ITEM_SPREAD);
@@ -70,13 +74,20 @@ public final class CuttingBoardDisplayConfig {
             String key = configuredKey == null ? "" : configuredKey.trim();
             boolean tagKey = tagSection || key.startsWith("#");
             if (tagKey && !isValidTagId(key)) {
+                I18n.logWarning("plugin.config_invalid_key", "file", "config.yml",
+                        "path", displaySection.getCurrentPath() + "." + configuredKey);
                 continue;
             }
             if (!tagKey && !ItemUtils.isValidItemId(key)) {
+                I18n.logWarning("plugin.config_invalid_key", "file", "config.yml",
+                        "path", displaySection.getCurrentPath() + "." + configuredKey);
                 continue;
             }
             ConfigurationSection overrideSection = displaySection.getConfigurationSection(configuredKey);
             if (overrideSection == null) {
+                I18n.logWarning("plugin.config_value_invalid", "file", "config.yml",
+                        "path", displaySection.getCurrentPath() + "." + configuredKey,
+                        "error", "expected a section");
                 continue;
             }
             DisplayOverride override = DisplayOverride.fromConfig(overrideSection);
@@ -95,12 +106,14 @@ public final class CuttingBoardDisplayConfig {
         }
 
         DisplayOverride resolved = defaultOverride;
-        for (Map.Entry<String, DisplayOverride> entry : tagOverrides.entrySet()) {
-            try {
-                if (ItemUtils.matchesCustomOrVanillaTag(storedItem, entry.getKey())) {
-                    resolved = resolved.merge(entry.getValue());
+        synchronized (tagOverrides) { // iterate under the monitor; see field javadoc
+            for (Map.Entry<String, DisplayOverride> entry : tagOverrides.entrySet()) {
+                try {
+                    if (ItemUtils.matchesCustomOrVanillaTag(storedItem, entry.getKey())) {
+                        resolved = resolved.merge(entry.getValue());
+                    }
+                } catch (Exception ignored) {
                 }
-            } catch (Exception ignored) {
             }
         }
 
@@ -239,8 +252,13 @@ public final class CuttingBoardDisplayConfig {
         private static DisplayOverride fromConfig(ConfigurationSection section) {
             String displayItemId = section.getString("display-item");
             if (!ItemUtils.isValidItemId(displayItemId)) {
+                if (section.contains("display-item")) {
+                    I18n.logWarning("plugin.config_value_invalid", "file", "config.yml",
+                            "path", section.getCurrentPath() + ".display-item", "error", "invalid item id");
+                }
                 displayItemId = null;
             }
+            warnUnknownStyle(section, "style");
             return new DisplayOverride(
                     displayItemId,
                     DisplayStyle.fromConfig(section.getString("style")),
@@ -254,6 +272,10 @@ public final class CuttingBoardDisplayConfig {
         private static DisplayOverride fromDefaultConfig(ConfigurationSection section) {
             String displayItemId = section.getString("default-display-item");
             if (!ItemUtils.isValidItemId(displayItemId)) {
+                if (section.contains("default-display-item")) {
+                    I18n.logWarning("plugin.config_value_invalid", "file", "config.yml",
+                            "path", section.getCurrentPath() + ".default-display-item", "error", "invalid item id");
+                }
                 displayItemId = null;
             }
 
@@ -270,6 +292,9 @@ public final class CuttingBoardDisplayConfig {
                 defaultOffset = new Vector3f(0.0F, (float) section.getDouble("y-offset"), 0.0F);
             }
 
+            warnUnknownStyle(section, "default-display-style");
+            warnUnknownStyle(section, "default-style");
+            warnUnknownStyle(section, "style");
             return new DisplayOverride(
                     displayItemId,
                     DisplayStyle.fromConfig(firstString(section)),
@@ -280,11 +305,26 @@ public final class CuttingBoardDisplayConfig {
             );
         }
 
+        private static void warnUnknownStyle(ConfigurationSection section, String key) {
+            if (!section.contains(key)) {
+                return;
+            }
+            String value = section.getString(key);
+            if (value == null || value.isBlank()) {
+                return;
+            }
+            String normalized = value.trim().toLowerCase(Locale.ROOT).replace('-', '_');
+            if (!Set.of("auto", "item", "flat", "generated", "block", "block_style", "blockstyle", "cube").contains(normalized)) {
+                I18n.logWarning("plugin.config_value_invalid", "file", "config.yml",
+                        "path", section.getCurrentPath() + "." + key, "error", "unknown display style " + value);
+            }
+        }
+
         @Nullable
         private static String firstString(ConfigurationSection section) {
             for (String key : new String[]{"default-display-style", "default-style", "style"}) {
                 if (section.contains(key)) {
-                    String value = section.getString(key);
+                    String value = ConfigSectionReader.optionalString(section, key);
                     if (value != null) {
                         return value;
                     }
@@ -344,9 +384,9 @@ public final class CuttingBoardDisplayConfig {
                 }
                 if (value instanceof ConfigurationSection vectorSection) {
                     return new Vector3f(
-                            (float) vectorSection.getDouble("x", 0.0D),
-                            (float) vectorSection.getDouble("y", 0.0D),
-                            (float) vectorSection.getDouble("z", 0.0D)
+                            (float) ConfigSectionReader.optionalDouble(vectorSection, "x", 0.0D),
+                            (float) ConfigSectionReader.optionalDouble(vectorSection, "y", 0.0D),
+                            (float) ConfigSectionReader.optionalDouble(vectorSection, "z", 0.0D)
                     );
                 }
             } catch (Exception ignored) {

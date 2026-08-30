@@ -2,6 +2,8 @@
 icon: sparkle
 ---
 
+[English](../en/food-effects.md)
+
 # 食物效果
 
 包名：`com.huidu.farmersdelight.api.effect` 类：`FarmersDelightFoodEffects` —— `final`，私有构造。类上没有 `@ApiStatus` 注解，按普通稳定 API 对待即可。

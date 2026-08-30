@@ -2,6 +2,8 @@
 icon: box-isometric
 ---
 
+[English](../en/blocks-and-stations.md)
+
 # 方块与工作站
 
 这个包解决附属插件的两个问题：**这个方块是什么**，以及**这个工作站现在装了什么**。所有参数和返回值都是 Bukkit 或 `java` 类型（外加本包内的 snapshot record），因此附属插件不需要引入 CraftEngine 依赖就能使用。

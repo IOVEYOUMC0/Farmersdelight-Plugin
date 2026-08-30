@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/text-and-messages.md)
 # Text and messages
 
 `com.huidu.farmersdelight.api.text` holds two final utility classes. `FarmersDelightText` turns a template

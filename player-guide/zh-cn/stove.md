@@ -1,3 +1,5 @@
+
+[English](../en/stove.md)
 # 炉灶
 
 **炉灶（Stove）** 是你的专用热源，身兼两职：

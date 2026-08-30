@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.gui;
 
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
@@ -103,9 +104,9 @@ public class RecipeViewGuiConfig {
     }
 
     public static RecipeViewGuiConfig fromConfig(ConfigurationSection section) {
-        boolean backgroundItemsEnabled = section.getBoolean("background-items-enabled", true);
-        boolean showIngredientIds = section.getBoolean("show-ingredient-ids", false);
-        int maxPreviewIngredients = Math.max(1, section.getInt("max-preview-ingredients", 4));
+        boolean backgroundItemsEnabled = ConfigSectionReader.optionalBoolean(section, "background-items-enabled", true);
+        boolean showIngredientIds = ConfigSectionReader.optionalBoolean(section, "show-ingredient-ids", false);
+        int maxPreviewIngredients = Math.max(1, ConfigSectionReader.optionalInt(section, "max-preview-ingredients", 4));
         MainMenuConfig mainMenu = MainMenuConfig.fromConfig(section.getConfigurationSection("main-menu"));
         RecipeListConfig recipeList = RecipeListConfig.fromConfig(section.getConfigurationSection("recipe-list"));
         ConfigurationSection legacyDetail = section.getConfigurationSection("recipe-detail");
@@ -243,9 +244,9 @@ public class RecipeViewGuiConfig {
                 return null;
             }
 
-            String title = section.getString("title", "GUI");
-            int rows = section.getInt("rows", 3);
-            List<String> layout = section.getStringList("layout");
+            String title = ConfigSectionReader.optionalString(section, "title", "GUI");
+            int rows = ConfigSectionReader.optionalInt(section, "rows", 3);
+            List<String> layout = ConfigSectionReader.optionalStringList(section, "layout");
 
             Map<Character, String> legend = new HashMap<>();
             ConfigurationSection legendSection = section.getConfigurationSection("legend");
@@ -636,6 +637,7 @@ public class RecipeViewGuiConfig {
             legend.put('B', "back");
             legend.put('P', "fill");
             legend.put('G', "progress");
+            legend.put('M', "materials");
             legend.put('X', "background");
 
             Map<String, GuiConfig.GuiItem> items = new HashMap<>();
@@ -644,9 +646,10 @@ public class RecipeViewGuiConfig {
                     List.of("&7Cook Time: &b{cook_time}", "&7Experience: &a{experience}")));
             items.put("back", new GuiConfig.GuiItem(Material.ARROW, null, "Back", List.of()));
             items.put("fill", new GuiConfig.GuiItem(Material.HOPPER, null, "Fill Ingredients", List.of()));
+            items.put("materials", new GuiConfig.GuiItem(Material.BOOK, null, "Ingredients", List.of()));
 
             List<String> layout = List.of(
-                    "BXXXXXXPX",
+                    "BXXXXXXPM",
                     "XXXXXAXXX",
                     "XIIIXGXXX",
                     "XIIIXXXXX",
@@ -657,7 +660,7 @@ public class RecipeViewGuiConfig {
             List<Integer> ingredientSlots = List.of(19, 20, 21, 28, 29, 30);
             // The progress slot maps to 'G' in the layout (row 3, col 6 = 23), matching getFirstSlotByType("progress").
             return new RecipeDetailConfig("Recipe Details", 6, layout, legend, items,
-                    ingredientSlots, -1, List.of(43), 43, 41, -1, 14, 23, 0, -1, -1, 7);
+                    ingredientSlots, -1, List.of(43), 43, 41, -1, 14, 23, 0, -1, 8, 7);
         }
 
         static RecipeDetailConfig createCuttingBoardDefault() {
@@ -665,15 +668,17 @@ public class RecipeViewGuiConfig {
             legend.put('I', "input");
             legend.put('R', "result");
             legend.put('T', "tool");
+            legend.put('M', "materials");
             legend.put('B', "back");
             legend.put('X', "background");
 
             Map<String, GuiConfig.GuiItem> items = new HashMap<>();
             items.put("background", new GuiConfig.GuiItem(Material.GRAY_STAINED_GLASS_PANE, null, " ", List.of()));
             items.put("back", new GuiConfig.GuiItem(Material.ARROW, null, "Back", List.of()));
+            items.put("materials", new GuiConfig.GuiItem(Material.BOOK, null, "Ingredients", List.of()));
 
             List<String> layout = List.of(
-                    "BXXXXXXXX",
+                    "BXXXXXXXM",
                     "XXXXXXXXX",
                     "XXXXXXXXX",
                     "XIXTXRRXX",
@@ -684,7 +689,7 @@ public class RecipeViewGuiConfig {
             List<Integer> resultSlots = List.of(32, 33, 41, 42);
             // The cutting board layout has no progress type, so progressSlot is -1, matching getFirstSlotByType("progress").
             return new RecipeDetailConfig("Recipe Details", 6, layout, legend, items,
-                    List.of(), 28, resultSlots, 32, -1, 30, -1, -1, 0, -1, -1, -1);
+                    List.of(), 28, resultSlots, 32, -1, 30, -1, -1, 0, -1, 8, -1);
         }
     }
 

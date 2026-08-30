@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/food.md)
 # Food
 
 Farmer's Delight adds a large kitchen's worth of new food to the game — well over a

@@ -2,23 +2,18 @@
 icon: circle-play
 ---
 
+[English](../en/getting-started.md)
+
 # 快速上手
 
 FarmersDelight 是基于 CraftEngine 的 Paper / Folia 插件。附属（addon）是**一个独立的 Bukkit 插件**，与 FarmersDelight 跑在同一个 JVM 里，硬依赖 FarmersDelight，并在进程内直接调用它的 Java API。这里没有任何 网络协议，也没有命令桥接——你编译时链接一个 jar，运行时直接调方法。
 
 本页讲的是构建配置、plugin.yml 的写法、`onEnable` 里该做什么，以及每个附属都应当装上的生命周期保护。
 
-## 只有 `com.huidu.farmersdelight.api.**` 名称稳定
+## 只有 `com.huidu.farmersdelight.api.**` 是稳定接口
 
-FarmersDelight 的发布构建会经过 ProGuard 处理，keep 规则就是这一条：
-
-```
-keep public class com.huidu.farmersdelight.api.** {
-    public protected *;
-}
-```
-
-这个包以外的一切都会被改名和重打包。如果你的附属引用了 `com.huidu.farmersdelight.recipe.CookingPotRecipeManager` 或者任何其它内部类，本地能编过，但上真服就是 `NoClassDefFoundError`。`api` 包就是全部契约：它的签名只用 Bukkit 类型、JDK 类型、Adventure 类型和其它 `api` 类型，所以被混淆的东西不可能从参数或返回值里漏出来。
+这个包以外的内容都是内部实现，可能在版本更新时变化且不提供兼容保证。`api` 包就是全部契约：
+它的签名只用 Bukkit 类型、JDK 类型、Adventure 类型和其它 `api` 类型，不会把内部实现泄漏到参数或返回值中。
 
 反过来说，编译期你只需要这一个 api jar。
 
@@ -29,7 +24,7 @@ FarmersDelight 的构建里有一个 `apiJar` 任务，只打包 `com/huidu/farm
 ```bash
 # 在 FarmersDelight 仓库里执行
 ./gradlew apiJar
-# -> build/libs/farmersdelight-plugin-1.0.0-api.jar
+# -> build/libs/farmersdelight-1.0.2-api.jar
 ```
 
 现有的附属用了两种接法。
@@ -55,8 +50,8 @@ repositories {
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
     compileOnly("org.jetbrains:annotations:26.1.0")
-    compileOnly("net.momirealms:craft-engine-core:26.7")
-    compileOnly("net.momirealms:craft-engine-bukkit:26.7")
+    compileOnly("net.momirealms:craft-engine-core:26.8")
+    compileOnly("net.momirealms:craft-engine-bukkit:26.8")
     compileOnly(files("libs/farmersdelight-api-1.0.0.jar"))
 }
 

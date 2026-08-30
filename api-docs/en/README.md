@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/README.md)
 # English
 
 This is the reference for the FarmersDelight addon API — the surface a third-party plugin compiles against to extend FarmersDelight from inside the server.
@@ -22,15 +24,9 @@ If your addon is mostly content, see CraftEngine's official wiki. A large addon 
 
 ## Stability contract
 
-**`com.huidu.farmersdelight.api.**` is name-stable and safe to compile against.** The obfuscated build keeps public and protected members of public classes in that package under their original names:
-
-```
-keep public class com.huidu.farmersdelight.api.** {
-    public protected *;
-}
-```
-
-**Everything outside that package is repackaged and renamed, and must not be touched.** If you reach into `com.huidu.farmersdelight.block`, `...util`, `...i18n` or any other internal package, your addon will compile against a development build and then fail at runtime on the released jar with `NoClassDefFoundError` or `NoSuchMethodError`, because those names no longer exist. Note also that only _public and protected_ members of _public_ classes are kept — a package-private class inside the api package, such as `SnapshotItems`, is an implementation detail and is not part of the contract.
+**`com.huidu.farmersdelight.api.**` is the only supported compatibility surface.** Everything outside that
+package is internal and may change or disappear between releases. A package-private class inside the api
+package, such as `SnapshotItems`, is also an implementation detail and is not part of the contract.
 
 Compile against the api-only jar (`gradlew apiJar`) rather than the full plugin jar. That makes the boundary a compile error instead of a production incident. See [Getting started](getting-started.md).
 

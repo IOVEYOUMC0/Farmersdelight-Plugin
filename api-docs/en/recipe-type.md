@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/recipe-type.md)
 # RecipeType and ViewableRecipe
 
 A `RecipeType` is a titled, icon'd, registrable category of recipes. Register one and FarmersDelight can render

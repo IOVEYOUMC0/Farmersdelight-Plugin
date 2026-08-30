@@ -3,6 +3,8 @@ description: 包名：com.huidu.farmersdelight.api.buff
 icon: droplet
 ---
 
+[English](../en/buffs.md)
+
 # 自定义 buff
 
 所谓自定义 buff，指的是附属自己维护、不走原版 `PotionEffect` 的玩家状态——FarmersDelight 自带的 Comfort 与 Nourishment，Brewin' And Chewin' 的 Tipsy / Sweet Heart / Raging / Intoxication 都属于这类。这些状态存在附属自己 的 map 里，原版看不见：喝牛奶清不掉，重新登录带不回来，HUD 插件也读不到。

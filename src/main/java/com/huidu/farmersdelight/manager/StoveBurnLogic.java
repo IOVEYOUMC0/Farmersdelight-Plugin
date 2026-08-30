@@ -84,7 +84,7 @@ final class StoveBurnLogic {
             return;
         }
         burnStovesByChunk.computeIfAbsent(normalized.getWorld().getUID(), ignored -> new ConcurrentHashMap<>())
-                .computeIfAbsent(chunkKey(normalized), ignored -> ConcurrentHashMap.newKeySet())
+                .computeIfAbsent(ManagerSupport.chunkKey(normalized), ignored -> ConcurrentHashMap.newKeySet())
                 .add(normalized);
     }
 
@@ -96,7 +96,7 @@ final class StoveBurnLogic {
         UUID worldId = normalized.getWorld().getUID();
         Map<Long, Set<Location>> chunks = burnStovesByChunk.get(worldId);
         if (chunks == null) return;
-        long key = chunkKey(normalized);
+        long key = ManagerSupport.chunkKey(normalized);
         Set<Location> locations = chunks.get(key);
         if (locations != null) {
             locations.remove(normalized);
@@ -114,7 +114,7 @@ final class StoveBurnLogic {
         UUID worldId = world.getUID();
         Map<Long, Set<Location>> chunks = burnStovesByChunk.get(worldId);
         if (chunks == null) return;
-        chunks.remove(chunkKey(chunkX, chunkZ));
+        chunks.remove(ManagerSupport.chunkKey(chunkX, chunkZ));
         if (chunks.isEmpty()) {
             burnStovesByChunk.remove(worldId, chunks);
         }
@@ -122,14 +122,6 @@ final class StoveBurnLogic {
 
     boolean hasBurnStoves() {
         return !burnStovesByChunk.isEmpty();
-    }
-
-    private long chunkKey(int chunkX, int chunkZ) {
-        return (((long) chunkX) << 32) ^ (chunkZ & 0xffffffffL);
-    }
-
-    private long chunkKey(Location location) {
-        return chunkKey(location.getBlockX() >> 4, location.getBlockZ() >> 4);
     }
 
     private void burnTick() {
@@ -197,7 +189,7 @@ final class StoveBurnLogic {
         double radiusSq = radius * radius;
         for (int chunkX = centerChunkX - chunkRadius; chunkX <= centerChunkX + chunkRadius; chunkX++) {
             for (int chunkZ = centerChunkZ - chunkRadius; chunkZ <= centerChunkZ + chunkRadius; chunkZ++) {
-                Set<Location> locations = chunks.get(chunkKey(chunkX, chunkZ));
+                Set<Location> locations = chunks.get(ManagerSupport.chunkKey(chunkX, chunkZ));
                 if (locations == null) continue;
                 for (Location stove : locations) {
                     double dx = center.getX() - (stove.getBlockX() + 0.5D);

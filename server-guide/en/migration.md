@@ -2,6 +2,8 @@
 icon: arrows-rotate
 ---
 
+[简体中文](../zh-cn/migration.md)
+
 # Migration & upgrades
 
 Whether you are coming fresh from the original mod or upgrading an existing FarmersDelight install, these are
@@ -38,6 +40,11 @@ changing any value you set**:
 So after a plugin update you do **not** need to hand-migrate `config.yml` — your tuned values survive, new
 settings appear at their defaults, and dead keys are cleaned up. (A backup failure during this process is
 reported in the log rather than aborting the update.)
+
+Villager and wandering-trader offers now live in `world-data.yml`. Mob-extra and straw drop rules now live in
+`drops.yml`. When a legacy `config.yml` still contains either `world-data:` or `drops:`, the section is moved to
+the matching file automatically. The affected files are backed up before the move; edit the standalone files after
+that point.
 
 ## Shipped files are installed only when absent
 
@@ -81,7 +88,7 @@ plugin updates. See [First config](first-config.md).
 
 1. Stop the server (`/stop`) — do not hot-swap the jar.
 2. Replace both the FarmersDelight jar and, if updated, the resource pack.
-3. Start the server. Let `config.yml` auto-migrate and CraftEngine resources auto-complete.
+3. Start the server. Let `config.yml`, `world-data.yml` and `drops.yml` auto-migrate and CraftEngine resources auto-complete.
 4. Read the console: check the *Content ready* line and the one-time "missing bundled recipe" notice; decide
    whether you want those recipes (`merge-missing-bundled`).
 5. If the update changed shipped CE resource files you had edited, merge those changes by hand.

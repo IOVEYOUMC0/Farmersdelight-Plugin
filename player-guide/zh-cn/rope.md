@@ -1,3 +1,5 @@
+
+[English](../en/rope.md)
 # 绳索
 
 绳索（`farmersdelight:rope`）是一种可攀爬的绳子，能沿墙铺设、垂入竖井、隔空敲响钟，还能用来种番茄。

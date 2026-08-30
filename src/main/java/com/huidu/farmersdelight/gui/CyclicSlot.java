@@ -1,7 +1,7 @@
 package com.huidu.farmersdelight.gui;
 
 /**
- * Generic auto-cycle display, following the cooking-pot progress bar pattern (the tick loop only advances a
+ * Generic auto-cycle display for recipe detail previews (the tick loop only advances a
  * frame; rendering stays in the page that owns the slot). Drives "switch to the next display item every N
  * ticks" for any detail-page slot that needs to cycle through candidates — the cutting-board tool preview,
  * the special-recipe catalyst items, and so on. The index is taken modulo the current option count.

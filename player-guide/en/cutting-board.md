@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/cutting-board.md)
 # The Cutting Board
 
 The **Cutting Board** lets you process a single item with a tool — slicing meat and
@@ -35,7 +37,7 @@ recipe at all, you're told there's no recipe.
 
 The board accepts:
 
-- **Knives** — the `#farmersdelight:knives` tag (Flint, Iron, Golden, Diamond and
+- **Knives** — the `#farmersdelight:tools/knives` tag (Flint, Iron, Golden, Diamond and
   Netherite knives). Knives are the primary cutting-board tool and unlock the most
   recipes.
 - **Axes** — `#minecraft:axes`

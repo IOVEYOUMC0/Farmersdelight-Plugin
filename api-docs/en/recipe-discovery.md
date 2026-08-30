@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/recipe-discovery.md)
 # Recipe discovery
 
 Recipe discovery is per-player lock/unlock state for the recipe books. When it is enabled, recipes start locked

@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/recipe-book-layout.md)
 # RecipeBookLayout and opening a book
 
 By default a registered `RecipeType` renders inside FarmersDelight's shared recipe book, laid out by the
@@ -98,11 +100,10 @@ pages. That is by design: an independent book skips the category menu entirely.
 
 ### The progress role
 
-Any detail slot mapped to `progress` cycles FarmersDelight's chevron frames (`farmersdelight:0` …
-`farmersdelight:20`, CraftEngine items) once per GUI tick while the detail page is open, matching
-FarmersDelight's own recipe view. The animation ticks on the viewer's region thread and stops when the
-inventory really closes. If the CraftEngine frame items are not loaded yet (mid CE reload), a light grey glass
-pane stands in and the frames retry on a later tick.
+Any detail slot mapped to `progress` receives the single `farmersdelight:animated` CraftEngine item. Its
+vertical animated texture advances on the client, so the server does not replace the slot every tick. If the
+item is not loaded yet (for example during a CE reload), a light grey glass pane is used until the next detail
+open.
 
 You do not supply anything for this role — just map a character to it.
 
