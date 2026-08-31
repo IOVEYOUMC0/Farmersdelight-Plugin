@@ -127,7 +127,7 @@ final class ToolPreviewRenderer {
 
     private List<ItemStack> createKnifePreviewItems() {
         List<ItemStack> knives = new ArrayList<>();
-        for (String knifeId : plugin.getConfigStringList("knife-items.items", "drops.knife-items.items", "knife-config.items")) {
+        for (String knifeId : plugin.getConfigStringList("knife-items.items")) {
             ItemStack knife = RecipeIngredientIcons.createItemFromKey(Key.of(knifeId));
             if (gui.isDisplayableItem(knife)) {
                 knives.add(knife);

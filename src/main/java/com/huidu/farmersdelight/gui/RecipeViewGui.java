@@ -54,7 +54,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
     private static final ItemStack EMPTY_SLOT_BACKGROUND = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
     static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
-    private static final int GUI_TICK_INTERVAL_TICKS = 4;
 
     static {
         ItemMeta meta = EMPTY_SLOT_BACKGROUND.getItemMeta();
@@ -67,6 +66,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         COOKING_POT_LIST,
         CUTTING_BOARD_LIST,
         RECIPE_DETAIL,
+        INGREDIENT_OPTIONS,
         SPECIAL_RECIPE_LIST,
         SPECIAL_RECIPE_DETAIL
     }
@@ -82,8 +82,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
     volatile int currentToolIndex = 0;
     volatile int currentToolPreviewIndex = 0;
     // Auto-cycle drivers for the detail slots that rotate through candidates (cutting-board tool preview,
-    // special-recipe catalyst items). The shared CyclicSlot keeps the per-tick advancing in one place,
-    // mirroring how the cooking-pot progress bar owns its frame progression.
+    // special-recipe catalyst items). The shared CyclicSlot keeps the per-tick advancing in one place.
     private final CyclicSlot toolCycle = new CyclicSlot(INGREDIENT_SWITCH_INTERVAL);
     private final CyclicSlot catalystCycle = new CyclicSlot(INGREDIENT_SWITCH_INTERVAL);
     private final SpecialRecipeRenderer specialRecipeRenderer;
@@ -92,7 +91,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
     // Expanded catalyst options for the currently shown special recipe (tag references expand into
     // their member items); rebuilt each time the detail page is drawn.
     private volatile List<ItemStack> specialCatalystOptions = List.of();
-    int cookingProcessBarTicks = 0;
+    private List<ItemStack> expandedIngredientOptions = List.of();
+    private int expandedIngredientPage;
+    private DetailState ingredientOptionsOrigin;
     final RecipeDetailRenderer detailRenderer = new RecipeDetailRenderer(this);
     static final int INGREDIENT_SWITCH_INTERVAL = 20;
     
@@ -165,9 +166,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             return;
         }
         if (state == GuiState.RECIPE_DETAIL) {
-            if (cookingPotMode) {
-                tickCookingPotProcessBar();
-            } else {
+            if (!cookingPotMode) {
                 tickToolSwitch();
             }
             tickIngredientSwitch();
@@ -344,34 +343,8 @@ public class RecipeViewGui extends AbstractInventoryGui {
         ingredientDisplay.tickIngredientSwitch();
     }
 
-    private void tickCookingPotProcessBar() {
-        if (player == null || !player.isOnline() || selectedRecipeId == null) {
-            return;
-        }
-
-        CookingPotRecipe recipe = plugin.getCookingPotRecipes().getRecipe(getActiveCookingPotRecipeGroup(), selectedRecipeId);
-        if (recipe == null) {
-            return;
-        }
-
-        RecipeViewGuiConfig.RecipeDetailConfig detailConfig = getActiveCookingPotDetailConfig();
-        int progressSlot = detailRenderer.getCookingPotProcessBarSlot(detailConfig);
-        if (progressSlot < 0) {
-            return;
-        }
-
-        int duration = Math.max(1, recipe.getCookTime());
-        cookingProcessBarTicks += GUI_TICK_INTERVAL_TICKS;
-        if (cookingProcessBarTicks > duration) {
-            cookingProcessBarTicks = 0;
-        }
-
-        inventory.setItem(progressSlot, RecipeDetailRenderer.createCookingPotProcessBarItem(detailRenderer.cookingProcessBarFrame(recipe)));
-    }
-
     private void resetDetailAnimations() {
         ingredientDisplay.resetAnimations();
-        cookingProcessBarTicks = 0;
     }
 
     private void refresh(Player player) {
@@ -384,6 +357,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             case COOKING_POT_LIST -> drawCookingPotList(player);
             case CUTTING_BOARD_LIST -> drawCuttingBoardList(player);
             case RECIPE_DETAIL -> drawRecipeDetail(player, resetDetailAnimations);
+            case INGREDIENT_OPTIONS -> drawIngredientOptions(player);
             case SPECIAL_RECIPE_LIST -> drawSpecialRecipeList(player);
             case SPECIAL_RECIPE_DETAIL -> drawSpecialRecipeDetail(player);
         }
@@ -596,6 +570,11 @@ public class RecipeViewGui extends AbstractInventoryGui {
         }
 
         fillBackground(detailConfig);
+        // Material expansion is opened from the folded ingredient slot itself; keep the legacy
+        // materials slot as plain background so old layouts do not show a redundant button.
+        if (detailConfig.getMaterialsSlot() >= 0) {
+            inventory.setItem(detailConfig.getMaterialsSlot(), createBackgroundItem(detailConfig));
+        }
 
         if (cookingPotMode) {
             CookingPotRecipe recipe = plugin.getCookingPotRecipes().getRecipe(getActiveCookingPotRecipeGroup(), selectedRecipeId);
@@ -666,6 +645,84 @@ public class RecipeViewGui extends AbstractInventoryGui {
             return;
         }
         inventory.setItem(slot, createBackgroundItem(detailConfig));
+    }
+
+    private void drawIngredientOptions(Player player) {
+        RecipeViewGuiConfig.RecipeListConfig listConfig = config.getRecipeList();
+        List<Integer> slots = listConfig.getRecipeSlots();
+        int pageSize = Math.max(1, slots.size());
+        int totalPages = Math.max(1, (expandedIngredientOptions.size() + pageSize - 1) / pageSize);
+        expandedIngredientPage = Math.max(0, Math.min(expandedIngredientPage, totalPages - 1));
+        Map<String, String> placeholders = Map.of(
+                "page", String.valueOf(expandedIngredientPage + 1),
+                "total", String.valueOf(totalPages));
+        String title = resolveMenuTitle("recipe-list", "level_1", listConfig.getTitle(), placeholders);
+        inventory = Bukkit.createInventory(this, listConfig.getSize(), coloredComponent(title));
+        fillBackground(listConfig);
+
+        int start = expandedIngredientPage * pageSize;
+        for (int i = 0; i < slots.size() && start + i < expandedIngredientOptions.size(); i++) {
+            inventory.setItem(slots.get(i), createExpandedIngredientDisplay(expandedIngredientOptions.get(start + i)));
+        }
+        drawPageButtons(listConfig, listConfig.getPrevPageSlot(), listConfig.getNextPageSlot(), totalPages);
+        setGuiItem(listConfig, "back", listConfig.getBackSlot());
+    }
+
+    private ItemStack createExpandedIngredientDisplay(ItemStack source) {
+        ItemStack item = source.clone();
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return item;
+        }
+        List<Component> lore = meta.lore() == null ? new ArrayList<>() : new ArrayList<>(meta.lore());
+        lore.add(Component.empty());
+        lore.add(tr("gui.recipe.ingredient", NamedTextColor.GRAY));
+        meta.lore(lore);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    private List<ItemStack> collectExpandedIngredientOptions(RecipeIngredient ingredient) {
+        if (ingredient == null) {
+            return List.of();
+        }
+        Map<String, ItemStack> unique = new LinkedHashMap<>();
+        for (ItemStack option : RecipeIngredientIcons.resolveIngredientOptions(ingredient)) {
+            if (isDisplayableItem(option)) {
+                unique.putIfAbsent(RecipeIngredientIcons.buildIngredientDisplayKey(option), option);
+            }
+        }
+        return RecipeIngredientIcons.sortIngredientDisplayItems(unique.values());
+    }
+
+    private boolean openIngredientOptions(Player player, RecipeIngredient ingredient) {
+        List<ItemStack> options = collectExpandedIngredientOptions(ingredient);
+        if (options.size() <= 1) {
+            return false;
+        }
+        ingredientOptionsOrigin = new DetailState(false, cookingPotMode, selectedRecipeId, null, recipeBackState);
+        expandedIngredientOptions = options;
+        expandedIngredientPage = 0;
+        navigateToState(player, GuiState.INGREDIENT_OPTIONS, false);
+        return true;
+    }
+
+    private RecipeIngredient ingredientAtDetailSlot(RecipeViewGuiConfig.RecipeDetailConfig detailConfig, int slot) {
+        if (cookingPotMode) {
+            int index = detailConfig.getIngredientSlots().indexOf(slot);
+            if (index < 0) {
+                return null;
+            }
+            CookingPotRecipe recipe = plugin.getCookingPotRecipes().getRecipe(
+                    getActiveCookingPotRecipeGroup(), selectedRecipeId);
+            return recipe != null && index < recipe.getIngredients().size()
+                    ? recipe.getIngredients().get(index) : null;
+        }
+        if (slot != detailConfig.getInputSlot()) {
+            return null;
+        }
+        CuttingBoardRecipe recipe = plugin.getCuttingBoardRecipes().getRecipe(selectedRecipeId);
+        return recipe == null ? null : recipe.getInput();
     }
 
     // ---- Special recipe rendering ----
@@ -793,14 +850,71 @@ public class RecipeViewGui extends AbstractInventoryGui {
             int recipeIndex = currentPage * itemsPerPage + slotIndex;
             if (recipeIndex < recipes.size()) {
                 SpecialRecipeInfo info = recipes.get(recipeIndex);
-                // Pure-description entries carry their whole description as list lore, so they open no
-                // separate detail page; only slot-based recipes navigate to a detail.
-                if (!specialRecipeRenderer.isListOnlySpecial(info)) {
-                    selectedSpecialRecipeId = info.id();
-                    navigateToState(player, GuiState.SPECIAL_RECIPE_DETAIL, false);
+                if (specialRecipeRenderer.isListOnlySpecial(info)) {
+                    return;
                 }
+                selectedSpecialRecipeId = info.id();
+                navigateToState(player, GuiState.SPECIAL_RECIPE_DETAIL, false);
             }
         }
+    }
+
+    private void handleIngredientOptionsClick(Player player, int slot) {
+        RecipeViewGuiConfig.RecipeListConfig listConfig = config.getRecipeList();
+        int pageSize = Math.max(1, listConfig.getRecipeSlots().size());
+        int totalPages = Math.max(1, (expandedIngredientOptions.size() + pageSize - 1) / pageSize);
+        if (slot == listConfig.getPrevPageSlot() && expandedIngredientPage > 0) {
+            expandedIngredientPage--;
+            refreshAndReopen(player);
+            return;
+        }
+        if (slot == listConfig.getNextPageSlot() && expandedIngredientPage < totalPages - 1) {
+            expandedIngredientPage++;
+            refreshAndReopen(player);
+            return;
+        }
+        if (slot == listConfig.getBackSlot()) {
+            DetailState origin = ingredientOptionsOrigin;
+            ingredientOptionsOrigin = null;
+            if (origin != null) {
+                cookingPotMode = origin.cookingPotMode();
+                selectedRecipeId = origin.selectedRecipeId();
+                recipeBackState = origin.recipeBackState();
+                navigateToState(player, GuiState.RECIPE_DETAIL, false);
+            } else {
+                navigateToState(player, recipeBackState, true);
+            }
+            return;
+        }
+        int slotIndex = listConfig.getRecipeSlots().indexOf(slot);
+        if (slotIndex < 0) {
+            return;
+        }
+        int index = expandedIngredientPage * pageSize + slotIndex;
+        if (index < 0 || index >= expandedIngredientOptions.size()) {
+            return;
+        }
+        ItemStack clickedItem = inventory.getItem(slot);
+        if (clickedItem == null || clickedItem.getType().isAir()) {
+            return;
+        }
+        if (navigateToLinkedRecipe(player, clickedItem, false)) {
+            return;
+        }
+        String specialId = craftability().findSpecialRecipe(clickedItem);
+        if (specialId != null) {
+            if (navigateToSpecialRecipeList(player, specialId)) {
+                return;
+            }
+            DetailState origin = ingredientOptionsOrigin;
+            if (origin != null) {
+                detailHistory.push(origin);
+            }
+            selectedSpecialRecipeId = specialId;
+            navigateToState(player, GuiState.SPECIAL_RECIPE_DETAIL, false);
+            return;
+        }
+        navigateToAddonRecipe(player, clickedItem);
     }
 
     private void handleSpecialRecipeDetailClick(Player player, int slot) {
@@ -809,6 +923,19 @@ public class RecipeViewGui extends AbstractInventoryGui {
         RecipeViewGuiConfig.SpecialRecipeDetailConfig detailConfig = specialRecipeRenderer.specialDetailFor(info);
         if (slot == detailConfig.getBackSlot()) {
             if (runBackButtonCommands(player, detailConfig.getItem("back"))) {
+                return;
+            }
+            if (!detailHistory.isEmpty()) {
+                DetailState previous = detailHistory.pop();
+                if (previous.specialDetail()) {
+                    selectedSpecialRecipeId = previous.selectedSpecialRecipeId();
+                    navigateToState(player, GuiState.SPECIAL_RECIPE_DETAIL, false);
+                } else {
+                    cookingPotMode = previous.cookingPotMode();
+                    selectedRecipeId = previous.selectedRecipeId();
+                    recipeBackState = previous.recipeBackState();
+                    navigateToState(player, GuiState.RECIPE_DETAIL, false);
+                }
                 return;
             }
             navigateToState(player, GuiState.SPECIAL_RECIPE_LIST, true);
@@ -820,26 +947,21 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (clickedItem == null || clickedItem.getType().isAir()) {
             return;
         }
-        RecipeCraftability.LinkedRecipe linkedRecipe = craftability().findLinkedRecipe(clickedItem, cookingPotMode);
-        if (linkedRecipe == null) {
-            navigateToAddonRecipe(player, clickedItem);
+        if (navigateToLinkedRecipe(player, clickedItem, true)) {
             return;
         }
-        Object linkedTarget = linkedRecipe.cookingPot()
-                ? plugin.getCookingPotRecipes().getRecipe(getActiveCookingPotRecipeGroup(), linkedRecipe.recipeId())
-                : plugin.getCuttingBoardRecipes().getRecipe(linkedRecipe.recipeId());
-        if (linkedTarget != null && isRecipeLocked(linkedTarget, linkedRecipe.cookingPot(), player)) {
-            player.sendMessage(Component.translatable("recipe-discovery.locked-click").color(NamedTextColor.RED));
+        String specialId = craftability().findSpecialRecipe(clickedItem);
+        if (specialId != null && !specialId.equals(selectedSpecialRecipeId)) {
+            if (navigateToSpecialRecipeList(player, specialId)) {
+                return;
+            }
+            detailHistory.push(new DetailState(true, cookingPotMode, selectedRecipeId, selectedSpecialRecipeId,
+                    GuiState.SPECIAL_RECIPE_LIST));
+            selectedSpecialRecipeId = specialId;
+            navigateToState(player, GuiState.SPECIAL_RECIPE_DETAIL, false);
             return;
         }
-        // Snapshot the special detail so "back" restores it, then switch to the linked recipe detail.
-        detailHistory.push(new DetailState(true, cookingPotMode, selectedRecipeId, selectedSpecialRecipeId,
-                GuiState.SPECIAL_RECIPE_LIST));
-        selectedRecipeId = linkedRecipe.recipeId();
-        cookingPotMode = linkedRecipe.cookingPot();
-        currentToolIndex = 0;
-        fillButtonState = CookingPotFiller.FillButtonState.READY;
-        navigateToState(player, GuiState.RECIPE_DETAIL, false);
+        navigateToAddonRecipe(player, clickedItem);
     }
 
     // Linked jump fallback when no FD pot/board recipe produces the clicked item: hand off to the addon
@@ -859,6 +981,10 @@ public class RecipeViewGui extends AbstractInventoryGui {
         int leftPage = currentPage;
         GuiState leftBackState = recipeBackState;
         boolean leftBackCommands = backButtonCommandsEnabled;
+        List<ItemStack> leftExpandedIngredients = new ArrayList<>(expandedIngredientOptions);
+        int leftExpandedPage = expandedIngredientPage;
+        DetailState leftIngredientOrigin = ingredientOptionsOrigin;
+        List<DetailState> leftDetailHistory = new ArrayList<>(detailHistory);
         plugin.scheduler().runLaterForEntity(player, () -> {
             if (player.isOnline()) {
                 com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.openRecipe(player, addon.type(),
@@ -871,6 +997,10 @@ public class RecipeViewGui extends AbstractInventoryGui {
                     gui.currentPage = leftPage;
                     gui.recipeBackState = leftBackState;
                     gui.backButtonCommandsEnabled = leftBackCommands;
+                    gui.expandedIngredientOptions = leftExpandedIngredients;
+                    gui.expandedIngredientPage = leftExpandedPage;
+                    gui.ingredientOptionsOrigin = leftIngredientOrigin;
+                    gui.detailHistory.addAll(leftDetailHistory);
                     gui.open(player);
                 });
             }
@@ -1161,6 +1291,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             case COOKING_POT_LIST -> handleCookingPotListClick(player, slot);
             case CUTTING_BOARD_LIST -> handleCuttingBoardListClick(player, slot);
             case RECIPE_DETAIL -> handleRecipeDetailClick(player, slot, event.isShiftClick());
+            case INGREDIENT_OPTIONS -> handleIngredientOptionsClick(player, slot);
             case SPECIAL_RECIPE_LIST -> handleSpecialRecipeListClick(player, slot);
             case SPECIAL_RECIPE_DETAIL -> handleSpecialRecipeDetailClick(player, slot);
         }
@@ -1330,6 +1461,14 @@ public class RecipeViewGui extends AbstractInventoryGui {
             return;
         }
 
+        RecipeIngredient clickedIngredient = ingredientAtDetailSlot(detailConfig, slot);
+        if (clickedIngredient != null && openIngredientOptions(player, clickedIngredient)) {
+            return;
+        }
+        if (slot == detailConfig.getMaterialsSlot()) {
+            return;
+        }
+
         if (slot == detailConfig.getArrowSlot()) {
             return;
         }
@@ -1339,36 +1478,72 @@ public class RecipeViewGui extends AbstractInventoryGui {
             return;
         }
 
+        if (navigateToLinkedRecipe(player, clickedItem, false)) {
+            return;
+        }
+        String specialId = craftability().findSpecialRecipe(clickedItem);
+        if (specialId != null && !specialId.equals(selectedSpecialRecipeId)) {
+            if (navigateToSpecialRecipeList(player, specialId)) {
+                return;
+            }
+            detailHistory.push(new DetailState(false, cookingPotMode, selectedRecipeId, null, recipeBackState));
+            selectedSpecialRecipeId = specialId;
+            navigateToState(player, GuiState.SPECIAL_RECIPE_DETAIL, false);
+            return;
+        }
+        navigateToAddonRecipe(player, clickedItem);
+    }
+
+    private boolean navigateToSpecialRecipeList(Player player, String specialId) {
+        if (specialId == null || plugin.getSpecialRecipeRegistry() == null) {
+            return false;
+        }
+        List<SpecialRecipeInfo> recipes = plugin.getSpecialRecipeRegistry().getAll();
+        int index = -1;
+        for (int i = 0; i < recipes.size(); i++) {
+            SpecialRecipeInfo info = recipes.get(i);
+            if (specialId.equals(info.id())) {
+                if (!specialRecipeRenderer.isListOnlySpecial(info)) {
+                    return false;
+                }
+                index = i;
+                break;
+            }
+        }
+        if (index < 0) {
+            return false;
+        }
+        int pageSize = Math.max(1, config.getSpecialRecipeList().getRecipeSlots().size());
+        currentPage = index / pageSize;
+        navigateToState(player, GuiState.SPECIAL_RECIPE_LIST, true);
+        return true;
+    }
+
+    private boolean navigateToLinkedRecipe(Player player, ItemStack clickedItem, boolean fromSpecial) {
         RecipeCraftability.LinkedRecipe linkedRecipe = craftability().findLinkedRecipe(clickedItem, cookingPotMode);
         if (linkedRecipe == null) {
-            navigateToAddonRecipe(player, clickedItem);
-            return;
+            return false;
         }
-        // Already viewing this exact recipe (e.g. clicking the result of the recipe on screen): don't
-        // re-open it, which would needlessly rebuild and "refresh" the page.
-        if (linkedRecipe.cookingPot() == cookingPotMode
+        if (!fromSpecial && linkedRecipe.cookingPot() == cookingPotMode
                 && java.util.Objects.equals(linkedRecipe.recipeId(), selectedRecipeId)) {
-            return;
+            return true;
         }
-
-        // Block navigation to a locked linked recipe.
         Object linkedTarget = linkedRecipe.cookingPot()
                 ? plugin.getCookingPotRecipes().getRecipe(getActiveCookingPotRecipeGroup(), linkedRecipe.recipeId())
                 : plugin.getCuttingBoardRecipes().getRecipe(linkedRecipe.recipeId());
         if (linkedTarget != null && isRecipeLocked(linkedTarget, linkedRecipe.cookingPot(), player)) {
             player.sendMessage(Component.translatable("recipe-discovery.locked-click").color(NamedTextColor.RED));
-            return;
+            return true;
         }
-
-        // Remember the recipe being left (and its own back destination) so back returns here, not straight to
-        // the original list. recipeBackState is snapshotted too, so this recipe's own back still works after a
-        // deeper jump chain unwinds to it.
-        detailHistory.push(new DetailState(false, cookingPotMode, selectedRecipeId, null, recipeBackState));
+        detailHistory.push(new DetailState(fromSpecial, cookingPotMode, selectedRecipeId,
+                fromSpecial ? selectedSpecialRecipeId : null,
+                fromSpecial ? GuiState.SPECIAL_RECIPE_LIST : recipeBackState));
         selectedRecipeId = linkedRecipe.recipeId();
         cookingPotMode = linkedRecipe.cookingPot();
         currentToolIndex = 0;
         fillButtonState = CookingPotFiller.FillButtonState.READY;
         navigateToState(player, GuiState.RECIPE_DETAIL, false);
+        return true;
     }
 
     private RecipeViewGuiConfig.RecipeDetailConfig getActiveDetailConfig() {

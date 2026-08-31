@@ -28,7 +28,6 @@ import java.util.Map;
 public final class EnchantmentDatapackInstaller implements Listener {
 
     private static final String DATAPACK_DIRECTORY = "farmersdelight_enchant";
-    private static final int PACK_FORMAT = 48;
     private static final String PACK_DESCRIPTION = "FarmersDelight configurable enchantments";
 
     private static final int MIN_COST_BASE = 15;
@@ -63,7 +62,13 @@ public final class EnchantmentDatapackInstaller implements Listener {
             return;
         }
         EnchantmentSettings settings = plugin.getEnchantmentSettings();
-        boolean wrote = shouldInstall(settings) && installToWorld(primaryWorld, settings);
+        boolean wrote;
+        if (shouldInstall(settings)) {
+            wrote = installToWorld(primaryWorld, settings);
+        } else {
+            wrote = deletePack(DatapackSupport.worldRoot(primaryWorld)
+                    .resolve("datapacks").resolve(DATAPACK_DIRECTORY));
+        }
         int cleaned = cleanupRedundantDatapacks(primaryWorld);
         if (wrote || cleaned > 0) {
             printRestartBanner();
@@ -117,7 +122,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
     }
 
     private boolean installToWorld(World world, EnchantmentSettings settings) {
-        Path datapackDir = getWorldRoot(world)
+        Path datapackDir = DatapackSupport.worldRoot(world)
                 .resolve("datapacks")
                 .resolve(DATAPACK_DIRECTORY);
         try {
@@ -176,6 +181,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
                     changed++;
                 }
             }
+            changed += deleteStaleFiles(datapackDir, generated);
             if (changed > 0) {
                 I18n.logDetail("startup", "plugin.enchantment_datapack_written",
                         "count", changed, "dir", datapackDir);
@@ -203,12 +209,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
     }
 
     static String renderPackMetadata() {
-        return "{\n"
-                + "  \"pack\": {\n"
-                + "    \"pack_format\": " + PACK_FORMAT + ",\n"
-                + "    \"description\": \"" + json(PACK_DESCRIPTION) + "\"\n"
-                + "  }\n"
-                + "}\n";
+        return DatapackSupport.renderPackMetadata(PACK_DESCRIPTION);
     }
 
     static String renderDefinition(EnchantmentSettings.Backstabbing backstabbing) {
@@ -334,12 +335,38 @@ public final class EnchantmentDatapackInstaller implements Listener {
         return escaped.toString();
     }
 
-    private static Path getWorldRoot(World world) {
-        Path folder = world.getWorldFolder().toPath();
-        while (folder != null && !Files.exists(folder.resolve("level.dat"))) {
-            folder = folder.getParent();
+    private boolean deletePack(Path datapackDir) {
+        try {
+            if (!Files.exists(datapackDir)) {
+                return false;
+            }
+            DatapackSupport.deleteRecursively(datapackDir);
+            return true;
+        } catch (IOException exception) {
+            plugin.getLogger().warning("Failed to remove enchantment datapack: " + exception.getMessage());
+            return false;
         }
-        return folder != null ? folder : world.getWorldFolder().toPath();
+    }
+
+    private static int deleteStaleFiles(Path root, List<GeneratedFile> generated) throws IOException {
+        java.util.Set<Path> expected = new java.util.HashSet<>();
+        for (GeneratedFile file : generated) {
+            expected.add(file.path().toAbsolutePath().normalize());
+        }
+        Path data = root.resolve("data");
+        if (!Files.isDirectory(data)) {
+            return 0;
+        }
+        int removed = 0;
+        try (java.util.stream.Stream<Path> paths = Files.walk(data)) {
+            for (Path path : paths.filter(Files::isRegularFile).filter(p -> p.toString().endsWith(".json")).toList()) {
+                if (!expected.contains(path.toAbsolutePath().normalize())) {
+                    Files.deleteIfExists(path);
+                    removed++;
+                }
+            }
+        }
+        return removed;
     }
 
     private record GeneratedFile(Path path, String content) {

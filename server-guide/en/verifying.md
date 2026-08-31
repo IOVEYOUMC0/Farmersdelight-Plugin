@@ -2,6 +2,8 @@
 icon: circle-check
 ---
 
+[简体中文](../zh-cn/verifying.md)
+
 # Verifying behaviours loaded
 
 ## The startup summary

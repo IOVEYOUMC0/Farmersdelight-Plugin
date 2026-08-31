@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.config;
 
 import com.huidu.farmersdelight.api.config.ConfigSectionReader;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
@@ -13,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 public final class CuttingBoardDisplayConfig {
 
@@ -72,13 +74,20 @@ public final class CuttingBoardDisplayConfig {
             String key = configuredKey == null ? "" : configuredKey.trim();
             boolean tagKey = tagSection || key.startsWith("#");
             if (tagKey && !isValidTagId(key)) {
+                I18n.logWarning("plugin.config_invalid_key", "file", "config.yml",
+                        "path", displaySection.getCurrentPath() + "." + configuredKey);
                 continue;
             }
             if (!tagKey && !ItemUtils.isValidItemId(key)) {
+                I18n.logWarning("plugin.config_invalid_key", "file", "config.yml",
+                        "path", displaySection.getCurrentPath() + "." + configuredKey);
                 continue;
             }
             ConfigurationSection overrideSection = displaySection.getConfigurationSection(configuredKey);
             if (overrideSection == null) {
+                I18n.logWarning("plugin.config_value_invalid", "file", "config.yml",
+                        "path", displaySection.getCurrentPath() + "." + configuredKey,
+                        "error", "expected a section");
                 continue;
             }
             DisplayOverride override = DisplayOverride.fromConfig(overrideSection);
@@ -243,8 +252,13 @@ public final class CuttingBoardDisplayConfig {
         private static DisplayOverride fromConfig(ConfigurationSection section) {
             String displayItemId = section.getString("display-item");
             if (!ItemUtils.isValidItemId(displayItemId)) {
+                if (section.contains("display-item")) {
+                    I18n.logWarning("plugin.config_value_invalid", "file", "config.yml",
+                            "path", section.getCurrentPath() + ".display-item", "error", "invalid item id");
+                }
                 displayItemId = null;
             }
+            warnUnknownStyle(section, "style");
             return new DisplayOverride(
                     displayItemId,
                     DisplayStyle.fromConfig(section.getString("style")),
@@ -258,6 +272,10 @@ public final class CuttingBoardDisplayConfig {
         private static DisplayOverride fromDefaultConfig(ConfigurationSection section) {
             String displayItemId = section.getString("default-display-item");
             if (!ItemUtils.isValidItemId(displayItemId)) {
+                if (section.contains("default-display-item")) {
+                    I18n.logWarning("plugin.config_value_invalid", "file", "config.yml",
+                            "path", section.getCurrentPath() + ".default-display-item", "error", "invalid item id");
+                }
                 displayItemId = null;
             }
 
@@ -274,6 +292,9 @@ public final class CuttingBoardDisplayConfig {
                 defaultOffset = new Vector3f(0.0F, (float) section.getDouble("y-offset"), 0.0F);
             }
 
+            warnUnknownStyle(section, "default-display-style");
+            warnUnknownStyle(section, "default-style");
+            warnUnknownStyle(section, "style");
             return new DisplayOverride(
                     displayItemId,
                     DisplayStyle.fromConfig(firstString(section)),
@@ -282,6 +303,21 @@ public final class CuttingBoardDisplayConfig {
                     readVector(section, "default-display-rotation", "default-rotation", "rotation"),
                     readVector(section, "default-display-scale", "default-scale", "scale")
             );
+        }
+
+        private static void warnUnknownStyle(ConfigurationSection section, String key) {
+            if (!section.contains(key)) {
+                return;
+            }
+            String value = section.getString(key);
+            if (value == null || value.isBlank()) {
+                return;
+            }
+            String normalized = value.trim().toLowerCase(Locale.ROOT).replace('-', '_');
+            if (!Set.of("auto", "item", "flat", "generated", "block", "block_style", "blockstyle", "cube").contains(normalized)) {
+                I18n.logWarning("plugin.config_value_invalid", "file", "config.yml",
+                        "path", section.getCurrentPath() + "." + key, "error", "unknown display style " + value);
+            }
         }
 
         @Nullable

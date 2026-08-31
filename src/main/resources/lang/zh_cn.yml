@@ -174,6 +174,7 @@ console:
     datapack_reason_remove_disabled_advancements: "移除已禁用的 FarmersDelight 进度"
     datapack_reason_remove_legacy_advancements: "移除旧版 FarmersDelight 进度数据包(现由 UltimateAdvancementAPI 接管)"
     datapack_reason_apply_advancement_changes: "应用 FarmersDelight 进度变更"
+    datapack_reason_apply_tag_changes: "应用 FarmersDelight 物品标签变更"
     craftengine_reload: "检测到 CraftEngine 重载，正在刷新 FarmersDelight 的 CE 缓存和配方..."
     warmup_done: "已预热 {items} 个 CraftEngine 物品并预建 GUI/行为缓存，耗时 {ms}ms。"
     warmup_failed: "缓存预热失败；首次交互可能会短暂卡顿。"
@@ -227,7 +228,14 @@ console:
     config_keys_retired: "已从 config.yml 中移除 {count} 个已废弃的配置项，它们不再被读取：{keys}"
     config_merge_failed: "向 {file} 合并内置默认配置失败：{error}"
     config_backup_failed: "重写 {file} 前备份失败：{error}"
-    recipe_bundled_missing: "{file} 中有 {count} 个内置配方在磁盘上不存在，将保持未启用：{ids}。如需补回，请在 config.yml 中将 {setting} 设为 true。"
+    config_load_failed: "读取配置文件 {file} 失败：{error}"
+    config_missing_section: "配置文件 {file} 缺少配置段 {section}。"
+    config_invalid_key: "配置文件 {file} 包含无效配置路径 {path}。"
+    config_value_invalid: "配置文件 {file} 的 {path} 值无效：{error}"
+    config_empty_value: "配置文件 {file} 的 {path} 为空，相关条目不会生效。"
+    config_issues_header: "在文件“{file}”中发现 {count} 个配置问题："
+    config_issue_detail: "[{index}] {detail}"
+    item_not_found: "配置项 {path} 引用了不存在的物品 {id}。"
     recipe_bundled_merged: "已向 {file} 补入 {count} 个缺失的内置配方：{ids}"
     recipe_bundled_merge_failed: "向 {file} 合并内置配方失败：{error}"
     loot_datapack_not_ready: "战利品数据包安装器尚未就绪，无法重载"
@@ -255,6 +263,9 @@ console:
     recipe_save_failed: "保存配方文件 {file} 失败：{error}"
     recipe_bundled_save_failed: "保存内置配方文件 {file} 失败：{error}"
     recipe_load_failed: "以 UTF-8 YAML 加载配方文件 {file} 失败；已跳过。{error}"
+    recipe_issues_header: "在文件“{file}”中发现 {count} 个配方问题："
+    recipe_issue_detail: "[{index}] {detail}"
+    recipe_api_registration_failed: "附属通过 API 注册 {type} 配方 {id} 失败：{error}"
     disable_step_failed: "禁用插件时执行 {step} 失败；将继续关闭流程。"
     disable_step_stop_tick_manager: "停止 tick 管理器"
     disable_step_save_recipe_discovery: "保存配方解锁数据"
@@ -267,7 +278,6 @@ console:
     disable_step_clear_placement_cache: "清理放置缓存"
     disable_step_clear_interaction_debounce_cache: "清理交互防抖缓存"
     disable_step_shutdown_chunk_loader: "关闭区块加载器"
-    disable_step_cleanup_trays: "清理托盘"
     disable_step_cleanup_stoves: "清理炉灶"
     disable_step_cleanup_skillets: "清理煎锅"
     disable_step_cleanup_bossbars: "清理 buff bossbar"
@@ -320,7 +330,7 @@ console:
     special_recipe_loaded: "已加载 {count} 个特殊配方"
     special_recipe_backfilled: "已补全 {count} 个内置特殊配方（磁盘配置缺失）"
   worlddata:
-    villager_trades_no_profession: "world-data.trades.villager.trades: 条目缺少 profession"
+    villager_trades_no_profession: "trades.villager.trades: 条目缺少 profession"
     trades_invalid_entry: "{path}: 条目需要有效的 ingredient 和 result 物品 ID"
   rope:
     palette_read_failed: "无法读取世界 {world} 区块 {chunk_x},{chunk_z} 中 section y={section_y} 的方块调色板；其中的绳索未编入索引，其连接纹理在该区块重新加载前无法刷新。单次启动仅报告一次。原因：{error}"
@@ -334,16 +344,6 @@ console:
     stopped: "TickManager 已停止"
     cleanup_completed: "清理完成，移除了 {count} 个无效方块实体"
     error_ticking: "处理 {type} 于 {pos} 的 tick 时出错：{error}"
-  tray:
-    missing_furniture: "找不到托盘家具：{id}"
-    placed: "已在 {location} 为厨锅 {pot} 自动放置托盘"
-    place_failed: "放置托盘家具失败：{error}"
-    removed: "已移除 {pos} 的自动托盘，原因={reason}"
-    remove_failed: "移除托盘家具失败：{error}"
-    duplicates_cleaned: "已清理 {pos} 的重复自动托盘，原因={reason}"
-    invalid_marker_key: "托盘 marker-key '{key}' 无效，已改用 auto_tray_marker"
-  handle:
-    invalid_marker_key: "把手 marker-key '{key}' 无效，已改用 auto_pot_handle"
   gui_runtime:
     create_item_failed: "根据 key 创建物品失败：{key}"
     unregister_tick_failed: "注销 GUI tick 回调失败：{error}"
@@ -450,7 +450,7 @@ command:
   buff_unknown: "<red>未知 buff「<white>{buff}</white>」。可用：<gray>{buffs}</gray>"
   buff_not_grantable: "<red>buff「<white>{buff}</white>」无法通过命令发放。"
   buff_player_not_found: "<red>玩家「<white>{player}</white>」不在线。"
-  cleanup_done: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <white>清理完成 <gray>—</gray> <white>共 {count}</white> <gray>个展示实体：</gray> <white>{displays}</white> <gray>个代理展示、</gray> <white>{trays}</white> <gray>个自动托盘、</gray> <white>{addon}</white> <gray>个附属实体</gray></white>"
+  cleanup_done_displays: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <white>清理完成 <gray>—</gray> <white>共 {count}</white> <gray>个展示实体：</gray> <white>{displays}</white> <gray>个代理展示、</gray> <white>{addon}</white> <gray>个附属实体</gray></white>"
 item:
   farmersdelight:
     raw_pasta: "生意面"
@@ -470,4 +470,3 @@ item:
     pasta_with_mutton_chop: "羊排意面"
     dumplings: "饺子"
     cabbage_rolls: "卷心菜卷"
-

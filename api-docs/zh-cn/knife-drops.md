@@ -2,6 +2,8 @@
 icon: sword
 ---
 
+[English](../en/knife-drops.md)
+
 # 小刀掉落
 
 包名：`com.huidu.farmersdelight.api.loot` 类：`FarmersDelightKnifeDrops` —— `final`，私有构造，`@ApiStatus.NonExtendable`。

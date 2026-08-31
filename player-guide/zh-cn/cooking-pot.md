@@ -1,3 +1,5 @@
+
+[English](../en/cooking-pot.md)
 # 炖锅
 
 **炖锅（Cooking Pot）** 是农夫乐事的核心。它把食材架在热源上慢炖，做出各种炖菜、汤品和丰盛料理。

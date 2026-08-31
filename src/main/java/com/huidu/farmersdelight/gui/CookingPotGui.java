@@ -44,7 +44,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 public class CookingPotGui extends AbstractInventoryGui {
 
@@ -283,7 +283,6 @@ public class CookingPotGui extends AbstractInventoryGui {
         };
     }
 
-    @SuppressWarnings({ "null" })
     private void updateDisplayItems() {
         if (!syncQueued) {
             // Only do a full input-slot rescan when the inventory version changed; skip when pot contents are unchanged.
@@ -394,7 +393,6 @@ public class CookingPotGui extends AbstractInventoryGui {
     // with a plain clone — stripping the pending-container hint lore and the invisible background
     // placeholder — and, because cachedDisplayItems would still match the entity item, nothing would
     // rebuild them until the underlying item changed again.
-    @SuppressWarnings("null")
     private void refreshInputSlotsFromBlockEntity() {
         for (Map.Entry<Integer, Integer> entry : writableSlotMapping.entrySet()) {
             int guiSlot = entry.getKey();
@@ -424,7 +422,7 @@ public class CookingPotGui extends AbstractInventoryGui {
         return item.clone();
     }
 
-    private boolean sameItemState(@Nonnull ItemStack first, @Nonnull ItemStack second) {
+    private boolean sameItemState(@Nullable ItemStack first, @Nullable ItemStack second) {
         boolean firstEmpty = first == null || first.getType().isAir();
         boolean secondEmpty = second == null || second.getType().isAir();
         if (firstEmpty || secondEmpty) {
@@ -940,8 +938,10 @@ public class CookingPotGui extends AbstractInventoryGui {
             return;
         }
 
-        ItemStack leftover = leftovers.values().iterator().next();
-        writeWritableSlot(rawSlot, leftover.clone());
+        int remaining = leftovers.values().stream().mapToInt(ItemStack::getAmount).sum();
+        ItemStack leftover = current.clone();
+        leftover.setAmount(remaining);
+        writeWritableSlot(rawSlot, leftover);
     }
 
     private void scheduleGuiSync(Player viewer) {

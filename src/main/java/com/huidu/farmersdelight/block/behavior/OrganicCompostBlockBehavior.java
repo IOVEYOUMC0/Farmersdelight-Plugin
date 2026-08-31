@@ -4,6 +4,7 @@ import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
@@ -110,13 +111,14 @@ public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior imp
 
     @Override
     public InteractionResult useOnBlock(UseOnContext context, ImmutableBlockState state) {
-        if (context.getPlayer() == null || context.getHand() != InteractionHand.MAIN_HAND) {
+        if (context.getPlayer() == null) {
             return InteractionResult.PASS;
         }
-        Player bukkitPlayer = Bukkit.getPlayer(context.getPlayer().uuid());
+        Player bukkitPlayer = ItemUtils.getBukkitPlayer(context.getPlayer());
         if (bukkitPlayer == null) return InteractionResult.PASS;
 
-        ItemStack held = bukkitPlayer.getInventory().getItemInMainHand();
+        ItemStack held = ItemUtils.getItemInHand(bukkitPlayer, context.getHand());
+        if (held == null || held.getType().isAir()) return InteractionResult.PASS;
         boolean waterBucket = held.getType() == Material.WATER_BUCKET;
         boolean accelerant = !waterBucket && ItemUtils.hasCustomItemTag(held, ACCELERANT_TAG);
         if (!waterBucket && !accelerant) return InteractionResult.PASS;
@@ -126,28 +128,41 @@ public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior imp
 
         BlockPos pos = context.getClickedPos();
         World world = bukkitPlayer.getWorld();
+        Block targetBlock = world.getBlockAt(pos.x(), pos.y(), pos.z());
+        if (!ProtectionCompat.canUse(bukkitPlayer, targetBlock, (String) null)
+                || !ProtectionCompat.canBuild(bukkitPlayer, targetBlock, (String) null)) {
+            return InteractionResult.PASS;
+        }
         Location loc = new Location(world, pos.x() + 0.5, pos.y(), pos.z() + 0.5);
 
+        boolean placed;
         if (currentStage >= config.maxStage()) {
             // Already at max stage — convert to rich soil immediately
             BlockDefinition richSoil = CraftEngineBlocks.byId(config.richSoilBlockId());
             if (richSoil == null) return InteractionResult.PASS;
-            CraftEngineBlocks.place(loc, richSoil.defaultState(), true);
+            placed = CraftEngineBlocks.place(loc, richSoil.defaultState(), true);
         } else {
             // A water bucket or a tagged accelerant advances one stage immediately
             ImmutableBlockState next = state.with(config.compostingProperty(), currentStage + 1);
-            CraftEngineBlocks.place(loc, next, true);
+            placed = CraftEngineBlocks.place(loc, next, true);
+        }
+        if (!placed) {
+            return InteractionResult.PASS;
         }
 
         if (bukkitPlayer.getGameMode() != GameMode.CREATIVE) {
+            org.bukkit.inventory.EquipmentSlot slot = context.getHand() == InteractionHand.OFF_HAND
+                    ? org.bukkit.inventory.EquipmentSlot.OFF_HAND
+                    : org.bukkit.inventory.EquipmentSlot.HAND;
             if (waterBucket) {
                 // Survival mode: consume water bucket, return empty bucket
                 held.setAmount(held.getAmount() - 1);
                 ItemStack emptyBucket = new ItemStack(Material.BUCKET);
                 if (held.getAmount() <= 0) {
-                    bukkitPlayer.getInventory().setItemInMainHand(emptyBucket);
+                    bukkitPlayer.getInventory().setItem(slot, emptyBucket);
                 } else {
-                    // If main hand still has stacked water buckets, drop empty bucket at player location
+                    bukkitPlayer.getInventory().setItem(slot, held);
+                    // If the hand still has stacked water buckets, add the empty bucket separately.
                     Map<Integer, ItemStack> leftovers = bukkitPlayer.getInventory().addItem(emptyBucket);
                     for (ItemStack leftover : leftovers.values()) {
                         world.dropItemNaturally(bukkitPlayer.getLocation(), leftover);
@@ -156,12 +171,17 @@ public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior imp
             } else {
                 // A tagged accelerant (e.g. a worm) is simply consumed one at a time
                 held.setAmount(held.getAmount() - 1);
+                if (held.getAmount() <= 0) {
+                    bukkitPlayer.getInventory().setItem(slot, null);
+                } else {
+                    bukkitPlayer.getInventory().setItem(slot, held);
+                }
             }
         }
 
         world.playSound(loc, waterBucket ? Sound.ITEM_BUCKET_EMPTY : Sound.ITEM_BONE_MEAL_USE, 1.0f, 1.0f);
         world.spawnParticle(org.bukkit.Particle.HAPPY_VILLAGER, loc.clone().add(0, 0.5, 0), 8, 0.3, 0.2, 0.3, 0.0);
-        bukkitPlayer.swingMainHand();
+        ItemUtils.swingHand(bukkitPlayer, context.getHand());
         return InteractionResult.SUCCESS_AND_CANCEL;
     }
 

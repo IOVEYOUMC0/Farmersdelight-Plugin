@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/compat-utilities.md)
 # Version compatibility helpers
 
 `com.huidu.farmersdelight.api.util` contains three small helpers that exist so an addon can support Minecraft

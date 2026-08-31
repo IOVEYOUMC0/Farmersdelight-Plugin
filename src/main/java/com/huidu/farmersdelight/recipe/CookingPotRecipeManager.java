@@ -94,7 +94,7 @@ public class CookingPotRecipeManager {
 
         YamlConfiguration config = RecipeFileLoader.loadRecipeFile(plugin, "recipes/cooking_pot_recipes.yml");
         RecipeFileLoader.loadRecipeSections(plugin, config, "cooking_pot_recipes", "cooking pot",
-                (recipeId, section) -> {
+                "recipes/cooking_pot_recipes.yml", (recipeId, section) -> {
                     CookingPotRecipe recipe = parseRecipe(recipeId, section, 6);
                     newRecipes.put(recipeId, recipe);
 
@@ -109,6 +109,7 @@ public class CookingPotRecipeManager {
         for (PackRecipeSource.Loaded loaded : PackRecipeSource.load(plugin)) {
             RecipeFileLoader.loadRecipeSections(plugin, loaded.config(), "cooking_pot_recipes",
                     "cooking pot [" + loaded.source() + "]",
+                    loaded.source(),
                     (recipeId, section) -> {
                         if (newRecipes.containsKey(recipeId)) {
                             I18n.logWarning("recipe.pack_duplicate_skipped", "id", recipeId, "source", loaded.source());
@@ -204,6 +205,7 @@ public class CookingPotRecipeManager {
                 } catch (Exception e) {
                     I18n.logWarning("recipe.custom_cooking_pot_load_failed",
                             "id", groupId + "." + recipeId,
+                            "path", groupSection.getCurrentPath() + "." + recipeId,
                             "error", e.getMessage());
                 }
             }
@@ -279,21 +281,36 @@ public class CookingPotRecipeManager {
     }
 
     private CookingPotRecipe parseRecipe(String id, ConfigurationSection section, int maxIngredients) {
-        List<String> ingredientStrings = ConfigSectionReader.optionalStringList(section, "ingredients");
-        if (ingredientStrings.isEmpty()) {
+        Object rawIngredients = section.get("ingredients");
+        if (!(rawIngredients instanceof List<?> ingredientValues) || ingredientValues.isEmpty()) {
             throw new IllegalArgumentException("Recipe must have at least one ingredient");
         }
-        if (ingredientStrings.size() > maxIngredients) {
+        if (ingredientValues.size() > maxIngredients) {
             throw new IllegalArgumentException("Recipe can have at most " + maxIngredients + " ingredients");
         }
 
         List<RecipeIngredient> ingredients = new ArrayList<>();
-        for (String ingredientStr : ingredientStrings) {
-            ingredients.add(parseIngredient(ingredientStr));
+        for (int ingredientIndex = 0; ingredientIndex < ingredientValues.size(); ingredientIndex++) {
+            Object rawIngredient = ingredientValues.get(ingredientIndex);
+            if (rawIngredient instanceof ConfigurationSection nested) {
+                rawIngredient = sectionToMap(nested);
+            }
+            try {
+                RecipeIngredient ingredient = RecipeParsingSupport.parseIngredientValue(rawIngredient);
+                if (!ingredientHasMembers(ingredient)) {
+                    throw new IllegalArgumentException("Ingredient item or tag has no loaded items at ingredients[" + ingredientIndex + "]: " + rawIngredient);
+                }
+                ingredients.add(ingredient);
+            } catch (RuntimeException e) {
+                throw new IllegalArgumentException("Invalid ingredient at ingredients[" + ingredientIndex + "]: " + e.getMessage(), e);
+            }
         }
 
         Object containerValue = section.get("container");
         ItemStack container = containerValue == null ? null : parseItemValue(containerValue);
+        if (containerValue != null && (container == null || container.getType().isAir())) {
+            throw new IllegalArgumentException("Invalid container item: " + containerValue);
+        }
         boolean needsContainer = container != null;
 
         Object resultValue = section.get("result");
@@ -325,6 +342,22 @@ public class CookingPotRecipeManager {
         int priority = ConfigSectionReader.optionalInt(section, "priority", 0);
 
         return new CookingPotRecipe(id, ingredients, container, needsContainer, result, experience, cookTime, category, priority);
+    }
+
+    private boolean ingredientHasMembers(RecipeIngredient ingredient) {
+        if (ingredient instanceof RecipeIngredient.Item item) {
+            ItemStack stack = item.createStack();
+            return stack != null && !stack.getType().isAir();
+        }
+        if (ingredient instanceof RecipeIngredient.Tag tag) {
+            return !plugin.getCraftEngine().itemManager().itemIdsByTag(tag.key()).isEmpty()
+                    || !getVanillaItemIdsByTag(tag.key()).isEmpty()
+                    || !com.huidu.farmersdelight.util.CommonTagResolver.getMembers(tag.key()).isEmpty();
+        }
+        if (ingredient instanceof RecipeIngredient.Choice choice) {
+            return choice.options().stream().anyMatch(this::ingredientHasMembers);
+        }
+        return false;
     }
 
     private int getInt(ConfigurationSection section, int defaultValue) {
@@ -657,7 +690,14 @@ public class CookingPotRecipeManager {
 
     private boolean matchIngredient(ItemStack item, RecipeIngredient ingredient) {
         if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
-            return ItemUtils.matchesItemId(item, itemIngredient.key());
+            if (!ItemUtils.matchesItemId(item, itemIngredient.key())) {
+                return false;
+            }
+            if (itemIngredient.nbt() == null) {
+                return true;
+            }
+            ItemStack expected = RecipeItemCodec.itemFromBase64(itemIngredient.nbt());
+            return expected != null && expected.isSimilar(item);
         } else if (ingredient instanceof RecipeIngredient.Choice choiceIngredient) {
             for (RecipeIngredient option : choiceIngredient.options()) {
                 if (matchIngredient(item, option)) {
@@ -808,7 +848,11 @@ public class CookingPotRecipeManager {
             throw new IllegalArgumentException("Recipe must have a result");
         }
         List<RecipeIngredient> ingredients = new ArrayList<>();
-        for (String spec : ingredientSpecs) {
+        for (int i = 0; i < ingredientSpecs.size(); i++) {
+            String spec = ingredientSpecs.get(i);
+            if (spec == null || spec.isBlank()) {
+                throw new IllegalArgumentException("Invalid ingredient at ingredients[" + i + "]: empty");
+            }
             ingredients.add(parseIngredient(spec));
         }
         boolean needsContainer = container != null && !container.getType().isAir();

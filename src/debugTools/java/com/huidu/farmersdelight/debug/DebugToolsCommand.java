@@ -473,7 +473,6 @@ public final class DebugToolsCommand {
     }
 
     private void recipeValidate(Player player) {
-        boolean ceReady = ItemUtils.isAnyCustomItemLoaded();
         List<String> issues = new ArrayList<>();
 
         int potCount = 0;
@@ -485,8 +484,19 @@ public final class DebugToolsCommand {
                     continue;
                 }
                 potCount++;
+                if (recipe.getIngredients().isEmpty()) {
+                    issues.add("<red>[cooking_pot] " + recipe.getId() + "</red> <gray>has no ingredients</gray>");
+                }
+                if (recipe.getResult() == null || recipe.getResult().getType().isAir()) {
+                    issues.add("<red>[cooking_pot] " + recipe.getId() + "</red> <gray>has no result</gray>");
+                }
+                if (recipe.getNeedsContainer()
+                        && (recipe.getContainer() == null || recipe.getContainer().getType().isAir())) {
+                    issues.add("<red>[cooking_pot] " + recipe.getId()
+                            + "</red> <gray>requires a container but none resolved</gray>");
+                }
                 for (RecipeIngredient ingredient : recipe.getIngredients()) {
-                    checkIngredient(potManager, "cooking_pot", recipe.getId(), ingredient, ceReady, issues);
+                    checkIngredient(potManager, "cooking_pot", recipe.getId(), ingredient, issues);
                 }
             }
         }
@@ -496,7 +506,24 @@ public final class DebugToolsCommand {
         if (boardManager != null) {
             for (var recipe : boardManager.getSortedRecipes()) {
                 boardCount++;
-                checkIngredient(potManager, "cutting_board", recipe.getId(), recipe.getInput(), ceReady, issues);
+                if (recipe.getInput() == null) {
+                    issues.add("<red>[cutting_board] " + recipe.getId() + "</red> <gray>has no input</gray>");
+                } else {
+                    checkIngredient(potManager, "cutting_board", recipe.getId(), recipe.getInput(), issues);
+                }
+                if (recipe.getTools().isEmpty()) {
+                    issues.add("<red>[cutting_board] " + recipe.getId() + "</red> <gray>has no tool</gray>");
+                }
+                if (recipe.getResults().isEmpty()) {
+                    issues.add("<red>[cutting_board] " + recipe.getId() + "</red> <gray>has no results</gray>");
+                } else {
+                    for (var result : recipe.getResults()) {
+                        if (result == null || result.getItem() == null || result.getItem().getType().isAir()) {
+                            issues.add("<red>[cutting_board] " + recipe.getId()
+                                    + "</red> <gray>contains an unresolved result</gray>");
+                        }
+                    }
+                }
             }
         }
 
@@ -514,21 +541,21 @@ public final class DebugToolsCommand {
     }
 
     private void checkIngredient(CookingPotRecipeManager tagResolver, String kind, String recipeId,
-                                 RecipeIngredient ingredient, boolean ceReady, List<String> issues) {
+                                 RecipeIngredient ingredient, List<String> issues) {
         if (ingredient instanceof RecipeIngredient.Item item) {
             if (ItemUtils.createItem(item.key()) == null) {
                 issues.add("<red>[" + kind + "] " + recipeId + "</red> <gray>unresolved ingredient</gray> <yellow>"
                         + item.key() + "</yellow>");
             }
         } else if (ingredient instanceof RecipeIngredient.Tag tag) {
-            // Only meaningful once CraftEngine has loaded its items; before that every custom tag looks empty.
-            if (!ceReady || tagResolver == null) {
-                return;
-            }
             boolean empty;
             try {
-                empty = tagResolver.getVanillaItemIdsByTag(tag.key()).isEmpty()
-                        && plugin.getCraftEngine().itemManager().itemIdsByTag(tag.key()).isEmpty();
+                var craftEngine = plugin.getCraftEngine();
+                boolean ceItems = craftEngine != null && craftEngine.itemManager() != null
+                        && !craftEngine.itemManager().itemIdsByTag(tag.key()).isEmpty();
+                empty = (tagResolver == null || tagResolver.getVanillaItemIdsByTag(tag.key()).isEmpty())
+                        && !ceItems
+                        && com.huidu.farmersdelight.util.CommonTagResolver.getMembers(tag.key()).isEmpty();
             } catch (Throwable cannotResolve) {
                 return;
             }
@@ -538,7 +565,7 @@ public final class DebugToolsCommand {
             }
         } else if (ingredient instanceof RecipeIngredient.Choice choice) {
             for (RecipeIngredient option : choice.options()) {
-                checkIngredient(tagResolver, kind, recipeId, option, ceReady, issues);
+                checkIngredient(tagResolver, kind, recipeId, option, issues);
             }
         }
     }
@@ -1086,14 +1113,13 @@ public final class DebugToolsCommand {
         return Boolean.TRUE.equals(lit);
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     private ImmutableBlockState withBooleanState(ImmutableBlockState state, String propertyName, boolean value) {
         if (state == null) {
             return null;
         }
         for (Property<?> property : state.getProperties()) {
             if (propertyName.equals(property.name())) {
-                return state.with((Property) property, value);
+                return ImmutableBlockState.with(state, property, value);
             }
         }
         return state;
@@ -1228,7 +1254,7 @@ public final class DebugToolsCommand {
                 "<yellow>/fd debugtools item [offhand]</yellow> <gray>- dump the held item's CE id / tags / components</gray>"
         ));
         sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools recipe validate</yellow> <gray>- scan recipes for unresolvable item ids</gray>"
+                "<yellow>/fd debugtools recipe validate</yellow> <gray>- validate recipe structure, tags, results and containers</gray>"
         ));
         sender.sendMessage(MINI_MESSAGE.deserialize(
                 "<yellow>/fd debugtools i18n <key> [locale]</yellow> <gray>- trace a translation key through each layer</gray>"

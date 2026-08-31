@@ -7,6 +7,7 @@ import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CookingDebugLog;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.util.PermissionChecker;
 import io.papermc.paper.datacomponent.DataComponentTypes;
@@ -119,7 +120,7 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
             return InteractionResult.PASS;
         }
 
-        Player player = Bukkit.getPlayer(context.getPlayer().uuid());
+        Player player = ItemUtils.getBukkitPlayer(context.getPlayer());
         if (player == null) {
             return InteractionResult.PASS;
         }
@@ -127,9 +128,7 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
         World world = player.getWorld();
         BlockPos pos = context.getClickedPos();
         Block block = world.getBlockAt(pos.x(), pos.y(), pos.z());
-        ItemStack heldItem = context.getHand() == InteractionHand.OFF_HAND
-                ? player.getInventory().getItemInOffHand()
-                : player.getInventory().getItemInMainHand();
+        ItemStack heldItem = ItemUtils.getItemInHand(player, context.getHand());
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         StoveManager manager = getManager();
         if (plugin == null || manager == null) {
@@ -171,7 +170,7 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
         }
 
         if (manager.handleInteract(player, block, heldItem)) {
-            player.updateInventory();
+            ItemUtils.swingHand(player, context.getHand());
             return InteractionResult.SUCCESS_AND_CANCEL;
         }
 
@@ -281,4 +280,3 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
         CookingDebugLog.logField("debug.label_recipe_found", recipeId);
     }
 }
-

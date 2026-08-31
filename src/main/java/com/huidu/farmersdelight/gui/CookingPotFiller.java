@@ -83,7 +83,7 @@ final class CookingPotFiller {
             }
             ItemStack moved = source.clone();
             moved.setAmount(1);
-            ItemStack leftover = CookingPotBlockBehavior.insertIngredientLikeHopper(cookingPotLocation, moved);
+            ItemStack leftover = CookingPotBlockBehavior.insertIngredientSpreadLikeHopper(cookingPotLocation, moved);
             if (leftover != null && !leftover.getType().isAir()) {
                 debug("rollback ingredient leftover=" + summarizeItem(leftover)
                         + ", recipe=" + recipe.getId() + ", after=" + summarizePot(entity));
@@ -112,6 +112,14 @@ final class CookingPotFiller {
             }
             debitInventorySlot(player, selectedContainer.slot());
             movedCount++;
+        }
+        boolean complete = missingIngredients(recipe, getCurrentInputItems(entity)).isEmpty()
+                && (!recipe.needsContainer() || sameRecipeItem(recipe.getContainer(), entity.getContainerItem()));
+        if (!complete) {
+            debug("partial recipe=" + recipe.getId() + ", moved=" + movedCount
+                    + ", after=" + summarizePot(entity));
+            player.updateInventory();
+            return FillResult.stay(FillButtonState.MISSING_INGREDIENTS);
         }
         activateAfterFill(entity);
         debug("filled recipe=" + recipe.getId() + ", moved=" + movedCount
@@ -346,18 +354,18 @@ final class CookingPotFiller {
         if (slots == null || item == null || item.getType().isAir()) {
             return;
         }
-        for (ItemStack slotItem : slots) {
-            if (slotItem != null && !slotItem.getType().isAir() && slotItem.isSimilar(item)
-                    && slotItem.getAmount() < slotItem.getMaxStackSize()) {
-                slotItem.setAmount(slotItem.getAmount() + 1);
-                return;
-            }
-        }
         for (int i = 0; i < slots.length; i++) {
             if (slots[i] == null || slots[i].getType().isAir()) {
                 ItemStack placed = item.clone();
                 placed.setAmount(1);
                 slots[i] = placed;
+                return;
+            }
+        }
+        for (ItemStack slotItem : slots) {
+            if (slotItem != null && !slotItem.getType().isAir() && slotItem.isSimilar(item)
+                    && slotItem.getAmount() < slotItem.getMaxStackSize()) {
+                slotItem.setAmount(slotItem.getAmount() + 1);
                 return;
             }
         }

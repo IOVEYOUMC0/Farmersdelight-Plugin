@@ -2,12 +2,12 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
-import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntityController;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntity;
+import com.huidu.farmersdelight.block.behavior.MushroomColonyBehavior;
 import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.util.BlockPosKey;
@@ -35,7 +35,6 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -43,7 +42,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class BlockPlaceListener implements Listener {
 
-    private static final Key FEAST_BLOCKS_TAG = Key.of("farmersdelight:feast_blocks");
+    private static final Key FEAST_BLOCKS_TAG = Key.of("farmersdelight:feasts");
     private static final Map<Material, String> VANILLA_CROP_CRITERIA = Map.ofEntries(
             Map.entry(Material.WHEAT, "wheat"),
             Map.entry(Material.BEETROOTS, "beetroot"),
@@ -143,14 +142,6 @@ public class BlockPlaceListener implements Listener {
             Constants.BLOCK_RED_MUSHROOM_COLONY
     );
 
-    private static final Set<String> DEFAULT_MUSHROOM_ALWAYS_VALID_SUPPORTS = Set.of(
-            "minecraft:mycelium",
-            "minecraft:podzol",
-            "minecraft:crimson_nylium",
-            "minecraft:warped_nylium",
-            "minecraft:mushroom_stem"
-    );
-
     private boolean isMushroomColony(String customBlockId) {
         return MUSHROOM_COLONY_IDS.contains(customBlockId);
     }
@@ -159,67 +150,17 @@ public class BlockPlaceListener implements Listener {
         // Cache the location-derived block coordinates locally so the two world.getBlockAt() calls
         // and any per-event reads only touch the immutable Location once instead of round-tripping
         // through event.location() (which clones internally).
-        World world = event.player().getWorld();
-        int bx = event.location().getBlockX();
-        int by = event.location().getBlockY();
-        int bz = event.location().getBlockZ();
-        Block blockBelow = world.getBlockAt(bx, by - 1, bz);
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (isAlwaysValidMushroomSupport(blockBelow)) {
-            return true;
-        }
-        if (!plugin.getConfigBoolean(true,
-                "mushroom-colonies.placement.allow-solid-supports-below-max-light")) {
+        Location location = event.location();
+        World world = location.getWorld();
+        if (world == null) {
             return false;
         }
-        int maxLight = Math.max(0, Math.min(15, plugin.getConfigInt(12,
-                "mushroom-colonies.placement.max-light")));
+        int bx = location.getBlockX();
+        int by = location.getBlockY();
+        int bz = location.getBlockZ();
+        Block blockBelow = world.getBlockAt(bx, by - 1, bz);
         Block targetBlock = world.getBlockAt(bx, by, bz);
-        return targetBlock.getLightLevel() <= maxLight && blockBelow.getType().isSolid();
-    }
-
-    // Per-config snapshot of the normalized whitelist — built once at plugin enable / reload via
-    // reloadMushroomSupportCache(), then read lock-free per place event. Replaces the prior
-    // "rebuild a Set on every CustomBlockAttemptPlaceEvent" path that allocated a CHM + walked
-    // plugin.getConfig().getStringList() for each placement.
-    private static volatile Set<String> cachedMushroomSupports = DEFAULT_MUSHROOM_ALWAYS_VALID_SUPPORTS;
-
-    public static void reloadMushroomSupportCache(FarmersDelightPlugin plugin) {
-        if (plugin == null) {
-            cachedMushroomSupports = DEFAULT_MUSHROOM_ALWAYS_VALID_SUPPORTS;
-            return;
-        }
-        Set<String> normalized = normalizeMushroomSupports(ConfigSectionReader.optionalStringList(
-                plugin.getConfig(), "mushroom-colonies.placement.always-valid-supports"));
-        cachedMushroomSupports = normalized.isEmpty() ? DEFAULT_MUSHROOM_ALWAYS_VALID_SUPPORTS : normalized;
-    }
-
-    private boolean isAlwaysValidMushroomSupport(Block blockBelow) {
-        return cachedMushroomSupports.contains(toMinecraftBlockId(blockBelow.getType()));
-    }
-
-    private static Set<String> normalizeMushroomSupports(Iterable<String> configuredSupports) {
-        if (configuredSupports == null) {
-            return Set.of();
-        }
-        Set<String> normalized = new java.util.HashSet<>();
-        for (String support : configuredSupports) {
-            String value = support == null ? "" : support.trim().toLowerCase(Locale.ROOT);
-            if (value.isEmpty()) {
-                continue;
-            }
-            if (!value.contains(":")) {
-                value = "minecraft:" + value;
-            }
-            normalized.add(value);
-        }
-        // Snapshot to an immutable set so the volatile field publication is safe and reads after
-        // the swap can't see mid-construction state.
-        return normalized.isEmpty() ? Set.of() : Set.copyOf(normalized);
-    }
-
-    private String toMinecraftBlockId(Material material) {
-        return "minecraft:" + material.name().toLowerCase(Locale.ROOT);
+        return MushroomColonyBehavior.canSurviveAt(event.customBlock().id().toString(), world, targetBlock, blockBelow);
     }
 
     private void awardForCustomBlock(Player player, String customBlockId, org.bukkit.Location blockLocation, ItemStack placedItem) {

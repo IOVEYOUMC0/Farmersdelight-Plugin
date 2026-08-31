@@ -48,6 +48,8 @@ templates:
       resistance: 3
       tags:
       - minecraft:mineable/axe
+      - farmersdelight:cabinets
+      - farmersdelight:cabinets/wooden
       sounds:
         break: minecraft:block.wood.break
         fall: minecraft:block.wood.fall
@@ -560,6 +562,7 @@ furniture:
         - item: farmersdelight:tray
           position: 0,0.5,0
           translation: 0,0,0
+          scale: 0.999
         hitboxes:
         - position: 0,0,0
           type: interaction
@@ -585,6 +588,7 @@ block:
       - minecraft:netherite_pickaxe
       tags:
       - minecraft:mineable/pickaxe
+      - farmersdelight:heat_sources
       sounds:
         break: minecraft:block.stone.break
         fall: minecraft:block.stone.fall
@@ -776,6 +780,7 @@ block:
       tags:
       - minecraft:mineable/shovel
       - minecraft:mushroom_grow_block
+      - farmersdelight:compost_activators
       sounds:
         break: minecraft:block.gravel.break
         fall: minecraft:block.gravel.fall
@@ -920,6 +925,8 @@ block:
       - minecraft:dirt
       - minecraft:bamboo_plantable_on
       - minecraft:mushroom_grow_block
+      - farmersdelight:compost_activators
+      - farmersdelight:mushroom_colony_growable_on
       sounds:
         break: minecraft:block.gravel.break
         fall: minecraft:block.gravel.fall
@@ -975,6 +982,7 @@ block:
       is-randomly-ticking: true
       tags:
       - minecraft:mineable/shovel
+      - farmersdelight:compost_activators
       sounds:
         break: minecraft:block.gravel.break
         fall: minecraft:block.gravel.fall
@@ -1040,6 +1048,11 @@ block:
         step: minecraft:block.lantern.step
     behavior:
     - type: farmersdelight:cooking_pot
+      display-support: true
+      require-non-full-support: true
+      handle-toggle-sound: minecraft:block.lantern.place
+      handle-toggle-sound-volume: 0.7
+      handle-toggle-sound-pitch: 1.0
       boil-sound: farmersdelight:block.cooking_pot.boil
       soup-boil-sound: farmersdelight:block.cooking_pot.boil_soup
       sound-chance: 0.1
@@ -1198,6 +1211,9 @@ block:
         step: minecraft:block.lantern.step
     behavior:
     - type: farmersdelight:skillet
+      permission: farmersdelight.use.skillet
+      display-support: true
+      require-non-full-support: true
       add-food-sound: farmersdelight:block.skillet.add_food
       sizzle-sound: farmersdelight:block.skillet.sizzle
     states:
@@ -1465,6 +1481,7 @@ block:
       fire-spread-chance: 20
       tags:
       - minecraft:mineable/hoe
+      - farmersdelight:campfire_signal_smoke
       sounds:
         break: minecraft:block.grass.break
         fall: minecraft:block.grass.fall
@@ -1554,6 +1571,7 @@ block:
       fire-spread-chance: 20
       tags:
       - minecraft:mineable/hoe
+      - farmersdelight:campfire_signal_smoke
       sounds:
         break: minecraft:block.grass.break
         fall: minecraft:block.grass.fall
@@ -1608,6 +1626,7 @@ block:
       resistance: 0.8
       tags:
       - minecraft:mineable/shears
+      - farmersdelight:straw_blocks
       sounds:
         break: minecraft:block.wool.break
         fall: minecraft:block.wool.fall
@@ -1727,6 +1746,9 @@ block:
       hardness: 0.2
       resistance: 0.2
       push-reaction: destroy
+      tags:
+      - farmersdelight:straw_blocks
+      - farmersdelight:mineable/knife
       sounds:
         break: minecraft:block.wool.break
         fall:  minecraft:block.wool.fall
@@ -1774,6 +1796,9 @@ block:
       burn_chance: 60
       fire_spread_chance: 20
       push-reaction: destroy
+      tags:
+      - farmersdelight:straw_blocks
+      - farmersdelight:mineable/knife
       sounds:
         break: minecraft:block.grass.break
         fall: minecraft:block.grass.fall
@@ -1926,6 +1951,9 @@ block:
       burn_chance: 30
       fire_spread_chance: 60
       push-reaction: destroy
+      tags:
+      - farmersdelight:straw_blocks
+      - farmersdelight:mineable/knife
       sounds:
         break: minecraft:block.wool.break
         fall: minecraft:block.wool.fall
@@ -1954,6 +1982,9 @@ block:
       burn_chance: 30
       fire_spread_chance: 60
       push-reaction: destroy
+      tags:
+      - farmersdelight:straw_blocks
+      - farmersdelight:mineable/knife
       sounds:
         break: minecraft:block.wool.break
         fall: minecraft:block.wool.fall

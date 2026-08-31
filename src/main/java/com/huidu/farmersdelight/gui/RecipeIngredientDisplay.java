@@ -24,6 +24,7 @@ import java.util.Map;
 final class RecipeIngredientDisplay {
 
     private static final int MAX_COMPACT_INGREDIENT_LINE_LENGTH = 42;
+    private static final int MAX_COMPACT_ITEM_PREVIEW = 6;
     private static final int PREVIEW_ITEMS = 5;
 
     private final RecipeViewGui gui;
@@ -72,7 +73,7 @@ final class RecipeIngredientDisplay {
     ItemStack createIngredientDisplay(RecipeIngredient ingredient, Player player, int slot) {
         if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
             List<Component> lore = new ArrayList<>();
-            ItemStack display = RecipeIngredientIcons.createItemFromKey(itemIngredient.key());
+            ItemStack display = itemIngredient.createStack();
             lore.add(gui.tr("gui.recipe.ingredient", NamedTextColor.GRAY));
             if (gui.config.isShowIngredientIds()) {
                 lore.add(gui.colored("&7" + itemIngredient.key()));
@@ -233,14 +234,19 @@ final class RecipeIngredientDisplay {
 
     private List<Component> formatCompactIngredientLoreLines(RecipeIngredient ingredient, Player player) {
         if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
-            return List.of(gui.itemNameComponent(RecipeIngredientIcons.createItemFromKey(itemIngredient.key()), player));
+            return List.of(gui.itemNameComponent(itemIngredient.createStack(), player));
         }
         if (ingredient instanceof RecipeIngredient.Choice choiceIngredient) {
             List<ItemStack> options = RecipeIngredientIcons.resolveIngredientOptions(choiceIngredient);
             if (options.isEmpty()) {
                 return List.of(gui.tr("gui.recipe.no_matching_items", NamedTextColor.GRAY));
             }
-            return formatCompactItemOptions(options, player);
+            int previewCount = Math.min(MAX_COMPACT_ITEM_PREVIEW, options.size());
+            List<Component> lines = formatCompactItemOptions(options.subList(0, previewCount), player);
+            if (options.size() > previewCount) {
+                lines.add(gui.tr("gui.recipe.more_items", options.size() - previewCount));
+            }
+            return lines;
         }
         if (ingredient instanceof RecipeIngredient.Tag tagIngredient) {
             // Clone only the first 6 for showing names; read the full count from the cache.
@@ -248,7 +254,8 @@ final class RecipeIngredientDisplay {
             if (totalSize == 0) {
                 return List.of(gui.tr("gui.recipe.no_matching_items", NamedTextColor.GRAY));
             }
-            List<ItemStack> previewOptions = RecipeIngredientIcons.resolveTagIngredientOptionsPreview(tagIngredient, 6);
+            List<ItemStack> previewOptions = RecipeIngredientIcons.resolveTagIngredientOptionsPreview(
+                    tagIngredient, MAX_COMPACT_ITEM_PREVIEW);
             int previewCount = previewOptions.size();
             List<Component> lines = formatCompactItemOptions(previewOptions, player);
             if (totalSize > previewCount) {
@@ -294,7 +301,7 @@ final class RecipeIngredientDisplay {
     List<Component> formatIngredientLoreLines(RecipeIngredient ingredient, Player player) {
         List<Component> lines = new ArrayList<>();
         if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
-            lines.add(gui.itemNameComponent(RecipeIngredientIcons.createItemFromKey(itemIngredient.key()), player).colorIfAbsent(NamedTextColor.WHITE));
+            lines.add(gui.itemNameComponent(itemIngredient.createStack(), player).colorIfAbsent(NamedTextColor.WHITE));
             return lines;
         }
         if (ingredient instanceof RecipeIngredient.Tag tagIngredient) {

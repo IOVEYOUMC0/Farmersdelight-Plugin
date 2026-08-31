@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/crops.md)
 # Crops
 
 Farmer's Delight adds a handful of new crops on top of the vanilla ones. Each one starts as a **wild plant** you find growing in the world, which you harvest for seeds and then farm the same way you already farm wheat or carrots.

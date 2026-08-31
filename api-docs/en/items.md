@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/items.md)
 # Items
 
 Package: `com.huidu.farmersdelight.api.item`
@@ -7,8 +9,8 @@ Item helpers that resolve and match stacks across CraftEngine custom items, vani
 tags. Signatures use only Bukkit / Adventure / `java` types, so an addon does not need CraftEngine on its
 compile classpath to use them.
 
-This class lives under `com.huidu.farmersdelight.api.**`, the only package kept name-stable through
-obfuscation, so addons may call it directly.
+This class lives under `com.huidu.farmersdelight.api.**`, the supported addon API, so addons may call it
+directly.
 
 ## Identity
 

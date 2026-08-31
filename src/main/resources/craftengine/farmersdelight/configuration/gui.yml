@@ -143,6 +143,10 @@ items:
     template: farmersdelight:icons_big
     data:
       item-name: <!i><white><lang:farmersdelight.gui.progress.100></white>
+  farmersdelight:animated:
+    template: farmersdelight:icons_big
+    data:
+      item-name: " "
   farmersdelight:cooking_time:
     template: farmersdelight:icons_big
     data:

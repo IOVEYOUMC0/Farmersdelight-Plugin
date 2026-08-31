@@ -9,7 +9,10 @@ import com.huidu.farmersdelight.api.recipe.RecipeType;
 import com.huidu.farmersdelight.api.recipe.SpecialRecipeInfo;
 import com.huidu.farmersdelight.api.scheduler.ApiTask;
 import com.huidu.farmersdelight.gui.recipebook.RecipeBookGui;
+import com.huidu.farmersdelight.gui.RecipeIngredientIcons;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
+import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -73,6 +76,8 @@ public final class FarmersDelightApi {
     );
 
     private static final FarmersDelightApi INSTANCE = new FarmersDelightApi();
+    private static final java.util.Set<String> REPORTED_API_RECIPE_ITEMS =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private final Map<String, RecipeType> recipeTypes = Collections.synchronizedMap(new LinkedHashMap<>());
     // Block namespaces of registered addons (e.g. "brewinandchewin"), so the CraftEngine block-state usage
@@ -158,12 +163,34 @@ public final class FarmersDelightApi {
     public void registerCookingPotRecipe(String id, List<String> ingredients, ItemStack container,
                                          ItemStack result, double experience, int cookTime, String category) {
         FarmersDelightPlugin plugin = availablePlugin();
-        if (plugin == null || id == null || ingredients == null || result == null) {
+        if (plugin == null) {
             return;
         }
-        plugin.getCookingPotRecipes().registerExternalRecipe(id, ingredients,
-                container == null ? null : container.clone(), result.clone(),
-                (float) experience, cookTime, category);
+        if (id == null || id.isBlank() || ingredients == null) {
+            I18n.logWarning("plugin.recipe_api_registration_failed", "id", String.valueOf(id), "type", "cooking pot",
+                    "error", "recipe id and ingredients are required");
+            return;
+        }
+        if (result == null || result.getType().isAir()) {
+            if (isContentLoaded()) {
+                I18n.logWarning("plugin.recipe_api_registration_failed", "id", id, "type", "cooking pot",
+                        "error", "result item is null or air");
+            }
+            return;
+        }
+        if (isContentLoaded()) {
+            validateApiIngredients(id, ingredients);
+        }
+        try {
+            plugin.getCookingPotRecipes().registerExternalRecipe(id, ingredients,
+                    container == null ? null : container.clone(), result.clone(),
+                    (float) experience, cookTime, category);
+        } catch (IllegalArgumentException e) {
+            if (isContentLoaded()) {
+                I18n.logWarning("plugin.recipe_api_registration_failed", "id", id, "type", "cooking pot",
+                        "error", e.getMessage());
+            }
+        }
     }
 
     public void unregisterCookingPotRecipe(String id) {
@@ -176,7 +203,12 @@ public final class FarmersDelightApi {
     public void registerCuttingBoardRecipe(String id, String input, String tool,
                                            List<ItemStack> results, String sound) {
         FarmersDelightPlugin plugin = availablePlugin();
-        if (plugin == null || id == null || input == null || tool == null || results == null) {
+        if (plugin == null) {
+            return;
+        }
+        if (id == null || id.isBlank() || input == null || tool == null || results == null) {
+            I18n.logWarning("plugin.recipe_api_registration_failed", "id", String.valueOf(id), "type", "cutting board",
+                    "error", "recipe id, input, tool and results are required");
             return;
         }
         List<ItemStack> copies = new ArrayList<>();
@@ -185,7 +217,14 @@ public final class FarmersDelightApi {
                 copies.add(result.clone());
             }
         }
-        plugin.getCuttingBoardRecipes().registerExternalRecipe(id, input, tool, copies, sound);
+        try {
+            plugin.getCuttingBoardRecipes().registerExternalRecipe(id, input, tool, copies, sound);
+        } catch (IllegalArgumentException e) {
+            if (isContentLoaded()) {
+                I18n.logWarning("plugin.recipe_api_registration_failed", "id", id, "type", "cutting board",
+                        "error", e.getMessage());
+            }
+        }
     }
 
     /**
@@ -196,7 +235,12 @@ public final class FarmersDelightApi {
     public void registerCuttingBoardRecipeWithChances(String id, String input, String tool,
                                                       List<ChanceResult> results, String sound) {
         FarmersDelightPlugin plugin = availablePlugin();
-        if (plugin == null || id == null || input == null || tool == null || results == null) {
+        if (plugin == null) {
+            return;
+        }
+        if (id == null || id.isBlank() || input == null || tool == null || results == null) {
+            I18n.logWarning("plugin.recipe_api_registration_failed", "id", String.valueOf(id), "type", "cutting board",
+                    "error", "recipe id, input, tool and results are required");
             return;
         }
         List<ItemStack> items = new ArrayList<>();
@@ -207,7 +251,14 @@ public final class FarmersDelightApi {
                 chances.add((double) result.chance());
             }
         }
-        plugin.getCuttingBoardRecipes().registerExternalRecipe(id, input, tool, items, chances, sound);
+        try {
+            plugin.getCuttingBoardRecipes().registerExternalRecipe(id, input, tool, items, chances, sound);
+        } catch (IllegalArgumentException e) {
+            if (isContentLoaded()) {
+                I18n.logWarning("plugin.recipe_api_registration_failed", "id", id, "type", "cutting board",
+                        "error", e.getMessage());
+            }
+        }
     }
 
     public void unregisterCuttingBoardRecipe(String id) {
@@ -240,7 +291,75 @@ public final class FarmersDelightApi {
         if (id == null || section == null) {
             return;
         }
-        registerSpecialRecipe(com.huidu.farmersdelight.recipe.SpecialRecipeLoader.parseRecipe(id, section));
+        try {
+            com.huidu.farmersdelight.api.recipe.SpecialRecipeInfo info =
+                    com.huidu.farmersdelight.recipe.SpecialRecipeLoader.parseRecipe(id, section);
+            if (isContentLoaded()) {
+                validateSpecialRecipeItems(id, info);
+            }
+            registerSpecialRecipe(info);
+        } catch (IllegalArgumentException e) {
+            I18n.logWarning("plugin.recipe_api_registration_failed", "id", id, "type", "special",
+                    "error", e.getMessage());
+        }
+    }
+
+    private void validateSpecialRecipeItems(String recipeId,
+                                             com.huidu.farmersdelight.api.recipe.SpecialRecipeInfo info) {
+        if (info == null) {
+            return;
+        }
+        validateSpecialItem(recipeId, "icon", info.iconItemId());
+        for (int i = 0; i < info.inputSlots().size(); i++) {
+            validateSpecialItem(recipeId, "inputs[" + i + "]", info.inputSlots().get(i).itemId());
+        }
+        for (int i = 0; i < info.outputSlots().size(); i++) {
+            validateSpecialItem(recipeId, "outputs[" + i + "]", info.outputSlots().get(i).itemId());
+        }
+        for (int i = 0; i < info.catalystSlots().size(); i++) {
+            validateSpecialItem(recipeId, "catalysts[" + i + "]", info.catalystSlots().get(i).itemId());
+        }
+    }
+
+    private void validateApiIngredients(String recipeId, List<String> ingredients) {
+        for (int i = 0; i < ingredients.size(); i++) {
+            String spec = ingredients.get(i);
+            if (spec == null || spec.isBlank()) {
+                continue;
+            }
+            boolean resolved = false;
+            for (String alternative : spec.split("\\|")) {
+                String token = alternative.trim();
+                int comma = token.indexOf(',');
+                if (comma >= 0) {
+                    token = token.substring(0, comma).trim();
+                }
+                if (token.startsWith("#")) {
+                    resolved |= !com.huidu.farmersdelight.util.ItemUtils.createSlotItems(token).isEmpty();
+                } else {
+                    resolved |= com.huidu.farmersdelight.util.ItemUtils.createItem(token) != null;
+                }
+            }
+            String reportKey = recipeId + ".ingredients[" + i + "]=" + spec;
+            if (!resolved && REPORTED_API_RECIPE_ITEMS.add(reportKey)) {
+                I18n.logWarning("plugin.item_not_found", "path", "API recipe " + recipeId
+                        + ".ingredients[" + i + "]", "id", spec);
+            }
+        }
+    }
+
+    private void validateSpecialItem(String recipeId, String path, String itemId) {
+        if (itemId == null || itemId.isBlank()) {
+            return;
+        }
+        boolean resolved = itemId.startsWith("#")
+                ? !com.huidu.farmersdelight.util.ItemUtils.createSlotItems(itemId).isEmpty()
+                : com.huidu.farmersdelight.util.ItemUtils.createItem(itemId) != null;
+        String reportKey = recipeId + "." + path + "=" + itemId;
+        if (!resolved && REPORTED_API_RECIPE_ITEMS.add(reportKey)) {
+            I18n.logWarning("plugin.item_not_found", "path", "special recipe " + recipeId + "." + path,
+                    "id", itemId);
+        }
     }
 
     public void unregisterSpecialRecipe(String id) {
@@ -310,6 +429,24 @@ public final class FarmersDelightApi {
         if (player != null && type != null && type.editor() != null) {
             RecipeBookGui.openEditor(player, type, recipeId);
         }
+    }
+
+    /**
+     * Resolves an ingredient's concrete display candidates (tag/choice members included).
+     * Returned stacks are independent clones and may be safely decorated by an add-on GUI.
+     */
+    public List<ItemStack> resolveIngredientOptions(RecipeIngredient ingredient) {
+        if (ingredient == null || !isAvailable()) {
+            return List.of();
+        }
+        List<ItemStack> resolved = RecipeIngredientIcons.resolveIngredientOptions(ingredient);
+        List<ItemStack> copies = new ArrayList<>(resolved.size());
+        for (ItemStack item : resolved) {
+            if (item != null && !item.getType().isAir()) {
+                copies.add(item.clone());
+            }
+        }
+        return List.copyOf(copies);
     }
 
     public boolean isAvailable() {

@@ -22,7 +22,6 @@ final class AntiGriefBridge {
         Flag<Location> probe = Flag.INTERACT;
         if (probe != null) {
             antiGrief = AntiGriefLib.builder(plugin)
-                    .ignoreOP(true)
                     .suppressErrors(false)
                     .exclude(other -> "WorldGuard".equals(other.getName()))
                     .build();
@@ -35,6 +34,10 @@ final class AntiGriefBridge {
 
     static boolean canPlace(Player player, Location location) {
         return test(player, location, Flag.PLACE);
+    }
+
+    static boolean canBreak(Player player, Location location) {
+        return test(player, location, Flag.BREAK);
     }
 
     static boolean canInteract(Player player, Location location) {

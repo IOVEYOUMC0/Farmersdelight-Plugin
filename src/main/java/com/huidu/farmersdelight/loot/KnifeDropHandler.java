@@ -28,21 +28,6 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class KnifeDropHandler implements Listener {
 
-    // Current path first, then every name the section has had, so a config file that predates any of the
-    // renames still reads correctly even if the on-disk migration has not run against it.
-    private static final String[] DROP_RULE_PATHS =
-            {"drops.mob-extra", "mob-extra-drops", "entity-extra-drops", "knife-drops"};
-    private static final String[] DROP_TOOL_PATHS =
-            {"drops.mob-extra-tools", "mob-extra-drop-tools", "entity-extra-drop-tools", "knife-drop-tools"};
-    private static final String[] KNIFE_ITEM_PATHS = {"knife-items", "drops.knife-items", "knife-config"};
-    private static final List<String> DEFAULT_DROP_TOOL_ITEMS = List.of(
-            "farmersdelight:flint_knife",
-            "farmersdelight:iron_knife",
-            "farmersdelight:golden_knife",
-            "farmersdelight:diamond_knife",
-            "farmersdelight:netherite_knife"
-    );
-
     private final FarmersDelightPlugin plugin;
     // onEntityDeath reads these on arbitrary Folia region threads (a mob can die anywhere) while /fd reload
     // rebuilds them on the command thread. dropRules is a ConcurrentHashMap (runtime register/unregister
@@ -61,18 +46,21 @@ public class KnifeDropHandler implements Listener {
         this.plugin = plugin;
     }
 
+    public void loadConfig(ConfigurationSection dropsConfig) {
+        loadConfig(dropsConfig, true);
+    }
+
     public void loadConfig() {
-        loadConfig(true);
+        loadConfig(plugin.getDropsConfig(), true);
     }
 
     public void loadConfig(boolean logSummary) {
-        Map<String, KnifeDropRule> newRules = new ConcurrentHashMap<>();
-        loadDefaultDropRules(newRules);
+        loadConfig(plugin.getDropsConfig(), logSummary);
+    }
 
-        ConfigurationSection dropsSection = getFirstConfiguredSection(DROP_RULE_PATHS);
-        if (dropsSection == null) {
-            dropsSection = getFirstBundledSection(DROP_RULE_PATHS);
-        }
+    public void loadConfig(ConfigurationSection dropsConfig, boolean logSummary) {
+        Map<String, KnifeDropRule> newRules = new ConcurrentHashMap<>();
+        ConfigurationSection dropsSection = dropsConfig == null ? null : dropsConfig.getConfigurationSection("mob-extra");
         if (dropsSection != null) {
             for (String entityType : dropsSection.getKeys(false)) {
                 ConfigurationSection entitySection = dropsSection.getConfigurationSection(entityType);
@@ -97,17 +85,12 @@ public class KnifeDropHandler implements Listener {
         // the complete old map or the complete new map, never a mid-rebuild state.
         this.dropRules = newRules;
 
-        dropToolTags = new ArrayList<>(List.of(Constants.TAG_KNIVES));
-        dropToolItems = new ArrayList<>(DEFAULT_DROP_TOOL_ITEMS);
-        ConfigurationSection knifeSection = getFirstConfiguredSection(KNIFE_ITEM_PATHS);
-        if (knifeSection != null) {
-            loadDropToolMatchers(knifeSection);
-        }
-        ConfigurationSection dropToolSection = getFirstConfiguredSection(DROP_TOOL_PATHS);
+        dropToolTags = List.of();
+        dropToolItems = List.of();
+        ConfigurationSection dropToolSection = dropsConfig == null ? null
+                : dropsConfig.getConfigurationSection("mob-extra-tools");
         if (dropToolSection != null) {
             loadDropToolMatchers(dropToolSection);
-        } else if (knifeSection == null) {
-            loadDropToolMatchers(getFirstBundledSection(DROP_TOOL_PATHS));
         }
 
         if (logSummary) {
@@ -118,29 +101,6 @@ public class KnifeDropHandler implements Listener {
 
     public int getDropRuleCount() {
         return dropRules.size();
-    }
-
-    private ConfigurationSection getFirstConfiguredSection(String... paths) {
-        for (String path : paths) {
-            if (!plugin.getConfig().isSet(path)) {
-                continue;
-            }
-            ConfigurationSection section = plugin.getConfig().getConfigurationSection(path);
-            if (section != null) {
-                return section;
-            }
-        }
-        return null;
-    }
-
-    private ConfigurationSection getFirstBundledSection(String... paths) {
-        for (String path : paths) {
-            ConfigurationSection section = plugin.getConfig().getConfigurationSection(path);
-            if (section != null) {
-                return section;
-            }
-        }
-        return null;
     }
 
     private void loadDropToolMatchers(ConfigurationSection section) {
@@ -198,27 +158,6 @@ public class KnifeDropHandler implements Listener {
             }
         }
         return null;
-    }
-
-    private void loadDefaultDropRules(Map<String, KnifeDropRule> target) {
-        putDefaultDrop(target, "pig", "farmersdelight:ham", "farmersdelight:smoked_ham", 0.5D, 0.1D);
-        // Hoglin ham is an unconditional knife drop: the mod's scavenging_ham_from_hoglin /
-        // scavenging_smoked_ham_from_hoglin modifiers carry no random-chance and no looting term,
-        // unlike the pig variant which rolls 0.5 plus 0.1 per looting level.
-        putDefaultDrop(target, "hoglin", "farmersdelight:ham", "farmersdelight:smoked_ham", 1.0D, 0.0D);
-        for (String entityType : List.of("cow", "mooshroom", "donkey", "horse", "mule", "llama", "trader_llama")) {
-            putDefaultDrop(target, entityType, "minecraft:leather", null, 1.0D, 0.0D);
-        }
-        putDefaultDrop(target, "chicken", "minecraft:feather", null, 1.0D, 0.0D);
-        putDefaultDrop(target, "spider", "minecraft:string", null, 1.0D, 0.0D);
-        putDefaultDrop(target, "cave_spider", "minecraft:string", null, 1.0D, 0.0D);
-        putDefaultDrop(target, "rabbit", "minecraft:rabbit_hide", null, 1.0D, 0.0D);
-        putDefaultDrop(target, "shulker", "minecraft:shulker_shell", null, 1.0D, 0.0D);
-    }
-
-    private void putDefaultDrop(Map<String, KnifeDropRule> target, String entityType, String normalItem,
-                                String burningItem, double chance, double lootingMultiplier) {
-        target.put(entityType, new KnifeDropRule(entityType, normalItem, burningItem, chance, lootingMultiplier));
     }
 
     // NORMAL rather than HIGHEST so loot / quest / economy plugins listening at HIGH and HIGHEST still
@@ -374,7 +313,6 @@ public class KnifeDropHandler implements Listener {
     }
 
     public void reload() {
-        plugin.reloadConfig();
-        loadConfig(false);
+        plugin.reloadConfigs();
     }
 }

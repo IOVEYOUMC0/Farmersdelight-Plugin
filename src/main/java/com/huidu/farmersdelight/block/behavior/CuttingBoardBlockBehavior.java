@@ -14,6 +14,7 @@ import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.PermissionChecker;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
@@ -37,6 +38,8 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,11 +63,18 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
     // different worlds within the guard window does not have one interaction eaten by the other's guard.
     private static final Map<UUID, Map<WorldPos, Long>> recentManualInsertions = new ConcurrentHashMap<>();
     private static final long MANUAL_INSERT_GUARD_MILLIS = 250L;
+    private static final int DEFAULT_RELOAD_VISUAL_REFRESH_BUDGET = 32;
     // Added to the per-unit keep chance for each level of Fortune on the cutting tool, matching the mod's
     // cuttingBoardFortuneBonus default.
     private static final double FORTUNE_BONUS_PER_LEVEL = 0.1d;
+    private static final Object displayRefreshLock = new Object();
+    private static final Deque<DisplayRefresh> pendingDisplayRefreshes = new ArrayDeque<>();
+    private static PluginTask displayRefreshTask;
 
     private record WorldPos(UUID worldId, BlockPosKey pos) {
+    }
+
+    private record DisplayRefresh(World world, BlockPosKey posKey, CuttingBoardBlockEntity entity) {
     }
 
     private final Property<?> facingProperty;
@@ -219,6 +229,12 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
     }
 
     public static void cleanupWorld(UUID worldId, boolean removeDisplayEntities) {
+        synchronized (displayRefreshLock) {
+            pendingDisplayRefreshes.removeIf(refresh -> refresh.world().getUID().equals(worldId));
+            if (pendingDisplayRefreshes.isEmpty()) {
+                stopDisplayRefreshTask();
+            }
+        }
         Map<BlockPosKey, CuttingBoardBlockEntity> worldEntities = worldBlockEntities.remove(worldId);
         if (worldEntities != null) {
             for (CuttingBoardBlockEntity entity : worldEntities.values()) {
@@ -237,6 +253,10 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
     }
 
     public static void cleanupAll(boolean removeDisplayEntities) {
+        synchronized (displayRefreshLock) {
+            pendingDisplayRefreshes.clear();
+            stopDisplayRefreshTask();
+        }
         for (Map<BlockPosKey, CuttingBoardBlockEntity> worldEntities : worldBlockEntities.values()) {
             for (CuttingBoardBlockEntity entity : worldEntities.values()) {
                 if (removeDisplayEntities) {
@@ -306,17 +326,72 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
     }
 
     public static void refreshDisplayEntities() {
-        for (Map.Entry<UUID, Map<BlockPosKey, CuttingBoardBlockEntity>> worldEntry : worldBlockEntities.entrySet()) {
-            World world = Bukkit.getWorld(worldEntry.getKey());
-            if (world == null) continue;
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin == null) {
+            return;
+        }
+        synchronized (displayRefreshLock) {
+            pendingDisplayRefreshes.clear();
+            for (Map.Entry<UUID, Map<BlockPosKey, CuttingBoardBlockEntity>> worldEntry : worldBlockEntities.entrySet()) {
+                World world = Bukkit.getWorld(worldEntry.getKey());
+                if (world == null) continue;
 
-            for (Map.Entry<BlockPosKey, CuttingBoardBlockEntity> posEntry : worldEntry.getValue().entrySet()) {
-                BlockPosKey posKey = posEntry.getKey();
-                CuttingBoardBlockEntity entity = posEntry.getValue();
-                if (entity != null) {
-                    entity.refreshDisplayEntity(world, getStoredBlockFacing(world, posKey));
+                for (Map.Entry<BlockPosKey, CuttingBoardBlockEntity> posEntry : worldEntry.getValue().entrySet()) {
+                    CuttingBoardBlockEntity entity = posEntry.getValue();
+                    if (entity != null) {
+                        pendingDisplayRefreshes.addLast(new DisplayRefresh(world, posEntry.getKey(), entity));
+                    }
                 }
             }
+            if (pendingDisplayRefreshes.isEmpty()) {
+                stopDisplayRefreshTask();
+            } else if (displayRefreshTask == null || displayRefreshTask.isCancelled()) {
+                displayRefreshTask = plugin.scheduler().runRepeating(
+                        CuttingBoardBlockBehavior::refreshNextDisplayEntities, 1L, 1L);
+            }
+        }
+    }
+
+    private static void refreshNextDisplayEntities() {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin == null || !plugin.isEnabled()) {
+            synchronized (displayRefreshLock) {
+                pendingDisplayRefreshes.clear();
+                stopDisplayRefreshTask();
+            }
+            return;
+        }
+
+        int budget = Math.max(1, plugin.getConfigInt(DEFAULT_RELOAD_VISUAL_REFRESH_BUDGET,
+                "performance.reload-visual-refreshes-per-tick"));
+        for (int i = 0; i < budget; i++) {
+            DisplayRefresh refresh;
+            synchronized (displayRefreshLock) {
+                refresh = pendingDisplayRefreshes.pollFirst();
+            }
+            if (refresh == null) {
+                break;
+            }
+
+            plugin.scheduler().runAt(refresh.posKey().toLocation(refresh.world()), () -> {
+                if (getBlockEntity(refresh.world(), refresh.posKey()) == refresh.entity()) {
+                    refresh.entity().refreshDisplayEntity(refresh.world(),
+                            getStoredBlockFacing(refresh.world(), refresh.posKey()));
+                }
+            });
+        }
+
+        synchronized (displayRefreshLock) {
+            if (pendingDisplayRefreshes.isEmpty()) {
+                stopDisplayRefreshTask();
+            }
+        }
+    }
+
+    private static void stopDisplayRefreshTask() {
+        if (displayRefreshTask != null) {
+            displayRefreshTask.cancel();
+            displayRefreshTask = null;
         }
     }
 
@@ -477,7 +552,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         BlockPos pos = context.getClickedPos();
         BlockPosKey posKey = new BlockPosKey(pos);
 
-        Player bukkitPlayer = Bukkit.getPlayer(context.getPlayer().uuid());
+        Player bukkitPlayer = ItemUtils.getBukkitPlayer(context.getPlayer());
         if (bukkitPlayer == null) return InteractionResult.PASS;
 
         if (consumeManualInsertionGuard(bukkitPlayer.getUniqueId(), bukkitPlayer.getWorld(), posKey)) {
@@ -947,14 +1022,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
     }
 
     private static List<String> getStringList(Map<String, Object> arguments, String key) {
-        if (arguments == null) {
-            return List.of();
-        }
-        Object value = arguments.get(key);
-        if (value instanceof List<?> rawList) {
-            return rawList.stream().map(String::valueOf).toList();
-        }
-        return List.of();
+        return BehaviorArgParser.getStringList(arguments, key);
     }
 
     private void debug(String message) {

@@ -2,13 +2,15 @@
 icon: label
 ---
 
+[English](../en/items.md)
+
 # 物品
 
 包名：`com.huidu.farmersdelight.api.item` 类：`FarmersDelightItems` —— `final`，私有构造，`@ApiStatus.NonExtendable`。
 
 一组物品辅助方法，统一处理 CraftEngine 自定义物品、原版材质和物品标签的解析与匹配。签名只用 Bukkit / Adventure / `java` 类型，附属插件的编译 classpath 上不需要 CraftEngine。
 
-该类位于 `com.huidu.farmersdelight.api.**` —— 混淆时唯一保持名称稳定的包，所以附属插件可以直接调用。
+该类位于受支持的 `com.huidu.farmersdelight.api.**` 附属 API 中，因此附属插件可以直接调用。
 
 ## 身份识别
 

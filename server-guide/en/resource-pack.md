@@ -2,6 +2,8 @@
 icon: box
 ---
 
+[简体中文](../zh-cn/resource-pack.md)
+
 # Resource pack
 
 ## CraftEngine serves the pack, not FarmersDelight

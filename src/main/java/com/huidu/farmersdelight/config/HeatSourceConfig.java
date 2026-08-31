@@ -72,14 +72,28 @@ public class HeatSourceConfig {
 
         List<String> tagList = ConfigSectionReader.optionalStringList(section, "tags");
         for (String tagId : tagList) {
-            addCustomBlockTag(Key.of(tagId));
+            try {
+                addCustomBlockTag(Key.of(tagId));
+            } catch (IllegalArgumentException e) {
+                I18n.logWarning("plugin.config_value_invalid", "file", "config.yml",
+                        "path", section.getCurrentPath() + ".tags", "error", "invalid tag " + tagId);
+            }
         }
 
         List<String> customBlockList = ConfigSectionReader.optionalStringList(section, "custom-blocks");
         for (String blockId : customBlockList) {
-            CustomBlockStateMatcher matcher = parseBlockState(blockId);
-            if (matcher != null) {
-                customBlockStates.add(matcher);
+            try {
+                CustomBlockStateMatcher matcher = parseBlockState(blockId);
+                if (matcher != null) {
+                    customBlockStates.add(matcher);
+                    continue;
+                }
+            } catch (IllegalArgumentException ignored) {
+                // Fall through to the same per-entry diagnostic as a malformed state expression.
+            }
+            {
+                I18n.logWarning("plugin.config_value_invalid", "file", "config.yml",
+                        "path", section.getCurrentPath() + ".custom-blocks", "error", "invalid block state " + blockId);
             }
         }
 
@@ -90,7 +104,12 @@ public class HeatSourceConfig {
 
         List<String> conductorTagList = ConfigSectionReader.optionalStringList(section, "conductor-tags");
         for (String tagId : conductorTagList) {
-            addConductorTag(Key.of(tagId));
+            try {
+                addConductorTag(Key.of(tagId));
+            } catch (IllegalArgumentException e) {
+                I18n.logWarning("plugin.config_value_invalid", "file", "config.yml",
+                        "path", section.getCurrentPath() + ".conductor-tags", "error", "invalid tag " + tagId);
+            }
         }
     }
 
@@ -264,7 +283,6 @@ public class HeatSourceConfig {
 
     private record CustomBlockStateMatcher(Key blockId, Map<String, String> requiredProperties) {
 
-        @SuppressWarnings("unchecked")
         public boolean matches(ImmutableBlockState state) {
             if (!state.owner().matchesKey(blockId)) {
                 return false;
@@ -288,9 +306,8 @@ public class HeatSourceConfig {
                     return false;
                 }
 
-                @SuppressWarnings("rawtypes")
-                String actualValueStr = ((Property) property).valueName(actualValue);
-                if (!actualValueStr.equalsIgnoreCase(requiredValue)) {
+                Comparable<?> expectedValue = property.valueByName(requiredValue);
+                if (expectedValue == null || !actualValue.equals(expectedValue)) {
                     return false;
                 }
             }

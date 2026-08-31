@@ -38,9 +38,8 @@ import java.util.Map;
  */
 public final class RecipeItemCodec {
 
-    // SNBT parser lives in different classes across CraftEngine versions: 26.8 ships
-    // core.util.TagParser (returns a sparrow Tag), 26.7.4 ships proxy.minecraft.nbt.TagParserProxy
-    // (returns a NMS tag). Resolve reflectively so FD compiles and runs on both.
+    // CE 26.8 exposes core.util.TagParser and its proxy artifact. Resolve the parser lazily so the
+    // plugin does not link parser classes during config bootstrap, while still using only the 26.8 API.
     private static volatile Method snbtParseMethod;
     private static volatile Object snbtParseTarget;
 

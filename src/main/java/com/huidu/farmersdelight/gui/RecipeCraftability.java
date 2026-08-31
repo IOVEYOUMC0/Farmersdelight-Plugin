@@ -6,9 +6,12 @@ import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
 import com.huidu.farmersdelight.api.item.FarmersDelightItems;
 import com.huidu.farmersdelight.api.recipe.RecipeType;
+import com.huidu.farmersdelight.api.recipe.SpecialRecipeInfo;
 import com.huidu.farmersdelight.api.recipe.ViewableRecipe;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
+import com.huidu.farmersdelight.recipe.SpecialRecipeRegistry;
+import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -30,6 +33,56 @@ final class RecipeCraftability {
     // A linked jump that resolves to an addon workstation recipe (keg, BBQ station, ...) instead of FD's
     // own pot/board. The target lives in the addon's RecipeType, so the jump hands off to its book view.
     record LinkedAddonRecipe(RecipeType type, String recipeId) {
+    }
+
+    String findSpecialRecipe(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return null;
+        }
+        SpecialRecipeRegistry registry = plugin.getSpecialRecipeRegistry();
+        if (registry == null) {
+            return null;
+        }
+        List<SpecialRecipeInfo> recipes = registry.getAll();
+        // A product link wins over an input link: BAC's unripe cheese wheel is an aging input but a keg
+        // result, so it must open the keg recipe while the ripe wheel still opens the aging entry.
+        for (SpecialRecipeInfo info : recipes) {
+            if (matchesSpecialEntry(item, info.iconItemId())
+                    || matchesSpecialEntries(item, info.outputSlots())) {
+                return info.id();
+            }
+        }
+        for (SpecialRecipeInfo info : recipes) {
+            if (matchesSpecialEntries(item, info.inputSlots())
+                    || matchesSpecialEntries(item, info.catalystSlots())) {
+                return info.id();
+            }
+        }
+        return null;
+    }
+
+    private boolean matchesSpecialEntries(ItemStack item, List<SpecialRecipeInfo.SlotEntry> entries) {
+        for (SpecialRecipeInfo.SlotEntry entry : entries) {
+            if (entry == null) {
+                continue;
+            }
+            for (ItemStack candidate : ItemUtils.createSlotItems(
+                    entry.itemId(), entry.behaviorBlockId(), entry.behaviorListKey())) {
+                if (FarmersDelightItems.isSameItem(item, candidate)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean matchesSpecialEntry(ItemStack item, String itemId) {
+        for (ItemStack candidate : ItemUtils.createSlotItems(itemId)) {
+            if (FarmersDelightItems.isSameItem(item, candidate)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private final FarmersDelightPlugin plugin;

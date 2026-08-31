@@ -110,16 +110,19 @@ public class CookingPotItemDistributor {
             ItemStack target = inventory.getItem(slot);
             if (target == null || target.getType().isAir()) {
                 ItemStack placed = item.clone();
+                placed.setAmount(Math.min(item.getAmount(),
+                        Math.min(item.getMaxStackSize(), inventory.getMaxStackSize())));
                 writer.accept(slot, placed);
-                item.setAmount(0);
-                return;
+                item.setAmount(item.getAmount() - placed.getAmount());
+                if (item.getAmount() <= 0) return;
+                continue;
             }
 
             if (!target.isSimilar(item)) {
                 continue;
             }
 
-            int space = target.getMaxStackSize() - target.getAmount();
+            int space = Math.min(target.getMaxStackSize(), inventory.getMaxStackSize()) - target.getAmount();
             if (space <= 0) {
                 continue;
             }
@@ -147,7 +150,7 @@ public class CookingPotItemDistributor {
                 continue;
             }
 
-            int space = target.getMaxStackSize() - target.getAmount();
+            int space = Math.min(target.getMaxStackSize(), inventory.getMaxStackSize()) - target.getAmount();
             if (space <= 0) {
                 continue;
             }
@@ -167,9 +170,11 @@ public class CookingPotItemDistributor {
                 continue;
             }
             ItemStack placed = item.clone();
+            placed.setAmount(Math.min(item.getAmount(),
+                    Math.min(item.getMaxStackSize(), inventory.getMaxStackSize())));
             writer.accept(slot, placed);
-            item.setAmount(0);
-            return;
+            item.setAmount(item.getAmount() - placed.getAmount());
+            if (item.getAmount() <= 0) return;
         }
     }
 

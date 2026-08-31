@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/rope.md)
 # Rope
 
 Rope (`farmersdelight:rope`) is a climbable cord you can string up walls, hang down shafts, use to ring a distant bell, and grow tomatoes on.

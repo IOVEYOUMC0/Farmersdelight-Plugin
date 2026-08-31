@@ -177,7 +177,15 @@ public final class ConfigSectionReader {
             return List.of();
         }
         if (value instanceof List<?> list) {
-            return list.stream().map(String::valueOf).toList();
+            List<String> strings = new java.util.ArrayList<>(list.size());
+            for (Object element : list) {
+                if (element instanceof String || isScalar(element)) {
+                    strings.add(String.valueOf(element));
+                } else {
+                    throw invalid(section, path, element, "a list of strings");
+                }
+            }
+            return List.copyOf(strings);
         }
         throw invalid(section, path, value, "a list of strings");
     }
@@ -193,6 +201,8 @@ public final class ConfigSectionReader {
             for (Object e : list) {
                 if (e instanceof java.util.Map<?, ?> map) {
                     maps.add(map);
+                } else {
+                    throw invalid(section, path, e, "a list of maps");
                 }
             }
             return maps;

@@ -28,7 +28,7 @@ public final class VillagerTradeListener implements Listener {
         WorldDataConfig config = WorldDataConfig.get();
         AbstractVillager merchant = event.getEntity();
         // Addon-registered offers (via the api) are unioned in ALWAYS; only the config-driven offers are gated
-        // on the world-data.trades enable flags, so disabling the built-in trades does not silently kill
+        // on the world-data file enable flags, so disabling the built-in trades does not silently kill
         // addon trades too.
         List<TradeOffer> candidates = new ArrayList<>();
 

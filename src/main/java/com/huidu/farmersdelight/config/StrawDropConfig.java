@@ -23,7 +23,12 @@ public class StrawDropConfig {
 
         for (String blockType : section.getKeys(false)) {
             ConfigurationSection ruleSection = section.getConfigurationSection(blockType);
-            if (ruleSection == null) continue;
+            if (ruleSection == null) {
+                com.huidu.farmersdelight.i18n.I18n.logWarning("plugin.config_value_invalid",
+                        "file", "drops.yml", "path", section.getCurrentPath() + "." + blockType,
+                        "error", "expected a section");
+                continue;
+            }
 
             String dropItem = ConfigSectionReader.optionalString(ruleSection, "drop", "farmersdelight:straw");
             int minAmount = ConfigSectionReader.optionalInt(ruleSection, "min-amount", 1);
@@ -40,6 +45,14 @@ public class StrawDropConfig {
 
             if (ItemUtils.isEmptyItemId(dropItem)) {
                 rules.remove(blockType.toLowerCase(java.util.Locale.ROOT));
+                continue;
+            }
+
+            org.bukkit.inventory.ItemStack resolvedDrop = ItemUtils.createItem(dropItem);
+            if (ItemUtils.isAnyCustomItemLoaded()
+                    && (resolvedDrop == null || resolvedDrop.getType().isAir())) {
+                com.huidu.farmersdelight.i18n.I18n.logWarning("plugin.item_not_found",
+                        "path", section.getCurrentPath() + "." + blockType + ".drop", "id", dropItem);
                 continue;
             }
 
@@ -77,4 +90,3 @@ public class StrawDropConfig {
         }
     }
 }
-

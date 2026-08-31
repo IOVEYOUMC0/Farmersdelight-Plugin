@@ -93,8 +93,8 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
 
         if (!currentBlockId.equals(config.tomatoesBlockId())) return;
 
-        @SuppressWarnings("unchecked")
-        Property<Integer> ageProp = (Property<Integer>) atState.owner().value().getProperty(AGE_PROPERTY);
+        Property<Integer> ageProp = BlockBehaviorFactory.getOptionalProperty(
+                atState.owner().value(), AGE_PROPERTY, Integer.class);
         if (ageProp == null) return;
         Integer currentAge = atState.get(ageProp);
         if (currentAge == null) return;
@@ -110,8 +110,8 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
         ImmutableBlockState aboveState = CraftEngineBlocks.getCustomBlockState(aboveBlock);
         if (aboveState != null && !aboveState.isEmpty()
                 && aboveState.owner().value().id().equals(config.cropOnRopeBlockId())) {
-            @SuppressWarnings("unchecked")
-            Property<Integer> aboveAgeProp = (Property<Integer>) aboveState.owner().value().getProperty(AGE_PROPERTY);
+            Property<Integer> aboveAgeProp = BlockBehaviorFactory.getOptionalProperty(
+                    aboveState.owner().value(), AGE_PROPERTY, Integer.class);
             if (aboveAgeProp != null) {
                 Integer aboveAge = aboveState.get(aboveAgeProp);
                 if (aboveAge != null && aboveAge < config.hangingMaxAge()) {
@@ -127,8 +127,8 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
     }
 
     private void performBuddingBonemeal(World world, BlockPos pos, ImmutableBlockState state) {
-        @SuppressWarnings("unchecked")
-        Property<Integer> ageProp = (Property<Integer>) state.owner().value().getProperty(AGE_PROPERTY);
+        Property<Integer> ageProp = BlockBehaviorFactory.getOptionalProperty(
+                state.owner().value(), AGE_PROPERTY, Integer.class);
         if (ageProp == null) return;
         Integer currentAge = state.get(ageProp);
         if (currentAge == null) return;
@@ -145,8 +145,8 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
         if (tomatoes == null) return;
         int tomatoesAgeValue = Math.min(config.tomatoesMaxAge(), Math.max(0, newAge - (config.buddingMaxAge() + 1)));
         ImmutableBlockState newState = tomatoes.defaultState();
-        @SuppressWarnings("unchecked")
-        Property<Integer> tomatoesAgeProp = (Property<Integer>) tomatoes.getProperty(AGE_PROPERTY);
+        Property<Integer> tomatoesAgeProp = BlockBehaviorFactory.getOptionalProperty(
+                tomatoes, AGE_PROPERTY, Integer.class);
         if (tomatoesAgeProp != null) {
             newState = newState.with(tomatoesAgeProp, tomatoesAgeValue);
         }
@@ -242,8 +242,8 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
         } else {
             return false;
         }
-        @SuppressWarnings("unchecked")
-        Property<Integer> ageProp = (Property<Integer>) state.owner().value().getProperty(AGE_PROPERTY);
+        Property<Integer> ageProp = BlockBehaviorFactory.getOptionalProperty(
+                state.owner().value(), AGE_PROPERTY, Integer.class);
         if (ageProp == null) return false;
         Integer age = state.get(ageProp);
         return age != null && age >= max;
@@ -268,16 +268,16 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
 
     private void tryGrowPastMaxAge(World world, BlockPos pos, ImmutableBlockState state, Block atPos) {
         if (atPos.getLightLevel() < config.minLight()) return;
-        @SuppressWarnings("unchecked")
-        Property<Integer> ageProp = (Property<Integer>) state.owner().value().getProperty(AGE_PROPERTY);
+        Property<Integer> ageProp = BlockBehaviorFactory.getOptionalProperty(
+                state.owner().value(), AGE_PROPERTY, Integer.class);
         if (ageProp == null) return;
         Integer age = state.get(ageProp);
         if (age == null || age < config.buddingMaxAge()) return;
         BlockDefinition tomatoes = CraftEngineBlocks.byId(config.tomatoesBlockId());
         if (tomatoes == null) return;
         ImmutableBlockState newState = tomatoes.defaultState();
-        @SuppressWarnings("unchecked")
-        Property<Integer> tomatoesAge = (Property<Integer>) tomatoes.getProperty(AGE_PROPERTY);
+        Property<Integer> tomatoesAge = BlockBehaviorFactory.getOptionalProperty(
+                tomatoes, AGE_PROPERTY, Integer.class);
         if (tomatoesAge != null) {
             newState = newState.with(tomatoesAge, 0);
         }
@@ -292,8 +292,8 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
         if (atState == null || atState.isEmpty()) return;
         Key currentBlockId = atState.owner().value().id();
         if (config.matureAge() > 0) {
-            @SuppressWarnings("unchecked")
-            Property<Integer> ageProperty = (Property<Integer>) atState.owner().value().getProperty(AGE_PROPERTY);
+            Property<Integer> ageProperty = BlockBehaviorFactory.getOptionalProperty(
+                    atState.owner().value(), AGE_PROPERTY, Integer.class);
             if (ageProperty != null) {
                 Integer currentAge = atState.get(ageProperty);
                 if (currentAge != null && currentAge < config.matureAge()) return;
@@ -310,8 +310,8 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
         BlockDefinition cropOnRope = CraftEngineBlocks.byId(config.cropOnRopeBlockId());
         if (cropOnRope == null) return;
         ImmutableBlockState newState = cropOnRope.defaultState();
-        @SuppressWarnings("unchecked")
-        Property<Integer> targetAge = (Property<Integer>) cropOnRope.getProperty(AGE_PROPERTY);
+        Property<Integer> targetAge = BlockBehaviorFactory.getOptionalProperty(
+                cropOnRope, AGE_PROPERTY, Integer.class);
         if (targetAge != null) {
             newState = newState.with(targetAge, 0);
         }

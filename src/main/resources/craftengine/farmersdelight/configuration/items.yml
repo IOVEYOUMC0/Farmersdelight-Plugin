@@ -1734,7 +1734,7 @@ recipes:
     experience: 0.35
     category: food
     time: 200
-    ingredient: "#minecraft:eggs"
+    ingredient: "#eggs"
     result:
       id: farmersdelight:fried_egg
       count: 1
@@ -1742,7 +1742,7 @@ recipes:
     type: smoking
     experience: 0.35
     time: 100
-    ingredient: "#minecraft:eggs"
+    ingredient: "#eggs"
     result:
       id: farmersdelight:fried_egg
       count: 1
@@ -1750,7 +1750,7 @@ recipes:
     type: campfire_cooking
     experience: 0.35
     time: 600
-    ingredient: "#minecraft:eggs"
+    ingredient: "#eggs"
     result:
       id: farmersdelight:fried_egg
       count: 1
@@ -1758,7 +1758,7 @@ recipes:
     type: shapeless
     category: misc
     ingredients:
-      - "#minecraft:eggs"
+      - "#eggs"
       - "minecraft:wheat"
       - "minecraft:wheat"
       - "minecraft:wheat"
@@ -1815,7 +1815,7 @@ recipes:
       - "SES"
       - "WWW"
     ingredients:
-      E: "#minecraft:eggs"
+      E: "#eggs"
       M:
         - "minecraft:milk_bucket"
         - "farmersdelight:milk_bottle"
@@ -1881,7 +1881,7 @@ recipes:
       - " C "
     ingredients:
       C: "farmersdelight:pie_crust"
-      E: "#minecraft:eggs"
+      E: "#eggs"
       P: "farmersdelight:pumpkin_slice"
       S: "minecraft:sugar"
     result:
@@ -2620,7 +2620,7 @@ recipes:
     category: misc
     ingredients:
       - "farmersdelight:onion"
-      - "#minecraft:eggs"
+      - "#eggs"
       - "minecraft:bread"
       - "minecraft:carrot"
       - "minecraft:cooked_chicken"

@@ -4,6 +4,7 @@ import net.momirealms.craftengine.core.util.Key;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -116,5 +117,22 @@ class RecipeSerializerTest {
                 Set.of());
         // Two serializations of the same model must be byte-identical, regardless of set iteration order.
         assertEquals(RecipeSerializer.serializeIngredient(tag), RecipeSerializer.serializeIngredient(tag));
+    }
+
+    @Test
+    void parsesEditorItemSnapshotValue() {
+        RecipeIngredient parsed = RecipeParsingSupport.parseIngredientValue(Map.of(
+                "item", "minecraft:paper", "nbt", "AQ=="));
+        assertInstanceOf(RecipeIngredient.Item.class, parsed);
+        RecipeIngredient.Item item = (RecipeIngredient.Item) parsed;
+        assertEquals(Key.of("minecraft:paper"), item.key());
+        assertEquals("AQ==", item.nbt());
+    }
+
+    @Test
+    void serializesItemSnapshotValue() {
+        RecipeIngredient.Item item = new RecipeIngredient.Item(Key.of("minecraft:paper"), "AQ==");
+        assertEquals(Map.of("item", "minecraft:paper", "nbt", "AQ=="),
+                RecipeSerializer.serializeIngredientValue(item));
     }
 }

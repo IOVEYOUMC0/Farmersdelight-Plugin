@@ -14,6 +14,7 @@ import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.PresentationUtils;
 import com.huidu.farmersdelight.util.Text;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.api.util.TooltipUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -51,6 +52,11 @@ public class BlockBreakListener implements Listener {
                 .invalidateBlockedAboveCache(block.getLocation().add(0, -1, 0));
         syncTraysAroundSupportChange(block);
         ImmutableBlockState state = CustomBlockUtils.getState(block);
+        if (isFarmersDelightBlock(state)
+                && !ProtectionCompat.canBreak(event.getPlayer(), block, featureFor(state))) {
+            event.setCancelled(true);
+            return;
+        }
         if (isManagedInteractiveBlock(state)) {
             return;
         }
@@ -65,6 +71,11 @@ public class BlockBreakListener implements Listener {
         // Resolve the block state once and reuse it across the managed-type checks and cleanup, avoiding
         // the repeated lookups the per-call event.blockState() would otherwise perform.
         ImmutableBlockState state = event.blockState();
+        if (isFarmersDelightBlock(state)
+                && !ProtectionCompat.canBreak(event.getPlayer(), event.bukkitBlock(), featureFor(state))) {
+            event.setCancelled(true);
+            return;
+        }
         if (!isManagedInteractiveBlock(state)) {
             return;
         }
@@ -82,6 +93,27 @@ public class BlockBreakListener implements Listener {
         boolean shouldDropItems = event.dropItems() && event.getPlayer().getGameMode() != GameMode.CREATIVE;
         event.setDropItems(false);
         cleanupBlockAt(event.bukkitBlock(), state, false, shouldDropItems);
+    }
+
+    private static boolean isFarmersDelightBlock(ImmutableBlockState state) {
+        String id = CustomBlockUtils.getId(state);
+        return id != null && id.startsWith("farmersdelight:");
+    }
+
+    private static ProtectionCompat.Feature featureFor(ImmutableBlockState state) {
+        if (CustomBlockUtils.hasBehavior(state, CookingPotBlockBehavior.class)) {
+            return ProtectionCompat.Feature.COOKING_POT;
+        }
+        if (CustomBlockUtils.hasBehavior(state, SkilletBlockBehavior.class)) {
+            return ProtectionCompat.Feature.SKILLET;
+        }
+        if (CustomBlockUtils.hasBehavior(state, StoveCookingBlockBehavior.class)) {
+            return ProtectionCompat.Feature.STOVE;
+        }
+        if (CustomBlockUtils.hasBehavior(state, CuttingBoardBlockBehavior.class)) {
+            return ProtectionCompat.Feature.CUTTING_BOARD;
+        }
+        return null;
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -324,4 +356,3 @@ public class BlockBreakListener implements Listener {
         return CustomBlockUtils.hasBehavior(state, CookingPotBlockBehavior.class);
     }
 }
-

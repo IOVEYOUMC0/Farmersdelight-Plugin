@@ -43,7 +43,7 @@ public class ConnectedRugBlockBehavior extends RugBlockBehavior {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
             String variantPropertyName = BehaviorArgParser.getString(arguments, "variant-property", null);
             Property<?> variantProperty = variantPropertyName == null ? null : block.getProperty(variantPropertyName);
-            Set<String> connectedIds = parseStringList(arguments.get("connected-ids"));
+            Set<String> connectedIds = new java.util.HashSet<>(BehaviorArgParser.getStringList(arguments, "connected-ids"));
             if (connectedIds.isEmpty()) {
                 connectedIds.add(block.id().namespace() + ":" + block.id().value());
             }

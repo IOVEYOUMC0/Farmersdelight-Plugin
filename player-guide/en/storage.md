@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/storage.md)
 # Storage & Crates
 
 Farmer's Delight gives you two ways to tidy up a harvest: **crates and bales** that compact produce into solid blocks, and the **basket**, a container that can gather dropped items for you.

@@ -10,7 +10,6 @@ import com.huidu.farmersdelight.api.recipe.RecipeType;
 import com.huidu.farmersdelight.api.recipe.ViewableRecipe;
 import com.huidu.farmersdelight.gui.GuiConfig;
 import com.huidu.farmersdelight.i18n.I18n;
-import com.huidu.farmersdelight.gui.GuiTickManager;
 import com.huidu.farmersdelight.recipe.RecipeDiscoveryManager;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.Text;
@@ -46,6 +45,7 @@ public final class RecipeBookGui implements InventoryHolder {
     private Inventory inventory;
     // When only one recipe type is registered, skip the category chooser and open its list directly.
     private boolean singleType;
+    private boolean directDetail;
     // Optional "craftable only" filter (toggled by a 'filter' button); needs the viewer to test inventories.
     private boolean filterCraftable;
     private Player viewer;
@@ -65,16 +65,9 @@ public final class RecipeBookGui implements InventoryHolder {
     private record ViewState(View view, RecipeType type, String recipeId, int page) {
     }
 
-    // Animated cook/ferment progress bar (chevron frames farmersdelight:0..20), drawn into every detail slot
-    // with the "progress" role — mirrors FarmersDelight's own recipe view. The tick callback is registered
-    // lazily when a progress detail first opens and runs on the viewer's region thread (via
-    // GuiTickManager.runForEntity, the same thread as click handling, so the per-gui state below needs no
-    // synchronization). It is unregistered when the actually-open inventory closes (see onClose).
-    private static final int PROGRESS_FRAMES = 20;
-    private static final ItemStack[] progressFrameCache = new ItemStack[PROGRESS_FRAMES + 1];
+    // The resource-pack animated item advances client-side; the server places it once per detail open.
+    private static volatile ItemStack progressItem;
     private List<Integer> progressSlots = List.of();
-    private int progressFrame;
-    private java.util.function.Consumer<Void> tickCallback;
 
     public static void openMenu(Player player, RecipeFiller filler) {
         openMenu(player, filler, null);
@@ -118,6 +111,7 @@ public final class RecipeBookGui implements InventoryHolder {
         RecipeBookGui gui = new RecipeBookGui();
         gui.viewer = player;
         gui.singleType = true;
+        gui.directDetail = true;
         gui.onExit = onExit;
         gui.drawDetail(type, recipeId, player);
         player.openInventory(gui.inventory);
@@ -126,7 +120,8 @@ public final class RecipeBookGui implements InventoryHolder {
     // Roles whose slots are filled dynamically/conditionally by the GUI (not static chrome).
     private static final Set<String> DYNAMIC_ROLES = Set.of(
             "category", "recipe", "ingredient", "result", "prev_page", "next_page", "fill", "filter", "switch",
-            "progress");
+            "progress", "fluid", "fluid_icon", "fluid_level", "output_fluid", "ferment_info", "temperature",
+            "return");
 
     private interface RenderSpec {
         int size();
@@ -152,7 +147,7 @@ public final class RecipeBookGui implements InventoryHolder {
         }
         public ItemStack button(String role) {
             GuiConfig.GuiItem item = cfg.item(role);
-            return item == null ? null : item.createItem();
+            return item == null ? null : normalizeGuiItem(item.createItem());
         }
     }
 
@@ -180,7 +175,7 @@ public final class RecipeBookGui implements InventoryHolder {
                     }
                     ItemStack item = decorations.get(role);
                     if (item != null) {
-                        inventory.setItem(slot, item.clone());
+                        inventory.setItem(slot, normalizeGuiItem(item));
                     }
                 }
             }
@@ -193,7 +188,7 @@ public final class RecipeBookGui implements InventoryHolder {
         }
         public ItemStack button(String role) {
             ItemStack item = layout.decorations().get(role);
-            return ItemUtils.cloneOrNull(item);
+            return item == null ? null : normalizeGuiItem(item);
         }
     }
 
@@ -209,7 +204,7 @@ public final class RecipeBookGui implements InventoryHolder {
 
     public static void clearConfigCache() {
         cachedConfig = null;
-        java.util.Arrays.fill(progressFrameCache, null);
+        progressItem = null;
     }
 
     private static RecipeBookGuiConfig config() {
@@ -318,7 +313,7 @@ public final class RecipeBookGui implements InventoryHolder {
             ItemStack icon = isLocked(discovery, target, recipe)
                     ? discovery.lockedPlaceholder(viewer)
                     : buildListDisplayItem(recipe, viewer);
-            inventory.setItem(recipeSlots.get(i), icon);
+            inventory.setItem(recipeSlots.get(i), normalizeGuiItem(icon));
         }
         if (page > 0) {
             placeButton(spec, "prev_page");
@@ -359,7 +354,7 @@ public final class RecipeBookGui implements InventoryHolder {
             List<Integer> ingredientSlots = spec.slotsByType("ingredient");
             List<ItemStack> inputs = recipe.inputs();
             for (int i = 0; i < ingredientSlots.size() && i < inputs.size(); i++) {
-                inventory.setItem(ingredientSlots.get(i), clone(inputs.get(i), Material.AIR));
+                inventory.setItem(ingredientSlots.get(i), normalizeGuiItem(clone(inputs.get(i), Material.AIR)));
             }
             // Custom roles supplied by the recipe (e.g. fluid / return / temperature for the keg), placed
             // into the type's own detail layout slots for that role.
@@ -368,30 +363,27 @@ public final class RecipeBookGui implements InventoryHolder {
                 List<ItemStack> items = entry.getValue();
                 for (int i = 0; i < slots.size() && i < items.size(); i++) {
                     if (items.get(i) != null && !items.get(i).getType().isAir()) {
-                        inventory.setItem(slots.get(i), items.get(i).clone());
+                        inventory.setItem(slots.get(i), normalizeGuiItem(items.get(i)));
                     }
                 }
             }
             int resultSlot = spec.firstSlotByType("result");
             if (resultSlot >= 0) {
                 ItemStack result = clone(recipe.result(), Material.PAPER);
-                List<Component> lore = new ArrayList<>(recipe.infoLines(viewer));
+                List<Component> lore = new ArrayList<>(recipe.detailInfoLines(viewer));
                 if (!lore.isEmpty()) {
                     applyLore(result, lore);
                 }
-                inventory.setItem(resultSlot, result);
+                inventory.setItem(resultSlot, normalizeGuiItem(result));
             }
             if (filler != null) {
                 placeButton(spec, "fill");
             }
         }
-        // Animated progress bar: any slot with the "progress" role cycles the chevron frames while this detail
-        // is open, matching FarmersDelight's own recipe view.
+        // Animated progress bar: the client-side item is placed once in every "progress" slot.
         progressSlots = spec.slotsByType("progress");
         if (!progressSlots.isEmpty()) {
-            progressFrame = 0;
             renderProgress();
-            startProgressAnimation(viewer);
         }
     }
 
@@ -399,7 +391,7 @@ public final class RecipeBookGui implements InventoryHolder {
         if (inventory == null) {
             return;
         }
-        ItemStack frame = progressFrameItem(progressFrame);
+        ItemStack frame = progressFrameItem();
         for (int slot : progressSlots) {
             if (slot >= 0 && slot < inventory.getSize()) {
                 inventory.setItem(slot, frame.clone());
@@ -407,55 +399,18 @@ public final class RecipeBookGui implements InventoryHolder {
         }
     }
 
-    private void onProgressTick() {
-        if (view != View.DETAIL || progressSlots.isEmpty()) {
-            return;
-        }
-        progressFrame = (progressFrame + 1) % (PROGRESS_FRAMES + 1);
-        renderProgress();
-    }
-
-    private void startProgressAnimation(Player player) {
-        if (tickCallback != null || player == null) {
-            return;
-        }
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (plugin == null) {
-            return;
-        }
-        tickCallback = ignored -> onProgressTick();
-        GuiTickManager.getInstance(plugin).registerCallback(player, tickCallback);
-    }
-
     void onClose(Inventory closed) {
-        if (closed == null || closed == inventory) {
-            stopProgressAnimation();
-        }
+        // Kept for the listener contract; animated textures need no per-viewer task to stop.
     }
 
-    private void stopProgressAnimation() {
-        if (tickCallback == null) {
-            return;
+    private static ItemStack progressFrameItem() {
+        if (progressItem != null) {
+            return progressItem.clone();
         }
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (plugin != null) {
-            GuiTickManager.getInstance(plugin).unregisterCallback(tickCallback);
-        }
-        tickCallback = null;
-    }
-
-    private static ItemStack progressFrameItem(int frame) {
-        int safe = Math.max(0, Math.min(PROGRESS_FRAMES, frame));
-        ItemStack cached = progressFrameCache[safe];
-        if (cached != null) {
-            return cached;
-        }
-        ItemStack item = ItemUtils.createItem("farmersdelight:" + safe);
+        ItemStack item = ItemUtils.createItem("farmersdelight:animated");
         boolean resolved = item != null && !item.getType().isAir();
-        if (item == null || item.getType().isAir()) {
-            // The CraftEngine frame item isn't loaded yet (e.g. mid CE reload): use a transient fallback but
-            // DON'T cache it (see below), so a later tick retries once the items resolve — the cache is
-            // otherwise only cleared on /fd reload gui.
+        if (!resolved) {
+            // CraftEngine may be midway through a reload; keep the fallback transient so the next detail open retries.
             item = new ItemStack(Material.LIGHT_GRAY_STAINED_GLASS_PANE);
         }
         ItemMeta meta = item.getItemMeta();
@@ -466,7 +421,7 @@ public final class RecipeBookGui implements InventoryHolder {
             item.setItemMeta(meta);
         }
         if (resolved) {
-            progressFrameCache[safe] = item;
+            progressItem = item;
         }
         return item;
     }
@@ -475,7 +430,7 @@ public final class RecipeBookGui implements InventoryHolder {
         int slot = spec.firstSlotByType(role);
         ItemStack item = spec.button(role);
         if (slot >= 0 && item != null) {
-            inventory.setItem(slot, item);
+            inventory.setItem(slot, normalizeGuiItem(item));
         }
     }
 
@@ -511,8 +466,12 @@ public final class RecipeBookGui implements InventoryHolder {
                 }
             }
             case DETAIL -> {
-                drawList(type, page);
-                player.openInventory(inventory);
+                if (directDetail) {
+                    exitOrClose(player);
+                } else {
+                    drawList(type, page);
+                    player.openInventory(inventory);
+                }
             }
         }
     }
@@ -564,7 +523,9 @@ public final class RecipeBookGui implements InventoryHolder {
             org.bukkit.inventory.meta.ItemMeta meta = fillItem.getItemMeta();
             if (meta != null) {
                 List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
-                lore.add(Text.deserialize(I18n.get(statusKey, player)));
+                lore.add(Text.deserialize(I18n.get(statusKey, player))
+                        .colorIfAbsent(NamedTextColor.RED)
+                        .decoration(TextDecoration.ITALIC, false));
                 meta.lore(lore);
                 fillItem.setItemMeta(meta);
             }
@@ -662,7 +623,7 @@ public final class RecipeBookGui implements InventoryHolder {
         // When the result keeps its own original lore, drop a blank line above the recipe block to separate it.
         ItemMeta meta = item.getItemMeta();
         boolean hasOriginalLore = meta != null && meta.lore() != null && !meta.lore().isEmpty();
-        List<ItemStack> inputs = recipe.inputs();
+        List<ItemStack> inputs = recipe.listInputs();
         if (!inputs.isEmpty()) {
             if (hasOriginalLore) {
                 lore.add(Component.empty());
@@ -681,7 +642,7 @@ public final class RecipeBookGui implements InventoryHolder {
         if (!lore.isEmpty()) {
             applyLore(item, lore);
         }
-        return item;
+        return normalizeGuiItem(item);
     }
 
     static ItemStack clone(ItemStack source, Material fallback) {
@@ -694,9 +655,30 @@ public final class RecipeBookGui implements InventoryHolder {
     static void rename(ItemStack item, Component name) {
         ItemMeta meta = item.getItemMeta();
         if (meta != null && name != null) {
-            meta.displayName(name.decoration(TextDecoration.ITALIC, false));
+            meta.displayName(name.colorIfAbsent(NamedTextColor.WHITE)
+                    .decoration(TextDecoration.ITALIC, false));
             item.setItemMeta(meta);
         }
+    }
+
+    private static ItemStack normalizeGuiItem(ItemStack source) {
+        ItemStack item = source.clone();
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return item;
+        }
+        if (meta.displayName() != null) {
+            meta.displayName(meta.displayName().colorIfAbsent(NamedTextColor.WHITE)
+                    .decoration(TextDecoration.ITALIC, false));
+        }
+        if (meta.lore() != null) {
+            meta.lore(meta.lore().stream()
+                    .map(line -> line.colorIfAbsent(NamedTextColor.GRAY)
+                            .decoration(TextDecoration.ITALIC, false))
+                    .toList());
+        }
+        item.setItemMeta(meta);
+        return item;
     }
 
     // Appends the supplied lore lines to the item's existing lore instead of replacing it, so an item's own
@@ -709,7 +691,8 @@ public final class RecipeBookGui implements InventoryHolder {
                 merged.addAll(meta.lore());
             }
             for (Component line : lore) {
-                merged.add(line.decoration(TextDecoration.ITALIC, false));
+                merged.add(line.colorIfAbsent(NamedTextColor.GRAY)
+                        .decoration(TextDecoration.ITALIC, false));
             }
             meta.lore(merged);
             item.setItemMeta(meta);

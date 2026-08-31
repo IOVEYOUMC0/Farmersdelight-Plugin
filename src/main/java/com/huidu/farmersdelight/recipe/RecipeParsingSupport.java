@@ -5,6 +5,7 @@ import net.momirealms.craftengine.core.util.Key;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -53,6 +54,37 @@ final class RecipeParsingSupport {
         });
     }
 
+    /** Parses both the legacy string form and editor-generated item/choice maps. */
+    static RecipeIngredient parseIngredientValue(Object value) {
+        if (value instanceof Map<?, ?> raw) {
+            Object choice = raw.get("choice");
+            if (choice instanceof List<?> options) {
+                List<RecipeIngredient> parsed = new ArrayList<>(options.size());
+                for (Object option : options) {
+                    RecipeIngredient ingredient = parseIngredientValue(option);
+                    if (ingredient != null) {
+                        parsed.add(ingredient);
+                    }
+                }
+                if (parsed.isEmpty()) {
+                    throw new IllegalArgumentException("Choice ingredient must contain at least one option");
+                }
+                return parsed.size() == 1 ? parsed.getFirst() : new RecipeIngredient.Choice(parsed);
+            }
+            Object item = raw.get("item");
+            if (item != null) {
+                Object nbt = raw.get("nbt");
+                return new RecipeIngredient.Item(Key.of(item.toString()),
+                        nbt == null || nbt.toString().isBlank() ? null : nbt.toString());
+            }
+            throw new IllegalArgumentException("Ingredient map must contain item or choice");
+        }
+        if (value == null || value.toString().isBlank()) {
+            throw new IllegalArgumentException("Ingredient cannot be empty");
+        }
+        return parseIngredientChoice(value.toString());
+    }
+
     static RecipeIngredient.Tag parseTagIngredientWithExclusions(String str) {
         ParsedKey parsed = parseKeyWithExclusions(str, "ingredient");
         return new RecipeIngredient.Tag(parsed.key(), parsed.excludedItems(), parsed.excludedTags());
@@ -98,4 +130,3 @@ final class RecipeParsingSupport {
     record ParsedKey(Key key, boolean tag, Set<Key> excludedItems, Set<Key> excludedTags) {
     }
 }
-

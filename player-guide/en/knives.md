@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/knives.md)
 # Knives
 
 The knife is Farmer's Delight's signature tool. It is both a **kitchen tool** (used on the

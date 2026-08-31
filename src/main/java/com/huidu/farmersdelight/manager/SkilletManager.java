@@ -28,9 +28,11 @@ import org.bukkit.inventory.CookingRecipe;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +50,7 @@ public class SkilletManager {
     private static final int DEFAULT_COOK_TIME = Constants.DEFAULT_COOKING_TIME_SKILLET;
     private static final int DEFAULT_MIN_COOK_TIME = 60;
     private static final int DEFAULT_COOLING_DECREMENT = 2;
+    private static final int DEFAULT_RELOAD_VISUAL_REFRESH_BUDGET = 32;
     private static final double DEFAULT_COOK_TIME_MULTIPLIER = Constants.SKILLET_COOKING_TIME_REDUCTION;
     private static final double DEFAULT_FIRE_ASPECT_BONUS = Constants.SKILLET_FIRE_ASPECT_BONUS;
     // Heat-source state changes rarely (only on block break/place below the skillet). Cache the result
@@ -62,6 +65,8 @@ public class SkilletManager {
     private final Map<UUID, Set<Location>> skilletsByWorld = new ConcurrentHashMap<>();
     private final Map<UUID, Map<Long, Set<Location>>> skilletsByChunk = new ConcurrentHashMap<>();
     private final Set<Location> scheduledSkilletTicks = ConcurrentHashMap.newKeySet();
+    private final Object visualRefreshLock = new Object();
+    private final Deque<SkilletData> pendingVisualRefreshes = new ArrayDeque<>();
     private final AtomicLong tickLocationsVersion = new AtomicLong();
     private volatile List<Location> tickLocationsSnapshot = List.of();
     private volatile long tickLocationsSnapshotVersion = -1L;
@@ -70,6 +75,7 @@ public class SkilletManager {
     // block events) and read+nulled by the global tick thread (stopTaskIfIdle) — volatile for visibility
     // + a dedicated lock so the check-then-schedule / check-then-cancel are atomic (no double-schedule).
     private volatile PluginTask tickTask;
+    private PluginTask visualRefreshTask;
     private final Object tickTaskLock = new Object();
     private int heartbeatTicks;
     private int tickCursor;
@@ -77,6 +83,7 @@ public class SkilletManager {
     private int defaultCookingTime = DEFAULT_COOK_TIME;
     private int minCookingTime = DEFAULT_MIN_COOK_TIME;
     private int coolingDecrement = DEFAULT_COOLING_DECREMENT;
+    private volatile int reloadVisualRefreshBudget = DEFAULT_RELOAD_VISUAL_REFRESH_BUDGET;
     private double cookTimeMultiplier = DEFAULT_COOK_TIME_MULTIPLIER;
     private double fireAspectBonus = DEFAULT_FIRE_ASPECT_BONUS;
 
@@ -101,6 +108,8 @@ public class SkilletManager {
         this.coolingDecrement = Math.max(0, plugin.getConfigInt(DEFAULT_COOLING_DECREMENT,
                 "skillet.cooking.cooling-decrement",
                 "skillet.cooling-decrement"));
+        this.reloadVisualRefreshBudget = Math.max(1, plugin.getConfigInt(DEFAULT_RELOAD_VISUAL_REFRESH_BUDGET,
+                "performance.reload-visual-refreshes-per-tick"));
         this.cookTimeMultiplier = ManagerSupport.clampChance(plugin.getConfigDouble(DEFAULT_COOK_TIME_MULTIPLIER,
                 "skillet.cooking.cook-time-multiplier",
                 "skillet.cooking-time-reduction"));
@@ -741,6 +750,10 @@ public class SkilletManager {
     }
 
     public void cleanup() {
+        synchronized (visualRefreshLock) {
+            pendingVisualRefreshes.clear();
+            stopVisualRefreshTask();
+        }
         synchronized (tickTaskLock) {
             if (tickTask != null) {
                 tickTask.cancel();
@@ -1187,18 +1200,54 @@ public class SkilletManager {
     }
 
     private void refreshVisualsAfterConfigReload() {
-        if (skillets.isEmpty()) {
-            return;
+        synchronized (visualRefreshLock) {
+            pendingVisualRefreshes.clear();
+            for (SkilletData skillet : skillets.values()) {
+                if (skillet != null && skillet.hasItem() && skillet.location != null) {
+                    pendingVisualRefreshes.addLast(skillet);
+                }
+            }
+            if (pendingVisualRefreshes.isEmpty()) {
+                stopVisualRefreshTask();
+            } else if (visualRefreshTask == null || visualRefreshTask.isCancelled()) {
+                visualRefreshTask = plugin.scheduler().runRepeating(this::refreshNextVisuals, 1L, 1L);
+            }
         }
-        for (SkilletData skillet : skillets.values()) {
-            if (skillet == null || !skillet.hasItem() || skillet.location == null) {
+    }
+
+    private void refreshNextVisuals() {
+        for (int i = 0; i < reloadVisualRefreshBudget; i++) {
+            SkilletData skillet;
+            synchronized (visualRefreshLock) {
+                skillet = pendingVisualRefreshes.pollFirst();
+            }
+            if (skillet == null) {
+                break;
+            }
+
+            Location location = skillet.location;
+            if (location == null) {
                 continue;
             }
-            Location loc = skillet.location;
-            plugin.scheduler().runAt(loc, () -> {
-                cleanupVisual(skillet);
-                createVisual(loc, skillet);
+            plugin.scheduler().runAt(location, () -> {
+                if (skillets.get(location) == skillet) {
+                    cleanupVisual(skillet);
+                    createVisual(location, skillet);
+                }
             });
+        }
+
+        synchronized (visualRefreshLock) {
+            if (pendingVisualRefreshes.isEmpty()) {
+                stopVisualRefreshTask();
+            }
+        }
+    }
+
+    private void stopVisualRefreshTask() {
+        if (visualRefreshTask != null) {
+            visualRefreshTask.cancel();
+            visualRefreshTask = null;
         }
     }
 

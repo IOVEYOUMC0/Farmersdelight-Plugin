@@ -36,9 +36,8 @@ final class SpecialRecipeRenderer {
         }
         ItemMeta meta = icon.getItemMeta();
         meta.displayName(translatable(info.titleKey(), NamedTextColor.GOLD));
-        List<Component> lore = translatableKeys(info.descriptionKeys(), NamedTextColor.GRAY);
+        List<Component> lore = new ArrayList<>(translatableKeys(info.descriptionKeys(), NamedTextColor.GRAY));
         if (!isListOnlySpecial(info)) {
-            lore = new ArrayList<>(lore);
             lore.add(Component.text(""));
             lore.add(gui.tr("gui.recipe.click_to_view", NamedTextColor.YELLOW));
         }
@@ -47,10 +46,8 @@ final class SpecialRecipeRenderer {
         return icon;
     }
 
-    // Item-description and text entries are pure information: their whole description is shown as list
-    // lore, so they stay in the list with no click-through to a separate detail page.
     boolean isListOnlySpecial(SpecialRecipeInfo info) {
-        return info != null && SpecialRecipeInfo.DISPLAY_ITEM_DESCRIPTION.equals(info.displayType());
+        return info != null && SpecialRecipeInfo.DISPLAY_ITEM_DESCRIPTION.equalsIgnoreCase(info.displayType());
     }
 
     // Shared translatable-component builders: every condition/description label disables italics the same

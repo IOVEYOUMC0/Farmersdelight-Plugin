@@ -25,15 +25,22 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 
-final class RecipeFileLoader {
+public final class RecipeFileLoader {
 
     private static final String MERGE_MISSING_SETTING = "recipes.merge-missing-bundled";
 
-    private static final Set<String> REPORTED_MISSING_FILES = ConcurrentHashMap.newKeySet();
+    // CE/Folia readiness can invoke recipe loading twice during startup. Keep identical diagnostics
+    // from flooding the console; a changed path/detail still produces a fresh warning.
+    private static final Set<String> REPORTED_ISSUES = ConcurrentHashMap.newKeySet();
 
     private static final int MAX_REPORTED_IDS = 20;
 
     private RecipeFileLoader() {
+    }
+
+    /** Starts a new operator-triggered recipe reload diagnostic cycle. */
+    public static void resetReportedIssues() {
+        REPORTED_ISSUES.clear();
     }
 
     static void loadRecipeSections(FarmersDelightPlugin plugin,
@@ -94,13 +101,6 @@ final class RecipeFileLoader {
         }
 
         if (!ConfigSectionReader.optionalBoolean(plugin.getConfig(), MERGE_MISSING_SETTING, false)) {
-            if (REPORTED_MISSING_FILES.add(relativePath)) {
-                I18n.logInfo("plugin.recipe_bundled_missing",
-                        "file", relativePath,
-                        "count", missing.size(),
-                        "ids", summarizeIds(missing),
-                        "setting", MERGE_MISSING_SETTING);
-            }
             return;
         }
 
@@ -189,15 +189,31 @@ final class RecipeFileLoader {
                                    String rootSectionKey,
                                    String recipeTypeName,
                                    BiConsumer<String, ConfigurationSection> sectionConsumer) {
+        loadRecipeSections(plugin, config, rootSectionKey, recipeTypeName, "recipes/" + rootSectionKey + ".yml", sectionConsumer);
+    }
+
+    static void loadRecipeSections(FarmersDelightPlugin plugin,
+                                   YamlConfiguration config,
+                                   String rootSectionKey,
+                                   String recipeTypeName,
+                                   String sourceFile,
+                                   BiConsumer<String, ConfigurationSection> sectionConsumer) {
         ConfigurationSection recipesSection = config.getConfigurationSection(rootSectionKey);
         if (recipesSection == null) {
+            if (config.isSet(rootSectionKey)) {
+                I18n.logWarning("plugin.recipe_issues_header", "file", sourceFile, "count", 1);
+                I18n.logWarning("plugin.recipe_issue_detail", "index", 1,
+                        "detail", rootSectionKey + " - expected a section");
+            }
             return;
         }
 
         int loadedCount = 0;
+        List<String> issues = new ArrayList<>();
         for (String recipeId : recipesSection.getKeys(false)) {
             ConfigurationSection section = recipesSection.getConfigurationSection(recipeId);
             if (section == null) {
+                issues.add(recipeId + " - expected a recipe section");
                 continue;
             }
 
@@ -208,10 +224,30 @@ final class RecipeFileLoader {
                     I18n.logInfo("recipe.loaded_single", "type", recipeTypeName, "id", recipeId);
                 }
             } catch (Exception e) {
-                I18n.logWarning("recipe.load_failed", "id", recipeId, "error", e.getMessage());
+                issues.add(section.getCurrentPath() + " - " + errorMessage(e));
+            }
+        }
+
+        if (!issues.isEmpty()) {
+            List<String> freshIssues = new ArrayList<>(issues.size());
+            for (String issue : issues) {
+                if (REPORTED_ISSUES.add(sourceFile + "|" + issue)) {
+                    freshIssues.add(issue);
+                }
+            }
+            if (!freshIssues.isEmpty()) {
+                I18n.logWarning("plugin.recipe_issues_header", "file", sourceFile, "count", freshIssues.size());
+                for (int i = 0; i < freshIssues.size(); i++) {
+                    I18n.logWarning("plugin.recipe_issue_detail", "index", i + 1, "detail", freshIssues.get(i));
+                }
             }
         }
 
         I18n.logDetail("recipe", "recipe.loaded_total", "count", loadedCount, "type", recipeTypeName);
+    }
+
+    private static String errorMessage(Exception error) {
+        String message = error.getMessage();
+        return message == null || message.isBlank() ? error.getClass().getSimpleName() : message;
     }
 }

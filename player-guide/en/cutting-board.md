@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/cutting-board.md)
 # The Cutting Board
 
 The **Cutting Board** lets you process a single item with a tool — slicing meat and

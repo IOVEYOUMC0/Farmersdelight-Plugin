@@ -20,7 +20,6 @@ import net.momirealms.craftengine.core.util.Direction;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -75,7 +74,9 @@ public final class ConditionalBlockPlantingItemBehavior extends ItemBehavior {
         // so vanilla's own WorldGuard build check never fires — gate on canBuild (master flag) here, or a
         // player without build rights could plant inside a protected region.
         Player player = context.getPlayer();
-        org.bukkit.entity.Player bukkitPlayer = player == null ? null : Bukkit.getPlayer(player.uuid());
+        org.bukkit.entity.Player bukkitPlayer = player != null
+                && player.platformPlayer() instanceof org.bukkit.entity.Player platformPlayer
+                ? platformPlayer : null;
         if (bukkitPlayer != null && !ProtectionCompat.canBuild(bukkitPlayer, target)) {
             return InteractionResult.PASS;
         }
@@ -98,7 +99,7 @@ public final class ConditionalBlockPlantingItemBehavior extends ItemBehavior {
         if (bukkitPlayer != null) {
             VanillaAdvancements.grantPlantSeed(bukkitPlayer);
         }
-        return InteractionResult.SUCCESS;
+        return InteractionResult.SUCCESS_AND_CANCEL;
     }
 
     private static Key identifyBlock(Block block) {

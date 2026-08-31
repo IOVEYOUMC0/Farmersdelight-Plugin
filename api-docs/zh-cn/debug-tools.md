@@ -2,11 +2,15 @@
 icon: bug
 ---
 
+[English](../en/debug-tools.md)
+
 # 调试工具：DebugToolExtension 与 DebugToolRegistry
 
-FarmersDelight 有一条管理员命令 `/fd debugtools`，用于压力测试：批量放置方块、批量激活让它们真的开始 tick、 打印性能快照、撤销放置。`com.huidu.farmersdelight.api.util` 里的这两个类型让附属把自己的方块挂进这条命令， 而不必自己再做一套调试 CLI。
+FarmersDelight 有一条管理员命令 `/fd debugtools`，用于压力测试：批量放置方块、批量激活让它们真的开始 tick、检查实时状态、校验已加载配方并撤销放置。`com.huidu.farmersdelight.api.util` 里的这两个类型让附属把自己的方块挂进这条命令，而不必自己再做一套调试 CLI。
 
 对应的 feature id 是 `debug-tools`。
+
+`recipe validate` 会检查已加载的厨锅和砧板配方是否为空、是否缺少成品/容器，以及标签是否解析不到任何原版物品、CraftEngine 物品或已注册的公共标签成员。解析阶段失败的配方仍会由常规 `recipe.load_failed` 日志报告。
 
 ## 前提：只有 debug 构建才会真的跑
 

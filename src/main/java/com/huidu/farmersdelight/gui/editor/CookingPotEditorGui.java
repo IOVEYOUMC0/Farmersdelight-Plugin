@@ -11,7 +11,6 @@ import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.Text;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
@@ -242,8 +241,7 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
                         openTagPicker(idx, source);
                         return;
                     }
-                    ingredients[idx] = appendOption(existing,
-                            new RecipeIngredient.Item(Key.of(RecipeSerializer.itemIdString(cursor))));
+                    ingredients[idx] = appendOption(existing, RecipeIngredient.Item.fromStack(cursor));
                     clearCursor();
                 } else if (click.isRightClick()) {
                     if (existing instanceof RecipeIngredient.Choice) {
@@ -255,7 +253,7 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
                     openChoiceBuilder(idx);
                     return;
                 } else if (existing instanceof RecipeIngredient.Item item) {
-                    ItemStack pickedUp = ItemUtils.createItem(item.key().toString());
+                    ItemStack pickedUp = item.createStack();
                     player.setItemOnCursor(pickedUp != null && !pickedUp.getType().isAir() ? cleanCopy(pickedUp) : null);
                     ingredients[idx] = null;
                 }
@@ -473,9 +471,8 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
         } else {
             options.add(current);
         }
-        String addedKey = RecipeSerializer.serializeIngredient(added);
         for (RecipeIngredient option : options) {
-            if (RecipeSerializer.serializeIngredient(option).equals(addedKey)) {
+            if (option.equals(added)) {
                 return current;
             }
         }
@@ -552,7 +549,7 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
 
     private ItemStack displayForIngredient(RecipeIngredient ingredient) {
         if (ingredient instanceof RecipeIngredient.Item item) {
-            ItemStack stack = ItemUtils.createItem(item.key().toString());
+            ItemStack stack = item.createStack();
             return stack != null && !stack.getType().isAir() ? displayCopy(stack, 1)
                     : named(new ItemStack(Material.BARRIER), item.key().toString());
         }

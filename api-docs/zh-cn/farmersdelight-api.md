@@ -2,6 +2,8 @@
 icon: rectangle-api
 ---
 
+[English](../en/farmersdelight-api.md)
+
 # FarmersDelightApi：唯一入口
 
 `com.huidu.farmersdelight.api.FarmersDelightApi` 是面向附属的唯一入口。它标了 `@ApiStatus.NonExtendable`，是 `final` 类、私有构造，通过静态方法取得：

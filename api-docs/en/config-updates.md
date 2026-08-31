@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/config-updates.md)
 # Keeping an operator's config.yml up to date
 
 Package: `com.huidu.farmersdelight.api.config`

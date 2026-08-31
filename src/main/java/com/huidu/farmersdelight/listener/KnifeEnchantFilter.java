@@ -108,17 +108,16 @@ public final class KnifeEnchantFilter implements Listener {
         int bonus = Math.min(event.getEnchantmentBonus(), 15);
         Random costRandom = new Random(seed);
         int[] costs = new int[3];
-        @SuppressWarnings("unchecked")
-        Map<Enchantment, Integer>[] choices = (Map<Enchantment, Integer>[]) new Map<?, ?>[3];
+        List<Map<Enchantment, Integer>> choices = new ArrayList<>(3);
         int enchantability = enchantability(item, table);
         EnchantmentOffer[] offers = event.getOffers();
 
-        for (int slot = 0; slot < choices.length; slot++) {
+        for (int slot = 0; slot < 3; slot++) {
             costs[slot] = calculateSlotCost(costRandom, slot, bonus);
             if (costs[slot] < slot + 1) {
                 costs[slot] = 0;
             }
-            choices[slot] = costs[slot] <= 0
+            Map<Enchantment, Integer> selected = costs[slot] <= 0
                     ? Map.of()
                     : selectEnchantments(
                             allowedEnchantments,
@@ -126,12 +125,13 @@ public final class KnifeEnchantFilter implements Listener {
                             new Random((long) seed + slot),
                             enchantability
                     );
+            choices.add(selected);
 
             if (table.overrideOffers() && offers != null && slot < offers.length) {
-                if (choices[slot].isEmpty()) {
+                if (selected.isEmpty()) {
                     offers[slot] = null;
                 } else {
-                    Map.Entry<Enchantment, Integer> first = choices[slot].entrySet().iterator().next();
+                    Map.Entry<Enchantment, Integer> first = selected.entrySet().iterator().next();
                     offers[slot] = new EnchantmentOffer(first.getKey(), first.getValue(), costs[slot]);
                 }
             }
@@ -620,16 +620,16 @@ public final class KnifeEnchantFilter implements Listener {
     }
 
     private record PreparedOffers(UUID worldId, int x, int y, int z, ItemStack item,
-                                  Map<Enchantment, Integer>[] choices) {
-        static PreparedOffers capture(PrepareItemEnchantEvent event, Map<Enchantment, Integer>[] choices) {
+                                  List<Map<Enchantment, Integer>> choices) {
+        static PreparedOffers capture(PrepareItemEnchantEvent event, List<Map<Enchantment, Integer>> choices) {
             var location = event.getEnchantBlock().getLocation();
             UUID worldId = location.getWorld() == null ? null : location.getWorld().getUID();
             return new PreparedOffers(worldId, location.getBlockX(), location.getBlockY(), location.getBlockZ(),
-                    event.getItem().clone(), choices.clone());
+                    event.getItem().clone(), List.copyOf(choices));
         }
 
         Map<Enchantment, Integer> selection(EnchantItemEvent event, int button) {
-            if (button < 0 || button >= choices.length) {
+            if (button < 0 || button >= choices.size()) {
                 return Map.of();
             }
             var location = event.getEnchantBlock().getLocation();
@@ -641,7 +641,7 @@ public final class KnifeEnchantFilter implements Listener {
                     || !item.isSimilar(event.getItem())) {
                 return Map.of();
             }
-            Map<Enchantment, Integer> selected = choices[button];
+            Map<Enchantment, Integer> selected = choices.get(button);
             return selected == null ? Map.of() : selected;
         }
     }

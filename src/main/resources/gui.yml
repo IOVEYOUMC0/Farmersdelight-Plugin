@@ -246,7 +246,7 @@ recipe-view-gui:
         offset: "<shift:-2>"
         icon: "<image:farmersdelight:cooking_pot_menu>"
     layout:
-      - "BXXXXXXPX"
+      - "BXXXXXXPM"
       - "XXXXXAXXX"
       - "XIIIXGXXX"
       - "XIIIXXXXX"
@@ -260,6 +260,7 @@ recipe-view-gui:
       B: back
       P: fill
       G: progress
+      M: materials
       X: background
     items:
       background:
@@ -299,6 +300,9 @@ recipe-view-gui:
         name: "<green><lang:gui.recipe.fill>"
         lore:
           - "<red><lang:gui.recipe.fill_inventory_full>"
+      materials:
+        material: BOOK
+        name: "<yellow><lang:gui.recipe.ingredients_label>"
 
   # Custom cooking pot recipe detail GUIs. Key must match behavior.custom.id.
   # If a custom pot has no matching entry here, the plugin falls back to
@@ -351,7 +355,7 @@ recipe-view-gui:
         offset: "<shift:-2>"
         icon: "<image:farmersdelight:cutting_board_menu>"
     layout:
-      - "BXXXXXXXX"
+      - "BXXXXXXXM"
       - "XXXXXXXXX"
       - "XIXTXRRXX"
       - "XXXXXRRXX"
@@ -361,6 +365,7 @@ recipe-view-gui:
       I: input
       R: result
       T: tool
+      M: materials
       B: back
       X: background
     items:
@@ -373,6 +378,9 @@ recipe-view-gui:
         material: ARROW
         item_model: "air"
         name: "<gray><lang:gui.recipe.back>"
+      materials:
+        material: BOOK
+        name: "<yellow><lang:gui.recipe.ingredients_label>"
 
   # Special recipe list — the paged chest GUI of special recipes.
   special-recipe-list:

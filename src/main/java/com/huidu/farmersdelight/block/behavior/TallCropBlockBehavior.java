@@ -19,15 +19,15 @@ import net.momirealms.craftengine.bukkit.world.BukkitExistingBlock;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.block.behavior.BonemealableBlock;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.block.property.type.DoubleBlockHalf;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.item.Item;
-import net.momirealms.craftengine.core.plugin.config.ConfigConstants;
+import net.momirealms.craftengine.core.plugin.context.Context;
 import net.momirealms.craftengine.core.plugin.context.ContextHolder;
 import net.momirealms.craftengine.core.plugin.context.EventTrigger;
 import net.momirealms.craftengine.core.plugin.context.PlayerOptionalContext;
-import net.momirealms.craftengine.core.plugin.context.SimpleContext;
 import net.momirealms.craftengine.core.plugin.context.number.NumberProvider;
 import net.momirealms.craftengine.core.plugin.context.parameter.DirectContextParameters;
 import net.momirealms.craftengine.core.util.Cancellable;
@@ -53,7 +53,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
+public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implements BonemealableBlock {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
@@ -91,13 +91,28 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
     private static final Map<Key, TallCropBlockBehavior> BEHAVIORS = new ConcurrentHashMap<>();
     private static final Map<Key, SoilRules> SOIL_RULES = new ConcurrentHashMap<>();
     private static final Map<Key, Key> EXTRA_PLANTING_ITEMS = new ConcurrentHashMap<>();
+    private static final NumberProvider DEFAULT_BONE_MEAL_AGE_BONUS = new NumberProvider() {
+        @Override
+        public float getFloat(Context context) {
+            return 1.0F;
+        }
+
+        @Override
+        public double getDouble(Context context) {
+            return 1.0D;
+        }
+
+        @Override
+        public boolean isConstant() {
+            return true;
+        }
+    };
 
     private TallCropBlockBehavior(BlockDefinition block, Config config) {
         super(block);
         this.config = config;
     }
 
-    @SuppressWarnings("unchecked")
     public static final BlockBehaviorFactory<TallCropBlockBehavior> FACTORY = new BlockBehaviorFactory<TallCropBlockBehavior>() {
         @Override
         public TallCropBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
@@ -129,8 +144,8 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
             int minGrowLight = BehaviorArgParser.getInt(arguments, "light-requirement", 9);
             boolean isBoneMealTarget = BehaviorArgParser.getBoolean(arguments, "is-bone-meal-target", true);
             NumberProvider boneMealAgeBonus = section != null
-                    ? section.getNumber(new String[]{"bone_meal_age_bonus", "bone-meal-age-bonus"}, ConfigConstants.CONSTANT_ONE)
-                    : ConfigConstants.CONSTANT_ONE;
+                    ? section.getNumber(new String[]{"bone_meal_age_bonus", "bone-meal-age-bonus"}, DEFAULT_BONE_MEAL_AGE_BONUS)
+                    : DEFAULT_BONE_MEAL_AGE_BONUS;
             
             int maxAgeLower = BehaviorArgParser.hasArgument(arguments, "max-age-lower")
                     ? BehaviorArgParser.getInt(arguments, "max-age-lower", 4)
@@ -257,12 +272,15 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
         if (context.getPlayer() == null) return InteractionResult.PASS;
         BlockPos pos = context.getClickedPos();
 
-        Player bukkitPlayer = Bukkit.getPlayer(context.getPlayer().uuid());
+        Player bukkitPlayer = ItemUtils.getBukkitPlayer(context.getPlayer());
         if (bukkitPlayer == null) return InteractionResult.PASS;
 
         World world = bukkitPlayer.getWorld();
 
-        ItemStack mainHand = bukkitPlayer.getInventory().getItemInMainHand();
+        ItemStack mainHand = ItemUtils.getItemInHand(bukkitPlayer, context.getHand());
+        if (mainHand == null || mainHand.getType().isAir()) {
+            return InteractionResult.PASS;
+        }
 
         if (isUpperHalf(state) && isUpperMature(state)) {
             if (config.resetOnHarvest() && isValidHarvestTool(mainHand)) {
@@ -296,7 +314,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
                 world.playSound(loc, Sound.BLOCK_CROP_BREAK, 1.0f, 1.0f);
                 world.playSound(loc, Sound.ITEM_CROP_PLANT, 1.0f, 0.8f);
 
-                bukkitPlayer.swingMainHand();
+                ItemUtils.swingHand(bukkitPlayer, context.getHand());
 
                 CraftEngineBlocks.remove(bukkitBlock);
                 resetLowerAfterUpperHarvest(pos, world);
@@ -311,16 +329,61 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
                     ProtectionCompat.Feature.RICE)) {
                 return InteractionResult.PASS;
             }
-            if (applyBoneMeal(pos, world, state, bukkitPlayer)) {
+            if (applyBoneMeal(pos, world, state)) {
                 if (bukkitPlayer.getGameMode() != GameMode.CREATIVE) {
                     mainHand.setAmount(mainHand.getAmount() - 1);
                 }
-                bukkitPlayer.swingMainHand();
+                ItemUtils.swingHand(bukkitPlayer, context.getHand());
                 return InteractionResult.SUCCESS_AND_CANCEL;
             }
         }
 
         return InteractionResult.PASS;
+    }
+
+    @Override
+    public boolean isValidBonemealTarget(Object thisBlock, Object[] args) {
+        if (!config.isBoneMealTarget() || args == null || args.length < 3) {
+            return false;
+        }
+        ImmutableBlockState state = BlockStateUtils.getOptionalCustomBlockState(args[2]).orElse(null);
+        if (state == null || state.isEmpty()) {
+            return false;
+        }
+        Object half = getHalf(state);
+        if (isUpperHalf(state)) {
+            return getAge(state) < config.maxAgeUpper();
+        }
+        if (getAge(state) < config.maxAgeLower()) {
+            return true;
+        }
+        World world = CraftEngineAdapter.toWorld(args[0]);
+        BlockPos pos = CraftEngineAdapter.toBlockPos(args[1]);
+        if (world == null || pos == null || !matchesHalfValue(half, config.halfLowerValue())) {
+            return false;
+        }
+        ImmutableBlockState upper = CraftEngineBlocks.getCustomBlockState(
+                world.getBlockAt(pos.x(), pos.y() + 1, pos.z()));
+        return upper != null && !upper.isEmpty() && isUpperHalf(upper)
+                && getAge(upper) < config.maxAgeUpper();
+    }
+
+    @Override
+    public boolean isBonemealSuccess(Object thisBlock, Object[] args) {
+        return true;
+    }
+
+    @Override
+    public void performBonemeal(Object thisBlock, Object[] args) {
+        if (args == null || args.length < 4) {
+            return;
+        }
+        World world = CraftEngineAdapter.toWorld(args[0]);
+        BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
+        ImmutableBlockState state = BlockStateUtils.getOptionalCustomBlockState(args[3]).orElse(null);
+        if (world != null && pos != null && state != null && !state.isEmpty()) {
+            applyBoneMeal(pos, world, state);
+        }
     }
 
     public void affectNeighborsAfterRemoval(Object thisBlock, Object[] args) {
@@ -357,7 +420,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
         
     }
 
-    private boolean applyBoneMeal(BlockPos pos, World world, ImmutableBlockState state, Player player) {
+    private boolean applyBoneMeal(BlockPos pos, World world, ImmutableBlockState state) {
         int currentAge = getAge(state);
         Object half = getHalf(state);
 
@@ -376,7 +439,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
     }
 
     private int computeBoneMealAgeBonus() {
-        return config.boneMealAgeBonus().getInt(SimpleContext.of(ContextHolder.empty()));
+        return config.boneMealAgeBonus().getInt();
     }
 
     @Override
@@ -871,12 +934,11 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
         return configuredValue;
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
     private static ImmutableBlockState withRaw(ImmutableBlockState state, Property<?> property, Object value) {
         if (state == null || property == null || value == null) {
             return state;
         }
-        return state.with((Property) property, (Comparable) value);
+        return ImmutableBlockState.with(state, property, value);
     }
 
     private String validatePlacement(World world, BlockPos pos) {
@@ -913,4 +975,3 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior {
         }
     }
 }
-

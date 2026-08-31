@@ -15,7 +15,8 @@ datapacks:
   # Whether to export the common-item tags (farmersdelight_tags) into the primary world's datapacks
   # folder. Only vanilla members are written; CraftEngine items keep their tags in the CE configs.
   # Registry tags are server-global (shared by every world), so the pack is written once into the
-  # primary world only - a per-world inject would be redundant. Requires a server restart to load.
+  # primary world only - a per-world inject would be redundant. Bukkit/Paper reload it automatically;
+  # Folia/Luminol requires a server restart because it does not support registry data reloads.
   tags-enabled: true
 
 # Enchantments added by FarmersDelight. Knife and skillet enchantments are configured separately.
@@ -200,6 +201,9 @@ performance:
   proxy-item-display-view-distance: 64.0
   proxy-item-display-sync-interval-ticks: 20
   proxy-item-display-sync-batch-size: 256
+
+  # Max cutting board/skillet display reconstructions scheduled per tick after a CraftEngine or plugin reload.
+  reload-visual-refreshes-per-tick: 32
 
   # Max player/entity relationships processed per tick for pet food tempting.
   pet-tempt-tick-budget: 128
@@ -455,122 +459,6 @@ knife-items:
     - farmersdelight:diamond_knife
     - farmersdelight:netherite_knife
 
-# Extra drops that knives (and other configured tools) produce.
-drops:
-  # Default trigger tools for mob extra drops. Only affects drops.mob-extra below, does not treat these items as knives.
-  # items can be any minecraft:* or CraftEngine item ID; tags can be vanilla/CraftEngine item tags.
-  # For example, to let an iron sword also trigger mob extra drops, add minecraft:iron_sword under items.
-  mob-extra-tools:
-    tags:
-      - farmersdelight:tools/knives
-    items:
-      - farmersdelight:flint_knife
-      - farmersdelight:iron_knife
-      - farmersdelight:golden_knife
-      - farmersdelight:diamond_knife
-      - farmersdelight:netherite_knife
-
-  # Extra drops when killing an adult mob with a tool configured in drops.mob-extra-tools.
-  # normal is the regular drop, burning is the drop when the target is on fire, chance is the base probability, looting-multiplier is the added probability per looting level.
-  # Each rule may use tool-item / tool-items / tool-tags to override the trigger tools; otherwise drops.mob-extra-tools is used.
-  # Example: tool-item: minecraft:iron_sword means this rule triggers only when an iron sword kills the mob.
-  mob-extra:
-    pig:
-      normal: farmersdelight:ham
-      burning: farmersdelight:smoked_ham
-      chance: 0.5
-      looting-multiplier: 0.1
-    hoglin:
-      normal: farmersdelight:ham
-      burning: farmersdelight:smoked_ham
-      chance: 1.0
-      looting-multiplier: 0.0
-    cow:
-      normal: minecraft:leather
-      burning: ""
-      chance: 1.0
-      looting-multiplier: 0.0
-    mooshroom:
-      normal: minecraft:leather
-      burning: ""
-      chance: 1.0
-      looting-multiplier: 0.0
-    donkey:
-      normal: minecraft:leather
-      burning: ""
-      chance: 1.0
-      looting-multiplier: 0.0
-    horse:
-      normal: minecraft:leather
-      burning: ""
-      chance: 1.0
-      looting-multiplier: 0.0
-    mule:
-      normal: minecraft:leather
-      burning: ""
-      chance: 1.0
-      looting-multiplier: 0.0
-    llama:
-      normal: minecraft:leather
-      burning: ""
-      chance: 1.0
-      looting-multiplier: 0.0
-    trader_llama:
-      normal: minecraft:leather
-      burning: ""
-      chance: 1.0
-      looting-multiplier: 0.0
-    chicken:
-      normal: minecraft:feather
-      burning: ""
-      chance: 1.0
-      looting-multiplier: 0.0
-    spider:
-      normal: minecraft:string
-      burning: ""
-      chance: 1.0
-      looting-multiplier: 0.0
-    cave_spider:
-      normal: minecraft:string
-      burning: ""
-      chance: 1.0
-      looting-multiplier: 0.0
-    rabbit:
-      normal: minecraft:rabbit_hide
-      burning: ""
-      chance: 1.0
-      looting-multiplier: 0.0
-    shulker:
-      normal: minecraft:shulker_shell
-      burning: ""
-      chance: 1.0
-      looting-multiplier: 0.0
-
-  # Extra straw drops when breaking grass, mature wheat or mature rice with a knife.
-  # Ownership split: the straw ITEM for short_grass / tall_grass / mature_wheat is dropped by the
-  # CraftEngine vanilla loot entries in craftengine/farmersdelight/configuration/vanilla_loots.yml,
-  # which also carry the 0.2 grass chance; the plugin listener deliberately does not drop straw a
-  # second time for those three blocks, it only awards the harvest_straw advancement there. So for
-  # those three the drop / min-amount / max-amount values below are inert and only mature_rice, plus
-  # any extra block key added here, is dropped by the listener itself.
-  straw:
-    short_grass:
-      drop: farmersdelight:straw
-      min-amount: 1
-      max-amount: 1
-    tall_grass:
-      drop: farmersdelight:straw
-      min-amount: 1
-      max-amount: 1
-    mature_wheat:
-      drop: farmersdelight:straw
-      min-amount: 1
-      max-amount: 1
-    mature_rice:
-      drop: farmersdelight:straw
-      min-amount: 1
-      max-amount: 1
-
 # Cooking pot configuration. Configure custom pot slots and GUI in the CraftEngine block behavior and gui.yml.
 cooking-pot:
   cooking:
@@ -627,27 +515,6 @@ cooking-pot:
     # Auto-disable the floating TextDisplay when active pot count exceeds this value; 0 = do not auto-disable by count.
     disable-above-active-pots: 512
 
-  # Player-installed bail handle decoration. Toggled via shift + empty-hand right-click on a cooking
-  # pot. Mirrors the tray configuration shape: change the handle furniture ID here if you renamed it
-  # on the resource pack side, or to swap in a custom handle variant.
-  handle:
-    # CraftEngine handle furniture ID. Must be updated here too if renamed on the resource side.
-    handle-block-id: farmersdelight:cooking_pot_handle
-    # Handle marker key. Not recommended to change for an already-placed world; old handles cannot be
-    # recognized as auto handles after changing it.
-    marker-key: auto_pot_handle
-    # Handle anchor offset relative to the pot block, mirroring the tray block. Defaults centre the
-    # handle horizontally over the pot; the CE handle definition's element {position: 0, 0.5, 0}
-    # then puts the visible bail at the pot's mid-height where its arc extends up over the rim.
-    # Tweak when you swap in a custom handle furniture model with a different anchor.
-    x-offset: 0.5
-    y-offset: 0.0
-    z-offset: 0.5
-    # Feedback sound played to the player when toggling the handle on/off. Set volume to 0 to silence it.
-    toggle-sound: "minecraft:block.lantern.place"
-    toggle-sound-volume: 0.7
-    toggle-sound-pitch: 1.0
-
   # Cooking pot world particle effects.
   effects:
     # How many blocks away a player must be for the pot to broadcast its particles/sounds. 32 = vanilla
@@ -703,34 +570,6 @@ experience-reward:
     multiplier: 1.0
     raw: false
 
-# Tray furniture auto-placed under a station, used to carry the CE display effect.
-# Owned by the cooking pot and the skillet alike: enabled: false removes auto trays from both.
-tray:
-  # true = ensure a tray exists below when opening/syncing the pot or placing a skillet; false = no auto tray, contents display may be incomplete.
-  enabled: true
-
-  # CraftEngine tray block/furniture ID. Must be updated here too if renamed on the resource side.
-  tray-block-id: farmersdelight:tray
-
-  # Tray offset relative to the station block coordinates, usually no need to change.
-  x-offset: 0.5
-  y-offset: -1.0
-  z-offset: 0.5
-
-  # true = only auto-place the tray when the support block is not a full block, to avoid covering normal solid blocks.
-  # CraftEngine custom heat sources bypass this limit; used to support model blocks like the stove.
-  require-non-full-support: true
-  # Tray batch sync interval and per-batch count. sync-batch-size also limits the urgent tray sync triggered by support block changes / stress-test batch activation.
-  # Increase the interval or decrease the batch when TPS is tight.
-  sync-interval-ticks: 100
-  sync-batch-size: 32
-  # On Paper, an extra interval for scanning marked trays, used to recover/clean up auto trays after restart or chunk reload.
-  # Default 1200 ticks = 60 seconds; set to 0 to scan every tray sync round, useful temporarily when troubleshooting trays.
-  # On Folia, to avoid cross-region entity scanning, no world-wide tray scan is performed.
-  marked-tray-scan-interval-ticks: 1200
-  # Tray marker key. Not recommended to change for an already-placed world; old trays cannot be recognized as auto trays after changing it.
-  marker-key: auto_tray_marker
-
 # Return table after a station consumes container-type items.
 # Key is the container item ID consumed, value is the item ID returned to the container slot / player inventory after use.
 # For example, milk_bottle returns glass_bottle after being consumed. Set a value to "" to disable that return.
@@ -770,7 +609,7 @@ heat-sources:
 # Mushroom colony block placement rules. Growth speed, age and drops are still configured in CraftEngine mushrooms.yml.
 mushroom-colonies:
   placement:
-    # These support blocks ignore the light limit and always allow mushroom colony placement.
+    # These support blocks (and custom blocks carrying minecraft:mushroom_grow_block) ignore the light limit.
     always-valid-supports:
       - minecraft:mycelium
       - minecraft:podzol
@@ -779,7 +618,7 @@ mushroom-colonies:
       - minecraft:mushroom_stem
     # true = other full solid blocks also allow placement under low light.
     allow-solid-supports-below-max-light: true
-    # When the block above is not in always-valid-supports, placement is allowed only if the target light is at or below this value.
+    # Other solid supports allow placement only if the target light is at or below this value.
     max-light: 12
 
 # Rope block behavior.
@@ -973,107 +812,3 @@ buff:
 
   # Built-in Nourishment food assignments and durations live in the CraftEngine item configuration.
   # Use farmersdelight:nourishment as an on-consume function to add it to another CE food.
-
-# World data the mod ships alongside its items: the crop trades farmer villagers and the wandering trader
-# offer. Composting chances and furnace burn times no longer live here; they are set per item in the
-# CraftEngine configuration under settings: compost_probability and fuel_time. The values reproduce the
-# mod's own data exactly, so an untouched section behaves like the mod. Each of the two enabled switches
-# turns its own behaviour off without affecting the others.
-# The trades lists are content: deleting an entry is how you disable that one entry, and a deleted entry
-# is not written back on the next startup.
-world-data:
-
-  # Trades the mod contributes to vanilla merchant listing pools. The pools themselves cannot be joined, so
-  # an offer is substituted for a drawn vanilla one at the probability the mod's listing would have been
-  # picked. chance is that probability: it is the share the mod's listings hold in the pool, so a datapack
-  # that changes the vanilla pools needs these retuned.
-  trades:
-    # Crop trades farmer villagers offer. profession is a villager profession ID path and level is the
-    # villager level whose pool the listing joins. ingredient is what the player hands over, result what
-    # they receive. max-uses is how many times the trade works before restock, villager-xp the merchant
-    # experience it awards, price-multiplier the vanilla demand and reputation multiplier.
-    villager:
-      enabled: true
-      trades:
-        - profession: farmer
-          level: 1
-          ingredient: farmersdelight:onion
-          ingredient-amount: 26
-          result: minecraft:emerald
-          result-amount: 1
-          max-uses: 16
-          villager-xp: 2
-          price-multiplier: 0.05
-          chance: 0.14285714285714285
-        - profession: farmer
-          level: 1
-          ingredient: farmersdelight:tomato
-          ingredient-amount: 26
-          result: minecraft:emerald
-          result-amount: 1
-          max-uses: 16
-          villager-xp: 2
-          price-multiplier: 0.05
-          chance: 0.14285714285714285
-        - profession: farmer
-          level: 2
-          ingredient: farmersdelight:cabbage
-          ingredient-amount: 16
-          result: minecraft:emerald
-          result-amount: 1
-          max-uses: 16
-          villager-xp: 5
-          price-multiplier: 0.05
-          chance: 0.2
-        - profession: farmer
-          level: 2
-          ingredient: farmersdelight:rice
-          ingredient-amount: 20
-          result: minecraft:emerald
-          result-amount: 1
-          max-uses: 16
-          villager-xp: 5
-          price-multiplier: 0.05
-          chance: 0.2
-
-    # Seed trades the wandering trader offers. It has no profession or level, so those two keys are unused
-    # here. Buying slots (item -> emerald) are never substituted, so these listings always pay out in the
-    # listed ingredient (an emerald by default) and receive the listed result.
-    wandering-trader:
-      enabled: true
-      # Substitution stops once the trader has already drawn this many listings; on older versions this
-      # keeps the separate rare listing untouched.
-      generic-trade-count: 5
-      trades:
-        - ingredient: minecraft:emerald
-          ingredient-amount: 1
-          result: farmersdelight:cabbage_seeds
-          result-amount: 1
-          max-uses: 1
-          villager-xp: 12
-          price-multiplier: 0.05
-          chance: 0.014705882352941176
-        - ingredient: minecraft:emerald
-          ingredient-amount: 1
-          result: farmersdelight:tomato_seeds
-          result-amount: 1
-          max-uses: 1
-          villager-xp: 12
-          price-multiplier: 0.05
-          chance: 0.014705882352941176
-        - ingredient: minecraft:emerald
-          ingredient-amount: 1
-          result: farmersdelight:rice
-          result-amount: 1
-          max-uses: 1
-          villager-xp: 12
-          price-multiplier: 0.05
-          chance: 0.014705882352941176
-        - ingredient: minecraft:emerald
-          ingredient-amount: 1
-          result: farmersdelight:onion
-          result-amount: 1
-          max-uses: 1
-          villager-xp: 12
-          price-multiplier: 0.05
-          chance: 0.014705882352941176

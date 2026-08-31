@@ -49,12 +49,14 @@ blocks:
       template:
         - default:hardness/none
         - default:sound/grass
+      tags:
+        - minecraft:flowers
+        - minecraft:small_flowers
+        - farmersdelight:wild_crops
+        - farmersdelight:unaffected_by_rich_soil
     overrides:
       item: farmersdelight:wild_cabbages
       push-reaction: destroy
-    tags:
-      - minecraft:flowers
-      - minecraft:small_flowers
     behaviors:
       - type: liquid_flowable_block
       - type: bush_block
@@ -106,12 +108,14 @@ blocks:
       template:
         - default:hardness/none
         - default:sound/grass
+      tags:
+        - minecraft:flowers
+        - minecraft:small_flowers
+        - farmersdelight:wild_crops
+        - farmersdelight:unaffected_by_rich_soil
     overrides:
       item: farmersdelight:wild_onions
       push-reaction: destroy
-    tags:
-      - minecraft:flowers
-      - minecraft:small_flowers
     behaviors:
       - type: liquid_flowable_block
       - type: bush_block
@@ -153,12 +157,14 @@ blocks:
       template:
         - default:hardness/none
         - default:sound/grass
+      tags:
+        - minecraft:flowers
+        - minecraft:small_flowers
+        - farmersdelight:wild_crops
+        - farmersdelight:unaffected_by_rich_soil
     overrides:
       item: farmersdelight:wild_tomatoes
       push-reaction: destroy
-    tags:
-      - minecraft:flowers
-      - minecraft:small_flowers
     behaviors:
       - type: liquid_flowable_block
       - type: bush_block
@@ -212,14 +218,15 @@ blocks:
       template:
         - default:hardness/none
         - default:sound/grass
+      tags:
+        - minecraft:flowers
+        - minecraft:tall_flowers
+        - farmersdelight:wild_crops
+        - farmersdelight:unaffected_by_rich_soil
     overrides:
       item: farmersdelight:wild_rice
       push-reaction: destroy
-    tags:
-      - minecraft:flowers
-      - minecraft:tall_flowers
     behaviors:
-      - type: liquid_flowable_block
       - type: double_high_block
       - type: farmersdelight:wild_rice
         requires-water: true
@@ -245,6 +252,8 @@ blocks:
       variants:
         half=lower:
           appearance: half=lower
+          settings:
+            fluid_state: water
         half=upper:
           appearance: half=upper
     events:
@@ -704,5 +713,3 @@ blocks:
         - type: 'minecraft:heightmap'
           heightmap: OCEAN_FLOOR
         - type: 'minecraft:biome'
-
-

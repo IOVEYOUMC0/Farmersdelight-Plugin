@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/summary.md)
 # Table of contents
 
 * [Player Guide](README.md)

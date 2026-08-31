@@ -2,6 +2,8 @@
 icon: download
 ---
 
+[简体中文](../zh-cn/install.md)
+
 # Installation
 
 Five steps take you from a downloaded jar to a working cooking pot in your hand.

@@ -70,7 +70,7 @@ public class AdvancementManager {
             node("place_cooking_pot", "place_campfire", "farmersdelight:cooking_pot", Material.BRICKS, AdvancementFrameType.GOAL, 2, 1),
             // Gaining the nourishment effect, whose food list is plugin config.
             node("eat_nourishing_food", "place_cooking_pot", "farmersdelight:steak_and_potatoes", Material.COOKED_BEEF, AdvancementFrameType.TASK, 3, 1),
-            // Placing any block carrying the farmersdelight:feast_blocks block tag.
+            // Placing any block carrying the farmersdelight:feasts block tag.
             node("place_feast", "eat_nourishing_food", "farmersdelight:roast_chicken", Material.COOKED_CHICKEN, AdvancementFrameType.TASK, 4, 1),
             // Eating every dish; unobtainable only once every dish item is gone. Original icon is honey-glazed ham.
             multiNode("master_chef", "place_feast", "farmersdelight:honey_glazed_ham", Material.COOKED_PORKCHOP, 5, 1,
@@ -484,7 +484,16 @@ public class AdvancementManager {
     }
 
     public void reload() {
-        dispose();
+        try {
+            UltimateAdvancementAPI api = UltimateAdvancementAPI.getInstance(plugin);
+            if (api.isAdvancementTabRegistered(TAB)) {
+                api.unregisterAdvancementTab(TAB, false);
+            }
+        } catch (Exception ignored) {
+            // UAA already unloaded / not enabled -- load() will report any remaining failure.
+        }
+        tab = null;
+        clearRegistries();
         load();
     }
 }

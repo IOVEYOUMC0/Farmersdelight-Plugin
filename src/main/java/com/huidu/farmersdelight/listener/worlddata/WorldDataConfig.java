@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.listener.worlddata;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
@@ -32,17 +33,31 @@ public final class WorldDataConfig {
         return instance;
     }
 
-    public static void reload(JavaPlugin plugin) {
+    public static void reload(JavaPlugin plugin, FileConfiguration configuration) {
         Builder builder = defaultBuilder();
-        ConfigurationSection root = plugin.getConfig().getConfigurationSection("world-data");
-        if (root != null) {
-            ConfigurationSection trades = root.getConfigurationSection("trades");
+        if (configuration != null) {
+            ConfigurationSection trades = configuration.getConfigurationSection("trades");
             if (trades != null) {
-                applyVillagerTrades(builder, trades.getConfigurationSection("villager"), plugin);
-                applyWanderingTrades(builder, trades.getConfigurationSection("wandering-trader"), plugin);
+                applyVillagerTrades(builder, childSection(trades, "villager"), plugin);
+                applyWanderingTrades(builder, childSection(trades, "wandering-trader"), plugin);
+            } else if (configuration.isSet("trades")) {
+                I18n.logWarning("plugin.config_value_invalid", "file", "world-data.yml",
+                        "path", "trades", "error", "expected a section");
             }
         }
         instance = new WorldDataConfig(builder);
+    }
+
+    private static ConfigurationSection childSection(ConfigurationSection parent, String key) {
+        if (!parent.isSet(key)) {
+            return null;
+        }
+        ConfigurationSection child = parent.getConfigurationSection(key);
+        if (child == null) {
+            I18n.logWarning("plugin.config_value_invalid", "file", "world-data.yml",
+                    "path", parent.getCurrentPath() + "." + key, "error", "expected a section");
+        }
+        return child;
     }
 
     public boolean isVillagerTradesEnabled() {
@@ -139,7 +154,7 @@ public final class WorldDataConfig {
             }
             int level = number(raw.get("level"), 1).intValue();
             TradeOffer offer = parseOffer(raw, profession.toLowerCase(Locale.ROOT), level, plugin,
-                    "world-data.trades.villager.trades");
+                    "trades.villager.trades");
             if (offer != null) {
                 builder.villagerTrade(offer);
             }
@@ -158,7 +173,7 @@ public final class WorldDataConfig {
         }
         builder.wanderingTrades.clear();
         for (Map<?, ?> raw : section.getMapList("trades")) {
-            TradeOffer offer = parseOffer(raw, null, 0, plugin, "world-data.trades.wandering-trader.trades");
+            TradeOffer offer = parseOffer(raw, null, 0, plugin, "trades.wandering-trader.trades");
             if (offer != null) {
                 builder.wanderingTrade(offer);
             }
@@ -171,6 +186,15 @@ public final class WorldDataConfig {
         String result = string(raw.get("result"));
         if (!ItemUtils.isValidItemId(ingredient) || !ItemUtils.isValidItemId(result)) {
             I18n.logWarning("worlddata.trades_invalid_entry", "path", path);
+            return null;
+        }
+        org.bukkit.inventory.ItemStack ingredientItem = ItemUtils.createItem(ingredient);
+        org.bukkit.inventory.ItemStack resultItem = ItemUtils.createItem(result);
+        if (ItemUtils.isAnyCustomItemLoaded()
+                && (ingredientItem == null || ingredientItem.getType().isAir()
+                || resultItem == null || resultItem.getType().isAir())) {
+            I18n.logWarning("plugin.item_not_found", "path", path,
+                    "id", ingredientItem == null || ingredientItem.getType().isAir() ? ingredient : result);
             return null;
         }
         int ingredientAmount = Math.max(1, number(raw.get("ingredient-amount"), 1).intValue());

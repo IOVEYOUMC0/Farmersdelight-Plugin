@@ -16,7 +16,6 @@ tags:
     - "minecraft:porkchop"
     - "minecraft:chicken"
     - "minecraft:mutton"
-    - "minecraft:rabbit"
   "c:foods/raw_fish":
     - "minecraft:cod"
     - "minecraft:salmon"
@@ -31,3 +30,215 @@ tags:
     - "crabbersdelight:cooked_shrimp"
     - "crabbersdelight:cooked_clam_meat"
     - "crabbersdelight:cooked_clawster"
+  "c:foods/cooked_meat":
+    - "minecraft:cooked_beef"
+    - "minecraft:cooked_porkchop"
+    - "minecraft:cooked_chicken"
+    - "minecraft:cooked_mutton"
+    - "minecraft:cooked_rabbit"
+  "c:foods/fruit":
+    - "minecraft:apple"
+    - "minecraft:melon_slice"
+    - "minecraft:sweet_berries"
+    - "minecraft:glow_berries"
+    - "minecraft:chorus_fruit"
+  "c:foods/berries":
+    - "minecraft:sweet_berries"
+    - "minecraft:glow_berries"
+  "c:foods/soup":
+    - "minecraft:mushroom_stew"
+    - "minecraft:beetroot_soup"
+    - "minecraft:rabbit_stew"
+    - "minecraft:suspicious_stew"
+  "c:foods/cookie":
+    - "minecraft:cookie"
+  "c:foods/vegetable":
+    - "minecraft:beetroot"
+    - "minecraft:carrot"
+    - "minecraft:potato"
+    - "minecraft:pumpkin"
+    - "minecraft:melon_slice"
+  "c:foods":
+    - "minecraft:apple"
+    - "minecraft:bread"
+    - "minecraft:cookie"
+    - "minecraft:melon_slice"
+    - "minecraft:sweet_berries"
+    - "minecraft:glow_berries"
+    - "minecraft:chorus_fruit"
+    - "minecraft:carrot"
+    - "minecraft:golden_carrot"
+    - "minecraft:potato"
+    - "minecraft:baked_potato"
+    - "minecraft:beetroot"
+    - "minecraft:dried_kelp"
+    - "minecraft:beef"
+    - "minecraft:cooked_beef"
+    - "minecraft:porkchop"
+    - "minecraft:cooked_porkchop"
+    - "minecraft:chicken"
+    - "minecraft:cooked_chicken"
+    - "minecraft:mutton"
+    - "minecraft:cooked_mutton"
+    - "minecraft:rabbit"
+    - "minecraft:cooked_rabbit"
+    - "minecraft:cod"
+    - "minecraft:cooked_cod"
+    - "minecraft:salmon"
+    - "minecraft:cooked_salmon"
+    - "minecraft:tropical_fish"
+    - "minecraft:pufferfish"
+    - "minecraft:rotten_flesh"
+    - "minecraft:spider_eye"
+    - "minecraft:mushroom_stew"
+    - "minecraft:beetroot_soup"
+    - "minecraft:rabbit_stew"
+    - "minecraft:suspicious_stew"
+    - "minecraft:pumpkin_pie"
+    - "minecraft:cake"
+    - "minecraft:honey_bottle"
+  # c:eggs is the standard common tag for eggs; minecraft:eggs only exists on 1.21.5+ while plain egg
+  # is the only member on 1.21.4, so exporting this keeps egg-recipes working across the whole range.
+  "c:eggs":
+    - "minecraft:egg"
+  # Vanilla members of FarmersDelight's registry tags. CraftEngine supplies the custom-item members
+  # from items.yml; these entries keep the same tags usable for vanilla ingredients as well.
+  "farmersdelight:serving_containers":
+    - "minecraft:bowl"
+    - "minecraft:glass_bottle"
+    - "minecraft:bucket"
+  "farmersdelight:meals":
+    - "minecraft:mushroom_stew"
+    - "minecraft:beetroot_soup"
+    - "minecraft:rabbit_stew"
+  "farmersdelight:pies":
+    - "minecraft:pumpkin_pie"
+  "farmersdelight:sweets":
+    - "minecraft:cake"
+    - "minecraft:cookie"
+  "farmersdelight:flat_on_cutting_board":
+    - "minecraft:trident"
+    - "minecraft:spyglass"
+
+  # FarmersDelight common tags. CraftEngine settings.tags cover the custom members too;
+  # these entries keep the same tags usable for vanilla ingredients and addon recipes.
+  "c:crops/rice":
+    - "farmersdelight:rice"
+  "c:crops/tomato":
+    - "farmersdelight:tomato"
+  "c:crops/onion":
+    - "farmersdelight:onion"
+  "c:crops/cabbage":
+    - "farmersdelight:cabbage"
+    - "farmersdelight:cabbage_leaf"
+  "c:crops/carrot":
+    - "minecraft:carrot"
+  "c:crops/potato":
+    - "minecraft:potato"
+  "c:crops/beetroot":
+    - "minecraft:beetroot"
+  "c:crops/grain":
+    - "minecraft:wheat"
+    - "farmersdelight:rice"
+  "c:foods/cabbage":
+    - "farmersdelight:cabbage"
+    - "farmersdelight:cabbage_leaf"
+  "c:foods/tomato":
+    - "farmersdelight:tomato"
+  "c:foods/onion":
+    - "farmersdelight:onion"
+  "c:foods/dough":
+    - "farmersdelight:wheat_dough"
+  "c:foods/dough/wheat":
+    - "farmersdelight:wheat_dough"
+  "c:foods/pasta":
+    - "farmersdelight:raw_pasta"
+  "c:foods/raw_beef":
+    - "minecraft:beef"
+    - "farmersdelight:minced_beef"
+  "c:foods/raw_chicken":
+    - "minecraft:chicken"
+    - "farmersdelight:chicken_cuts"
+  "c:foods/raw_cod":
+    - "minecraft:cod"
+    - "farmersdelight:cod_slice"
+  "c:foods/raw_salmon":
+    - "minecraft:salmon"
+    - "farmersdelight:salmon_slice"
+  "c:foods/raw_mutton":
+    - "minecraft:mutton"
+    - "farmersdelight:mutton_chops"
+  "c:foods/raw_bacon":
+    - "farmersdelight:bacon"
+  "c:foods/raw_pork":
+    - "minecraft:porkchop"
+    - "farmersdelight:bacon"
+  "c:foods/safe_raw_fish":
+    - "minecraft:cod"
+    - "minecraft:salmon"
+    - "minecraft:tropical_fish"
+    - "farmersdelight:cod_slice"
+    - "farmersdelight:salmon_slice"
+  "c:foods/leafy_green":
+    - "farmersdelight:cabbage"
+    - "farmersdelight:cabbage_leaf"
+  "c:foods/berry":
+    - "minecraft:sweet_berries"
+    - "minecraft:glow_berries"
+  "c:foods/bread":
+    - "minecraft:bread"
+  "c:foods/cooked_bacon":
+    - "farmersdelight:cooked_bacon"
+  "c:foods/cooked_beef":
+    - "minecraft:cooked_beef"
+    - "farmersdelight:beef_patty"
+  "c:foods/cooked_chicken":
+    - "minecraft:cooked_chicken"
+    - "farmersdelight:cooked_chicken_cuts"
+  "c:foods/cooked_pork":
+    - "minecraft:cooked_porkchop"
+    - "farmersdelight:cooked_bacon"
+  "c:foods/cooked_mutton":
+    - "minecraft:cooked_mutton"
+    - "farmersdelight:cooked_mutton_chops"
+  "c:foods/cooked_egg":
+    - "farmersdelight:fried_egg"
+  "c:foods/cooked_cod":
+    - "minecraft:cooked_cod"
+    - "farmersdelight:cooked_cod_slice"
+  "c:foods/cooked_salmon":
+    - "minecraft:cooked_salmon"
+    - "farmersdelight:cooked_salmon_slice"
+  "c:tools/knife":
+    - "farmersdelight:flint_knife"
+    - "farmersdelight:iron_knife"
+    - "farmersdelight:diamond_knife"
+    - "farmersdelight:golden_knife"
+    - "farmersdelight:netherite_knife"
+  "c:seeds":
+    - "farmersdelight:cabbage_seeds"
+    - "farmersdelight:rice"
+    - "farmersdelight:tomato_seeds"
+  "c:storage_blocks/carrot":
+    - "farmersdelight:carrot_crate"
+  "c:storage_blocks/potato":
+    - "farmersdelight:potato_crate"
+  "c:storage_blocks/beetroot":
+    - "farmersdelight:beetroot_crate"
+  "c:storage_blocks/cabbage":
+    - "farmersdelight:cabbage_crate"
+  "c:storage_blocks/tomato":
+    - "farmersdelight:tomato_crate"
+  "c:storage_blocks/onion":
+    - "farmersdelight:onion_crate"
+  "c:storage_blocks/rice":
+    - "farmersdelight:rice_bag"
+  "c:storage_blocks/rice_panicle":
+    - "farmersdelight:rice_bale"
+  "c:storage_blocks/straw":
+    - "farmersdelight:straw_bale"
+  "c:bones":
+    - "minecraft:bone"
+  "c:mushrooms":
+    - "minecraft:brown_mushroom"
+    - "minecraft:red_mushroom"

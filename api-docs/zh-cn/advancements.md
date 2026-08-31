@@ -3,6 +3,8 @@ description: 包名：com.huidu.farmersdelight.api.advancement
 icon: calendar-check
 ---
 
+[English](../en/advancements.md)
+
 # 进度
 
 | 类型                           | 形态                   | `@ApiStatus`     |

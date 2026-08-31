@@ -1,9 +1,7 @@
 package com.huidu.farmersdelight.manager;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
-import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
-import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.SoundUtils;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
@@ -13,34 +11,15 @@ import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.World;
 import org.bukkit.block.Block;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
 public final class HandleManager {
 
-    private static final String DEFAULT_TOGGLE_SOUND = "minecraft:block.lantern.place";
-    private static final float DEFAULT_TOGGLE_SOUND_VOLUME = 0.7F;
-    private static final float DEFAULT_TOGGLE_SOUND_PITCH = 1.0F;
-
     private final FarmersDelightPlugin plugin;
-    private String toggleSoundId;
-    private float toggleSoundVolume;
-    private float toggleSoundPitch;
 
     public HandleManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
-        loadConfig();
-    }
-
-    private void loadConfig() {
-        ConfigurationSection config = plugin.getFirstConfigSection("cooking-pot.handle", "handle");
-        if (config == null) {
-            config = new org.bukkit.configuration.MemoryConfiguration();
-        }
-        toggleSoundId = ConfigSectionReader.optionalString(config, "toggle-sound", DEFAULT_TOGGLE_SOUND);
-        toggleSoundVolume = (float) ConfigSectionReader.optionalDouble(config, "toggle-sound-volume", DEFAULT_TOGGLE_SOUND_VOLUME);
-        toggleSoundPitch = (float) ConfigSectionReader.optionalDouble(config, "toggle-sound-pitch", DEFAULT_TOGGLE_SOUND_PITCH);
     }
 
     public boolean hasHandle(World world, BlockPos potPos) {
@@ -51,7 +30,8 @@ public final class HandleManager {
     public void toggleHandle(World world, BlockPos potPos, @Nullable Player player) {
         if (world == null || potPos == null) return;
         Block potBlock = world.getBlockAt(potPos.x(), potPos.y(), potPos.z());
-        if (!Constants.BLOCK_COOKING_POT.equals(CustomBlockUtils.getId(potBlock))) return;
+        CookingPotBlockBehavior behavior = getBehavior(potBlock);
+        if (behavior == null || behavior.getSupportProperty() == null || !behavior.isSupportDisplayEnabled()) return;
 
         boolean had = hasHandle(world, potPos);
         if (had) {
@@ -63,23 +43,19 @@ public final class HandleManager {
             if (trayManager != null) trayManager.removeTrayIfAutoPlaced(world, potPos);
             setSupportProperty(potBlock, "handle");
         }
-        if (player != null && toggleSoundVolume > 0) {
-            SoundUtils.play(player, player.getLocation(), toggleSoundId, Sound.BLOCK_LANTERN_PLACE,
-                    SoundCategory.BLOCKS, toggleSoundVolume, toggleSoundPitch);
+        if (player != null && behavior.getHandleToggleSoundVolume() > 0) {
+            SoundUtils.play(player, player.getLocation(), behavior.getHandleToggleSound(), Sound.BLOCK_LANTERN_PLACE,
+                    SoundCategory.BLOCKS, behavior.getHandleToggleSoundVolume(), behavior.getHandleToggleSoundPitch());
         }
     }
 
     public void removeHandle(World world, BlockPos potPos) {
         if (world == null || potPos == null) return;
         Block potBlock = world.getBlockAt(potPos.x(), potPos.y(), potPos.z());
-        if (!Constants.BLOCK_COOKING_POT.equals(CustomBlockUtils.getId(potBlock))) return;
+        if (getBehavior(potBlock) == null) return;
         if ("handle".equals(getSupportProperty(world, potPos))) {
             setSupportProperty(potBlock, "none");
         }
-    }
-
-    public void reload() {
-        loadConfig();
     }
 
     // Internal helpers
@@ -92,6 +68,13 @@ public final class HandleManager {
         CookingPotBlockBehavior behavior = CustomBlockUtils.getBehavior(state, CookingPotBlockBehavior.class);
         if (behavior == null || behavior.getSupportProperty() == null) return null;
         return state.getNullable(behavior.getSupportProperty());
+    }
+
+    @Nullable
+    private CookingPotBlockBehavior getBehavior(Block block) {
+        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
+        if (state == null || state.isEmpty()) return null;
+        return CustomBlockUtils.getBehavior(state, CookingPotBlockBehavior.class);
     }
 
     private void setSupportProperty(Block block, String value) {

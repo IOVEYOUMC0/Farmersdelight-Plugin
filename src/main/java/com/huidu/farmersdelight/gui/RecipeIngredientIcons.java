@@ -131,7 +131,7 @@ public final class RecipeIngredientIcons {
 
     public static List<ItemStack> resolveIngredientOptions(RecipeIngredient ingredient) {
         if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
-            ItemStack item = createItemFromKey(itemIngredient.key());
+            ItemStack item = itemIngredient.createStack();
             if (item == null || item.getType().isAir() || item.getType() == Material.BARRIER) {
                 return List.of();
             }

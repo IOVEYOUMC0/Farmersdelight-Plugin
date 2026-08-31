@@ -1,11 +1,17 @@
+
+[简体中文](../zh-cn/debug-tools.md)
 # Debug tools — `DebugToolExtension` and `DebugToolRegistry`
 
 FarmersDelight has an admin command, `/fd debugtools`, for stress-testing: mass-place blocks, mass-activate
-them so they actually tick, print a performance snapshot, and undo the placement. The two types in
+them so they actually tick, inspect live state, validate loaded recipes, and undo the placement. The two types in
 `com.huidu.farmersdelight.api.util` let an addon plug its own block into that command instead of shipping a
 debug CLI of its own.
 
 The feature id is `debug-tools`.
+
+The `recipe validate` action checks loaded cooking-pot and cutting-board recipes for empty structure,
+missing results/containers, and tags that resolve to no vanilla, CraftEngine, or registered common-tag
+members. Parse failures are still reported by the normal `recipe.load_failed` logger.
 
 ## Availability: this only runs on a debug build
 

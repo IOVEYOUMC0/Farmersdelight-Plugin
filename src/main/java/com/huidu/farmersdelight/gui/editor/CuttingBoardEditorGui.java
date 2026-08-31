@@ -209,7 +209,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
                         openTagPicker(source);
                         return;
                     }
-                    input = appendOption(input, new RecipeIngredient.Item(Key.of(RecipeSerializer.itemIdString(cursor))));
+                    input = appendOption(input, RecipeIngredient.Item.fromStack(cursor));
                     clearCursor();
                 } else if (click.isRightClick()) {
                     if (input instanceof RecipeIngredient.Choice) {
@@ -221,7 +221,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
                     openChoiceBuilder(displayIndex(slot));
                     return;
                 } else if (input instanceof RecipeIngredient.Item item) {
-                    ItemStack pickedUp = ItemUtils.createItem(item.key().toString());
+                    ItemStack pickedUp = item.createStack();
                     player.setItemOnCursor(pickedUp != null && !pickedUp.getType().isAir() ? cleanCopy(pickedUp) : null);
                     input = null;
                 }
@@ -523,8 +523,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
             options.add(current);
         }
         for (RecipeIngredient option : options) {
-            if (RecipeSerializer.serializeIngredient(option)
-                    .equals(RecipeSerializer.serializeIngredient(added))) {
+            if (option.equals(added)) {
                 return current;
             }
         }
@@ -572,7 +571,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
 
     private ItemStack displayForIngredient(RecipeIngredient ingredient) {
         if (ingredient instanceof RecipeIngredient.Item item) {
-            ItemStack stack = ItemUtils.createItem(item.key().toString());
+            ItemStack stack = item.createStack();
             return stack != null && !stack.getType().isAir() ? stack : named(new ItemStack(Material.BARRIER), item.key().toString());
         }
         if (ingredient instanceof RecipeIngredient.Tag tag) {

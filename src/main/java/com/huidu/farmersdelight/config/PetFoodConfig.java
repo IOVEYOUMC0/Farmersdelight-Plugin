@@ -2,16 +2,15 @@ package com.huidu.farmersdelight.config;
 
 import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.i18n.I18n;
 import net.momirealms.craftengine.core.item.ItemDefinition;
 import net.momirealms.craftengine.core.item.ItemManager;
 import net.momirealms.craftengine.core.item.setting.CustomItemSettingType;
 import net.momirealms.craftengine.core.item.setting.ItemSettings;
 import net.momirealms.craftengine.core.item.setting.ItemSettingsModifier;
-import net.momirealms.craftengine.core.item.setting.ItemSettingsModifierFactory;
 import net.momirealms.craftengine.core.item.setting.ItemSettingsModifierType;
 import net.momirealms.craftengine.core.plugin.CraftEngine;
 import net.momirealms.craftengine.core.plugin.config.ConfigSection;
-import net.momirealms.craftengine.core.plugin.config.ConfigValue;
 import net.momirealms.craftengine.core.registry.BuiltInRegistries;
 import net.momirealms.craftengine.core.registry.Registries;
 import net.momirealms.craftengine.core.registry.WritableRegistry;
@@ -46,7 +45,6 @@ public class PetFoodConfig {
         LOGGER = logger;
     }
 
-    @SuppressWarnings("unchecked")
     public static synchronized void registerCraftEngineSetting() {
         if (registered) {
             return;
@@ -55,8 +53,7 @@ public class PetFoodConfig {
 
         ItemSettingsModifierType<ItemSettingsModifier> type = new ItemSettingsModifierType<>(
                 Key.of(Constants.ITEM_SETTING_PET_FOOD),
-                (ItemSettingsModifierFactory<ItemSettingsModifier>) (ConfigValue value) ->
-                        (ItemSettingsModifier) settings -> {
+                value -> settings -> {
                             PetFoodDefinition definition = parseFoodDefinition(value.getAsSection());
                             if (definition != null) {
                                 settings.addCustomData(KEY, definition);
@@ -94,7 +91,11 @@ public class PetFoodConfig {
 
         for (String foodId : section.getKeys(false)) {
             ConfigurationSection foodSection = section.getConfigurationSection(foodId);
-            if (foodSection == null) continue;
+            if (foodSection == null) {
+                I18n.logWarning("plugin.config_value_invalid", "file", "config.yml",
+                        "path", section.getCurrentPath() + "." + foodId, "error", "expected a section");
+                continue;
+            }
 
             PetFoodDefinition definition = parseFoodDefinition(foodSection);
             if (definition != null) {
@@ -114,7 +115,7 @@ public class PetFoodConfig {
                 entities.add(type);
             } catch (IllegalArgumentException e) {
                 if (LOGGER != null) {
-                    LOGGER.fine("Invalid entity type: " + entityId);
+                    warnInvalid("entities", entityId);
                 }
             }
         }
@@ -149,7 +150,7 @@ public class PetFoodConfig {
         } catch (IllegalArgumentException e) {
             particleType = Particle.END_ROD;
             if (LOGGER != null) {
-                LOGGER.fine("Invalid particle type: " + particleName + ", using END_ROD");
+                warnInvalid("particle-type", particleName);
             }
         }
 
@@ -242,7 +243,7 @@ public class PetFoodConfig {
             return EntityType.valueOf(entityId.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             if (LOGGER != null) {
-                LOGGER.fine("Invalid entity type: " + entityId);
+                warnInvalid("entities", entityId);
             }
             return null;
         }
@@ -256,7 +257,7 @@ public class PetFoodConfig {
             return Particle.valueOf(particleName.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             if (LOGGER != null) {
-                LOGGER.fine("Invalid particle type: " + particleName + ", using END_ROD");
+                warnInvalid("particle-type", particleName);
             }
             return Particle.END_ROD;
         }
@@ -333,7 +334,7 @@ public class PetFoodConfig {
         }
 
         if (LOGGER != null) {
-            LOGGER.fine("Invalid potion effect: " + typeName);
+                warnInvalid("effects.type", typeName);
         }
         return null;
     }
@@ -357,7 +358,7 @@ public class PetFoodConfig {
         }
 
         if (LOGGER != null) {
-            LOGGER.fine("Invalid sound: " + soundName);
+            warnInvalid("sound", soundName);
         }
         return null;
     }
@@ -367,6 +368,13 @@ public class PetFoodConfig {
             return raw.indexOf(':') >= 0 ? NamespacedKey.fromString(raw) : NamespacedKey.minecraft(raw);
         } catch (IllegalArgumentException e) {
             return null;
+        }
+    }
+
+    private static void warnInvalid(String path, Object value) {
+        if (LOGGER != null) {
+            LOGGER.warning(I18n.formatConsole("plugin.config_value_invalid",
+                    "file", "CraftEngine item", "path", path, "error", "invalid value " + value));
         }
     }
 

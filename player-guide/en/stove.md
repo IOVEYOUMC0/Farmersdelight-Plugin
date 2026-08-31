@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/stove.md)
 # The Stove
 
 The **Stove** is your dedicated heat source. It does two jobs:

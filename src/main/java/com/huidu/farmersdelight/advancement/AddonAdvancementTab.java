@@ -63,7 +63,9 @@ public final class AddonAdvancementTab {
         try {
             UltimateAdvancementAPI api = UltimateAdvancementAPI.getInstance(plugin);
             if (api.isAdvancementTabRegistered(tabName)) {
-                api.unregisterAdvancementTab(tabName);
+                // Rebuilds follow CE/datapack reloads; the client may have already discarded the old
+                // virtual tree, so do not send stale remove packets for it.
+                api.unregisterAdvancementTab(tabName, false);
             }
             tab = api.createAdvancementTab(tabName);
             buildTree();

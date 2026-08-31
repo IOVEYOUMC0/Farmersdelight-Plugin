@@ -4,6 +4,8 @@ icon: puzzle-piece
 
 # Addon Guide
 
+[简体中文](README.zh-cn.md)
+
 FarmersDelight is the core plugin of a small family of CraftEngine content packs. Each addon is an
 independent plugin that **depends on FarmersDelight + CraftEngine** and layers a themed set of blocks,
 items, recipes and mechanics on top of them. This page explains, for a server admin, **what each addon
@@ -145,8 +147,10 @@ on-land effect), collectible **notes / message-in-a-bottle**, and cutting-board 
 * **Cutting-board chance recipes** — registered through the FD chance API (`registerCuttingBoardRecipeWithChances`).
 * **Cards** — crab-trap loot (per bait), worm bin and tackle-box bait descriptions.
 
-**Config (`config.yml`):** `crab-trap`, `automatic-lure`, `tackle-box`, `note-block`, `notes`, `trades`
-(villager trades), `craftengine-resources`, `language`.
+**Config (`config.yml`):** `crab-trap`, `automatic-lure`, `barbed-lure`, `tackle-box`, `notes`,
+`fish-plaque`, `fishing-gear-enchants`, `craftengine-resources`, `language`. Villager and wandering
+trades live in the separate editable `trades.yml` file. This addon is not released yet, so no legacy
+configuration migration or backup is provided.
 
 ***
 

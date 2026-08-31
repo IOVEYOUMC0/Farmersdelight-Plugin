@@ -1,6 +1,8 @@
 package com.huidu.farmersdelight.util;
 
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
+import net.momirealms.craftengine.core.plugin.config.ConfigConstants;
+import net.momirealms.craftengine.core.plugin.config.KnownResourceException;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Bukkit;
@@ -37,6 +39,9 @@ public final class SoilRuleSupport {
         Set<String> customStateStrings = new HashSet<>();
 
         Object raw = arguments != null ? arguments.get("bottom-blocks") : null;
+        if (arguments != null && arguments.containsKey("bottom-blocks") && raw != null && !(raw instanceof Iterable<?>)) {
+            throw new KnownResourceException(ConfigConstants.PARSE_LIST_FAILED, "bottom-blocks", String.valueOf(raw));
+        }
         if (raw instanceof Iterable<?> iterable) {
             for (Object value : iterable) {
                 if (value == null) {
@@ -140,6 +145,9 @@ public final class SoilRuleSupport {
 
     public static Set<Key> parseKeys(Map<String, Object> arguments, String key) {
         Object raw = arguments != null ? arguments.get(key) : null;
+        if (arguments != null && arguments.containsKey(key) && raw != null && !(raw instanceof Iterable<?>)) {
+            throw new KnownResourceException(ConfigConstants.PARSE_LIST_FAILED, key, String.valueOf(raw));
+        }
         if (!(raw instanceof Iterable<?> iterable)) {
             return Collections.emptySet();
         }
@@ -177,4 +185,3 @@ public final class SoilRuleSupport {
         }
     }
 }
-

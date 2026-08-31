@@ -6,7 +6,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.ItemStack;
 
-import javax.annotation.Nonnull;
 import java.util.Map;
 
 // Decides how much of a finished meal a player should get from an output slot click and delivers it
@@ -35,26 +34,26 @@ public class CookingPotOutputTaker {
             return 0;
         }
 
-        @SuppressWarnings("null")
-        @Nonnull
         ItemStack cursor = event.getCursor();
         boolean cursorEmpty = cursor == null || cursor.getType().isAir();
         boolean rightClick = event.isRightClick();
         boolean shiftClick = event.isShiftClick();
+        int guiStackLimit = event.getView().getTopInventory().getMaxStackSize();
 
         if (shiftClick) {
             return currentOutput.getAmount();
         }
 
         if (cursorEmpty) {
-            return rightClick ? 1 : currentOutput.getAmount();
+            return rightClick ? 1 : Math.min(currentOutput.getAmount(),
+                    Math.min(currentOutput.getMaxStackSize(), guiStackLimit));
         }
 
         if (!cursor.isSimilar(currentOutput)) {
             return 0;
         }
 
-        int availableCursorSpace = cursor.getMaxStackSize() - cursor.getAmount();
+        int availableCursorSpace = Math.min(cursor.getMaxStackSize(), guiStackLimit) - cursor.getAmount();
         if (availableCursorSpace <= 0) {
             return 0;
         }
@@ -90,10 +89,16 @@ public class CookingPotOutputTaker {
             return;
         }
 
-        if (cursor.isSimilar(meal) && cursor.getAmount() + meal.getAmount() <= cursor.getMaxStackSize()) {
-            cursor.setAmount(cursor.getAmount() + meal.getAmount());
+        int space = Math.min(cursor.getMaxStackSize(), event.getView().getTopInventory().getMaxStackSize())
+                - cursor.getAmount();
+        if (cursor.isSimilar(meal) && space > 0) {
+            int moved = Math.min(space, meal.getAmount());
+            cursor.setAmount(cursor.getAmount() + moved);
+            meal.setAmount(meal.getAmount() - moved);
             player.setItemOnCursor(cursor);
-            return;
+            if (meal.getAmount() <= 0) {
+                return;
+            }
         }
 
         var leftover = player.getInventory().addItem(meal);

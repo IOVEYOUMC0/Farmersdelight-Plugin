@@ -234,8 +234,7 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
         return result.with(pairedProperty, true);
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private ImmutableBlockState withPropertyValue(ImmutableBlockState state, Property property, String valueName) {
+    private ImmutableBlockState withPropertyValue(ImmutableBlockState state, Property<?> property, String valueName) {
         Comparable<?> value = property.valueByName(valueName);
         return value == null ? state : ImmutableBlockState.with(state, property, value);
     }
@@ -266,13 +265,11 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
                 .isPresent();
     }
 
-    @SuppressWarnings("unchecked")
     private static Property<Boolean> pairedPropertyOf(ImmutableBlockState state) {
         if (state == null || state.isEmpty()) {
             return null;
         }
-        Property<?> property = state.owner().value().getProperty(pairedPropertyName);
-        return property == null ? null : (Property<Boolean>) property;
+        return BlockBehaviorFactory.getOptionalProperty(state.owner().value(), pairedPropertyName, Boolean.class);
     }
 
     private static BlockFace getFacingFromState(ImmutableBlockState state) {

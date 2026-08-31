@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/events.md)
 # Events
 
 Everything in `com.huidu.farmersdelight.api.event` is a plain Bukkit `org.bukkit.event.Event`. You subscribe

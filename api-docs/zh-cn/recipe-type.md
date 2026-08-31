@@ -2,6 +2,8 @@
 icon: ticket-perforated
 ---
 
+[English](../en/recipe-type.md)
+
 # RecipeType 与 ViewableRecipe
 
 `RecipeType` 是一个可注册的配方分类：有 id、有标题、有图标。注册之后，FarmersDelight 就能在配方书里渲染你的配方， 而完全不需要知道你内部的配方格式长什么样。Brewin & Chewin 的酒桶是参考实现 —— `KegRecipeType` 把插件原本就有的 `KegRecipe` 适配了上去。

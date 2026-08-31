@@ -1,65 +1,41 @@
 package com.huidu.farmersdelight.manager;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
-import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior;
 import com.huidu.farmersdelight.config.HeatSourceConfig;
-import com.huidu.farmersdelight.util.BlockPosKey;
-import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
-import net.momirealms.craftengine.bukkit.api.CraftEngineFurniture;
-import net.momirealms.craftengine.bukkit.entity.furniture.BukkitFurniture;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
-import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.BlockPos;
-import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.block.Block;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.ItemDisplay;
-import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.BoundingBox;
 
 public class TrayManager {
 
     private final FarmersDelightPlugin plugin;
-    private boolean enabled;
-    private boolean requireNonFullSupport;
 
     public TrayManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
-        loadConfig();
-    }
-
-    private void loadConfig() {
-        ConfigurationSection config = plugin.getFirstConfigSection("tray", "cooking-pot.tray");
-        if (config == null) {
-            config = new org.bukkit.configuration.MemoryConfiguration();
-        }
-        enabled = config.getBoolean("enabled", true);
-        requireNonFullSupport = config.getBoolean("require-non-full-support", true);
     }
 
     // Public API retained for backward compatibility
 
     public void checkAndPlaceTray(World world, BlockPos potPos) {
-        if (!enabled || world == null || potPos == null) return;
-        if (!isPotOrSkilletAt(world, potPos)) {
-            removeTrayIfAutoPlaced(world, potPos);
-            return;
-        }
-
-        boolean isPot = CookingPotBlockBehavior.isCookingPotBlock(world, new BlockPosKey(potPos));
-        boolean wantTray = shouldHaveTray(world, potPos);
-
-        if (isPot) {
+        if (world == null || potPos == null) return;
+        CookingPotBlockBehavior cookingPot = getCookingPotBehavior(world, potPos);
+        if (cookingPot != null) {
             String current = getSupportProperty(world, potPos);
+            if (!cookingPot.isSupportDisplayEnabled()) {
+                if ("tray".equals(current)) {
+                    setSupportProperty(world, potPos, "none");
+                }
+                return;
+            }
+            boolean wantTray = shouldHaveTray(world, potPos, cookingPot.requiresNonFullSupport());
             if (wantTray) {
                 if (!"tray".equals(current)) {
                     setSupportProperty(world, potPos, "tray");
@@ -70,12 +46,18 @@ public class TrayManager {
                     setSupportProperty(world, potPos, "none");
                 }
             }
-        } else {
-            // Skillet support is represented by a boolean property.
-            Boolean current = getSupportBoolean(world, potPos);
-            if (wantTray != Boolean.TRUE.equals(current)) {
-                setSupportBoolean(world, potPos, wantTray);
-            }
+            return;
+        }
+
+        SkilletBlockBehavior skillet = getSkilletBehavior(world, potPos);
+        if (skillet == null) {
+            return;
+        }
+        Boolean current = getSupportBoolean(world, potPos);
+        boolean wantTray = skillet.isSupportDisplayEnabled()
+                && shouldHaveTray(world, potPos, skillet.requiresNonFullSupport());
+        if (wantTray != Boolean.TRUE.equals(current)) {
+            setSupportBoolean(world, potPos, wantTray);
         }
     }
 
@@ -86,12 +68,12 @@ public class TrayManager {
     }
 
     public void removeTrayIfAutoPlaced(World world, BlockPos potPos) {
-        if (!enabled || world == null || potPos == null) return;
-        if (CookingPotBlockBehavior.isCookingPotBlock(world, new BlockPosKey(potPos))) {
+        if (world == null || potPos == null) return;
+        if (getCookingPotBehavior(world, potPos) != null) {
             if ("tray".equals(getSupportProperty(world, potPos))) {
                 setSupportProperty(world, potPos, "none");
             }
-        } else if (isSkilletAt(world, potPos)) {
+        } else if (getSkilletBehavior(world, potPos) != null) {
             if (Boolean.TRUE.equals(getSupportBoolean(world, potPos))) {
                 setSupportBoolean(world, potPos, false);
             }
@@ -105,7 +87,7 @@ public class TrayManager {
     }
 
     public void syncAroundSupportChange(Location supportLocation) {
-        if (!enabled || supportLocation == null || supportLocation.getWorld() == null) return;
+        if (supportLocation == null || supportLocation.getWorld() == null) return;
 
         SkilletManager skilletManager = plugin.getSkilletManager();
         boolean anySkillets = skilletManager != null && skilletManager.hasTrackedSkillets();
@@ -120,6 +102,15 @@ public class TrayManager {
     }
 
     public boolean shouldHaveTray(World world, BlockPos potPos) {
+        CookingPotBlockBehavior cookingPot = getCookingPotBehavior(world, potPos);
+        if (cookingPot != null) {
+            return shouldHaveTray(world, potPos, cookingPot.requiresNonFullSupport());
+        }
+        SkilletBlockBehavior skillet = getSkilletBehavior(world, potPos);
+        return skillet != null && shouldHaveTray(world, potPos, skillet.requiresNonFullSupport());
+    }
+
+    private boolean shouldHaveTray(World world, BlockPos potPos, boolean requireNonFullSupport) {
         HeatSourceConfig heatConfig = plugin.getHeatSourceConfig();
         if (heatConfig == null) return false;
 
@@ -129,90 +120,32 @@ public class TrayManager {
 
         Block blockBelow = world.getBlockAt(potPos.x(), potPos.y() - 1, potPos.z());
         if (heatConfig.isHeatSource(blockBelow)) {
-            return isValidTraySupport(blockBelow);
+            return isValidTraySupport(blockBelow, requireNonFullSupport);
         }
         if (heatConfig.isConductor(blockBelow)) {
             Block blockTwoBelow = world.getBlockAt(potPos.x(), potPos.y() - 2, potPos.z());
-            return heatConfig.isHeatSource(blockTwoBelow) && isValidTraySupport(blockBelow);
+            return heatConfig.isHeatSource(blockTwoBelow) && isValidTraySupport(blockBelow, requireNonFullSupport);
         }
         return false;
     }
 
-    public void reload() {
-        loadConfig();
-    }
-
-    public void cleanupLegacyFurnitureEntities() {
-        if (!enabled) return;
-        // Known legacy furniture IDs.
-        Key trayKey = Key.of("farmersdelight:tray");
-        Key handleKey = Key.of("farmersdelight:cooking_pot_handle");
-        // Legacy persistent-data marker keys.
-        NamespacedKey trayMarker = new NamespacedKey(plugin, "auto_tray_marker");
-        NamespacedKey handleMarker = new NamespacedKey(plugin, "auto_pot_handle");
-
-        java.util.concurrent.atomic.AtomicInteger removed = new java.util.concurrent.atomic.AtomicInteger(0);
-        for (World world : org.bukkit.Bukkit.getWorlds()) {
-            for (Chunk chunk : world.getLoadedChunks()) {
-                for (Entity entity : chunk.getEntities()) {
-                    if (!(entity instanceof ItemDisplay)) continue;
-                    // Schedule on the entity's own region thread for Folia compatibility.
-                    plugin.scheduler().runForEntity(entity, () -> {
-                        boolean isOldTray = isLegacyFurniture(entity, trayKey, trayMarker,
-                                "farmersdelight:auto_tray:", "farmersdelight:manual_tray");
-                        boolean isOldHandle = isLegacyFurniture(entity, handleKey, handleMarker, null, null);
-                        if (isOldTray || isOldHandle) {
-                            try {
-                                CraftEngineFurniture.remove(entity, false, false);
-                            } catch (Exception ignored) {
-                                entity.remove();
-                            }
-                            removed.incrementAndGet();
-                        }
-                    });
-                }
-            }
-        }
-        // Defer the log so Folia async tasks have time to complete.
-        plugin.scheduler().runLater(() -> {
-            int count = removed.get();
-            if (count > 0) {
-                plugin.getLogger().info("Cleaned up " + count + " legacy tray/handle furniture entities.");
-            }
-        }, 20L);
-    }
-
-    private boolean isLegacyFurniture(Entity entity, Key furnitureKey, NamespacedKey markerKey,
-                                       String scoreboardPrefix, String manualTag) {
-        // Preserve trays that players placed manually.
-        if (manualTag != null && entity.getScoreboardTags().contains(manualTag)) return false;
-        // Check the persistent-data marker.
-        if (entity.getPersistentDataContainer().has(markerKey, PersistentDataType.BYTE)) return true;
-        // Check legacy scoreboard tags.
-        if (scoreboardPrefix != null) {
-            for (String tag : entity.getScoreboardTags()) {
-                if (tag.startsWith(scoreboardPrefix)) return true;
-            }
-        }
-        // Check the CraftEngine furniture ID.
-        BukkitFurniture furniture = CraftEngineFurniture.getLoadedFurnitureByMetaEntity(entity);
-        return furniture != null && furniture.id().equals(furnitureKey);
-    }
-
     // Internal helpers
 
-    private boolean isPotOrSkilletAt(World world, BlockPos pos) {
-        return CookingPotBlockBehavior.isCookingPotBlock(world, new BlockPosKey(pos))
-                || isSkilletAt(world, pos);
+    private CookingPotBlockBehavior getCookingPotBehavior(World world, BlockPos pos) {
+        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(
+                world.getBlockAt(pos.x(), pos.y(), pos.z()));
+        return state == null || state.isEmpty() ? null
+                : CustomBlockUtils.getBehavior(state, CookingPotBlockBehavior.class);
     }
 
-    private boolean isSkilletAt(World world, BlockPos pos) {
-        Location loc = new Location(world, pos.x(), pos.y(), pos.z());
-        return CustomBlockUtils.hasBehavior(loc, SkilletBlockBehavior.class)
-                || CustomBlockUtils.hasId(loc, Constants.BLOCK_SKILLET);
+    private SkilletBlockBehavior getSkilletBehavior(World world, BlockPos pos) {
+        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(
+                world.getBlockAt(pos.x(), pos.y(), pos.z()));
+        return state == null || state.isEmpty() ? null
+                : CustomBlockUtils.getBehavior(state, SkilletBlockBehavior.class);
     }
 
-    private boolean isValidTraySupport(Block block) {
+    private boolean isValidTraySupport(Block block, boolean requireNonFullSupport) {
         return !requireNonFullSupport || isNonFullSupport(block);
     }
 

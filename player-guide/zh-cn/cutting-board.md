@@ -1,3 +1,5 @@
+
+[English](../en/cutting-board.md)
 # 切菜板
 
 **切菜板（Cutting Board）** 让你用工具加工单个物品 —— 把肉和鱼切成小份、剥原木、把作物拆成部件等等。

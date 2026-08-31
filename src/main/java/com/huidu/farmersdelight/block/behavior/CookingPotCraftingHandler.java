@@ -4,6 +4,7 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.config.ContainerReturnConfig;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
+import com.huidu.farmersdelight.recipe.RecipeItemCodec;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.core.util.Key;
@@ -132,7 +133,14 @@ public class CookingPotCraftingHandler {
 
     private boolean matchesIngredient(ItemStack item, RecipeIngredient ingredient) {
         if (ingredient instanceof RecipeIngredient.Item itemIngredient) {
-            return ItemUtils.matchesItemId(item, itemIngredient.key());
+            if (!ItemUtils.matchesItemId(item, itemIngredient.key())) {
+                return false;
+            }
+            if (itemIngredient.nbt() == null) {
+                return true;
+            }
+            ItemStack expected = RecipeItemCodec.itemFromBase64(itemIngredient.nbt());
+            return expected != null && expected.isSimilar(item);
         }
 
         if (ingredient instanceof RecipeIngredient.Choice choiceIngredient) {

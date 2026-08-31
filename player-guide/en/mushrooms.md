@@ -1,3 +1,5 @@
+
+[简体中文](../zh-cn/mushrooms.md)
 # Mushroom Colonies
 
 Mushroom colonies are dense clusters of mushrooms that grow on the pack's fertile soils and can be harvested again and again — a renewable mushroom farm without needing a huge dark room.

@@ -6,10 +6,8 @@ import net.momirealms.craftengine.core.item.ItemManager;
 import net.momirealms.craftengine.core.item.setting.CustomItemSettingType;
 import net.momirealms.craftengine.core.item.setting.ItemSettings;
 import net.momirealms.craftengine.core.item.setting.ItemSettingsModifier;
-import net.momirealms.craftengine.core.item.setting.ItemSettingsModifierFactory;
 import net.momirealms.craftengine.core.item.setting.ItemSettingsModifierType;
 import net.momirealms.craftengine.core.plugin.CraftEngine;
-import net.momirealms.craftengine.core.plugin.config.ConfigValue;
 import net.momirealms.craftengine.core.registry.BuiltInRegistries;
 import net.momirealms.craftengine.core.registry.Registries;
 import net.momirealms.craftengine.core.registry.WritableRegistry;
@@ -47,15 +45,13 @@ public final class ToolRegistry {
 
     private ToolRegistry() {}
 
-    @SuppressWarnings("unchecked")
     public static void register() {
         if (registered) return;
         registered = true;
 
         ItemSettingsModifierType<ItemSettingsModifier> type = new ItemSettingsModifierType<>(
                 Key.of("farmersdelight", "sword"),
-                (ItemSettingsModifierFactory<ItemSettingsModifier>) (ConfigValue value) ->
-                        (ItemSettingsModifier) settings -> {
+                value -> settings -> {
                             ToolData data = ToolData.fromConfig(value.getAsSection());
                             settings.addCustomData(KEY, data);
                         }
@@ -67,8 +63,7 @@ public final class ToolRegistry {
 
         ItemSettingsModifierType<ItemSettingsModifier> durableType = new ItemSettingsModifierType<>(
                 Key.of("farmersdelight", "durable"),
-                (ItemSettingsModifierFactory<ItemSettingsModifier>) (ConfigValue value) ->
-                        (ItemSettingsModifier) settings -> {
+                value -> settings -> {
                             ToolData data = ToolData.fromConfig(value.getAsSection());
                             settings.addCustomData(DURABLE_KEY, data);
                         }

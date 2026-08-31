@@ -17,9 +17,11 @@ public final class Text {
     private static final MiniMessage MINI = MiniMessage.miniMessage();
     private static final PlainTextComponentSerializer PLAIN = PlainTextComponentSerializer.plainText();
 
-    // "<lang:'key'>" or "<lang:key>": replaced by a client-side translatable component so the raw
-    // translation key never leaks into chat/GUI text. MiniMessage does not understand this tag natively.
-    private static final Pattern LANG_TAG = Pattern.compile("<lang:\\s*'([^']*)'\\s*>|<lang:([^>]*)>");
+    // "<lang:'key'>" / "<lang:key>" and the one-argument form used by resource-pack translations:
+    // "<lang:'key':'argument'>". MiniMessage does not understand these tags natively.
+    private static final Pattern LANG_TAG = Pattern.compile(
+            "<lang:\\s*'([^']*)'(?:\\s*:\\s*'([^']*)')?\\s*>"
+                    + "|<lang:([a-zA-Z0-9_.-]+)(?::([^>]*))?>");
 
     // Components are immutable (append/colorIfAbsent return new instances), so a parsed component is
     // safe to share. GUI rendering re-parses the same fixed strings repeatedly; cache by raw input.
@@ -74,9 +76,15 @@ public final class Text {
             if (matcher.start() > last) {
                 builder.append(parseMiniMessage(miniMessage.substring(last, matcher.start())));
             }
-            String key = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
+            String key = matcher.group(1) != null ? matcher.group(1) : matcher.group(3);
             if (key != null) {
-                builder.append(Component.translatable(key.trim()));
+                String rawArgument = matcher.group(2) != null ? matcher.group(2) : matcher.group(4);
+                if (rawArgument == null) {
+                    builder.append(Component.translatable(key.trim()));
+                } else {
+                    Component argument = resolveLangTags(legacyToMiniMessage(rawArgument));
+                    builder.append(Component.translatable(key.trim(), argument));
+                }
             }
             last = matcher.end();
         }
