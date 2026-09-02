@@ -196,8 +196,7 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
         // colony reads as empty and can never be harvested, while growth and bone meal fail on every
         // write. A block that declares this behavior without an int age property aborts its own load
         // here, naming the property, instead of loading a colony that silently does nothing. The
-        // property name stays configurable, but an unresolvable configured name is now an error
-        // rather than a silent fall back to the default name.
+        // property name stays configurable; an unresolvable name is an error without a default fallback.
         String path = section != null ? section.path() : Constants.BEHAVIOR_MUSHROOM_COLONY;
         String agePropertyName = BehaviorArgParser.getString(arguments, "age-property", "age");
         Property<Integer> ageProperty =

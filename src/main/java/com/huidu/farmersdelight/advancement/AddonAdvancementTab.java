@@ -34,8 +34,8 @@ public final class AddonAdvancementTab {
     private final Map<String, Advancement> byId = new ConcurrentHashMap<>();
     private final Map<String, Map<String, TaskAdvancement>> multiTasks = new ConcurrentHashMap<>();
     private final Set<UUID> rootAwarded = ConcurrentHashMap.newKeySet();
-    // Which ids each tab's previous build gated off, so only the difference is logged. Keyed by tab name rather
-    // than held per instance because a rebuild replaces the whole AddonAdvancementTab.
+    // IDs gated by each tab's last completed construction. The tab name owns the state because rebuilding
+    // replaces the AddonAdvancementTab instance.
     private static final Map<String, Set<String>> GATED_OFF_BY_TAB = new ConcurrentHashMap<>();
 
     private AdvancementTab tab;
@@ -63,8 +63,7 @@ public final class AddonAdvancementTab {
         try {
             UltimateAdvancementAPI api = UltimateAdvancementAPI.getInstance(plugin);
             if (api.isAdvancementTabRegistered(tabName)) {
-                // Rebuilds follow CE/datapack reloads; the client may have already discarded the old
-                // virtual tree, so do not send stale remove packets for it.
+                // The client may have discarded the virtual tree, so do not send remove packets for it.
                 api.unregisterAdvancementTab(tabName, false);
             }
             tab = api.createAdvancementTab(tabName);

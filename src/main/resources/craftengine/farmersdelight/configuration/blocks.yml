@@ -719,9 +719,9 @@ block:
         add: true
       - type: swing_hand
       - type: drop_loot
-        x: <arg:block.block_x>
-        y: <arg:block.block_y> + 2
-        z: <arg:block.block_z>
+        x: <arg:position.block_x>
+        y: <arg:position.block_y> + 2
+        z: <arg:position.block_z>
         loot:
           pools:
           - rolls: 1

@@ -43,8 +43,7 @@ public final class BuffBossbar {
     }
 
     private static BuffBossbarManager manager() {
-        // Single volatile read; null before FD's manager starts and after it stops (same no-op
-        // windows as the old getInstance() -> getter chain).
+        // Single volatile read; null before the manager starts and after it stops.
         return BuffBossbarManager.active();
     }
 

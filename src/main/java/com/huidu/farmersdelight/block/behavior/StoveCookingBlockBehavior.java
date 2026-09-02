@@ -18,7 +18,6 @@ import net.momirealms.craftengine.core.block.behavior.EntityBlock;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.block.entity.BlockEntityController;
 import net.momirealms.craftengine.core.block.property.Property;
-import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
@@ -207,9 +206,7 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
             return;
         }
         Location location = new Location(world, pos.x(), pos.y(), pos.z());
-        // breakStove already persists/dirties exactly the broken location; the previous
-        // saveWorldData(world) re-dirtied every stove in the world (O(N) block-entity lookups) on
-        // each single break, and on Folia reached chunks owned by other region threads.
+        // breakStove persists and dirties only the region-owned location being removed.
         manager.breakStove(location, location.clone().add(0.5, 0.5, 0.5), false);
     }
 

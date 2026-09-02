@@ -12,6 +12,7 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.api.FarmersDelightApi;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -127,8 +128,8 @@ public class AdvancementManager {
     private final Map<String, Map<String, TaskAdvancement>> multiTasks = new ConcurrentHashMap<>();
     private final Set<UUID> rootAwarded = ConcurrentHashMap.newKeySet();
     private AdvancementTab tab;
-    // Which ids the previous build gated off, so only the difference is logged. Written on the load/reload path
-    // and read by the next build, which may run on another thread.
+    // IDs gated by the last completed tree construction. Writes occur during load/reload and later
+    // constructions may read the set from another thread.
     private volatile Set<String> gatedOff;
 
     public AdvancementManager(FarmersDelightPlugin plugin) {
@@ -333,13 +334,19 @@ public class AdvancementManager {
             return;
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
-            try {
-                award(player, "root");
-                showTo(player);
-            } catch (Exception e) {
-                // A player whose data is not loaded yet (UserNotLoadedException) must not block the others.
-                plugin.getLogger().log(java.util.logging.Level.WARNING,
-                        "Failed to resync advancements for " + player.getName() + ':', e);
+            Runnable resync = () -> {
+                try {
+                    award(player, "root");
+                    showTo(player);
+                } catch (Exception e) {
+                    plugin.getLogger().log(java.util.logging.Level.WARNING,
+                            "Failed to resync advancements for " + player.getName() + ':', e);
+                }
+            };
+            if (FarmersDelightApi.get().isFolia()) {
+                player.getScheduler().run(plugin, task -> resync.run(), null);
+            } else {
+                resync.run();
             }
         }
     }
@@ -351,10 +358,17 @@ public class AdvancementManager {
             return;
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
-            try {
-                tab.updateAdvancementsToTeam(player);
-            } catch (Exception ignored) {
-                // data not loaded; UAA re-shows the tab once the player's data finishes loading
+            Runnable resend = () -> {
+                try {
+                    tab.updateAdvancementsToTeam(player);
+                } catch (Exception ignored) {
+                    // data not loaded; UAA re-shows the tab once the player's data finishes loading
+                }
+            };
+            if (FarmersDelightApi.get().isFolia()) {
+                player.getScheduler().run(plugin, task -> resend.run(), null);
+            } else {
+                resend.run();
             }
         }
     }

@@ -130,9 +130,8 @@ debug:
 # Vanilla damage-type injection (farmersdelight_damage datapack): the custom farmersdelight:stove_burn
 # damage type used by the stove grilling surface, plus its no_knockback tag entry. Installed into
 # the primary world's datapacks/ folder and requires a server restart (or /reload) to take effect.
-# Split from the loot datapack so the two can be toggled and reinstalled independently; old installs
-# that wrote these files under the loot datapack are migrated (legacy files removed) on the next
-# install. Reinstall via /fd reload damage.
+# Damage files under the obsolete loot datapack are migrated and removed during installation.
+# Reinstall via /fd reload damage.
 damage-type:
   install-datapack: true
 
@@ -303,7 +302,7 @@ cutting-board:
     # 3D blocks whose item icon is 2D (item/generated parent in the vanilla model) — placed on the board
     # they read as flat sprites instead of awkward floating meshes. Unknown ids are ignored silently
     # (CuttingBoardDisplayConfig validates only the namespace:id format, never material existence), so
-    # listing newer-version items stays safe on older servers — e.g. pale_oak_sapling on 1.21.1.
+    # cross-version item lists are safe — e.g. pale_oak_sapling on 1.21.1.
     minecraft:torch:
       style: item
     minecraft:soul_torch:
@@ -714,9 +713,8 @@ stove:
     smoke:
       enabled: true
       type: SMOKE
-      # Emitted every dispatch (every 4 ticks) per lit stove when a player is near. Now that stoves
-      # emit uniformly (no chunk stagger), these chances are the true per-stove rate — previously a
-      # broken stagger meant only ~1/4 of stoves emitted, so the shipped values were ~4× higher.
+      # Emitted every dispatch (every 4 ticks) per lit stove when a player is near.
+      # The chance is the independent per-stove rate.
       chance: 0.05
       count: 1
       y-offset: 0.0

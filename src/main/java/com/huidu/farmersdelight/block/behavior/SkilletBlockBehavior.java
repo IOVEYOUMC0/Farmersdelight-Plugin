@@ -204,9 +204,7 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
             return;
         }
         Location location = new Location(world, pos.x(), pos.y(), pos.z());
-        // breakSkillet already persists/dirties exactly the broken location; the previous
-        // saveWorldData(world) re-dirtied every skillet in the world (O(N) block-entity lookups) on
-        // each single break, and on Folia reached chunks owned by other region threads.
+        // breakSkillet persists and dirties only the region-owned location being removed.
         manager.breakSkillet(location, location.clone().add(0.5, 0.5, 0.5), false);
     }
 

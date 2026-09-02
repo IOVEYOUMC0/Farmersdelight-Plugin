@@ -185,12 +185,22 @@ public final class SchedulerAdapter {
     }
 
     private static boolean isClassPresent() {
-        try {
-            Class.forName("io.papermc.paper.threadedregions.RegionizedServer", false, SchedulerAdapter.class.getClassLoader());
-            return true;
-        } catch (ClassNotFoundException ignored) {
-            return false;
+        String className = "io.papermc.paper.threadedregions.RegionizedServer";
+        ClassLoader[] loaders = {
+                SchedulerAdapter.class.getClassLoader(),
+                Thread.currentThread().getContextClassLoader(),
+                Bukkit.getServer() == null ? null : Bukkit.getServer().getClass().getClassLoader(),
+                ClassLoader.getSystemClassLoader()
+        };
+        for (ClassLoader loader : loaders) {
+            try {
+                Class.forName(className, false, loader);
+                return true;
+            } catch (ClassNotFoundException | LinkageError ignored) {
+                // Try the next loader; plugin and server classes may use different class loaders.
+            }
         }
+        return false;
     }
 
     private static final class NamedThreadFactory implements ThreadFactory {

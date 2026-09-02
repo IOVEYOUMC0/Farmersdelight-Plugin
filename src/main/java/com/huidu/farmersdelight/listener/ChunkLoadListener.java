@@ -181,7 +181,7 @@ public class ChunkLoadListener implements Listener {
         if (entities.isEmpty()) return;
         // getBlockEntitiesInChunk already returns a fresh HashMap snapshot (see its impl), and
         // removeBlockEntity mutates the authoritative chunkIndex/worldBlockEntities, not `entities`.
-        // The old outer `new ArrayList<>(entities.keySet())` was a redundant double-snapshot.
+        // The key set can be iterated directly because `entities` is an independent snapshot.
         for (BlockPosKey posKey : entities.keySet()) {
             CookingPotBlockBehavior.removeBlockEntity(world, posKey, false);
         }

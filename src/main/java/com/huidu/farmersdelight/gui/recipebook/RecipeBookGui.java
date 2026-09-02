@@ -9,6 +9,7 @@ import com.huidu.farmersdelight.api.recipe.RecipeFiller;
 import com.huidu.farmersdelight.api.recipe.RecipeType;
 import com.huidu.farmersdelight.api.recipe.ViewableRecipe;
 import com.huidu.farmersdelight.gui.GuiConfig;
+import com.huidu.farmersdelight.gui.RecipeViewGui;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.recipe.RecipeDiscoveryManager;
 import com.huidu.farmersdelight.util.ItemUtils;
@@ -502,6 +503,31 @@ public final class RecipeBookGui implements InventoryHolder {
             drawDetail(targetType, target.recipeId(), player);
             player.openInventory(inventory);
             return;
+        }
+        if (!cfg.slotsByType("ingredient").contains(rawSlot)) {
+            return;
+        }
+        FarmersDelightApi api = FarmersDelightApi.get();
+        ItemStack clicked = inventory.getItem(rawSlot);
+        for (JumpTarget target : api.findRecipesProducing(clicked)) {
+            if (target.typeId().equals(type.id()) && target.recipeId().equals(recipeId)) {
+                continue;
+            }
+            RecipeType targetType = api.recipeType(target.typeId());
+            if (targetType != null && targetType.recipe(target.recipeId()) != null) {
+                history.push(snapshot());
+                drawDetail(targetType, target.recipeId(), player);
+                player.openInventory(inventory);
+                return;
+            }
+            ViewState returnState = snapshot();
+            if (RecipeViewGui.openLinkedRecipe(player, target, () -> {
+                viewer = player;
+                restore(returnState, player);
+                player.openInventory(inventory);
+            })) {
+                return;
+            }
         }
     }
 

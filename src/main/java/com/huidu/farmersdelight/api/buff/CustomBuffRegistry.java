@@ -142,15 +142,21 @@ public final class CustomBuffRegistry {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         for (UUID playerId : LAST_LEVELS.keySet()) {
             Player player = Bukkit.getPlayer(playerId);
-            if (player == null || !player.isOnline()) {
+            if (player == null) {
                 LAST_LEVELS.remove(playerId);
                 continue;
             }
             if (plugin == null) {
-                syncAll(player);
-            } else {
-                plugin.scheduler().runForEntity(player, () -> syncAll(player));
+                LAST_LEVELS.remove(playerId);
+                continue;
             }
+            plugin.scheduler().runForEntity(player, () -> {
+                if (player.isOnline()) {
+                    syncAll(player);
+                } else {
+                    LAST_LEVELS.remove(playerId);
+                }
+            }, () -> LAST_LEVELS.remove(playerId));
         }
     }
 

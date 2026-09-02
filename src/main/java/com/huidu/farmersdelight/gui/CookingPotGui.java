@@ -340,9 +340,7 @@ public class CookingPotGui extends AbstractInventoryGui {
         if (entitySlot == null) {
             return;
         }
-        // Whether the container hint exists depends only on whether a pending container exists now; whether a rebuild
-        // is needed depends only on whether the item or container changed. Previously one flag served both, so when
-        // "buffer item amount changed but container unchanged" the display was rebuilt but the hint was dropped.
+        // Hint visibility depends on the pending container; rebuilding depends on either item or container changes.
         boolean hasContainerHint = container != null && !container.getType().isAir();
         ItemStack item = blockEntity.getInventorySlot(entitySlot);
         ItemStack cached = cachedDisplayItems.get(guiSlot);

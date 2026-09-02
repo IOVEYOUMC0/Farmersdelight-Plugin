@@ -138,11 +138,11 @@ public void onLoad() {
         BlockBehaviors.register(Key.of(NS + ":example_block"), ExampleBlockBehavior.FACTORY);
     }
     // Copy bundled CraftEngine resources into plugins/CraftEngine/resources/<namespace>/.
-    AddonResources.release(this);
+    CraftEngineResources.release(this, NS);
 }
 ```
 
-自定义方块行为必须在 `blocks.yml` 被解析之前注册；你内置的 CraftEngine 资源也必须在 CraftEngine 扫描之前 落到磁盘上。这两件事都不走 FarmersDelight 的 api。
+自定义方块行为必须在 `blocks.yml` 被解析之前注册；你内置的 CraftEngine 资源也必须在 CraftEngine 扫描之前 落到磁盘上。方块行为注册走 CraftEngine，资源释放走 FarmersDelight 的公开 API。
 
 ## onEnable
 

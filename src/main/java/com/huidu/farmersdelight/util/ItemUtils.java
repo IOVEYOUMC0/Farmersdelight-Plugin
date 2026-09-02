@@ -205,7 +205,7 @@ public final class ItemUtils {
             String tagString = itemId.substring(1);
             // Common tags (c:...) expand through the mapping table; CE / vanilla tags expand via CraftEngine.
             if (CommonTagResolver.isCommonTag(tagString)) {
-                // CE items now declare c: tags in their settings.tags instead of tags.yml, so merge
+                // CE items declare c: tags in their settings.tags instead of tags.yml, so merge
                 // CraftEngine members onto the mapping-table members to keep every tagged item visible.
                 Set<UniqueKey> seen = new HashSet<>();
                 for (String memberId : CommonTagResolver.getMembers(tagString)) {

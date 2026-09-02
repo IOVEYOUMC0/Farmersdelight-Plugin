@@ -32,8 +32,7 @@ public class TickManager {
     
     private final Set<ActiveBlock> activeBlocks = ConcurrentHashMap.newKeySet();
     // Lock-free mark queue: producers are event-driven (GUI clicks, block interactions, chunk loads)
-    // and the single consumer is tick(). FIFO drain reproduces the old add/remove set cancellation —
-    // the last operation for a block within a drain window wins.
+    // and the single consumer is tick(). FIFO drain preserves last-operation-wins semantics per block.
     private final ConcurrentLinkedQueue<PendingChange> pendingChanges = new ConcurrentLinkedQueue<>();
 
     private record PendingChange(ActiveBlock block, boolean add) {
@@ -459,8 +458,7 @@ public class TickManager {
             return;
         }
 
-        // Keep advancing buffer -> output during the pot tick to match the old plugin's behavior,
-        // rather than relying only on GUI refresh or manual output pickup.
+        // Advance buffer -> output during the pot tick instead of relying on GUI refresh or manual pickup.
         entity.tryMovePendingToOutput();
 
         if (!entity.hasStoredContents()) {
@@ -517,9 +515,8 @@ public class TickManager {
                     return;
                 }
                 if (entity.finishCooking(world, blockLoc)) {
-                    // Keep the pot active after a successful cook so remaining
-                    // ingredients can immediately start the next batch, to match
-                    // the old plugin's behavior.
+                    // Keep the pot active after a successful cook so remaining ingredients can immediately
+                    // start the next batch.
                     recipe = entity.getCurrentRecipe();
                 }
             }
@@ -612,4 +609,3 @@ public class TickManager {
         }
     }
 }
-

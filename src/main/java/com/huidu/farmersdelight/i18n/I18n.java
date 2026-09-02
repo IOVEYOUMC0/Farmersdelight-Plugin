@@ -58,7 +58,7 @@ public class I18n {
 
         saveDefaultLanguages();
 
-        // Build everything in a local map, then publish atomically all at once, never touching the old snapshot being read.
+        // Build everything in a local map, then publish atomically without mutating the active snapshot.
         Map<String, YamlConfiguration> loaded = new HashMap<>();
         File[] langFiles = langFolder.listFiles((dir, name) -> name.endsWith(".yml"));
         if (langFiles != null) {
@@ -350,8 +350,7 @@ public class I18n {
             }
         }
 
-        // Last resort: the plugin's own bundled language (this build). Covers a stale or partially-merged
-        // deployed lang file, or a lookup before init completes, so a raw key never leaks to the console / UI.
+        // Bundled-language fallback covers incomplete deployed files and lookups before initialization.
         String bundled = bundledValue(key, locale);
         if (bundled != null) {
             return bundled;

@@ -122,8 +122,8 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
             // Age and half are not optional: the crop's whole growth and harvest cycle is expressed
             // through them. A block that declares this behavior without them aborts its own load here,
             // naming the property that is missing, instead of loading a crop that never grows and can
-            // never be harvested. The property name stays configurable, but an unresolvable configured
-            // name is now an error rather than a silent fall back to the default name.
+            // never be harvested. The property name stays configurable; an unresolvable name is an error
+            // without a default fallback.
             String agePropertyName = BehaviorArgParser.getString(arguments, "age-property", "age");
             Property<Integer> ageProperty =
                     BlockBehaviorFactory.getProperty(path, block, agePropertyName, Integer.class);
@@ -632,7 +632,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
     }
 
     private ContextHolder.Builder createLootContext(Block block, Player player, ItemStack tool, WorldPosition position) {
-        ContextHolder.Builder builder = new ContextHolder.Builder()
+        ContextHolder.Builder builder = ContextHolder.builder()
                 .withParameter(DirectContextParameters.POSITION, position)
                 .withParameter(DirectContextParameters.BLOCK, new BukkitExistingBlock(block));
         var cePlayer = BukkitAdaptor.adapt(player);

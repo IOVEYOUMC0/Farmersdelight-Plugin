@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.advancement;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
+import com.huidu.farmersdelight.api.FarmersDelightApi;
 
 import java.util.List;
 import java.util.Map;
@@ -78,7 +79,7 @@ public final class AddonAdvancementRegistry {
         }
         for (AddonAdvancementTab tab : tabs.values()) {
             for (Player player : online) {
-                tab.resyncPlayer(player);
+                runForPlayer(player, () -> tab.resyncPlayer(player));
             }
         }
     }
@@ -93,8 +94,16 @@ public final class AddonAdvancementRegistry {
         }
         for (AddonAdvancementTab tab : tabs.values()) {
             for (Player player : online) {
-                tab.forceResend(player);
+                runForPlayer(player, () -> tab.forceResend(player));
             }
+        }
+    }
+
+    private void runForPlayer(Player player, Runnable action) {
+        if (FarmersDelightApi.get().isFolia()) {
+            player.getScheduler().run(plugin, task -> action.run(), null);
+        } else {
+            action.run();
         }
     }
 
@@ -120,8 +129,7 @@ public final class AddonAdvancementRegistry {
         if (defs == null) {
             return false;
         }
-        // Build the replacement first; load() unregisters any existing UAA tab of this name before creating the
-        // new one, so the old tab stays live until the new one is built.
+        // Build the replacement first; load() unregisters any existing UAA tab of this name before creating it.
         AddonAdvancementTab fresh = new AddonAdvancementTab(plugin, tabName, defs);
         if (!fresh.load()) {
             AddonAdvancementTab stale = tabs.remove(tabName);
@@ -130,8 +138,7 @@ public final class AddonAdvancementRegistry {
             }
             return false;
         }
-        // Swap in the new wrapper without disposing the old one (dispose() unregisters by name and would tear
-        // down the freshly-built tab).
+        // Swap in the new wrapper without disposing the replaced wrapper because dispose() unregisters by name.
         tabs.put(tabName, fresh);
         return true;
     }

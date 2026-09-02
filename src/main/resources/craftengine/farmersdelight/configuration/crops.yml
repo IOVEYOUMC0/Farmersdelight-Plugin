@@ -58,9 +58,9 @@ blocks:
       - on: break
         functions:
           - type: drop_loot
-            x: <arg:block.block_x> + 0.5
-            y: <arg:block.block_y> + 0.5
-            z: <arg:block.block_z> + 0.5
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
             loot:
               functions:
                 - type: explosion_decay
@@ -187,9 +187,9 @@ blocks:
       - on: break
         functions:
           - type: drop_loot
-            x: <arg:block.block_x> + 0.5
-            y: <arg:block.block_y> + 0.5
-            z: <arg:block.block_z> + 0.5
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
             loot:
               pools:
                 - rolls: 1
@@ -300,9 +300,9 @@ blocks:
       - on: break
         functions:
           - type: drop_loot
-            x: <arg:block.block_x> + 0.5
-            y: <arg:block.block_y> + 0.5
-            z: <arg:block.block_z> + 0.5
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
             loot:
               functions:
                 - type: explosion_decay
@@ -467,9 +467,9 @@ blocks:
               age: 3
         functions:
           - type: drop_loot
-            x: <arg:block.block_x> + 0.5
-            y: <arg:block.block_y> + 0.5
-            z: <arg:block.block_z> + 0.5
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
             loot:
               pools:
                 - rolls: 1
@@ -499,9 +499,9 @@ blocks:
       - on: break
         functions:
           - type: drop_loot
-            x: <arg:block.block_x> + 0.5
-            y: <arg:block.block_y> + 0.5
-            z: <arg:block.block_z> + 0.5
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
             loot:
               functions:
                 - type: explosion_decay
@@ -611,9 +611,9 @@ blocks:
               age: 3
         functions:
           - type: drop_loot
-            x: <arg:block.block_x> + 0.5
-            y: <arg:block.block_y> + 0.5
-            z: <arg:block.block_z> + 0.5
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
             loot:
               pools:
                 - rolls: 1
@@ -646,9 +646,9 @@ blocks:
               age: 3
         functions:
           - type: drop_loot
-            x: <arg:block.block_x> + 0.5
-            y: <arg:block.block_y> + 0.5
-            z: <arg:block.block_z> + 0.5
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
             loot:
               functions:
                 - type: explosion_decay

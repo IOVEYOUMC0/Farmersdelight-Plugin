@@ -574,8 +574,7 @@ public class CookingPotRecipeManager {
         if (recipeIndex == null || recipeIndex.isEmpty()) {
             return null;
         }
-        // Copy-on-write to avoid the per-call HashSet allocations the old version did even when only
-        // one source set per item / per call needed merging.
+        // Copy-on-write avoids per-call HashSet allocations when only one source set needs merging.
         // candidates / recipesForItem start as shared references to an unmodified index entry; we
         // allocate a real HashSet copy only when a second source forces a union or intersection.
         Set<String> candidates = null;

@@ -48,12 +48,14 @@ import com.huidu.farmersdelight.compat.AuraSkillsHook;
 import com.huidu.farmersdelight.compat.CraftEngineStateUsageMonitor;
 import com.huidu.farmersdelight.effect.EffectListener;
 import com.huidu.farmersdelight.gui.CookingPotGui;
+import com.huidu.farmersdelight.gui.GuiCacheInvalidator;
 import com.huidu.farmersdelight.gui.GuiConfig;
 import com.huidu.farmersdelight.gui.RecipeEditorGuiConfig;
 import com.huidu.farmersdelight.gui.RecipeViewGui;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.loot.KnifeDropHandler;
 import com.huidu.farmersdelight.manager.BuffBossbarManager;
+import com.huidu.farmersdelight.manager.DatapackCoordinator;
 import com.huidu.farmersdelight.manager.HandleManager;
 import com.huidu.farmersdelight.manager.SkilletManager;
 import com.huidu.farmersdelight.manager.StoveManager;
@@ -71,7 +73,6 @@ import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.InteractionDebouncer;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
-import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import com.huidu.farmersdelight.util.scheduler.SchedulerAdapter;
 import com.huidu.farmersdelight.visual.ProxyItemDisplayManager;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
@@ -92,9 +93,6 @@ import org.bukkit.event.world.WorldUnloadEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.joml.Vector3f;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -105,11 +103,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
@@ -125,18 +120,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private static volatile boolean enabled = false;
     
     private volatile boolean startupSyncCompleted = false;
-    private volatile boolean datapackSyncQueued = false;
-    private volatile boolean datapackRemovalQueued = false;
-    // The rope position index survives CraftEngine reloads. Rebuilding every loaded chunk after each reload
-    // creates an unbounded region-task burst, so only run the recovery scan once after CE first becomes ready.
-    private final AtomicBoolean loadedChunkContentIndexStarted = new AtomicBoolean();
-    private final AtomicBoolean contentWarmupCompleted = new AtomicBoolean();
-    private PluginTask pendingCraftEngineReloadTask;
-    private final AtomicLong craftEngineReloadGeneration = new AtomicLong();
-    private PluginTask pendingDatapackReloadTask;
-    private PluginTask pendingDatapackSyncRetryTask;
-    private String pendingDatapackReloadReason;
-    private String pendingDatapackSyncRetryReason;
+    private CraftEngineReadinessCoordinator craftEngineReadinessCoordinator;
+    private DatapackCoordinator datapackCoordinator;
 
     private SchedulerAdapter scheduler;
     private TickManager tickManager;
@@ -167,11 +152,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private com.huidu.farmersdelight.listener.DamageTypeDatapackInstaller damageTypeDatapackInstaller;
     private TagDatapackInstaller tagDatapackInstaller;
     private final com.huidu.farmersdelight.config.ConfigBootstrap configBootstrap = new com.huidu.farmersdelight.config.ConfigBootstrap(this);
-    // Collects the per-subsystem content counts into the single summary line a healthy boot prints.
-    private final StartupSummary startupSummary = new StartupSummary(this);
-    // Set by requestContentSummary and cleared by the task it schedules; written from whichever thread a recipe
-    // manager republishes on and read on the next tick, so it must be volatile (R-CONC-002).
-    private volatile boolean contentSummaryRequested;
 
     // Lazy-loaded, may be accessed concurrently by multiple region threads (awarding XP when collecting cooking pot results); uses volatile + double-checked locking,
     // consistent with recipeEditorStore.
@@ -233,9 +213,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private Set<String> knifeTagIds = Set.of();
     private Set<String> debugCategories = Set.of();
 
-    private final Object primaryLevelNameLock = new Object();
-    private volatile boolean primaryLevelNameResolved = false;
-    private volatile String cachedPrimaryLevelName;
+    private final PrimaryWorldResolver primaryWorldResolver = new PrimaryWorldResolver(this);
 
     public static FarmersDelightPlugin getInstance() {
         return instance;
@@ -245,19 +223,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return enabled;
     }
 
-    private boolean areCraftEngineItemsReady() {
-        // Probe whether CraftEngine has finished its item-load pass, not a single item id. CE parses items in a
-        // deferred pass after its onEnable (only listeners are registered there), so isPluginEnabled would flip
-        // true too early; and keying on one specific item breaks the moment that item is deleted or the pack's
-        // namespace is changed. isAnyCustomItemLoaded checks the registry itself, surviving both.
-        try {
-            return ItemUtils.isAnyCustomItemLoaded();
-        } catch (Exception ignored) {
-            return false;
-        }
-    }
-
-    private void loadRecipeManagers(String logKey) {
+    void loadRecipeManagers(String logKey) {
         I18n.logDetail("recipe", logKey);
         cookingPotRecipeManager.loadRecipes();
         cuttingBoardRecipeManager.loadRecipes();
@@ -265,13 +231,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         if (recipeDiscoveryManager != null) {
             recipeDiscoveryManager.invalidateIndex();
         }
-    }
-
-    private void loadRecipeManagersWhenReady(String logKey) {
-        if (areCraftEngineItemsReady()) {
-            loadRecipeManagers(logKey);
-        }
-        // Otherwise: silently defer; CraftEngineReloadEvent retries once after CE items finish loading.
     }
 
     public boolean isAdvancementsEnabled() {
@@ -282,7 +241,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return buffSystemEnabled;
     }
 
-    private void disableAdvancementSystem() {
+    void disableAdvancementSystem() {
         if (achievementListener != null) {
             HandlerList.unregisterAll(achievementListener);
             achievementListener = null;
@@ -297,96 +256,19 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         queueAdvancementDatapackRemoval(I18n.formatConsole("plugin.datapack_reason_remove_disabled_advancements"));
     }
 
-    // Only build/refresh advancements after CraftEngine items finish loading, otherwise icon() falls back to
-    // vanilla Material icons instead of CE items.
-    private void refreshAdvancementSystemWhenReady(boolean reloading) {
-        if (!advancementsEnabled || !getServer().getPluginManager().isPluginEnabled("UltimateAdvancementAPI")) {
-            disableAdvancementSystem();
-            return;
-        }
-        if (!areCraftEngineItemsReady()) {
-            return; // CraftEngineReloadEvent retries this after CE items finish loading.
-        }
-        refreshAdvancementSystem(reloading);
-    }
-
-    private void indexLoadedChunkContentWhenReady() {
-        if (!areCraftEngineItemsReady()) {
-            return;
-        }
-        RopeBlockListener listener = ropeBlockListener;
-        if (listener != null && loadedChunkContentIndexStarted.compareAndSet(false, true)) {
-            listener.indexRopesInLoadedChunks();
-        }
-    }
-
-    private void warmUpWhenReady(String reason) {
-        if (areCraftEngineItemsReady()) {
-            warmUp(reason);
-        }
-    }
-
     public void reportContentSummaryWhenReady() {
-        if (areCraftEngineItemsReady()) {
-            startupSummary.report();
+        if (craftEngineReadinessCoordinator != null) {
+            craftEngineReadinessCoordinator.reportContentSummaryWhenReady();
         }
     }
 
     public void requestContentSummary() {
-        if (contentSummaryRequested) {
-            return;
-        }
-        contentSummaryRequested = true;
-        scheduler().runLater(() -> {
-            contentSummaryRequested = false;
-            reportContentSummaryWhenReady();
-        }, 1L);
-    }
-
-    private void warmUp(String reason) {
-        try {
-            long start = System.nanoTime();
-            int items = com.huidu.farmersdelight.util.ItemUtils.warmItems("farmersdelight");
-            com.huidu.farmersdelight.block.behavior.TomatoVineBlockBehavior.warmAll();
-            CookingPotGui.warm(this);
-            warmRecipeIngredientIcons();
-            long ms = (System.nanoTime() - start) / 1_000_000L;
-            // The item count and duration are produced here and nowhere else; the consolidated summary
-            // reads them back once the rest of the counts are final.
-            startupSummary.recordWarmup(items, ms);
-            I18n.logDetail("startup", "plugin.warmup_done", "items", items, "ms", ms);
-        } catch (Throwable t) {
-            getLogger().log(java.util.logging.Level.WARNING, I18n.formatConsole("plugin.warmup_failed"), t);
-        }
-        contentWarmupCompleted.set(true);
-        // Addons prime their own caches now that FD's are warm (see FarmersDelightWarmupEvent).
-        org.bukkit.Bukkit.getPluginManager().callEvent(
-                new com.huidu.farmersdelight.api.event.FarmersDelightWarmupEvent(reason));
-    }
-
-    private void warmRecipeIngredientIcons() {
-        if (cookingPotRecipeManager != null) {
-            for (var recipe : cookingPotRecipeManager.getAllRecipes()) {
-                for (var ingredient : recipe.getIngredients()) {
-                    com.huidu.farmersdelight.gui.RecipeIngredientIcons.resolveIngredientOptions(ingredient);
-                }
-            }
-        }
-        if (cuttingBoardRecipeManager != null) {
-            for (var recipe : cuttingBoardRecipeManager.getRecipes().values()) {
-                if (recipe.getInput() != null) {
-                    com.huidu.farmersdelight.gui.RecipeIngredientIcons.resolveIngredientOptions(recipe.getInput());
-                }
-                for (var tool : recipe.getTools()) {
-                    if (tool != null && tool.getKey() != null) {
-                        com.huidu.farmersdelight.gui.RecipeIngredientIcons.createItemFromKey(tool.getKey());
-                    }
-                }
-            }
+        if (craftEngineReadinessCoordinator != null) {
+            craftEngineReadinessCoordinator.requestContentSummary();
         }
     }
 
-    private void refreshAdvancementSystem(boolean reloading) {
+    void refreshAdvancementSystem(boolean reloading) {
         if (!advancementsEnabled || !getServer().getPluginManager().isPluginEnabled("UltimateAdvancementAPI")) {
             disableAdvancementSystem();
             return;
@@ -510,14 +392,14 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
         configBootstrap.ensureConfigDefaults();
         configBootstrap.migrateConfigKeys();
-        // Before I18n.init and the Folia line below, both of which route through the startup detail
-        // channel: logDetail can only promote them to INFO once these fields hold the configured
-        // categories, and the full config load that used to be their only reader runs further down.
+        // Startup detail logging reads these flags during I18n initialization and Folia detection.
         loadDebugFlags();
         I18n.init(this);
         configBootstrap.validateConfigTypes();
 
         scheduler = new SchedulerAdapter(this);
+        craftEngineReadinessCoordinator = new CraftEngineReadinessCoordinator(this);
+        datapackCoordinator = new DatapackCoordinator(this);
         if (scheduler.isFolia()) {
             // Reported as a field of the startup config summary rather than its own line.
             I18n.logDetail("startup", "plugin.folia_scheduler");
@@ -539,7 +421,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
         cuttingBoardRecipeManager = new CuttingBoardRecipeManager(this);
 
-        loadRecipeManagersWhenReady("plugin.loading_recipes");
+        craftEngineReadinessCoordinator.loadRecipesWhenReady("plugin.loading_recipes");
 
         // If CraftEngine is disabled while the server keeps running, FD cannot function; disable ourselves
         // cleanly instead of throwing from every CraftEngine-bound task. See CraftEngineWatchdogListener.
@@ -641,11 +523,11 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             queueDatapackReload(I18n.formatConsole("plugin.datapack_reason_apply_tag_changes"));
         }
 
-        // Villager and wandering trader trades (world-data section). Composting chances and furnace burn
-        // times now live in the CraftEngine item configurations instead.
+        // Villager and wandering trader trades use the world-data section. Composting chances and furnace
+        // burn times are configured in CraftEngine item definitions.
         registerEvents(new com.huidu.farmersdelight.listener.worlddata.VillagerTradeListener());
 
-        indexLoadedChunkContentWhenReady();
+        craftEngineReadinessCoordinator.indexLoadedChunkContentWhenReady();
 
         chunkLoadListener = new ChunkLoadListener(this);
         getServer().getPluginManager().registerEvents(chunkLoadListener, this);
@@ -655,13 +537,13 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 new com.huidu.farmersdelight.listener.DamageTypeDatapackInstaller(this);
         this.damageTypeDatapackInstaller = damageInstaller;
         damageInstaller.installToPrimaryWorld(getPrimaryWorld());
-        // Remove the now-obsolete loot datapack folder (chest/grass/mob injections migrated to CE native loot sources).
+        // Remove the obsolete loot datapack folder; chest, grass, and mob injections use CE-native loot sources.
         damageInstaller.cleanupLegacyLootDatapack();
 
-        refreshAdvancementSystemWhenReady(false);
+        craftEngineReadinessCoordinator.refreshAdvancementsWhenReady(false);
         // Warm CE item/GUI/behavior caches now IF CE is already up (FD enabled after CraftEngine). When CE
         // loads after FD, onCraftEngineReload runs the warmup instead — the readiness gate makes them exclusive.
-        warmUpWhenReady("enable");
+        craftEngineReadinessCoordinator.warmUpWhenReady("enable");
 
         scheduler.run(() -> startupSyncCompleted = true);
 
@@ -677,7 +559,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // finished loading. When FarmersDelight enables first (the usual order) neither is reported here and
         // the CraftEngine readiness pass does it instead; the readiness gate keeps the two exclusive.
         reportContentSummaryWhenReady();
-        if (areCraftEngineItemsReady()) {
+        if (craftEngineReadinessCoordinator.isReady()) {
             // The reason is spliced into "... usage after {reason}", so it needs the phrase form, not the
             // startup_config label the config summary is titled with. Mirrors craftengine_reload_reason.
             CraftEngineStateUsageMonitor.logRealStateUsage(this, I18n.formatConsole("plugin.startup_reason"));
@@ -842,17 +724,13 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         runDisableStep("plugin.disable_step_clear_behavior_config_lists", BlockBehaviorConfigs::clear);
 
         runDisableStep("plugin.disable_step_cancel_pending_tasks", () -> {
-            if (pendingCraftEngineReloadTask != null) {
-                pendingCraftEngineReloadTask.cancel();
-                pendingCraftEngineReloadTask = null;
+            if (craftEngineReadinessCoordinator != null) {
+                craftEngineReadinessCoordinator.cancelPendingTasks();
+                craftEngineReadinessCoordinator = null;
             }
-            if (pendingDatapackReloadTask != null) {
-                pendingDatapackReloadTask.cancel();
-                pendingDatapackReloadTask = null;
-            }
-            if (pendingDatapackSyncRetryTask != null) {
-                pendingDatapackSyncRetryTask.cancel();
-                pendingDatapackSyncRetryTask = null;
+            if (datapackCoordinator != null) {
+                datapackCoordinator.cancelPendingTasks();
+                datapackCoordinator = null;
             }
         });
 
@@ -990,158 +868,41 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     private void queueDatapackReload(String reason) {
-        pendingDatapackReloadReason = reason;
-        if (pendingDatapackReloadTask != null && !pendingDatapackReloadTask.isCancelled()) {
-            return;
-        }
-        pendingDatapackReloadTask = scheduler.runLater(() -> {
-            pendingDatapackReloadTask = null;
-            String reloadReason = pendingDatapackReloadReason != null
-                    ? pendingDatapackReloadReason
-                    : I18n.formatConsole("plugin.datapack_reason_apply_advancement_changes");
-            pendingDatapackReloadReason = null;
-            reloadServerDataPacks(reloadReason);
-        }, 10L);
-    }
-
-    private void reloadServerDataPacks(String reason) {
-        if (scheduler != null && scheduler.isFolia()) {
-            I18n.logWarning("plugin.datapack_reload_skipped_folia", "reason", reason);
-            return;
-        }
-        try {
-            I18n.logInfo("plugin.datapack_reload", "reason", reason);
-            getServer().reloadData();
-            // Bukkit's registry-backed tag views are rebuilt by reloadData; drop FD's derived caches
-            // so newly installed tags are visible immediately without an expensive full CE reload.
-            com.huidu.farmersdelight.util.ItemUtils.clearItemCache();
-        } catch (UnsupportedOperationException e) {
-            I18n.logWarning("plugin.datapack_reload_skipped_unsupported", "reason", reason);
-        } catch (Throwable throwable) {
-            getLogger().log(Level.WARNING, I18n.formatConsole("plugin.datapack_reload_failed",
-                    "reason", reason), throwable);
+        if (datapackCoordinator != null) {
+            datapackCoordinator.queueReload(reason);
         }
     }
 
     private void queueDatapackSync(String reason) {
-        if (!advancementsEnabled) {
-            return;
+        if (datapackCoordinator != null) {
+            datapackCoordinator.queueSync(reason);
         }
-        if (datapackRemovalQueued) {
-            scheduleDatapackSyncRetry(reason);
-            return;
-        }
-        if (datapackSyncQueued) {
-            return;
-        }
-        org.bukkit.World primaryWorld = getPrimaryWorld();
-        if (primaryWorld == null) {
-            return;
-        }
-        datapackSyncQueued = true;
-        String worldName = primaryWorld.getName();
-        Path datapackRoot = primaryWorld.getWorldFolder().toPath().resolve("datapacks").resolve("advancements");
-        scheduler.runAsync(() -> {
-            boolean updated = false;
-            try {
-                updated = new com.huidu.farmersdelight.advancement.AdvancementDatapackInstaller(this)
-                        .sync(datapackRoot, worldName);
-            } finally {
-                datapackSyncQueued = false;
-            }
-            if (updated) {
-                queueDatapackReload(reason);
-            }
-        });
-    }
-
-    private void scheduleDatapackSyncRetry(String reason) {
-        pendingDatapackSyncRetryReason = reason;
-        if (pendingDatapackSyncRetryTask != null && !pendingDatapackSyncRetryTask.isCancelled()) {
-            return;
-        }
-
-        pendingDatapackSyncRetryTask = scheduler.runLater(() -> {
-            pendingDatapackSyncRetryTask = null;
-            String retryReason = pendingDatapackSyncRetryReason;
-            pendingDatapackSyncRetryReason = null;
-            if (retryReason != null) {
-                queueDatapackSync(retryReason);
-            }
-        }, 20L);
     }
 
     private void queueAdvancementDatapackRemoval(String reason) {
-        if (datapackRemovalQueued) {
-            return;
+        if (datapackCoordinator != null) {
+            datapackCoordinator.queueRemoval(reason);
         }
-        org.bukkit.World primaryWorld = getPrimaryWorld();
-        if (primaryWorld == null) {
-            return;
-        }
-        datapackRemovalQueued = true;
-        Path datapackRoot = primaryWorld.getWorldFolder().toPath().resolve("datapacks").resolve("advancements");
-        scheduler.runAsync(() -> {
-            boolean removed = false;
-            try {
-                removed = new com.huidu.farmersdelight.advancement.AdvancementDatapackInstaller(this)
-                        .remove(datapackRoot);
-            } finally {
-                datapackRemovalQueued = false;
-            }
-            if (removed) {
-                queueDatapackReload(reason);
-            }
-        });
     }
 
     @EventHandler
     public void onCraftEngineReload(CraftEngineReloadEvent event) {
-        if (!isEnabled()) {
-            return;
+        if (craftEngineReadinessCoordinator != null) {
+            craftEngineReadinessCoordinator.queueReloadProcessing();
         }
-
-        long generation = craftEngineReloadGeneration.incrementAndGet();
-        if (pendingCraftEngineReloadTask != null && !pendingCraftEngineReloadTask.isCancelled()) {
-            pendingCraftEngineReloadTask.cancel();
-        }
-        pendingCraftEngineReloadTask = scheduler.runLater(() -> {
-            if (generation != craftEngineReloadGeneration.get()) {
-                return;
-            }
-            try {
-                pendingCraftEngineReloadTask = null;
-                I18n.reload();
-                I18n.logDetail("startup", "plugin.craftengine_reload");
-                refreshAfterCraftEngineReload();
-                // A late CE enable still needs the one-time recipe load and addon warmup. Once that has
-                // completed, CE reloads only invalidate cheap caches; rebuilding plugin recipes or UAA tabs
-                // here creates a synchronous spike and sends a full advancement tree to every online player.
-                if (!contentWarmupCompleted.get()) {
-                    loadRecipeManagersWhenReady("plugin.refreshing_recipes_after_ce");
-                    refreshAdvancementSystemWhenReady(false);
-                    warmUpWhenReady("reload");
-                }
-                // A plugin enabled before CraftEngine reaches this path for its one required loaded-chunk rope
-                // recovery scan; later CE reloads retain the already-built index.
-                indexLoadedChunkContentWhenReady();
-                com.huidu.farmersdelight.tool.ToolRegistry.refresh();
-            } catch (Exception e) {
-                Bukkit.getLogger().log(Level.SEVERE,
-                        "Error during CraftEngine reload processing in " + getClass().getSimpleName(), e);
-            }
-        }, 5L);
     }
 
     public void reloadRecipesWhenReady(String reason) {
-        loadRecipeManagersWhenReady(reason);
+        if (craftEngineReadinessCoordinator != null) {
+            craftEngineReadinessCoordinator.loadRecipesWhenReady(reason);
+        }
     }
 
-    private void refreshAfterCraftEngineReload() {
-        com.huidu.farmersdelight.util.ItemUtils.clearItemCache();
-        com.huidu.farmersdelight.util.SoundUtils.clearCache();
-        RecipeViewGui.clearConfigCache();
-        com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.clearConfigCache();
+    void refreshAfterCraftEngineReload() {
+        ReloadCacheInvalidator.clear();
+        if (specialRecipeRegistry != null) {
+            specialRecipeRegistry.invalidateIndex();
+        }
 
         if (stoveManager != null) {
             stoveManager.reloadRecipeCache();
@@ -1175,10 +936,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         if (reloadLanguages) {
             I18n.reload();
         }
-        com.huidu.farmersdelight.util.ItemUtils.clearItemCache();
-        com.huidu.farmersdelight.util.SoundUtils.clearCache();
-        RecipeViewGui.clearConfigCache();
-        com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.clearConfigCache();
+        ReloadCacheInvalidator.clear();
         MushroomColonyBehavior.reloadMushroomSupportCache(this);
 
         if (knifeDropHandler != null) {
@@ -1251,10 +1009,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 : GuiConfig.createDefault();
         customCookingPotGuiConfigs = loadCustomCookingPotGuiConfigs(guiConfig);
         recipeEditorGuiConfig = RecipeEditorGuiConfig.fromConfig(guiConfig);
-        RecipeViewGui.clearConfigCache();
-        com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.clearConfigCache();
-        CookingPotGui.closeAllOpenGuis();
-        RecipeViewGui.closeAllOpenGuis();
+        GuiCacheInvalidator.clearConfigCachesAndCloseOpenGuis();
         I18n.logInfo("plugin.gui_configuration_reloaded", "file", "gui.yml");
     }
 
@@ -1262,10 +1017,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         I18n.reload();
         // GUI item names/lore come from language files and are cached, so invalidate those caches
         // and close open GUIs to force a rebuild in the new language.
-        RecipeViewGui.clearConfigCache();
-        com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.clearConfigCache();
-        CookingPotGui.closeAllOpenGuis();
-        RecipeViewGui.closeAllOpenGuis();
+        GuiCacheInvalidator.clearConfigCachesAndCloseOpenGuis();
         I18n.logInfo("plugin.language_files_reloaded");
     }
 
@@ -1298,9 +1050,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         I18n.logInfo("plugin.tags_reloaded");
     }
 
-    // Reroutes the historical /fd reload loot: the chest/grass/mob injections now live as CraftEngine
-    // native loot sources, so a datapack reinstatement no longer applies. This pass only removes the
-    // stale loot datapack folder old builds left in world datapacks/, which is idempotent.
+    // Loot injections are CraftEngine-native. /fd reload loot only removes the obsolete loot datapack
+    // folder and is idempotent.
     public void reloadLootDatapack() {
         if (damageTypeDatapackInstaller == null) {
             return;
@@ -1308,10 +1059,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         damageTypeDatapackInstaller.cleanupLegacyLootDatapack();
     }
 
-    // Re-runs the standalone damage-type datapack install (farmersdelight_damage) plus the legacy
-    // file migration out of the loot datapack folder. Also excluded from the plain /fd reload and
-    // CraftEngine reload passes for the same reason as the loot datapack: a write only takes effect
-    // after a server restart.
+    // Installs farmersdelight_damage and migrates damage files out of the obsolete loot datapack.
+    // Datapack writes require a server restart and are excluded from general reload passes.
     public void reloadDamageTypeDatapack() {
         if (damageTypeDatapackInstaller == null) {
             I18n.logWarning("loot_datapack_not_ready");
@@ -1337,7 +1086,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         YamlConfiguration loadedDropsConfig = configBootstrap.loadDropsConfig();
         dropsConfig = loadedDropsConfig;
         advancementsEnabled = getConfig().getBoolean("advancements.enabled", true);
-        // No legacy path: buff.enabled is new, and a config that predates it has the buff system on.
+        // Missing buff.enabled preserves the enabled default.
         buffSystemEnabled = getConfigBoolean(true, "buff.enabled");
         // Mirror the switch into the addon-facing registry so its entry points can degrade to no-ops
         // without reaching back through the plugin singleton from an addon thread.
@@ -1807,6 +1556,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return horseFeedTemptListener;
     }
 
+    RopeBlockListener getRopeBlockListener() {
+        return ropeBlockListener;
+    }
+
     public CookingPotRecipeManager getCookingPotRecipes() {
         if (cookingPotRecipeManager == null) {
             throw new IllegalStateException("Plugin is not enabled");
@@ -2078,60 +1831,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     public org.bukkit.World getPrimaryWorld() {
-        List<org.bukkit.World> worlds = getServer().getWorlds();
-        if (worlds.isEmpty()) {
-            return null;
-        }
-        String configuredLevelName = getConfiguredPrimaryLevelName();
-        if (configuredLevelName != null && !configuredLevelName.isBlank()) {
-            org.bukkit.World configuredWorld = getServer().getWorld(configuredLevelName);
-            if (configuredWorld != null) {
-                return configuredWorld;
-            }
-            for (org.bukkit.World world : worlds) {
-                if (configuredLevelName.equals(world.getName())) {
-                    return world;
-                }
-            }
-        }
-        for (org.bukkit.World world : worlds) {
-            if (world.getEnvironment() == org.bukkit.World.Environment.NORMAL) {
-                return world;
-            }
-        }
-        return worlds.getFirst();
-    }
-
-    private String getConfiguredPrimaryLevelName() {
-        // Cached: reads server.properties at most once.
-        if (primaryLevelNameResolved) {
-            return cachedPrimaryLevelName;
-        }
-        synchronized (primaryLevelNameLock) {
-            if (primaryLevelNameResolved) {
-                return cachedPrimaryLevelName;
-            }
-            cachedPrimaryLevelName = readConfiguredPrimaryLevelName();
-            primaryLevelNameResolved = true;
-            return cachedPrimaryLevelName;
-        }
-    }
-
-    private String readConfiguredPrimaryLevelName() {
-        Path serverProperties = getServer().getWorldContainer().toPath().resolve("server.properties");
-        if (!Files.isRegularFile(serverProperties)) {
-            return null;
-        }
-
-        Properties properties = new Properties();
-        try (InputStream input = Files.newInputStream(serverProperties);
-             InputStreamReader reader = new InputStreamReader(input)) {
-            properties.load(reader);
-            return properties.getProperty("level-name");
-        } catch (IOException e) {
-            getLogger().fine(I18n.formatConsole("plugin.server_properties_read_failed", "error", e.getMessage()));
-            return null;
-        }
+        return primaryWorldResolver.resolve();
     }
 
     private boolean resolveBackstabbingCompatibility(EnchantmentSettings settings) {
@@ -2197,7 +1897,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
     }
 
-    /** Re-writes the enchantment datapack (now including any addon enchants registered through the API) and
+    /** Re-writes the enchantment datapack, including addon enchants registered through the API, and
      *  reloads the knife/skillet candidate pool so a newly-registered addon enchant is offered. Called by
      *  FarmersDelightEnchantments.register / addToPool from an addon's onEnable. A datapack registry object
      *  still needs a server restart to become usable — the installer prints its own banner. */

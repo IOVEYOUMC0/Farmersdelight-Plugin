@@ -69,7 +69,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
     // Must be maintained in lockstep with structural writes to worldBlockEntities, otherwise on chunk unload
     // missed entities won't be saved, losing pot contents.
     private static final Map<UUID, Map<Long, Set<BlockPosKey>>> chunkIndex = new ConcurrentHashMap<>();
-    // Progress text now rides on ProxyItemDisplayManager (packet-only TextDisplay) — value is the
+    // Progress text uses ProxyItemDisplayManager (packet-only TextDisplay) — value is the
     // proxy entityId. The proxy manager handles chunk-tracked viewer selection, distance filter, and
     // text diff internally, so per-pot visibility / throttle caches are gone.
     private static final Map<UUID, Map<BlockPosKey, Integer>> worldProgressDisplays = new ConcurrentHashMap<>();

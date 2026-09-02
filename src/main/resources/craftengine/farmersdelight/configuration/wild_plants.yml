@@ -260,9 +260,9 @@ blocks:
       - on: break
         functions:
           - type: drop_loot
-            x: <arg:block.block_x> + 0.5
-            y: <arg:block.block_y> + 0.5
-            z: <arg:block.block_z> + 0.5
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
             loot:
               pools:
                 - rolls: 1
@@ -276,7 +276,8 @@ blocks:
                               item: minecraft:shears
                         - type: item
                           item: farmersdelight:rice
-                          count: 1
+              count: 1
+placed-features:
   farmersdelight:wild_cabbages:
     biome:
       - minecraft:beach

@@ -337,9 +337,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
                 // concurrent entity write. The shadow was read from the entity at refreshFromEntity (recorded
                 // in entityBaseline); if the live entity no longer equals that baseline, another region's GUI
                 // viewer wrote this slot under the entity lock — adopt the entity's current value instead of
-                // overwriting it with our stale shadow (which would dupe on extract / lose on insert). This
-                // guard previously covered only the non-dirty branch, letting hopper writes clobber a
-                // cross-region viewer.
+                // overwriting it with a stale shadow, which would duplicate extracts or lose inserts.
                 if (!itemStacksEqual(this.entityBaseline[i], entityNow)) {
                     if (isEmptyBukkitSlot(entityNow)) {
                         this.items[i] = Item.empty();

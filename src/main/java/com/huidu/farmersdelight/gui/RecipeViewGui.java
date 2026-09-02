@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.recipe.JumpTarget;
 import com.huidu.farmersdelight.api.recipe.SpecialRecipeInfo;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.i18n.I18n;
@@ -15,7 +16,6 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
-import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -100,6 +100,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
     private final boolean fromCookingPot;
     private final Location cookingPotLocation;
     private boolean backButtonCommandsEnabled = false;
+    private Runnable onExit;
     private boolean editMode = false;
     // Resolve only once (lazily, during the first open, when the viewer is at the pot = same Folia region) and memoize the result,
     // so the per-tick / redraw flow never repeats a cross-region block read.
@@ -111,12 +112,13 @@ public class RecipeViewGui extends AbstractInventoryGui {
     private RecipeCraftability craftability;
     // Detail-to-detail navigation history: clicking a linked recipe (an ingredient/result that is itself
     // another recipe's output) pushes the detail it left, so "back" returns to that recipe instead of always
-    // dropping to the original list. Reset when a detail is opened fresh from a list; empty history keeps the
-    // old behavior (back to recipeBackState). Touched only inside the click handler (single-threaded per viewer).
+    // dropping to the original list. Reset when a detail is opened fresh from a list; empty history returns to
+    // recipeBackState. Touched only inside the click handler (single-threaded per viewer).
     private final java.util.Deque<DetailState> detailHistory = new java.util.ArrayDeque<>();
 
     // Chain node for the detail-to-detail back stack. Records whichever detail page was left so "back"
-    // can restore it exactly: either a normal (pot/board) recipe detail or a special-recipe detail.
+    // can restore it exactly: either a normal (pot/board) recipe detail, a special-recipe detail, or
+    // the expanded ingredient view (stored in recipeBackState as its return-state marker).
     private record DetailState(
             boolean specialDetail,
             boolean cookingPotMode,
@@ -218,6 +220,61 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     public void open(Player player) {
         doOpen(() -> refresh(player));
+    }
+
+    public static boolean openLinkedRecipe(Player player, JumpTarget target, Runnable onExit) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin == null || player == null || target == null) {
+            return false;
+        }
+        RecipeViewGui gui = new RecipeViewGui(plugin, player);
+        gui.onExit = onExit;
+        if (RecipeDiscoveryManager.TYPE_COOKING_POT.equals(target.typeId())) {
+            CookingPotRecipe recipe = plugin.getCookingPotRecipes().getRecipe(target.recipeId());
+            if (recipe == null) {
+                return false;
+            }
+            if (gui.isRecipeLocked(recipe, true, player)) {
+                player.sendMessage(Component.translatable("recipe-discovery.locked-click").color(NamedTextColor.RED));
+                return true;
+            }
+            gui.cookingPotMode = true;
+            gui.selectedRecipeId = target.recipeId();
+            gui.recipeBackState = GuiState.COOKING_POT_LIST;
+            gui.state = GuiState.RECIPE_DETAIL;
+        } else if (RecipeDiscoveryManager.TYPE_CUTTING_BOARD.equals(target.typeId())) {
+            CuttingBoardRecipe recipe = plugin.getCuttingBoardRecipes().getRecipe(target.recipeId());
+            if (recipe == null) {
+                return false;
+            }
+            if (gui.isRecipeLocked(recipe, false, player)) {
+                player.sendMessage(Component.translatable("recipe-discovery.locked-click").color(NamedTextColor.RED));
+                return true;
+            }
+            gui.cookingPotMode = false;
+            gui.selectedRecipeId = target.recipeId();
+            gui.recipeBackState = GuiState.CUTTING_BOARD_LIST;
+            gui.state = GuiState.RECIPE_DETAIL;
+        } else if (com.huidu.farmersdelight.recipe.SpecialRecipeRegistry.TYPE_ID.equals(target.typeId())) {
+            SpecialRecipeInfo info = plugin.getSpecialRecipeRegistry() == null
+                    ? null : plugin.getSpecialRecipeRegistry().get(target.recipeId());
+            if (info == null) {
+                return false;
+            }
+            gui.selectedSpecialRecipeId = target.recipeId();
+            if (gui.specialRecipeRenderer.isListOnlySpecial(info)) {
+                int index = plugin.getSpecialRecipeRegistry().getAll().indexOf(info);
+                int pageSize = Math.max(1, gui.config.getSpecialRecipeList().getRecipeSlots().size());
+                gui.currentPage = Math.max(0, index) / pageSize;
+                gui.state = GuiState.SPECIAL_RECIPE_LIST;
+            } else {
+                gui.state = GuiState.SPECIAL_RECIPE_DETAIL;
+            }
+        } else {
+            return false;
+        }
+        gui.open(player);
+        return true;
     }
 
     public void openCookingPotRecipes(Player player) {
@@ -570,8 +627,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         }
 
         fillBackground(detailConfig);
-        // Material expansion is opened from the folded ingredient slot itself; keep the legacy
-        // materials slot as plain background so old layouts do not show a redundant button.
+        // Material expansion opens from the folded ingredient slot; deprecated material slots remain background.
         if (detailConfig.getMaterialsSlot() >= 0) {
             inventory.setItem(detailConfig.getMaterialsSlot(), createBackgroundItem(detailConfig));
         }
@@ -659,6 +715,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
         String title = resolveMenuTitle("recipe-list", "level_1", listConfig.getTitle(), placeholders);
         inventory = Bukkit.createInventory(this, listConfig.getSize(), coloredComponent(title));
         fillBackground(listConfig);
+        if (listConfig.getFilterSlot() >= 0) {
+            inventory.setItem(listConfig.getFilterSlot(), createBackgroundItem(listConfig));
+        }
 
         int start = expandedIngredientPage * pageSize;
         for (int i = 0; i < slots.size() && start + i < expandedIngredientOptions.size(); i++) {
@@ -811,8 +870,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 "minecraft:paper", "gui.condition.catalyst_info", "gui.condition.catalyst_info_lore", NamedTextColor.GOLD);
 
         // Catalyst item slots (G) — the auto-cycle timer rotates through the resolved items. The full
-        // catalyst list rides on slot 0's lore (matching the old one-time appendCatalystListLore behaviour)
-        // and is now carried on every candidate, so auto-cycle switching keeps it.
+        // Catalyst list rides on slot 0's lore and is copied to every candidate so auto-cycle switching keeps it.
         List<Integer> catalystItemSlots = detailConfig.getCatalystItemSlots();
         this.specialCatalystOptions = catalystOptions;
         for (int i = 0; i < catalystItemSlots.size(); i++) {
@@ -842,6 +900,13 @@ public class RecipeViewGui extends AbstractInventoryGui {
         }
         if (slot == listConfig.getBackSlot()) {
             if (runBackButtonCommands(player, listConfig.getItem("back"))) {
+                return;
+            }
+            if (!detailHistory.isEmpty()) {
+                restoreDetailState(player, detailHistory.pop());
+                return;
+            }
+            if (returnToLinkedSource()) {
                 return;
             }
             navigateToState(player, GuiState.MAIN_MENU, false);
@@ -926,16 +991,10 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 return;
             }
             if (!detailHistory.isEmpty()) {
-                DetailState previous = detailHistory.pop();
-                if (previous.specialDetail()) {
-                    selectedSpecialRecipeId = previous.selectedSpecialRecipeId();
-                    navigateToState(player, GuiState.SPECIAL_RECIPE_DETAIL, false);
-                } else {
-                    cookingPotMode = previous.cookingPotMode();
-                    selectedRecipeId = previous.selectedRecipeId();
-                    recipeBackState = previous.recipeBackState();
-                    navigateToState(player, GuiState.RECIPE_DETAIL, false);
-                }
+                restoreDetailState(player, detailHistory.pop());
+                return;
+            }
+            if (returnToLinkedSource()) {
                 return;
             }
             navigateToState(player, GuiState.SPECIAL_RECIPE_LIST, true);
@@ -973,36 +1032,11 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (addon == null) {
             return;
         }
-        // Capture the page being left before the handoff rebinds this GUI's fields.
-        GuiState leftState = state;
-        String leftSelected = selectedRecipeId;
-        String leftSpecial = selectedSpecialRecipeId;
-        boolean leftCookingPot = cookingPotMode;
-        int leftPage = currentPage;
-        GuiState leftBackState = recipeBackState;
-        boolean leftBackCommands = backButtonCommandsEnabled;
-        List<ItemStack> leftExpandedIngredients = new ArrayList<>(expandedIngredientOptions);
-        int leftExpandedPage = expandedIngredientPage;
-        DetailState leftIngredientOrigin = ingredientOptionsOrigin;
-        List<DetailState> leftDetailHistory = new ArrayList<>(detailHistory);
+        RecipeViewGui source = this;
         plugin.scheduler().runLaterForEntity(player, () -> {
             if (player.isOnline()) {
                 com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.openRecipe(player, addon.type(),
-                        addon.recipeId(), () -> {
-                    RecipeViewGui gui = new RecipeViewGui(plugin, player);
-                    gui.state = leftState;
-                    gui.selectedRecipeId = leftSelected;
-                    gui.selectedSpecialRecipeId = leftSpecial;
-                    gui.cookingPotMode = leftCookingPot;
-                    gui.currentPage = leftPage;
-                    gui.recipeBackState = leftBackState;
-                    gui.backButtonCommandsEnabled = leftBackCommands;
-                    gui.expandedIngredientOptions = leftExpandedIngredients;
-                    gui.expandedIngredientPage = leftExpandedPage;
-                    gui.ingredientOptionsOrigin = leftIngredientOrigin;
-                    gui.detailHistory.addAll(leftDetailHistory);
-                    gui.open(player);
-                });
+                        addon.recipeId(), () -> source.open(player));
             }
         }, 1L);
     }
@@ -1430,19 +1464,10 @@ public class RecipeViewGui extends AbstractInventoryGui {
             }
             if (!detailHistory.isEmpty()) {
                 // Came here via a linked-recipe jump: return to the recipe it was opened from.
-                DetailState previous = detailHistory.pop();
-                if (previous.specialDetail()) {
-                    // Jump target was a special-recipe detail; restore it.
-                    selectedSpecialRecipeId = previous.selectedSpecialRecipeId();
-                    navigateToState(player, GuiState.SPECIAL_RECIPE_DETAIL, false);
-                    return;
-                }
-                cookingPotMode = previous.cookingPotMode();
-                selectedRecipeId = previous.selectedRecipeId();
-                recipeBackState = previous.recipeBackState();
-                currentToolIndex = 0;
-                fillButtonState = CookingPotFiller.FillButtonState.READY;
-                navigateToState(player, GuiState.RECIPE_DETAIL, false);
+                restoreDetailState(player, detailHistory.pop());
+                return;
+            }
+            if (returnToLinkedSource()) {
                 return;
             }
             navigateToState(player, recipeBackState, true);
@@ -1513,10 +1538,40 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (index < 0) {
             return false;
         }
+        DetailState origin = switch (state) {
+            case RECIPE_DETAIL -> new DetailState(false, cookingPotMode, selectedRecipeId, null, recipeBackState);
+            case SPECIAL_RECIPE_DETAIL -> new DetailState(true, cookingPotMode, selectedRecipeId,
+                    selectedSpecialRecipeId, GuiState.SPECIAL_RECIPE_LIST);
+            case INGREDIENT_OPTIONS -> ingredientOptionsOrigin;
+            default -> null;
+        };
+        if (origin != null) {
+            detailHistory.push(origin);
+        }
         int pageSize = Math.max(1, config.getSpecialRecipeList().getRecipeSlots().size());
         currentPage = index / pageSize;
         navigateToState(player, GuiState.SPECIAL_RECIPE_LIST, true);
         return true;
+    }
+
+    private void restoreDetailState(Player player, DetailState previous) {
+        if (previous.specialDetail()) {
+            selectedSpecialRecipeId = previous.selectedSpecialRecipeId();
+            navigateToState(player, GuiState.SPECIAL_RECIPE_DETAIL, false);
+            return;
+        }
+        cookingPotMode = previous.cookingPotMode();
+        selectedRecipeId = previous.selectedRecipeId();
+        currentToolIndex = 0;
+        fillButtonState = CookingPotFiller.FillButtonState.READY;
+        if (previous.recipeBackState() == GuiState.INGREDIENT_OPTIONS && ingredientOptionsOrigin != null) {
+            // A linked recipe was opened from the expanded ingredient list. Keep that list as the return view.
+            recipeBackState = ingredientOptionsOrigin.recipeBackState();
+            navigateToState(player, GuiState.INGREDIENT_OPTIONS, false);
+            return;
+        }
+        recipeBackState = previous.recipeBackState();
+        navigateToState(player, GuiState.RECIPE_DETAIL, false);
     }
 
     private boolean navigateToLinkedRecipe(Player player, ItemStack clickedItem, boolean fromSpecial) {
@@ -1537,7 +1592,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
         }
         detailHistory.push(new DetailState(fromSpecial, cookingPotMode, selectedRecipeId,
                 fromSpecial ? selectedSpecialRecipeId : null,
-                fromSpecial ? GuiState.SPECIAL_RECIPE_LIST : recipeBackState));
+                state == GuiState.INGREDIENT_OPTIONS
+                        ? GuiState.INGREDIENT_OPTIONS
+                        : (fromSpecial ? GuiState.SPECIAL_RECIPE_LIST : recipeBackState)));
         selectedRecipeId = linkedRecipe.recipeId();
         cookingPotMode = linkedRecipe.cookingPot();
         currentToolIndex = 0;
@@ -1699,6 +1756,16 @@ public class RecipeViewGui extends AbstractInventoryGui {
         player.closeInventory();
     }
 
+    private boolean returnToLinkedSource() {
+        if (onExit == null) {
+            return false;
+        }
+        close();
+        removeFromActiveGuis(playerId);
+        onExit.run();
+        return true;
+    }
+
     private boolean runBackButtonCommands(Player player, GuiConfig.GuiItem backItem) {
         if (!backButtonCommandsEnabled || player == null || backItem == null || backItem.hasNoCommands()) {
             return false;
@@ -1812,8 +1879,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         activeGuis.clear();
         cachedConfig = null;
         RecipeIngredientIcons.clearItemCache();
-        // Reset this flag so a new EventDispatcher is re-registered on soft re-enable; otherwise, after disable removes the old listener,
-        // recipe GUI clicks would no longer be cancelled.
+        // Soft re-enable must register a new dispatcher after disable removes the listener.
         listenerRegistered = false;
     }
 

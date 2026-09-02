@@ -71,8 +71,7 @@ public final class BasketVacuumController extends BlockEntityController {
         // for block ticking, so it is region-safe on Folia and needs no ownership guard.
         // The poll is adaptive: an idle basket re-checks every REDSTONE_POLL_INTERVAL ticks, but the
         // moment a signal is seen the check runs every tick so the basket resumes as soon as the signal
-        // drops. Redstone state rarely changes, so the hot 6-neighbour scan is no longer paid on every
-        // cooldown expiry.
+        // drops. The adaptive interval avoids a six-neighbor scan on every cooldown expiry while idle.
         if (this.poweredByRedstone || ++this.redstonePollTicks >= REDSTONE_POLL_INTERVAL) {
             this.redstonePollTicks = 0;
             this.poweredByRedstone = world.getBlockAt(pos.x(), pos.y(), pos.z()).isBlockIndirectlyPowered();
@@ -210,12 +209,16 @@ public final class BasketVacuumController extends BlockEntityController {
         double maxZ = pos.z() + 1 + Math.max(0, rz);
 
         // Query only the vacuum box for dropped items, not the whole chunk's entity list. getNearbyEntities is
-        // spatially filtered (via the server's entity slices) and returns only Item entities in range, so a
-        // chunk dense with custom-block display entities no longer costs a full entity wrap+copy every scan.
+        // spatially filtered through the server's entity slices and returns only Item entities in range.
         // The box stays inside the basket's own cell (plus the faced cell only when it is region-owned), so on
         // Folia it never reaches into an unowned region; a region-ownership rejection at a chunk edge is caught
         // and the scan is skipped for this tick.
         org.bukkit.util.BoundingBox box = new org.bukkit.util.BoundingBox(minX, minY, minZ, maxX, maxY, maxZ);
+        if (!org.bukkit.Bukkit.isOwnedByCurrentRegion(world,
+                (int) Math.floor(minX) >> 4, (int) Math.floor(minZ) >> 4,
+                (int) Math.floor(maxX) >> 4, (int) Math.floor(maxZ) >> 4)) {
+            return false;
+        }
         java.util.Collection<Entity> entities;
         try {
             entities = world.getNearbyEntities(box, entity -> entity instanceof Item);

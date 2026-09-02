@@ -55,7 +55,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
 
     // Registry-scoped datapack content (enchantments, enchantment tags) is loaded by the server from
     // the primary world's datapacks folder and shared by every world, so the pack is written once into
-    // the primary world. Copies the old all-world installer may have left in other worlds are removed.
+    // the primary world. Copies in non-primary worlds are removed.
     public void installToPrimaryWorld(World primaryWorld) {
         if (primaryWorld == null) {
             I18n.logWarning("enchantment_datapack_no_worlds");
@@ -75,19 +75,28 @@ public final class EnchantmentDatapackInstaller implements Listener {
         }
     }
 
-    // Deletes the farmersdelight_enchant datapack from every non-primary world. Those folders were only
-    // ever written by the old per-world installer and are never read by the server (only the primary
-    // world's datapacks/ is scanned), so they are harmless-but-stale files. Skips the primary world.
+    // Deletes the farmersdelight_enchant datapack from every non-primary world. The server scans only
+    // the primary world's datapacks/ folder, so these copies are ignored. Skips the primary world.
     private int cleanupRedundantDatapacks(World primaryWorld) {
+        Path primaryDatapack = DatapackSupport.worldRoot(primaryWorld)
+                .resolve("datapacks")
+                .resolve(DATAPACK_DIRECTORY)
+                .toAbsolutePath()
+                .normalize();
         String primaryName = primaryWorld.getName();
         int removed = 0;
         for (World world : Bukkit.getWorlds()) {
             if (primaryName.equals(world.getName())) {
                 continue;
             }
-            Path redundant = DatapackSupport.worldRoot(world)
+            Path redundant = world.getWorldFolder().toPath()
                     .resolve("datapacks")
                     .resolve(DATAPACK_DIRECTORY);
+            // Modern dimension folders resolve to the same level.dat root as the primary world.
+            // Do not delete the primary pack while iterating those worlds.
+            if (DatapackSupport.sameNormalizedPath(primaryDatapack, redundant)) {
+                continue;
+            }
             try {
                 if (Files.exists(redundant)) {
                     DatapackSupport.deleteRecursively(redundant);
@@ -147,7 +156,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
                 generated.add(new GeneratedFile(
                         enchantmentFile(datapackDir, NamespacedId.parse(settings.backstabbing().id())),
                         renderDefinition(settings.backstabbing())));
-                // The built-in backstab enchant keeps its historical membership in all three tags.
+                // The built-in backstab enchant belongs to all three distribution tags.
                 for (String tag : DISTRIBUTION_TAGS) {
                     distribution.get(tag).add(settings.backstabbing().id());
                 }

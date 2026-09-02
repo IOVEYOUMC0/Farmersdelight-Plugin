@@ -55,8 +55,7 @@ public class StoveManager {
     private final StoveBurnLogic burnLogic;
     private final StoveVisualManager visualManager;
     private final Map<Location, StoveData> stoves = new ConcurrentHashMap<>();
-    private final Map<UUID, Set<Location>> stovesByWorld = new ConcurrentHashMap<>();
-    private final Map<UUID, Map<Long, Set<Location>>> stovesByChunk = new ConcurrentHashMap<>();
+    private final WorldChunkLocationIndex locationIndex = new WorldChunkLocationIndex();
     // Blocked-above freshness lives on StoveData (tick-stamp TTL + event invalidation); this constant
     // is the recheck period for non-event shape changes (pistons, falling blocks), ~30s at 20 TPS.
     private static final long BLOCKED_RECHECK_TICKS = 600L;
@@ -237,7 +236,7 @@ public class StoveManager {
         if (previous != null) {
             return previous;
         }
-        indexStove(normalized);
+        locationIndex.add(normalized);
         markTickLocationsDirty();
         return created;
     }
@@ -380,11 +379,11 @@ public class StoveManager {
         if (world == null) {
             return;
         }
-        Set<Location> locations = stovesByWorld.get(world.getUID());
-        if (locations == null || locations.isEmpty()) {
+        List<Location> locations = locationIndex.worldLocations(world.getUID());
+        if (locations.isEmpty()) {
             return;
         }
-        for (Location location : List.copyOf(locations)) {
+        for (Location location : locations) {
             StoveData stove = stoves.get(location);
             if (stove == null) {
                 continue;
@@ -407,8 +406,8 @@ public class StoveManager {
             return List.of();
         }
 
-        Set<Location> indexed = stovesByWorld.get(world.getUID());
-        if (indexed == null || indexed.isEmpty()) {
+        List<Location> indexed = locationIndex.worldLocations(world.getUID());
+        if (indexed.isEmpty()) {
             return List.of();
         }
 
@@ -421,13 +420,12 @@ public class StoveManager {
 
     public void cleanupWorld(UUID worldId) {
         burnLogic.clearWorld(worldId);
-        Set<Location> locations = stovesByWorld.remove(worldId);
-        stovesByChunk.remove(worldId);
-        if (locations == null || locations.isEmpty()) {
+        List<Location> locations = locationIndex.removeWorld(worldId);
+        if (locations.isEmpty()) {
             return;
         }
         boolean removedAny = false;
-        for (Location location : List.copyOf(locations)) {
+        for (Location location : locations) {
             StoveData stove = stoves.remove(location);
             if (stove != null) {
                 removedAny = true;
@@ -446,12 +444,11 @@ public class StoveManager {
             return;
         }
         untrackBurnStoveChunk(world, minX >> 4, minZ >> 4);
-        Map<Long, Set<Location>> worldChunks = stovesByChunk.get(world.getUID());
-        Set<Location> locations = worldChunks == null ? null : worldChunks.get(ManagerSupport.chunkKey(minX, minZ));
-        if (locations == null || locations.isEmpty()) {
+        List<Location> locations = locationIndex.chunkLocations(world.getUID(), ManagerSupport.chunkKey(minX, minZ));
+        if (locations.isEmpty()) {
             return;
         }
-        for (Location location : List.copyOf(locations)) {
+        for (Location location : locations) {
             if (location.getBlockX() >= minX && location.getBlockX() <= maxX
                     && location.getBlockZ() >= minZ && location.getBlockZ() <= maxZ) {
                 StoveData stove = stoves.get(location);
@@ -586,8 +583,7 @@ public class StoveManager {
             visualManager.cleanupAllVisuals(stove);
         }
         stoves.clear();
-        stovesByWorld.clear();
-        stovesByChunk.clear();
+        locationIndex.clear();
         scheduledStoveTicks.clear();
         chunkFx.clear();
         tickLocationsSnapshot = List.of();
@@ -615,7 +611,7 @@ public class StoveManager {
             // item displays so they don't orphan (the incoming stove already created its own visuals).
             visualManager.cleanupAllVisuals(previous);
         }
-        indexStove(normalized);
+        locationIndex.add(normalized);
         markTickLocationsDirty();
     }
 
@@ -624,7 +620,7 @@ public class StoveManager {
         StoveData removed = stoves.remove(normalized);
         if (removed != null) {
             scheduledStoveTicks.remove(normalized);
-            deindexStove(normalized);
+            locationIndex.remove(normalized);
             markTickLocationsDirty();
         }
         return removed;
@@ -651,51 +647,6 @@ public class StoveManager {
         tickLocationsSnapshot = updated;
         tickLocationsSnapshotVersion = version;
         return updated;
-    }
-
-    private void indexStove(Location location) {
-        if (location == null || location.getWorld() == null) {
-            return;
-        }
-        stovesByWorld
-                .computeIfAbsent(location.getWorld().getUID(), ignored -> ConcurrentHashMap.newKeySet())
-                .add(location);
-        stovesByChunk
-                .computeIfAbsent(location.getWorld().getUID(), ignored -> new ConcurrentHashMap<>())
-                .computeIfAbsent(ManagerSupport.chunkKey(location), ignored -> ConcurrentHashMap.newKeySet())
-                .add(location);
-    }
-
-    private void deindexStove(Location location) {
-        if (location == null || location.getWorld() == null) {
-            return;
-        }
-        UUID worldId = location.getWorld().getUID();
-        Set<Location> locations = stovesByWorld.get(worldId);
-        if (locations == null) {
-            return;
-        }
-        locations.remove(location);
-        if (locations.isEmpty()) {
-            stovesByWorld.remove(worldId);
-        }
-
-        Map<Long, Set<Location>> worldChunks = stovesByChunk.get(worldId);
-        if (worldChunks == null) {
-            return;
-        }
-        long chunkKey = ManagerSupport.chunkKey(location);
-        Set<Location> chunkLocations = worldChunks.get(chunkKey);
-        if (chunkLocations == null) {
-            return;
-        }
-        chunkLocations.remove(location);
-        if (chunkLocations.isEmpty()) {
-            worldChunks.remove(chunkKey);
-        }
-        if (worldChunks.isEmpty()) {
-            stovesByChunk.remove(worldId);
-        }
     }
 
     private int findEmptySlot(StoveData stove) {
@@ -816,9 +767,8 @@ public class StoveManager {
         }
 
         boolean isLit = isStoveLit(state);
-        // Entity burn moved out of the cooking tick into the always-on burnTick() poll: this tick only
-        // runs for tracked (food-holding) stoves, but an empty lit stove must burn too, so the burn now
-        // polls players/mobs independently of the cooking tracker.
+        // Entity burn uses the always-on burnTick() poll because the cooking tick runs only for tracked
+        // food-holding stoves. This keeps empty lit stoves hazardous.
         // CE stores `facing` with the vanilla furnace convention: the value points out of the stove's
         // front (toward the placing player). The display/slot pipeline expects the opposite face; the
         // ambient fire/smoke must use the front itself, mirroring StoveBlock.animateTick.

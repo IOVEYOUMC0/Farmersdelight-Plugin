@@ -125,12 +125,15 @@ public final class BuffBossbarManager implements Listener {
             Player p = Bukkit.getPlayer(entry.getKey());
             if (p != null) {
                 PlayerBars state = entry.getValue();
-                // Every other render caller holds the per-player state monitor; this reload path must too,
-                // else a concurrent per-tick update() (state.bars.put) races the LinkedHashMap iteration -> CME.
-                synchronized (state) {
-                    clearDroppedChannels(p, state, oldChannels, newChannels);
-                    render(p, state);
-                }
+                dispatchToPlayer(p, () -> {
+                    if (!p.isOnline()) return;
+                    // Every other render caller holds the per-player state monitor; this reload path must too,
+                    // else a concurrent per-tick update() (state.bars.put) races the LinkedHashMap iteration -> CME.
+                    synchronized (state) {
+                        clearDroppedChannels(p, state, oldChannels, newChannels);
+                        render(p, state);
+                    }
+                });
             }
         }
         ensureTickTask();
@@ -204,7 +207,14 @@ public final class BuffBossbarManager implements Listener {
     public void update(Plugin owner, Player player, NamespacedKey key,
                        Component title, float progress,
                        BossBar.Color color, BossBar.Overlay overlay) {
-        if (!renderingEnabled() || player == null || key == null || !player.isOnline()) return;
+        if (!renderingEnabled() || player == null || key == null) return;
+        dispatchToPlayer(player, () -> updateOnPlayer(owner, player, key, title, progress, color, overlay));
+    }
+
+    private void updateOnPlayer(Plugin owner, Player player, NamespacedKey key,
+                                Component title, float progress,
+                                BossBar.Color color, BossBar.Overlay overlay) {
+        if (!renderingEnabled() || !player.isOnline()) return;
         float clamped = quantize(clamp(progress));
         BossBar.Color c = color == null ? BossBar.Color.WHITE : color;
         BossBar.Overlay o = overlay == null ? BossBar.Overlay.PROGRESS : overlay;
@@ -251,6 +261,10 @@ public final class BuffBossbarManager implements Listener {
         if (player == null || key == null) return;
         PlayerBars state = players.get(player.getUniqueId());
         if (state == null) return;
+        dispatchToPlayer(player, () -> hideOnPlayer(player, key, state));
+    }
+
+    private void hideOnPlayer(Player player, NamespacedKey key, PlayerBars state) {
         BossBar removed;
         synchronized (state) {
             removed = state.bars.remove(key);
@@ -285,14 +299,17 @@ public final class BuffBossbarManager implements Listener {
         if (player == null) return;
         PlayerBars state = players.remove(player.getUniqueId());
         if (state == null) return;
-        if (player.isOnline()) {
-            synchronized (state) {
-                for (BossBar bar : state.bars.values()) {
-                    player.hideBossBar(bar);
-                }
+        dispatchToPlayer(player, () -> hideAllOnPlayer(player, state));
+    }
+
+    private void hideAllOnPlayer(Player player, PlayerBars state) {
+        if (!player.isOnline()) return;
+        synchronized (state) {
+            for (BossBar bar : state.bars.values()) {
+                player.hideBossBar(bar);
             }
-            clearAuxiliary(player);
         }
+        clearAuxiliary(player);
     }
 
     private void clearAuxiliary(Player player) {
@@ -318,13 +335,8 @@ public final class BuffBossbarManager implements Listener {
             Map.Entry<UUID, PlayerBars> entry = it.next();
             Player player = Bukkit.getPlayer(entry.getKey());
             PlayerBars state = entry.getValue();
-            if (player != null && player.isOnline()) {
-                synchronized (state) {
-                    for (BossBar bar : state.bars.values()) {
-                        player.hideBossBar(bar);
-                    }
-                }
-                clearAuxiliary(player);
+            if (player != null) {
+                dispatchToPlayer(player, () -> hideAllOnPlayer(player, state));
             }
             it.remove();
         }
@@ -417,32 +429,45 @@ public final class BuffBossbarManager implements Listener {
         }
         for (Map.Entry<UUID, PlayerBars> entry : players.entrySet()) {
             PlayerBars state = entry.getValue();
-            // Cheap unlocked pre-check: rotation needs >1 bar past the interval; action-bar refresh needs
-            // any active buff. Skip the lock entirely when neither applies.
-            boolean canRotate = rotate && state.bars.size() > 1
-                    && currentTick - state.lastRotationTick >= rotationIntervalTicks;
-            boolean canRefresh = refreshActionBar && !state.snapshots.isEmpty();
+            boolean canRotate;
+            boolean canRefresh;
+            synchronized (state) {
+                canRotate = rotate && state.bars.size() > 1
+                        && currentTick - state.lastRotationTick >= rotationIntervalTicks;
+                canRefresh = refreshActionBar && !state.snapshots.isEmpty();
+            }
             if (!canRotate && !canRefresh) continue;
             Player player = Bukkit.getPlayer(entry.getKey());
-            if (player == null || !player.isOnline()) continue;
-            synchronized (state) {
-                if (rotate && state.bars.size() > 1
-                        && currentTick - state.lastRotationTick >= rotationIntervalTicks) {
-                    // Advance currentVisible to the next key in insertion order; wrap.
-                    NamespacedKey next = findNext(state);
-                    if (next != null) {
-                        BossBar oldBar = state.currentVisible == null ? null : state.bars.get(state.currentVisible);
-                        if (oldBar != null) player.hideBossBar(oldBar);
-                        state.currentVisible = next;
-                        state.lastRotationTick = currentTick;
-                        player.showBossBar(state.bars.get(next));
+            if (player == null) continue;
+            dispatchToPlayer(player, () -> {
+                if (!player.isOnline()) return;
+                synchronized (state) {
+                    if (rotate && state.bars.size() > 1
+                            && currentTick - state.lastRotationTick >= rotationIntervalTicks) {
+                        // Advance currentVisible to the next key in insertion order; wrap.
+                        NamespacedKey next = findNext(state);
+                        if (next != null) {
+                            BossBar oldBar = state.currentVisible == null ? null : state.bars.get(state.currentVisible);
+                            if (oldBar != null) player.hideBossBar(oldBar);
+                            state.currentVisible = next;
+                            state.lastRotationTick = currentTick;
+                            player.showBossBar(state.bars.get(next));
+                        }
+                    }
+                    // Re-send the action bar so it doesn't fade; it always shows all active buffs.
+                    if (refreshActionBar && !state.snapshots.isEmpty()) {
+                        player.sendActionBar(joinTitles(state, actionbarSeparator));
                     }
                 }
-                // Re-send the action bar so it doesn't fade; it always shows all active buffs.
-                if (refreshActionBar && !state.snapshots.isEmpty()) {
-                    player.sendActionBar(joinTitles(state, actionbarSeparator));
-                }
-            }
+            });
+        }
+    }
+
+    private void dispatchToPlayer(Player player, Runnable action) {
+        if (plugin.scheduler().isFolia() && !Bukkit.isOwnedByCurrentRegion(player)) {
+            plugin.scheduler().runForEntity(player, action);
+        } else {
+            action.run();
         }
     }
 

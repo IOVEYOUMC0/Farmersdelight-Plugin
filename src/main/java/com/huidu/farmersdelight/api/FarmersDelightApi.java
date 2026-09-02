@@ -4,9 +4,12 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.block.CuttingBoardInteractionHandler;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import com.huidu.farmersdelight.api.recipe.ChanceResult;
+import com.huidu.farmersdelight.api.recipe.FarmersDelightRecipes;
+import com.huidu.farmersdelight.api.recipe.JumpTarget;
 import com.huidu.farmersdelight.api.recipe.RecipeFiller;
 import com.huidu.farmersdelight.api.recipe.RecipeType;
 import com.huidu.farmersdelight.api.recipe.SpecialRecipeInfo;
+import com.huidu.farmersdelight.api.recipe.ViewableRecipe;
 import com.huidu.farmersdelight.api.scheduler.ApiTask;
 import com.huidu.farmersdelight.gui.recipebook.RecipeBookGui;
 import com.huidu.farmersdelight.gui.RecipeIngredientIcons;
@@ -80,6 +83,7 @@ public final class FarmersDelightApi {
             java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private final Map<String, RecipeType> recipeTypes = Collections.synchronizedMap(new LinkedHashMap<>());
+    private volatile Map<String, List<JumpTarget>> recipeResultIndex = Map.of();
     // Block namespaces of registered addons (e.g. "brewinandchewin"), so the CraftEngine block-state usage
     // report attributes addon blocks alongside FarmersDelight's own.
     private final java.util.Set<String> addonBlockNamespaces =
@@ -134,6 +138,9 @@ public final class FarmersDelightApi {
     public void registerRecipeType(RecipeType type) {
         if (type != null && type.id() != null) {
             recipeTypes.put(type.id(), type);
+            if (isContentLoaded()) {
+                rebuildRecipeResultIndex();
+            }
             invalidateRecipeDiscoveryIndex();
         }
     }
@@ -141,8 +148,72 @@ public final class FarmersDelightApi {
     public void unregisterRecipeType(String typeId) {
         if (typeId != null) {
             recipeTypes.remove(typeId);
+            if (isContentLoaded()) {
+                rebuildRecipeResultIndex();
+            } else {
+                recipeResultIndex = Map.of();
+            }
             invalidateRecipeDiscoveryIndex();
         }
+    }
+
+    /** Rebuilds linked-recipe results after a registered type replaces its recipe collection. */
+    public void refreshRecipeType(String typeId) {
+        if (typeId != null && recipeType(typeId) != null) {
+            refreshRecipeIndex();
+        }
+    }
+
+    /** Rebuilds all linked-recipe results after CraftEngine content or several recipe types reload. */
+    public void refreshRecipeIndex() {
+        rebuildRecipeResultIndex();
+        invalidateRecipeDiscoveryIndex();
+    }
+
+    private synchronized void rebuildRecipeResultIndex() {
+        recipeResultIndex = buildRecipeResultIndex(recipeTypes(),
+                recipe -> com.huidu.farmersdelight.api.item.FarmersDelightItems.idOf(recipe.result()));
+    }
+
+    static Map<String, List<JumpTarget>> buildRecipeResultIndex(
+            List<RecipeType> types, java.util.function.Function<ViewableRecipe, String> itemIdResolver) {
+        Map<String, List<JumpTarget>> next = new LinkedHashMap<>();
+        for (RecipeType type : types) {
+            for (ViewableRecipe recipe : type.recipes()) {
+                if (recipe == null || recipe.id() == null) {
+                    continue;
+                }
+                String itemId = itemIdResolver.apply(recipe);
+                if (itemId != null) {
+                    next.computeIfAbsent(itemId, ignored -> new ArrayList<>(1))
+                            .add(new JumpTarget(type.id(), recipe.id()));
+                }
+            }
+        }
+        next.replaceAll((itemId, targets) -> List.copyOf(targets));
+        return Collections.unmodifiableMap(next);
+    }
+
+    /** Returns all registered recipes producing the item without scanning recipe collections. */
+    public List<JumpTarget> findRecipesProducing(ItemStack item) {
+        String itemId = com.huidu.farmersdelight.api.item.FarmersDelightItems.idOf(item);
+        if (itemId == null) {
+            return List.of();
+        }
+        java.util.LinkedHashSet<JumpTarget> targets =
+                new java.util.LinkedHashSet<>(FarmersDelightRecipes.findRecipesProducing(item));
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin != null) {
+            if (plugin.getSpecialRecipeRegistry() != null) {
+                String specialId = plugin.getSpecialRecipeRegistry().findProducingRecipe(item);
+                if (specialId != null) {
+                    targets.add(new JumpTarget(
+                            com.huidu.farmersdelight.recipe.SpecialRecipeRegistry.TYPE_ID, specialId));
+                }
+            }
+        }
+        targets.addAll(recipeResultIndex.getOrDefault(itemId, List.of()));
+        return List.copyOf(targets);
     }
 
     private void invalidateRecipeDiscoveryIndex() {

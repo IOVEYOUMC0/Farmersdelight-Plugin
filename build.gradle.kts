@@ -60,8 +60,7 @@ configurations.all {
 
 val debugToolsBuild = providers.gradleProperty("debugTools")
     .map { it.equals("true", ignoreCase = true) }
-    // Debug tools require a special build (-PdebugTools=true); the runtime statistics they used to
-    // carry now live in the main plugin as /fd stats, so a normal build needs no debug source set.
+    // Debug tools require -PdebugTools=true. Runtime statistics are available through /fd stats.
     .orElse(false)
 val pluginArchiveBaseName = "farmersdelight"
 

@@ -27,7 +27,7 @@ public final class ConfigBootstrap {
             .migrate("entity-extra-drops", "mob-extra-drops")
             .migrate("knife-drop-tools", "mob-extra-drop-tools")
             .migrate("entity-extra-drop-tools", "mob-extra-drop-tools")
-            // Legacy drop keys first group under one temporary drops parent, then move to drops.yml.
+            // Group top-level drop keys before moving the complete drops section to drops.yml.
             .migrate("knife-config", "drops.knife-items")
             .migrate("mob-extra-drop-tools", "drops.mob-extra-tools")
             .migrate("mob-extra-drops", "drops.mob-extra")

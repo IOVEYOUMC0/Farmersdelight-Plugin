@@ -20,8 +20,8 @@ public final class StoveData {
     final int[] displayEntities = new int[SLOT_COUNT];
     final UUID[] ownerIds = new UUID[SLOT_COUNT];
     final String[] ownerNames = new String[SLOT_COUNT];
-    // Blocked-above flag with a tick-stamp TTL, replacing the old Location-keyed cache map: the
-    // steady-state per-tick cost is two volatile reads instead of a CHM lookup + lambda. MIN_VALUE
+    // Blocked-above flag with a tick-stamp TTL: the steady-state per-tick cost is two volatile reads
+    // instead of a CHM lookup + lambda. MIN_VALUE
     // marks "never checked / event-invalidated" and must be compared explicitly — a plain
     // subtraction against it overflows.
     volatile long blockedAboveCheckedTick = Long.MIN_VALUE;

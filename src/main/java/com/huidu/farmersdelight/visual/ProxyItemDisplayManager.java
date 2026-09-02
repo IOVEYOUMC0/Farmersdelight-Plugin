@@ -76,10 +76,8 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
     private int syncIntervalTicks = DEFAULT_SYNC_INTERVAL_TICKS;
     private int syncBatchSize = DEFAULT_SYNC_BATCH_SIZE;
     private int syncCursor;
-    // Create/update bursts (a stove restoring 4 slots, a cutting board re-stacking) each used to pay an
-    // immediate per-display visibility sync. Queue them instead and drain once next tick so same-chunk
-    // displays share one chunk-player lookup. Existing viewers still get their update packets
-    // synchronously (sendUpdateForAllViewers); only the "player newly in range" sync is deferred <=1t.
+    // Queue create/update bursts until the next tick so displays in one chunk share a player lookup.
+    // Existing viewers receive update packets synchronously; new-in-range synchronization may wait one tick.
     private final Set<ProxyDisplay> pendingSync = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean pendingSyncScheduled = new AtomicBoolean();
 

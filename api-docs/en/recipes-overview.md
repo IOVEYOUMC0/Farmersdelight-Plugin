@@ -56,9 +56,8 @@ if (!api.hasFeature("recipes")) {
 ```
 
 `isAvailable()` is true only when FarmersDelight is present *and* enabled. `hasFeature("recipes")` is the
-feature id that covers `registerRecipeType`, `registerCookingPotRecipe`, `registerCuttingBoardRecipe`,
-`openRecipeBook` and `openRecipeEditor`. Feature ids are never removed once published, so probing an id an
-older build does not know simply returns `false`.
+feature id that covers recipe registration, linked-result queries, recipe books and editors. Feature ids are
+never removed once published, so probing an id an older build does not know simply returns `false`.
 
 On a build predating `hasFeature` / `apiVersion` the call itself throws `NoSuchMethodError`. If you support
 those builds, catch it on the first probe and treat it as revision 0.
@@ -81,8 +80,10 @@ FarmersDelight supports Folia, so thread affinity matters.
 
 ## Lifecycle
 
-Register a `RecipeType` in `onEnable` — it needs nothing from CraftEngine at registration time, because your
-`recipes()`, `icon()` and `title()` are called lazily when a book opens.
+Register a `RecipeType` in `onEnable`. Before CraftEngine content is ready, registration stores the type and
+the warmup pass indexes its recipe results. If the registered type later replaces its recipe collection,
+call `refreshRecipeType(type.id())`. `findRecipesProducing(item)` then returns FD and registered-addon
+`JumpTarget`s from reverse indexes without scanning recipe collections on each click.
 
 Cooking-pot and cutting-board recipes are different: their `ItemStack` result and container have to exist, so
 they must be registered once CraftEngine items are loaded. FarmersDelight itself defers its recipe load to

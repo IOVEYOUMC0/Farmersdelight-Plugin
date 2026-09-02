@@ -26,12 +26,9 @@ public final class DamageTypeDatapackInstaller {
     private static final String LEGACY_DAMAGE_DIR = "data/farmersdelight/damage_type";
     private static final String LEGACY_NO_KNOCKBACK = "data/minecraft/tags/damage_type/no_knockback.json";
 
-    // Deletes the old FarmersDelight loot datapack (datapacks/farmersdelight) that pre-CE-native
-    // builds installed to inject items into vanilla chest/grass/mob loot tables. The injections now
-    // live as CraftEngine vanilla/container loot sources, so keeping the stale datapack would
-    // double-add CE items. The damage files that old datapack also carried are migrated by
-    // removeLegacyFiles first, so nothing is lost when the whole folder is deleted afterwards.
-    // Runs across every world (the legacy folder is stale wherever it exists).
+    // Deletes the obsolete FarmersDelight loot datapack (datapacks/farmersdelight). Loot injections
+    // use CraftEngine vanilla/container loot sources; damage files are migrated by removeLegacyFiles
+    // before the folder is deleted. Runs across every world where the folder exists.
     public void cleanupLegacyLootDatapack() {
         if (!installEnabled) {
             return;
@@ -60,7 +57,7 @@ public final class DamageTypeDatapackInstaller {
 
     // Registry-scoped datapack content (damage types, damage_type tags) is loaded by the server from
     // the primary world's datapacks folder and shared by every world, so the pack is written once into
-    // the primary world. Copies the old all-world installer may have left in other worlds are removed.
+    // the primary world. Copies in non-primary worlds are removed.
     public void installToPrimaryWorld(World primaryWorld) {
         if (!installEnabled) {
             I18n.logInfo("damage_datapack_disabled");
@@ -77,20 +74,29 @@ public final class DamageTypeDatapackInstaller {
         }
     }
 
-    // Deletes the farmersdelight_damage datapack from every non-primary world. Those folders were only
-    // ever written by the old per-world installer and are never read by the server (only the primary
-    // world's datapacks/ is scanned), so they are harmless-but-stale files. The legacy farmersdelight
-    // loot folder cleanup is a separate pass (cleanupLegacyLootDatapack) that covers every world.
+    // Deletes the farmersdelight_damage datapack from every non-primary world. The server scans only
+    // the primary world's datapacks/ folder. Loot-folder cleanup is handled separately by
+    // cleanupLegacyLootDatapack across every world.
     private int cleanupRedundantDatapacks(World primaryWorld) {
+        Path primaryDatapack = DatapackSupport.worldRoot(primaryWorld)
+                .resolve("datapacks")
+                .resolve(DATAPACK_NAME)
+                .toAbsolutePath()
+                .normalize();
         String primaryName = primaryWorld.getName();
         int removed = 0;
         for (World world : Bukkit.getWorlds()) {
             if (primaryName.equals(world.getName())) {
                 continue;
             }
-            Path redundant = DatapackSupport.worldRoot(world)
+            Path redundant = world.getWorldFolder().toPath()
                     .resolve("datapacks")
                     .resolve(DATAPACK_NAME);
+            // Modern dimension folders resolve to the same level.dat root as the primary world.
+            // Do not delete the primary pack while iterating those worlds.
+            if (DatapackSupport.sameNormalizedPath(primaryDatapack, redundant)) {
+                continue;
+            }
             try {
                 if (Files.exists(redundant)) {
                     DatapackSupport.deleteRecursively(redundant);

@@ -144,12 +144,13 @@ public void onLoad() {
         BlockBehaviors.register(Key.of(NS + ":example_block"), ExampleBlockBehavior.FACTORY);
     }
     // Copy bundled CraftEngine resources into plugins/CraftEngine/resources/<namespace>/.
-    AddonResources.release(this);
+    CraftEngineResources.release(this, NS);
 }
 ```
 
 Custom block behaviors must be registered before `blocks.yml` is parsed, and your bundled CraftEngine
-resources must be on disk before CraftEngine scans them. Neither call goes through the FarmersDelight api.
+resources must be on disk before CraftEngine scans them. Block-behavior registration is a CraftEngine call;
+resource release uses FarmersDelight's public API.
 
 ## onEnable
 

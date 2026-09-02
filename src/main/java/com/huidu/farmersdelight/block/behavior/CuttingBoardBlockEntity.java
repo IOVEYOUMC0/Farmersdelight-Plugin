@@ -240,8 +240,7 @@ public class CuttingBoardBlockEntity {
         if (displayOverride.rotationDegrees() != null) {
             // The configured rotation is the item's LOCAL pose; the board's facing yaw still applies on
             // top so the item turns with the board (X/Z are pitch/roll — facing-independent — so they
-            // replace outright, but Y composes: yRotation already holds the facing yaw + carved flip).
-            // Previously Y was overwritten, which pinned the item to one absolute yaw regardless of facing.
+            // replace outright, but Y composes because yRotation already contains the facing yaw and carved flip).
             xRotation = displayOverride.rotationDegrees().x();
             yRotation += displayOverride.rotationDegrees().y();
             zRotation = displayOverride.rotationDegrees().z();

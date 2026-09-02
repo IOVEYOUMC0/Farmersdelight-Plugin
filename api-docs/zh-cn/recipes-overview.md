@@ -50,7 +50,7 @@ if (!api.hasFeature("recipes")) {
 }
 ```
 
-`isAvailable()` 只有在 FarmersDelight 既存在又已启用时才为 true。`hasFeature("recipes")` 这个 feature id 覆盖 `registerRecipeType`、`registerCookingPotRecipe`、`registerCuttingBoardRecipe`、`openRecipeBook` 和 `openRecipeEditor`。feature id 一旦发布就不会被删，所以在老版本上探测新 id 只会得到 `false`，是安全的。
+`isAvailable()` 只有在 FarmersDelight 既存在又已启用时才为 true。`hasFeature("recipes")` 这个 feature id 覆盖配方注册、结果反查、配方书和编辑器。feature id 一旦发布就不会被删，所以在老版本上探测新 id 只会得到 `false`，是安全的。
 
 在早于 `hasFeature` / `apiVersion` 的构建上，调用本身会抛 `NoSuchMethodError`。如果你要兼容那些构建，首次探测时 捕获它并当作 revision 0 处理。
 
@@ -64,7 +64,7 @@ FarmersDelight 支持 Folia，线程归属是硬约束。
 
 ## 生命周期
 
-`RecipeType` 在 `onEnable` 里注册即可 —— 注册那一刻它不需要 CraftEngine，因为 `recipes()`、`icon()`、`title()` 都是等到书打开时才惰性调用的。
+`RecipeType` 在 `onEnable` 里注册即可。CraftEngine 内容未就绪时只保存类型，warmup 后统一建立结果索引。已注册类型随后替换配方集合时，调用 `refreshRecipeType(type.id())`；`findRecipesProducing(item)` 会直接从反向索引返回 FD 与附属的 `JumpTarget`，点击时不会遍历全部配方。
 
 厨锅和砧板配方不一样：它们的结果和容器是实打实的 `ItemStack`，必须等 CraftEngine 物品加载完才能注册。 FarmersDelight 自己也是把配方加载推迟到 `CraftEngineReloadEvent` 的，你也在同一个事件里注册，并在之后每次 CE 重载时重新注册。
 

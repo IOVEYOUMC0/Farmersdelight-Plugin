@@ -62,8 +62,7 @@ public class SkilletManager {
     private final SkilletVisualManager visualManager;
     private final SkilletEffectManager effectManager;
     private final Map<Location, SkilletData> skillets = new ConcurrentHashMap<>();
-    private final Map<UUID, Set<Location>> skilletsByWorld = new ConcurrentHashMap<>();
-    private final Map<UUID, Map<Long, Set<Location>>> skilletsByChunk = new ConcurrentHashMap<>();
+    private final WorldChunkLocationIndex locationIndex = new WorldChunkLocationIndex();
     private final Set<Location> scheduledSkilletTicks = ConcurrentHashMap.newKeySet();
     private final Object visualRefreshLock = new Object();
     private final Deque<SkilletData> pendingVisualRefreshes = new ArrayDeque<>();
@@ -173,7 +172,7 @@ public class SkilletManager {
         if (previous != null) {
             return previous;
         }
-        indexSkillet(normalized);
+        locationIndex.add(normalized);
         markTickLocationsDirty();
         return created;
     }
@@ -599,11 +598,11 @@ public class SkilletManager {
         if (world == null) {
             return;
         }
-        Set<Location> locations = skilletsByWorld.get(world.getUID());
-        if (locations == null || locations.isEmpty()) {
+        List<Location> locations = locationIndex.worldLocations(world.getUID());
+        if (locations.isEmpty()) {
             return;
         }
-        for (Location location : List.copyOf(locations)) {
+        for (Location location : locations) {
             SkilletData skillet = skillets.get(location);
             if (skillet == null) {
                 continue;
@@ -622,9 +621,8 @@ public class SkilletManager {
     }
 
     public void cleanupWorld(UUID worldId) {
-        Set<Location> locations = skilletsByWorld.remove(worldId);
-        skilletsByChunk.remove(worldId);
-        if (locations == null || locations.isEmpty()) {
+        List<Location> locations = locationIndex.removeWorld(worldId);
+        if (locations.isEmpty()) {
             return;
         }
 
@@ -643,12 +641,11 @@ public class SkilletManager {
         if (world == null) {
             return;
         }
-        Map<Long, Set<Location>> worldChunks = skilletsByChunk.get(world.getUID());
-        Set<Location> locations = worldChunks == null ? null : worldChunks.get(ManagerSupport.chunkKey(minX, minZ));
-        if (locations == null || locations.isEmpty()) {
+        List<Location> locations = locationIndex.chunkLocations(world.getUID(), ManagerSupport.chunkKey(minX, minZ));
+        if (locations.isEmpty()) {
             return;
         }
-        for (Location location : List.copyOf(locations)) {
+        for (Location location : locations) {
             if (location.getBlockX() >= minX && location.getBlockX() <= maxX
                     && location.getBlockZ() >= minZ && location.getBlockZ() <= maxZ) {
                 SkilletData skillet = skillets.get(location);
@@ -764,8 +761,7 @@ public class SkilletManager {
             cleanupVisual(skillet);
         }
         skillets.clear();
-        skilletsByWorld.clear();
-        skilletsByChunk.clear();
+        locationIndex.clear();
         scheduledSkilletTicks.clear();
         tickLocationsSnapshot = List.of();
         markTickLocationsDirty();
@@ -776,8 +772,8 @@ public class SkilletManager {
             return List.of();
         }
 
-        Set<Location> indexed = skilletsByWorld.get(world.getUID());
-        if (indexed == null || indexed.isEmpty()) {
+        List<Location> indexed = locationIndex.worldLocations(world.getUID());
+        if (indexed.isEmpty()) {
             return List.of();
         }
 
@@ -814,7 +810,7 @@ public class SkilletManager {
             // entry's item display so it doesn't orphan (the incoming skillet already created its own).
             cleanupVisual(previous);
         }
-        indexSkillet(normalized);
+        locationIndex.add(normalized);
         markTickLocationsDirty();
     }
 
@@ -823,7 +819,7 @@ public class SkilletManager {
         SkilletData removed = skillets.remove(normalized);
         if (removed != null) {
             scheduledSkilletTicks.remove(normalized);
-            deindexSkillet(normalized);
+            locationIndex.remove(normalized);
             markTickLocationsDirty();
         }
         return removed;
@@ -850,51 +846,6 @@ public class SkilletManager {
         tickLocationsSnapshot = updated;
         tickLocationsSnapshotVersion = version;
         return updated;
-    }
-
-    private void indexSkillet(Location location) {
-        if (location == null || location.getWorld() == null) {
-            return;
-        }
-        skilletsByWorld
-                .computeIfAbsent(location.getWorld().getUID(), ignored -> ConcurrentHashMap.newKeySet())
-                .add(location);
-        skilletsByChunk
-                .computeIfAbsent(location.getWorld().getUID(), ignored -> new ConcurrentHashMap<>())
-                .computeIfAbsent(ManagerSupport.chunkKey(location), ignored -> ConcurrentHashMap.newKeySet())
-                .add(location);
-    }
-
-    private void deindexSkillet(Location location) {
-        if (location == null || location.getWorld() == null) {
-            return;
-        }
-        UUID worldId = location.getWorld().getUID();
-        Set<Location> locations = skilletsByWorld.get(worldId);
-        if (locations == null) {
-            return;
-        }
-        locations.remove(location);
-        if (locations.isEmpty()) {
-            skilletsByWorld.remove(worldId);
-        }
-
-        Map<Long, Set<Location>> worldChunks = skilletsByChunk.get(worldId);
-        if (worldChunks == null) {
-            return;
-        }
-        long chunkKey = ManagerSupport.chunkKey(location);
-        Set<Location> chunkLocations = worldChunks.get(chunkKey);
-        if (chunkLocations == null) {
-            return;
-        }
-        chunkLocations.remove(location);
-        if (chunkLocations.isEmpty()) {
-            worldChunks.remove(chunkKey);
-        }
-        if (worldChunks.isEmpty()) {
-            skilletsByChunk.remove(worldId);
-        }
     }
 
     private void removeSkillet(Location location) {

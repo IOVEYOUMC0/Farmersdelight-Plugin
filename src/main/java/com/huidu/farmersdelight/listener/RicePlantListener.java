@@ -128,9 +128,7 @@ public class RicePlantListener implements Listener {
 
         Player player = event.getPlayer();
 
-        // Run the cheap clicked-block gate (an enum check + sneak state) before resolving the held item's
-        // CraftEngine id, which allocates a CE item wrapper — so opening doors/chests/etc. and clicking with
-        // a non-seed no longer pays that resolution on every right-click.
+        // Gate interactable blocks before allocating a CraftEngine item wrapper for seed resolution.
         Block clickedBlock = event.getClickedBlock();
         if (clickedBlock == null || isBlockingInteractable(clickedBlock, player)) {
             return;

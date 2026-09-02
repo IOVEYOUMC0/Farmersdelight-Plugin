@@ -35,6 +35,10 @@ public final class DatapackSupport {
         return folder != null ? folder : world.getWorldFolder().toPath();
     }
 
+    public static boolean sameNormalizedPath(Path first, Path second) {
+        return first.toAbsolutePath().normalize().equals(second.toAbsolutePath().normalize());
+    }
+
     public static JarFile openPluginJar(Class<?> pluginClass) throws IOException {
         URL location = pluginClass.getProtectionDomain().getCodeSource().getLocation();
         try {

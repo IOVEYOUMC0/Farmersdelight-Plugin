@@ -21,9 +21,8 @@ final class CleanupSubCommand extends SubCommand {
         int displays = 0;
         var displayManager = plugin.getItemDisplayManager();
         if (displayManager != null) {
-            // Orphan-only: remove just the proxy displays no live block still owns, keeping legitimate
-            // in-use visuals (a stove/skillet/cutting board/cooking pot that's still there). The old
-            // full wipe removed valid displays too — and the stove ones did not re-appear.
+            // Remove only proxy displays without a live owning block. Preserve visuals owned by a stove,
+            // skillet, cutting board, or cooking pot.
             java.util.Set<Integer> liveIds = plugin.collectLiveDisplayIds();
             // Let addons mark their own packet-display handles as live (e.g. the items shown on a coaster)
             // so the orphan sweep doesn't wipe them.

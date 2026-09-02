@@ -472,11 +472,11 @@ recipe-view-gui:
   # Compact special recipe detail used when a recipe has no extra conditions (no sunlight/water/catalyst).
   # 3 rows match the decomposition_none title image height (54 px).
   special-recipe-detail-basic:
-    title: "<white><offset><icon><shift:-163><lang:gui.recipe.special_recipes>"
+    title: "<white><offset><icon><shift:-163><black><lang:gui.recipe.special_recipes>"
     rows: 3
     title-layout:
       craftengine:
-        offset: "<shift:-2>"
+        offset: "<shift:-1>"
         icon: "<image:farmersdelight:decomposition_none>"
     layout:
       - "XXXXCXXXX"

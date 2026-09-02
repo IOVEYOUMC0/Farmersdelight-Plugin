@@ -160,7 +160,7 @@ public final class TagDatapackInstaller {
 
     static String renderTag(Set<String> members) {
         StringBuilder values = new StringBuilder();
-        for (String member : members) {
+        for (String member : members.stream().sorted().toList()) {
             if (!values.isEmpty()) {
                 values.append(",\n");
             }

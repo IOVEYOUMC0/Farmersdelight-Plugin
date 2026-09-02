@@ -149,6 +149,7 @@ final class StoveBurnLogic {
     }
 
     private void burnAroundPlayer(Player player, boolean sweepMobs, Set<UUID> sweptMobIds) {
+        boolean folia = plugin.scheduler().isFolia();
         Location playerLocation = player.getLocation();
         double relevantRadius = sweepMobs ? burnMobRadius + 1.5D : 1.5D;
         if (!hasBurnStoveNear(playerLocation, relevantRadius)) {
@@ -158,9 +159,12 @@ final class StoveBurnLogic {
         if (!sweepMobs) {
             return;
         }
+        if (folia && !Bukkit.isOwnedByCurrentRegion(playerLocation,
+                Math.max(1, (int) Math.ceil(burnMobRadius / 16.0D)))) {
+            return;
+        }
         // Mobs standing on a stove burn too (vanilla burns any LivingEntity). Bounded to near the player
         // so this stays cheap; sweptMobIds also deduplicates overlap between nearby players.
-        boolean folia = plugin.scheduler().isFolia();
         for (LivingEntity living : player.getWorld().getNearbyLivingEntities(playerLocation, burnMobRadius)) {
             if (living instanceof Player) {
                 continue;
@@ -238,9 +242,8 @@ final class StoveBurnLogic {
         entity.damage(amount, DamageSource.builder(stoveBurnDamageType()).build());
     }
 
-    // RegistryKey.DAMAGE_TYPE is the modern stable lookup; the old Registry.DAMAGE_TYPE accessor was
-    // deprecated in 1.20.6. Still wrapped in try/catch with a HOT_FLOOR fallback for server flavours
-    // without the registry accessor.
+    // RegistryKey.DAMAGE_TYPE is the stable lookup. A try/catch with a HOT_FLOOR fallback supports
+    // server variants without the registry accessor.
     @SuppressWarnings("UnstableApiUsage")
     private DamageType stoveBurnDamageType() {
         DamageType type = this.stoveBurnType;

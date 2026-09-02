@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.jar.JarEntry;
@@ -77,7 +78,34 @@ public final class ResourceInstaller {
     private int migrateKnownResourceFixes(Path targetRoot) throws IOException {
         int changed = migrateItemsEggTag(targetRoot.resolve("configuration").resolve("items.yml"));
         changed += migrateAnimatedGuiItem(targetRoot.resolve("configuration").resolve("gui.yml"));
+        changed += migrateLegacyPositionArguments(targetRoot);
         return changed;
+    }
+
+    private int migrateLegacyPositionArguments(Path targetRoot) throws IOException {
+        if (!Files.isDirectory(targetRoot)) {
+            return 0;
+        }
+        int changed = 0;
+        try (Stream<Path> paths = Files.walk(targetRoot)) {
+            for (Path path : paths.filter(Files::isRegularFile).filter(ResourceInstaller::isTextResource).toList()) {
+                String content = Files.readString(path);
+                String migrated = content
+                        .replace("<arg:block.block_x>", "<arg:position.block_x>")
+                        .replace("<arg:block.block_y>", "<arg:position.block_y>")
+                        .replace("<arg:block.block_z>", "<arg:position.block_z>");
+                if (!content.equals(migrated)) {
+                    Files.writeString(path, migrated);
+                    changed++;
+                }
+            }
+        }
+        return changed;
+    }
+
+    private static boolean isTextResource(Path path) {
+        String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
+        return name.endsWith(".yml") || name.endsWith(".yaml") || name.endsWith(".json");
     }
 
     private int migrateItemsEggTag(Path items) throws IOException {
