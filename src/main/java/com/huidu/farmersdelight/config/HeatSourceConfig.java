@@ -37,12 +37,19 @@ public class HeatSourceConfig {
     private final Set<CustomBlockStateMatcher> customBlockStates = new HashSet<>();
     private final Set<Material> conductors = new HashSet<>();
     private final Set<Key> conductorTags = new HashSet<>();
+    // Unified entries, evaluated IN ORDER before the legacy lists below; the first entry that matches
+    // decides. One entry carries both what to match (vanilla block / vanilla tag / CE block / CE block
+    // tag, each optionally narrowed by block state) and what it means (heat source? conductor?), so a
+    // negative entry placed earlier can carve a state out of a broader entry that follows it.
+    private final List<HeatEntry> entries = new java.util.ArrayList<>();
 
     public static void setLogger(Logger logger) {
         LOGGER = logger;
     }
 
     public void loadDefaults() {
+        // Tag = "always a heat source in every state". Blocks with an on/off state are registered
+        // below as explicit state matchers instead, and must NOT carry the tag in their CE config.
         addCustomBlockTag(Key.of("farmersdelight:heat_sources"));
         addVanillaBlock("minecraft:magma_block");
         addVanillaBlock("minecraft:lava_cauldron");
@@ -59,6 +66,9 @@ public class HeatSourceConfig {
 
     public void loadFromConfig(ConfigurationSection section) {
         if (section == null) return;
+
+        // Read first so an entry can override anything the legacy lists below would have matched.
+        loadEntries(section);
 
         List<String> vanillaBlockList = ConfigSectionReader.optionalStringList(section, "vanilla-blocks");
         for (String blockId : vanillaBlockList) {
@@ -164,6 +174,29 @@ public class HeatSourceConfig {
         customBlockTags.add(tag);
     }
 
+    /**
+     * Registers a CraftEngine block as a heat source, optionally only in certain states
+     * ("namespace:block" or "namespace:block[fire:true]").
+     *
+     * <p>Blocks that can be switched off MUST be registered this way rather than by tag: CraftEngine
+     * copies the block-level settings (and therefore the tag list) onto every state, so a tag matches
+     * the unlit state just as well as the lit one.
+     *
+     * @return false when the id could not be parsed
+     */
+    public boolean addCustomBlockState(String blockIdWithOptionalState) {
+        CustomBlockStateMatcher matcher = parseBlockState(blockIdWithOptionalState);
+        if (matcher == null) {
+            if (LOGGER != null) {
+                LOGGER.warning(I18n.formatConsole("heat_source.invalid_custom_block",
+                        "id", String.valueOf(blockIdWithOptionalState)));
+            }
+            return false;
+        }
+        customBlockStates.add(matcher);
+        return true;
+    }
+
     public void addConductorTag(Key tag) {
         conductorTags.add(tag);
     }
@@ -184,6 +217,187 @@ public class HeatSourceConfig {
                 LOGGER.warning(I18n.formatConsole("heat_source.invalid_vanilla_conductor", "id", conductorId));
             }
         }
+    }
+
+    /** One configured heat-source rule: how to match a block, and what matching it means. */
+    private record HeatEntry(EntryMatcher matcher, boolean heatSource, boolean conductor) {
+    }
+
+    private interface EntryMatcher {
+        boolean matches(Block block, ImmutableBlockState customState);
+    }
+
+    private record VanillaBlockMatcher(Material material, Map<String, String> states) implements EntryMatcher {
+        @Override
+        public boolean matches(Block block, ImmutableBlockState customState) {
+            return block.getType() == material && vanillaStatesMatch(block, states);
+        }
+    }
+
+    private record VanillaTagMatcher(org.bukkit.Tag<Material> tag, Map<String, String> states) implements EntryMatcher {
+        @Override
+        public boolean matches(Block block, ImmutableBlockState customState) {
+            return tag.isTagged(block.getType()) && vanillaStatesMatch(block, states);
+        }
+    }
+
+    private record CustomBlockMatcher(CustomBlockStateMatcher delegate) implements EntryMatcher {
+        @Override
+        public boolean matches(Block block, ImmutableBlockState customState) {
+            return customState != null && !customState.isEmpty() && delegate.matches(customState);
+        }
+    }
+
+    private record CustomTagMatcher(Key tag) implements EntryMatcher {
+        @Override
+        public boolean matches(Block block, ImmutableBlockState customState) {
+            return customState != null && !customState.isEmpty() && customState.settings().tags().contains(tag);
+        }
+    }
+
+    // Compares the requested properties against the block's real state. Reading them out of
+    // BlockData#getAsString avoids a typed cast per property (Lightable, Ageable, ...) and works for
+    // any vanilla block, which is the whole point of letting the config name states at all.
+    private static boolean vanillaStatesMatch(Block block, Map<String, String> required) {
+        if (required.isEmpty()) {
+            return true;
+        }
+        String data = block.getBlockData().getAsString();
+        int open = data.indexOf('[');
+        if (open < 0 || !data.endsWith("]")) {
+            return false;
+        }
+        Map<String, String> actual = new HashMap<>();
+        for (String pair : data.substring(open + 1, data.length() - 1).split(",")) {
+            int eq = pair.indexOf('=');
+            if (eq > 0) {
+                actual.put(pair.substring(0, eq).trim(), pair.substring(eq + 1).trim());
+            }
+        }
+        for (Map.Entry<String, String> entry : required.entrySet()) {
+            if (!entry.getValue().equalsIgnoreCase(actual.get(entry.getKey()))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void loadEntries(ConfigurationSection section) {
+        for (Map<?, ?> raw : ConfigSectionReader.optionalMapList(section, "entries")) {
+            HeatEntry entry = parseEntry(raw, section);
+            if (entry != null) {
+                entries.add(entry);
+            }
+        }
+    }
+
+    private HeatEntry parseEntry(Map<?, ?> raw, ConfigurationSection section) {
+        String vanillaBlock = entryString(raw, "vanilla-block");
+        String vanillaTag = entryString(raw, "vanilla-block-tag");
+        String customBlock = entryString(raw, "custom-block");
+        String customTag = entryString(raw, "custom-block-tag");
+        Map<String, String> states = entryStates(raw);
+        boolean heatSource = entryBoolean(raw, "heat-source", true);
+        boolean conductor = entryBoolean(raw, "conductor", false);
+
+        EntryMatcher matcher = null;
+        if (vanillaBlock != null) {
+            Material material = Registry.MATERIAL.get(NamespacedKey.minecraft(
+                    vanillaBlock.replace("minecraft:", "").toLowerCase(java.util.Locale.ROOT)));
+            matcher = material == null ? null : new VanillaBlockMatcher(material, states);
+        } else if (vanillaTag != null) {
+            org.bukkit.Tag<Material> tag = resolveVanillaBlockTag(vanillaTag);
+            matcher = tag == null ? null : new VanillaTagMatcher(tag, states);
+        } else if (customBlock != null) {
+            CustomBlockStateMatcher delegate = parseBlockState(appendStates(customBlock, states));
+            matcher = delegate == null ? null : new CustomBlockMatcher(delegate);
+        } else if (customTag != null) {
+            try {
+                matcher = new CustomTagMatcher(Key.of(customTag));
+            } catch (IllegalArgumentException ignored) {
+                matcher = null;
+            }
+        }
+
+        if (matcher == null) {
+            I18n.logWarning("plugin.config_value_invalid", "file", "config.yml",
+                    "path", (section == null ? "heat-sources" : section.getCurrentPath()) + ".entries",
+                    "error", "entry matches nothing: " + raw);
+            return null;
+        }
+        return new HeatEntry(matcher, heatSource, conductor);
+    }
+
+    // The CE matcher is already driven by the "id[key:value]" syntax, so a states map is folded into it
+    // instead of duplicating the property-comparison logic.
+    private static String appendStates(String blockId, Map<String, String> states) {
+        if (states.isEmpty()) {
+            return blockId;
+        }
+        StringBuilder builder = new StringBuilder(blockId).append('[');
+        boolean first = true;
+        for (Map.Entry<String, String> entry : states.entrySet()) {
+            if (!first) {
+                builder.append(',');
+            }
+            builder.append(entry.getKey()).append(':').append(entry.getValue());
+            first = false;
+        }
+        return builder.append(']').toString();
+    }
+
+    private static String entryString(Map<?, ?> raw, String key) {
+        Object value = raw.get(key);
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value).trim();
+        return text.isEmpty() ? null : text;
+    }
+
+    private static boolean entryBoolean(Map<?, ?> raw, String key, boolean defaultValue) {
+        Object value = raw.get(key);
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        return value == null ? defaultValue : Boolean.parseBoolean(String.valueOf(value).trim());
+    }
+
+    private static Map<String, String> entryStates(Map<?, ?> raw) {
+        Object value = raw.get("states");
+        if (!(value instanceof Map<?, ?> stateMap)) {
+            return Map.of();
+        }
+        Map<String, String> states = new HashMap<>();
+        for (Map.Entry<?, ?> entry : stateMap.entrySet()) {
+            if (entry.getKey() != null && entry.getValue() != null) {
+                states.put(String.valueOf(entry.getKey()).trim(), String.valueOf(entry.getValue()).trim());
+            }
+        }
+        return states;
+    }
+
+    // Returns the first entry matching this block, or null when no entry does.
+    private HeatEntry firstMatchingEntry(Block block, ImmutableBlockState preFetchedState) {
+        if (entries.isEmpty()) {
+            return null;
+        }
+        ImmutableBlockState customState = preFetchedState;
+        boolean customResolved = preFetchedState != null;
+        for (HeatEntry entry : entries) {
+            if (!customResolved && needsCustomState(entry.matcher())) {
+                customState = CraftEngineBlocks.getCustomBlockState(block);
+                customResolved = true;
+            }
+            if (entry.matcher().matches(block, customState)) {
+                return entry;
+            }
+        }
+        return null;
+    }
+
+    private static boolean needsCustomState(EntryMatcher matcher) {
+        return matcher instanceof CustomBlockMatcher || matcher instanceof CustomTagMatcher;
     }
 
     private CustomBlockStateMatcher parseBlockState(String input) {
@@ -215,6 +429,11 @@ public class HeatSourceConfig {
     }
 
     public boolean isHeatSource(Block block, ImmutableBlockState preFetchedState) {
+        HeatEntry entry = firstMatchingEntry(block, preFetchedState);
+        if (entry != null) {
+            return entry.heatSource();
+        }
+
         Material blockType = block.getType();
 
         if (vanillaBlocks.contains(blockType)) {
@@ -260,6 +479,11 @@ public class HeatSourceConfig {
     }
 
     public boolean isConductor(Block block, ImmutableBlockState preFetchedState) {
+        HeatEntry entry = firstMatchingEntry(block, preFetchedState);
+        if (entry != null) {
+            return entry.conductor();
+        }
+
         if (conductors.contains(block.getType())) {
             return true;
         }

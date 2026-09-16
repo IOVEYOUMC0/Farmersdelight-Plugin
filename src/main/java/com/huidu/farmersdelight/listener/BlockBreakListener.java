@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.FarmersDelightApi;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntityController;
@@ -43,16 +44,24 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class BlockBreakListener implements Listener {
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onBlockBreak(BlockBreakEvent event) {
         org.bukkit.block.Block block = event.getBlock();
+        ImmutableBlockState state = CustomBlockUtils.getState(block);
+        if (event.isCancelled() && event.getPlayer().isOp()
+                && isProtectedBlock(state)
+                && ProtectionCompat.canBreak(event.getPlayer(), block, featureFor(state))) {
+            event.setCancelled(false);
+        }
+        if (event.isCancelled()) {
+            return;
+        }
         // Block.getLocation() already returns a fresh Location object — the extra clone() before
         // mutating add() was double-allocating per break event.
         FarmersDelightPlugin.getInstance().getStoveManager()
                 .invalidateBlockedAboveCache(block.getLocation().add(0, -1, 0));
         syncTraysAroundSupportChange(block);
-        ImmutableBlockState state = CustomBlockUtils.getState(block);
-        if (isFarmersDelightBlock(state)
+        if (isProtectedBlock(state)
                 && !ProtectionCompat.canBreak(event.getPlayer(), block, featureFor(state))) {
             event.setCancelled(true);
             return;
@@ -63,15 +72,23 @@ public class BlockBreakListener implements Listener {
         cleanupBlockAt(block, state, false, true);
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onCustomBlockBreak(CustomBlockBreakEvent event) {
+        ImmutableBlockState state = event.blockState();
+        if (event.isCancelled() && event.getPlayer().isOp()
+                && isProtectedBlock(state)
+                && ProtectionCompat.canBreak(event.getPlayer(), event.bukkitBlock(), featureFor(state))) {
+            event.setCancelled(false);
+        }
+        if (event.isCancelled()) {
+            return;
+        }
         FarmersDelightPlugin.getInstance().getStoveManager()
                 .invalidateBlockedAboveCache(event.bukkitBlock().getLocation().add(0, -1, 0));
         syncTraysAroundSupportChange(event.bukkitBlock());
         // Resolve the block state once and reuse it across the managed-type checks and cleanup, avoiding
         // the repeated lookups the per-call event.blockState() would otherwise perform.
-        ImmutableBlockState state = event.blockState();
-        if (isFarmersDelightBlock(state)
+        if (isProtectedBlock(state)
                 && !ProtectionCompat.canBreak(event.getPlayer(), event.bukkitBlock(), featureFor(state))) {
             event.setCancelled(true);
             return;
@@ -95,9 +112,21 @@ public class BlockBreakListener implements Listener {
         cleanupBlockAt(event.bukkitBlock(), state, false, shouldDropItems);
     }
 
-    private static boolean isFarmersDelightBlock(ImmutableBlockState state) {
-        String id = CustomBlockUtils.getId(state);
-        return id != null && id.startsWith("farmersdelight:");
+    private static boolean isProtectedBlock(ImmutableBlockState state) {
+        return isProtectedBlockId(CustomBlockUtils.getId(state));
+    }
+
+    static boolean isProtectedBlockId(String id) {
+        if (id == null) {
+            return false;
+        }
+        int separator = id.indexOf(':');
+        if (separator < 1) {
+            return false;
+        }
+        String namespace = id.substring(0, separator);
+        return "farmersdelight".equals(namespace)
+                || FarmersDelightApi.get().isAddonBlockNamespace(namespace);
     }
 
     private static ProtectionCompat.Feature featureFor(ImmutableBlockState state) {

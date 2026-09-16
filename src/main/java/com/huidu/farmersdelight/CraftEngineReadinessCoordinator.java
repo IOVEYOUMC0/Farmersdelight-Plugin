@@ -76,6 +76,10 @@ final class CraftEngineReadinessCoordinator {
     void reportContentSummaryWhenReady() {
         if (isReady()) {
             startupSummary.report();
+            // Addons register their namespaces during enable, after FD's first summary. Recount here so
+            // the addon bucket reflects the complete loaded set without a polling task.
+            com.huidu.farmersdelight.compat.CraftEngineStateUsageMonitor.logRealStateUsage(
+                    plugin, I18n.formatConsole("plugin.startup_reason"));
         }
     }
 
@@ -123,8 +127,12 @@ final class CraftEngineReadinessCoordinator {
             if (!contentWarmupCompleted.get()) {
                 loadRecipesWhenReady("plugin.refreshing_recipes_after_ce");
                 refreshAdvancementsWhenReady(false);
-                warmUpWhenReady("reload");
             }
+            // Outside the first-warm-up guard on purpose: refreshAfterCraftEngineReload just emptied the
+            // item, sound and GUI caches this fills. Leaving it to the guard meant that after the first
+            // warm-up every later reload dropped the caches and never rebuilt them, so the work was paid
+            // again lazily, one item at a time, during play instead of once here.
+            warmUpWhenReady("reload");
             indexLoadedChunkContentWhenReady();
             com.huidu.farmersdelight.tool.ToolRegistry.refresh();
         } catch (Exception e) {
@@ -137,14 +145,28 @@ final class CraftEngineReadinessCoordinator {
         try {
             long start = System.nanoTime();
             int items = ItemUtils.warmItems("farmersdelight");
+            long itemNanos = System.nanoTime() - start;
+            long mark = System.nanoTime();
             TomatoVineBlockBehavior.warmAll();
             CookingPotGui.warm(plugin);
+            long guiNanos = System.nanoTime() - mark;
+            mark = System.nanoTime();
             warmRecipeIngredientIcons();
+            long iconNanos = System.nanoTime() - mark;
+            mark = System.nanoTime();
             FarmersDelightApi.get().refreshRecipeIndex();
+            long indexNanos = System.nanoTime() - mark;
             long ms = (System.nanoTime() - start) / 1_000_000L;
             startupSummary.recordWarmup(items, ms);
             I18n.logDetail("startup", "plugin.warmup_done", "items", items, "ms", ms);
-        } catch (Throwable t) {
+            // Per-phase split: this whole block runs synchronously on a tick thread, so knowing which
+            // phase dominates is what decides whether it is worth splitting across ticks.
+            I18n.logDetail("startup", "plugin.warmup_breakdown",
+                    "items", itemNanos / 1_000_000L,
+                    "gui", guiNanos / 1_000_000L,
+                    "icons", iconNanos / 1_000_000L,
+                    "index", indexNanos / 1_000_000L);
+        } catch (RuntimeException | LinkageError t) {
             plugin.getLogger().log(Level.WARNING, I18n.formatConsole("plugin.warmup_failed"), t);
         }
         contentWarmupCompleted.set(true);

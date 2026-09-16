@@ -25,6 +25,8 @@ icon: calendar-check
 
 ## 可用性
 
+CE 内容包也可在包根或命名空间目录提供 `advancements.yml`，由 FD 加载。配置树未填写任何 `x` / `y` 时按 `parent` 关系调用项目 UAA 补丁版的原版布局算法；只要写了坐标就保留手动布局。Java `AdvancementTree` 仍使用调用方提供的坐标。
+
 ```java
 public static boolean isAvailable();
 ```

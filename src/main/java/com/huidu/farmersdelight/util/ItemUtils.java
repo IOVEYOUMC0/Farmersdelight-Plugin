@@ -47,10 +47,18 @@ public final class ItemUtils {
     // call (all FD/BAC names are <l10n:> DynamicLines), so cache the built base and hand out clones. Cleared
     // on CE/config reload so redefined items rebuild.
     private static final Map<Key, ItemStack> itemBuildCache = new ConcurrentHashMap<>();
+    // A CraftEngine item's declared tags, as the strings the tag comparisons use, keyed by its item id.
+    // Both the set copy and one String per tag were being rebuilt on every membership test; the answer
+    // only changes when CraftEngine reloads, which is exactly when this map is cleared.
+    private static final Map<Key, Set<String>> customItemTagIdCache = new ConcurrentHashMap<>();
     private static final List<Material> ITEM_MATERIALS = new ArrayList<>();
     // Pre-built reverse index: material → all vanilla item-tag IDs it belongs to.
     // Replaces the O(n) getAllItemTagIds iteration over every registered tag per call.
-    private static final Map<Material, List<String>> MATERIAL_TAG_INDEX = new ConcurrentHashMap<>();
+    // Published as a whole once built. "Map is non-empty" cannot serve as the built flag: the first
+    // computeIfAbsent makes it non-empty while most materials are still missing, and a reader would then
+    // see a half-built index and iterate an ArrayList that the builder is still appending to.
+    private static volatile Map<Material, List<String>> MATERIAL_TAG_INDEX = Map.of();
+    private static final Object MATERIAL_TAG_INDEX_LOCK = new Object();
 
     private static final PlainTextComponentSerializer PLAIN_TEXT = PlainTextComponentSerializer.plainText();
     private static final Pattern L10N_PATTERN = Pattern.compile("<(?:l10n|i18n)[:;]([^>]+)>");
@@ -160,6 +168,21 @@ public final class ItemUtils {
 
     public static boolean isAnyCustomItemLoaded() {
         return !CraftEngineItems.loadedItems().isEmpty();
+    }
+
+    /** The declared tags of a CraftEngine item as strings, built once per item id. */
+    private static Set<String> customItemTagIds(Key key) {
+        return customItemTagIdCache.computeIfAbsent(key, id -> {
+            Set<Key> tags = getCustomItemTags(id);
+            if (tags.isEmpty()) {
+                return Set.of();
+            }
+            Set<String> ids = new java.util.LinkedHashSet<>(tags.size());
+            for (Key tag : tags) {
+                ids.add(tag.toString());
+            }
+            return Set.copyOf(ids);
+        });
     }
 
     public static Set<Key> getCustomItemTags(Key key) {
@@ -297,9 +320,10 @@ public final class ItemUtils {
 
     public static void clearItemCache() {
         itemBuildCache.clear();
+        customItemTagIdCache.clear();
         vanillaTagCache.clear();
         vanillaItemTagResolveCache.clear();
-        MATERIAL_TAG_INDEX.clear();
+        MATERIAL_TAG_INDEX = Map.of();
     }
 
     public static int warmItems(String namespace) {
@@ -737,20 +761,29 @@ public final class ItemUtils {
             return false;
         }
 
-        if (excludedItems.stream().anyMatch(excluded -> matchesItemId(item, excluded))) {
+        // Past the check above the item is plain vanilla, so the one id it matches by is its material id:
+        // a string build rather than a CraftEngine wrap. Resolving it once here is the point — every
+        // matchesItemId below would otherwise re-resolve the custom id, once per candidate id, only to
+        // find it null again.
+        String vanillaId = getVanillaMaterialItemId(item);
+        if (vanillaId == null) {
             return false;
         }
+        for (Key excluded : excludedItems) {
+            if (excluded != null && vanillaId.equalsIgnoreCase(excluded.toString())) {
+                return false;
+            }
+        }
         boolean inVanillaTag = isVanillaMaterialInTag(item.getType(), tagKey);
-        boolean inRegisteredTag = CommonTagResolver.getMembers(tagKey).stream()
-                .anyMatch(member -> matchesItemId(item, member));
+        // CommonTagResolver stores members lower-cased and the material id is already lower-case, so
+        // membership is an exact set lookup instead of a scan over every member of the tag.
+        boolean inRegisteredTag = CommonTagResolver.getMembers(tagKey).contains(vanillaId);
         if (!inVanillaTag && !inRegisteredTag) {
             return false;
         }
         for (Key excludedTag : excludedTags) {
-            boolean excludedByVanillaTag = isVanillaMaterialInTag(item.getType(), excludedTag);
-            boolean excludedByRegisteredTag = CommonTagResolver.getMembers(excludedTag).stream()
-                    .anyMatch(member -> matchesItemId(item, member));
-            if (excludedByVanillaTag || excludedByRegisteredTag) {
+            if (isVanillaMaterialInTag(item.getType(), excludedTag)
+                    || CommonTagResolver.getMembers(excludedTag).contains(vanillaId)) {
                 return false;
             }
         }
@@ -813,9 +846,7 @@ public final class ItemUtils {
         // CE-declared tags (self-identifying, e.g. a knife declaring farmersdelight:tools/knives).
         String customId = getCustomItemId(item);
         if (customId != null) {
-            for (Key tag : getCustomItemTags(Key.of(customId))) {
-                tags.add(tag.toString());
-            }
+            tags.addAll(customItemTagIds(Key.of(customId)));
         }
         // Registered tags (c:... conventions plus any addon-registered tags) are resolved against
         // the item's authoritative identity. Do not include the base material for custom items: a CE
@@ -850,10 +881,11 @@ public final class ItemUtils {
         if (!MATERIAL_TAG_INDEX.isEmpty()) {
             return;
         }
-        synchronized (MATERIAL_TAG_INDEX) {
+        synchronized (MATERIAL_TAG_INDEX_LOCK) {
             if (!MATERIAL_TAG_INDEX.isEmpty()) {
                 return;
             }
+            Map<Material, List<String>> building = new java.util.EnumMap<>(Material.class);
             for (Tag<Material> tag : Bukkit.getTags("items", Material.class)) {
                 String tagId = tag.getKey().toString();
                 Collection<Material> taggedMaterials = tag.getValues();
@@ -861,9 +893,12 @@ public final class ItemUtils {
                     continue;
                 }
                 for (Material material : taggedMaterials) {
-                    MATERIAL_TAG_INDEX.computeIfAbsent(material, k -> new ArrayList<>()).add(tagId);
+                    building.computeIfAbsent(material, k -> new ArrayList<>()).add(tagId);
                 }
             }
+            Map<Material, List<String>> published = new java.util.EnumMap<>(Material.class);
+            building.forEach((material, tags) -> published.put(material, List.copyOf(tags)));
+            MATERIAL_TAG_INDEX = Map.copyOf(published);
         }
     }
 
@@ -876,9 +911,12 @@ public final class ItemUtils {
             normalized = normalized.substring(1);
         }
         Key tagKey = Key.of(normalized);
-        Set<String> customTags = getItemTagIds(item);
-        if (customTags.stream().anyMatch(tag -> tag.equalsIgnoreCase(tagKey.toString()))) {
-            return true;
+        // toString outside the loop: it was being rebuilt once per tag the item carries.
+        String wanted = tagKey.toString();
+        for (String tag : getItemTagIds(item)) {
+            if (tag.equalsIgnoreCase(wanted)) {
+                return true;
+            }
         }
         return matchesVanillaItemTag(item, tagKey, Set.of(), Set.of());
     }

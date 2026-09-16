@@ -13,13 +13,13 @@ Folia 感知的封装。
 
 | 要求 | 取值 |
 | --- | --- |
-| 服务端 | Paper 或 Folia |
-| Minecraft | **1.21.1**（1.21.x 线） |
-| `api-version` | `1.21` |
+| 服务端 | Paper 或 Folia（或 Paper 分支：Purpur、Pufferfish、Leaf） |
+| Minecraft | **1.21.4 或更高**（1.21.x 线） |
+| `api-version` | `1.21.4` |
 | Java | **21 或更高** |
 
-插件针对 **Paper 1.21.1** 构建与测试，声明的 `api-version` 是 `1.21`，所以 1.21 / 1.21.1 是下限。更新的 1.21.x
-构建没问题；低于 1.21 不支持。
+插件针对 **Paper 1.21.4** 构建与测试，声明的 `api-version` 是 `1.21.4`，所以 1.21.4 是下限。更新的构建没问题；
+低于 1.21.4 不支持——插件用到了 Paper 1.21.4 才加入的 item_model 与数据组件 API。
 
 Java 21 是硬要求——jar 编译到 Java 21 字节码级别，旧版 JRE 加载不了。用 CraftEngine 和现代 Paper 本来就需要的那套
 Java 21+ 运行时即可。
@@ -58,3 +58,7 @@ FarmersDelight、CraftEngine 以及任何附属都持有指向自身类加载器
 ## 下一步
 
 [安装 →](install.md)
+
+**不支持 Spigot / CraftBukkit**，而且从来就不支持：本插件硬依赖的 CraftEngine 本身就是纯 Paper 插件，
+FarmersDelight 也大量使用 Paper 独占 API（数据组件 API、Adventure、按实体调度器、Paper 事件）。
+从本版本起清单改为 `paper-plugin.yml`，把这个要求在加载时就说清楚，而不是等到运行时报缺类。

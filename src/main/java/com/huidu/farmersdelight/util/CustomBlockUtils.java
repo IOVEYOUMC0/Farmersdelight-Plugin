@@ -116,9 +116,17 @@ public final class CustomBlockUtils {
         }
     }
 
+    // Some CraftEngine builds hand back the CEWorld directly, others the platform World wrapper.
+    // Accepting both keeps this working across a CE upgrade instead of throwing ClassCastException.
     private static CEWorld resolveCEWorld(BukkitWorldManager worldManager, java.util.UUID uuid) {
-        net.momirealms.craftengine.bukkit.world.BukkitWorld world = worldManager.getWorld(uuid);
-        return world == null ? null : world.ceWorld();
+        Object world = worldManager.getWorld(uuid);
+        if (world instanceof CEWorld ceWorld) {
+            return ceWorld;
+        }
+        if (world instanceof net.momirealms.craftengine.core.world.World platformWorld) {
+            return platformWorld.ceWorld();
+        }
+        return null;
     }
 
     public static World getBukkitWorld(BlockEntity blockEntity) {

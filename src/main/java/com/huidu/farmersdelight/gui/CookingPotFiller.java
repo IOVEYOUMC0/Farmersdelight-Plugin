@@ -354,19 +354,28 @@ final class CookingPotFiller {
         if (slots == null || item == null || item.getType().isAir()) {
             return;
         }
+        int target = -1;
+        int amount = Integer.MAX_VALUE;
         for (int i = 0; i < slots.length; i++) {
-            if (slots[i] == null || slots[i].getType().isAir()) {
-                ItemStack placed = item.clone();
-                placed.setAmount(1);
-                slots[i] = placed;
-                return;
+            ItemStack slotItem = slots[i];
+            if (slotItem != null && !slotItem.getType().isAir()
+                    && (!slotItem.isSimilar(item) || slotItem.getAmount() >= slotItem.getMaxStackSize())) {
+                continue;
+            }
+            int count = slotItem == null || slotItem.getType().isAir() ? 0 : slotItem.getAmount();
+            if (count < amount) {
+                amount = count;
+                target = i;
             }
         }
-        for (ItemStack slotItem : slots) {
-            if (slotItem != null && !slotItem.getType().isAir() && slotItem.isSimilar(item)
-                    && slotItem.getAmount() < slotItem.getMaxStackSize()) {
+        if (target >= 0) {
+            ItemStack slotItem = slots[target];
+            if (slotItem == null || slotItem.getType().isAir()) {
+                slotItem = item.clone();
+                slotItem.setAmount(1);
+                slots[target] = slotItem;
+            } else {
                 slotItem.setAmount(slotItem.getAmount() + 1);
-                return;
             }
         }
     }

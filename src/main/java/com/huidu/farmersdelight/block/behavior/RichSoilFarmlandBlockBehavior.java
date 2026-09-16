@@ -113,7 +113,7 @@ public class RichSoilFarmlandBlockBehavior extends FarmersDelightBlockBehavior {
         try {
             CraftEngineBlocks.place(new Location(world, pos.x() + 0.5, pos.y(), pos.z() + 0.5),
                     richSoil.defaultState(), true);
-        } catch (Throwable ignored) {
+        } catch (RuntimeException | LinkageError ignored) {
             // block placement is best-effort during ticking; rich soil conversion continues next tick
         }
     }
@@ -210,7 +210,7 @@ public class RichSoilFarmlandBlockBehavior extends FarmersDelightBlockBehavior {
                 plant.getWorld().spawnParticle(Particle.HAPPY_VILLAGER,
                         plant.getLocation().add(0.5, 0.5, 0.5), 10, 0.3, 0.3, 0.3);
             }
-        } catch (Throwable ignored) {
+        } catch (RuntimeException | LinkageError ignored) {
             // cosmetic only; effect failure does not block growth
         }
     }

@@ -412,11 +412,29 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         ItemStack pending = stack.clone();
         int[] slots = getSlotsForFace(direction);
         if (preferEmptySlots) {
-            pending = insertIntoEmptySlots(pending, slots, direction);
-            if (pending == null || pending.getType().isAir()) {
+            // Recipe filling supplies one item at a time; choose the least-filled compatible
+            // slot so repeated inserts stay balanced instead of piling into the first slot.
+            while (pending != null && !pending.getType().isAir() && pending.getAmount() > 0) {
+                int target = findLeastFilledSlot(slots, pending, direction);
+                if (target < 0) {
+                    break;
+                }
+                ItemStack one = pending.clone();
+                one.setAmount(1);
+                ItemStack remainder = insertBukkitStackIntoControllerSlot(target, one);
+                if (remainder != null && !remainder.getType().isAir()) {
+                    break;
+                }
+                pending.setAmount(pending.getAmount() - 1);
+            }
+            if (pending == null || pending.getType().isAir() || pending.getAmount() <= 0) {
                 setChanged();
                 return null;
             }
+            if (pending.getAmount() != stack.getAmount()) {
+                setChanged();
+            }
+            return pending;
         }
         for (int slot : slots) {
             if (pending.getAmount() <= 0) {
@@ -441,24 +459,25 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         return pending;
     }
 
-    private ItemStack insertIntoEmptySlots(ItemStack pending, int[] slots, Direction direction) {
+    private int findLeastFilledSlot(int[] slots, ItemStack stack, Direction direction) {
+        int target = -1;
+        int amount = Integer.MAX_VALUE;
         for (int slot : slots) {
-            if (pending.getAmount() <= 0) {
-                return null;
-            }
-            if (!isValidSlot(slot) || !isEmpty(toBukkitPreserving(slot))) {
+            if (!isValidSlot(slot) || !canPlaceItemThroughFace(slot,
+                    normalize(BukkitItemManager.instance().wrap(stack)), direction)) {
                 continue;
             }
-            Item pendingItem = normalize(BukkitItemManager.instance().wrap(pending));
-            if (pendingItem.isEmpty() || !canPlaceItemThroughFace(slot, pendingItem, direction)) {
+            ItemStack existing = toBukkitPreserving(slot);
+            if (!isEmpty(existing) && !existing.isSimilar(stack)) {
                 continue;
             }
-            pending = insertBukkitStackIntoControllerSlot(slot, pending);
-            if (pending == null || pending.getType().isAir()) {
-                return null;
+            int count = isEmpty(existing) ? 0 : existing.getAmount();
+            if (count < amount) {
+                amount = count;
+                target = slot;
             }
         }
-        return pending;
+        return target;
     }
 
     private static boolean isEmpty(ItemStack item) {

@@ -25,6 +25,10 @@ jobs:
       - name: Run tests
         run: ./gradlew test --no-daemon --stacktrace
 
+      # The addon repos compile against this jar, so a failure here breaks all five of them.
+      - name: Build the api jar addons compile against
+        run: ./gradlew apiJar --no-daemon --stacktrace
+
       - name: Upload test report
         if: always()
         uses: actions/upload-artifact@v4

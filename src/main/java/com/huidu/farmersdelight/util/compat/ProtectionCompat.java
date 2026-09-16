@@ -16,8 +16,7 @@ public final class ProtectionCompat {
         RICH_SOIL("farmersdelight-rich-soil"),
         TOMATO("farmersdelight-tomato"),
         MUSHROOM_COLONY("farmersdelight-mushroom-colony"),
-        COOKING_POT("farmersdelight-cooking-pot"),
-        FOOD_BLOCK("farmersdelight-food-block");
+        COOKING_POT("farmersdelight-cooking-pot");
 
         private final String flagName;
 
@@ -53,9 +52,11 @@ public final class ProtectionCompat {
         try {
             AntiGriefBridge.init(plugin);
             antiGriefReady = AntiGriefBridge.isActive();
-        } catch (Throwable t) {
+        } catch (RuntimeException | LinkageError t) {
             // antigrieflib missing / Flag class absent / build failure: WorldGuard-only, no regression.
             antiGriefReady = false;
+            plugin.getLogger().warning("AntiGriefLib compatibility disabled: " + t.getClass().getSimpleName()
+                    + (t.getMessage() == null ? "" : " - " + t.getMessage()));
         }
     }
 
@@ -83,6 +84,9 @@ public final class ProtectionCompat {
     }
 
     public static boolean canBuild(Player player, Location location, String flagName) {
+        if (player != null && player.isOp()) {
+            return true;
+        }
         return WorldGuardCompat.canBuild(player, location, flagName)
                 && (!antiGriefReady || AntiGriefBridge.canPlace(player, location));
     }
@@ -101,6 +105,9 @@ public final class ProtectionCompat {
     }
 
     public static boolean canBreak(Player player, Location location, String flagName) {
+        if (player != null && player.isOp()) {
+            return true;
+        }
         return WorldGuardCompat.canBuild(player, location, flagName)
                 && (!antiGriefReady || AntiGriefBridge.canBreak(player, location));
     }
@@ -118,6 +125,9 @@ public final class ProtectionCompat {
     }
 
     public static boolean canUse(Player player, Location location, String flagName) {
+        if (player != null && player.isOp()) {
+            return true;
+        }
         return WorldGuardCompat.canUse(player, location, flagName)
                 && (!antiGriefReady || AntiGriefBridge.canInteract(player, location));
     }

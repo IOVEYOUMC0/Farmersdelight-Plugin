@@ -38,7 +38,10 @@ public class CookingPotBlockEntity {
     // Inventory version: incremented on every write to the inventory array, lets the GUI cheaply detect
     // "did the pot change" and skip a full input-slot rescan when unchanged. volatile so GUI threads see the latest value.
     private volatile long inventoryVersion;
-    private final Map<String, Integer> usedRecipeTracker = new HashMap<>();
+    // Written by the cook tick on the pot's region, drained by awardUsedRecipes on the taking player's
+    // region (a GUI viewer can stand in a different region). Concurrent map + atomic per-key removal so
+    // neither side can lose a craft or trip over a resize.
+    private final Map<String, Integer> usedRecipeTracker = new java.util.concurrent.ConcurrentHashMap<>();
     private final AtomicInteger cookingProgress = new AtomicInteger(0);
     private final AtomicInteger cookingDuration = new AtomicInteger(200);
     private final AtomicBoolean hasHeatSource = new AtomicBoolean(false);
@@ -118,6 +121,7 @@ public class CookingPotBlockEntity {
         if (newLayout == null) {
             newLayout = CookingPotLayout.DEFAULT;
         }
+        List<ItemStack> overflow = new ArrayList<>();
         synchronized (inventoryLock) {
             this.recipeGroupId = normalizeBlank(newRecipeGroupId);
             if (this.layout.isDefault() == newLayout.isDefault()
@@ -132,9 +136,37 @@ public class CookingPotBlockEntity {
             ItemStack[] oldInventory = this.inventory;
             this.layout = newLayout;
             this.inventory = Arrays.copyOf(oldInventory, newLayout.size());
+            // A shrinking layout (recipe group change / config reload) drops the tail of the array.
+            // Hand those stacks back to the world instead of letting copyOf swallow them.
+            for (int i = newLayout.size(); i < oldInventory.length; i++) {
+                ItemStack orphan = oldInventory[i];
+                if (orphan != null && !orphan.getType().isAir()) {
+                    overflow.add(orphan.clone());
+                }
+            }
             // Replacing the entire array is an inventory mutation; bump the version so GUIs rescan it.
             inventoryVersion++;
         }
+        dropOverflow(overflow);
+    }
+
+    // Spawns orphaned stacks above the pot on the pot's own region. Called outside the inventory lock:
+    // the world write must not happen while the lock is held, and it may need a region hop.
+    private void dropOverflow(List<ItemStack> overflow) {
+        if (overflow.isEmpty()) {
+            return;
+        }
+        World currentWorld = this.world;
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (currentWorld == null || plugin == null) {
+            return;
+        }
+        Location loc = new Location(currentWorld, posKey.x() + 0.5, posKey.y() + 1.0, posKey.z() + 0.5);
+        plugin.scheduler().runAt(loc, () -> {
+            for (ItemStack orphan : overflow) {
+                currentWorld.dropItemNaturally(loc, orphan);
+            }
+        });
     }
 
     public CookingPotLayout getLayout() {
@@ -269,6 +301,7 @@ public class CookingPotBlockEntity {
         ItemStack item = inventory[slot];
         if (item.getAmount() > 1) {
             item.setAmount(item.getAmount() - 1);
+            bumpInventoryVersion();
         } else {
             setSlot(slot, null);
         }
@@ -416,6 +449,7 @@ public class CookingPotBlockEntity {
 
             int moved = Math.min(space, pending.getAmount());
             existing.setAmount(existing.getAmount() + moved);
+            bumpInventoryVersion();
             pending.setAmount(pending.getAmount() - moved);
             if (pending.getAmount() <= 0) {
                 return null;
@@ -521,7 +555,29 @@ public class CookingPotBlockEntity {
                 null, "cooking", recipe.getResult(), blockLoc));
     }
 
+    // canCook is asked for every registered pot several times a second, but the answer only depends on the
+    // inventory and on the loaded recipe set. inventoryVersion moves on every inventory write and the
+    // recipe manager publishes a generation on every republish, so the pair is a complete key. Both
+    // callers hold inventoryLock, which is also what guards every write to these fields.
+    private long canCookVersion = -1L;
+    private long canCookRecipeGeneration = -1L;
+    private boolean canCookResult;
+
     private boolean canCookInternal() {
+        FarmersDelightPlugin cachePlugin = FarmersDelightPlugin.getInstance();
+        long generation = cachePlugin == null || cachePlugin.getCookingPotRecipes() == null
+                ? -1L
+                : cachePlugin.getCookingPotRecipes().recipeGeneration();
+        if (inventoryVersion == canCookVersion && generation == canCookRecipeGeneration) {
+            return canCookResult;
+        }
+        canCookResult = computeCanCook();
+        canCookVersion = inventoryVersion;
+        canCookRecipeGeneration = generation;
+        return canCookResult;
+    }
+
+    private boolean computeCanCook() {
         try {
             FarmersDelightPlugin instance = FarmersDelightPlugin.getInstance();
             if (instance == null || !FarmersDelightPlugin.isEnabled0()) {
@@ -775,9 +831,9 @@ public class CookingPotBlockEntity {
         World currentWorld = this.world;
         if (currentWorld == null) return;
 
-        for (Map.Entry<String, Integer> entry : usedRecipeTracker.entrySet()) {
-            String recipeId = entry.getKey();
-            int craftedAmount = entry.getValue();
+        for (String recipeId : List.copyOf(usedRecipeTracker.keySet())) {
+            Integer craftedAmount = usedRecipeTracker.remove(recipeId);
+            if (craftedAmount == null) continue;
             FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
             if (plugin == null) continue;
             var recipes = plugin.getCookingPotRecipes();
@@ -787,7 +843,6 @@ public class CookingPotBlockEntity {
             float exp = recipe.getExperience();
             splitAndSpawnExperience(currentWorld, craftedAmount, exp);
         }
-        usedRecipeTracker.clear();
     }
 
     private void splitAndSpawnExperience(World world, int craftedAmount, float experience) {
@@ -800,7 +855,12 @@ public class CookingPotBlockEntity {
         if (expValue > 0) {
             int amount = expValue;
             Location loc = new Location(world, posKey.x() + 0.5, posKey.y() + 1.0, posKey.z() + 0.5);
-            world.spawn(loc, ExperienceOrb.class, orb -> orb.setExperience(amount));
+            // Reward collection runs on the taking player's region, which need not own the pot's chunk;
+            // spawning there would trip Folia's tick-thread check and abort the whole take.
+            FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+            if (plugin != null) {
+                plugin.scheduler().runAt(loc, () -> world.spawn(loc, ExperienceOrb.class, orb -> orb.setExperience(amount)));
+            }
         }
     }
 
@@ -1026,6 +1086,7 @@ public class CookingPotBlockEntity {
             int maxStack = slotStackLimit(slot, existing);
             int merged = Math.min(maxStack, existing.getAmount() + item.getAmount());
             existing.setAmount(merged);
+            bumpInventoryVersion();
             return;
         }
 
@@ -1086,6 +1147,7 @@ public class CookingPotBlockEntity {
 
         int remainingAmount = source.getAmount() - amount;
         source.setAmount(remainingAmount);
+        bumpInventoryVersion();
 
         return new SplitItem(split, 0.0D);
     }

@@ -25,6 +25,8 @@ UAA-bound build later, and rebuilds it across `/fd reload`.
 
 ## Availability
 
+CE packs can supply `advancements.yml` at the pack root or inside a namespace directory. When no node declares `x` / `y`, FD lays out the tree from its `parent` relationships using the patched UAA's vanilla layout algorithm. If coordinates are present, the manual layout is preserved. Java `AdvancementTree` callers retain their supplied coordinates.
+
 ```java
 public static boolean isAvailable();
 ```

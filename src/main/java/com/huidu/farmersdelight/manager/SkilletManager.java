@@ -78,13 +78,13 @@ public class SkilletManager {
     private final Object tickTaskLock = new Object();
     private int heartbeatTicks;
     private int tickCursor;
-    private int tickBudget;
-    private int defaultCookingTime = DEFAULT_COOK_TIME;
-    private int minCookingTime = DEFAULT_MIN_COOK_TIME;
-    private int coolingDecrement = DEFAULT_COOLING_DECREMENT;
+    private volatile int tickBudget;
+    private volatile int defaultCookingTime = DEFAULT_COOK_TIME;
+    private volatile int minCookingTime = DEFAULT_MIN_COOK_TIME;
+    private volatile int coolingDecrement = DEFAULT_COOLING_DECREMENT;
     private volatile int reloadVisualRefreshBudget = DEFAULT_RELOAD_VISUAL_REFRESH_BUDGET;
-    private double cookTimeMultiplier = DEFAULT_COOK_TIME_MULTIPLIER;
-    private double fireAspectBonus = DEFAULT_FIRE_ASPECT_BONUS;
+    private volatile double cookTimeMultiplier = DEFAULT_COOK_TIME_MULTIPLIER;
+    private volatile double fireAspectBonus = DEFAULT_FIRE_ASPECT_BONUS;
 
     public SkilletManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;

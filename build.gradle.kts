@@ -1,6 +1,9 @@
 plugins {
     id("java")
-    id("io.github.goooler.shadow") version "8.1.7"
+    // com.gradleup.shadow is the maintained successor of the goooler fork; 9.x is the line that supports
+    // Gradle 9. The old 8.1.7 fork cannot relocate this project at all: its Groovy RelocatorRemapper
+    // throws on the generated BuildFlags class, which is why the bundled libraries shipped un-relocated.
+    id("com.gradleup.shadow") version "9.0.0"
 }
 
 group = "com.huidu.farmersdelight"
@@ -27,19 +30,15 @@ dependencies {
     compileOnly(files("libs/craft-engine-proxy-26.8.jar"))
 
     compileOnly("me.clip:placeholderapi:2.11.6")
-    // AntiGriefLib: unified protection facade over 24+ land/claim plugins (MIT). Bundled by shadowJar (not
-    // relocated — Bukkit plugin classloaders are isolated, so the package cannot clash with another plugin's).
-    // isTransitive=false skips its compile-only annotations. Its per-plugin providers load only when the
-    // matching land plugin is present, so bundling it adds no runtime coupling to absent plugins.
+    // AntiGriefLib: unified protection facade over 24+ land/claim plugins (MIT). Bundled and relocated:
+    // Bukkit plugin classloaders are NOT isolated for legacy plugin.yml plugins (PluginClassLoader falls
+    // back to the other plugins' loaders), so an un-relocated copy is shared server-wide and whichever
+    // plugin loads first decides the version everyone gets. isTransitive=false skips its compile-only
+    // annotations. Its per-plugin providers load only when the matching land plugin is present.
     implementation("net.momirealms:antigrieflib:1.0.11") { isTransitive = false }
-    // bStats metrics (Maven Central). Bundled by shadowJar un-relocated, same as antigrieflib above:
-    // Bukkit plugin classloaders are isolated so org.bstats cannot clash with another plugin's copy, and
-    // relocating triggers shadow 8.1.7's ASM remap bug. bStats' own relocation self-check is disabled at
-    // runtime via System.setProperty("bstats.relocatecheck", "false") before Metrics is constructed.
+    // bStats metrics (Maven Central). Relocated for the same reason, which is also what bStats itself
+    // requires of every plugin that bundles it.
     implementation("org.bstats:bstats-bukkit:3.1.0")
-    // Jackson JSON (Maven Central): parses and merges the vanilla chest loot tables with the FD
-    // append pools at datapack install time. Bundled by shadowJar like the other implementation deps.
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.17.3")
     // UltimateAdvancementAPI: separate server plugin; vendored only for offline compile against its API.
     compileOnly(files("libs/UltimateAdvancementAPI-Plugin-2.8.0-folia.jar"))
     testImplementation("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
@@ -82,7 +81,7 @@ tasks.test {
 
 tasks.processResources {
     filteringCharset = "UTF-8"
-    filesMatching("plugin.yml") {
+    filesMatching("paper-plugin.yml") {
         expand("version" to version)
     }
 }
@@ -135,6 +134,8 @@ tasks.shadowJar {
     if (!debugToolsBuild.get()) {
         exclude("com/huidu/farmersdelight/debug/**")
     }
+    relocate("org.bstats", "com.huidu.farmersdelight.libs.bstats")
+    relocate("net.momirealms.antigrieflib", "com.huidu.farmersdelight.libs.antigrieflib")
 }
 
 tasks.jar {

@@ -86,6 +86,13 @@ public final class ResourceInstaller {
         if (!Files.isDirectory(targetRoot)) {
             return 0;
         }
+        // The <arg:block.block_*> rewrite is a one-off migration of files this plugin ships. Once it has
+        // run for a pack root there is nothing left to find, so a marker file turns a full walk that reads
+        // every yml, yaml and json under the namespace into a single stat on every later boot.
+        Path migrationMarker = targetRoot.resolve(".position-args-migrated");
+        if (Files.exists(migrationMarker)) {
+            return 0;
+        }
         int changed = 0;
         try (Stream<Path> paths = Files.walk(targetRoot)) {
             for (Path path : paths.filter(Files::isRegularFile).filter(ResourceInstaller::isTextResource).toList()) {
@@ -100,6 +107,7 @@ public final class ResourceInstaller {
                 }
             }
         }
+        Files.writeString(migrationMarker, "");
         return changed;
     }
 

@@ -190,7 +190,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
             queueSync(display);
             itemSpawnCount.incrementAndGet();
             return entityId;
-        } catch (Throwable t) {
+        } catch (RuntimeException | LinkageError t) {
             // A cosmetic item display must never abort the gameplay that spawns it. If building the display's
             // packets fails (e.g. wrapping the item for the metadata packet throws), returning no-display keeps
             // the caller's logic intact — otherwise a cutting board would store the item and spawn no display
@@ -251,7 +251,9 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
                 current.backgroundColor(), current.shadowed(), current.seeThrough());
         display.textSpec = updated;
         display.metadataPacket = packets.createTextMetadataPacket(entityId, updated);
-        display.spawnPacket = packets.createTextSpawnPacket(entityId, display.entityUuid, updated);
+        // The spawn packet carries only the entity id, uuid, location and type; the text is not one of
+        // its inputs and the location is carried over unchanged, so rebuilding it here would produce the
+        // same bytes. Only the metadata packet and the pair that references it need refreshing.
         display.spawnPackets = List.of(display.spawnPacket, display.metadataPacket);
         sendUpdateForAllViewers(display, null, display.metadataPacket);
         textUpdateCount.incrementAndGet();
@@ -274,14 +276,22 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
 
         DisplaySpec previousSpec = display.itemSpec;
         DisplaySpec normalizedSpec = normalize(spec);
+        // The spawn packet carries only the entity id, uuid, location and type, so it only has to be
+        // rebuilt when the display actually moved. FD's item displays are stationary in a slot, so an
+        // item or count change reuses the packet the display already holds. The same answer decides
+        // whether a position packet is sent, a few lines below.
+        boolean samePosition = previousSpec != null
+                && sameDisplayPosition(previousSpec.location(), normalizedSpec.location());
         Object newSpawnPacket;
         Object newMetadataPacket;
         try {
             // Build the packets before mutating the display so a build failure leaves the old visual intact
             // and cannot propagate into the caller (see createDisplay).
-            newSpawnPacket = packets.createItemSpawnPacket(entityId, display.entityUuid, normalizedSpec);
+            newSpawnPacket = samePosition
+                    ? display.spawnPacket
+                    : packets.createItemSpawnPacket(entityId, display.entityUuid, normalizedSpec);
             newMetadataPacket = packets.createItemMetadataPacket(entityId, normalizedSpec);
-        } catch (Throwable t) {
+        } catch (RuntimeException | LinkageError t) {
             logDisplayBuildFailure("update", spec, t);
             return false;
         }
@@ -289,8 +299,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         // stationary in-slot — a cutting-board carve/count change updates the item + metadata, never
         // x/y/z — so this drops a redundant position packet per update. Mirrors updateText's null-position
         // path; the packet carries only x/y/z (yaw/pitch are always 0, rotation lives in the transform).
-        Object positionPacket = previousSpec != null
-                && sameDisplayPosition(previousSpec.location(), normalizedSpec.location())
+        Object positionPacket = samePosition
                 ? null
                 : packets.createPositionPacket(entityId, normalizedSpec.location());
         synchronized (display) {

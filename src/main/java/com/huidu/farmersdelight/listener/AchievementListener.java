@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.FarmersDelightApi;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
@@ -14,9 +15,11 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.CraftItemEvent;
 import org.bukkit.event.inventory.SmithItemEvent;
+import io.papermc.paper.event.player.PlayerInventorySlotChangeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerItemConsumeEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
@@ -35,12 +38,23 @@ public class AchievementListener implements Listener {
     public void onCraftItem(CraftItemEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         handleCraftedItem(player, event.getRecipe().getResult());
+        String id = ItemUtils.getCustomItemId(event.getRecipe().getResult());
+        if (id != null) FarmersDelightApi.get().awardItemAdvancements(player, id);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onSmithItem(SmithItemEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         handleCraftedItem(player, event.getCurrentItem());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onInventorySlotChange(PlayerInventorySlotChangeEvent event) {
+        ItemStack item = event.getNewItemStack();
+        String id = ItemUtils.getCustomItemId(item);
+        if (id != null) {
+            FarmersDelightApi.get().awardItemAdvancements(event.getPlayer(), id);
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -70,6 +84,7 @@ public class AchievementListener implements Listener {
         if (pickedId == null) {
             return;
         }
+        FarmersDelightApi.get().awardItemAdvancements(player, pickedId);
         AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
         if (am == null) {
             return;
@@ -93,6 +108,12 @@ public class AchievementListener implements Listener {
         }
     }
 
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onConsume(PlayerItemConsumeEvent event) {
+        String id = ItemUtils.getCustomItemId(event.getItem());
+        if (id != null) FarmersDelightApi.get().awardConsumedItemAdvancements(event.getPlayer(), id);
+    }
+
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerJoin(PlayerJoinEvent event) {
         AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
@@ -100,8 +121,7 @@ public class AchievementListener implements Listener {
             am.showTo(event.getPlayer());
             am.award(event.getPlayer(), "root");
         }
-        checkSeedAdvancement(event.getPlayer());
-        checkMushroomColonyAdvancement(event.getPlayer());
+        checkInventoryAdvancements(event.getPlayer());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -150,36 +170,29 @@ public class AchievementListener implements Listener {
         }
     }
 
-    private void checkSeedAdvancement(Player player) {
+    private void checkInventoryAdvancements(Player player) {
         AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
-        if (am == null || am.hasAdvancement(player, "get_fd_seed")) {
+        if (am == null) {
             return;
         }
 
+        boolean seedDone = am.hasAdvancement(player, "get_fd_seed");
+        boolean mushroomDone = am.hasAdvancement(player, "get_mushroom_colony");
+        if (seedDone && mushroomDone) {
+            return;
+        }
         for (ItemStack item : player.getInventory().getContents()) {
             String customItemId = ItemUtils.getCustomItemId(item);
-            if (customItemId != null && FD_SEED_IDS.contains(customItemId)) {
+            if (!seedDone && customItemId != null && FD_SEED_IDS.contains(customItemId)) {
                 am.award(player, "get_fd_seed");
-                return;
+                seedDone = true;
             }
-        }
-    }
-
-    private void checkMushroomColonyAdvancement(Player player) {
-        AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
-        if (am == null || am.hasAdvancement(player, "get_mushroom_colony")) {
-            return;
-        }
-
-        // Either colour completes it (mirrors the mod's OR requirement), so award as soon as one is held.
-        for (ItemStack item : player.getInventory().getContents()) {
-            String customItemId = ItemUtils.getCustomItemId(item);
-            if (Constants.BLOCK_BROWN_MUSHROOM_COLONY.equals(customItemId)
-                    || Constants.BLOCK_RED_MUSHROOM_COLONY.equals(customItemId)) {
+            if (!mushroomDone && (Constants.BLOCK_BROWN_MUSHROOM_COLONY.equals(customItemId)
+                    || Constants.BLOCK_RED_MUSHROOM_COLONY.equals(customItemId))) {
                 am.award(player, "get_mushroom_colony");
-                return;
+                mushroomDone = true;
             }
+            if (seedDone && mushroomDone) return;
         }
     }
 }
-

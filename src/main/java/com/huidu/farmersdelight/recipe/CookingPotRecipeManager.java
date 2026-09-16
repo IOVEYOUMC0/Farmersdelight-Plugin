@@ -54,7 +54,11 @@ public class CookingPotRecipeManager {
                     return size() > MAX_CACHE_SIZE;
                 }
             });
-    private static final int MAX_CACHE_SIZE = 100;
+    // Both caches are server-wide, so 100 entries thrash as soon as a few dozen pots hold distinct
+    // input combinations: every eviction turns the next tick of that pot back into a full recipe
+    // scan, which is exactly what the negative cache exists to avoid. Entries are a string key and
+    // a reference, so a four-figure bound is a few hundred kB at worst.
+    private static final int MAX_CACHE_SIZE = 2048;
     // Negative-result cache: input+container multisets known to match nothing, so an unchanged incomplete
     // pot (mid-fill, hopper-fed, or junk) does not re-scan every recipe each tick. Bounded LRU like
     // recipeCache, only touched under the recipeCache monitor, cleared + generation-bumped alongside it.
@@ -70,6 +74,14 @@ public class CookingPotRecipeManager {
     // still current, so a match computed against pre-reload maps can't repopulate the just-cleared cache.
     // volatile so the unsynchronized snapshot read is ordered before the volatile map reads and is visible.
     private volatile long recipeGeneration = 0;
+
+    /**
+     * The publish generation of the currently loaded recipe set, bumped on every republish. A caller that
+     * caches a match result stores this alongside it so the cache is discarded when recipes change.
+     */
+    public long recipeGeneration() {
+        return recipeGeneration;
+    }
     private volatile Set<String> validContainerKeys = Set.of();
     // Recipes registered at runtime by addons via the public API. Kept separate so they survive a
     // /fd reload (which rebuilds the file-backed maps); merged into the published maps in loadRecipes().
@@ -167,6 +179,9 @@ public class CookingPotRecipeManager {
         // Invalidate the recipe-list GUI display cache: this republish path (incl. addon register/
         // unregister) bypasses RecipeViewGui.clearConfigCache.
         com.huidu.farmersdelight.gui.RecipeViewGui.clearRecipeDisplayCache();
+        // The decoded-snapshot cache is keyed by strings owned by the recipes being replaced, so it is
+        // dropped with them rather than being left to hold entries no recipe references any more.
+        RecipeItemCodec.clearDecodeCache();
     }
 
     private void loadCustomRecipes(YamlConfiguration config,

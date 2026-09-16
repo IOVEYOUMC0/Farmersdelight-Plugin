@@ -54,7 +54,11 @@ final class RecipeIngredientDisplay {
 
             int slot = entry.getKey();
             CyclicSlot cycle = ingredientCycles.computeIfAbsent(slot, s -> new CyclicSlot(gui.INGREDIENT_SWITCH_INTERVAL));
-            cycle.tick();
+            // tick() reports whether the frame actually advanced. On every other tick the slot would be
+            // rebuilt to the item it already shows, which is the same guard the tool cycle uses.
+            if (!cycle.tick()) {
+                continue;
+            }
             int nextIndex = cycle.current(options.size());
             RecipeIngredient ingredient = animatedIngredientDefinitions.get(slot);
             if (ingredient == null) {

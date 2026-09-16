@@ -786,10 +786,10 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         // stays empty: no dupe and no loss.
         try {
             storeItemInBoard(world, posKey, facing, blockEntity, itemToPlace, carveTool);
-        } catch (Throwable t) {
+        } catch (RuntimeException | LinkageError t) {
             try {
                 blockEntity.setStoredItem(null, world, posKey, facing);
-            } catch (Throwable ignored) {
+            } catch (RuntimeException | LinkageError ignored) {
                 // display cleanup is best-effort; block removal proceeds regardless
             }
             debug("place rolled back after store failure: " + t);
@@ -848,11 +848,11 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
             // the player keeps the item and the board is unchanged: no dupe, no loss.
             try {
                 blockEntity.setStoredItem(stored, world, posKey, facing);
-            } catch (Throwable t) {
+            } catch (RuntimeException | LinkageError t) {
                 stored.setAmount(previousAmount);
                 try {
                     blockEntity.setStoredItem(stored, world, posKey, facing);
-                } catch (Throwable ignored) {
+                } catch (RuntimeException | LinkageError ignored) {
                     // display restore is best-effort; the rollback has already restored the item stack
                 }
                 return false;

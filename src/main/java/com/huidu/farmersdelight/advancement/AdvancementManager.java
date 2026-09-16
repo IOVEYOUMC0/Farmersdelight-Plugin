@@ -324,9 +324,16 @@ public class AdvancementManager {
     }
 
     public void showTo(Player player) {
-        if (tab != null && tab.isInitialised() && player != null) {
-            tab.showTab(player);
+        if (tab == null || !tab.isInitialised() || player == null) return;
+        if (FarmersDelightApi.get().isFolia()) {
+            player.getScheduler().run(plugin, task -> showToNow(player), null);
+        } else {
+            showToNow(player);
         }
+    }
+
+    private void showToNow(Player player) {
+        if (tab != null && tab.isInitialised() && player.isOnline()) tab.showTab(player);
     }
 
     public void resyncOnlinePlayers() {
@@ -337,7 +344,7 @@ public class AdvancementManager {
             Runnable resync = () -> {
                 try {
                     award(player, "root");
-                    showTo(player);
+                    showToNow(player);
                 } catch (Exception e) {
                     plugin.getLogger().log(java.util.logging.Level.WARNING,
                             "Failed to resync advancements for " + player.getName() + ':', e);
@@ -387,6 +394,9 @@ public class AdvancementManager {
             return;
         }
         try {
+            if (advancement.isGranted(player)) {
+                return;
+            }
             if (advancement instanceof MultiTasksAdvancement) {
                 Map<String, TaskAdvancement> taskMap = multiTasks.get(advancementId);
                 if (taskMap != null) {
@@ -429,6 +439,15 @@ public class AdvancementManager {
         Map<String, TaskAdvancement> taskMap = multiTasks.get(advancementId);
         if (taskMap == null) {
             return;
+        }
+        Advancement advancement = byId.get(advancementId);
+        if (advancement != null) {
+            try {
+                if (advancement.isGranted(player)) {
+                    return;
+                }
+            } catch (Exception ignored) {
+            }
         }
         TaskAdvancement task = taskMap.get(criterion);
         if (task == null) {

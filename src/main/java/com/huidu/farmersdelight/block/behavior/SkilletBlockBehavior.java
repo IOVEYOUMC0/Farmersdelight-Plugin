@@ -211,7 +211,7 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
     @Override
     public Object getContainer(Object thisBlock, Object[] args) {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (plugin == null || plugin.isSkilletHopperInteractionsEnabled()) {
+        if (plugin == null || !plugin.isSkilletHopperInteractionsEnabled()) {
             return null;
         }
         if (args == null || args.length < 3) {

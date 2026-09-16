@@ -22,10 +22,24 @@ final class WorldChunkLocationIndex {
         }
         World world = location.getWorld();
         UUID worldId = world.getUID();
-        byWorld.computeIfAbsent(worldId, ignored -> ConcurrentHashMap.newKeySet()).add(location);
-        byChunk.computeIfAbsent(worldId, ignored -> new ConcurrentHashMap<>())
-                .computeIfAbsent(ManagerSupport.chunkKey(location), ignored -> ConcurrentHashMap.newKeySet())
-                .add(location);
+        long chunkKey = ManagerSupport.chunkKey(location);
+        // Insert inside compute so the bucket write is atomic with respect to remove()'s drop-if-empty.
+        // computeIfAbsent(..).add(..) would publish the set, release the bin lock, and only then add —
+        // long enough for a concurrent remove to see an empty set and discard the whole mapping.
+        byWorld.compute(worldId, (ignored, locations) -> {
+            Set<Location> target = locations != null ? locations : ConcurrentHashMap.newKeySet();
+            target.add(location);
+            return target;
+        });
+        byChunk.compute(worldId, (ignored, chunks) -> {
+            Map<Long, Set<Location>> target = chunks != null ? chunks : new ConcurrentHashMap<>();
+            target.compute(chunkKey, (key, locations) -> {
+                Set<Location> set = locations != null ? locations : ConcurrentHashMap.newKeySet();
+                set.add(location);
+                return set;
+            });
+            return target;
+        });
     }
 
     void remove(Location location) {
@@ -33,29 +47,20 @@ final class WorldChunkLocationIndex {
             return;
         }
         UUID worldId = location.getWorld().getUID();
-        Set<Location> worldLocations = byWorld.get(worldId);
-        if (worldLocations != null) {
-            worldLocations.remove(location);
-            if (worldLocations.isEmpty()) {
-                byWorld.remove(worldId, worldLocations);
-            }
-        }
-
-        Map<Long, Set<Location>> worldChunks = byChunk.get(worldId);
-        if (worldChunks == null) {
-            return;
-        }
         long chunkKey = ManagerSupport.chunkKey(location);
-        Set<Location> chunkLocations = worldChunks.get(chunkKey);
-        if (chunkLocations != null) {
-            chunkLocations.remove(location);
-            if (chunkLocations.isEmpty()) {
-                worldChunks.remove(chunkKey, chunkLocations);
-            }
-        }
-        if (worldChunks.isEmpty()) {
-            byChunk.remove(worldId, worldChunks);
-        }
+        // Removal and the emptiness check share the bin lock, so a concurrent add cannot have its entry
+        // discarded along with the mapping.
+        byWorld.computeIfPresent(worldId, (ignored, locations) -> {
+            locations.remove(location);
+            return locations.isEmpty() ? null : locations;
+        });
+        byChunk.computeIfPresent(worldId, (ignored, chunks) -> {
+            chunks.computeIfPresent(chunkKey, (key, locations) -> {
+                locations.remove(location);
+                return locations.isEmpty() ? null : locations;
+            });
+            return chunks.isEmpty() ? null : chunks;
+        });
     }
 
     List<Location> worldLocations(UUID worldId) {

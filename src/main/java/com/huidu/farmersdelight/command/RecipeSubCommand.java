@@ -475,9 +475,6 @@ final class RecipeSubCommand extends SubCommand {
         if (args.length == 3) {
             return prefixFilter(normalize(args[2]), List.of("unlock", "lock", "list", "status"));
         }
-        // allRecipeKeysByType is uncached and walks every default recipe, every custom-group recipe and every
-        // addon type's recipes into a fresh map, so it is looked up only in the branches that read it — not
-        // once per keystroke for the branches that only complete player names.
         switch (normalize(args[2])) {
             case "unlock", "lock" -> {
                 if (args.length == 4) {

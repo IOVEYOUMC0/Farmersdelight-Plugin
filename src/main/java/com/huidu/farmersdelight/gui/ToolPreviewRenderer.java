@@ -92,6 +92,12 @@ final class ToolPreviewRenderer {
         return new ItemStack(Material.IRON_AXE);
     }
 
+    // How many preview items a tool cycles through. The cycle timer only needs the count, and the
+    // cloning resolve above allocates a fresh list plus a copy of every item on each call.
+    int resolveToolPreviewOptionsSize(CuttingBoardRecipe.ToolRequirement tool) {
+        return toolPreviewCache.computeIfAbsent(tool, this::computeToolPreviewOptions).size();
+    }
+
     List<ItemStack> resolveToolPreviewOptions(CuttingBoardRecipe.ToolRequirement tool) {
         List<ItemStack> cached = toolPreviewCache.computeIfAbsent(tool, this::computeToolPreviewOptions);
         List<ItemStack> copy = new ArrayList<>(cached.size());

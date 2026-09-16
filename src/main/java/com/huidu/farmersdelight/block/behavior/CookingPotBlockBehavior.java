@@ -684,7 +684,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         return insertThroughFace(location, item, Direction.UP, false);
     }
 
-    // Recipe filling prefers an empty input slot before falling back to stacking.
+    // Recipe filling distributes single-item inserts to the least-filled compatible input slot.
     public static ItemStack insertIngredientSpreadLikeHopper(Location location, ItemStack item) {
         return insertThroughFace(location, item, Direction.UP, true);
     }

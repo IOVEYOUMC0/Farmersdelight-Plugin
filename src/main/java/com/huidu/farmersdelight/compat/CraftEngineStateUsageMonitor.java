@@ -53,7 +53,7 @@ public final class CraftEngineStateUsageMonitor {
             } else if (usage.free() <= lowFreeStateWarningThreshold(plugin)) {
                 plugin.getLogger().warning(I18n.formatConsole("craftengine_state.low_free", "free", usage.free()));
             }
-        } catch (Throwable throwable) {
+        } catch (RuntimeException | LinkageError throwable) {
             plugin.getLogger().fine(I18n.formatConsole("craftengine_state.inspect_failed",
                     "error", throwable.getMessage()));
         }

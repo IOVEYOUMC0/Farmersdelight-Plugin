@@ -2,7 +2,9 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -73,6 +75,12 @@ public class DoubleBlockRugBlockBehavior extends RugBlockBehavior {
             return null;
         }
         if (footCellBlocked(context, face)) {
+            return null;
+        }
+        // The foot cell is written by CraftEngineBlocks.place in placeMultiState, which bypasses the
+        // vanilla build check the head cell went through. Reject the whole placement here (atomically,
+        // before either cell exists) when the second cell falls in protected land.
+        if (!footCellAllowed(context, face)) {
             return null;
         }
         return withFacing(state, face);
@@ -163,6 +171,19 @@ public class DoubleBlockRugBlockBehavior extends RugBlockBehavior {
         BlockFace facing = facingFromState(state);
         Block partner = self.getRelative(facing);
         CraftEngineBlocks.place(partner.getLocation(), withPart(state, "foot"), false);
+    }
+
+    private boolean footCellAllowed(BlockPlaceContext context, BlockFace facing) {
+        if (context.getPlayer() == null || !(context.getLevel().platformWorld() instanceof World world)) {
+            return true;
+        }
+        org.bukkit.entity.Player bukkitPlayer = ItemUtils.getBukkitPlayer(context.getPlayer());
+        if (bukkitPlayer == null) {
+            return true;
+        }
+        net.momirealms.craftengine.core.world.BlockPos clicked = context.getClickedPos();
+        Block foot = world.getBlockAt(clicked.x(), clicked.y(), clicked.z()).getRelative(facing);
+        return ProtectionCompat.canBuild(bukkitPlayer, foot, (String) null);
     }
 
     private boolean footCellBlocked(BlockPlaceContext context, BlockFace facing) {

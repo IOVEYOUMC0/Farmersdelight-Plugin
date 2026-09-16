@@ -17,7 +17,7 @@ public final class CompatItemMeta {
     private static Method findSetItemModel() {
         try {
             return ItemMeta.class.getMethod("setItemModel", NamespacedKey.class);
-        } catch (Throwable ignored) {
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
             return null;
         }
     }

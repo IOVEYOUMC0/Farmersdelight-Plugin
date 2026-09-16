@@ -13,12 +13,14 @@ import com.huidu.farmersdelight.visual.ProxyItemDisplayManager;
 import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * Runtime statistics: live counters from TickManager, item-display proxies and addon extensions.
@@ -92,6 +94,7 @@ final class StatsSubCommand extends SubCommand {
         }
         sendPerformanceSnapshot(player, snapshot, 0);
         appendProxyDisplayStats(player);
+        sendEnabledAddons(player);
         // List each registered addon as a clickable name that drills into /fd stats addon <name>;
         // each addon's own status lines are shown only on demand to keep the overview readable.
         List<DebugToolExtension> extensions = new ArrayList<>(DebugToolRegistry.all());
@@ -104,6 +107,29 @@ final class StatsSubCommand extends SubCommand {
                         Map.of("name", extension.name())));
             }
         }
+    }
+
+    private void sendEnabledAddons(Player player) {
+        List<String> addons = Arrays.stream(plugin.getServer().getPluginManager().getPlugins())
+                .filter(Plugin::isEnabled)
+                .filter(other -> other != plugin)
+                .filter(this::dependsOnFarmersDelight)
+                .map(Plugin::getName)
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
+        player.sendMessage(I18n.getComponent("command.stats_enabled_addons_title", player));
+        if (addons.isEmpty()) {
+            player.sendMessage(I18n.getComponent("command.stats_enabled_addons_empty", player));
+            return;
+        }
+        player.sendMessage(I18n.getComponent("command.stats_enabled_addons_line", player,
+                Map.of("addons", String.join(", ", addons))));
+    }
+
+    private boolean dependsOnFarmersDelight(Plugin other) {
+        var meta = other.getPluginMeta();
+        return Stream.concat(meta.getPluginDependencies().stream(), meta.getPluginSoftDependencies().stream())
+                .anyMatch(name -> name.equalsIgnoreCase(plugin.getName()));
     }
 
     private void addon(Player player, String[] args) {

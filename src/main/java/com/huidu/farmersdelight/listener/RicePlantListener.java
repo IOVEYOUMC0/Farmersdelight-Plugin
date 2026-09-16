@@ -32,7 +32,6 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.block.BlockPhysicsEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
@@ -51,42 +50,57 @@ public class RicePlantListener implements Listener {
     // Mutated inside runLaterAt callbacks on region threads (different regions map to different threads on Folia),
     // so it must be a concurrent set.
     private final Set<String> pendingRiceStabilizations = ConcurrentHashMap.newKeySet();
+    private volatile boolean stopped;
 
-    public RicePlantListener(FarmersDelightPlugin plugin) {
-        this.plugin = plugin;
-    }
+    private static volatile RicePlantListener active;
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onRicePhysics(BlockPhysicsEvent event) {
-        Block block = event.getBlock();
-        // Identify the block by its CraftEngine custom state, NOT by Bukkit getType(): CE's
-        // deceive-bukkit-material makes every custom block report a disguised material (bricks by default),
-        // so a getType() == tripwire/kelp filter never matches a real rice block and would dead-return this
-        // whole handler (R-API-007). getCustomBlockState returns null for vanilla blocks,
-        // which is the correct fast-reject; the block's true auto-state material is not observable via getType().
+    // Entry point for TallCropBlockBehavior / WildRiceBlockBehavior, whose NMS neighbour hooks replaced a
+    // BlockPhysicsEvent listener. That listener ran for every block update in the world and paid a
+    // getCustomBlockState world lookup on each one just to answer "not rice". These hooks fire on the plant
+    // itself, which is also where vanilla puts the check (BushBlock.updateShape).
+    public static void onRiceNeighborChanged(Block block) {
+        RicePlantListener listener = active;
+        if (listener == null || block == null) {
+            return;
+        }
         ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
         if (state == null) {
             return;
         }
-        if (isWildRiceBlock(state)) {
-            if (canWildRiceStay(block, state)) {
-                return;
+        if (listener.isWildRiceBlock(state)) {
+            if (!listener.canWildRiceStay(block, state)) {
+                listener.scheduleWildRiceValidation(block);
             }
-
-            scheduleWildRiceValidation(block);
             return;
         }
-
-        if (!isRiceBlock(state)) {
+        if (!listener.isRiceBlock(state)) {
             return;
         }
+        if (listener.canRiceStay(block, state)) {
+            listener.syncSupportingState(block, state);
+        } else {
+            listener.scheduleRiceValidation(block);
+        }
+    }
 
-        if (canRiceStay(block, state)) {
-            syncSupportingState(block, state);
+    public RicePlantListener(FarmersDelightPlugin plugin) {
+        this.plugin = plugin;
+        active = this;
+    }
+
+    /**
+     * Detaches the instance used by CraftEngine neighbour callbacks during plugin shutdown.
+     */
+    public static void shutdownActive() {
+        RicePlantListener listener = active;
+        if (listener == null) {
             return;
         }
-
-        scheduleRiceValidation(block);
+        if (active == listener) {
+            active = null;
+        }
+        listener.stopped = true;
+        listener.pendingRiceStabilizations.clear();
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -792,6 +806,9 @@ public class RicePlantListener implements Listener {
         // and retry once on the next tick if the custom state is still unstable.
         plugin.scheduler().runLaterAt(location, () -> {
             pendingRiceStabilizations.remove(key);
+            if (stopped) {
+                return;
+            }
             ensureRiceStable(location, attemptsRemaining);
         }, 1L);
     }

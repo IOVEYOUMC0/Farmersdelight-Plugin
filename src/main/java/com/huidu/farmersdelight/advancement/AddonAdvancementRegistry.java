@@ -1,20 +1,28 @@
 package com.huidu.farmersdelight.advancement;
 
+import com.huidu.farmersdelight.FarmersDelightPlugin;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
 
 import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 public final class AddonAdvancementRegistry {
 
     private final Plugin plugin;
-    private final Map<String, List<AdvancementDef>> definitions = new ConcurrentHashMap<>();
+    private record TreeDefinition(List<AdvancementDef> advancements, boolean autoLayout) {}
+
+    private final Map<String, TreeDefinition> definitions = new ConcurrentHashMap<>();
     private final Map<String, AddonAdvancementTab> tabs = new ConcurrentHashMap<>();
+    private final Set<String> packTabs = ConcurrentHashMap.newKeySet();
+    private final AtomicLong loadGeneration = new AtomicLong();
     private volatile boolean ready = false;
 
     public AddonAdvancementRegistry(Plugin plugin) {
@@ -22,10 +30,14 @@ public final class AddonAdvancementRegistry {
     }
 
     public boolean register(String tabName, List<AdvancementDef> defs) {
+        return register(tabName, defs, false);
+    }
+
+    boolean register(String tabName, List<AdvancementDef> defs, boolean autoLayout) {
         if (tabName == null || defs == null || defs.isEmpty()) {
             return false;
         }
-        definitions.put(tabName, List.copyOf(defs));
+        definitions.put(tabName, new TreeDefinition(List.copyOf(defs), autoLayout));
         if (ready) {
             return buildOne(tabName);
         }
@@ -60,6 +72,39 @@ public final class AddonAdvancementRegistry {
     }
 
     public void onSystemReady() {
+        long generation = loadGeneration.incrementAndGet();
+        ready = false;
+        AddonAdvancementPackLoader.load(FarmersDelightPlugin.getInstance(), configs -> {
+            if (generation != loadGeneration.get()) {
+                return;
+            }
+            applyPackDefinitions(configs);
+        });
+    }
+
+    private void applyPackDefinitions(List<AddonAdvancementPackLoader.Config> configs) {
+        Set<String> loadedPackTabs = new HashSet<>();
+        for (AddonAdvancementPackLoader.Config config : configs) {
+            List<AdvancementDef> defs = AddonAdvancementPackLoader.parse(
+                    FarmersDelightPlugin.getInstance(), config.namespace(), config.file(), config.yaml());
+            if (!defs.isEmpty()) {
+                String tab = config.namespace();
+                register(tab, defs, AddonAdvancementPackLoader.usesAutomaticLayout(config.yaml()));
+                loadedPackTabs.add(tab);
+            }
+        }
+        // A removed CE package must not leave its old virtual tab and definitions behind after reload.
+        for (String oldTab : packTabs) {
+            if (!loadedPackTabs.contains(oldTab)) {
+                definitions.remove(oldTab);
+                AddonAdvancementTab stale = tabs.remove(oldTab);
+                if (stale != null) {
+                    stale.dispose();
+                }
+            }
+        }
+        packTabs.clear();
+        packTabs.addAll(loadedPackTabs);
         ready = true;
         for (String tabName : definitions.keySet()) {
             buildOne(tabName);
@@ -99,6 +144,23 @@ public final class AddonAdvancementRegistry {
         }
     }
 
+    public void awardForItem(Player player, String itemId) {
+        if (!ready || player == null || itemId == null) return;
+        for (Map.Entry<String, TreeDefinition> entry : definitions.entrySet()) {
+            AddonAdvancementTab tab = tabs.get(entry.getKey());
+            if (tab == null) continue;
+            for (AdvancementDef def : entry.getValue().advancements()) {
+                if (!def.criteria().isEmpty()) {
+                    for (Map.Entry<String, List<String>> c : def.criteriaRequirements().entrySet()) {
+                        if (c.getValue().contains(itemId)) tab.awardCriteria(player, def.id(), c.getKey());
+                    }
+                } else if (def.requiredIds().contains(itemId)) {
+                    tab.award(player, def.id());
+                }
+            }
+        }
+    }
+
     private void runForPlayer(Player player, Runnable action) {
         if (FarmersDelightApi.get().isFolia()) {
             player.getScheduler().run(plugin, task -> action.run(), null);
@@ -108,6 +170,7 @@ public final class AddonAdvancementRegistry {
     }
 
     public void onSystemDown() {
+        loadGeneration.incrementAndGet();
         ready = false;
         for (AddonAdvancementTab tab : tabs.values()) {
             tab.dispose();
@@ -125,12 +188,13 @@ public final class AddonAdvancementRegistry {
     }
 
     private boolean buildOne(String tabName) {
-        List<AdvancementDef> defs = definitions.get(tabName);
-        if (defs == null) {
+        TreeDefinition definition = definitions.get(tabName);
+        if (definition == null) {
             return false;
         }
         // Build the replacement first; load() unregisters any existing UAA tab of this name before creating it.
-        AddonAdvancementTab fresh = new AddonAdvancementTab(plugin, tabName, defs);
+        AddonAdvancementTab fresh = new AddonAdvancementTab(plugin, tabName,
+                definition.advancements(), definition.autoLayout());
         if (!fresh.load()) {
             AddonAdvancementTab stale = tabs.remove(tabName);
             if (stale != null) {

@@ -76,7 +76,7 @@ decremented, never reused, and never bumped for internal refactors. Removals and
 made under this scheme at all, so an addon compiled against revision N keeps compiling and linking against
 every revision greater than N.
 
-The current value is **1**, the first revision to expose `apiVersion()` itself. On a build older than that the
+The current value is **3**. Revision 3 added `api.visual.DisplayGroup` (a group that holds packet displays and declares them live for the cleanup sweep) and `api.block.HeatSources` (per-plugin heat-source declarations, replayed after a reload). Revision 1 was the first to expose `apiVersion()` itself. On a build older than that the
 method does not exist, so the call throws `NoSuchMethodError` — catch it and treat it as revision 0:
 
 ```java
@@ -116,6 +116,12 @@ The complete set answered by the current build:
 | `knife-drop-rules` | Knife extra-drop rule registration (`FarmersDelightKnifeDrops`) |
 | `compat-util` | `com.huidu.farmersdelight.api.util` cross-version compatibility helpers |
 | `debug-tools` | Debug tool extension hooks for `/fd debugtools` |
+| `villager-trades` | Runtime villager / wandering-trader trade registration (`FarmersDelightVillagerTrades`) |
+| `durable-items` | Durability decoupled from the sword: the `farmersdelight:durable` item setting plus `FarmersDelightItems.damage(...)` |
+| `special-recipes` | Programmatic special-recipe registration (`registerSpecialRecipe` / `unregisterSpecialRecipe` / `specialRecipes`) with per-recipe display types |
+| `content-check` | CraftEngine content existence checks (`FarmersDelightContent`) |
+| `common-tags` | Central tag registry: addons register their tag→item mappings so the whole family resolves the same tags (`registerCommonTags` / `unregisterCommonTags`) |
+| `advancement-triggers` | Shared obtain/craft/produce and consume advancement item triggers |
 
 Prefer `hasFeature` when you care about one capability, and `apiVersion()` when you need an ordering. Like
 `apiVersion()`, calling `hasFeature` on a build older than the one that introduced it throws

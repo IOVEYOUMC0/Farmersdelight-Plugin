@@ -51,7 +51,7 @@ public final class PresentationUtils {
             if (ce != null) {
                 return ce.fontManager().createMiniMessageOffsets(pixels);
             }
-        } catch (Throwable ignored) {
+        } catch (RuntimeException | LinkageError ignored) {
             // CraftEngine font manager unavailable
         }
         return "";
@@ -66,7 +66,7 @@ public final class PresentationUtils {
             if (image != null) {
                 return image.miniMessageAt(0, 0);
             }
-        } catch (Throwable ignored) {
+        } catch (RuntimeException | LinkageError ignored) {
             // image not loaded / API unavailable
         }
         return "";

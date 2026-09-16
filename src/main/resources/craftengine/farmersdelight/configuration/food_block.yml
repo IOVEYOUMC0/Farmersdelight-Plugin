@@ -183,11 +183,703 @@ templates:
           appearance: count_3_south
         bites=3,facing=west:
           appearance: count_3_west
+  farmersdelight:pie_events:
+    events:
+      - on: break
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: match_block_property
+            properties:
+              bites: 0
+        functions:
+          - type: drop_loot
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: ${drop_item}
+                      count: 1
+      - on: right_click
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: match_item
+            item: "farmersdelight:.*_knife"
+            regex: true
+          - type: match_block_property
+            properties:
+              bites: 0
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.3
+            z: <arg:position.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: ${__NAMESPACE__}:${__ID__}_slice
+                      count: 1
+          - type: update_block_property
+            properties:
+              bites: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: farmersdelight:block.food.slice
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: match_item
+            item: "farmersdelight:.*_knife"
+            regex: true
+          - type: match_block_property
+            properties:
+              bites: 1
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.3
+            z: <arg:position.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: ${__NAMESPACE__}:${__ID__}_slice
+                      count: 1
+          - type: update_block_property
+            properties:
+              bites: 2
+          - type: swing_hand
+          - type: play_sound
+            sound: farmersdelight:block.food.slice
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: match_item
+            item: "farmersdelight:.*_knife"
+            regex: true
+          - type: match_block_property
+            properties:
+              bites: 2
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.3
+            z: <arg:position.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: ${__NAMESPACE__}:${__ID__}_slice
+                      count: 1
+          - type: update_block_property
+            properties:
+              bites: 3
+          - type: swing_hand
+          - type: play_sound
+            sound: farmersdelight:block.food.slice
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: match_item
+            item: "farmersdelight:.*_knife"
+            regex: true
+          - type: match_block_property
+            properties:
+              bites: 3
+        functions:
+          - type: update_interaction_tick
+          - type: drop_loot
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.3
+            z: <arg:position.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: ${__NAMESPACE__}:${__ID__}_slice
+                      count: 1
+          - type: break_block
+            x: <arg:position.block_x>
+            y: <arg:position.block_y>
+            z: <arg:position.block_z>
+          - type: swing_hand
+          - type: play_sound
+            sound: farmersdelight:block.food.slice
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: expression  
+            expression: "<arg:player.food> < 20"
+          - type: inverted
+            term:
+              type: match_item
+              item: "farmersdelight:.*_knife"
+              regex: true
+          - type: match_block_property
+            properties:
+              bites: 0
+        functions:
+          - type: update_interaction_tick
+          - type: set_food
+            target: self
+            food: 6
+            add: true
+          - type: set_saturation
+            target: self
+            saturation: 3
+            add: true
+          - type: update_block_property
+            properties:
+              bites: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:entity.generic.eat
+          - type: potion_effect
+            target: self
+            potion-effect: minecraft:speed
+            duration: 600
+            amplifier: 0
+            particles: false
+      - on: right_click
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: expression
+            expression: "<arg:player.food> < 20"
+          - type: inverted
+            term:
+              type: match_item
+              item: "farmersdelight:.*_knife"
+              regex: true
+          - type: match_block_property
+            properties:
+              bites: 1
+        functions:
+          - type: update_interaction_tick
+          - type: set_food
+            target: self
+            food: 6
+            add: true
+          - type: set_saturation
+            target: self
+            saturation: 3
+            add: true
+          - type: update_block_property
+            properties:
+              bites: 2
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:entity.generic.eat
+          - type: potion_effect
+            target: self
+            potion-effect: minecraft:speed
+            duration: 600
+            amplifier: 0
+            particles: false
+      - on: right_click
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: expression
+            expression: "<arg:player.food> < 20"
+          - type: inverted
+            term:
+              type: match_item
+              item: "farmersdelight:.*_knife"
+              regex: true
+          - type: match_block_property
+            properties:
+              bites: 2
+        functions:
+          - type: update_interaction_tick
+          - type: set_food
+            target: self
+            food: 6
+            add: true
+          - type: set_saturation
+            target: self
+            saturation: 4
+            add: true
+          - type: update_block_property
+            properties:
+              bites: 3
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:entity.generic.eat
+          - type: potion_effect
+            target: self
+            potion-effect: minecraft:speed
+            duration: 600
+            amplifier: 0
+            particles: false
+      - on: right_click  
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: expression
+            expression: "<arg:player.food> < 20"
+          - type: inverted
+            term:
+              type: match_item
+              item: "farmersdelight:.*_knife"
+              regex: true
+          - type: match_block_property
+            properties:
+              bites: 3
+        functions:
+          - type: update_interaction_tick
+          - type: set_food
+            target: self
+            food: 6
+            add: true
+          - type: set_saturation
+            target: self
+            saturation: 4
+            add: true
+          - type: break_block
+            x: <arg:position.block_x>
+            y: <arg:position.block_y>
+            z: <arg:position.block_z>
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:entity.generic.eat
+          - type: potion_effect
+            target: self
+            potion-effect: minecraft:speed
+            duration: 600
+            amplifier: 0
+            particles: false
+  farmersdelight:feast_events_with_leftover:
+    events:
+      - on: break
+        functions:
+          - type: drop_loot
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: alternatives
+                      children:
+                        - type: item
+                          item: ${__NAMESPACE__}:${__ID__}
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 0
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 1
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 2
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 3
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 4
+      - on: right_click
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 0
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: ${serving_item}
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 1
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: ${serving_item}
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 2
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 2
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: ${serving_item}
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 3
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 3
+        functions:
+          - type: update_interaction_tick
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: ${serving_item}
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 4
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: match_block_property
+            properties:
+              servings: 4
+        functions:
+          - type: update_interaction_tick
+          - type: break_block
+            x: <arg:position.block_x>
+            y: <arg:position.block_y>
+            z: <arg:position.block_z>
+          - type: drop_loot
+            x: <arg:position.block_x>
+            y: <arg:position.block_y>
+            z: <arg:position.block_z>
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: ${leftover_item}
+                      count: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:block.wood.break
+          - type: cancel_event
+  farmersdelight:feast_events:
+    events:
+      - on: break
+        functions:
+          - type: drop_loot
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: alternatives
+                      children:
+                        - type: item
+                          item: ${__NAMESPACE__}:${__ID__}
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 0
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 1
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 2
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 3
+                        - type: item
+                          item: minecraft:bowl
+                          count: 1
+                          conditions:
+                            - type: match_block_property
+                              properties:
+                                servings: 4
+      - on: right_click
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 0
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: ${serving_item}
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 1
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 1
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: ${serving_item}
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 2
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 2
+        functions:
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: ${serving_item}
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 3
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: match_item
+            id: minecraft:bowl
+          - type: match_block_property
+            properties:
+              servings: 3
+        functions:
+          - type: update_interaction_tick
+          - type: set_count
+            target: self
+            count: -1
+            add: true
+          - type: drop_loot
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: ${serving_item}
+                      count: 1
+          - type: update_block_property
+            properties:
+              servings: 4
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:item.armor.equip_leather
+          - type: cancel_event
+      - on: right_click
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: match_block_property
+            properties:
+              servings: 4
+        functions:
+          - type: update_interaction_tick
+          - type: break_block
+            x: <arg:position.block_x>
+            y: <arg:position.block_y>
+            z: <arg:position.block_z>
+          - type: swing_hand
+          - type: play_sound
+            sound: minecraft:block.wood.break
+          - type: cancel_event
 blocks:
   farmersdelight:apple_pie:
     template:
     - farmersdelight:sliceable_pie_states
+    - farmersdelight:pie_events
+    arguments:
+      drop_item: farmersdelight:apple_pie
     settings:
+      push-reaction: destroy
       hardness: 0.5
       template:
         - default:hardness/none
@@ -200,296 +892,14 @@ blocks:
         hit: minecraft:block.wool.hit
         place: minecraft:block.wool.place
         step: minecraft:block.wool.step
-    events:
-      - on: break
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_block_property
-            properties:
-              bites: 0
-        functions:
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:apple_pie
-                      count: 1
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            item: "farmersdelight:.*_knife"
-            regex: true
-          - type: match_block_property
-            properties:
-              bites: 0
-        functions:
-          - type: update_interaction_tick
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.3
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:apple_pie_slice
-                      count: 1
-          - type: update_block_property
-            properties:
-              bites: 1
-          - type: swing_hand
-          - type: play_sound
-            sound: farmersdelight:block.food.slice
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            item: "farmersdelight:.*_knife"
-            regex: true
-          - type: match_block_property
-            properties:
-              bites: 1
-        functions:
-          - type: update_interaction_tick
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.3
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:apple_pie_slice
-                      count: 1
-          - type: update_block_property
-            properties:
-              bites: 2
-          - type: swing_hand
-          - type: play_sound
-            sound: farmersdelight:block.food.slice
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            item: "farmersdelight:.*_knife"
-            regex: true
-          - type: match_block_property
-            properties:
-              bites: 2
-        functions:
-          - type: update_interaction_tick
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.3
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:apple_pie_slice
-                      count: 1
-          - type: update_block_property
-            properties:
-              bites: 3
-          - type: swing_hand
-          - type: play_sound
-            sound: farmersdelight:block.food.slice
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            item: "farmersdelight:.*_knife"
-            regex: true
-          - type: match_block_property
-            properties:
-              bites: 3
-        functions:
-          - type: update_interaction_tick
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.3
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:apple_pie_slice
-                      count: 1
-          - type: break_block
-            x: <arg:position.block_x>
-            y: <arg:position.block_y>
-            z: <arg:position.block_z>
-          - type: swing_hand
-          - type: play_sound
-            sound: farmersdelight:block.food.slice
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: expression  
-            expression: "<arg:player.food> < 20"
-          - type: inverted
-            term:
-              type: match_item
-              item: "farmersdelight:.*_knife"
-              regex: true
-          - type: match_block_property
-            properties:
-              bites: 0
-        functions:
-          - type: update_interaction_tick
-          - type: set_food
-            target: self
-            food: 6
-            add: true
-          - type: set_saturation
-            target: self
-            saturation: 3
-            add: true
-          - type: update_block_property
-            properties:
-              bites: 1
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:entity.generic.eat
-          - type: potion_effect
-            target: self
-            potion-effect: minecraft:speed
-            duration: 600
-            amplifier: 0
-            particles: false
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: expression
-            expression: "<arg:player.food> < 20"
-          - type: inverted
-            term:
-              type: match_item
-              item: "farmersdelight:.*_knife"
-              regex: true
-          - type: match_block_property
-            properties:
-              bites: 1
-        functions:
-          - type: update_interaction_tick
-          - type: set_food
-            target: self
-            food: 6
-            add: true
-          - type: set_saturation
-            target: self
-            saturation: 3
-            add: true
-          - type: update_block_property
-            properties:
-              bites: 2
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:entity.generic.eat
-          - type: potion_effect
-            target: self
-            potion-effect: minecraft:speed
-            duration: 600
-            amplifier: 0
-            particles: false
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: expression
-            expression: "<arg:player.food> < 20"
-          - type: inverted
-            term:
-              type: match_item
-              item: "farmersdelight:.*_knife"
-              regex: true
-          - type: match_block_property
-            properties:
-              bites: 2
-        functions:
-          - type: update_interaction_tick
-          - type: set_food
-            target: self
-            food: 6
-            add: true
-          - type: set_saturation
-            target: self
-            saturation: 4
-            add: true
-          - type: update_block_property
-            properties:
-              bites: 3
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:entity.generic.eat
-          - type: potion_effect
-            target: self
-            potion-effect: minecraft:speed
-            duration: 600
-            amplifier: 0
-            particles: false
-      - on: right_click  
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: expression
-            expression: "<arg:player.food> < 20"
-          - type: inverted
-            term:
-              type: match_item
-              item: "farmersdelight:.*_knife"
-              regex: true
-          - type: match_block_property
-            properties:
-              bites: 3
-        functions:
-          - type: update_interaction_tick
-          - type: set_food
-            target: self
-            food: 6
-            add: true
-          - type: set_saturation
-            target: self
-            saturation: 4
-            add: true
-          - type: break_block
-            x: <arg:position.block_x>
-            y: <arg:position.block_y>
-            z: <arg:position.block_z>
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:entity.generic.eat
-          - type: potion_effect
-            target: self
-            potion-effect: minecraft:speed
-            duration: 600
-            amplifier: 0
-            particles: false
   farmersdelight:sweet_berry_cheesecake:
     template:
     - farmersdelight:sliceable_pie_states
+    - farmersdelight:pie_events
+    arguments:
+      drop_item: farmersdelight:sweet_berry_cheesecake
     settings:
+      push-reaction: destroy
       hardness: 0.5
       template:
         - default:hardness/none
@@ -502,296 +912,14 @@ blocks:
         hit: minecraft:block.wool.hit
         place: minecraft:block.wool.place
         step: minecraft:block.wool.step
-    events:
-      - on: break
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_block_property
-            properties:
-              bites: 0
-        functions:
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:sweet_berry_cheesecake
-                      count: 1
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            item: "farmersdelight:.*_knife"
-            regex: true
-          - type: match_block_property
-            properties:
-              bites: 0
-        functions:
-          - type: update_interaction_tick
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.3
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:sweet_berry_cheesecake_slice
-                      count: 1
-          - type: update_block_property
-            properties:
-              bites: 1
-          - type: swing_hand
-          - type: play_sound
-            sound: farmersdelight:block.food.slice
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            item: "farmersdelight:.*_knife"
-            regex: true
-          - type: match_block_property
-            properties:
-              bites: 1
-        functions:
-          - type: update_interaction_tick
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.3
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:sweet_berry_cheesecake_slice
-                      count: 1
-          - type: update_block_property
-            properties:
-              bites: 2
-          - type: swing_hand
-          - type: play_sound
-            sound: farmersdelight:block.food.slice
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            item: "farmersdelight:.*_knife"
-            regex: true
-          - type: match_block_property
-            properties:
-              bites: 2
-        functions:
-          - type: update_interaction_tick
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.3
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:sweet_berry_cheesecake_slice
-                      count: 1
-          - type: update_block_property
-            properties:
-              bites: 3
-          - type: swing_hand
-          - type: play_sound
-            sound: farmersdelight:block.food.slice
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            item: "farmersdelight:.*_knife"
-            regex: true
-          - type: match_block_property
-            properties:
-              bites: 3
-        functions:
-          - type: update_interaction_tick
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.3
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:sweet_berry_cheesecake_slice
-                      count: 1
-          - type: break_block
-            x: <arg:position.block_x>
-            y: <arg:position.block_y>
-            z: <arg:position.block_z>
-          - type: swing_hand
-          - type: play_sound
-            sound: farmersdelight:block.food.slice
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: expression  
-            expression: "<arg:player.food> < 20"
-          - type: inverted
-            term:
-              type: match_item
-              item: "farmersdelight:.*_knife"
-              regex: true
-          - type: match_block_property
-            properties:
-              bites: 0
-        functions:
-          - type: update_interaction_tick
-          - type: set_food
-            target: self
-            food: 6
-            add: true
-          - type: set_saturation
-            target: self
-            saturation: 3
-            add: true
-          - type: update_block_property
-            properties:
-              bites: 1
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:entity.generic.eat
-          - type: potion_effect
-            target: self
-            potion-effect: minecraft:speed
-            duration: 600
-            amplifier: 0
-            particles: false
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: expression
-            expression: "<arg:player.food> < 20"
-          - type: inverted
-            term:
-              type: match_item
-              item: "farmersdelight:.*_knife"
-              regex: true
-          - type: match_block_property
-            properties:
-              bites: 1
-        functions:
-          - type: update_interaction_tick
-          - type: set_food
-            target: self
-            food: 6
-            add: true
-          - type: set_saturation
-            target: self
-            saturation: 3
-            add: true
-          - type: update_block_property
-            properties:
-              bites: 2
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:entity.generic.eat
-          - type: potion_effect
-            target: self
-            potion-effect: minecraft:speed
-            duration: 600
-            amplifier: 0
-            particles: false
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: expression
-            expression: "<arg:player.food> < 20"
-          - type: inverted
-            term:
-              type: match_item
-              item: "farmersdelight:.*_knife"
-              regex: true
-          - type: match_block_property
-            properties:
-              bites: 2
-        functions:
-          - type: update_interaction_tick
-          - type: set_food
-            target: self
-            food: 6
-            add: true
-          - type: set_saturation
-            target: self
-            saturation: 4
-            add: true
-          - type: update_block_property
-            properties:
-              bites: 3
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:entity.generic.eat
-          - type: potion_effect
-            target: self
-            potion-effect: minecraft:speed
-            duration: 600
-            amplifier: 0
-            particles: false
-      - on: right_click  
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: expression
-            expression: "<arg:player.food> < 20"
-          - type: inverted
-            term:
-              type: match_item
-              item: "farmersdelight:.*_knife"
-              regex: true
-          - type: match_block_property
-            properties:
-              bites: 3
-        functions:
-          - type: update_interaction_tick
-          - type: set_food
-            target: self
-            food: 6
-            add: true
-          - type: set_saturation
-            target: self
-            saturation: 4
-            add: true
-          - type: break_block
-            x: <arg:position.block_x>
-            y: <arg:position.block_y>
-            z: <arg:position.block_z>
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:entity.generic.eat
-          - type: potion_effect
-            target: self
-            potion-effect: minecraft:speed
-            duration: 600
-            amplifier: 0
-            particles: false
   farmersdelight:chocolate_pie:
     template:
     - farmersdelight:sliceable_pie_states
+    - farmersdelight:pie_events
+    arguments:
+      drop_item: farmersdelight:chocolate_pie
     settings:
+      push-reaction: destroy
       hardness: 0.5
       template:
         - default:hardness/none
@@ -804,303 +932,19 @@ blocks:
         hit: minecraft:block.wool.hit
         place: minecraft:block.wool.place
         step: minecraft:block.wool.step
-    events:
-      - on: break
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_block_property
-            properties:
-              bites: 0
-        functions:
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:chocolate_pie
-                      count: 1
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            item: "farmersdelight:.*_knife"
-            regex: true
-          - type: match_block_property
-            properties:
-              bites: 0
-        functions:
-          - type: update_interaction_tick
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.3
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:chocolate_pie_slice
-                      count: 1
-          - type: update_block_property
-            properties:
-              bites: 1
-          - type: swing_hand
-          - type: play_sound
-            sound: farmersdelight:block.food.slice
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            item: "farmersdelight:.*_knife"
-            regex: true
-          - type: match_block_property
-            properties:
-              bites: 1
-        functions:
-          - type: update_interaction_tick
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.3
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:chocolate_pie_slice
-                      count: 1
-          - type: update_block_property
-            properties:
-              bites: 2
-          - type: swing_hand
-          - type: play_sound
-            sound: farmersdelight:block.food.slice
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            item: "farmersdelight:.*_knife"
-            regex: true
-          - type: match_block_property
-            properties:
-              bites: 2
-        functions:
-          - type: update_interaction_tick
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.3
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:chocolate_pie_slice
-                      count: 1
-          - type: update_block_property
-            properties:
-              bites: 3
-          - type: swing_hand
-          - type: play_sound
-            sound: farmersdelight:block.food.slice
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            item: "farmersdelight:.*_knife"
-            regex: true
-          - type: match_block_property
-            properties:
-              bites: 3
-        functions:
-          - type: update_interaction_tick
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.3
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:chocolate_pie_slice
-                      count: 1
-          - type: break_block
-            x: <arg:position.block_x>
-            y: <arg:position.block_y>
-            z: <arg:position.block_z>
-          - type: swing_hand
-          - type: play_sound
-            sound: farmersdelight:block.food.slice
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: expression  
-            expression: "<arg:player.food> < 20"
-          - type: inverted
-            term:
-              type: match_item
-              item: "farmersdelight:.*_knife"
-              regex: true
-          - type: match_block_property
-            properties:
-              bites: 0
-        functions:
-          - type: update_interaction_tick
-          - type: set_food
-            target: self
-            food: 6
-            add: true
-          - type: set_saturation
-            target: self
-            saturation: 3
-            add: true
-          - type: update_block_property
-            properties:
-              bites: 1
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:entity.generic.eat
-          - type: potion_effect
-            target: self
-            potion-effect: minecraft:speed
-            duration: 600
-            amplifier: 0
-            particles: false
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: expression
-            expression: "<arg:player.food> < 20"
-          - type: inverted
-            term:
-              type: match_item
-              item: "farmersdelight:.*_knife"
-              regex: true
-          - type: match_block_property
-            properties:
-              bites: 1
-        functions:
-          - type: update_interaction_tick
-          - type: set_food
-            target: self
-            food: 6
-            add: true
-          - type: set_saturation
-            target: self
-            saturation: 3
-            add: true
-          - type: update_block_property
-            properties:
-              bites: 2
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:entity.generic.eat
-          - type: potion_effect
-            target: self
-            potion-effect: minecraft:speed
-            duration: 600
-            amplifier: 0
-            particles: false
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: expression
-            expression: "<arg:player.food> < 20"
-          - type: inverted
-            term:
-              type: match_item
-              item: "farmersdelight:.*_knife"
-              regex: true
-          - type: match_block_property
-            properties:
-              bites: 2
-        functions:
-          - type: update_interaction_tick
-          - type: set_food
-            target: self
-            food: 6
-            add: true
-          - type: set_saturation
-            target: self
-            saturation: 4
-            add: true
-          - type: update_block_property
-            properties:
-              bites: 3
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:entity.generic.eat
-          - type: potion_effect
-            target: self
-            potion-effect: minecraft:speed
-            duration: 600
-            amplifier: 0
-            particles: false
-      - on: right_click  
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: expression
-            expression: "<arg:player.food> < 20"
-          - type: inverted
-            term:
-              type: match_item
-              item: "farmersdelight:.*_knife"
-              regex: true
-          - type: match_block_property
-            properties:
-              bites: 3
-        functions:
-          - type: update_interaction_tick
-          - type: set_food
-            target: self
-            food: 6
-            add: true
-          - type: set_saturation
-            target: self
-            saturation: 4
-            add: true
-          - type: break_block
-            x: <arg:position.block_x>
-            y: <arg:position.block_y>
-            z: <arg:position.block_z>
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:entity.generic.eat
-          - type: potion_effect
-            target: self
-            potion-effect: minecraft:speed
-            duration: 600
-            amplifier: 0
-            particles: false
   farmersdelight:roast_chicken_block:
     settings:
+      push-reaction: destroy
+      map-color: wood
       hardness: 0.5
       template:
         - default:hardness/none
       tags:
         - farmersdelight:feasts
       sounds:
-        break: minecraft:block.wool.break
-        hit: minecraft:block.wool.hit
-        place: minecraft:block.wool.place
+        break: minecraft:block.wood.break
+        hit: minecraft:block.wood.hit
+        place: minecraft:block.wood.place
     states:
       properties:
         servings:
@@ -1327,213 +1171,15 @@ blocks:
           appearance: count_4_south
         servings=4,facing=west:
           appearance: count_4_west
-    events:
-      - on: break
-        functions:
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: alternatives
-                      children:
-                        - type: item
-                          item: farmersdelight:roast_chicken_block
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                servings: 0
-                        - type: item
-                          item: minecraft:bowl
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                servings: 1
-                        - type: item
-                          item: minecraft:bowl
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                servings: 2
-                        - type: item
-                          item: minecraft:bowl
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                servings: 3
-                        - type: item
-                          item: minecraft:bowl
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                servings: 4
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            id: minecraft:bowl
-          - type: match_block_property
-            properties:
-              servings: 0
-        functions:
-          - type: set_count
-            target: self
-            count: -1
-            add: true
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:roast_chicken
-                      count: 1
-          - type: update_block_property
-            properties:
-              servings: 1
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:item.armor.equip_leather
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            id: minecraft:bowl
-          - type: match_block_property
-            properties:
-              servings: 1
-        functions:
-          - type: set_count
-            target: self
-            count: -1
-            add: true
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:roast_chicken
-                      count: 1
-          - type: update_block_property
-            properties:
-              servings: 2
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:item.armor.equip_leather
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            id: minecraft:bowl
-          - type: match_block_property
-            properties:
-              servings: 2
-        functions:
-          - type: set_count
-            target: self
-            count: -1
-            add: true
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:roast_chicken
-                      count: 1
-          - type: update_block_property
-            properties:
-              servings: 3
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:item.armor.equip_leather
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            id: minecraft:bowl
-          - type: match_block_property
-            properties:
-              servings: 3
-        functions:
-          - type: update_interaction_tick
-          - type: set_count
-            target: self
-            count: -1
-            add: true
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:roast_chicken
-                      count: 1
-          - type: update_block_property
-            properties:
-              servings: 4
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:item.armor.equip_leather
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_block_property
-            properties:
-              servings: 4
-        functions:
-          - type: update_interaction_tick
-          - type: break_block
-            x: <arg:position.block_x>
-            y: <arg:position.block_y>
-            z: <arg:position.block_z>
-          - type: drop_loot
-            x: <arg:position.block_x>
-            y: <arg:position.block_y>
-            z: <arg:position.block_z>
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: minecraft:bone_meal
-                      count: 1
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:block.wool.break
-          - type: cancel_event
+    template:
+    - farmersdelight:feast_events_with_leftover
+    arguments:
+      serving_item: farmersdelight:roast_chicken
+      leftover_item: minecraft:bone_meal
   farmersdelight:stuffed_pumpkin_block:
     settings:
+      push-reaction: destroy
+      map-color: wood
       hardness: 0.5
       template:
         - default:hardness/none
@@ -1878,15 +1524,17 @@ blocks:
           - type: cancel_event
   farmersdelight:honey_glazed_ham_block:
     settings:
+      push-reaction: destroy
+      map-color: wood
       hardness: 0.5
       template:
         - default:hardness/none
       tags:
         - farmersdelight:feasts
       sounds:
-        break: minecraft:block.wool.break
-        hit: minecraft:block.wool.hit
-        place: minecraft:block.wool.place
+        break: minecraft:block.wood.break
+        hit: minecraft:block.wood.hit
+        place: minecraft:block.wood.place
     states:
       properties:
         servings:
@@ -2113,222 +1761,24 @@ blocks:
           appearance: count_4_south
         servings=4,facing=west:
           appearance: count_4_west
-    events:
-      - on: break
-        functions:
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: alternatives
-                      children:
-                        - type: item
-                          item: farmersdelight:honey_glazed_ham_block
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                servings: 0
-                        - type: item
-                          item: minecraft:bowl
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                servings: 1
-                        - type: item
-                          item: minecraft:bowl
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                servings: 2
-                        - type: item
-                          item: minecraft:bowl
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                servings: 3
-                        - type: item
-                          item: minecraft:bowl
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                servings: 4
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            id: minecraft:bowl
-          - type: match_block_property
-            properties:
-              servings: 0
-        functions:
-          - type: set_count
-            target: self
-            count: -1
-            add: true
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:honey_glazed_ham
-                      count: 1
-          - type: update_block_property
-            properties:
-              servings: 1
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:item.armor.equip_leather
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            id: minecraft:bowl
-          - type: match_block_property
-            properties:
-              servings: 1
-        functions:
-          - type: set_count
-            target: self
-            count: -1
-            add: true
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:honey_glazed_ham
-                      count: 1
-          - type: update_block_property
-            properties:
-              servings: 2
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:item.armor.equip_leather
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            id: minecraft:bowl
-          - type: match_block_property
-            properties:
-              servings: 2
-        functions:
-          - type: set_count
-            target: self
-            count: -1
-            add: true
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:honey_glazed_ham
-                      count: 1
-          - type: update_block_property
-            properties:
-              servings: 3
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:item.armor.equip_leather
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            id: minecraft:bowl
-          - type: match_block_property
-            properties:
-              servings: 3
-        functions:
-          - type: update_interaction_tick
-          - type: set_count
-            target: self
-            count: -1
-            add: true
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:honey_glazed_ham
-                      count: 1
-          - type: update_block_property
-            properties:
-              servings: 4
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:item.armor.equip_leather
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_block_property
-            properties:
-              servings: 4
-        functions:
-          - type: update_interaction_tick
-          - type: break_block
-            x: <arg:position.block_x>
-            y: <arg:position.block_y>
-            z: <arg:position.block_z>
-          - type: drop_loot
-            x: <arg:position.block_x>
-            y: <arg:position.block_y>
-            z: <arg:position.block_z>
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: minecraft:bone
-                      count: 1
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:block.wool.break
-          - type: cancel_event
+    template:
+    - farmersdelight:feast_events_with_leftover
+    arguments:
+      serving_item: farmersdelight:honey_glazed_ham
+      leftover_item: minecraft:bone
   farmersdelight:shepherds_pie_block:
     settings:
+      push-reaction: destroy
+      map-color: wood
       hardness: 0.5
       template:
         - default:hardness/none
       tags:
         - farmersdelight:feasts
       sounds:
-        break: minecraft:block.wool.break
-        hit: minecraft:block.wool.hit
-        place: minecraft:block.wool.place
+        break: minecraft:block.wood.break
+        hit: minecraft:block.wood.hit
+        place: minecraft:block.wood.place
     states:
       properties:
         servings:
@@ -2555,211 +2005,23 @@ blocks:
           appearance: count_4_south
         servings=4,facing=west:
           appearance: count_4_west
-    events:
-      - on: break
-        functions:
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: alternatives
-                      children:
-                        - type: item
-                          item: farmersdelight:shepherds_pie_block
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                servings: 0
-                        - type: item
-                          item: minecraft:bowl
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                servings: 1
-                        - type: item
-                          item: minecraft:bowl
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                servings: 2
-                        - type: item
-                          item: minecraft:bowl
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                servings: 3
-                        - type: item
-                          item: minecraft:bowl
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                servings: 4
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            id: minecraft:bowl
-          - type: match_block_property
-            properties:
-              servings: 0
-        functions:
-          - type: set_count
-            target: self
-            count: -1
-            add: true
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:shepherds_pie
-                      count: 1
-          - type: update_block_property
-            properties:
-              servings: 1
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:item.armor.equip_leather
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            id: minecraft:bowl
-          - type: match_block_property
-            properties:
-              servings: 1
-        functions:
-          - type: set_count
-            target: self
-            count: -1
-            add: true
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:shepherds_pie
-                      count: 1
-          - type: update_block_property
-            properties:
-              servings: 2
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:item.armor.equip_leather
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            id: minecraft:bowl
-          - type: match_block_property
-            properties:
-              servings: 2
-        functions:
-          - type: set_count
-            target: self
-            count: -1
-            add: true
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:shepherds_pie
-                      count: 1
-          - type: update_block_property
-            properties:
-              servings: 3
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:item.armor.equip_leather
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            id: minecraft:bowl
-          - type: match_block_property
-            properties:
-              servings: 3
-        functions:
-          - type: update_interaction_tick
-          - type: set_count
-            target: self
-            count: -1
-            add: true
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:shepherds_pie
-                      count: 1
-          - type: update_block_property
-            properties:
-              servings: 4
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:item.armor.equip_leather
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_block_property
-            properties:
-              servings: 4
-        functions:
-          - type: update_interaction_tick
-          - type: break_block
-            x: <arg:position.block_x>
-            y: <arg:position.block_y>
-            z: <arg:position.block_z>
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:block.wool.break
-          - type: cancel_event
+    template:
+    - farmersdelight:feast_events
+    arguments:
+      serving_item: farmersdelight:shepherds_pie
   farmersdelight:gleaming_salad_block:
     settings:
+      push-reaction: destroy
+      map-color: wood
       hardness: 0.5
       template:
         - default:hardness/none
       tags:
         - farmersdelight:feasts
       sounds:
-        break: minecraft:block.wool.break
-        hit: minecraft:block.wool.hit
-        place: minecraft:block.wool.place
+        break: minecraft:block.wood.break
+        hit: minecraft:block.wood.hit
+        place: minecraft:block.wood.place
     states:
       properties:
         servings:
@@ -3018,211 +2280,23 @@ blocks:
           appearance: count_4_south
         servings=4,facing=west:
           appearance: count_4_west
-    events:
-      - on: break
-        functions:
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: alternatives
-                      children:
-                        - type: item
-                          item: farmersdelight:gleaming_salad_block
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                servings: 0
-                        - type: item
-                          item: minecraft:bowl
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                servings: 1
-                        - type: item
-                          item: minecraft:bowl
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                servings: 2
-                        - type: item
-                          item: minecraft:bowl
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                servings: 3
-                        - type: item
-                          item: minecraft:bowl
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                servings: 4
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            id: minecraft:bowl
-          - type: match_block_property
-            properties:
-              servings: 0
-        functions:
-          - type: set_count
-            target: self
-            count: -1
-            add: true
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:gleaming_salad
-                      count: 1
-          - type: update_block_property
-            properties:
-              servings: 1
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:item.armor.equip_leather
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            id: minecraft:bowl
-          - type: match_block_property
-            properties:
-              servings: 1
-        functions:
-          - type: set_count
-            target: self
-            count: -1
-            add: true
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:gleaming_salad
-                      count: 1
-          - type: update_block_property
-            properties:
-              servings: 2
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:item.armor.equip_leather
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            id: minecraft:bowl
-          - type: match_block_property
-            properties:
-              servings: 2
-        functions:
-          - type: set_count
-            target: self
-            count: -1
-            add: true
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:gleaming_salad
-                      count: 1
-          - type: update_block_property
-            properties:
-              servings: 3
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:item.armor.equip_leather
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            id: minecraft:bowl
-          - type: match_block_property
-            properties:
-              servings: 3
-        functions:
-          - type: update_interaction_tick
-          - type: set_count
-            target: self
-            count: -1
-            add: true
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:gleaming_salad
-                      count: 1
-          - type: update_block_property
-            properties:
-              servings: 4
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:item.armor.equip_leather
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_block_property
-            properties:
-              servings: 4
-        functions:
-          - type: update_interaction_tick
-          - type: break_block
-            x: <arg:position.block_x>
-            y: <arg:position.block_y>
-            z: <arg:position.block_z>
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:block.wool.break
-          - type: cancel_event
+    template:
+    - farmersdelight:feast_events
+    arguments:
+      serving_item: farmersdelight:gleaming_salad
   farmersdelight:rice_roll_medley_block:
     settings:
+      push-reaction: destroy
+      map-color: wood
       hardness: 0.5
       template:
         - default:hardness/none
       tags:
         - farmersdelight:feasts
       sounds:
-        break: minecraft:block.wool.break
-        hit: minecraft:block.wool.hit
-        place: minecraft:block.wool.place
+        break: minecraft:block.wood.break
+        hit: minecraft:block.wood.hit
+        place: minecraft:block.wood.place
     states:
       properties:
         servings:
@@ -3928,12 +3002,16 @@ blocks:
             z: <arg:position.block_z>
           - type: swing_hand
           - type: play_sound
-            sound: minecraft:block.wool.break
+            sound: minecraft:block.wood.break
           - type: cancel_event
   farmersdelight:pumpkin_pie:
     template:
     - farmersdelight:sliceable_pie_states
+    - farmersdelight:pie_events
+    arguments:
+      drop_item: minecraft:pumpkin_pie
     settings:
+      push-reaction: destroy
       hardness: 0.5
       template:
         - default:hardness/none
@@ -3946,292 +3024,6 @@ blocks:
         hit: minecraft:block.wool.hit
         place: minecraft:block.wool.place
         step: minecraft:block.wool.step
-    events:
-      - on: break
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_block_property
-            properties:
-              bites: 0
-        functions:
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: minecraft:pumpkin_pie
-                      count: 1
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            item: "farmersdelight:.*_knife"
-            regex: true
-          - type: match_block_property
-            properties:
-              bites: 0
-        functions:
-          - type: update_interaction_tick
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.3
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:pumpkin_pie_slice
-                      count: 1
-          - type: update_block_property
-            properties:
-              bites: 1
-          - type: swing_hand
-          - type: play_sound
-            sound: farmersdelight:block.food.slice
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            item: "farmersdelight:.*_knife"
-            regex: true
-          - type: match_block_property
-            properties:
-              bites: 1
-        functions:
-          - type: update_interaction_tick
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.3
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:pumpkin_pie_slice
-                      count: 1
-          - type: update_block_property
-            properties:
-              bites: 2
-          - type: swing_hand
-          - type: play_sound
-            sound: farmersdelight:block.food.slice
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            item: "farmersdelight:.*_knife"
-            regex: true
-          - type: match_block_property
-            properties:
-              bites: 2
-        functions:
-          - type: update_interaction_tick
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.3
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:pumpkin_pie_slice
-                      count: 1
-          - type: update_block_property
-            properties:
-              bites: 3
-          - type: swing_hand
-          - type: play_sound
-            sound: farmersdelight:block.food.slice
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: match_item
-            item: "farmersdelight:.*_knife"
-            regex: true
-          - type: match_block_property
-            properties:
-              bites: 3
-        functions:
-          - type: update_interaction_tick
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.3
-            z: <arg:position.block_z> + 0.5
-            loot:
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:pumpkin_pie_slice
-                      count: 1
-          - type: break_block
-            x: <arg:position.block_x>
-            y: <arg:position.block_y>
-            z: <arg:position.block_z>
-          - type: swing_hand
-          - type: play_sound
-            sound: farmersdelight:block.food.slice
-          - type: cancel_event
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: expression  
-            expression: "<arg:player.food> < 20"
-          - type: inverted
-            term:
-              type: match_item
-              item: "farmersdelight:.*_knife"
-              regex: true
-          - type: match_block_property
-            properties:
-              bites: 0
-        functions:
-          - type: update_interaction_tick
-          - type: set_food
-            target: self
-            food: 6
-            add: true
-          - type: set_saturation
-            target: self
-            saturation: 3
-            add: true
-          - type: update_block_property
-            properties:
-              bites: 1
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:entity.generic.eat
-          - type: potion_effect
-            target: self
-            potion-effect: minecraft:speed
-            duration: 600
-            amplifier: 0
-            particles: false
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: expression
-            expression: "<arg:player.food> < 20"
-          - type: inverted
-            term:
-              type: match_item
-              item: "farmersdelight:.*_knife"
-              regex: true
-          - type: match_block_property
-            properties:
-              bites: 1
-        functions:
-          - type: update_interaction_tick
-          - type: set_food
-            target: self
-            food: 6
-            add: true
-          - type: set_saturation
-            target: self
-            saturation: 3
-            add: true
-          - type: update_block_property
-            properties:
-              bites: 2
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:entity.generic.eat
-          - type: potion_effect
-            target: self
-            potion-effect: minecraft:speed
-            duration: 600
-            amplifier: 0
-            particles: false
-      - on: right_click
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: expression
-            expression: "<arg:player.food> < 20"
-          - type: inverted
-            term:
-              type: match_item
-              item: "farmersdelight:.*_knife"
-              regex: true
-          - type: match_block_property
-            properties:
-              bites: 2
-        functions:
-          - type: update_interaction_tick
-          - type: set_food
-            target: self
-            food: 6
-            add: true
-          - type: set_saturation
-            target: self
-            saturation: 4
-            add: true
-          - type: update_block_property
-            properties:
-              bites: 3
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:entity.generic.eat
-          - type: potion_effect
-            target: self
-            potion-effect: minecraft:speed
-            duration: 600
-            amplifier: 0
-            particles: false
-      - on: right_click  
-        conditions:
-          - type: test_flag
-            flag: interact
-          - type: expression
-            expression: "<arg:player.food> < 20"
-          - type: inverted
-            term:
-              type: match_item
-              item: "farmersdelight:.*_knife"
-              regex: true
-          - type: match_block_property
-            properties:
-              bites: 3
-        functions:
-          - type: update_interaction_tick
-          - type: set_food
-            target: self
-            food: 6
-            add: true
-          - type: set_saturation
-            target: self
-            saturation: 4
-            add: true
-          - type: break_block
-            x: <arg:position.block_x>
-            y: <arg:position.block_y>
-            z: <arg:position.block_z>
-          - type: swing_hand
-          - type: play_sound
-            sound: minecraft:entity.generic.eat
-          - type: potion_effect
-            target: self
-            potion-effect: minecraft:speed
-            duration: 600
-            amplifier: 0
-            particles: false
 items:
   farmersdelight:apple_pie_slice0:
     data:

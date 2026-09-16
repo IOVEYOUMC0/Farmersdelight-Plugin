@@ -9,6 +9,7 @@ import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.util.Key;
+import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.Ageable;
@@ -36,7 +37,7 @@ public class StrawDropListener implements Listener {
 
     // Invalidation rationale: FarmersDelightPlugin only news up one StrawDropListener in onEnable, and
     // /fd reload (reloadAll / reloadMainConfigOnly) only calls loadConfigs() on the same instance to
-    // reassign knifeItemIds / knifeTagIds to brand-new immutable Sets, without rebuilding this listener.
+    // Knife settings are replaced by an immutable snapshot on reload, without rebuilding this listener.
     // So the instance-field cache isn't auto-invalidated on reload. Since this file may not modify FarmersDelightPlugin,
     // there's no way to explicitly call a clear method in the reload path, so a "reference-identity snapshot" detects reloads:
     // loadConfigs() always produces fresh Set objects (toUnmodifiableSet / Set.of), and those Sets are immutable,
@@ -69,6 +70,11 @@ public class StrawDropListener implements Listener {
         ItemStack tool = player.getInventory().getItemInMainHand();
 
         if (!isKnife(tool)) return;
+
+        // Same drop gate as BlockBreakListener.onCustomBlockBreak: isDropItems() stays true in creative
+        // (vanilla suppresses drops inside the server, not on the event), so the game mode has to be
+        // checked separately or a creative break mints straw.
+        if (!event.isDropItems() || player.getGameMode() == GameMode.CREATIVE) return;
 
         StrawDropConfig.StrawDropRule rule = getStrawDropRule(block);
         if (rule != null) {

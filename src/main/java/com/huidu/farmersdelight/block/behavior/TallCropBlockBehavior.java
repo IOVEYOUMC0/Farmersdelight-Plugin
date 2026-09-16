@@ -34,6 +34,7 @@ import net.momirealms.craftengine.core.util.Cancellable;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.WorldPosition;
+import net.momirealms.craftengine.core.world.context.BlockPlaceContext;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
@@ -52,8 +53,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
+import com.huidu.farmersdelight.listener.RicePlantListener;
+import net.momirealms.craftengine.proxy.minecraft.world.level.ScheduledTickAccessProxy;
+import net.momirealms.craftengine.proxy.minecraft.world.level.material.FluidsProxy;
 
 public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implements BonemealableBlock {
+    // Vanilla's water tick delay; Fluids.WATER.getTickDelay returns this in every dimension.
+    private static final int WATER_TICK_DELAY = 5;
+
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
@@ -65,6 +72,49 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         // nothing else is affected.
         return true;
     }
+
+    // Rice validates its own support when something changes next to it. These are the NMS hooks vanilla
+    // crops use for exactly this; they replaced a BlockPhysicsEvent listener that had to inspect every
+    // block update in the world before it could tell whether the block was rice. neighborChanged covers
+    // updateNeighborsAt and updateShape covers updateNeighbourShapes, which is the pair the old listener saw.
+    @Override
+    public void neighborChanged(Object thisBlock, Object[] args) {
+        if (args.length >= 3) {
+            notifyRice(args[1], args[2]);
+        }
+    }
+
+    @Override
+    public Object updateShape(Object thisBlock, Object[] args) {
+        if (args.length >= 7) {
+            scheduleWaterTick(args);
+            notifyRice(args[1], args[3]);
+        }
+        return args[0];
+    }
+
+    // The lower half stands on a kelp state whose fluid is water, and that water only keeps moving
+    // because vanilla re-schedules a fluid tick from updateShape -- GrowingPlantBodyBlock does it for
+    // kelp itself, and the mod's RiceBlock does the same for rice. CraftEngine replaces the vanilla
+    // updateShape outright, so nothing re-schedules it here and the water around a paddy goes static.
+    // The upper half is a tripwire state carrying no fluid and must not schedule one.
+    private void scheduleWaterTick(Object[] args) {
+        ImmutableBlockState state = BlockStateUtils.getOptionalCustomBlockState(args[0]).orElse(null);
+        if (state == null || state.isEmpty() || !isLowerHalf(state)) {
+            return;
+        }
+        ScheduledTickAccessProxy.INSTANCE.scheduleTick$1(args[2], args[3], FluidsProxy.WATER, WATER_TICK_DELAY);
+    }
+
+    private static void notifyRice(Object levelHandle, Object posHandle) {
+        World world = CraftEngineAdapter.toWorld(levelHandle);
+        BlockPos pos = CraftEngineAdapter.toBlockPos(posHandle);
+        if (world == null || pos == null) {
+            return;
+        }
+        RicePlantListener.onRiceNeighborChanged(world.getBlockAt(pos.x(), pos.y(), pos.z()));
+    }
+
 
     private record Config(
             Property<Integer> ageProperty,
@@ -267,6 +317,11 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         return getAge(state) == config.maxAgeUpper();
     }
 
+    static ProtectionCompat.Feature protectionFeature(Key cropId) {
+        return cropId != null && Constants.BLOCK_RICE.equals(cropId.toString())
+                ? ProtectionCompat.Feature.RICE : null;
+    }
+
     @Override
     public InteractionResult useOnBlock(UseOnContext context, ImmutableBlockState state) {
         if (context.getPlayer() == null) return InteractionResult.PASS;
@@ -288,7 +343,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
                 // This harvest removes the block and drops loot while cancelling vanilla, so it must respect
                 // land/region protection or a player with no build rights could harvest crops in a claim
                 // (R-SEC-001).
-                if (!ProtectionCompat.canBuild(bukkitPlayer, bukkitBlock, ProtectionCompat.Feature.RICE)) {
+                if (!ProtectionCompat.canBreak(bukkitPlayer, bukkitBlock, protectionFeature(block().id()))) {
                     return InteractionResult.PASS;
                 }
                 Location loc = bukkitBlock.getLocation().add(0.5, 0.5, 0.5);
@@ -326,7 +381,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         if (mainHand.getType() == Material.BONE_MEAL && config.isBoneMealTarget()) {
             // Bone-mealing grows the crop and cancels vanilla, so gate it on protection too (R-SEC-001).
             if (!ProtectionCompat.canBuild(bukkitPlayer, world.getBlockAt(pos.x(), pos.y(), pos.z()),
-                    ProtectionCompat.Feature.RICE)) {
+                    protectionFeature(block().id()))) {
                 return InteractionResult.PASS;
             }
             if (applyBoneMeal(pos, world, state)) {
@@ -410,7 +465,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
                     Block lowerBlock = world.getBlockAt(lowerPos.x(), lowerPos.y(), lowerPos.z());
 
                     ImmutableBlockState lowerState = CraftEngineBlocks.getCustomBlockState(lowerBlock);
-                    if (lowerState != null && !lowerState.isEmpty()) {
+                    if (isSameCropState(lowerState)) {
                         CraftEngineBlocks.place(lowerBlock.getLocation(), buildLowerResetState(lowerState), false);
                     }
                 }
@@ -473,9 +528,13 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         BlockPos lowerPos = new BlockPos(upperPos.x(), upperPos.y() - 1, upperPos.z());
         Block lowerBlock = world.getBlockAt(lowerPos.x(), lowerPos.y(), lowerPos.z());
         ImmutableBlockState lowerState = CraftEngineBlocks.getCustomBlockState(lowerBlock);
-        if (lowerState == null || lowerState.isEmpty() || isUpperHalf(lowerState)) return;
+        if (!isSameCropState(lowerState) || isUpperHalf(lowerState)) return;
 
         CraftEngineBlocks.place(lowerBlock.getLocation(), buildLowerResetState(lowerState), false);
+    }
+
+    private boolean isSameCropState(ImmutableBlockState state) {
+        return state != null && !state.isEmpty() && state.owner().value().id().equals(block().id());
     }
 
     private ImmutableBlockState buildLowerResetState(ImmutableBlockState lowerState) {
@@ -646,7 +705,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
     }
 
     private void dropHarvestStraw(Block block, Player player) {
-        if (block == null || player == null) {
+        if (block == null || player == null || protectionFeature(block().id()) != ProtectionCompat.Feature.RICE) {
             return;
         }
 
@@ -751,6 +810,22 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
             }
         }
         
+    }
+
+    @Override
+    public ImmutableBlockState updateStateForPlacement(BlockPlaceContext context, ImmutableBlockState state) {
+        if (context == null || state == null) {
+            return null;
+        }
+
+        World world = CraftEngineAdapter.toWorld(context.getLevel().platformWorld());
+        BlockPos pos = context.getClickedPos();
+        String errorKey = world != null && pos != null ? validatePlacement(world, pos) : "crop.invalid_soil";
+        if (errorKey != null) {
+            sendPlacementFeedback(context.getPlayer(), errorKey);
+            return null;
+        }
+        return state;
     }
 
     private static Set<String> parseConfiguredItemIds(Map<String, Object> arguments) {
@@ -958,7 +1033,8 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
     }
 
     private boolean isValidWaterPlacement(World world, BlockPos pos, Block plantingBlock, Block blockBelow) {
-        return RiceCropRules.getWaterSourceBlock(plantingBlock, blockBelow, block().id()) != null;
+        Block waterBlock = RiceCropRules.getWaterSourceBlock(plantingBlock, blockBelow, block().id());
+        return waterBlock != null && RiceCropRules.isSingleSourceWater(waterBlock);
     }
 
     private Block getSupportingSoilBlock(Block plantingBlock, Block blockBelow) {

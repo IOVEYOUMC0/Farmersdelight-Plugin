@@ -47,7 +47,7 @@ FarmersDelight 的插件版本号跟的是**内容**。**api 版本**跟的是�
 
 返回当前运行构建的 api 接口修订号。文档化的递增策略是：单调递增；每一个**新增**面向附属接口（新的 api 类、方法、事件或 feature id）的版本 `+1`；从不回退，从不复用，纯内部重构不递增。这套方案下根本不做删除和 不兼容改动，所以按修订号 N 编译的附属，在任何大于 N 的修订上都能继续编译和链接。
 
-当前值是 **1**，也就是第一个暴露 `apiVersion()` 本身的修订。比它更老的构建上这个方法不存在，调用会抛 `NoSuchMethodError`——捕获它并当作修订 0 处理：
+当前值是 **3**。修订 3 新增了 `api.visual.DisplayGroup`（分组持有封包展示实体并自动声明存活）与 `api.block.HeatSources`（按插件记录热源声明并在重载后自动重放）。修订 1 是第一个暴露 `apiVersion()` 本身的版本。比它更老的构建上这个方法不存在，调用会抛 `NoSuchMethodError`——捕获它并当作修订 0 处理：
 
 ```java
 int version;
@@ -83,6 +83,12 @@ if (version >= 1) {
 | `knife-drop-rules`            | 小刀额外掉落规则注册（`FarmersDelightKnifeDrops`）                                                                                                 |
 | `compat-util`                 | `com.huidu.farmersdelight.api.util` 跨版本兼容辅助                                                                                            |
 | `debug-tools`                 | `/fd debugtools` 的调试工具扩展挂点                                                                                                             |
+| `villager-trades`             | 运行时村民 / 流浪商人交易注册（`FarmersDelightVillagerTrades`）                                                                                      |
+| `durable-items`               | 耐久能力与剑解耦：`farmersdelight:durable` 物品设置 + `FarmersDelightItems.damage(...)`                                                            |
+| `special-recipes`             | 程序化特殊配方注册（`registerSpecialRecipe` / `unregisterSpecialRecipe` / `specialRecipes`），支持逐配方展示类型                                          |
+| `content-check`               | CraftEngine 内容存在性检查（`FarmersDelightContent`）                                                                                         |
+| `common-tags`                 | 中心标签注册表：附属注册自己的 标签→物品 映射，整个family解析同一套标签（`registerCommonTags` / `unregisterCommonTags`）                                      |
+| `advancement-triggers`        | 统一处理物品获得/制作/产出与食用触发的成就映射                                                                  |
 
 关心某一项能力时优先用 `hasFeature`，需要比较先后顺序时才用 `apiVersion()`。和 `apiVersion()` 一样，在 引入它之前的构建上调用 `hasFeature` 会抛 `NoSuchMethodError`，若你要兼容那种构建，第一次探测要包起来。
 

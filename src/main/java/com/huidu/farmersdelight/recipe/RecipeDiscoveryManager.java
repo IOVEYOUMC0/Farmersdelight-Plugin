@@ -10,6 +10,7 @@ import com.huidu.farmersdelight.api.recipe.RecipeType;
 import com.huidu.farmersdelight.api.recipe.ViewableRecipe;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.ItemUtils;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
@@ -21,6 +22,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -40,8 +42,12 @@ public final class RecipeDiscoveryManager {
     private final FarmersDelightPlugin plugin;
     // playerId -> set of "<typeId> <recipeId>" keys (space-separated; neither id contains a space).
     private final Map<UUID, Set<String>> unlocked = new ConcurrentHashMap<>();
+    // Join/quit work is asynchronous; a generation lets stale tasks become no-ops after a fast reconnect.
+    private final Map<UUID, Long> lifecycleVersions = new ConcurrentHashMap<>();
     // itemId -> keys of recipes whose result or an exact-item ingredient is that item (obtain trigger). Lazy.
     private volatile Map<String, Set<String>> obtainIndex;
+    // Every known recipe id by type. Lazy, and dropped by the same invalidation as obtainIndex.
+    private volatile KnownRecipes known;
 
     // Written by readConfig on the reload thread and read from region threads (books, obtain trigger,
     // command), so every one of them needs the happens-before edge a volatile read gives.
@@ -58,13 +64,22 @@ public final class RecipeDiscoveryManager {
 
     public void load() {
         readConfig();
-        loadData();
+        // With the feature off nothing ever reads the unlock table, so parsing the whole player file at
+        // boot buys nothing. It is loaded on the reload that turns the feature on instead.
+        if (enabled) {
+            loadData();
+        }
     }
 
     public void reloadConfig() {
+        boolean wasEnabled = enabled;
         save();
         readConfig();
         obtainIndex = null;
+        known = null;
+        if (enabled && !wasEnabled) {
+            loadData();
+        }
     }
 
     private void readConfig() {
@@ -97,6 +112,28 @@ public final class RecipeDiscoveryManager {
         return hideLocked;
     }
 
+    public boolean isUnlockOnObtain() {
+        return unlockOnObtain;
+    }
+
+    public long markJoin(UUID playerId) {
+        return markLifecycle(playerId);
+    }
+
+    public long markQuit(UUID playerId) {
+        return markLifecycle(playerId);
+    }
+
+    private synchronized long markLifecycle(UUID playerId) {
+        long version = lifecycleVersions.getOrDefault(playerId, 0L) + 1L;
+        lifecycleVersions.put(playerId, version);
+        return version;
+    }
+
+    private synchronized boolean isCurrent(UUID playerId, long version) {
+        return lifecycleVersions.getOrDefault(playerId, 0L) == version;
+    }
+
     public boolean isUnlocked(UUID playerId, String typeId, String recipeId) {
         if (!enabled) {
             return true;
@@ -104,6 +141,7 @@ public final class RecipeDiscoveryManager {
         if (playerId == null || typeId == null || recipeId == null) {
             return true;
         }
+        ensureLoaded(playerId);
         Set<String> set = unlocked.get(playerId);
         return set != null && set.contains(key(typeId, recipeId));
     }
@@ -116,6 +154,9 @@ public final class RecipeDiscoveryManager {
         if (playerId == null || typeId == null || recipeId == null) {
             return false;
         }
+        // Before computeIfAbsent, or an unlock for an evicted player would start from an empty set and the
+        // next flush would write that back over everything they had already discovered.
+        ensureLoaded(playerId);
         Set<String> set = unlocked.computeIfAbsent(playerId, k -> ConcurrentHashMap.newKeySet());
         // add() runs after computeIfAbsent has returned, so no map bin lock is held while the event fires.
         boolean added = set.add(key(typeId, recipeId));
@@ -134,6 +175,7 @@ public final class RecipeDiscoveryManager {
         if (playerId == null || typeId == null || recipeId == null) {
             return false;
         }
+        ensureLoaded(playerId);
         Set<String> set = unlocked.get(playerId);
         boolean removed = set != null && set.remove(key(typeId, recipeId));
         if (removed) {
@@ -207,7 +249,8 @@ public final class RecipeDiscoveryManager {
         if (typeId == null || recipeId == null) {
             return false;
         }
-        return allRecipeKeysByType().getOrDefault(typeId, List.of()).contains(recipeId);
+        Set<String> ids = known().ids().get(typeId);
+        return ids != null && ids.contains(recipeId);
     }
 
     private void fireChanged(UUID playerId, String typeId, String recipeId, Action action, Source source) {
@@ -222,6 +265,7 @@ public final class RecipeDiscoveryManager {
 
     public Set<String> unlockedOf(UUID playerId, String typeId) {
         Set<String> result = new HashSet<>();
+        ensureLoaded(playerId);
         Set<String> set = unlocked.get(playerId);
         if (set == null) {
             return result;
@@ -246,7 +290,9 @@ public final class RecipeDiscoveryManager {
         if (keys == null || keys.isEmpty()) {
             return;
         }
-        // Collect newly-unlocked recipes and notify once per pickup (one item may unlock several).
+        // Collect newly-unlocked recipes and notify once per pickup (one item may unlock several). The
+        // whole key is kept rather than the recipe id alone, because naming the recipe in the message
+        // needs its type to find the recipe again.
         List<String> newlyUnlocked = new ArrayList<>();
         for (String key : keys) {
             int sep = key.indexOf(' ');
@@ -256,27 +302,78 @@ public final class RecipeDiscoveryManager {
             String typeId = key.substring(0, sep);
             String recipeId = key.substring(sep + 1);
             if (unlock(player.getUniqueId(), typeId, recipeId, Source.OBTAIN)) {
-                newlyUnlocked.add(recipeId);
+                newlyUnlocked.add(key);
             }
         }
         notifyUnlock(player, newlyUnlocked);
     }
 
-    private void notifyUnlock(Player player, List<String> recipeIds) {
-        if (!notifyOnUnlock || player == null || recipeIds.isEmpty()) {
+    private void notifyUnlock(Player player, List<String> unlockedKeys) {
+        if (!notifyOnUnlock || player == null || unlockedKeys.isEmpty()) {
             return;
         }
-        if (recipeIds.size() == 1) {
-            player.sendMessage(I18n.getComponent("recipe-discovery.unlocked", player,
-                    Map.of("recipe", recipeIds.getFirst())));
-        } else {
+        if (unlockedKeys.size() > 1) {
             player.sendMessage(I18n.getComponent("recipe-discovery.unlocked-multi", player,
-                    Map.of("count", String.valueOf(recipeIds.size()))));
+                    Map.of("count", String.valueOf(unlockedKeys.size()))));
+            return;
         }
+        String key = unlockedKeys.getFirst();
+        int sep = key.indexOf(' ');
+        String typeId = sep <= 0 ? "" : key.substring(0, sep);
+        String recipeId = sep <= 0 ? key : key.substring(sep + 1);
+        // The placeholder takes a component, not a string, so the item name reaches the client as the
+        // translatable it is: a CraftEngine item name is a client-side lang key, and only the client can
+        // turn it into the player's own language. The recipe id is the fallback when the recipe cannot be
+        // found, which is what this message always used to show.
+        ItemStack result = resultOf(typeId, recipeId);
+        Component name = result == null
+                ? Component.text(recipeId)
+                : ItemUtils.getDisplayComponent(result, player);
+        player.sendMessage(I18n.getComponent("recipe-discovery.unlocked", player)
+                .replaceText(builder -> builder.matchLiteral("{recipe}").replacement(name)));
+    }
+
+    // The item a recipe produces, used to name it in the unlock message. Null when the recipe is gone or
+    // the type is not one this server knows.
+    private ItemStack resultOf(String typeId, String recipeId) {
+        if (TYPE_COOKING_POT.equals(typeId)) {
+            CookingPotRecipe recipe = plugin.getCookingPotRecipes().getRecipe(recipeId);
+            if (recipe == null) {
+                // getRecipe only sees the default recipes; the obtain index is built from the custom
+                // groups as well, so a group-only recipe is found by walking them.
+                for (CookingPotRecipe candidate : plugin.getCookingPotRecipes().getAllRecipes()) {
+                    if (candidate.getId().equals(recipeId)) {
+                        recipe = candidate;
+                        break;
+                    }
+                }
+            }
+            return recipe == null ? null : recipe.getResult();
+        }
+        if (TYPE_CUTTING_BOARD.equals(typeId)) {
+            CuttingBoardRecipe recipe = plugin.getCuttingBoardRecipes().getRecipes().get(recipeId);
+            if (recipe == null || recipe.getResults().isEmpty()) {
+                return null;
+            }
+            return recipe.getResults().getFirst().getItem();
+        }
+        for (RecipeType type : FarmersDelightApi.get().recipeTypes()) {
+            if (!typeId.equals(type.id())) {
+                continue;
+            }
+            for (ViewableRecipe recipe : type.recipes()) {
+                if (recipeId.equals(recipe.id())) {
+                    return recipe.result();
+                }
+            }
+            return null;
+        }
+        return null;
     }
 
     public void invalidateIndex() {
         obtainIndex = null;
+        known = null;
     }
 
     private Map<String, Set<String>> obtainIndex() {
@@ -352,24 +449,64 @@ public final class RecipeDiscoveryManager {
         return ItemUtils.resolveItemId(item);
     }
 
+    /**
+     * Every known recipe id, grouped by type, in display order. The map and its lists are immutable and
+     * shared between callers.
+     */
     public Map<String, List<String>> allRecipeKeysByType() {
+        return known().byType();
+    }
+
+    // Both views of the same snapshot: byType keeps display order for tab completion and the unlock-all
+    // walks, ids answers membership without scanning a list.
+    private record KnownRecipes(Map<String, List<String>> byType, Map<String, Set<String>> ids) {
+    }
+
+    // Building this walks every default cooking pot recipe, every custom group, every cutting board recipe
+    // and every addon type. Tab completion asks for it once per keystroke, so it is held until the recipe
+    // set changes. Invalidation rides the hook that already drops the obtain index, which covers a
+    // FarmersDelight recipe reload and every api register or unregister -- the same contract the obtain
+    // index runs on, so an addon that mutates its own recipe list without telling the api is stale in both.
+    private KnownRecipes known() {
+        KnownRecipes cached = known;
+        if (cached == null) {
+            cached = buildKnownRecipes();
+            known = cached;
+        }
+        return cached;
+    }
+
+    private KnownRecipes buildKnownRecipes() {
         Map<String, List<String>> byType = new HashMap<>();
+        Map<String, Set<String>> ids = new HashMap<>();
         Set<String> cookingIds = new LinkedHashSet<>();
         for (CookingPotRecipe recipe : plugin.getCookingPotRecipes().getAllRecipes()) {
             cookingIds.add(recipe.getId());
         }
-        List<String> cooking = new ArrayList<>(cookingIds);
-        byType.put(TYPE_COOKING_POT, cooking);
-        List<String> cutting = new ArrayList<>(plugin.getCuttingBoardRecipes().getRecipes().keySet());
-        byType.put(TYPE_CUTTING_BOARD, cutting);
+        put(byType, ids, TYPE_COOKING_POT, cookingIds);
+        put(byType, ids, TYPE_CUTTING_BOARD, plugin.getCuttingBoardRecipes().getRecipes().keySet());
         for (RecipeType type : FarmersDelightApi.get().recipeTypes()) {
-            List<String> ids = new ArrayList<>();
-            for (ViewableRecipe recipe : type.recipes()) {
-                ids.add(recipe.id());
+            // Ids here come from an addon. The snapshot is immutable, and the immutable collection
+            // factories reject nulls, so a single null id from one addon would otherwise throw out of
+            // every command and book that asks for the known recipes.
+            if (type.id() == null) {
+                continue;
             }
-            byType.put(type.id(), ids);
+            Set<String> typeIds = new LinkedHashSet<>();
+            for (ViewableRecipe recipe : type.recipes()) {
+                if (recipe != null && recipe.id() != null) {
+                    typeIds.add(recipe.id());
+                }
+            }
+            put(byType, ids, type.id(), typeIds);
         }
-        return byType;
+        return new KnownRecipes(Map.copyOf(byType), Map.copyOf(ids));
+    }
+
+    private static void put(Map<String, List<String>> byType, Map<String, Set<String>> ids,
+                            String typeId, Collection<String> recipeIds) {
+        byType.put(typeId, List.copyOf(recipeIds));
+        ids.put(typeId, Set.copyOf(recipeIds));
     }
 
     // ------------------------------------------------------------------ persistence
@@ -382,28 +519,97 @@ public final class RecipeDiscoveryManager {
         return new File(plugin.getDataFolder(), DATA_FILE);
     }
 
+    // Only players who are online right now are held in memory. At boot that is nobody, so the file is not
+    // read at all; on a reload it is the players whose books can be open. Everyone else is read back on
+    // demand by ensureLoaded, which is what keeps this table sized by concurrent players rather than by
+    // every player who has ever joined.
     private void loadData() {
         unlocked.clear();
-        File file = dataFile();
-        if (!file.exists()) {
+        Set<UUID> online = new HashSet<>();
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            online.add(player.getUniqueId());
+        }
+        if (online.isEmpty()) {
+            dirty = false;
             return;
         }
-        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
-        for (String uuidString : yaml.getKeys(false)) {
-            UUID id;
-            try {
-                id = UUID.fromString(uuidString);
-            } catch (IllegalArgumentException e) {
-                continue;
-            }
-            List<String> keys = yaml.getStringList(uuidString);
-            if (!keys.isEmpty()) {
-                Set<String> set = ConcurrentHashMap.newKeySet();
-                set.addAll(keys);
-                unlocked.put(id, set);
+        YamlConfiguration yaml = readData();
+        if (yaml != null) {
+            for (UUID id : online) {
+                List<String> keys = yaml.getStringList(id.toString());
+                if (!keys.isEmpty()) {
+                    Set<String> set = ConcurrentHashMap.newKeySet();
+                    set.addAll(keys);
+                    unlocked.put(id, set);
+                }
             }
         }
         dirty = false;
+    }
+
+    private YamlConfiguration readData() {
+        File file = dataFile();
+        return file.exists() ? YamlConfiguration.loadConfiguration(file) : null;
+    }
+
+    /**
+     * Reads one player's unlocks off disk if they are not in memory. An entry is left behind even when the
+     * player has nothing stored, so the file is parsed once per player rather than once per lookup.
+     */
+    public void ensureLoaded(UUID playerId) {
+        if (playerId == null || unlocked.containsKey(playerId)) {
+            return;
+        }
+        Set<String> set = ConcurrentHashMap.newKeySet();
+        YamlConfiguration yaml = readData();
+        if (yaml != null) {
+            set.addAll(yaml.getStringList(playerId.toString()));
+        }
+        unlocked.putIfAbsent(playerId, set);
+    }
+
+    public void ensureLoaded(UUID playerId, long version) {
+        if (playerId == null || !isCurrent(playerId, version) || unlocked.containsKey(playerId)) {
+            return;
+        }
+        Set<String> set = ConcurrentHashMap.newKeySet();
+        YamlConfiguration yaml = readData();
+        if (yaml != null) {
+            set.addAll(yaml.getStringList(playerId.toString()));
+        }
+        synchronized (this) {
+            if (isCurrent(playerId, version)) {
+                unlocked.putIfAbsent(playerId, set);
+            }
+        }
+    }
+
+    /**
+     * Writes pending unlocks out and drops this player from memory, for when they leave. save merges into
+     * the file rather than replacing it, so a dropped player is still there for an offline lookup to read
+     * back.
+     */
+    public void evict(UUID playerId) {
+        if (playerId == null) {
+            return;
+        }
+        save();
+        unlocked.remove(playerId);
+    }
+
+    public void evict(UUID playerId, long version) {
+        if (playerId == null) {
+            return;
+        }
+        // Always flush first: a stale quit task must not discard pending unlocks when a rejoin
+        // has already advanced the lifecycle version.
+        save();
+        synchronized (this) {
+            if (isCurrent(playerId, version)) {
+                unlocked.remove(playerId);
+                lifecycleVersions.remove(playerId, version);
+            }
+        }
     }
 
     public synchronized void save() {
@@ -423,11 +629,7 @@ public final class RecipeDiscoveryManager {
             yaml.set(entry.getKey().toString(), keys.isEmpty() ? null : new ArrayList<>(keys));
         }
         try {
-            File parent = file.getParentFile();
-            if (parent != null && !parent.exists()) {
-                parent.mkdirs();
-            }
-            yaml.save(file);
+            RecipeEditorStore.writeAtomically(file, yaml.saveToString());
         } catch (IOException e) {
             dirty = true; // failed write: keep state dirty so the next flush retries
             I18n.logWarning("recipe-discovery.save_failed", "error", String.valueOf(e.getMessage()));

@@ -131,6 +131,9 @@ public class CuttingBoardRecipeManager {
         // Invalidate the recipe-list GUI display cache: this republish path (incl. addon register/
         // unregister) bypasses RecipeViewGui.clearConfigCache.
         com.huidu.farmersdelight.gui.RecipeViewGui.clearRecipeDisplayCache();
+        // Same reason as the cooking pot's publish path: the decoded snapshots are keyed by strings the
+        // replaced recipes owned.
+        RecipeItemCodec.clearDecodeCache();
     }
 
     private CuttingBoardRecipe parseRecipe(String id, ConfigurationSection section) {

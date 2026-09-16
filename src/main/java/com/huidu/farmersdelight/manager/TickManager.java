@@ -207,6 +207,23 @@ public class TickManager {
         pendingChanges.add(new PendingChange(new ActiveBlock(world.getUID(), world, posKey, type), false));
     }
 
+    /**
+     * Queues removal of every tracked block in a world that is unloading. ActiveBlock holds a strong
+     * World reference, and the per-behaviour cleanupWorld methods drop their own maps directly rather
+     * than routing through markInactive, so without this the entries stay forever: the World is retained
+     * and the tick loop's idle fast path can never fire again because the set is never empty.
+     */
+    public void cleanupWorld(java.util.UUID worldId) {
+        if (worldId == null) {
+            return;
+        }
+        for (ActiveBlock block : activeBlocks) {
+            if (worldId.equals(block.worldId())) {
+                pendingChanges.add(new PendingChange(block, false));
+            }
+        }
+    }
+
     private void tick() {
         if (!running) return;
         // Idle fast path: nothing active, nothing queued, stats off — skip the pass entirely.

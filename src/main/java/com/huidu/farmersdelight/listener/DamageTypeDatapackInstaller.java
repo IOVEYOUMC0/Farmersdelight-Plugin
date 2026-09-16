@@ -22,6 +22,9 @@ public final class DamageTypeDatapackInstaller {
 
     private static final String DATAPACK_NAME = "farmersdelight_damage";
     private static final String RESOURCE_PREFIX = "datapack/damage/";
+    private static final String PACK_METADATA_FILE = "pack.mcmeta";
+    private static final String PACK_DESCRIPTION =
+            "FarmersDelight damage types (stove_burn, no_knockback tag)";
     private static final String LEGACY_LOOT_DATAPACK = "farmersdelight";
     private static final String LEGACY_DAMAGE_DIR = "data/farmersdelight/damage_type";
     private static final String LEGACY_NO_KNOCKBACK = "data/minecraft/tags/damage_type/no_knockback.json";
@@ -135,6 +138,12 @@ public final class DamageTypeDatapackInstaller {
                     String name = entry.getName();
                     if (!name.startsWith(RESOURCE_PREFIX)) continue;
                     String relative = name.substring(RESOURCE_PREFIX.length());
+                    // pack.mcmeta is generated from the running server version instead of copied: the
+                    // bundled copy carries a fixed pack_format, which the server rejects on any other
+                    // release. Rewriting it also refreshes a stale format left by an earlier server.
+                    if (PACK_METADATA_FILE.equals(relative)) {
+                        continue;
+                    }
                     Path dest = datapackDir.resolve(relative);
                     if (Files.exists(dest)) {
                         skipped++;
@@ -145,6 +154,10 @@ public final class DamageTypeDatapackInstaller {
                     DatapackSupport.copyFromJar(ownJar, entry, dest);
                     count++;
                 }
+            }
+            if (DatapackSupport.writeIfChanged(datapackDir.resolve(PACK_METADATA_FILE),
+                    DatapackSupport.renderPackMetadata(PACK_DESCRIPTION))) {
+                count++;
             }
             // Migrate the damage files out of the legacy loot datapack folder so the two datapacks
             // never define stove_burn twice. No-op on fresh installs and after a previous migration.

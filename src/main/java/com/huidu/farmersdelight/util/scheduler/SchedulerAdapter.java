@@ -159,6 +159,19 @@ public final class SchedulerAdapter {
     }
 
     public void shutdown() {
+        shutdown(null);
+    }
+
+    /**
+     * Drains the async pool. With a budget the wait is whatever the shutdown has left; without one it
+     * falls back to a fixed ten seconds. A ten-second wait per component is exactly how a shutdown ends
+     * up taking a minute, so callers inside a shutdown sequence should pass the shared budget.
+     */
+    public void shutdown(com.huidu.farmersdelight.api.util.ShutdownBudget budget) {
+        if (budget != null) {
+            budget.awaitTermination("farmersdelight async pool", asyncExecutor);
+            return;
+        }
         asyncExecutor.shutdown();
         try {
             if (!asyncExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
@@ -282,7 +295,13 @@ public final class SchedulerAdapter {
 
         private static void entityRun(FarmersDelightPlugin plugin, Entity entity, Runnable task, Runnable retired) {
             Object scheduler = invoke(entity, "getScheduler");
-            invoke(scheduler, "run", plugin, task, retired);
+            Object scheduled = invoke(scheduler, "run", plugin, task, retired);
+            // EntityScheduler#run returns null when the entity is ALREADY retired, and in that case it
+            // never invokes the retired callback itself. Callers use that callback to release an in-flight
+            // guard, so without this the guard would stay set forever and the entity stop being ticked.
+            if (scheduled == null && retired != null) {
+                retired.run();
+            }
         }
 
         private static boolean isOwnedByCurrentRegion(Location location) {

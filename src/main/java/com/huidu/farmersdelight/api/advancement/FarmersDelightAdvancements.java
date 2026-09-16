@@ -5,6 +5,7 @@ import com.huidu.farmersdelight.advancement.AddonAdvancementRegistry;
 import com.huidu.farmersdelight.advancement.AddonAdvancementTab;
 import com.huidu.farmersdelight.advancement.AdvancementDef;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.api.FarmersDelightApi;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.ApiStatus;
@@ -102,7 +103,12 @@ public final class FarmersDelightAdvancements {
     public static void showTab(String tabId, Player player) {
         AddonAdvancementTab tab = addonTab(tabId);
         if (tab != null) {
-            tab.showTo(player);
+            if (FarmersDelightApi.get().isFolia() && player != null) {
+                FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+                player.getScheduler().run(plugin, task -> tab.showTo(player), null);
+            } else {
+                tab.showTo(player);
+            }
         }
     }
 

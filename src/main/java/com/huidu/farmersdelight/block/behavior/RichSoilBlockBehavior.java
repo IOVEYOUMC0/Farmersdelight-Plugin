@@ -150,7 +150,7 @@ public class RichSoilBlockBehavior extends FarmersDelightBlockBehavior {
                         plant.getLocation().add(0.5, 0.5, 0.5), 10, 0.3, 0.3, 0.3);
             }
             return applied;
-        } catch (Throwable ignored) {
+        } catch (RuntimeException | LinkageError ignored) {
             return false;
         }
     }

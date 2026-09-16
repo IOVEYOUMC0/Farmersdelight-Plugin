@@ -6,7 +6,9 @@ icon: code-branch
 
 # 版本兼容工具
 
-`com.huidu.farmersdelight.api.util` 里有三个小工具类，存在的意义只有一个：让附属用同一个编译产物同时跑在 Minecraft 1.21 到当前版本上。其中两个抹平 Bukkit API 变更，另一个是 CraftEngine 的提示框工具。
+`com.huidu.farmersdelight.api.util` 里有三个小工具类，存在的意义只有一个：让附属用同一个编译产物同时跑在 Minecraft 1.21.4 到当前版本上。其中两个抹平 Bukkit API 变更，另一个是 CraftEngine 的提示框工具。
+
+支持下限已经是 1.21.4，所以两个兼容垫片在全部受支持的服务端上都能解析成功。保留它们的理由有二：它们是已发布的 API；它们仍然吸收属性注册表改名，以及未来 `setItemModel` 被移除的可能。
 
 同包下的 `DebugToolExtension` 与 `DebugToolRegistry` 见[调试工具](debug-tools.md)，`PluginManagerGuard` 见 [快速上手](getting-started.md)。
 
@@ -41,7 +43,7 @@ if (maxHealthAttr == null) return;
 | `isSupported()`                                  | 当前服务端有 `ItemMeta.setItemModel` 时返回 `true`。 |
 | `setItemModel(ItemMeta meta, NamespacedKey key)` | 应用 `item_model` 组件，或者什么都不做。                |
 
-`ItemMeta.setItemModel` 只存在于 Minecraft 1.21.4 及以上。1.21 / 1.21.1 上根本没有这个方法，所以调用走反射（结果只 解析一次，缓存在静态字段里），不可用时直接跳过。这样你就能在 1.21 上编译并运行，同时在新版服务端上照常生效。
+`ItemMeta.setItemModel` 只存在于 Minecraft 1.21.4 及以上，而 1.21.4 正是支持下限，所以反射查找（只解析一次，缓存在静态字段里）在全部受支持的服务端上都会成功。保留这个垫片，是为了让按旧 api jar 编译的附属继续可用，也为了在某个分支移除该方法时降级而不是抛异常。
 
 `setItemModel` 在三种情况下会**静默地什么都不做**：方法不可用、`meta` 为 null、`key` 为 null。它还会吞掉 `ReflectiveOperationException`。它不抛异常也不报告失败，而且没有返回值，所以你无法从调用结果判断模型到底有没有设上。
 

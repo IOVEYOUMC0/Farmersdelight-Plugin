@@ -323,8 +323,8 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
         List<CuttingBoardRecipe.ToolRequirement> tools = recipe.getTools();
         int safeToolIndex = currentToolIndex % tools.size();
-        List<ItemStack> previewOptions = resolveToolPreviewOptions(tools.get(safeToolIndex));
-        if (previewOptions.size() <= 1 && tools.size() <= 1) {
+        int previewCount = resolveToolPreviewOptionsSize(tools.get(safeToolIndex));
+        if (previewCount <= 1 && tools.size() <= 1) {
             return;
         }
         // The generic cycle timer decides when to advance, keeping the tick cadence in one place.
@@ -332,9 +332,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
             return;
         }
 
-        if (previewOptions.size() > 1) {
+        if (previewCount > 1) {
             currentToolPreviewIndex++;
-            if (currentToolPreviewIndex >= previewOptions.size()) {
+            if (currentToolPreviewIndex >= previewCount) {
                 currentToolPreviewIndex = 0;
                 if (tools.size() > 1) {
                     currentToolIndex = (currentToolIndex + 1) % tools.size();
@@ -1055,6 +1055,10 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     private ItemStack createToolPreviewItem(CuttingBoardRecipe.ToolRequirement tool) {
         return toolPreviewRenderer.createToolPreviewItem(tool);
+    }
+
+    private int resolveToolPreviewOptionsSize(CuttingBoardRecipe.ToolRequirement tool) {
+        return toolPreviewRenderer.resolveToolPreviewOptionsSize(tool);
     }
 
     private List<ItemStack> resolveToolPreviewOptions(CuttingBoardRecipe.ToolRequirement tool) {
@@ -1892,7 +1896,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             }
             activeGuis.remove(entry.getKey());
             if (player != null && player.isOnline()) {
-                player.closeInventory();
+                closeViewerInventory(player);
             }
         }
     }

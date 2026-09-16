@@ -159,7 +159,7 @@ public final class SkilletBlockEntityController extends BlockEntityController im
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         SkilletManager manager = getManager();
         Location location = getLocation();
-        if (plugin == null || plugin.isSkilletHopperInteractionsEnabled() || manager == null || location == null) {
+        if (plugin == null || !plugin.isSkilletHopperInteractionsEnabled() || manager == null || location == null) {
             return stack.clone();
         }
 

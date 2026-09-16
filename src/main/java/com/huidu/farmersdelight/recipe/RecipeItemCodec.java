@@ -55,16 +55,34 @@ public final class RecipeItemCodec {
         return bytes == null ? null : Base64.getEncoder().encodeToString(bytes);
     }
 
+    // Decoded snapshots, keyed by the encoded string the recipe owns. The ingredient matcher calls this
+    // on every comparison with the same constant input, and each miss is a Base64 decode plus a full
+    // ItemStack deserialisation. Bounded by the number of NBT-carrying ingredients that were loaded.
+    private static final java.util.Map<String, ItemStack> DECODED = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final ItemStack UNDECODABLE = new ItemStack(org.bukkit.Material.AIR);
+
     public static ItemStack itemFromBase64(String encoded) {
         if (encoded == null || encoded.isBlank()) {
             return null;
         }
+        ItemStack cached = DECODED.computeIfAbsent(encoded, RecipeItemCodec::decodeFromBase64);
+        // The cache holds a sentinel for input that does not decode, so a bad string is not retried and
+        // does not have to be representable as null in the map.
+        return cached == UNDECODABLE ? null : cached.clone();
+    }
+
+    /** Drops the decode cache; called when the recipe set is rebuilt. */
+    public static void clearDecodeCache() {
+        DECODED.clear();
+    }
+
+    private static ItemStack decodeFromBase64(String encoded) {
         try {
             byte[] bytes = Base64.getDecoder().decode(encoded.trim());
             ItemStack item = ItemStackUtils.fromBytes(bytes);
-            return (item == null || item.getType().isAir()) ? null : item;
+            return (item == null || item.getType().isAir()) ? UNDECODABLE : item;
         } catch (Exception e) {
-            return null;
+            return UNDECODABLE;
         }
     }
 

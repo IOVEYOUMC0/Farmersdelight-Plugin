@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.api;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.block.CuttingBoardInteractionHandler;
+import com.huidu.farmersdelight.api.advancement.FarmersDelightAdvancements;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import com.huidu.farmersdelight.api.recipe.ChanceResult;
 import com.huidu.farmersdelight.api.recipe.FarmersDelightRecipes;
@@ -12,10 +13,8 @@ import com.huidu.farmersdelight.api.recipe.SpecialRecipeInfo;
 import com.huidu.farmersdelight.api.recipe.ViewableRecipe;
 import com.huidu.farmersdelight.api.scheduler.ApiTask;
 import com.huidu.farmersdelight.gui.recipebook.RecipeBookGui;
-import com.huidu.farmersdelight.gui.RecipeIngredientIcons;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
-import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -31,11 +30,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.ConcurrentHashMap;
 
 @ApiStatus.NonExtendable
 public final class FarmersDelightApi {
 
-    private static final int API_VERSION = 2;
+    private static final int API_VERSION = 3;
 
     private static final java.util.Set<String> FEATURES = java.util.Set.of(
             // Runtime recipe registration + the generic recipe book / editor (registerRecipeType,
@@ -75,7 +75,8 @@ public final class FarmersDelightApi {
             "content-check",
             // Central tag registry: addons register their tag→item mappings here from their own config
             // so the whole family resolves the same tags (registerCommonTags / unregisterCommonTags).
-            "common-tags"
+            "common-tags",
+            "advancement-triggers"
     );
 
     private static final FarmersDelightApi INSTANCE = new FarmersDelightApi();
@@ -84,10 +85,13 @@ public final class FarmersDelightApi {
 
     private final Map<String, RecipeType> recipeTypes = Collections.synchronizedMap(new LinkedHashMap<>());
     private volatile Map<String, List<JumpTarget>> recipeResultIndex = Map.of();
-    // Block namespaces of registered addons (e.g. "brewinandchewin"), so the CraftEngine block-state usage
-    // report attributes addon blocks alongside FarmersDelight's own.
+    // Block namespaces of registered addons (e.g. "brewinandchewin"), used by the CraftEngine block-state
+    // usage report and the shared land-protection listener.
     private final java.util.Set<String> addonBlockNamespaces =
             java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private record AdvancementTrigger(String source, String tab, String advancement, String criterion) {}
+    private final Map<String, List<AdvancementTrigger>> advancementTriggers = new ConcurrentHashMap<>();
+    private final Map<String, List<AdvancementTrigger>> consumeAdvancementTriggers = new ConcurrentHashMap<>();
 
     private FarmersDelightApi() {
     }
@@ -98,6 +102,14 @@ public final class FarmersDelightApi {
 
     public int apiVersion() {
         return API_VERSION;
+    }
+
+    /**
+     * Every feature id this build answers true for. Useful for logging what an addon is running against,
+     * and for keeping the published capability table honest (see ApiDocsDriftTest).
+     */
+    public java.util.Set<String> features() {
+        return FEATURES;
     }
 
     public boolean hasFeature(String feature) {
@@ -121,10 +133,20 @@ public final class FarmersDelightApi {
         return java.util.Set.copyOf(addonBlockNamespaces);
     }
 
+    /** Fast membership check for block event listeners; unlike addonBlockNamespaces(), this does not copy. */
+    public boolean isAddonBlockNamespace(String namespace) {
+        return namespace != null && addonBlockNamespaces.contains(namespace);
+    }
+
     /**
      * Registers (or replaces) an addon's tag→item mapping into the family-wide tag registry. Members
      * are merged across sources, so multiple addons may contribute to the same tag. Call this at addon
      * enable with a mapping read from the addon's own config, and unregister on disable / reload.
+     *
+     * <p>Members in the minecraft: namespace are also exported as a server-side tag data pack.
+     * That export runs again once the whole server has loaded, so registering during addon enable is in
+     * time; CraftEngine absorbs the written tags on the next server start. Members in other namespaces
+     * take effect immediately through FD's own matching and need no restart.
      */
     public void registerCommonTags(String source, Map<String, List<String>> tagToMemberItems) {
         com.huidu.farmersdelight.util.CommonTagResolver.registerSource(source, tagToMemberItems);
@@ -271,31 +293,28 @@ public final class FarmersDelightApi {
         }
     }
 
+    /**
+     * Registers a cutting board recipe whose results are all guaranteed.
+     *
+     * @deprecated every result is registered at chance 1.0. A recipe with any result that is not
+     *     guaranteed must use registerCuttingBoardRecipeWithChances, which is what the
+     *     configuration loader and FarmersDelight's own recipes use. This overload exists so callers
+     *     written against it keep working.
+     */
+    @Deprecated
     public void registerCuttingBoardRecipe(String id, String input, String tool,
                                            List<ItemStack> results, String sound) {
-        FarmersDelightPlugin plugin = availablePlugin();
-        if (plugin == null) {
+        if (results == null) {
+            registerCuttingBoardRecipeWithChances(id, input, tool, null, sound);
             return;
         }
-        if (id == null || id.isBlank() || input == null || tool == null || results == null) {
-            I18n.logWarning("plugin.recipe_api_registration_failed", "id", String.valueOf(id), "type", "cutting board",
-                    "error", "recipe id, input, tool and results are required");
-            return;
-        }
-        List<ItemStack> copies = new ArrayList<>();
+        List<com.huidu.farmersdelight.api.recipe.ChanceResult> guaranteed = new ArrayList<>(results.size());
         for (ItemStack result : results) {
             if (result != null) {
-                copies.add(result.clone());
+                guaranteed.add(new com.huidu.farmersdelight.api.recipe.ChanceResult(result, 1.0f));
             }
         }
-        try {
-            plugin.getCuttingBoardRecipes().registerExternalRecipe(id, input, tool, copies, sound);
-        } catch (IllegalArgumentException e) {
-            if (isContentLoaded()) {
-                I18n.logWarning("plugin.recipe_api_registration_failed", "id", id, "type", "cutting board",
-                        "error", e.getMessage());
-            }
-        }
+        registerCuttingBoardRecipeWithChances(id, input, tool, guaranteed, sound);
     }
 
     /**
@@ -502,24 +521,6 @@ public final class FarmersDelightApi {
         }
     }
 
-    /**
-     * Resolves an ingredient's concrete display candidates (tag/choice members included).
-     * Returned stacks are independent clones and may be safely decorated by an add-on GUI.
-     */
-    public List<ItemStack> resolveIngredientOptions(RecipeIngredient ingredient) {
-        if (ingredient == null || !isAvailable()) {
-            return List.of();
-        }
-        List<ItemStack> resolved = RecipeIngredientIcons.resolveIngredientOptions(ingredient);
-        List<ItemStack> copies = new ArrayList<>(resolved.size());
-        for (ItemStack item : resolved) {
-            if (item != null && !item.getType().isAir()) {
-                copies.add(item.clone());
-            }
-        }
-        return List.copyOf(copies);
-    }
-
     public boolean isAvailable() {
         return FarmersDelightPlugin.getInstance() != null && FarmersDelightPlugin.isEnabled0();
     }
@@ -574,24 +575,149 @@ public final class FarmersDelightApi {
         return plugin != null && block != null && plugin.getHeatSourceConfig().isConductor(block);
     }
 
+    // FarmersDelight rebuilds the whole heat-source table on every config reload. Registrations made
+    // through the API are remembered here so the rebuild replays them, the same way registerCommonTags
+    // survives a reload. Without this an addon that registers in onEnable (the natural place) would
+    // silently lose its heat source on the first /fd reload, with no log line.
+    // Heat-source declarations live in api.block.HeatSources, which remembers them per plugin and
+    // replays them whenever the table is rebuilt. The methods below are the older flat spelling; each
+    // one writes into the same shared record, so mixing the two styles is safe.
+
+    private static com.huidu.farmersdelight.api.block.HeatSources legacyHeatSources() {
+        return com.huidu.farmersdelight.api.block.HeatSources.legacy();
+    }
+
+    /** @deprecated use HeatSources.of(plugin).addVanillaBlock(id). */
+    @Deprecated
     public void registerHeatSource(String vanillaBlockId) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (plugin != null) {
-            plugin.getHeatSourceConfig().addVanillaBlock(vanillaBlockId);
-        }
+        legacyHeatSources().addVanillaBlock(vanillaBlockId);
     }
 
+    /** @deprecated use HeatSources.of(plugin).addConductor(id). */
+    @Deprecated
     public void registerConductor(String vanillaBlockId) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (plugin != null) {
-            plugin.getHeatSourceConfig().addVanillaConductor(vanillaBlockId);
-        }
+        legacyHeatSources().addConductor(vanillaBlockId);
     }
 
+    /** @deprecated use HeatSources.of(plugin).remove(id). */
+    @Deprecated
+    public void unregisterHeatSource(String vanillaBlockId) {
+        legacyHeatSources().remove(vanillaBlockId);
+    }
+
+    /** @deprecated use HeatSources.of(plugin).remove(id). */
+    @Deprecated
+    public void unregisterConductor(String vanillaBlockId) {
+        legacyHeatSources().remove(vanillaBlockId);
+    }
+
+    /** @deprecated use HeatSources.of(plugin).remove(id). */
+    @Deprecated
+    public void unregisterCustomHeatSource(String blockIdWithOptionalState) {
+        legacyHeatSources().remove(blockIdWithOptionalState);
+    }
+
+    /** @deprecated use HeatSources.of(plugin).remove(tagId). */
+    @Deprecated
+    public void unregisterCustomHeatSourceTag(String tagId) {
+        legacyHeatSources().remove(tagId);
+    }
+
+    /** @deprecated use HeatSources.of(plugin).addCustomBlock(id). */
+    @Deprecated
+    public boolean registerCustomHeatSource(String blockIdWithOptionalState) {
+        return legacyHeatSources().addCustomBlock(blockIdWithOptionalState);
+    }
+
+    /** @deprecated use HeatSources.of(plugin).addCustomTag(tagId). */
+    @Deprecated
     public void registerCustomHeatSourceTag(String tagId) {
+        legacyHeatSources().addCustomTag(tagId);
+    }
+
+    /**
+     * Replays every addon heat-source registration into a freshly built table. Called by FarmersDelight
+     * right after it reloads its own heat-source config; addons never call this.
+     */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public void replayAddonHeatSources(com.huidu.farmersdelight.config.HeatSourceConfig config) {
+        com.huidu.farmersdelight.api.block.HeatSources.replayAll(config);
+    }
+
+    /** Registers an obtain/craft/produce trigger for an advancement. Repeated registration replaces the same entry. */
+    public void registerAdvancementItemTrigger(String source, String itemId, String tabId, String advancementId) {
+        registerAdvancementTrigger(advancementTriggers, source, itemId, tabId, advancementId, null);
+    }
+
+    public void registerAdvancementItemCriterionTrigger(String source, String itemId, String tabId,
+                                                        String advancementId, String criterion) {
+        registerAdvancementTrigger(advancementTriggers, source, itemId, tabId, advancementId, criterion);
+    }
+
+    /** Registers a consume trigger for an advancement. */
+    public void registerAdvancementConsumeTrigger(String source, String itemId, String tabId, String advancementId) {
+        registerAdvancementTrigger(consumeAdvancementTriggers, source, itemId, tabId, advancementId, null);
+    }
+
+    public void registerAdvancementConsumeCriterionTrigger(String source, String itemId, String tabId,
+                                                           String advancementId, String criterion) {
+        registerAdvancementTrigger(consumeAdvancementTriggers, source, itemId, tabId, advancementId, criterion);
+    }
+
+    public void clearAdvancementTriggers(String source) {
+        if (source == null) return;
+        clearAdvancementTriggerMap(advancementTriggers, source);
+        clearAdvancementTriggerMap(consumeAdvancementTriggers, source);
+    }
+
+    private static void clearAdvancementTriggerMap(Map<String, List<AdvancementTrigger>> triggers, String source) {
+        // Registered lists are immutable snapshots (List.copyOf), so mutate the map entries instead.
+        triggers.entrySet().removeIf(entry -> {
+            List<AdvancementTrigger> remaining = entry.getValue().stream()
+                    .filter(trigger -> !source.equals(trigger.source()))
+                    .toList();
+            if (remaining.isEmpty()) {
+                return true;
+            }
+            if (remaining.size() != entry.getValue().size()) {
+                entry.setValue(List.copyOf(remaining));
+            }
+            return false;
+        });
+    }
+
+    public void awardItemAdvancements(Player player, String itemId) {
+        awardItemAdvancements(player, itemId, advancementTriggers);
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (plugin != null && tagId != null && !tagId.isBlank()) {
-            plugin.getHeatSourceConfig().addCustomBlockTag(net.momirealms.craftengine.core.util.Key.of(tagId));
+        if (plugin != null) plugin.getAddonAdvancementRegistry().awardForItem(player, itemId);
+    }
+
+    public void awardConsumedItemAdvancements(Player player, String itemId) {
+        awardItemAdvancements(player, itemId, consumeAdvancementTriggers);
+    }
+
+    private static void registerAdvancementTrigger(Map<String, List<AdvancementTrigger>> target, String source,
+                                                   String itemId, String tabId, String advancementId,
+                                                   String criterion) {
+        if (source == null || itemId == null || tabId == null || advancementId == null) return;
+        target.compute(itemId, (ignored, current) -> {
+            List<AdvancementTrigger> next = current == null ? new ArrayList<>() : new ArrayList<>(current);
+            next.removeIf(t -> source.equals(t.source()) && t.tab().equals(tabId)
+                    && t.advancement().equals(advancementId) && java.util.Objects.equals(t.criterion(), criterion));
+            next.add(new AdvancementTrigger(source, tabId, advancementId, criterion));
+            return List.copyOf(next);
+        });
+    }
+
+    private static void awardItemAdvancements(Player player, String itemId,
+                                              Map<String, List<AdvancementTrigger>> triggers) {
+        if (player == null || itemId == null) return;
+        for (AdvancementTrigger trigger : triggers.getOrDefault(itemId, List.of())) {
+            if (trigger.criterion() == null) {
+                FarmersDelightAdvancements.award(trigger.tab(), player, trigger.advancement());
+            } else {
+                FarmersDelightAdvancements.awardCriteria(trigger.tab(), player, trigger.advancement(), trigger.criterion());
+            }
         }
     }
 

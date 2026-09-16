@@ -46,7 +46,7 @@ surfaces it without turning debug on.
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | FarmersDelight never enables; log says a dependency is missing | CraftEngine not installed | Install a server-compatible CraftEngine **26.8** build; it is a hard `depend`. |
-| Plugin fails to load with an unsupported-version / class error | Server below MC 1.21 or Java below 21 | Run **Paper/Folia 1.21.1** on **Java 21+**. |
+| Plugin fails to load with an unsupported-version / class error | Server below MC 1.21.4 or Java below 21 | Run **Paper/Folia 1.21.4+** on **Java 21+**. |
 | Custom items/blocks show purple-and-black textures | Client not using the current resource pack | Run **`/ce reload all`** to rebuild the pack (plain `/ce reload` won't); make sure the player accepted the pack. See [Resource pack](resource-pack.md). |
 | `/ce item give ... farmersdelight:cooking_pot` says unknown item | CraftEngine content didn't parse | Check console for a CraftEngine behavior error ([Verifying](verifying.md)); fix the named block config; `/ce reload`. |
 | Console shows a CraftEngine behavior error naming a property | A block's config is missing a required property | Not a crash — a signal. Restore the named property on that block, then `/ce reload`. See [Verifying](verifying.md). |

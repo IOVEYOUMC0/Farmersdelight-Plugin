@@ -1,0 +1,179 @@
+# Paper plugin manifest. Replaces plugin.yml: a Paper plugin gets its own class loader, so a
+# bundled library cannot be silently shared with (or overridden by) another plugin's copy, and
+# dependency order is declared per dependency instead of guessed from depend/softdepend.
+#
+# join-classpath is true wherever this plugin resolves the dependency's classes itself
+# (Class.forName, direct imports, or a bundled bridge that does so on its behalf).
+# load: POSTWORLD is deliberate (the Paper default): onEnable touches worlds.
+
+name: FarmersDelight
+version: '${version}'
+main: com.huidu.farmersdelight.FarmersDelightPlugin
+api-version: '1.21.4'
+folia-supported: true
+description: CraftEngine port of Farmer's Delight by vectorwing (MIT).
+authors:
+  - HuiDu_OwO
+
+# The /farmersdelight command is registered through Paper's lifecycle API in onEnable:
+# paper-plugin.yml has no commands: section.
+dependencies:
+  server:
+    CraftEngine:
+      load: BEFORE
+      required: true
+      join-classpath: true
+    AuraSkills:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    UltimateAdvancementAPI:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    PlaceholderAPI:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    WorldGuard:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    GriefPrevention:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    Lands:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    Towny:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    Residence:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    PlotSquared:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    Factions:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    HuskClaims:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    HuskTowns:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    BentoBox:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    SuperiorSkyblock2:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    IridiumSkyblock:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    GriefDefender:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    Kingdoms:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    CrashClaim:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    RedProtect:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    Landlord:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    uSkyBlock:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    XClaim:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    UltimateClaims:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    UltimateClans:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    PreciousStones:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    Dominion:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    FabledSkyBlock:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    NoBuildPlus:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    Protect:
+      load: BEFORE
+      required: false
+      join-classpath: true
+
+permissions:
+  farmersdelight.command:
+    description: Allow to use main command
+    default: true
+  farmersdelight.command.recipe:
+    description: Allow to check the recipe
+    default: true
+  farmersdelight.command.recipe.discovery:
+    description: Allow to unlock the recipe
+    default: op
+  farmersdelight.use.cooking_pot:
+    description: Allow to use the Cooking Pot
+    default: true
+  farmersdelight.use.stove:
+    description: Allow to use the Stove
+    default: true
+  farmersdelight.use.skillet:
+    description: Allow to use the Skillet
+    default: true
+  farmersdelight.use.cutting_board:
+    description: Allow to use the Cutting Board
+    default: true
+  farmersdelight.admin:
+    description: Admin permissions
+    default: op
+  farmersdelight.*:
+    description: All the FarmersDelight Plugin's permissions
+    default: op
+    children:
+      farmersdelight.command: true
+      farmersdelight.command.recipe: true
+      farmersdelight.command.recipe.discovery: true
+      farmersdelight.use.cooking_pot: true
+      farmersdelight.use.stove: true
+      farmersdelight.use.skillet: true
+      farmersdelight.use.cutting_board: true
+      farmersdelight.admin: true

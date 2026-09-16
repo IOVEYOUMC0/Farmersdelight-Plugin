@@ -3,8 +3,12 @@
 # Version compatibility helpers
 
 `com.huidu.farmersdelight.api.util` contains three small helpers that exist so an addon can support Minecraft
-1.21 through current builds from a single compiled jar. Two of them paper over Bukkit API changes; the third
+1.21.4 through current builds from a single compiled jar. Two of them paper over Bukkit API changes; the third
 is a CraftEngine tooltip helper.
+
+The supported floor is 1.21.4, so both compatibility shims now resolve on every supported server. They are
+kept because they are published API and because they still absorb the attribute-registry rename and any
+future removal of `setItemModel`.
 
 `DebugToolExtension` and `DebugToolRegistry` also live in this package but are covered in
 [Debug tools](debug-tools.md). `PluginManagerGuard` is covered in [Getting started](getting-started.md).
@@ -49,9 +53,10 @@ if (maxHealthAttr == null) {
 | `isSupported()` | `true` when the running server has `ItemMeta.setItemModel`. |
 | `setItemModel(ItemMeta meta, NamespacedKey key)` | Applies the `item_model` component, or does nothing. |
 
-`ItemMeta.setItemModel` exists only on Minecraft 1.21.4 and newer. On 1.21 / 1.21.1 the method is absent, so
-the call is routed through reflection resolved once into a static field and skipped when unavailable. That
-lets you compile against and run on 1.21 while still honouring the component on newer servers.
+`ItemMeta.setItemModel` exists only on Minecraft 1.21.4 and newer, which is the supported floor, so the
+reflective lookup (resolved once into a static field) succeeds on every supported server. The shim is kept so
+an addon compiled against an older api jar keeps working, and so the call degrades instead of throwing if a
+fork removes the method.
 
 `setItemModel` is a **silent no-op** in three cases: the method is unavailable, `meta` is null, or `key` is
 null. It also swallows `ReflectiveOperationException`. It never throws and never reports failure, so if the

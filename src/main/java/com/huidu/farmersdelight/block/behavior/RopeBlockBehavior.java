@@ -5,6 +5,7 @@ import com.huidu.farmersdelight.listener.RopeBlockListener;
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.BlockDefinition;
@@ -195,6 +196,31 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
     public void placeMultiState(Object thisBlock, Object[] args) {
         
     }
+
+    // A rope re-derives its connection towards whatever changed next to it. These are the NMS hooks the
+    // block itself receives, and they replace a BlockPhysicsEvent listener that had to watch every block
+    // update in the world and then ask whether a rope was nearby. Both are hooked because the two fire from
+    // different paths -- neighborChanged from updateNeighborsAt, updateShape from updateNeighbourShapes --
+    // and the refresh queue collapses a double hit on the same position.
+    @Override
+    public void neighborChanged(Object thisBlock, Object[] args) {
+        if (args.length < 3) {
+            return;
+        }
+        RopeBlockListener.queueNeighborRefresh(
+                CraftEngineAdapter.toWorld(args[1]), CraftEngineAdapter.toBlockPos(args[2]));
+    }
+
+    @Override
+    public Object updateShape(Object thisBlock, Object[] args) {
+        if (args.length < 7) {
+            return args[0];
+        }
+        RopeBlockListener.queueNeighborRefresh(
+                CraftEngineAdapter.toWorld(args[1]), CraftEngineAdapter.toBlockPos(args[3]));
+        return args[0];
+    }
+
 
     @Override
     public InteractionResult useOnBlock(UseOnContext context, ImmutableBlockState state) {

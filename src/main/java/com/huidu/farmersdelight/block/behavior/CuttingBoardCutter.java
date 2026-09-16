@@ -1,6 +1,8 @@
 package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.sound.ToolSoundTable;
+import com.huidu.farmersdelight.config.CuttingBoardSounds;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
 import com.huidu.farmersdelight.util.SoundUtils;
@@ -153,7 +155,7 @@ final class CuttingBoardCutter {
                 posKey.toLocation(world)
         );
 
-        playCuttingFeedback(world, posKey, storedItem, recipe);
+        playCuttingFeedback(world, posKey, storedItem, recipe, tool);
         if (toolIsOffhand) {
             player.swingOffHand();
         } else {
@@ -237,7 +239,7 @@ final class CuttingBoardCutter {
                 return true;
             }
 
-            playCuttingFeedback(world, posKey, storedItem, recipe);
+            playCuttingFeedback(world, posKey, storedItem, recipe, tool);
 
             // A dispenser has no creative exemption, so its tool always takes durability, exactly like a
             // survival player's. A broken tool is emptied; the caller then clears the dispenser slot.
@@ -255,13 +257,24 @@ final class CuttingBoardCutter {
         }
     }
 
-    private void playCuttingFeedback(World world, BlockPosKey posKey, ItemStack storedItem, CuttingBoardRecipe recipe) {
+    private void playCuttingFeedback(World world, BlockPosKey posKey, ItemStack storedItem,
+                                     CuttingBoardRecipe recipe, ItemStack tool) {
         if (world == null || posKey == null) {
             return;
         }
 
         Location effectLocation = posKey.toLocation(world).add(0.5, 0.1, 0.5);
-        SoundUtils.play(world, effectLocation, recipe.getSound(), Sound.BLOCK_WOOD_BREAK, 1.0f, 1.0f);
+        // Priority: the recipe's own sound, then the tool table (shears shear, knives cut), then the
+        // configured fallback. A recipe that names a sound always wins, so this only fills the gap.
+        String recipeSound = recipe.getSound();
+        if (recipeSound != null && !recipeSound.isBlank()) {
+            SoundUtils.play(world, effectLocation, recipeSound, Sound.BLOCK_WOOD_BREAK, 1.0f, 1.0f);
+        } else {
+            CuttingBoardSounds sounds = FarmersDelightPlugin.getInstance().getCuttingBoardSounds();
+            ToolSoundTable.Entry entry = sounds.resolve(tool);
+            SoundUtils.play(world, effectLocation, entry.soundKey(), Sound.BLOCK_WOOD_BREAK,
+                    entry.volume(), entry.pitch());
+        }
         world.spawnParticle(Particle.ITEM, effectLocation, 5, 0.1, 0.1, 0.1, 0.0, storedItem);
     }
 

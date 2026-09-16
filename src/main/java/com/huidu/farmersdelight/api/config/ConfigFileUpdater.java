@@ -42,12 +42,38 @@ public final class ConfigFileUpdater {
         options.parseComments(true);
     }
 
+    /**
+     * Monotonic generation counter for a config file. Key-level diffing can add a missing key, but it
+     * cannot tell a fresh install from an upgrade, nor spot a downgrade, nor let a migration run exactly
+     * once. The bundled file carries the current number; the deployed file is stamped with it after a
+     * successful update.
+     */
+    public static final String CONFIG_VERSION_KEY = "config-version";
+
+    /** The generation this build ships for the given bundled config (0 when the file declares none). */
+    public static int bundledVersion(ConfigurationSection bundled) {
+        return bundled == null ? 0 : bundled.getInt(CONFIG_VERSION_KEY, 0);
+    }
+
+    /** The generation currently on disk (0 when the file predates versioning or declares none). */
+    public static int deployedVersion(ConfigurationSection existing) {
+        return existing == null ? 0 : existing.getInt(CONFIG_VERSION_KEY, 0);
+    }
+
     public static ConfigUpdateReport applyTo(ConfigurationSection bundled, ConfigurationSection existing,
                                              ConfigUpdatePolicy policy) {
+        int fromVersion = deployedVersion(existing);
+        int toVersion = bundledVersion(bundled);
         List<ConfigKeyRename> migrated = applyMigrations(existing, policy.migrations());
         List<String> retired = removeKeys(existing, policy.retiredKeys());
         int added = copyMissingKeys(bundled, existing, policy.registrySections());
-        return new ConfigUpdateReport(migrated, retired, added);
+        // Stamp last, so the file only claims the new generation once every other step succeeded.
+        // A downgrade is recorded but NOT stamped: rewriting a newer file's version backwards would
+        // hide the mismatch from the next startup.
+        if (existing != null && toVersion >= fromVersion) {
+            existing.set(CONFIG_VERSION_KEY, toVersion);
+        }
+        return new ConfigUpdateReport(migrated, retired, added, null, fromVersion, toVersion);
     }
 
     public static ConfigUpdateReport updateMainConfig(Plugin plugin, ConfigUpdatePolicy policy)
@@ -57,6 +83,12 @@ public final class ConfigFileUpdater {
             return new ConfigUpdateReport(List.of(), List.of(), 0);
         }
         ConfigUpdateReport report = applyTo(bundled, plugin.getConfig(), policy);
+        if (report.downgraded()) {
+            plugin.getLogger().warning("config.yml declares config-version " + report.fromVersion()
+                    + " but this build ships " + report.toVersion()
+                    + "; it was written by a newer version. Leaving it untouched.");
+            return report;
+        }
         if (!report.changed()) {
             return report;
         }
@@ -69,7 +101,8 @@ public final class ConfigFileUpdater {
         tidy(plugin.getConfig());
         plugin.saveConfig();
         plugin.reloadConfig();
-        return new ConfigUpdateReport(report.migratedKeys(), report.retiredKeys(), report.addedKeys(), backupError);
+        return new ConfigUpdateReport(report.migratedKeys(), report.retiredKeys(), report.addedKeys(),
+                backupError, report.fromVersion(), report.toVersion());
     }
 
     public static List<ConfigKeyRename> applyMigrations(ConfigurationSection config,

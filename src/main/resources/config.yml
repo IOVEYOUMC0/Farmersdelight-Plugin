@@ -1,3 +1,8 @@
+# Config generation. Bumped by the developer whenever a key is renamed, retired or changes
+# meaning; the plugin stamps it onto your file after updating and refuses to touch a file that
+# declares a NEWER generation than the running build. Do not edit by hand.
+config-version: 1
+
 # FarmersDelight configuration
 # Common options come first. Edit gui.yml for GUI layout, buttons and textures.
 # Item IDs support CraftEngine items and vanilla items, e.g. farmersdelight:flint_knife, minecraft:bowl.
@@ -184,6 +189,11 @@ recipes:
 
 # Global performance budget. Per-block tick budgets live in each block's config; this keeps cross-feature maintenance tasks.
 performance:
+  # Total budget in milliseconds for the best-effort persistence steps of a shutdown (recipe discovery,
+  # player buffs, block data, draining the async pool). ONE deadline shared by all of them, not a wait
+  # each: when it runs out the remaining steps are skipped with a warning so the server can finish
+  # stopping. Structural teardown is never skipped. Minimum 200.
+  shutdown-wait-millis: 5000
   # Console performance warnings. Logs only, never blocks blocks from working.
   warnings-enabled: true
   warning-cooldown-seconds: 600
@@ -251,6 +261,28 @@ cutting-board:
     # Volume and pitch when retrieving a board item by hand.
     retrieve-volume: 0.25
     retrieve-pitch: 0.5
+
+    # Cut sound chosen by the tool in hand, for recipes that do not name a sound of their own.
+    # (A recipe's own sound always wins; this only fills the gap.)
+    # Keys are item IDs (minecraft:shears, farmersdelight:flint_knife) or tags ("#minecraft:axes",
+    # "#farmersdelight:tools/knives"); CraftEngine custom items and tags work as keys too.
+    # First match wins, so list a specific item above the tag it belongs to.
+    # Value is a bare sound key, or a map of {sound, volume, pitch} / {sound, pitch-min, pitch-max}.
+    tool-sounds:
+      minecraft:shears:
+        sound: minecraft:entity.sheep.shear
+        volume: 1.0
+        pitch: 1.0
+      "#farmersdelight:tools/knives":
+        sound: farmersdelight:block.cutting_board.knife_cut
+        volume: 0.8
+        pitch-min: 0.9
+        pitch-max: 1.1
+    # Used when neither the recipe nor tool-sounds matched.
+    fallback:
+      sound: minecraft:block.wood.break
+      volume: 1.0
+      pitch: 0.8
 
   # Global default offset for item display entities on the board, format x,y,z.
   # x/z control horizontal position, y controls height above the board surface.
@@ -578,7 +610,34 @@ container-returns:
 
 # Heat source detection. Used by both the pot and the skillet; the skillet's hopper heat conduction can be disabled separately.
 heat-sources:
-  # CraftEngine custom block tags. A block with this tag in its CE block config is treated as a heat source.
+  # Unified rules, evaluated IN ORDER, first match wins. Each entry says both what to match and what
+  # matching means, so a narrower negative entry can carve a state out of a broader entry below it.
+  #   match with exactly one of: vanilla-block / vanilla-block-tag / custom-block / custom-block-tag
+  #   states:       optional; narrows the match to those block-state values (works for vanilla too)
+  #   heat-source:  default true; set false to declare "matches, but is NOT a heat source"
+  #   conductor:    default false; true = passes a heat source below it up to the pot (e.g. hopper)
+  # Anything not matched here falls through to the five legacy lists underneath, which still work.
+  entries:
+    # An unlit campfire is not a heat source; the lit one is. Order matters: the negative comes first.
+    - vanilla-block: minecraft:campfire
+      states: { lit: 'false' }
+      heat-source: false
+    - vanilla-block: minecraft:soul_campfire
+      states: { lit: 'false' }
+      heat-source: false
+    - vanilla-block-tag: minecraft:campfires
+    # The stove heats only while lit. A CE block tag cannot express this: CraftEngine copies block-level
+    # settings onto every state, so farmersdelight:heat_sources would match the unlit stove as well.
+    - custom-block: farmersdelight:stove
+      states: { fire: 'true' }
+    - custom-block-tag: farmersdelight:heat_sources
+    - vanilla-block: minecraft:hopper
+      conductor: true
+
+  # CraftEngine custom block tags. A block with this tag in its CE block config is treated as a heat
+  # source IN EVERY STATE: CraftEngine copies block-level settings onto all of a block's states, so a
+  # tag cannot distinguish lit from unlit. Only tag blocks that are always hot (e.g. the heating cask).
+  # A block that can be switched off belongs in custom-blocks below, with its lit state spelled out.
   tags:
     - farmersdelight:heat_sources
   # Vanilla block IDs.
@@ -593,7 +652,8 @@ heat-sources:
   vanilla-tags:
     - minecraft:campfires
 
-  # CraftEngine custom block IDs, with optional state conditions.
+  # CraftEngine custom block IDs, with optional state conditions. This is where switchable heat sources
+  # go, so an unlit one stops cooking. Addons register their own through the API instead of this list.
   # Format example: namespace:block or namespace:block[key:value,key2:value2]
   custom-blocks:
     - farmersdelight:stove[fire:true]

@@ -278,7 +278,7 @@ public final class AddonLanguage {
     private String selectFarmersDelightLocale() {
         try {
             return normalizeLocale(com.huidu.farmersdelight.i18n.I18n.getDefaultLocale(), false);
-        } catch (Throwable ignored) {
+        } catch (RuntimeException | LinkageError ignored) {
             // FarmersDelight not loaded / locale state not initialised yet; fall through to CE then JVM.
             return null;
         }

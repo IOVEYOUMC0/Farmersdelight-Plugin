@@ -164,7 +164,9 @@ public final class RecipeEditorStore {
         }
     }
 
-    private void writeAtomically(File target, String content) throws IOException {
+    // Package-private and static so RecipeDiscoveryManager flushes the same way: a torn write there loses
+    // every player's unlocks at once.
+    static void writeAtomically(File target, String content) throws IOException {
         Path targetPath = target.toPath();
         Path parent = targetPath.getParent();
         if (parent != null) {

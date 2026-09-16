@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.util.compat;
 
+import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -16,7 +17,6 @@ public final class WorldGuardCompat {
     // Per-station protection features live on the ProtectionCompat facade; this class maps each to its
     // WorldGuard StateFlag (feature.flagName()) and defaults every flag to ALLOW (unset = no change).
     private static volatile Boolean available;
-    private static volatile Object buildFlag;
     private static volatile Object useFlag;
     // Registered StateFlag instances resolved once in registerFlags() during onLoad. null when
     // WorldGuard is absent / registration failed -> the query layer treats a null flag as ALLOW.
@@ -34,8 +34,14 @@ public final class WorldGuardCompat {
     private static volatile Object cachedRegionContainer;
     private static volatile Method createQueryMethod;
     private static volatile Method adaptLocationMethod;
-    private static volatile Method adaptPlayerMethod;
+    private static volatile Method wrapPlayerMethod;
     private static volatile Method testStateMethod;
+    private static volatile Method testBuildMethod;
+    private static volatile Object interactFlag;
+    // A failed WorldGuard query falls back to "allowed"; without this flag that fallback is
+    // indistinguishable from "no region here", so a broken reflection path would silently disable
+    // every protection check for the whole server run.
+    private static volatile boolean queryFailureReported;
 
     private WorldGuardCompat() {
     }
@@ -149,24 +155,33 @@ public final class WorldGuardCompat {
     }
 
     public static boolean canBuild(Player player, Location location, String flagName) {
-        return testFlagState(player, location, buildFlagOrNull()) && customAllows(player, location, flagName);
+        return testBuild(player, location) && customAllows(player, location, flagName);
     }
 
     public static boolean canUse(Player player, Location location, String flagName) {
-        return testFlagState(player, location, useFlagOrNull()) && customAllows(player, location, flagName);
+        // WorldGuard never queries USE on its own: Flags.USE has no default state, so testState(USE)
+        // is false everywhere nobody wrote "-f use allow". Its own RegionProtectionListener folds USE
+        // and INTERACT into testBuild, which is what supplies the membership-derived ALLOW.
+        return testBuild(player, location, stateFlag("USE"), stateFlag("INTERACT"))
+                && customAllows(player, location, flagName);
     }
 
-    private static Object buildFlagOrNull() {
+    private static Object stateFlag(String name) {
         try {
-            return buildFlag();
-        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
-            return null;
-        }
-    }
-
-    private static Object useFlagOrNull() {
-        try {
-            return useFlag();
+            if ("USE".equals(name)) {
+                Object flag = useFlag;
+                if (flag == null) {
+                    flag = flag(name);
+                    useFlag = flag;
+                }
+                return flag;
+            }
+            Object flag = interactFlag;
+            if (flag == null) {
+                flag = flag(name);
+                interactFlag = flag;
+            }
+            return flag;
         } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
             return null;
         }
@@ -184,8 +199,23 @@ public final class WorldGuardCompat {
         return flag == null || testFlagState(player, location, flag);
     }
 
+    // Queries a custom StateFlag registered by FD or an addon. Those are created with a default of
+    // ALLOW, so testState is the right query for them (unlike Flags.USE, which has no default).
     private static boolean testFlagState(Player player, Location location, Object flag) {
-        if (player == null || location == null || location.getWorld() == null || flag == null || !isAvailable()) {
+        if (flag == null) {
+            return true;
+        }
+        return runQuery(player, location, "testState", flag);
+    }
+
+    // Queries WorldGuard's build permission, optionally folding in extra state flags the way
+    // RegionProtectionListener does. Region membership is what supplies the ALLOW here.
+    private static boolean testBuild(Player player, Location location, Object... extraFlags) {
+        return runQuery(player, location, "testBuild", extraFlags);
+    }
+
+    private static boolean runQuery(Player player, Location location, String methodName, Object... flags) {
+        if (player == null || location == null || location.getWorld() == null || !isAvailable()) {
             return true;
         }
 
@@ -201,28 +231,59 @@ public final class WorldGuardCompat {
             }
             Object query = createQuery.invoke(container);
             Object adaptedLocation = adaptLocation(location);
-            Object localPlayer = adaptPlayer(player);
+            Object localPlayer = wrapPlayer(player);
             if (query == null || adaptedLocation == null || localPlayer == null) {
                 return true;
             }
 
-            Method testState = testStateMethod;
-            if (testState == null) {
-                testState = findMethod(query.getClass(), "testState", 3);
-                if (testState == null) {
+            boolean build = "testBuild".equals(methodName);
+            Method method = build ? testBuildMethod : testStateMethod;
+            if (method == null) {
+                method = findMethod(query.getClass(), methodName, 3);
+                if (method == null) {
+                    reportQueryFailure(methodName + " not found on " + query.getClass().getName());
                     return true;
                 }
-                testStateMethod = testState;
+                if (build) {
+                    testBuildMethod = method;
+                } else {
+                    testStateMethod = method;
+                }
             }
-            Class<?> flagArrayType = testState.getParameterTypes()[2];
-            Class<?> flagType = flagArrayType.getComponentType();
-            Object flags = Array.newInstance(flagType, 1);
-            Array.set(flags, 0, flag);
-            Object result = testState.invoke(query, adaptedLocation, localPlayer, flags);
+            Class<?> flagType = method.getParameterTypes()[2].getComponentType();
+            Object flagArray = Array.newInstance(flagType, countNonNull(flags));
+            int index = 0;
+            for (Object flag : flags) {
+                if (flag != null) {
+                    Array.set(flagArray, index++, flag);
+                }
+            }
+            Object result = method.invoke(query, adaptedLocation, localPlayer, flagArray);
             return !(result instanceof Boolean allowed) || allowed;
-        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
+            reportQueryFailure(methodName + ": " + e);
             return true;
         }
+    }
+
+    private static int countNonNull(Object[] values) {
+        int count = 0;
+        for (Object value : values) {
+            if (value != null) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    // Reported once per server run: warning on every interaction would be worse than the silence it
+    // replaces, but a permanently fail-open protection layer must not stay invisible.
+    private static void reportQueryFailure(String detail) {
+        if (queryFailureReported) {
+            return;
+        }
+        queryFailureReported = true;
+        I18n.logWarning("worldguard_query_failed", "error", detail);
     }
 
     private static boolean isAvailable() {
@@ -258,31 +319,18 @@ public final class WorldGuardCompat {
         return method.invoke(null, location);
     }
 
-    private static Object adaptPlayer(Player player) throws ReflectiveOperationException {
-        Method method = adaptPlayerMethod;
+    // WorldEdit's BukkitAdapter.adapt(Player) returns a WorldEdit BukkitPlayer, which is neither
+    // LocalPlayer nor RegionAssociable, so RegionQuery rejects it during argument validation. The
+    // WorldGuard-side wrapper returns com.sk89q.worldguard.LocalPlayer, which both overloads accept.
+    private static Object wrapPlayer(Player player) throws ReflectiveOperationException {
+        Class<?> pluginClass = Class.forName("com.sk89q.worldguard.bukkit.WorldGuardPlugin");
+        Method method = wrapPlayerMethod;
         if (method == null) {
-            method = Class.forName("com.sk89q.worldedit.bukkit.BukkitAdapter").getMethod("adapt", Player.class);
-            adaptPlayerMethod = method;
+            method = pluginClass.getMethod("wrapPlayer", Player.class);
+            wrapPlayerMethod = method;
         }
-        return method.invoke(null, player);
-    }
-
-    private static Object buildFlag() throws ReflectiveOperationException {
-        Object flag = buildFlag;
-        if (flag == null) {
-            flag = flag("BUILD");
-            buildFlag = flag;
-        }
-        return flag;
-    }
-
-    private static Object useFlag() throws ReflectiveOperationException {
-        Object flag = useFlag;
-        if (flag == null) {
-            flag = flag("USE");
-            useFlag = flag;
-        }
-        return flag;
+        Object instance = pluginClass.getMethod("inst").invoke(null);
+        return instance == null ? null : method.invoke(instance, player);
     }
 
     private static Object flag(String name) throws ReflectiveOperationException {

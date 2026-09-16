@@ -13,13 +13,14 @@ FarmersDelight runs on **Paper** and on **Folia**. Folia is fully supported — 
 
 | Requirement | Value |
 | --- | --- |
-| Server | Paper or Folia |
-| Minecraft | **1.21.1** (the 1.21.x line) |
-| `api-version` | `1.21` |
+| Server | Paper or Folia (or a Paper fork: Purpur, Pufferfish, Leaf) |
+| Minecraft | **1.21.4 or newer** (the 1.21.x line) |
+| `api-version` | `1.21.4` |
 | Java | **21 or newer** |
 
-The plugin is built and tested against **Paper 1.21.1**. Its declared `api-version` is `1.21`, so the 1.21 /
-1.21.1 line is the floor. Newer 1.21.x builds are fine; running below 1.21 is not supported.
+The plugin is built and tested against **Paper 1.21.4**. Its declared `api-version` is `1.21.4`, so 1.21.4 is
+the floor. Newer builds are fine; running below 1.21.4 is not supported — the plugin uses the item_model and
+data-component APIs that Paper only added in 1.21.4.
 
 Java 21 is a hard requirement — the jar is compiled to the Java 21 bytecode level and will not load on an
 older JRE. Use the same Java 21+ runtime CraftEngine and modern Paper already need.
@@ -66,3 +67,9 @@ actively refuses hot management of itself to protect your world data.
 ## Next
 
 [Installation →](install.md)
+
+Spigot and CraftBukkit are **not** supported and never were: CraftEngine, which this plugin
+hard-depends on, is itself a Paper-only plugin, and FarmersDelight uses Paper-exclusive APIs
+(the data-component API, Adventure, the per-entity scheduler, Paper events). Since this
+release the manifest is `paper-plugin.yml`, which makes that requirement explicit at load time
+instead of failing later with a missing class.

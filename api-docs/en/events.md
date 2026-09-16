@@ -366,7 +366,7 @@ public final class HarvestStats implements Listener {
 ### Status: no fire site
 
 **A repo-wide search finds no code that constructs or dispatches this event.** The class is public API and
-compiles, the addon template ships a commented example listener for it, but no FarmersDelight command path
+compiles, the addon template ships a live example listener for it, but no FarmersDelight command path
 currently fires it — the `/fd rug-migrate` action its javadoc names is not present in the command handler. A
 listener you register today will never be invoked.
 

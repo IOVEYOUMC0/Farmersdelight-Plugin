@@ -98,8 +98,5 @@ public final class RecipeEditorListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
         CHAT_PROMPTS.remove(event.getPlayer().getUniqueId());
-        if (event.getPlayer().getOpenInventory().getTopInventory().getHolder() instanceof EditorGui) {
-            event.getPlayer().setItemOnCursor(null);
-        }
     }
 }

@@ -5,6 +5,10 @@ import com.huidu.farmersdelight.util.CommonTagResolver;
 import com.huidu.farmersdelight.util.DatapackSupport;
 import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.server.ServerLoadEvent;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -28,7 +32,7 @@ import java.util.stream.Stream;
 // whitelist would be meaningless here and is deliberately absent. Only "minecraft:" members are
 // written: addon (CraftEngine) items stay declared in the CE item configs, the very source CraftEngine
 // already serves customItemIdsByTag from.
-public final class TagDatapackInstaller {
+public final class TagDatapackInstaller implements Listener {
 
     private static final String DATAPACK_DIRECTORY = "farmersdelight_tags";
     private static final String PACK_DESCRIPTION = "FarmersDelight common-item tags (vanilla members)";
@@ -40,6 +44,17 @@ public final class TagDatapackInstaller {
     public TagDatapackInstaller(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
         this.installEnabled = plugin.getConfig().getBoolean("datapacks.tags-enabled", true);
+    }
+
+    // Addons register their tag sources on their own enable, which happens after FD's. Exporting only
+    // during FD's enable would therefore drop every addon-contributed vanilla member. Re-export once the
+    // whole server has loaded; CraftEngine absorbs the written members on the next start.
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onServerLoad(ServerLoadEvent event) {
+        if (installToPrimaryWorld(plugin.getPrimaryWorld())) {
+            plugin.queueDatapackReload(
+                    com.huidu.farmersdelight.i18n.I18n.formatConsole("plugin.datapack_reason_apply_tag_changes"));
+        }
     }
 
     // Writes the tag data pack into the primary world's datapacks folder. Idempotent: rewrites any

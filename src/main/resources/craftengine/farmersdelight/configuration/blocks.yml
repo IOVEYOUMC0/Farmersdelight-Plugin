@@ -588,7 +588,6 @@ block:
       - minecraft:netherite_pickaxe
       tags:
       - minecraft:mineable/pickaxe
-      - farmersdelight:heat_sources
       sounds:
         break: minecraft:block.stone.break
         fall: minecraft:block.stone.fall

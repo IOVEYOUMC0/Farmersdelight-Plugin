@@ -14,11 +14,8 @@ public final class DatapackCoordinator {
 
     private final FarmersDelightPlugin plugin;
     private PluginTask pendingReloadTask;
-    private PluginTask pendingSyncRetryTask;
-    private volatile boolean syncQueued;
     private volatile boolean removalQueued;
     private String pendingReloadReason;
-    private String pendingSyncRetryReason;
     private boolean active = true;
 
     public DatapackCoordinator(FarmersDelightPlugin plugin) {
@@ -51,40 +48,6 @@ public final class DatapackCoordinator {
         reloadServerDataPacks(reloadReason);
     }
 
-    public synchronized void queueSync(String reason) {
-        if (!active) {
-            return;
-        }
-        if (!plugin.isAdvancementsEnabled()) {
-            return;
-        }
-        if (removalQueued) {
-            scheduleSyncRetry(reason);
-            return;
-        }
-        if (syncQueued) {
-            return;
-        }
-        org.bukkit.World primaryWorld = plugin.getPrimaryWorld();
-        if (primaryWorld == null) {
-            return;
-        }
-        syncQueued = true;
-        String worldName = primaryWorld.getName();
-        Path datapackRoot = primaryWorld.getWorldFolder().toPath().resolve("datapacks").resolve("advancements");
-        plugin.scheduler().runAsync(() -> {
-            boolean updated = false;
-            try {
-                updated = new AdvancementDatapackInstaller(plugin).sync(datapackRoot, worldName);
-            } finally {
-                syncQueued = false;
-            }
-            if (updated) {
-                queueReload(reason);
-            }
-        });
-    }
-
     public synchronized void queueRemoval(String reason) {
         if (!active) {
             return;
@@ -101,7 +64,7 @@ public final class DatapackCoordinator {
         plugin.scheduler().runAsync(() -> {
             boolean removed = false;
             try {
-                removed = new AdvancementDatapackInstaller(plugin).remove(datapackRoot);
+                removed = new AdvancementDatapackInstaller().remove(datapackRoot);
             } finally {
                 removalQueued = false;
             }
@@ -117,30 +80,8 @@ public final class DatapackCoordinator {
             pendingReloadTask.cancel();
             pendingReloadTask = null;
         }
-        if (pendingSyncRetryTask != null) {
-            pendingSyncRetryTask.cancel();
-            pendingSyncRetryTask = null;
-        }
         pendingReloadReason = null;
-        pendingSyncRetryReason = null;
-        syncQueued = false;
         removalQueued = false;
-    }
-
-    private synchronized void scheduleSyncRetry(String reason) {
-        pendingSyncRetryReason = reason;
-        if (pendingSyncRetryTask != null && !pendingSyncRetryTask.isCancelled()) {
-            return;
-        }
-
-        pendingSyncRetryTask = plugin.scheduler().runLater(() -> {
-            pendingSyncRetryTask = null;
-            String retryReason = pendingSyncRetryReason;
-            pendingSyncRetryReason = null;
-            if (retryReason != null) {
-                queueSync(retryReason);
-            }
-        }, 20L);
     }
 
     private void reloadServerDataPacks(String reason) {
@@ -154,7 +95,7 @@ public final class DatapackCoordinator {
             ItemUtils.clearItemCache();
         } catch (UnsupportedOperationException e) {
             I18n.logWarning("plugin.datapack_reload_skipped_unsupported", "reason", reason);
-        } catch (Throwable throwable) {
+        } catch (RuntimeException | LinkageError throwable) {
             plugin.getLogger().log(Level.WARNING, I18n.formatConsole("plugin.datapack_reload_failed",
                     "reason", reason), throwable);
         }

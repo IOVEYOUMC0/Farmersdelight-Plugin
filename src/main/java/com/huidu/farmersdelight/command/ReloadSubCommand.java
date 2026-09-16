@@ -4,7 +4,6 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.event.ReloadTarget;
 import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -56,11 +55,6 @@ final class ReloadSubCommand extends SubCommand {
         }
 
         sender.sendMessage(I18n.getComponent("general.config_reloaded"));
-        if (sender instanceof Player player) {
-            sender.sendMessage(I18n.getComponent("general.hot_reload_warning", player));
-        } else {
-            sender.sendMessage(I18n.getComponent("general.hot_reload_warning"));
-        }
     }
 
     @Override
