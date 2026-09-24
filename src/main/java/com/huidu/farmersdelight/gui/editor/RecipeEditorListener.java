@@ -1,9 +1,10 @@
 package com.huidu.farmersdelight.gui.editor;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.gui.GuiListenerRegistrar;
+import com.huidu.farmersdelight.i18n.I18n;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -20,7 +21,6 @@ import java.util.function.Consumer;
 
 public final class RecipeEditorListener implements Listener {
 
-    private static volatile boolean registered = false;
     private static volatile FarmersDelightPlugin registeredPlugin;
     // One-shot chat prompts (e.g. typing a tag id): uuid -> consumer running on the main thread.
     private static final Map<UUID, Consumer<String>> CHAT_PROMPTS = new ConcurrentHashMap<>();
@@ -29,21 +29,14 @@ public final class RecipeEditorListener implements Listener {
     }
 
     public static void ensureRegistered(FarmersDelightPlugin plugin) {
-        if (registered) {
-            return;
-        }
-        synchronized (RecipeEditorListener.class) {
-            if (registered) {
-                return;
-            }
-            Bukkit.getPluginManager().registerEvents(new RecipeEditorListener(), plugin);
-            registered = true;
+        GuiListenerRegistrar.ensureRegistered(RecipeEditorListener.class, RecipeEditorListener::new, plugin);
+        if (plugin != null) {
             registeredPlugin = plugin;
         }
     }
 
     public static void reset() {
-        registered = false;
+        GuiListenerRegistrar.reset(RecipeEditorListener.class);
         registeredPlugin = null;
         CHAT_PROMPTS.clear();
     }
@@ -51,7 +44,7 @@ public final class RecipeEditorListener implements Listener {
     /** Queue a one-shot chat input for the player; the next chat message cancels itself and runs on main. */
     public static void promptChat(Player player, Consumer<String> onInput) {
         CHAT_PROMPTS.put(player.getUniqueId(), onInput);
-        player.sendMessage(com.huidu.farmersdelight.i18n.I18n.get("gui.editor.tag.manual_prompt", player));
+        player.sendMessage(I18n.get("gui.editor.tag.manual_prompt", player));
     }
 
     public static void cancelPrompt(UUID playerId) {

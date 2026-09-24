@@ -16,6 +16,7 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class FoodEatListener implements Listener {
@@ -158,6 +159,6 @@ public class FoodEatListener implements Listener {
         if (type.isAir()) {
             return null;
         }
-        return "minecraft:" + type.name().toLowerCase(java.util.Locale.ROOT);
+        return "minecraft:" + type.name().toLowerCase(Locale.ROOT);
     }
 }

@@ -70,8 +70,9 @@ cooking-pot-gui:
 
 # Custom cooking pot GUIs. Key names match behavior.custom.id in the CE block behavior.
 # When an id has no entry, the cooking-pot-gui above is used automatically.
-cooking-pot-guis: {}
-
+cooking-pot-guis:
+  # No entries.
+  {}
 # Example: GUI for the `large_pot` test variant (paired with
 # craftengine/farmersdelight/configuration/cooking_pot_test.yml — uncomment all 4 sections together).
 # cooking-pot-guis:
@@ -307,8 +308,9 @@ recipe-view-gui:
   # Custom cooking pot recipe detail GUIs. Key must match behavior.custom.id.
   # If a custom pot has no matching entry here, the plugin falls back to
   # recipe-detail-cooking-pot and logs a console warning once per custom id.
-  recipe-detail-cooking-pot-guis: {}
-
+  recipe-detail-cooking-pot-guis:
+    # No entries.
+    {}
   # Example: recipe-detail GUI for the `large_pot` test variant (paired with
   # craftengine/farmersdelight/configuration/cooking_pot_test.yml — uncomment all 4 sections together).
   # recipe-detail-cooking-pot-guis:
@@ -421,9 +423,8 @@ recipe-view-gui:
         material: BARRIER
         name: "<gray><lang:gui.recipe.back>"
 
-  # Special recipe detail (conditions present). Rows match the decomposition title image height (4 rows = 72 px),
-  # slots sit on the decomposition background like the mod's JEI category: description centered on top,
-  # input left / output right, sunlight/water/catalyst conditions in the middle, catalyst items lower-right.
+  # Special recipe details use a four-row (72 px) background: description above,
+  # input left, output right, conditions in the middle and catalyst items lower-right.
   special-recipe-detail:
     title: "<white><offset><icon><sunlight><water><catalyst_info><shift:-162><black><lang:gui.recipe.special_recipes>"
     rows: 4
@@ -703,8 +704,9 @@ recipe-editor-gui:
 # Custom cooking pot (large pot) editor GUI overrides. Key names must equal behavior.custom.id.
 # When missing, falls back to recipe-editor-gui and warns once in the console.
 # Custom pots can extend the ingredient slots to more entries here, to hold more ingredients.
-recipe-editor-cooking-pot-guis: {}
-
+recipe-editor-cooking-pot-guis:
+  # No entries.
+  {}
 # Delete recipe confirmation page. Opened when clicking the editor's delete button.
 # info: {recipe_id}
 recipe-editor-confirm-delete-gui:

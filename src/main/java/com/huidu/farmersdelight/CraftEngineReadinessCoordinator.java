@@ -1,12 +1,15 @@
 package com.huidu.farmersdelight;
 
 import com.huidu.farmersdelight.api.FarmersDelightApi;
+import com.huidu.farmersdelight.api.event.FarmersDelightWarmupEvent;
 import com.huidu.farmersdelight.block.behavior.TomatoVineBlockBehavior;
+import com.huidu.farmersdelight.compat.CraftEngineStateUsageMonitor;
 import com.huidu.farmersdelight.gui.CookingPotGui;
 import com.huidu.farmersdelight.gui.RecipeIngredientIcons;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.listener.RopeBlockListener;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
+import com.huidu.farmersdelight.tool.ToolRegistry;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import org.bukkit.Bukkit;
@@ -47,8 +50,7 @@ final class CraftEngineReadinessCoordinator {
     }
 
     void refreshAdvancementsWhenReady(boolean reloading) {
-        if (!plugin.isAdvancementsEnabled()
-                || !plugin.getServer().getPluginManager().isPluginEnabled("UltimateAdvancementAPI")) {
+        if (!plugin.advancementSystemUsable()) {
             plugin.disableAdvancementSystem();
             return;
         }
@@ -78,7 +80,7 @@ final class CraftEngineReadinessCoordinator {
             startupSummary.report();
             // Addons register their namespaces during enable, after FD's first summary. Recount here so
             // the addon bucket reflects the complete loaded set without a polling task.
-            com.huidu.farmersdelight.compat.CraftEngineStateUsageMonitor.logRealStateUsage(
+            CraftEngineStateUsageMonitor.logRealStateUsage(
                     plugin, I18n.formatConsole("plugin.startup_reason"));
         }
     }
@@ -134,7 +136,7 @@ final class CraftEngineReadinessCoordinator {
             // again lazily, one item at a time, during play instead of once here.
             warmUpWhenReady("reload");
             indexLoadedChunkContentWhenReady();
-            com.huidu.farmersdelight.tool.ToolRegistry.refresh();
+            ToolRegistry.refresh();
         } catch (Exception e) {
             Bukkit.getLogger().log(Level.SEVERE,
                     "Error during CraftEngine reload processing in " + plugin.getClass().getSimpleName(), e);
@@ -171,7 +173,7 @@ final class CraftEngineReadinessCoordinator {
         }
         contentWarmupCompleted.set(true);
         Bukkit.getPluginManager().callEvent(
-                new com.huidu.farmersdelight.api.event.FarmersDelightWarmupEvent(reason));
+                new FarmersDelightWarmupEvent(reason));
     }
 
     private void warmRecipeIngredientIcons() {

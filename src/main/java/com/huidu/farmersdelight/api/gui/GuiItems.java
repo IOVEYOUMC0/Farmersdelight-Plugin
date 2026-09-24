@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.api.gui;
 
+import com.huidu.farmersdelight.gui.GuiConfig;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 
@@ -25,7 +26,7 @@ public final class GuiItems {
     public static ItemStack build(ConfigurationSection section) {
         return section == null
                 ? null
-                : com.huidu.farmersdelight.gui.GuiConfig.GuiItem.fromConfig(section).createItem();
+                : GuiConfig.GuiItem.fromConfig(section).createItem();
     }
 
     /**
@@ -35,6 +36,6 @@ public final class GuiItems {
     public static ItemStack build(ConfigurationSection section, Map<String, String> placeholders) {
         return section == null
                 ? null
-                : com.huidu.farmersdelight.gui.GuiConfig.GuiItem.fromConfig(section).createItem(placeholders);
+                : GuiConfig.GuiItem.fromConfig(section).createItem(placeholders);
     }
 }

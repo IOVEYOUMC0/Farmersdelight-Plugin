@@ -44,7 +44,7 @@ public final class SpecialRecipeLoader {
         ConfigurationSection root = config.getConfigurationSection(ROOT_KEY);
         if (root == null) {
             if (!backfillOnly) {
-                I18n.logWarning("plugin.special_recipe_missing_root", "file", FILE_NAME);
+                I18n.logWarning("recipe.special_recipe_missing_root", "file", FILE_NAME);
             }
             return;
         }
@@ -62,16 +62,16 @@ public final class SpecialRecipeLoader {
                 registry.register(info);
                 count++;
             } catch (Exception e) {
-                I18n.logWarning("plugin.special_recipe_parse_failed",
+                I18n.logWarning("recipe.special_recipe_parse_failed",
                         "id", recipeId, "error", e.getMessage());
             }
         }
         if (backfillOnly) {
             if (count > 0) {
-                I18n.logDetail("recipe", "special_recipe_backfilled", "count", count);
+                I18n.logDetail("recipe", "recipe.special_recipe_backfilled", "count", count);
             }
         } else {
-            I18n.logDetail("recipe", "special_recipe_loaded", "count", count);
+            I18n.logDetail("recipe", "recipe.special_recipe_loaded", "count", count);
         }
     }
 
@@ -89,14 +89,14 @@ public final class SpecialRecipeLoader {
                     }
                     Files.copy(legacy.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 } catch (IOException e) {
-                    I18n.logWarning("plugin.special_recipe_save_failed",
+                    I18n.logWarning("recipe.special_recipe_save_failed",
                             "file", FILE_NAME, "error", e.getMessage());
                 }
             } else {
                 try {
                     plugin.saveResource(FILE_NAME, false);
                 } catch (IllegalArgumentException e) {
-                    I18n.logWarning("plugin.special_recipe_save_failed",
+                    I18n.logWarning("recipe.special_recipe_save_failed",
                             "file", FILE_NAME, "error", e.getMessage());
                     return null;
                 }
@@ -109,7 +109,7 @@ public final class SpecialRecipeLoader {
             yaml.load(reader);
             return yaml;
         } catch (Exception e) {
-            I18n.logWarning("plugin.special_recipe_load_failed",
+            I18n.logWarning("recipe.special_recipe_load_failed",
                     "file", FILE_NAME, "error", e.getMessage());
             return null;
         }
@@ -122,7 +122,7 @@ public final class SpecialRecipeLoader {
             yaml.load(reader);
             return yaml;
         } catch (Exception e) {
-            I18n.logWarning("plugin.special_recipe_load_failed",
+            I18n.logWarning("recipe.special_recipe_load_failed",
                     "file", FILE_NAME, "error", e.getMessage());
             return null;
         }

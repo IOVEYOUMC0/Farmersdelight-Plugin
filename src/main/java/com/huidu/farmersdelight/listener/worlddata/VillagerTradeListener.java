@@ -65,8 +65,8 @@ public final class VillagerTradeListener implements Listener {
         // pass and the weighted-pick pass, instead of re-scanning all recipes for every candidate.
         Set<String> offeredKeys = offeredTradeKeys(merchant);
 
-        // One roll against the summed chance, then a weighted pick, so the substitution probability matches
-        // the share the mod's listings hold in that pool rather than compounding per candidate.
+        // Roll against the total chance once, then choose a weighted result.
+        // Independent rolls per candidate would compound the substitution probability.
         double total = 0.0D;
         for (TradeOffer offer : candidates) {
             if (!offeredKeys.contains(tradeKey(offer))) {

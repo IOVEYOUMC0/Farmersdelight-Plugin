@@ -28,6 +28,8 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -61,7 +63,7 @@ public final class RecipeBookGui implements InventoryHolder {
     // backs out to the recipe it was opened from, and back chains through multi-hop jumps. Empty history keeps
     // the original terminal behavior (list back to menu/station, menu back closes). Touched only inside
     // handleClick, which runs single-threaded per viewer, so the plain ArrayDeque needs no synchronization.
-    private final java.util.Deque<ViewState> history = new java.util.ArrayDeque<>();
+    private final Deque<ViewState> history = new ArrayDeque<>();
 
     private record ViewState(View view, RecipeType type, String recipeId, int page) {
     }
@@ -546,7 +548,7 @@ public final class RecipeBookGui implements InventoryHolder {
         int fillSlot = cfg.firstSlotByType("fill");
         ItemStack fillItem = cfg.button("fill");
         if (fillSlot >= 0 && fillItem != null) {
-            org.bukkit.inventory.meta.ItemMeta meta = fillItem.getItemMeta();
+            ItemMeta meta = fillItem.getItemMeta();
             if (meta != null) {
                 List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
                 lore.add(Text.deserialize(I18n.get(statusKey, player))

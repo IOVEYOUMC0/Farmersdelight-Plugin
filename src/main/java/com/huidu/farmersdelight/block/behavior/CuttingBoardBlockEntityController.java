@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
@@ -172,7 +173,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
             storedItem = ItemStackUtils.parseBukkitItem(itemTag, Config.itemDataFixerUpperFallbackVersion());
         } catch (RuntimeException e) {
             // Corrupt/version-skewed stored item: drop it (return true so it isn't retried forever) and warn.
-            com.huidu.farmersdelight.FarmersDelightPlugin.getInstance().getLogger()
+            FarmersDelightPlugin.getInstance().getLogger()
                     .warning("Skipping unreadable cutting board item at " + posKey + ": " + e.getMessage());
             return true;
         }
@@ -395,7 +396,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
         }
         // Once the board holds an item, allow more only when stacking is enabled,
         // the items match, and the amount is below the stack limit.
-        com.huidu.farmersdelight.FarmersDelightPlugin plugin = com.huidu.farmersdelight.FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         ItemStack stored = entity.getStoredItem();
         ItemStack incoming = asBukkitStack(item);
         return plugin != null

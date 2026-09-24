@@ -12,6 +12,7 @@ import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.entity.player.Player;
 import net.momirealms.craftengine.core.plugin.config.KnownResourceException;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.util.Direction;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.BlockPos;
@@ -23,6 +24,7 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 
 import java.util.Map;
+import java.util.Locale;
 import java.util.Optional;
 
 public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
@@ -52,7 +54,7 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
 
     public static final BlockBehaviorFactory<TatamiPairingBehavior> FACTORY = new BlockBehaviorFactory<TatamiPairingBehavior>() {
         @Override
-        public TatamiPairingBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
+        public TatamiPairingBehavior create(BlockDefinition block, ConfigSection section) {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
             tatamiBlockId = BehaviorArgParser.getString(arguments, "block-id", tatamiBlockId);
             facingPropertyName = BehaviorArgParser.getString(arguments, "facing-property", facingPropertyName);
@@ -83,7 +85,7 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
     @Override
     public ImmutableBlockState updateStateForPlacement(BlockPlaceContext context, ImmutableBlockState state) {
         Direction facing = context.getClickedFace().opposite();
-        return withPropertyValue(state, facingProperty, facing.name().toLowerCase(java.util.Locale.ROOT));
+        return withPropertyValue(state, facingProperty, facing.name().toLowerCase(Locale.ROOT));
     }
 
     @Override
@@ -230,7 +232,7 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
 
     private ImmutableBlockState withFacingAndPair(ImmutableBlockState state, BlockFace facing) {
         ImmutableBlockState result =
-                withPropertyValue(state, facingProperty, facing.name().toLowerCase(java.util.Locale.ROOT));
+                withPropertyValue(state, facingProperty, facing.name().toLowerCase(Locale.ROOT));
         return result.with(pairedProperty, true);
     }
 
@@ -287,7 +289,7 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
             return BlockFace.NORTH;
         }
 
-        String facingStr = facingValue.toString().toUpperCase(java.util.Locale.ROOT);
+        String facingStr = facingValue.toString().toUpperCase(Locale.ROOT);
         try {
             return BlockFace.valueOf(facingStr);
         } catch (IllegalArgumentException e) {

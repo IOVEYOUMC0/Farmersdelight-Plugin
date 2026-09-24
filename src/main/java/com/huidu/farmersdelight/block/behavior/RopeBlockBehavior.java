@@ -11,8 +11,10 @@ import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
+import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.context.BlockPlaceContext;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
@@ -25,12 +27,16 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockSupport;
+import org.bukkit.block.Bell;
+import org.bukkit.block.data.Directional;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.Map;
 
 public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
 
@@ -58,15 +64,9 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
             Material.PUMPKIN
     );
 
-    // Every bars and glass pane block. In the mod the rope block extends IronBarsBlock, so a rope always
-    // ties to any block that is an IronBarsBlock; there is no vanilla block tag and no single Bukkit
-    // interface covering them, hence the material set.
-    //
-    // The set mirrors vanilla's IronBarsBlock and its subclasses: IronBarsBlock itself backs iron_bars and
-    // glass_pane, StainedGlassPaneBlock backs the sixteen dyed panes, and WeatheringCopperBarsBlock backs
-    // the eight copper bars. Every one of those blocks is named GLASS_PANE or _BARS and nothing else in the
-    // registry carries either suffix, so the name test is exact. A future version that adds another
-    // IronBarsBlock subclass under a different name needs this revisited.
+    // Ropes connect to bars and glass panes. Bukkit has no common tag or interface for them,
+    // so recognize GLASS_PANE, dyed panes and _BARS materials by name.
+    // Additional bar or pane types with different names require extending this predicate.
     private static final Set<Material> PANE_BLOCKS = createPaneBlocks();
 
     private static Set<Material> createPaneBlocks() {
@@ -148,8 +148,8 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
     // rope, and climbing, reeling down and ringing a bell all work without them. They are resolved with the
     // value class checked, so a property declared under one of these names but not as a boolean is skipped
     // like an absent one instead of throwing out of the placement path on the first rope put down.
-    public static final BlockBehaviorFactory<RopeBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
-        java.util.Map<String, Object> arguments = section != null ? section.values() : java.util.Map.of();
+    public static final BlockBehaviorFactory<RopeBlockBehavior> FACTORY = (BlockDefinition block, ConfigSection section) -> {
+        Map<String, Object> arguments = section != null ? section.values() : Map.of();
         Object connectorRaw = BehaviorArgParser.getRaw(arguments, "connector-blocks");
         Object exceptionRaw = BehaviorArgParser.getRaw(arguments, "connection-exceptions");
         return new RopeBlockBehavior(
@@ -243,9 +243,8 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
         BlockPos pos = context.getClickedPos();
         World world = (World) context.getLevel().platformWorld();
 
-        // The rope always reels straight down from the clicked rope. The mod switches the direction to the
-        // clicked face while the player sneaks, but CraftEngine skips block behaviors entirely for a sneaking
-        // player who is holding an item, so a sneak branch here could never run.
+        // Reel straight down from the clicked rope. CraftEngine skips block behaviors for
+        // sneaking players holding items, so that input is handled by item placement instead.
         int cx = pos.x();
         int cy = pos.y() - 1;
         int cz = pos.z();
@@ -257,10 +256,8 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
                 continue;
             }
 
-            // Every dead end below aborts the interaction with FAIL rather than PASS. PASS would hand the click
-            // back to CraftEngine's normal item placement, which drops a rope against the clicked face — the
-            // fallback the mod deliberately avoids by failing the placement outright.
-            // Lava (and any other non-water fluid) blocks the reel, and so does anything the rope cannot replace.
+            // Return FAIL at dead ends to prevent normal item placement against the clicked face.
+            // Non-water fluids and blocks the rope cannot replace stop the downward reel.
             if (target.getType() == Material.LAVA || !target.isReplaceable()) {
                 return InteractionResult.FAIL;
             }
@@ -271,9 +268,9 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
             BlockPos bp = new BlockPos(cx, cy, cz);
             ImmutableBlockState placementState = computeConnectionState(ropeBlock.defaultState(), world, bp);
 
-            // R-SEC-001: this path DENYs the vanilla interaction and places the block itself via
-            // CraftEngineBlocks.place, so vanilla's own WorldGuard build check never fires — gate here.
-            if (!ProtectionCompat.canBuild(bukkitPlayer, target, ProtectionCompat.Feature.ROPE)) {
+            // This path cancels native interaction and places directly through CraftEngineBlocks.place.
+            // Check protection here because the native placement permission check will not run.
+            if (!ProtectionCompat.canPlace(bukkitPlayer, target, ProtectionCompat.Feature.ROPE)) {
                 return InteractionResult.FAIL;
             }
 
@@ -295,8 +292,8 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
             if (bukkitPlayer.getGameMode() != GameMode.CREATIVE) {
                 hand.setAmount(hand.getAmount() - 1);
                 if (hand.getAmount() <= 0) {
-                    bukkitPlayer.getInventory().setItem(context.getHand() == net.momirealms.craftengine.core.entity.player.InteractionHand.OFF_HAND
-                            ? org.bukkit.inventory.EquipmentSlot.OFF_HAND : org.bukkit.inventory.EquipmentSlot.HAND, null);
+                    bukkitPlayer.getInventory().setItem(context.getHand() == InteractionHand.OFF_HAND
+                            ? EquipmentSlot.OFF_HAND : EquipmentSlot.HAND, null);
                 }
             }
 
@@ -350,10 +347,10 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
 
     private void ringBell(Block bell, Player player) {
         Runnable ring = () -> {
-            if (bell.getType() != Material.BELL || !(bell.getState() instanceof org.bukkit.block.Bell bellState)) {
+            if (bell.getType() != Material.BELL || !(bell.getState() instanceof Bell bellState)) {
                 return;
             }
-            BlockFace direction = bell.getBlockData() instanceof org.bukkit.block.data.Directional directional
+            BlockFace direction = bell.getBlockData() instanceof Directional directional
                     ? clockwise(directional.getFacing())
                     : null;
             bellState.ring(player, direction);
@@ -384,8 +381,8 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
         return ItemUtils.createItem(state.owner().value().id());
     }
 
-    // The tie a rope keeps for good: other ropes, iron bars, glass panes and walls. Rope identity comes from the
-    // behavior rather than the material, because a custom block wears a disguise material (R-API-007).
+    // Ropes remain connected to ropes, bars, panes and walls. Identify custom ropes by behavior
+    // because their Bukkit material is only an appearance carrier.
     private boolean tieToRopeAndWalls(Block neighbor) {
         if (CustomBlockUtils.hasBehavior(neighbor, RopeBlockBehavior.class)) {
             return true;
@@ -446,9 +443,8 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
         return BlockBehaviorFactory.getOptionalProperty(state.owner().value(), name, Boolean.class);
     }
 
-    // Connections for a rope that is put in place programmatically rather than by a click. That is always the
-    // reel-down case (and the rope a hanging tomato leaves behind), which the mod resolves through a downwards
-    // placement context, so it takes the restricted rope/pane/wall test on every side.
+    // Programmatic placement, including downward reeling and harvested tomato supports,
+    // uses the rope/pane/wall connection check on every side.
     public static ImmutableBlockState computeConnectionState(ImmutableBlockState state, World world, BlockPos pos) {
         RopeBlockBehavior behavior = CustomBlockUtils.getBehavior(state, RopeBlockBehavior.class);
         if (behavior == null) {

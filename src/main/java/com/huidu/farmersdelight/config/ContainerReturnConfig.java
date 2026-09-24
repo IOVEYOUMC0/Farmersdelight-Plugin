@@ -7,6 +7,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
+import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ContainerReturnConfig {
@@ -30,7 +31,7 @@ public class ContainerReturnConfig {
                 continue;
             }
             if (ItemUtils.isEmptyItemId(returnItemStr)) {
-                containerReturnMap.remove(itemId.toLowerCase(java.util.Locale.ROOT));
+                containerReturnMap.remove(itemId.toLowerCase(Locale.ROOT));
                 continue;
             }
 
@@ -41,7 +42,7 @@ public class ContainerReturnConfig {
     private void addReturnItem(String itemId, String returnItemId) {
         ItemStack returnItem = ItemUtils.createItem(returnItemId);
         if (returnItem != null) {
-            containerReturnMap.put(itemId.toLowerCase(java.util.Locale.ROOT), returnItem);
+            containerReturnMap.put(itemId.toLowerCase(Locale.ROOT), returnItem);
         } else {
             I18n.logWarning("plugin.item_not_found", "path", itemId, "id", returnItemId);
         }
@@ -50,7 +51,7 @@ public class ContainerReturnConfig {
     public ItemStack getReturnItem(String itemId, int amount) {
         if (itemId == null) return null;
 
-        ItemStack returnItem = containerReturnMap.get(itemId.toLowerCase(java.util.Locale.ROOT));
+        ItemStack returnItem = containerReturnMap.get(itemId.toLowerCase(Locale.ROOT));
         if (returnItem == null) return null;
 
         ItemStack result = returnItem.clone();
@@ -59,7 +60,7 @@ public class ContainerReturnConfig {
     }
 
     public boolean hasReturnItem(String itemId) {
-        return itemId != null && containerReturnMap.containsKey(itemId.toLowerCase(java.util.Locale.ROOT));
+        return itemId != null && containerReturnMap.containsKey(itemId.toLowerCase(Locale.ROOT));
     }
 
     public Map<String, ItemStack> getContainerReturnMap() {

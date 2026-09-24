@@ -9,6 +9,7 @@ import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.BlockPos;
@@ -76,7 +77,7 @@ public class RichSoilFarmlandBlockBehavior extends FarmersDelightBlockBehavior {
         return resolved;
     }
 
-    public static final BlockBehaviorFactory<RichSoilFarmlandBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+    public static final BlockBehaviorFactory<RichSoilFarmlandBlockBehavior> FACTORY = (BlockDefinition block, ConfigSection section) -> {
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         float chance = BehaviorArgParser.getFloat(arguments, "boost-chance", 0.08f);
         // Moisture drives the whole random tick: drying out, rehydrating from water or rain, and the boost
@@ -102,9 +103,8 @@ public class RichSoilFarmlandBlockBehavior extends FarmersDelightBlockBehavior {
         BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
         if (world == null || pos == null) return;
 
-        // Mirrors RichSoilFarmlandBlock.canSurvive + turnToRichSoil (1.21 reference): a solid block placed
-        // directly above suffocates the farmland, which reverts to rich soil in place rather than dropping.
-        // Melons/pumpkins (which grow on farmland) and fence gates / moving pistons are exempt, as in vanilla.
+        // Convert farmland to rich soil when a solid block covers it.
+        // Melons, pumpkins, fence gates and moving pistons do not cause this conversion.
         Block above = world.getBlockAt(pos.x(), pos.y() + 1, pos.z());
         if (!isSuffocatingCover(above)) return;
 
@@ -119,15 +119,9 @@ public class RichSoilFarmlandBlockBehavior extends FarmersDelightBlockBehavior {
     }
 
     private static boolean isSuffocatingCover(Block above) {
-        // Use Block.isSolid() (the Block instance method), NOT Material.isSolid(). They are different checks:
-        // Block.isSolid() maps to the collision-based BlockState.blocksMotion() the vanilla FarmBlock.canSurvive
-        // tests (a block whose collision shape blocks entity motion). Material.isSolid() / BlockType.isSolid()
-        // is the unrelated "can be built upon" notion, which is true for pass-through plant states — sugar
-        // cane / tripwire / kelp / twisting vines. CraftEngine custom crops are backed by exactly those plant
-        // states, so a Material.isSolid() check reverted the soil on every planting. The collision-based check
-        // is false for all crop backings (they have empty collision) and true only for genuine solid covers,
-        // matching the reference mod where crops are non-solid CropBlocks. Do not switch this to a Material
-        // check.
+        // Block.isSolid() checks the placed state's collision; Material.isSolid() tests the base material.
+        // CE crops may use plant carrier materials whose material flag is solid but whose collision is empty.
+        // Use the state check so planting crops does not revert the farmland.
         if (!above.isSolid()) return false;
         Material type = above.getType();
         if (type == Material.MELON || type == Material.PUMPKIN || type == Material.MOVING_PISTON) return false;
@@ -143,10 +137,8 @@ public class RichSoilFarmlandBlockBehavior extends FarmersDelightBlockBehavior {
         BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
         if (world == null || pos == null) return;
 
-        // Mirrors RichSoilFarmlandBlock.randomTick (1.21 reference): a water source or rain drives moisture
-        // straight to the maximum; without either the soil loses one moisture level per random tick. Only
-        // fully wet soil boosts the plant above (the original boosts at moisture 7). The soil appears wet
-        // at moisture 7 and dry below, so the shared dry appearance covers 0..6 while 7 shows the moist model.
+        // Water or rain restores maximum moisture; otherwise each random tick removes one level.
+        // Only fully wet soil boosts the plant above. Moisture 7 uses the wet appearance, while 0..6 appear dry.
         Integer currentMoisture = state.get(moistureProperty);
         int moisture = currentMoisture == null ? 0 : currentMoisture;
         boolean hydrated = isHydrated(world, pos);
@@ -168,19 +160,13 @@ public class RichSoilFarmlandBlockBehavior extends FarmersDelightBlockBehavior {
     }
 
     private static boolean isHydrated(World world, BlockPos pos) {
-        // Rain check — vanilla farmland uses level.isRainingAt(pos.above()), which is a storm AND the block
-        // above being exposed to the sky, so covered / indoor / underground farmland is never rained on.
-        // We approximate the storm with world.hasStorm() + the world.isClearWeather() inverse, and the
-        // sky-exposure part with the block-above sky light reaching its maximum (the same getLightFromSky
-        // reading OrganicCompostBlockBehavior uses); a solid cover, roof, or ceiling drops it below 15.
-        // Biome precipitation is still left out: hasStorm() is true during snowfall in cold biomes too, so a
-        // sky-exposed heap in a snowy biome will still rehydrate where the mod's RAIN-only check would not.
+        // Rain requires a storm and maximum sky light above the soil, excluding covered farmland.
+        // This approximation includes snowfall because it does not inspect biome precipitation.
         if (world.hasStorm() && !world.isClearWeather()
                 && world.getBlockAt(pos.x(), pos.y() + 1, pos.z()).getLightFromSky() == 15) {
             return true;
         }
-        // Same 9×9×2 box as RichSoilFarmlandBlock.isNearWater (1.21 reference): pos.offset(-4,0,-4) to
-        // pos.offset(4,1,4).
+        // Search the 9x9x2 box from offset (-4,0,-4) through (4,1,4) for water.
         for (int dx = -4; dx <= 4; dx++) {
             for (int dz = -4; dz <= 4; dz++) {
                 for (int dy = 0; dy <= 1; dy++) {
@@ -203,9 +189,8 @@ public class RichSoilFarmlandBlockBehavior extends FarmersDelightBlockBehavior {
         if (plant.getType() == Material.AIR) return;
         if (unaffectedBlocks().contains(plant)) return;
         try {
-            // Bukkit's applyBoneMeal delegates to NMS BonemealableBlock.performBonemeal for vanilla
-            // crops + custom CE blocks that implement the interface, so this matches the original
-            // mod's direct performBonemeal call (just routed through the Bukkit bridge).
+            // applyBoneMeal invokes BonemealableBlock growth for vanilla crops and CE blocks
+            // that implement the interface.
             if (plant.applyBoneMeal(BlockFace.UP)) {
                 plant.getWorld().spawnParticle(Particle.HAPPY_VILLAGER,
                         plant.getLocation().add(0.5, 0.5, 0.5), 10, 0.3, 0.3, 0.3);

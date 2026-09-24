@@ -51,17 +51,20 @@ public class SkilletEffectManager {
     private volatile float sizzleVolume = 0.5F;
     private volatile float sizzlePitch = 1.0F;
 
-    // Per-chunk hard cap on particle+sound packets emitted per dispatch from this manager, mirroring
-    // StoveManager's budget — stops a dense pocket of cooking skillets from steamrolling the packet
-    // queue when many cook rolls land in one Bukkit tick. Reset once per bukkit tick, shared across the
-    // whole tick pass.
+    // Caps effect broadcasts per chunk per owner tick. Each broadcast still fans out to its viewers.
     private volatile int chunkEffectBudgetLimit = 50;
-    // Keyed by world UID (like StoveManager) so two worlds' chunks sharing a chunkKey don't collide on
-    // one budget entry. The outer map is cleared wholesale once per Bukkit tick across the whole tick pass.
-    private final Map<UUID, Map<Long, AtomicInteger>> chunkEffectBudget = new ConcurrentHashMap<>();
-    // volatile: Folia ticks skillets in different regions concurrently, so this per-tick budget-reset guard is
-    // read/written across region threads (matches StoveManager and TickManager).
-    private volatile long effectBudgetResetTick = -1L;
+    // World and chunk unload remove entries; ticks reset only the current chunk's counter.
+    private final Map<UUID, Map<Long, ChunkBudget>> chunkEffectBudget = new ConcurrentHashMap<>();
+
+    // Budget plus the tick it was reset on, per chunk. A single manager-wide reset tick is wrong on
+    // Folia, where Bukkit.getCurrentTick() reports the current REGION's counter: two regions cooking at
+    // once disagree on that field almost every call, clear the whole map each time, and the per-chunk
+    // packet cap then never applies. A chunk is ticked only by the region that owns it, so holding the
+    // tick beside the counter compares against the right clock.
+    private static final class ChunkBudget {
+        final AtomicInteger count = new AtomicInteger();
+        volatile long tick = Long.MIN_VALUE;
+    }
     // Reusable per-thread recipient list for targeted particle/sound sends (per-thread for Folia's
     // concurrent per-region skillet ticks; refilled per skillet and consumed synchronously).
     private static final ThreadLocal<List<Player>> NEARBY_VIEWER_SCRATCH = ThreadLocal.withInitial(ArrayList::new);
@@ -103,33 +106,52 @@ public class SkilletEffectManager {
         sizzlePitch = (float) Math.max(0.0D, sizzleSection == null ? 1.0D : ConfigSectionReader.optionalDouble(sizzleSection, "pitch", 1.0D));
     }
 
-    // Dispatches one batch of smoke particles/sizzle sounds for a cooking skillet. Returns the collected
-    // nearby-viewer list so callers can avoid a second proximity scan.
+    // Resolve effect rolls before querying viewers; most cooking ticks have nothing to send.
     public void dispatchTickEffects(World world, Location location, ImmutableBlockState carrierState) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
+        boolean smoke = smokeEnabled && random.nextDouble() < smokeChance;
+        boolean sizzle = sizzleEnabled && random.nextDouble() < sizzleChance;
+        if (!smoke && !sizzle) return;
         List<Player> nearbyViewers = ManagerSupport.collectNearbyPlayers(
                 world, location, effectViewerDistanceSquared, NEARBY_VIEWER_SCRATCH.get());
-        long chunkKey = ManagerSupport.chunkKey(location);
-        long currentBukkitTick = Bukkit.getCurrentTick();
-        if (currentBukkitTick != effectBudgetResetTick) {
-            chunkEffectBudget.clear();
-            effectBudgetResetTick = currentBukkitTick;
+        if (nearbyViewers.isEmpty()) return;
+        try {
+            long chunkKey = ManagerSupport.chunkKey(location);
+            long currentBukkitTick = Bukkit.getCurrentTick();
+            ChunkBudget entry = chunkEffectBudget
+                    .computeIfAbsent(world.getUID(), w -> new ConcurrentHashMap<>())
+                    .computeIfAbsent(chunkKey, k -> new ChunkBudget());
+            if (entry.tick != currentBukkitTick) {
+                entry.tick = currentBukkitTick;
+                entry.count.set(0);
+            }
+            AtomicInteger chunkBudget = entry.count;
+            if (smoke && chunkBudget.get() < chunkEffectBudgetLimit) {
+                spawnCookingParticles(nearbyViewers, location);
+                chunkBudget.incrementAndGet();
+            }
+            if (sizzle && chunkBudget.get() < chunkEffectBudgetLimit) {
+                SoundUtils.play(nearbyViewers, location, getSizzleSound(carrierState),
+                        Sound.BLOCK_CAMPFIRE_CRACKLE, sizzleVolume, sizzlePitch);
+                chunkBudget.incrementAndGet();
+            }
+        } finally {
+            nearbyViewers.clear();
         }
-        AtomicInteger chunkBudget = nearbyViewers.isEmpty()
-                ? null
-                : chunkEffectBudget.computeIfAbsent(world.getUID(), w -> new ConcurrentHashMap<>())
-                        .computeIfAbsent(chunkKey, k -> new AtomicInteger());
-        boolean canSpawnEffects = chunkBudget != null && chunkBudget.get() < chunkEffectBudgetLimit;
-        if (canSpawnEffects && smokeEnabled && random.nextDouble() < smokeChance) {
-            spawnCookingParticles(nearbyViewers, location);
-            chunkBudget.incrementAndGet();
-        }
-        if (canSpawnEffects && chunkBudget.get() < chunkEffectBudgetLimit
-                && sizzleEnabled && random.nextDouble() < sizzleChance) {
-            SoundUtils.play(nearbyViewers, location, getSizzleSound(carrierState),
-                    Sound.BLOCK_CAMPFIRE_CRACKLE, sizzleVolume, sizzlePitch);
-            chunkBudget.incrementAndGet();
-        }
+    }
+
+    void cleanupChunk(UUID worldId, long chunkKey) {
+        Map<Long, ChunkBudget> chunks = chunkEffectBudget.get(worldId);
+        // Other Folia regions can add entries to the same world concurrently.
+        if (chunks != null) chunks.remove(chunkKey);
+    }
+
+    void cleanupWorld(UUID worldId) {
+        chunkEffectBudget.remove(worldId);
+    }
+
+    void cleanup() {
+        chunkEffectBudget.clear();
     }
 
     private void spawnCookingParticles(List<Player> viewers, Location location) {

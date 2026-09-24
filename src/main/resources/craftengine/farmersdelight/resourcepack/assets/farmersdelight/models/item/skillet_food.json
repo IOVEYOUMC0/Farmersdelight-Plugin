@@ -1,0 +1,22 @@
+{
+  "parent": "farmersdelight:item/skillet_cooking",
+  "textures": {
+    "particle": "#food"
+  },
+  "elements": [
+    {
+      "from": [4, 1.02, 4],
+      "to": [12, 1.02, 12],
+      "faces": {
+        "up": {
+          "uv": [0, 0, 16, 16],
+          "texture": "#food"
+        },
+        "down": {
+          "uv": [0, 0, 16, 16],
+          "texture": "#food"
+        }
+      }
+    }
+  ]
+}

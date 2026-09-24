@@ -133,10 +133,8 @@ public final class RiceCropRules {
             return false;
         }
 
-        // After placement, CE may use a carrier block to represent planted rice
-        // instead of a literal WATER block. The water check at planting time stays in
-        // canPlantRiceAt(...), but once rice is planted, follow the reference plugin's
-        // support rule: the lower half stays valid as long as the soil below is valid.
+        // Require water at planting time in canPlantRiceAt. Once planted, CE uses a carrier state,
+        // so continued survival depends on valid soil beneath the lower half.
         return isValidSoil(block.getRelative(BlockFace.DOWN), cropId);
     }
 }

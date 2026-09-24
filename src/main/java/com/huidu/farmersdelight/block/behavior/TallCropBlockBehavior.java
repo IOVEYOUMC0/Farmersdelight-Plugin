@@ -25,8 +25,10 @@ import net.momirealms.craftengine.core.block.property.type.DoubleBlockHalf;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.plugin.context.Context;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.plugin.context.ContextHolder;
 import net.momirealms.craftengine.core.plugin.context.EventTrigger;
+import net.momirealms.craftengine.core.plugin.context.function.Function;
 import net.momirealms.craftengine.core.plugin.context.PlayerOptionalContext;
 import net.momirealms.craftengine.core.plugin.context.number.NumberProvider;
 import net.momirealms.craftengine.core.plugin.context.parameter.DirectContextParameters;
@@ -43,6 +45,7 @@ import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.data.type.Farmland;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
@@ -93,11 +96,8 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         return args[0];
     }
 
-    // The lower half stands on a kelp state whose fluid is water, and that water only keeps moving
-    // because vanilla re-schedules a fluid tick from updateShape -- GrowingPlantBodyBlock does it for
-    // kelp itself, and the mod's RiceBlock does the same for rice. CraftEngine replaces the vanilla
-    // updateShape outright, so nothing re-schedules it here and the water around a paddy goes static.
-    // The upper half is a tripwire state carrying no fluid and must not schedule one.
+    // The lower half uses a water-bearing kelp state. CE replaces updateShape, so this behavior
+    // must schedule water ticks to keep surrounding fluid flowing. The upper tripwire half has no fluid.
     private void scheduleWaterTick(Object[] args) {
         ImmutableBlockState state = BlockStateUtils.getOptionalCustomBlockState(args[0]).orElse(null);
         if (state == null || state.isEmpty() || !isLowerHalf(state)) {
@@ -126,6 +126,9 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
             NumberProvider boneMealAgeBonus,
             int maxAgeLower,
             int maxAgeUpper,
+            int upperMinAge,
+            boolean vanillaGrowth,
+            boolean boneMealOverflow,
             Object halfLowerValue,
             Object halfUpperValue,
             boolean requiresWater,
@@ -165,7 +168,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
 
     public static final BlockBehaviorFactory<TallCropBlockBehavior> FACTORY = new BlockBehaviorFactory<TallCropBlockBehavior>() {
         @Override
-        public TallCropBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
+        public TallCropBlockBehavior create(BlockDefinition block, ConfigSection section) {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
             String path = section != null ? section.path() : Constants.BEHAVIOR_TALL_CROP;
 
@@ -203,6 +206,22 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
             int maxAgeUpper = BehaviorArgParser.hasArgument(arguments, "max-age-upper")
                     ? BehaviorArgParser.getInt(arguments, "max-age-upper", 3)
                     : Math.max(0, maxAgeLower - 1);
+
+            // Age at which the lower half starts growing an upper half. Defaults to the lower half's own
+            // maturity, which is the rice cycle: the panicle appears the moment the stalk matures. Crops
+            // whose original block spawns the top earlier (MMLib's HighCropBlock exposes that as
+            // getGrowUpperAge) configure a smaller value and then get the original's two independent
+            // rolls per random tick instead of the single mature-tick spawn.
+            int upperMinAge = BehaviorArgParser.hasArgument(arguments, "upper-min-age")
+                    ? Math.max(0, BehaviorArgParser.getInt(arguments, "upper-min-age", maxAgeLower))
+                    : maxAgeLower;
+            // Vanilla crop growth (CropBlock.getGrowthSpeed over the 3x3 below plus the row/diagonal
+            // penalty, and a raw-brightness light check that ignores the day/night reduction) instead of
+            // the flat grow-speed used by rice. Off by default so existing crops keep their cycle.
+            boolean vanillaGrowth = BehaviorArgParser.getBoolean(arguments, "vanilla-growth", false);
+            // Vanilla HighCropBlock carries bone meal growth beyond the lower half's maturity into the
+            // upper half's age; without this the excess is dropped and the top always starts at age 0.
+            boolean boneMealOverflow = BehaviorArgParser.getBoolean(arguments, "bone-meal-overflow", false);
             
             Object halfLowerValue = BehaviorArgParser.hasArgument(arguments, "half-lower-value")
                     ? getRawPropertyValue(BehaviorArgParser.getRaw(arguments, "half-lower-value"), halfProperty, inferLowerHalfValue(halfProperty))
@@ -225,7 +244,8 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
             TallCropBlockBehavior behavior = new TallCropBlockBehavior(block, new Config(
                     ageProperty, halfProperty, supportingProperty,
                     growSpeed, minGrowLight, isBoneMealTarget, boneMealAgeBonus,
-                    maxAgeLower, maxAgeUpper, halfLowerValue, halfUpperValue,
+                    maxAgeLower, maxAgeUpper, upperMinAge, vanillaGrowth, boneMealOverflow,
+                    halfLowerValue, halfUpperValue,
                     requiresWater, resetOnHarvest, upperBlockId,
                     harvestToolTags, harvestToolItems, extraPlantingItems, soilRules
             ));
@@ -286,6 +306,18 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         return config.maxAgeUpper();
     }
 
+    public int getUpperMinAge() {
+        return config.upperMinAge();
+    }
+
+    public boolean usesVanillaGrowth() {
+        return config.vanillaGrowth();
+    }
+
+    public boolean carriesBoneMealOverflow() {
+        return config.boneMealOverflow();
+    }
+
     public int getAge(ImmutableBlockState state) {
         if (state == null || state.isEmpty()) {
             return 0;
@@ -340,9 +372,8 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         if (isUpperHalf(state) && isUpperMature(state)) {
             if (config.resetOnHarvest() && isValidHarvestTool(mainHand)) {
                 Block bukkitBlock = world.getBlockAt(pos.x(), pos.y(), pos.z());
-                // This harvest removes the block and drops loot while cancelling vanilla, so it must respect
-                // land/region protection or a player with no build rights could harvest crops in a claim
-                // (R-SEC-001).
+                // Harvesting removes the block and drops loot while cancelling native interaction.
+                // Check land protection before allowing either change.
                 if (!ProtectionCompat.canBreak(bukkitPlayer, bukkitBlock, protectionFeature(block().id()))) {
                     return InteractionResult.PASS;
                 }
@@ -354,7 +385,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
                 // event's javadoc. Outside any block-entity monitor: this behavior holds none.
                 Bukkit.getPluginManager().callEvent(new FarmersDelightHarvestEvent(
                         bukkitPlayer, bukkitBlock.getLocation(), CustomBlockUtils.getId(state),
-                        mainHand, java.util.List.of()));
+                        mainHand, List.of()));
 
                 net.momirealms.craftengine.core.world.World ceWorld = BukkitAdaptor.adapt(world);
                 WorldPosition wPos = new WorldPosition(ceWorld, loc.getX(), loc.getY(), loc.getZ());
@@ -379,7 +410,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         }
 
         if (mainHand.getType() == Material.BONE_MEAL && config.isBoneMealTarget()) {
-            // Bone-mealing grows the crop and cancels vanilla, so gate it on protection too (R-SEC-001).
+            // Bone meal changes the crop while cancelling native interaction, so check protection first.
             if (!ProtectionCompat.canBuild(bukkitPlayer, world.getBlockAt(pos.x(), pos.y(), pos.z()),
                     protectionFeature(block().id()))) {
                 return InteractionResult.PASS;
@@ -417,8 +448,12 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         if (world == null || pos == null || !matchesHalfValue(half, config.halfLowerValue())) {
             return false;
         }
-        ImmutableBlockState upper = CraftEngineBlocks.getCustomBlockState(
-                world.getBlockAt(pos.x(), pos.y() + 1, pos.z()));
+        Block upperBlock = world.getBlockAt(pos.x(), pos.y() + 1, pos.z());
+        if (config.boneMealOverflow() && upperBlock.getType().isAir()) {
+            // Vanilla accepts bone meal on a mature lower half so it can grow the missing upper half.
+            return true;
+        }
+        ImmutableBlockState upper = CraftEngineBlocks.getCustomBlockState(upperBlock);
         return upper != null && !upper.isEmpty() && isUpperHalf(upper)
                 && getAge(upper) < config.maxAgeUpper();
     }
@@ -599,8 +634,13 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
                 // Match expected rice growth transition: the first bone meal
                 // that pushes the lower half into its supporting stage only
                 // spawns a fresh upper half at age 0, without immediately
-                // carrying overflow growth into the panicles.
-                placeUpperHalfWithAge(upperBlock);
+                // carrying overflow growth into the panicles. A crop configured for the vanilla
+                // HighCropBlock cycle does carry it, so the excess becomes the upper half's age.
+                int upperAge = config.boneMealOverflow() ? newAge - config.maxAgeLower() - 1 : 0;
+                placeUpperHalfWithAge(upperBlock, upperAge);
+            } else if (config.boneMealOverflow()) {
+                // Vanilla grows an upper half that is already there instead of adding another one.
+                applyBoneMealToExistingUpperHalf(pos, world);
             }
             return true;
         }
@@ -612,30 +652,126 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
 
     private void tickUpperHalfGrowth(Block bukkitBlock, ImmutableBlockState state, int currentAge) {
         if (currentAge >= config.maxAgeUpper()) return;
-        if (bukkitBlock.getLightLevel() < config.minGrowLight()) return;
-        if (ThreadLocalRandom.current().nextFloat() >= config.growSpeed()) return;
+        if (!passesGrowthLight(bukkitBlock)) return;
+        if (!rollGrowth(growthSpeedOf(bukkitBlock))) return;
 
         ImmutableBlockState newState = state.with(config.ageProperty(), currentAge + 1);
         CraftEngineBlocks.place(bukkitBlock.getLocation(), newState, false);
     }
 
+    // Rice (upper-min-age reaching the lower half's maturity) spawns its panicle in the same tick the
+    // stalk matures. A crop configured with an earlier upper-min-age follows its original cycle instead:
+    // the lower half ages on one roll and spawns the upper half on a second, independent roll, using the
+    // age from before this tick for the spawn condition.
     private void tickLowerHalfGrowth(BlockPos pos, World world, Block bukkitBlock, ImmutableBlockState state, int currentAge) {
-        if (currentAge >= config.maxAgeLower()) return;
-        if (bukkitBlock.getLightLevel() < config.minGrowLight()) return;
-        if (ThreadLocalRandom.current().nextFloat() >= config.growSpeed()) return;
+        if (config.upperMinAge() >= config.maxAgeLower() && currentAge >= config.maxAgeLower()) return;
+        if (!passesGrowthLight(bukkitBlock)) return;
 
-        int newAge = currentAge + 1;
-        if (newAge >= config.maxAgeLower()) {
-            placeMatureLowerHalf(bukkitBlock, state);
-            Block upperBlock = world.getBlockAt(pos.x(), pos.y() + 1, pos.z());
-            if (upperBlock.getType().isAir()) {
-                placeUpperHalfWithAge(upperBlock);
+        float growthSpeed = growthSpeedOf(bukkitBlock);
+        boolean singleSpawnCycle = config.upperMinAge() >= config.maxAgeLower();
+        boolean canAge = currentAge < config.maxAgeLower();
+        boolean canSpawnUpper = !singleSpawnCycle && currentAge >= config.upperMinAge();
+
+        if (canAge && rollGrowth(growthSpeed)) {
+            int newAge = currentAge + 1;
+            if (newAge >= config.maxAgeLower()) {
+                placeMatureLowerHalf(bukkitBlock, state);
+                if (singleSpawnCycle) {
+                    Block upperBlock = world.getBlockAt(pos.x(), pos.y() + 1, pos.z());
+                    if (upperBlock.getType().isAir()) {
+                        placeUpperHalfWithAge(upperBlock, 0);
+                    }
+                    return;
+                }
+            } else {
+                ImmutableBlockState newState = state.with(config.ageProperty(), newAge);
+                CraftEngineBlocks.place(bukkitBlock.getLocation(), newState, false);
             }
-            return;
         }
 
-        ImmutableBlockState newState = state.with(config.ageProperty(), newAge);
-        CraftEngineBlocks.place(bukkitBlock.getLocation(), newState, false);
+        if (canSpawnUpper && rollGrowth(growthSpeed)) {
+            Block upperBlock = world.getBlockAt(pos.x(), pos.y() + 1, pos.z());
+            if (upperBlock.getType().isAir()) {
+                placeUpperHalfWithAge(upperBlock, 0);
+            }
+        }
+    }
+
+    // Vanilla CropBlock tests raw brightness, which counts full sky light, so crops keep growing at
+    // night under open sky. The flat model uses Bukkit's light level instead, which the server reduces
+    // by the sky darkening, so it stops at night.
+    private boolean passesGrowthLight(Block bukkitBlock) {
+        if (config.vanillaGrowth()) {
+            return rawBrightness(bukkitBlock) >= config.minGrowLight();
+        }
+        return bukkitBlock.getLightLevel() >= config.minGrowLight();
+    }
+
+    private static int rawBrightness(Block bukkitBlock) {
+        return Math.max(bukkitBlock.getLightFromSky(), bukkitBlock.getLightFromBlocks());
+    }
+
+    // Zero means "roll against the configured flat grow-speed"; anything positive is the vanilla growth
+    // speed resolved for this position.
+    private float growthSpeedOf(Block bukkitBlock) {
+        return config.vanillaGrowth() ? vanillaGrowthSpeed(bukkitBlock) : 0.0F;
+    }
+
+    private boolean rollGrowth(float vanillaGrowthSpeed) {
+        if (vanillaGrowthSpeed > 0.0F) {
+            return VanillaCropGrowth.passes(vanillaGrowthSpeed, ThreadLocalRandom.current().nextFloat());
+        }
+        return ThreadLocalRandom.current().nextFloat() < config.growSpeed();
+    }
+
+    // Mirrors CropBlock.getGrowthSpeed: the 3x3 block area below the crop with moist farmland counting
+    // three times, then the halving for a crop standing in a row or diagonal of the same crop. The crop's
+    // own soil rules stand in for the grows-crops tag, so a custom farmland counts exactly where the
+    // placement check already accepts it.
+    private float vanillaGrowthSpeed(Block bukkitBlock) {
+        World world = bukkitBlock.getWorld();
+        int x = bukkitBlock.getX();
+        int y = bukkitBlock.getY();
+        int z = bukkitBlock.getZ();
+
+        float[] soilFactors = new float[VanillaCropGrowth.SOIL_FACTOR_COUNT];
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                soilFactors[(dx + 1) * 3 + (dz + 1)] = soilFactor(world.getBlockAt(x + dx, y - 1, z + dz));
+            }
+        }
+
+        boolean horizontal = isSameCrop(world.getBlockAt(x - 1, y, z))
+                || isSameCrop(world.getBlockAt(x + 1, y, z));
+        boolean vertical = isSameCrop(world.getBlockAt(x, y, z - 1))
+                || isSameCrop(world.getBlockAt(x, y, z + 1));
+        boolean diagonal = isSameCrop(world.getBlockAt(x - 1, y, z - 1))
+                || isSameCrop(world.getBlockAt(x + 1, y, z - 1))
+                || isSameCrop(world.getBlockAt(x + 1, y, z + 1))
+                || isSameCrop(world.getBlockAt(x - 1, y, z + 1));
+
+        return VanillaCropGrowth.growthSpeed(soilFactors, horizontal, vertical, diagonal);
+    }
+
+    // Vanilla reads the moisture property with a default of 0, so a supporting block that does not carry
+    // it (a custom farmland) contributes the dry factor while still counting as soil.
+    private float soilFactor(Block soil) {
+        if (soil == null || !RiceCropRules.isValidSoil(soil, block().id())) {
+            return 0.0F;
+        }
+        if (soil.getType() == Material.FARMLAND
+                && soil.getBlockData() instanceof Farmland farmland
+                && farmland.getMoisture() > 0) {
+            return 3.0F;
+        }
+        return 1.0F;
+    }
+
+    private boolean isSameCrop(Block block) {
+        if (block == null) {
+            return false;
+        }
+        return isSameCropState(CraftEngineBlocks.getCustomBlockState(block));
     }
 
     private void placeMatureLowerHalf(Block bukkitBlock, ImmutableBlockState state) {
@@ -646,7 +782,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         CraftEngineBlocks.place(bukkitBlock.getLocation(), matureState, false);
     }
 
-    private void placeUpperHalfWithAge(Block upperBlock) {
+    private void placeUpperHalfWithAge(Block upperBlock, int age) {
         BlockDefinition upperBlockDefinition = config.upperBlockId() != null
                 ? CraftEngineBlocks.byId(config.upperBlockId())
                 : CraftEngineBlocks.byId(block().id());
@@ -655,7 +791,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         }
 
         ImmutableBlockState upperState = upperBlockDefinition.defaultState()
-                .with(config.ageProperty(), 0)
+                .with(config.ageProperty(), Math.max(0, Math.min(age, config.maxAgeUpper())))
                 ;
         upperState = withRaw(upperState, config.halfProperty(), config.halfUpperValue());
         CraftEngineBlocks.place(upperBlock.getLocation(), upperState, false);
@@ -668,21 +804,22 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         ContextHolder.Builder builder = createLootContext(bukkitBlock, player, tool, position)
                 .withParameter(DirectContextParameters.CUSTOM_BLOCK_STATE, state)
                 .withParameter(DirectContextParameters.EVENT, cancellable);
-        state.owner().value().execute(PlayerOptionalContext.of(cePlayer, builder), EventTrigger.BREAK);
+        Function.execute(PlayerOptionalContext.of(cePlayer, builder),
+                state.owner().value().eventFunctions(EventTrigger.BLOCK_BREAK));
     }
 
     private void dropLootTableDrops(ImmutableBlockState state, Block bukkitBlock, Player player,
                                     ItemStack tool, WorldPosition position) {
-        net.momirealms.craftengine.core.world.World ceWorld = position.world();
+         net.momirealms.craftengine.core.world.World ceWorld = position.world();
         var cePlayer = BukkitAdaptor.adapt(player);
         ContextHolder.Builder builder = createLootContext(bukkitBlock, player, tool, position);
-        List<Item> drops = state.getDrops(builder, ceWorld, cePlayer);
+        List<Item> drops = state.getDrops(builder.build(), ceWorld, cePlayer);
         if (drops.isEmpty()) {
             Block lowerBlock = bukkitBlock.getWorld().getBlockAt(
                     bukkitBlock.getX(), bukkitBlock.getY() - 1, bukkitBlock.getZ());
             ImmutableBlockState lowerState = CraftEngineBlocks.getCustomBlockState(lowerBlock);
             if (lowerState != null && !lowerState.isEmpty() && isLowerHalf(lowerState)) {
-                drops = lowerState.getDrops(createLootContext(lowerBlock, player, tool, position), ceWorld, cePlayer);
+                drops = lowerState.getDrops(createLootContext(lowerBlock, player, tool, position).build(), ceWorld, cePlayer);
             }
         }
         for (Item drop : drops) {
@@ -781,20 +918,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
     }
 
     private boolean matchesLegacyKnife(ItemStack item) {
-        String customId = ItemUtils.getCustomItemId(item);
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (plugin.isKnifeItemId(customId)) {
-            return true;
-        }
-
-        for (String configuredTag : plugin.getKnifeTagIds()) {
-            Key key = Key.of(configuredTag.startsWith("#") ? configuredTag.substring(1) : configuredTag);
-            if (ItemUtils.matchesVanillaItemTag(item, key, Collections.emptySet(), Collections.emptySet())) {
-                return true;
-            }
-        }
-
-        return false;
+        return FarmersDelightPlugin.getInstance().isKnife(item);
     }
 
     @Override

@@ -47,67 +47,67 @@ blocks:
           default: false
       appearances:
         east=false,north=false,south=false,west=false:
-          auto-state: twisting_vines
+          auto_state: twisting_vines
           model:
             path: ${__NAMESPACE__}:block/rope_post
         east=false,north=true,south=false,west=false:
-          auto-state: twisting_vines
+          auto_state: twisting_vines
           model:
             path: ${__NAMESPACE__}:block/rope_north_side
         east=true,north=false,south=false,west=false:
-          auto-state: twisting_vines
+          auto_state: twisting_vines
           model:
             path: ${__NAMESPACE__}:block/rope_east_side
         east=false,north=false,south=true,west=false:
-          auto-state: twisting_vines
+          auto_state: twisting_vines
           model:
             path: ${__NAMESPACE__}:block/rope_south_side
         east=false,north=false,south=false,west=true:
-          auto-state: twisting_vines
+          auto_state: twisting_vines
           model:
             path: ${__NAMESPACE__}:block/rope_west_side
         east=false,north=true,south=true,west=false:
-          auto-state: twisting_vines
+          auto_state: twisting_vines
           model:
             path: ${__NAMESPACE__}:block/rope_north_south_side
         east=true,north=false,south=false,west=true:
-          auto-state: twisting_vines
+          auto_state: twisting_vines
           model:
             path: ${__NAMESPACE__}:block/rope_east_west_side
         east=true,north=true,south=false,west=false:
-          auto-state: twisting_vines
+          auto_state: twisting_vines
           model:
             path: ${__NAMESPACE__}:block/rope_east_north_side
         east=true,north=false,south=true,west=false:
-          auto-state: twisting_vines
+          auto_state: twisting_vines
           model:
             path: ${__NAMESPACE__}:block/rope_east_south_side
         east=false,north=false,south=true,west=true:
-          auto-state: twisting_vines
+          auto_state: twisting_vines
           model:
             path: ${__NAMESPACE__}:block/rope_south_west_side
         east=false,north=true,south=false,west=true:
-          auto-state: twisting_vines
+          auto_state: twisting_vines
           model:
             path: ${__NAMESPACE__}:block/rope_north_west_side
         east=true,north=true,south=true,west=false:
-          auto-state: twisting_vines
+          auto_state: twisting_vines
           model:
             path: ${__NAMESPACE__}:block/rope_east_north_south_side
         east=false,north=true,south=true,west=true:
-          auto-state: twisting_vines
+          auto_state: twisting_vines
           model:
             path: ${__NAMESPACE__}:block/rope_north_south_west_side
         east=true,north=false,south=true,west=true:
-          auto-state: twisting_vines
+          auto_state: twisting_vines
           model:
             path: ${__NAMESPACE__}:block/rope_east_south_west_side
         east=true,north=true,south=false,west=true:
-          auto-state: twisting_vines
+          auto_state: twisting_vines
           model:
             path: ${__NAMESPACE__}:block/rope_east_north_west_side
         east=true,north=true,south=true,west=true:
-          auto-state: twisting_vines
+          auto_state: twisting_vines
           model:
             path: ${__NAMESPACE__}:block/rope_all_side
       variants:

@@ -19,11 +19,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-// Owns the "fill this cooking pot straight from the recipe detail GUI" flow. Pure gameplay logic with no
-// inventory rendering: it is invoked from a single onClick path, so it was a safe standalone block to pull
-// out of RecipeViewGui. Only depends on the plugin, the pot location and the resolved recipe group id --
-// no back-reference to the GUI -- which keeps it easily testable. The player owning the inventory is passed
-// in as a parameter because no GUI state is needed here.
+// Transfers ingredients from a player inventory into a cooking pot for the selected recipe.
+// The caller supplies the player, pot location and recipe group; no GUI state is retained.
 final class CookingPotFiller {
 
     private final FarmersDelightPlugin plugin;

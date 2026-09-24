@@ -8,6 +8,8 @@ import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntityController;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntity;
 import com.huidu.farmersdelight.block.behavior.MushroomColonyBehavior;
+import com.huidu.farmersdelight.block.behavior.OrganicCompostBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior;
 import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.util.BlockPosKey;
@@ -36,6 +38,7 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -163,7 +166,7 @@ public class BlockPlaceListener implements Listener {
         return MushroomColonyBehavior.canSurviveAt(event.customBlock().id().toString(), world, targetBlock, blockBelow);
     }
 
-    private void awardForCustomBlock(Player player, String customBlockId, org.bukkit.Location blockLocation, ItemStack placedItem) {
+    private void awardForCustomBlock(Player player, String customBlockId, Location blockLocation, ItemStack placedItem) {
         if (player == null || customBlockId == null) {
             return;
         }
@@ -185,16 +188,11 @@ public class BlockPlaceListener implements Listener {
 
         ImmutableBlockState state = CustomBlockUtils.getState(blockLocation);
 
-        if (CustomBlockUtils.hasBehavior(state, com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior.class)
-                && plugin.getStoveManager() != null) {
-            plugin.getStoveManager().trackBurnStove(blockLocation);
-        }
-
         if (CustomBlockUtils.hasBehavior(state, CuttingBoardBlockBehavior.class)) {
             ensureCuttingBoardRuntimeEntity(blockLocation);
         }
 
-        if (CustomBlockUtils.hasBehavior(state, com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior.class)) {
+        if (CustomBlockUtils.hasBehavior(state, SkilletBlockBehavior.class)) {
             plugin.getSkilletManager().recordPlacedSkillet(blockLocation, placedItem);
             if (am != null) {
                 am.award(player, "place_skillet");
@@ -205,14 +203,14 @@ public class BlockPlaceListener implements Listener {
             am.award(player, "place_feast");
         }
 
-        if (am != null && CustomBlockUtils.hasBehavior(state, com.huidu.farmersdelight.block.behavior.OrganicCompostBlockBehavior.class)) {
+        if (am != null && CustomBlockUtils.hasBehavior(state, OrganicCompostBlockBehavior.class)) {
             am.award(player, "place_organic_compost");
         }
 
         awardPlantAllCropsCriterion(player, getCustomCropCriterion(customBlockId));
     }
 
-    private void ensureCuttingBoardRuntimeEntity(org.bukkit.Location blockLocation) {
+    private void ensureCuttingBoardRuntimeEntity(Location blockLocation) {
         if (blockLocation == null || blockLocation.getWorld() == null) {
             return;
         }
@@ -227,7 +225,7 @@ public class BlockPlaceListener implements Listener {
         );
     }
 
-    private boolean isCookingPotPlacement(org.bukkit.Location blockLocation) {
+    private boolean isCookingPotPlacement(Location blockLocation) {
         return CookingPotBlockBehavior.getBlockBehavior(blockLocation) != null;
     }
 
@@ -253,7 +251,7 @@ public class BlockPlaceListener implements Listener {
     }
 
     private String getCustomCropCriterion(String customBlockId) {
-        return switch (customBlockId.toLowerCase(java.util.Locale.ROOT)) {
+        return switch (customBlockId.toLowerCase(Locale.ROOT)) {
             case Constants.BLOCK_CABBAGES -> "cabbage";
             case Constants.BLOCK_BUDDING_TOMATOES, Constants.BLOCK_TOMATOES -> "tomato";
             case Constants.BLOCK_ONIONS -> "onion";

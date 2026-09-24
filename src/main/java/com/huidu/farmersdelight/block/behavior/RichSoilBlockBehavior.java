@@ -8,6 +8,7 @@ import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.BlockPos;
@@ -17,6 +18,7 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 
 import java.util.Map;
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class RichSoilBlockBehavior extends FarmersDelightBlockBehavior {
@@ -31,11 +33,8 @@ public class RichSoilBlockBehavior extends FarmersDelightBlockBehavior {
     private final Key redMushroomColonyId;
     private final ConfiguredBlockSet brownMushrooms;
     private final ConfiguredBlockSet redMushrooms;
-    // The reference mod keeps a single UNAFFECTED_BY_RICH_SOIL block tag consulted by both the rich soil block
-    // and the rich soil farmland. Each configured block carries its own parsed copy: the list belongs to the
-    // behavior instance the factory built it from, so two blocks declaring this behavior cannot overwrite one
-    // another and load order cannot decide the winner. Final field of an instance published by the factory
-    // before any tick thread can reach it, so tick-thread reads see the fully built set.
+    // Store unaffected blocks per behavior instance so different configurations cannot overwrite each other.
+    // Publish the fully parsed final set before region ticks can read it.
     private final ConfiguredBlockSet unaffectedBlocks;
 
     private RichSoilBlockBehavior(BlockDefinition block, float boostChance,
@@ -64,7 +63,7 @@ public class RichSoilBlockBehavior extends FarmersDelightBlockBehavior {
         return redMushroomColonyId;
     }
 
-    public static final BlockBehaviorFactory<RichSoilBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+    public static final BlockBehaviorFactory<RichSoilBlockBehavior> FACTORY = (BlockDefinition block, ConfigSection section) -> {
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         float chance = BehaviorArgParser.getFloat(arguments, "boost-chance", 0.08f);
         String brownId = BehaviorArgParser.getStringStrict(arguments, "brown-mushroom-colony", "farmersdelight:brown_mushroom_colony");
@@ -115,16 +114,15 @@ public class RichSoilBlockBehavior extends FarmersDelightBlockBehavior {
     private static ConfiguredBlockSet configuredMushrooms(Map<String, Object> arguments, String key,
                                                          String... defaults) {
         Object configured = BehaviorArgParser.getRaw(arguments, key);
-        return configured == null ? ConfiguredBlockSet.parse(java.util.List.of(defaults))
+        return configured == null ? ConfiguredBlockSet.parse(List.of(defaults))
                 : ConfiguredBlockSet.parse(configured);
     }
 
     private boolean replaceWithColony(Block target, Key colonyId) {
         BlockDefinition colony = CraftEngineBlocks.byId(colonyId);
         if (colony == null) return false;
-        // Convert to a young (age 0) colony that then grows to maturity, matching the mod: planting a
-        // mushroom must never yield a fully grown colony. The colony's default state is age 3 (used when the
-        // colony item is placed directly), so explicitly drop it to age 0 for this growth path.
+        // Plant a mushroom colony at age 0 so it still needs to grow.
+        // The colony's placement default is mature age 3, which must be overridden on this path.
         ImmutableBlockState young = colonyAgeZero(colony);
         if (young == null) return false;
         CraftEngineBlocks.place(target.getLocation().add(0.5, 0, 0.5), young, true);
@@ -137,9 +135,7 @@ public class RichSoilBlockBehavior extends FarmersDelightBlockBehavior {
     }
 
     private boolean boostPlant(Block plant) {
-        // Mirrors RichSoilBlock.boostPlant, which bails out before the bone meal call for anything in the
-        // UNAFFECTED_BY_RICH_SOIL tag, so grass, moss, nylium, dripleaf, tall flowers, wild crops and mushroom
-        // colonies keep spreading at their own rate instead of being fertilised by the soil under them.
+        // Skip configured unaffected plants so soil does not accelerate their growth or spreading.
         if (unaffectedBlocks.contains(plant)) {
             return false;
         }

@@ -51,8 +51,8 @@ repositories {
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
     compileOnly("org.jetbrains:annotations:26.1.0")
-    compileOnly("net.momirealms:craft-engine-core:26.8")
-    compileOnly("net.momirealms:craft-engine-bukkit:26.8")
+    compileOnly("net.momirealms:craft-engine-core:26.9.1")
+    compileOnly("net.momirealms:craft-engine-bukkit:26.9.1")
     compileOnly(files("libs/farmersdelight-api-1.0.0.jar"))
 }
 

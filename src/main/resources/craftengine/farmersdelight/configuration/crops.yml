@@ -34,16 +34,16 @@ blocks:
           range: 0~3
       appearances:
         age=0:
-          auto-state: lower_tripwire
+          auto_state: lower_tripwire
           model: farmersdelight:block/onions_stage0
         age=1:
-          auto-state: higher_tripwire
+          auto_state: higher_tripwire
           model: farmersdelight:block/onions_stage1
         age=2:
-          auto-state: higher_tripwire
+          auto_state: higher_tripwire
           model: farmersdelight:block/onions_stage2
         age=3:
-          auto-state: sugar_cane
+          auto_state: sugar_cane
           model: farmersdelight:block/onions_stage3
       variants:
         age=0:
@@ -54,38 +54,31 @@ blocks:
           appearance: age=2
         age=3:
           appearance: age=3
-    events:
-      - on: break
-        functions:
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
+    loot:
+      functions:
+        - type: explosion_decay
+      pools:
+        - rolls: 1
+          entries:
+            - type: item
+              item: farmersdelight:onion
+              count: 1
+        - rolls: 1
+          conditions:
+            - type: match_block_property
+              properties:
+                age: 3
+          entries:
+            - type: item
+              item: farmersdelight:onion
+              count: 1
               functions:
-                - type: explosion_decay
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:onion
-                      count: 1
-                - rolls: 1
-                  conditions:
-                    - type: match_block_property
-                      properties:
-                        age: 3
-                  entries:
-                    - type: item
-                      item: farmersdelight:onion
-                      count: 1
-                      functions:
-                        - type: apply_bonus
-                          enchantment: minecraft:fortune
-                          formula:
-                            type: binomial_with_bonus_count
-                            extra: 3
-                            probability: 0.5714286
+                - type: apply_bonus
+                  enchantment: minecraft:fortune
+                  formula:
+                    type: binomial_with_bonus_count
+                    extra: 3
+                    probability: 0.5714286
   farmersdelight:rice:
     settings:
       template:
@@ -128,31 +121,31 @@ blocks:
           default: lower
       appearances:
         age=0,half=lower:
-          auto-state: kelp
+          auto_state: kelp
           model: farmersdelight:block/rice_stage0
         age=1,half=lower:
-          auto-state: kelp
+          auto_state: kelp
           model: farmersdelight:block/rice_stage1
         age=2,half=lower:
-          auto-state: kelp
+          auto_state: kelp
           model: farmersdelight:block/rice_stage2
         age=3,half=lower:
-          auto-state: kelp
+          auto_state: kelp
           model: farmersdelight:block/rice_stage3
         age=4,half=lower:
-          auto-state: kelp
+          auto_state: kelp
           model: farmersdelight:block/rice_supporting
         age=0,half=upper:
-          auto-state: lower_tripwire
+          auto_state: lower_tripwire
           model: farmersdelight:block/rice_panicles_stage0
         age=1,half=upper:
-          auto-state: lower_tripwire
+          auto_state: lower_tripwire
           model: farmersdelight:block/rice_panicles_stage1
         age=2,half=upper:
-          auto-state: higher_tripwire
+          auto_state: higher_tripwire
           model: farmersdelight:block/rice_panicles_stage2
         age=3,half=upper:
-          auto-state: higher_tripwire
+          auto_state: higher_tripwire
           model: farmersdelight:block/rice_panicles_stage3
       variants:
         age=0,half=lower:
@@ -256,28 +249,28 @@ blocks:
           range: 0~7
       appearances:
         age=0:
-          auto-state: lower_tripwire
+          auto_state: lower_tripwire
           model: farmersdelight:block/cabbages_stage0
         age=1:
-          auto-state: higher_tripwire
+          auto_state: higher_tripwire
           model: farmersdelight:block/cabbages_stage1
         age=2:
-          auto-state: higher_tripwire
+          auto_state: higher_tripwire
           model: farmersdelight:block/cabbages_stage2
         age=3:
-          auto-state: higher_tripwire
+          auto_state: higher_tripwire
           model: farmersdelight:block/cabbages_stage3
         age=4:
-          auto-state: higher_tripwire
+          auto_state: higher_tripwire
           model: farmersdelight:block/cabbages_stage4
         age=5:
-          auto-state: higher_tripwire
+          auto_state: higher_tripwire
           model: farmersdelight:block/cabbages_stage5
         age=6:
-          auto-state: higher_tripwire
+          auto_state: higher_tripwire
           model: farmersdelight:block/cabbages_stage6
         age=7:
-          auto-state: higher_tripwire
+          auto_state: higher_tripwire
           model: farmersdelight:block/cabbages_stage7
       variants:
         age=0:
@@ -296,53 +289,46 @@ blocks:
           appearance: age=6
         age=7:
           appearance: age=7
-    events:
-      - on: break
-        functions:
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
-              functions:
-                - type: explosion_decay
-              pools:
-                - rolls: 1
-                  entries:
-                    - type: alternatives
-                      children:
-                        - type: item
-                          item: farmersdelight:cabbage
-                          count: 1
-                          conditions:
-                            - type: match_block_property
-                              properties:
-                                age: 7
-                        - type: item
-                          item: farmersdelight:cabbage_seeds
-                          count: 1
-                          conditions:
-                            - type: inverted
-                              term:
-                                type: match_block_property
-                                properties:
-                                  age: 7
-                - rolls: 1
+    loot:
+      functions:
+        - type: explosion_decay
+      pools:
+        - rolls: 1
+          entries:
+            - type: alternatives
+              children:
+                - type: item
+                  item: farmersdelight:cabbage
+                  count: 1
                   conditions:
                     - type: match_block_property
                       properties:
                         age: 7
-                  entries:
-                    - type: item
-                      item: farmersdelight:cabbage_seeds
-                      count: 1
-                      functions:
-                        - type: apply_bonus
-                          enchantment: minecraft:fortune
-                          formula:
-                            type: binomial_with_bonus_count
-                            extra: 3
-                            probability: 0.5714286
+                - type: item
+                  item: farmersdelight:cabbage_seeds
+                  count: 1
+                  conditions:
+                    - type: inverted
+                      term:
+                        type: match_block_property
+                        properties:
+                          age: 7
+        - rolls: 1
+          conditions:
+            - type: match_block_property
+              properties:
+                age: 7
+          entries:
+            - type: item
+              item: farmersdelight:cabbage_seeds
+              count: 1
+              functions:
+                - type: apply_bonus
+                  enchantment: minecraft:fortune
+                  formula:
+                    type: binomial_with_bonus_count
+                    extra: 3
+                    probability: 0.5714286
   farmersdelight:budding_tomatoes:
     settings:
       template:
@@ -380,16 +366,16 @@ blocks:
           range: 0~3
       appearances:
         age=0:
-          auto-state: lower_tripwire
+          auto_state: lower_tripwire
           model: farmersdelight:block/budding_tomatoes_stage0
         age=1:
-          auto-state: lower_tripwire
+          auto_state: lower_tripwire
           model: farmersdelight:block/budding_tomatoes_stage1
         age=2:
-          auto-state: higher_tripwire
+          auto_state: higher_tripwire
           model: farmersdelight:block/budding_tomatoes_stage2
         age=3:
-          auto-state: higher_tripwire
+          auto_state: higher_tripwire
           model: farmersdelight:block/budding_tomatoes_stage3
       variants:
         age=0:
@@ -400,6 +386,15 @@ blocks:
           appearance: age=2
         age=3:
           appearance: age=3
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: survives_explosion
+          entries:
+            - type: item
+              item: farmersdelight:tomato_seeds
+              count: 1
   farmersdelight:tomatoes:
     settings:
       template:
@@ -439,16 +434,16 @@ blocks:
           range: 0~3
       appearances:
         age=0:
-          auto-state: sugar_cane
+          auto_state: sugar_cane
           model: farmersdelight:block/tomatoes_stage0
         age=1:
-          auto-state: sugar_cane
+          auto_state: sugar_cane
           model: farmersdelight:block/tomatoes_stage1
         age=2:
-          auto-state: sugar_cane
+          auto_state: sugar_cane
           model: farmersdelight:block/tomatoes_stage2
         age=3:
-          auto-state: sugar_cane
+          auto_state: sugar_cane
           model: farmersdelight:block/tomatoes_stage3
       variants:
         age=0:
@@ -496,52 +491,46 @@ blocks:
           - type: swing_hand
           - type: play_sound
             sound: farmersdelight:block.tomato_bush.pick_tomatoes
-      - on: break
-        functions:
-          - type: drop_loot
-            x: <arg:position.block_x> + 0.5
-            y: <arg:position.block_y> + 0.5
-            z: <arg:position.block_z> + 0.5
-            loot:
+    loot:
+      functions:
+        - type: explosion_decay
+      pools:
+        - rolls: 1
+          conditions:
+            - type: match_block_property
+              properties:
+                age: 3
+          entries:
+            - type: item
+              item: farmersdelight:tomato
               functions:
-                - type: explosion_decay
-              pools:
-                - rolls: 1
-                  conditions:
-                    - type: match_block_property
-                      properties:
-                        age: 3
-                  entries:
-                    - type: item
-                      item: farmersdelight:tomato
-                      functions:
-                        - type: set_count
-                          count:
-                            type: uniform
-                            min: 1
-                            max: 2
-                        - type: apply_bonus
-                          enchantment: minecraft:fortune
-                          formula:
-                            type: binomial_with_bonus_count
-                            extra: 0
-                            probability: 0.5
-                - rolls: 1
-                  entries:
-                    - type: item
-                      item: farmersdelight:tomato_seeds
-                      count: 1
-                - rolls: 1
-                  conditions:
-                    - type: match_block_property
-                      properties:
-                        age: 3
-                    - type: random
-                      value: 0.05
-                  entries:
-                    - type: item
-                      item: farmersdelight:rotten_tomato
-                      count: 1
+                - type: set_count
+                  count:
+                    type: uniform
+                    min: 1
+                    max: 2
+                - type: apply_bonus
+                  enchantment: minecraft:fortune
+                  formula:
+                    type: binomial_with_bonus_count
+                    extra: 0
+                    probability: 0.5
+        - rolls: 1
+          entries:
+            - type: item
+              item: farmersdelight:tomato_seeds
+              count: 1
+        - rolls: 1
+          conditions:
+            - type: match_block_property
+              properties:
+                age: 3
+            - type: random
+              value: 0.05
+          entries:
+            - type: item
+              item: farmersdelight:rotten_tomato
+              count: 1
   farmersdelight:tomato_crop_on_rope:
     settings:
       template:
@@ -583,16 +572,16 @@ blocks:
           range: 0~3
       appearances:
         age=0:
-          auto-state: twisting_vines
+          auto_state: twisting_vines
           model: farmersdelight:block/tomatoes_vine_stage0
         age=1:
-          auto-state: twisting_vines
+          auto_state: twisting_vines
           model: farmersdelight:block/tomatoes_vine_stage1
         age=2:
-          auto-state: twisting_vines
+          auto_state: twisting_vines
           model: farmersdelight:block/tomatoes_vine_stage2
         age=3:
-          auto-state: twisting_vines
+          auto_state: twisting_vines
           model: farmersdelight:block/tomatoes_vine_stage3
       variants:
         age=0:

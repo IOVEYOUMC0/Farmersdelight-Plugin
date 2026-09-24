@@ -148,7 +148,9 @@ final class ToolPreviewRenderer {
     private List<ItemStack> createVanillaToolPreviewItems(String suffix) {
         List<ItemStack> items = new ArrayList<>();
         for (Material material : Material.values()) {
-            if (!material.isItem()) continue;
+            // Skipping legacy materials avoids forcing CraftLegacy into its one-time class init
+            // (resolving a legacy item type routes through CraftLegacy.fromLegacy).
+            if (material.isLegacy() || !material.isItem()) continue;
             String name = material.name();
             if (name.endsWith(suffix.toUpperCase(Locale.ROOT))) {
                 items.add(new ItemStack(material));

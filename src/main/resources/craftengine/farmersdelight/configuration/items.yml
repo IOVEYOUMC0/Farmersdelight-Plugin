@@ -1594,6 +1594,9 @@ items:
           - recipes:
               - "farmersdelight:cooking_pot"
             craft-remainder: "minecraft:bucket"
+          - recipes:
+              - "farmersdelight:wheat_dough_from_water"
+            craft-remainder: "minecraft:water_bucket"
   minecraft:milk_bucket:
     material: milk_bucket
     settings:
@@ -1734,7 +1737,7 @@ recipes:
     experience: 0.35
     category: food
     time: 200
-    ingredient: "#eggs"
+    ingredient: "#c:eggs"
     result:
       id: farmersdelight:fried_egg
       count: 1
@@ -1742,7 +1745,7 @@ recipes:
     type: smoking
     experience: 0.35
     time: 100
-    ingredient: "#eggs"
+    ingredient: "#c:eggs"
     result:
       id: farmersdelight:fried_egg
       count: 1
@@ -1750,7 +1753,7 @@ recipes:
     type: campfire_cooking
     experience: 0.35
     time: 600
-    ingredient: "#eggs"
+    ingredient: "#c:eggs"
     result:
       id: farmersdelight:fried_egg
       count: 1
@@ -1758,13 +1761,22 @@ recipes:
     type: shapeless
     category: misc
     ingredients:
-      - "#eggs"
+      - "#c:eggs"
       - "minecraft:wheat"
       - "minecraft:wheat"
       - "minecraft:wheat"
     result:
       id: farmersdelight:wheat_dough
       count: 3
+  farmersdelight:wheat_dough_from_water:
+    type: shapeless
+    category: misc
+    ingredients:
+      - "minecraft:wheat"
+      - "minecraft:water_bucket"
+    result:
+      id: farmersdelight:wheat_dough
+      count: 1
   farmersdelight:bread:
     type: smelting
     experience: 0.35
@@ -1815,7 +1827,7 @@ recipes:
       - "SES"
       - "WWW"
     ingredients:
-      E: "#eggs"
+      E: "#c:eggs"
       M:
         - "minecraft:milk_bucket"
         - "farmersdelight:milk_bottle"
@@ -1881,7 +1893,7 @@ recipes:
       - " C "
     ingredients:
       C: "farmersdelight:pie_crust"
-      E: "#eggs"
+      E: "#c:eggs"
       P: "farmersdelight:pumpkin_slice"
       S: "minecraft:sugar"
     result:
@@ -2620,7 +2632,7 @@ recipes:
     category: misc
     ingredients:
       - "farmersdelight:onion"
-      - "#eggs"
+      - "#c:eggs"
       - "minecraft:bread"
       - "minecraft:carrot"
       - "minecraft:cooked_chicken"

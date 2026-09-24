@@ -5,7 +5,7 @@ import com.huidu.farmersdelight.api.enchant.EnchantmentDefinition;
 import com.huidu.farmersdelight.api.enchant.FarmersDelightEnchantments;
 import com.huidu.farmersdelight.config.EnchantmentSettings;
 import com.huidu.farmersdelight.i18n.I18n;
-import com.huidu.farmersdelight.util.DatapackSupport;
+import com.huidu.farmersdelight.api.util.DatapackSupport;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.event.EventHandler;
@@ -20,10 +20,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 
 public final class EnchantmentDatapackInstaller implements Listener {
 
@@ -58,7 +62,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
     // the primary world. Copies in non-primary worlds are removed.
     public void installToPrimaryWorld(World primaryWorld) {
         if (primaryWorld == null) {
-            I18n.logWarning("enchantment_datapack_no_worlds");
+            I18n.logWarning("plugin.enchantment_datapack_no_worlds");
             return;
         }
         EnchantmentSettings settings = plugin.getEnchantmentSettings();
@@ -101,7 +105,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
                 if (Files.exists(redundant)) {
                     DatapackSupport.deleteRecursively(redundant);
                     removed++;
-                    I18n.logInfo("enchantment_datapack_redundant_removed", "world", world.getName());
+                    I18n.logInfo("plugin.enchantment_datapack_redundant_removed", "world", world.getName());
                 }
             } catch (IOException e) {
                 plugin.getLogger().warning("FarmersDelight enchant datapack: failed to remove redundant folder under "
@@ -197,7 +201,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
             }
             return changed > 0;
         } catch (Exception exception) {
-            I18n.logWarning("enchantment_datapack_install_failed",
+            I18n.logWarning("plugin.enchantment_datapack_install_failed",
                     "world", world.getName(), "error", exception.getMessage());
             return false;
         }
@@ -297,7 +301,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
 
     private static boolean writeIfChanged(Path destination, String content) throws IOException {
         byte[] desired = content.getBytes(StandardCharsets.UTF_8);
-        if (Files.isRegularFile(destination) && java.util.Arrays.equals(Files.readAllBytes(destination), desired)) {
+        if (Files.isRegularFile(destination) && Arrays.equals(Files.readAllBytes(destination), desired)) {
             return false;
         }
         Files.createDirectories(destination.getParent());
@@ -358,7 +362,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
     }
 
     private static int deleteStaleFiles(Path root, List<GeneratedFile> generated) throws IOException {
-        java.util.Set<Path> expected = new java.util.HashSet<>();
+        Set<Path> expected = new HashSet<>();
         for (GeneratedFile file : generated) {
             expected.add(file.path().toAbsolutePath().normalize());
         }
@@ -367,7 +371,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
             return 0;
         }
         int removed = 0;
-        try (java.util.stream.Stream<Path> paths = Files.walk(data)) {
+        try (Stream<Path> paths = Files.walk(data)) {
             for (Path path : paths.filter(Files::isRegularFile).filter(p -> p.toString().endsWith(".json")).toList()) {
                 if (!expected.contains(path.toAbsolutePath().normalize())) {
                     Files.deleteIfExists(path);

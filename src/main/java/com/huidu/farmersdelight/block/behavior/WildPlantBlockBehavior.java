@@ -10,6 +10,7 @@ import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
@@ -65,9 +66,8 @@ public class WildPlantBlockBehavior extends FarmersDelightBlockBehavior {
         World world = player.getWorld();
         Block origin = world.getBlockAt(pos.x(), pos.y(), pos.z());
 
-        // This interaction cancels vanilla and manually places a wild plant via CraftEngineBlocks.place, so
-        // without a protection check a player with no build rights could spread wild plants inside a protected
-        // region (R-SEC-001). Gate the interaction here; the placement target is additionally checked in spread.
+        // This path places wild plants directly and cancels native interaction.
+        // Check protection for the clicked block here and for the destination during spreading.
         if (!ProtectionCompat.canBuild(player, origin)) {
             return InteractionResult.PASS;
         }
@@ -84,8 +84,8 @@ public class WildPlantBlockBehavior extends FarmersDelightBlockBehavior {
         return InteractionResult.SUCCESS_AND_CANCEL;
     }
 
-    // Faithful port of WildCropBlock.performBonemeal: aborts if the 9x3x9 area already has spreadLimit identical plants,
-    // otherwise random-walks to a target position and places a copy in the air above dirt/sand.
+    // Stop spreading when the 9x3x9 area contains spreadLimit identical plants.
+    // Otherwise choose a random-walk destination and place in air above dirt or sand.
     private void spread(World world, Block origin, ImmutableBlockState state, Player player) {
         String selfId = block().id().toString();
         int remaining = spreadLimit;
@@ -108,8 +108,7 @@ public class WildPlantBlockBehavior extends FarmersDelightBlockBehavior {
             }
             target = randomNeighbor(origin, random);
         }
-        // Also gate the actual placement target: the spread can land in an adjacent claim even when the
-        // clicked block is buildable (R-SEC-001).
+        // Check the placement destination too; an adjacent claim may have different build permissions.
         if (canPlaceAt(target) && ProtectionCompat.canBuild(player, target)) {
             CraftEngineBlocks.place(target.getLocation(), state, false);
         }
@@ -136,7 +135,7 @@ public class WildPlantBlockBehavior extends FarmersDelightBlockBehavior {
 
     public static final BlockBehaviorFactory<WildPlantBlockBehavior> FACTORY = new BlockBehaviorFactory<WildPlantBlockBehavior>() {
         @Override
-        public WildPlantBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
+        public WildPlantBlockBehavior create(BlockDefinition block, ConfigSection section) {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
             boolean isBoneMealTarget = BehaviorArgParser.getBoolean(arguments, "is-bone-meal-target", true);
             double successChance = BehaviorArgParser.getDouble(arguments, "bone-meal-success-chance", 0.8);

@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.command;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import io.papermc.paper.command.brigadier.BasicCommand;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 
 import java.util.Collection;
@@ -19,14 +20,14 @@ public final class FarmersDelightCommandRegistrar {
                 event.registrar().register("farmersdelight", "Main FarmersDelight command", List.of("fd"),
                         new BasicCommand() {
                             @Override
-                            public void execute(io.papermc.paper.command.brigadier.CommandSourceStack source,
+                            public void execute(CommandSourceStack source,
                                                 String[] args) {
                                 commandHandler.onCommand(source.getSender(), null, "farmersdelight", args);
                             }
 
                             @Override
                             public Collection<String> suggest(
-                                    io.papermc.paper.command.brigadier.CommandSourceStack source,
+                                    CommandSourceStack source,
                                     String[] args) {
                                 List<String> completions = commandHandler.onTabComplete(
                                         source.getSender(), null, "farmersdelight", args);

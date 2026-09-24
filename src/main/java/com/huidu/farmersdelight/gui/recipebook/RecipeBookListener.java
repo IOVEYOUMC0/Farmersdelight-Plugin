@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.gui.recipebook;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.gui.GuiListenerRegistrar;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -14,29 +15,13 @@ import org.bukkit.inventory.ItemStack;
 
 public final class RecipeBookListener implements Listener {
 
-    private static volatile boolean registered = false;
-
     public static void ensureRegistered() {
-        if (registered) {
-            return;
-        }
-        synchronized (RecipeBookListener.class) {
-            if (registered) {
-                return;
-            }
-            FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-            if (plugin == null) {
-                return;
-            }
-            Bukkit.getPluginManager().registerEvents(new RecipeBookListener(), plugin);
-            registered = true;
-        }
+        GuiListenerRegistrar.ensureRegistered(RecipeBookListener.class, RecipeBookListener::new,
+                FarmersDelightPlugin.getInstance());
     }
 
     public static void reset() {
-        synchronized (RecipeBookListener.class) {
-            registered = false;
-        }
+        GuiListenerRegistrar.reset(RecipeBookListener.class);
     }
 
     @EventHandler(priority = EventPriority.HIGH)

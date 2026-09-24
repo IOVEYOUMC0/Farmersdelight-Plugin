@@ -12,6 +12,7 @@ import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.Ageable;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -21,6 +22,7 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
@@ -35,13 +37,8 @@ public class StrawDropListener implements Listener {
     // ConcurrentHashMap because onBlockBreak may be triggered by different region threads on Folia.
     private final Map<String, Boolean> knifeCache = new ConcurrentHashMap<>();
 
-    // Invalidation rationale: FarmersDelightPlugin only news up one StrawDropListener in onEnable, and
-    // /fd reload (reloadAll / reloadMainConfigOnly) only calls loadConfigs() on the same instance to
-    // Knife settings are replaced by an immutable snapshot on reload, without rebuilding this listener.
-    // So the instance-field cache isn't auto-invalidated on reload. Since this file may not modify FarmersDelightPlugin,
-    // there's no way to explicitly call a clear method in the reload path, so a "reference-identity snapshot" detects reloads:
-    // loadConfigs() always produces fresh Set objects (toUnmodifiableSet / Set.of), and those Sets are immutable,
-    // replaced wholesale rather than mutated in place, so any reference change means the knife config reloaded and the cache must be cleared.
+    // Reload replaces knife configuration sets with fresh immutable instances.
+    // Compare their identities to invalidate this listener's cache when the settings change.
     private volatile Set<String> cachedKnifeItemIds;
     private volatile Set<String> cachedKnifeTagIds;
 
@@ -89,12 +86,9 @@ public class StrawDropListener implements Listener {
         }
     }
 
-    // Short grass, tall grass and mature wheat already drop straw through the CraftEngine vanilla loot
-    // entries in vanilla_loots.yml, which reproduce the original mod's knife check and its 0.2 chance on
-    // the two grasses. Dropping it here as well would give those blocks two independent straw sources, so
-    // this listener yields the item for them and keeps only the advancement award. Mature rice stays with
-    // this listener: it is a CraftEngine block, which the vanilla loot injection cannot target. Any other
-    // block key an admin adds under drops.yml's straw section also keeps dropping through this listener.
+    // Grass and mature wheat already receive straw through vanilla_loots.yml.
+    // Only award their advancement here to avoid a second independent drop.
+    // Custom rice and additional configured blocks retain listener-managed drops.
     private boolean isStrawDroppedByVanillaLootEntry(Block block) {
         Material type = block.getType();
         if (type == Material.SHORT_GRASS || type == Material.TALL_GRASS) {
@@ -107,38 +101,28 @@ public class StrawDropListener implements Listener {
     }
 
     private boolean isKnife(ItemStack item) {
-        if (item == null || item.getType() == Material.AIR) return false;
+        if (item == null || item.getType().isAir()) return false;
 
-        String customItemId = ItemUtils.getCustomItemId(item);
-
-        // Vanilla items (customId == null) short-circuit immediately and don't enter the cache.
-        if (customItemId == null) {
+        // Cache on the item's resolved identity (CraftEngine id, mmoitems:<TYPE>:<ID>, vanilla id) so an
+        // MMOItems or configured vanilla knife is cached too instead of being rejected before the check.
+        String identity = ItemUtils.resolveItemId(item);
+        if (identity == null) {
             return false;
         }
 
         // Detect whether a /fd reload happened before reading the cache, clearing stale results if needed.
         invalidateKnifeCacheIfConfigReloaded();
 
-        Boolean cached = knifeCache.get(customItemId);
+        Boolean cached = knifeCache.get(identity);
         if (cached != null) {
             return cached;
         }
 
-        boolean result = computeIsKnife(customItemId);
-        knifeCache.put(customItemId, result);
+        boolean result = plugin.isKnife(item);
+        knifeCache.put(identity, result);
         return result;
     }
 
-    // Actual check: match the knife id set first, otherwise fall back to tags. Called only once on a cache miss.
-    private boolean computeIsKnife(String customItemId) {
-        if (plugin.isKnifeItemId(customItemId)) {
-            return true;
-        }
-
-        Set<Key> itemTags = ItemUtils.getCustomItemTags(Key.of(customItemId));
-        return itemTags.stream().anyMatch(tag ->
-                plugin.getKnifeTagIds().stream().anyMatch(knifeTag -> tag.toString().equalsIgnoreCase(knifeTag)));
-    }
     private StrawDropConfig.StrawDropRule getStrawDropRule(Block block) {
         StrawDropConfig config = plugin.getStrawDropConfig();
         if (config == null) return null;
@@ -169,7 +153,7 @@ public class StrawDropListener implements Listener {
             return config.getRule("mature_rice");
         }
 
-        return config.getRule(type.name().toLowerCase(java.util.Locale.ROOT));
+        return config.getRule(type.name().toLowerCase(Locale.ROOT));
     }
 
     private boolean isMatureRicePanicles(Block block) {
@@ -194,7 +178,7 @@ public class StrawDropListener implements Listener {
             return false;
         }
 
-        Block lowerBlock = block.getRelative(org.bukkit.block.BlockFace.DOWN);
+        Block lowerBlock = block.getRelative(BlockFace.DOWN);
         ImmutableBlockState lowerState = CraftEngineBlocks.getCustomBlockState(lowerBlock);
         if (lowerState == null || lowerState.isEmpty()) {
             return false;

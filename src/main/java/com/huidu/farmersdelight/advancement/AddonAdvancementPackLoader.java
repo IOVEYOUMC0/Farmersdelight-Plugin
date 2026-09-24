@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.advancement;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
 import net.momirealms.craftengine.core.pack.Pack;
 import org.bukkit.Material;
@@ -11,7 +12,9 @@ import org.bukkit.inventory.ItemStack;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.Locale;
 import java.util.regex.Pattern;
@@ -31,7 +34,12 @@ final class AddonAdvancementPackLoader {
             return;
         }
         // Capture CE objects on the calling thread. Only immutable paths and YAML parsing leave it.
-        List<Path> roots = ce.packManager().loadedPacks().stream().map(Pack::folder).toList();
+        // Skip packs turned off with enable: false. Their items are never registered, so an advancement
+        // built from one would carry an unresolvable icon and a trigger nothing can satisfy.
+        List<Path> roots = ce.packManager().loadedPacks().stream()
+                .filter(Pack::enabled)
+                .map(Pack::folder)
+                .toList();
         plugin.scheduler().runAsync(() -> {
             List<Config> configs = new ArrayList<>();
             for (Path root : roots) {
@@ -84,16 +92,6 @@ final class AddonAdvancementPackLoader {
         return normalized;
     }
 
-    static boolean usesAutomaticLayout(YamlConfiguration yaml) {
-        ConfigurationSection section = yaml.getConfigurationSection("advancements");
-        if (section == null) return false;
-        for (String id : section.getKeys(false)) {
-            ConfigurationSection node = section.getConfigurationSection(id);
-            if (node != null && (node.contains("x") || node.contains("y"))) return false;
-        }
-        return true;
-    }
-
     static List<AdvancementDef> parse(FarmersDelightPlugin plugin, String namespace, Path file,
                                       YamlConfiguration yaml) {
         ConfigurationSection section = yaml.getConfigurationSection("advancements");
@@ -130,19 +128,19 @@ final class AddonAdvancementPackLoader {
                 warnType(plugin, file, path + "." + key, s, key, Boolean.class);
             }
             String frame = s.getString("frame", "task");
-            if (frame != null && !Set.of("task", "goal", "challenge").contains(frame.toLowerCase(java.util.Locale.ROOT))) {
+            if (frame != null && !Set.of("task", "goal", "challenge").contains(frame.toLowerCase(Locale.ROOT))) {
                 plugin.getLogger().warning("Invalid advancement config at " + file + ": " + path
                         + ".frame has unknown value '" + frame + "'");
             }
             String parent = s.getString("parent");
             String iconId = s.getString("icon", namespace + ":" + id);
-            ItemStack icon = com.huidu.farmersdelight.util.ItemUtils.createItem(iconId);
+            ItemStack icon = ItemUtils.createItem(iconId);
             if (icon == null || icon.getType().isAir()) icon = new ItemStack(Material.BOOK);
             String title = s.getString("title", namespace + ".advancement." + id);
             String description = s.getString("description", title + ".desc");
             List<String> criteria = s.getStringList("criteria");
             List<String> required = s.getStringList("required-ids");
-            java.util.Map<String, List<String>> criterionReq = new java.util.LinkedHashMap<>();
+            Map<String, List<String>> criterionReq = new LinkedHashMap<>();
             ConfigurationSection req = s.getConfigurationSection("criterion-requirements");
             if (req != null) {
                 for (String key : req.getKeys(false)) {

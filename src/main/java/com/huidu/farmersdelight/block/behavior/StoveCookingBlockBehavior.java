@@ -8,12 +8,18 @@ import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CookingDebugLog;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.util.PermissionChecker;
 import io.papermc.paper.datacomponent.DataComponentTypes;
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
+import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
+import net.momirealms.craftengine.bukkit.util.EntityUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.block.behavior.EntityBlock;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.block.entity.BlockEntityController;
@@ -24,12 +30,18 @@ import net.momirealms.craftengine.core.world.context.UseOnContext;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.damage.DamageSource;
+import org.bukkit.damage.DamageType;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.BoundingBox;
 
 import java.util.Map;
+import java.util.UUID;
 
 public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior implements EntityBlock {
 
@@ -40,6 +52,13 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
 
     public static final int SLOT_COUNT = 6;
     public static final String FIRE_PROPERTY = "fire";
+    // Vanilla GRILLING_AREA in the mod is Block.box(3,0,3,13,1,13). Block.box takes sixteenths, so that
+    // is a plate one pixel thick on the stove's top face, inset to the central 10x10: only an entity
+    // standing within that plate burns, the rim is safe, and anything laid on top of the stove (a carpet,
+    // a slab) lifts the entity clear of the plate.
+    private static final double GRILL_MIN = 3.0D / 16.0D;
+    private static final double GRILL_MAX = 13.0D / 16.0D;
+    private static final double GRILL_THICKNESS = 1.0D / 16.0D;
     // Resolved once at construction from the block definition this behavior belongs to, so the handle can
     // never go stale: a /ce reload rebuilds the definition and its Property instances together with this
     // behavior. Final, so it is safely published to the region tick threads that read it.
@@ -47,6 +66,10 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
     private final String crackleSound;
     private final boolean burnEnabled;
     private final double burnDamage;
+    // The custom farmersdelight:stove_burn damage type from FD's datapack (correct death message + mob
+    // panic), or HOT_FLOOR when the datapack is not loaded so the burn still works either way. Resolved
+    // lazily on the first step; a /ce reload replaces this behavior together with the block definition.
+    private volatile DamageType burnDamageType;
 
     private StoveCookingBlockBehavior(BlockDefinition block, Property<Boolean> fireProperty, String crackleSound,
                                        boolean burnEnabled, double burnDamage) {
@@ -59,7 +82,7 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
 
     public static final BlockBehaviorFactory<StoveCookingBlockBehavior> FACTORY = new BlockBehaviorFactory<>() {
         @Override
-        public StoveCookingBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
+        public StoveCookingBlockBehavior create(BlockDefinition block, ConfigSection section) {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
             // The lit state is not optional: without it the stove has no way to be off, so a block that
             // declares this behavior without a boolean 'fire' property aborts its own load here with the
@@ -85,12 +108,76 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
         return crackleSound;
     }
 
-    public boolean isBurnEnabled() {
-        return burnEnabled;
+    @Override
+    public void stepOn(Object thisBlock, Object[] args) {
+        // Vanilla calls this every tick for the block an entity is standing on (Block.stepOn(level, pos,
+        // state, entity)), which is exactly where the original mod burns from: no polling, no per-player
+        // entity scan, and nothing depends on where any player is. The damage rate is bounded by vanilla's
+        // hurt invulnerability window (0.5s), and the burn runs on the thread that owns the entity.
+        if (!burnEnabled || burnDamage <= 0D || args == null || args.length < 4) {
+            return;
+        }
+        ImmutableBlockState state = BlockStateUtils.getOptionalCustomBlockState(args[2]).orElse(null);
+        if (!isLit(state)) {
+            return;
+        }
+        LivingEntity entity = adaptLivingEntity(args[3]);
+        if (entity == null || entity.isDead() || !entity.isValid()) {
+            return;
+        }
+        // Vanilla's isSteppingCarefully() is only ever true for a sneaking player.
+        if (entity instanceof Player player && player.isSneaking()) {
+            return;
+        }
+        BlockPos pos = CraftEngineAdapter.toBlockPos(args[1]);
+        if (pos == null) {
+            return;
+        }
+        // GRILLING_AREA moved one block up from the stepped-on position: a one-pixel plate resting on the
+        // stove's top face (the stove's own collision is a full cube, so a bare stove puts the entity's feet
+        // exactly on the plate floor, while a carpet or slab on the stove lifts them off it).
+        double grillBottom = pos.y() + 1.0D;
+        double grillTop = grillBottom + GRILL_THICKNESS;
+        BoundingBox bb = entity.getBoundingBox();
+        if (bb.getMaxY() <= grillBottom || bb.getMinY() >= grillTop
+                || bb.getMaxX() <= pos.x() + GRILL_MIN || bb.getMinX() >= pos.x() + GRILL_MAX
+                || bb.getMaxZ() <= pos.z() + GRILL_MIN || bb.getMinZ() >= pos.z() + GRILL_MAX) {
+            return;
+        }
+        entity.damage(burnDamage, DamageSource.builder(burnDamageType()).build());
     }
 
-    public double getBurnDamage() {
-        return burnDamage;
+    // NMS entity -> Bukkit entity. Non-living entities (items, arrows, ...) are not burned, matching the
+    // mod's LivingEntity check.
+    private static LivingEntity adaptLivingEntity(Object minecraftEntity) {
+        try {
+            return EntityUtils.adaptNMS(minecraftEntity).platformEntity() instanceof LivingEntity living
+                    ? living : null;
+        } catch (RuntimeException | LinkageError ignored) {
+            // No adaptor for this entity class -> nothing to burn.
+            return null;
+        }
+    }
+
+    // RegistryKey.DAMAGE_TYPE is the stable lookup. A try/catch with a HOT_FLOOR fallback supports server
+    // variants without the registry accessor.
+    @SuppressWarnings("UnstableApiUsage")
+    private DamageType burnDamageType() {
+        DamageType type = this.burnDamageType;
+        if (type == null) {
+            DamageType custom = null;
+            NamespacedKey key = NamespacedKey.fromString("farmersdelight:stove_burn");
+            if (key != null) {
+                try {
+                    custom = RegistryAccess.registryAccess().getRegistry(RegistryKey.DAMAGE_TYPE).get(key);
+                } catch (Throwable ignored) {
+                    // Registry unavailable on this server flavour -> fall back below.
+                }
+            }
+            type = custom != null ? custom : DamageType.HOT_FLOOR;
+            this.burnDamageType = type;
+        }
+        return type;
     }
 
     @Override
@@ -224,7 +311,7 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
         }
     }
 
-    public static void cleanupWorld(java.util.UUID worldId) {
+    public static void cleanupWorld(UUID worldId) {
         StoveManager manager = getManager();
         if (manager != null) {
             manager.cleanupWorld(worldId);

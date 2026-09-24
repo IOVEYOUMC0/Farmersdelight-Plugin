@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.api.recipe;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiPredicate;
 import java.util.function.ToIntFunction;
@@ -40,7 +41,7 @@ public final class IngredientMatching {
             }
         }
 
-        return assignAll(required, slots, matcher, initialAmount);
+        return assignIngredients(required, slots, matcher, initialAmount) != null;
     }
 
     public static <Slot, Ingredient> boolean containsIngredients(
@@ -48,10 +49,11 @@ public final class IngredientMatching {
             List<Slot> slots,
             BiPredicate<Slot, Ingredient> matcher,
             ToIntFunction<Slot> initialAmount) {
-        return assignAll(required, slots, matcher, initialAmount);
+        return assignIngredients(required, slots, matcher, initialAmount) != null;
     }
 
-    private static <Slot, Ingredient> boolean assignAll(
+    /** Returns one source slot index per ingredient, or null when no assignment exists. */
+    public static <Slot, Ingredient> int[] assignIngredients(
             List<Ingredient> required,
             List<Slot> slots,
             BiPredicate<Slot, Ingredient> matcher,
@@ -84,14 +86,22 @@ public final class IngredientMatching {
             }
         }
         int[] unitOwner = new int[totalUnits]; // ingredient index currently holding this unit, or -1
-        java.util.Arrays.fill(unitOwner, -1);
+        Arrays.fill(unitOwner, -1);
         for (int k = 0; k < requiredCount; k++) {
             boolean[] visited = new boolean[totalUnits];
             if (!assign(k, required, slots, unitSlot, unitOwner, visited, matcher)) {
-                return false;
+                return null;
             }
         }
-        return true;
+        int[] assignment = new int[requiredCount];
+        Arrays.fill(assignment, -1);
+        for (int unit = 0; unit < totalUnits; unit++) {
+            int ingredient = unitOwner[unit];
+            if (ingredient >= 0) {
+                assignment[ingredient] = unitSlot[unit];
+            }
+        }
+        return assignment;
     }
 
     private static <Slot, Ingredient> boolean assign(

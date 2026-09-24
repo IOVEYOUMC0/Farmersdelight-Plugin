@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.api.util;
 
 import net.momirealms.craftengine.bukkit.api.CraftEngineItems;
 import net.momirealms.craftengine.core.util.Key;
+import org.bukkit.block.ShulkerBox;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BlockStateMeta;
 import org.bukkit.inventory.meta.BundleMeta;
@@ -47,7 +48,7 @@ public final class NestingGuard {
         // the registered FD-family containers. Plain containers (chest, furnace, ...) spill their items
         // on break and carry no nested NBT, so they are intentionally excluded.
         if (meta instanceof BlockStateMeta blockStateMeta
-                && blockStateMeta.getBlockState() instanceof org.bukkit.block.ShulkerBox) {
+                && blockStateMeta.getBlockState() instanceof ShulkerBox) {
             return true;
         }
         if (meta instanceof BundleMeta) {

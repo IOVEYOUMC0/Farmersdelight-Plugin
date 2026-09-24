@@ -10,11 +10,13 @@ import org.bukkit.plugin.Plugin;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 /**
  * Loads an addon's own recipes/*.yml into FarmersDelight and keeps the bookkeeping.
@@ -36,6 +38,13 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class AddonRecipeFiles {
 
+    /** File ownership for recipes loaded through this helper; used by FD's generic editor. */
+    public record RecipeOwner(File file, String root, String key, String source) {
+        public String yamlPath() {
+            return root + "." + key;
+        }
+    }
+
     /**
      * @param registered    ids registered by this call
      * @param skipped       entries that could not be registered (bad shape or unresolved items)
@@ -52,6 +61,8 @@ public final class AddonRecipeFiles {
 
     private static final Map<String, Set<String>> COOKING_POT_IDS = new ConcurrentHashMap<>();
     private static final Map<String, Set<String>> CUTTING_BOARD_IDS = new ConcurrentHashMap<>();
+    private static final Map<String, RecipeOwner> COOKING_POT_OWNERS = new ConcurrentHashMap<>();
+    private static final Map<String, RecipeOwner> CUTTING_BOARD_OWNERS = new ConcurrentHashMap<>();
 
     private AddonRecipeFiles() {
     }
@@ -68,6 +79,7 @@ public final class AddonRecipeFiles {
         }
         FarmersDelightApi api = FarmersDelightApi.get();
         Set<String> fresh = new LinkedHashSet<>();
+        Map<String, RecipeOwner> owners = new LinkedHashMap<>();
         int skipped = 0;
         boolean awaiting = false;
 
@@ -107,8 +119,14 @@ public final class AddonRecipeFiles {
                     ConfigSectionReader.optionalInt(section, "cook-time", 200),
                     ConfigSectionReader.optionalString(section, "category", "misc"));
             fresh.add(id);
+            owners.put(id, new RecipeOwner(new File(plugin.getDataFolder(), resourcePath),
+                    "cooking_pot_recipes", key, source));
         }
-        return commit(COOKING_POT_IDS, source, fresh, skipped, awaiting, api::unregisterCookingPotRecipe);
+        LoadResult result = commit(COOKING_POT_IDS, source, fresh, skipped, awaiting,
+                api::unregisterCookingPotRecipe);
+        replaceOwners(COOKING_POT_OWNERS, COOKING_POT_IDS.getOrDefault(source, Set.of()), owners,
+                source, result.awaitingItems());
+        return result;
     }
 
     /**
@@ -126,6 +144,7 @@ public final class AddonRecipeFiles {
         }
         FarmersDelightApi api = FarmersDelightApi.get();
         Set<String> fresh = new LinkedHashSet<>();
+        Map<String, RecipeOwner> owners = new LinkedHashMap<>();
         int skipped = 0;
         boolean awaiting = false;
 
@@ -182,8 +201,14 @@ public final class AddonRecipeFiles {
             api.registerCuttingBoardRecipeWithChances(id, input, tool, results,
                     ConfigSectionReader.optionalString(section, "sound"));
             fresh.add(id);
+            owners.put(id, new RecipeOwner(new File(plugin.getDataFolder(), resourcePath),
+                    "cutting_board_recipes", key, source));
         }
-        return commit(CUTTING_BOARD_IDS, source, fresh, skipped, awaiting, api::unregisterCuttingBoardRecipe);
+        LoadResult result = commit(CUTTING_BOARD_IDS, source, fresh, skipped, awaiting,
+                api::unregisterCuttingBoardRecipe);
+        replaceOwners(CUTTING_BOARD_OWNERS, CUTTING_BOARD_IDS.getOrDefault(source, Set.of()), owners,
+                source, result.awaitingItems());
+        return result;
     }
 
     /** Withdraws every recipe this source registered. Call from the addon's onDisable. */
@@ -196,10 +221,37 @@ public final class AddonRecipeFiles {
         if (pot != null) {
             pot.forEach(api::unregisterCookingPotRecipe);
         }
+        removeOwners(COOKING_POT_OWNERS, source);
         Set<String> board = CUTTING_BOARD_IDS.remove(source);
         if (board != null) {
             board.forEach(api::unregisterCuttingBoardRecipe);
         }
+        removeOwners(CUTTING_BOARD_OWNERS, source);
+    }
+
+    /** Returns the writable source file for a recipe loaded by this helper, or null for API-only ids. */
+    public static RecipeOwner ownerOf(String station, String id) {
+        if (station == null || id == null) {
+            return null;
+        }
+        return switch (station) {
+            case "cooking_pot" -> COOKING_POT_OWNERS.get(id);
+            case "cutting_board" -> CUTTING_BOARD_OWNERS.get(id);
+            default -> null;
+        };
+    }
+
+    private static void replaceOwners(Map<String, RecipeOwner> owners, Set<String> liveIds,
+                                      Map<String, RecipeOwner> fresh, String source, boolean awaiting) {
+        if (!awaiting) {
+            owners.entrySet().removeIf(entry -> source.equals(entry.getValue().source())
+                    && !liveIds.contains(entry.getKey()));
+        }
+        owners.putAll(fresh);
+    }
+
+    private static void removeOwners(Map<String, RecipeOwner> owners, String source) {
+        owners.entrySet().removeIf(entry -> source.equals(entry.getValue().source()));
     }
 
     private static ConfigurationSection readRoot(Plugin plugin, String resourcePath, String rootKey) {
@@ -225,7 +277,7 @@ public final class AddonRecipeFiles {
 
     private static LoadResult commit(Map<String, Set<String>> registry, String source, Set<String> fresh,
                                      int skipped, boolean awaiting,
-                                     java.util.function.Consumer<String> unregister) {
+                                     Consumer<String> unregister) {
         Set<String> previous = registry.getOrDefault(source, Set.of());
         // CraftEngine can expose items in batches. Keep every previous id while any entry is waiting for
         // an item; otherwise a partial pass would unregister recipes that are still valid and make the

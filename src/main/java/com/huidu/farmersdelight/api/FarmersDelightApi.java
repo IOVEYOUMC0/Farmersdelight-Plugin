@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.api;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.block.CuttingBoardInteractionHandler;
+import com.huidu.farmersdelight.api.block.HeatSources;
 import com.huidu.farmersdelight.api.advancement.FarmersDelightAdvancements;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import com.huidu.farmersdelight.api.recipe.ChanceResult;
@@ -11,33 +12,52 @@ import com.huidu.farmersdelight.api.recipe.RecipeFiller;
 import com.huidu.farmersdelight.api.recipe.RecipeType;
 import com.huidu.farmersdelight.api.recipe.SpecialRecipeInfo;
 import com.huidu.farmersdelight.api.recipe.ViewableRecipe;
+import com.huidu.farmersdelight.api.item.FarmersDelightItems;
 import com.huidu.farmersdelight.api.scheduler.ApiTask;
 import com.huidu.farmersdelight.gui.recipebook.RecipeBookGui;
 import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.config.HeatSourceConfig;
+import com.huidu.farmersdelight.recipe.SpecialRecipeLoader;
+import com.huidu.farmersdelight.recipe.SpecialRecipeRegistry;
+import com.huidu.farmersdelight.util.CommonTagResolver;
+import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
+import com.huidu.farmersdelight.visual.ItemDisplayManager;
+import com.huidu.farmersdelight.visual.ItemDisplayManager.DisplaySpec;
+import com.huidu.farmersdelight.visual.ItemDisplayManager.TextDisplaySpec;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.Color;
 import org.bukkit.block.Block;
 import org.bukkit.entity.ExperienceOrb;
+import org.bukkit.entity.ItemDisplay.ItemDisplayTransform;
 import org.bukkit.entity.Player;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.Transformation;
 import org.jetbrains.annotations.ApiStatus;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 @ApiStatus.NonExtendable
 public final class FarmersDelightApi {
 
     private static final int API_VERSION = 3;
 
-    private static final java.util.Set<String> FEATURES = java.util.Set.of(
+    private static final Set<String> FEATURES = Set.of(
             // Runtime recipe registration + the generic recipe book / editor (registerRecipeType,
             // registerCookingPotRecipe, registerCuttingBoardRecipe, openRecipeBook, openRecipeEditor).
             "recipes",
@@ -80,15 +100,13 @@ public final class FarmersDelightApi {
     );
 
     private static final FarmersDelightApi INSTANCE = new FarmersDelightApi();
-    private static final java.util.Set<String> REPORTED_API_RECIPE_ITEMS =
-            java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final Set<String> REPORTED_API_RECIPE_ITEMS = ConcurrentHashMap.newKeySet();
 
     private final Map<String, RecipeType> recipeTypes = Collections.synchronizedMap(new LinkedHashMap<>());
     private volatile Map<String, List<JumpTarget>> recipeResultIndex = Map.of();
     // Block namespaces of registered addons (e.g. "brewinandchewin"), used by the CraftEngine block-state
     // usage report and the shared land-protection listener.
-    private final java.util.Set<String> addonBlockNamespaces =
-            java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private final Set<String> addonBlockNamespaces = ConcurrentHashMap.newKeySet();
     private record AdvancementTrigger(String source, String tab, String advancement, String criterion) {}
     private final Map<String, List<AdvancementTrigger>> advancementTriggers = new ConcurrentHashMap<>();
     private final Map<String, List<AdvancementTrigger>> consumeAdvancementTriggers = new ConcurrentHashMap<>();
@@ -108,19 +126,19 @@ public final class FarmersDelightApi {
      * Every feature id this build answers true for. Useful for logging what an addon is running against,
      * and for keeping the published capability table honest (see ApiDocsDriftTest).
      */
-    public java.util.Set<String> features() {
+    public Set<String> features() {
         return FEATURES;
     }
 
     public boolean hasFeature(String feature) {
-        return feature != null && FEATURES.contains(feature.trim().toLowerCase(java.util.Locale.ROOT));
+        return feature != null && FEATURES.contains(feature.trim().toLowerCase(Locale.ROOT));
     }
 
     public void registerAddonBlockNamespace(String namespace) {
         if (namespace == null) {
             return;
         }
-        String trimmed = namespace.trim().toLowerCase(java.util.Locale.ROOT);
+        String trimmed = namespace.trim().toLowerCase(Locale.ROOT);
         if (trimmed.endsWith(":")) {
             trimmed = trimmed.substring(0, trimmed.length() - 1);
         }
@@ -129,8 +147,8 @@ public final class FarmersDelightApi {
         }
     }
 
-    public java.util.Set<String> addonBlockNamespaces() {
-        return java.util.Set.copyOf(addonBlockNamespaces);
+    public Set<String> addonBlockNamespaces() {
+        return Set.copyOf(addonBlockNamespaces);
     }
 
     /** Fast membership check for block event listeners; unlike addonBlockNamespaces(), this does not copy. */
@@ -147,14 +165,24 @@ public final class FarmersDelightApi {
      * That export runs again once the whole server has loaded, so registering during addon enable is in
      * time; CraftEngine absorbs the written tags on the next server start. Members in other namespaces
      * take effect immediately through FD's own matching and need no restart.
+     * When content is already loaded, registration also rebuilds tag-dependent recipes and GUI caches.
      */
     public void registerCommonTags(String source, Map<String, List<String>> tagToMemberItems) {
-        com.huidu.farmersdelight.util.CommonTagResolver.registerSource(source, tagToMemberItems);
+        CommonTagResolver.registerSource(source, tagToMemberItems);
+        refreshTagDependentRecipes();
     }
 
     /** Removes a previously registered addon tag source (idempotent). */
     public void unregisterCommonTags(String source) {
-        com.huidu.farmersdelight.util.CommonTagResolver.unregisterSource(source);
+        CommonTagResolver.unregisterSource(source);
+        refreshTagDependentRecipes();
+    }
+
+    private void refreshTagDependentRecipes() {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin != null && isContentLoaded()) {
+            plugin.refreshTagDependentRecipes();
+        }
     }
 
     public void registerRecipeType(RecipeType type) {
@@ -194,11 +222,11 @@ public final class FarmersDelightApi {
 
     private synchronized void rebuildRecipeResultIndex() {
         recipeResultIndex = buildRecipeResultIndex(recipeTypes(),
-                recipe -> com.huidu.farmersdelight.api.item.FarmersDelightItems.idOf(recipe.result()));
+                recipe -> FarmersDelightItems.idOf(recipe.result()));
     }
 
     static Map<String, List<JumpTarget>> buildRecipeResultIndex(
-            List<RecipeType> types, java.util.function.Function<ViewableRecipe, String> itemIdResolver) {
+            List<RecipeType> types, Function<ViewableRecipe, String> itemIdResolver) {
         Map<String, List<JumpTarget>> next = new LinkedHashMap<>();
         for (RecipeType type : types) {
             for (ViewableRecipe recipe : type.recipes()) {
@@ -218,19 +246,19 @@ public final class FarmersDelightApi {
 
     /** Returns all registered recipes producing the item without scanning recipe collections. */
     public List<JumpTarget> findRecipesProducing(ItemStack item) {
-        String itemId = com.huidu.farmersdelight.api.item.FarmersDelightItems.idOf(item);
+        String itemId = FarmersDelightItems.idOf(item);
         if (itemId == null) {
             return List.of();
         }
-        java.util.LinkedHashSet<JumpTarget> targets =
-                new java.util.LinkedHashSet<>(FarmersDelightRecipes.findRecipesProducing(item));
+        LinkedHashSet<JumpTarget> targets =
+                new LinkedHashSet<>(FarmersDelightRecipes.findRecipesProducing(item));
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin != null) {
             if (plugin.getSpecialRecipeRegistry() != null) {
                 String specialId = plugin.getSpecialRecipeRegistry().findProducingRecipe(item);
                 if (specialId != null) {
                     targets.add(new JumpTarget(
-                            com.huidu.farmersdelight.recipe.SpecialRecipeRegistry.TYPE_ID, specialId));
+                            SpecialRecipeRegistry.TYPE_ID, specialId));
                 }
             }
         }
@@ -308,19 +336,18 @@ public final class FarmersDelightApi {
             registerCuttingBoardRecipeWithChances(id, input, tool, null, sound);
             return;
         }
-        List<com.huidu.farmersdelight.api.recipe.ChanceResult> guaranteed = new ArrayList<>(results.size());
+        List<ChanceResult> guaranteed = new ArrayList<>(results.size());
         for (ItemStack result : results) {
             if (result != null) {
-                guaranteed.add(new com.huidu.farmersdelight.api.recipe.ChanceResult(result, 1.0f));
+                guaranteed.add(new ChanceResult(result, 1.0f));
             }
         }
         registerCuttingBoardRecipeWithChances(id, input, tool, guaranteed, sound);
     }
 
     /**
-     * Register a cutting-board recipe whose results carry a per-result drop chance (mirrors the mod's
-     * addResultWithChance). A chance of 1.0 is a guaranteed result; 0.5 drops half the time. Use this
-     * instead of the plain registerCuttingBoardRecipe when any result is not guaranteed.
+     * Registers cutting-board results with individual drop chances.
+     * A chance of 1.0 always drops the result; 0.5 gives it a 50% chance.
      */
     public void registerCuttingBoardRecipeWithChances(String id, String input, String tool,
                                                       List<ChanceResult> results, String sound) {
@@ -377,13 +404,12 @@ public final class FarmersDelightApi {
      * recipes from a released config file like their other recipes. Throws on a malformed section so the
      * addon loader can fail the specific entry and keep going (matching FD's per-entry isolation).
      */
-    public void registerSpecialRecipeFromSection(String id, org.bukkit.configuration.ConfigurationSection section) {
+    public void registerSpecialRecipeFromSection(String id, ConfigurationSection section) {
         if (id == null || section == null) {
             return;
         }
         try {
-            com.huidu.farmersdelight.api.recipe.SpecialRecipeInfo info =
-                    com.huidu.farmersdelight.recipe.SpecialRecipeLoader.parseRecipe(id, section);
+            SpecialRecipeInfo info = SpecialRecipeLoader.parseRecipe(id, section);
             if (isContentLoaded()) {
                 validateSpecialRecipeItems(id, info);
             }
@@ -395,7 +421,7 @@ public final class FarmersDelightApi {
     }
 
     private void validateSpecialRecipeItems(String recipeId,
-                                             com.huidu.farmersdelight.api.recipe.SpecialRecipeInfo info) {
+                                             SpecialRecipeInfo info) {
         if (info == null) {
             return;
         }
@@ -425,9 +451,9 @@ public final class FarmersDelightApi {
                     token = token.substring(0, comma).trim();
                 }
                 if (token.startsWith("#")) {
-                    resolved |= !com.huidu.farmersdelight.util.ItemUtils.createSlotItems(token).isEmpty();
+                    resolved |= !ItemUtils.createSlotItems(token).isEmpty();
                 } else {
-                    resolved |= com.huidu.farmersdelight.util.ItemUtils.createItem(token) != null;
+                    resolved |= ItemUtils.createItem(token) != null;
                 }
             }
             String reportKey = recipeId + ".ingredients[" + i + "]=" + spec;
@@ -443,8 +469,8 @@ public final class FarmersDelightApi {
             return;
         }
         boolean resolved = itemId.startsWith("#")
-                ? !com.huidu.farmersdelight.util.ItemUtils.createSlotItems(itemId).isEmpty()
-                : com.huidu.farmersdelight.util.ItemUtils.createItem(itemId) != null;
+                ? !ItemUtils.createSlotItems(itemId).isEmpty()
+                : ItemUtils.createItem(itemId) != null;
         String reportKey = recipeId + "." + path + "=" + itemId;
         if (!resolved && REPORTED_API_RECIPE_ITEMS.add(reportKey)) {
             I18n.logWarning("plugin.item_not_found", "path", "special recipe " + recipeId + "." + path,
@@ -533,7 +559,7 @@ public final class FarmersDelightApi {
      * registering — and logging — twice.
      */
     public boolean isContentLoaded() {
-        return com.huidu.farmersdelight.util.ItemUtils.isAnyCustomItemLoaded();
+        return ItemUtils.isAnyCustomItemLoaded();
     }
 
     public boolean isFolia() {
@@ -542,11 +568,11 @@ public final class FarmersDelightApi {
     }
 
     public String resolveTranslations(String text, Player player) {
-        return com.huidu.farmersdelight.util.ItemUtils.resolveTranslationTags(text, player);
+        return ItemUtils.resolveTranslationTags(text, player);
     }
 
     public static String consoleMessage(String key, Object... args) {
-        return com.huidu.farmersdelight.i18n.I18n.formatConsole(key, args);
+        return I18n.formatConsole(key, args);
     }
 
     public static boolean isDebugEnabled(String category) {
@@ -560,7 +586,7 @@ public final class FarmersDelightApi {
      * from this world's datapacks folder, so addons installing their own registry data packs should
      * target exactly this world instead of copying the pack into every world.
      */
-    public org.bukkit.World primaryWorld() {
+    public World primaryWorld() {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         return plugin != null ? plugin.getPrimaryWorld() : null;
     }
@@ -583,8 +609,8 @@ public final class FarmersDelightApi {
     // replays them whenever the table is rebuilt. The methods below are the older flat spelling; each
     // one writes into the same shared record, so mixing the two styles is safe.
 
-    private static com.huidu.farmersdelight.api.block.HeatSources legacyHeatSources() {
-        return com.huidu.farmersdelight.api.block.HeatSources.legacy();
+    private static HeatSources legacyHeatSources() {
+        return HeatSources.legacy();
     }
 
     /** @deprecated use HeatSources.of(plugin).addVanillaBlock(id). */
@@ -639,9 +665,9 @@ public final class FarmersDelightApi {
      * Replays every addon heat-source registration into a freshly built table. Called by FarmersDelight
      * right after it reloads its own heat-source config; addons never call this.
      */
-    @org.jetbrains.annotations.ApiStatus.Internal
-    public void replayAddonHeatSources(com.huidu.farmersdelight.config.HeatSourceConfig config) {
-        com.huidu.farmersdelight.api.block.HeatSources.replayAll(config);
+    @ApiStatus.Internal
+    public void replayAddonHeatSources(HeatSourceConfig config) {
+        HeatSources.replayAll(config);
     }
 
     /** Registers an obtain/craft/produce trigger for an advancement. Repeated registration replaces the same entry. */
@@ -703,7 +729,7 @@ public final class FarmersDelightApi {
         target.compute(itemId, (ignored, current) -> {
             List<AdvancementTrigger> next = current == null ? new ArrayList<>() : new ArrayList<>(current);
             next.removeIf(t -> source.equals(t.source()) && t.tab().equals(tabId)
-                    && t.advancement().equals(advancementId) && java.util.Objects.equals(t.criterion(), criterion));
+                    && t.advancement().equals(advancementId) && Objects.equals(t.criterion(), criterion));
             next.add(new AdvancementTrigger(source, tabId, advancementId, criterion));
             return List.copyOf(next);
         });
@@ -723,7 +749,7 @@ public final class FarmersDelightApi {
 
     // Shared gate + manager lookup for the packet display/text methods below. Returns null when the plugin
     // is not available so each caller's single null-check doubles as the availability guard.
-    private com.huidu.farmersdelight.visual.ItemDisplayManager displayManager() {
+    private ItemDisplayManager displayManager() {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         return (plugin != null && plugin.isEnabled0()) ? plugin.getItemDisplayManager() : null;
     }
@@ -736,19 +762,19 @@ public final class FarmersDelightApi {
     // handle for updateItemDisplay / removeItemDisplay; a return of -1 means the display was not created.
 
     public int createItemDisplay(Location location, ItemStack item,
-                                 org.bukkit.entity.ItemDisplay.ItemDisplayTransform itemTransform,
-                                 org.bukkit.util.Transformation transformation) {
-        com.huidu.farmersdelight.visual.ItemDisplayManager manager = displayManager();
+                                 ItemDisplayTransform itemTransform,
+                                 Transformation transformation) {
+        ItemDisplayManager manager = displayManager();
         if (manager == null || location == null || item == null) {
             return -1;
         }
-        return manager.createDisplay(new com.huidu.farmersdelight.visual.ItemDisplayManager.DisplaySpec(
+        return manager.createDisplay(new DisplaySpec(
                 location, item, itemTransform, transformation));
     }
 
     public boolean updateItemDisplay(int handle, Location location, ItemStack item,
-                                     org.bukkit.entity.ItemDisplay.ItemDisplayTransform itemTransform,
-                                     org.bukkit.util.Transformation transformation) {
+                                     ItemDisplayTransform itemTransform,
+                                     Transformation transformation) {
         return updateItemDisplay(handle, location, item, itemTransform, transformation, 0);
     }
 
@@ -758,18 +784,18 @@ public final class FarmersDelightApi {
      * default overload). Use this for animated station displays such as flipping a skewer on the grill.
      */
     public boolean updateItemDisplay(int handle, Location location, ItemStack item,
-                                     org.bukkit.entity.ItemDisplay.ItemDisplayTransform itemTransform,
-                                     org.bukkit.util.Transformation transformation, int interpolationDurationTicks) {
-        com.huidu.farmersdelight.visual.ItemDisplayManager manager = displayManager();
+                                     ItemDisplayTransform itemTransform,
+                                     Transformation transformation, int interpolationDurationTicks) {
+        ItemDisplayManager manager = displayManager();
         if (manager == null || location == null || item == null) {
             return false;
         }
-        return manager.updateDisplay(handle, new com.huidu.farmersdelight.visual.ItemDisplayManager.DisplaySpec(
+        return manager.updateDisplay(handle, new DisplaySpec(
                 location, item, itemTransform, transformation, Math.max(0, interpolationDurationTicks), 0));
     }
 
     public void removeItemDisplay(int handle) {
-        com.huidu.farmersdelight.visual.ItemDisplayManager manager = displayManager();
+        ItemDisplayManager manager = displayManager();
         if (manager != null) {
             manager.destroyDisplay(handle);
         }
@@ -782,7 +808,7 @@ public final class FarmersDelightApi {
      * turns false. Pure map lookup, no packets, safe to call from a region thread.
      */
     public boolean isItemDisplayActive(int handle) {
-        com.huidu.farmersdelight.visual.ItemDisplayManager manager = displayManager();
+        ItemDisplayManager manager = displayManager();
         return manager != null && manager.isActive(handle);
     }
 
@@ -790,31 +816,31 @@ public final class FarmersDelightApi {
     // Same packet-only lifecycle as the item displays above, but renders text (TextDisplay). Handles
     // returned here are only valid for the text-* methods below.
 
-    public int createTextDisplay(Location location, net.kyori.adventure.text.Component text,
-                                 org.bukkit.util.Transformation transformation,
-                                 org.bukkit.Color backgroundColor, boolean shadowed, boolean seeThrough) {
-        com.huidu.farmersdelight.visual.ItemDisplayManager manager = displayManager();
+    public int createTextDisplay(Location location, Component text,
+                                 Transformation transformation,
+                                 Color backgroundColor, boolean shadowed, boolean seeThrough) {
+        ItemDisplayManager manager = displayManager();
         if (manager == null || location == null || text == null) {
             return -1;
         }
-        return manager.createTextDisplay(new com.huidu.farmersdelight.visual.ItemDisplayManager.TextDisplaySpec(
+        return manager.createTextDisplay(new TextDisplaySpec(
                 location, text, transformation, backgroundColor, shadowed, seeThrough));
     }
 
-    public boolean updateTextDisplay(int handle, net.kyori.adventure.text.Component text) {
-        com.huidu.farmersdelight.visual.ItemDisplayManager manager = displayManager();
+    public boolean updateTextDisplay(int handle, Component text) {
+        ItemDisplayManager manager = displayManager();
         return manager != null && text != null && manager.updateText(handle, text);
     }
 
     public void removeTextDisplay(int handle) {
-        com.huidu.farmersdelight.visual.ItemDisplayManager manager = displayManager();
+        ItemDisplayManager manager = displayManager();
         if (manager != null) {
             manager.destroyDisplay(handle);
         }
     }
 
     public boolean isTextDisplayActive(int handle) {
-        com.huidu.farmersdelight.visual.ItemDisplayManager manager = displayManager();
+        ItemDisplayManager manager = displayManager();
         return manager != null && manager.isActive(handle);
     }
 

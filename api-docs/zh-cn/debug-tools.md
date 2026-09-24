@@ -10,6 +10,21 @@ FarmersDelight 有一条管理员命令 `/fd debugtools`，用于压力测试：
 
 对应的 feature id 是 `debug-tools`。
 
+按功能测量耗时使用 `/fd stats profile 200 all`，也可把 `all` 换成 `handheld`、`handheld_display`、`cooking_pot`、`skillet` 或 `stove`。普通版也支持此命令。参数、计时范围及结果含义见[性能排查](../../server-guide/zh-cn/troubleshooting.md)。debug 构建输出带 `-debug.jar` 后缀，只与普通包二选一安装；`/fd perf` 始终指向 `/fd stats`。
+
+debug 构建可以在小范围手动制造测试负载：
+
+```text
+/fd debugtools test cooking_pot 64 200
+/fd debugtools test skillet 64 200
+/fd debugtools test stove 64 200
+/fd debugtools test all 128 600
+```
+
+`test` 会在玩家附近紧凑地分批放置测试工作站、填入测试内容、启动对应功能采样；每轮最多处理 16 个位置，避免命令本身长时间占用服务器线程。`count` 是测试位置数，`ticks` 是采样时长（20-12000）。`place` 只放置批次，不会自动激活；需要单独执行 `/fd debugtools activate <target>`。完成后使用 `/fd debugtools undo` 清理最近一批，使用 `/fd debugtools stop` 停止尚未完成的放置、激活或手持测试。`all` 只包含厨锅、放置煎锅和炉灶。
+
+手持烹饪单独测试：主手拿煎锅，副手拿可在营火上烹饪的食材，站在热源附近后执行 `/fd debugtools test handheld 1 200`。它不会替换手上的物品，只启动真实手持会话并采样；完成烹饪仍会正常消耗食材并产生结果。采样窗口结束后会自动停止测试会话；也可以停止持续右键或使用 `/fd debugtools stop` 提前结束。不要用 `undo` 清理手持状态。
+
 `recipe validate` 会检查已加载的厨锅和砧板配方是否为空、是否缺少成品/容器，以及标签是否解析不到任何原版物品、CraftEngine 物品或已注册的公共标签成员。解析阶段失败的配方仍会由常规 `recipe.load_failed` 日志报告。
 
 ## 前提：只有 debug 构建才会真的跑

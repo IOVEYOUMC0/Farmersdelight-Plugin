@@ -4,6 +4,7 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.gui.AbstractInventoryGui;
 import com.huidu.farmersdelight.gui.GuiConfig;
 import com.huidu.farmersdelight.gui.RecipeViewGuiConfig;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.Text;
@@ -18,6 +19,7 @@ import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -59,7 +61,7 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
     }
 
     public TagPickerGui(FarmersDelightPlugin plugin, Player player, RecipeViewGuiConfig.BaseConfig config,
-                        ItemStack sourceItem, List<String> tagIds, @org.jetbrains.annotations.Nullable Key openTag,
+                        ItemStack sourceItem, List<String> tagIds, @Nullable Key openTag,
                         Consumer<RecipeIngredient> onConfirm, Runnable onCancel) {
         super(plugin, player);
         this.config = config;
@@ -433,7 +435,7 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
     }
 
     private String tr(String key) {
-        return com.huidu.farmersdelight.i18n.I18n.get(key, player);
+        return I18n.get(key, player);
     }
 
     private static void lore(ItemStack stack, String line) {

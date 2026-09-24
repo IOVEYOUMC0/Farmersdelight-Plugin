@@ -9,6 +9,7 @@ import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntity;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntityController;
 import com.huidu.farmersdelight.block.behavior.SkilletBlockEntityController;
 import com.huidu.farmersdelight.block.behavior.StoveBlockEntityController;
+import com.huidu.farmersdelight.gui.CookingPotGui;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
@@ -32,9 +33,8 @@ public class ChunkLoadListener implements Listener {
     private static final int DEFAULT_STARTUP_CHUNK_LOADS_PER_TICK = 16;
 
     private final FarmersDelightPlugin plugin;
-    // Written on enable/disable (main thread) and read + self-nulled inside the repeating task body
-    // (global-region thread). volatile gives the needed happens-before so disable's cancel isn't
-    // missed and the body never sees a stale handle. R-CONC-002.
+    // Publish the task handle across enable/disable and global task execution with volatile,
+    // so cancellation sees the active handle.
     private volatile PluginTask startupLoadTask;
 
     public ChunkLoadListener(FarmersDelightPlugin plugin) {
@@ -140,6 +140,8 @@ public class ChunkLoadListener implements Listener {
         // Skillet / stove still handled by coordinate range (outside this scope).
         plugin.getSkilletManager().saveAndUnloadChunk(world, minX, maxX, minZ, maxZ);
         plugin.getStoveManager().saveAndUnloadChunk(world, minX, maxX, minZ, maxZ);
+        // The cooking-pot effect budget and viewer snapshot are per chunk and only dropped here.
+        plugin.getTickManager().cleanupEffectChunk(world, minX, minZ);
     }
 
     private void cleanupBlockEntitiesInChunk(World world, Chunk chunk) {
@@ -157,7 +159,7 @@ public class ChunkLoadListener implements Listener {
             // A viewer can keep a pot GUI open long after walking out of range; close it before the
             // MONITOR cleanup orphans the entity, or its clicks would dupe (take) / lose (insert) items
             // against an entity nothing persists anymore. close() also commits the GUI's final state.
-            com.huidu.farmersdelight.gui.CookingPotGui.closeOpenGuisAt(world, posKey.x(), posKey.y(), posKey.z());
+            CookingPotGui.closeOpenGuisAt(world, posKey.x(), posKey.y(), posKey.z());
             // Snapshot into the controller (not just a plain save): the snapshot survives the MONITOR
             // cleanup and re-hydrates the entity if the chunk reloads out of CraftEngine's chunk cache,
             // where loadCustomData never re-runs.

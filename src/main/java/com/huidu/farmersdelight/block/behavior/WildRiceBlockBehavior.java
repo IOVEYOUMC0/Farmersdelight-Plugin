@@ -6,8 +6,10 @@ import com.huidu.farmersdelight.util.RiceCropRules;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
 import com.huidu.farmersdelight.util.SoilRuleSupport.SoilRules;
 import net.momirealms.craftengine.core.block.BlockDefinition;
+import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.block.property.type.DoubleBlockHalf;
 import net.momirealms.craftengine.core.util.Key;
@@ -58,11 +60,8 @@ public class WildRiceBlockBehavior extends FarmersDelightBlockBehavior {
         return args[0];
     }
 
-    // The lower half stands on a kelp state whose fluid is water, and that water only keeps moving
-    // because vanilla re-schedules a fluid tick from updateShape -- GrowingPlantBodyBlock does it for
-    // kelp itself, and the mod's RiceBlock does the same for rice. CraftEngine replaces the vanilla
-    // updateShape outright, so nothing re-schedules it here and the water around a paddy goes static.
-    // The upper half is a tripwire state carrying no fluid and must not schedule one.
+    // The lower half uses a water-bearing kelp state. CE replaces updateShape, so this behavior
+    // must schedule water ticks to keep surrounding fluid flowing. The upper tripwire half has no fluid.
     private void scheduleWaterTick(Object[] args) {
         ImmutableBlockState state = BlockStateUtils.getOptionalCustomBlockState(args[0]).orElse(null);
         if (state == null || state.isEmpty() || !isLowerHalf(state)) {
@@ -129,7 +128,7 @@ public class WildRiceBlockBehavior extends FarmersDelightBlockBehavior {
 
     public static final BlockBehaviorFactory<WildRiceBlockBehavior> FACTORY = new BlockBehaviorFactory<WildRiceBlockBehavior>() {
         @Override
-        public WildRiceBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
+        public WildRiceBlockBehavior create(BlockDefinition block, ConfigSection section) {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
             // The half state is not optional: without it every state reads as the lower half, so the
             // upper half of a placed plant fails its own survival check (it looks for soil under it and
@@ -229,7 +228,7 @@ public class WildRiceBlockBehavior extends FarmersDelightBlockBehavior {
         if (block == null) {
             return false;
         }
-        ImmutableBlockState lowerState = net.momirealms.craftengine.bukkit.api.CraftEngineBlocks.getCustomBlockState(block);
+        ImmutableBlockState lowerState = CraftEngineBlocks.getCustomBlockState(block);
         return lowerState != null
                 && !lowerState.isEmpty()
                 && lowerState.owner().value().id().equals(this.blockDefinition.id())

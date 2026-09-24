@@ -1,4 +1,4 @@
-package com.huidu.farmersdelight.util;
+package com.huidu.farmersdelight.api.util;
 
 import org.junit.jupiter.api.Test;
 

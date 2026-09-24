@@ -15,11 +15,14 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.Plugin;
 
 import java.util.Iterator;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class BuffBossbarManager implements Listener {
@@ -64,8 +67,7 @@ public final class BuffBossbarManager implements Listener {
     // Display switch (buff.display.enabled): silences every channel while the effects themselves keep
     // running and ticking.
     private volatile boolean enabled = true;
-    // Buff master switch (buff.enabled): when off there are no effects at all, so there is nothing to draw.
-    // Written by the reload path, read from the tick and from addon push threads (R-CONC-002).
+    // The volatile buff.enabled snapshot controls display updates across reload, tick and addon threads.
     private volatile boolean systemEnabled = true;
     private volatile LayoutMode layoutMode = LayoutMode.STACKED;
     private volatile long rotationIntervalTicks = 80L;
@@ -74,7 +76,7 @@ public final class BuffBossbarManager implements Listener {
     private volatile long actionbarRefreshTicks = 30L;
     // Enabled render channels. EnumSet, replaced wholesale on reload (never mutated in place) so readers
     // see a consistent snapshot. Defaults to BOSSBAR to preserve pre-channels behaviour.
-    private volatile java.util.Set<Channel> channels = java.util.EnumSet.of(Channel.BOSSBAR);
+    private volatile Set<Channel> channels = EnumSet.of(Channel.BOSSBAR);
     // Joins the buff titles on the action bar line. Configurable so admins can widen/narrow the gap.
     private volatile Component actionbarSeparator = Component.text("   ");
     private volatile PluginTask tickTask;
@@ -96,14 +98,14 @@ public final class BuffBossbarManager implements Listener {
 
     public void applyConfig(ConfigurationSection section, boolean systemEnabled) {
         boolean wasRendering = renderingEnabled();
-        java.util.Set<Channel> oldChannels = this.channels;
+        Set<Channel> oldChannels = this.channels;
         this.systemEnabled = systemEnabled;
         if (section == null) {
             this.enabled = true;
             this.layoutMode = LayoutMode.STACKED;
             this.rotationIntervalTicks = 80L;
             this.actionbarRefreshTicks = 30L;
-            this.channels = java.util.EnumSet.of(Channel.BOSSBAR);
+            this.channels = EnumSet.of(Channel.BOSSBAR);
             this.actionbarSeparator = Component.text("   ");
         } else {
             this.enabled = ConfigSectionReader.optionalBoolean(section, "enabled", true);
@@ -120,7 +122,7 @@ public final class BuffBossbarManager implements Listener {
             ensureTickTask();
             return;
         }
-        java.util.Set<Channel> newChannels = this.channels;
+        Set<Channel> newChannels = this.channels;
         for (Map.Entry<UUID, PlayerBars> entry : players.entrySet()) {
             Player p = Bukkit.getPlayer(entry.getKey());
             if (p != null) {
@@ -139,8 +141,8 @@ public final class BuffBossbarManager implements Listener {
         ensureTickTask();
     }
 
-    private static java.util.Set<Channel> parseChannels(java.util.List<String> raw) {
-        java.util.EnumSet<Channel> parsed = java.util.EnumSet.noneOf(Channel.class);
+    private static Set<Channel> parseChannels(List<String> raw) {
+        EnumSet<Channel> parsed = EnumSet.noneOf(Channel.class);
         if (raw != null) {
             for (String s : raw) {
                 Channel c = Channel.parse(s);
@@ -148,11 +150,11 @@ public final class BuffBossbarManager implements Listener {
             }
         }
         // Empty / missing / all-unknown -> boss bar, preserving the pre-channels default.
-        return parsed.isEmpty() ? java.util.EnumSet.of(Channel.BOSSBAR) : parsed;
+        return parsed.isEmpty() ? EnumSet.of(Channel.BOSSBAR) : parsed;
     }
 
     private void clearDroppedChannels(Player player, PlayerBars state,
-                                      java.util.Set<Channel> oldCh, java.util.Set<Channel> newCh) {
+                                      Set<Channel> oldCh, Set<Channel> newCh) {
         if (oldCh.contains(Channel.BOSSBAR) && !newCh.contains(Channel.BOSSBAR)) {
             hideBossbars(player, state);
         }
@@ -313,7 +315,7 @@ public final class BuffBossbarManager implements Listener {
     }
 
     private void clearAuxiliary(Player player) {
-        java.util.Set<Channel> ch = channels;
+        Set<Channel> ch = channels;
         if (ch.contains(Channel.ACTIONBAR)) player.sendActionBar(Component.empty());
         if (ch.contains(Channel.TAB_FOOTER)) player.sendPlayerListFooter(Component.empty());
     }
@@ -344,7 +346,7 @@ public final class BuffBossbarManager implements Listener {
 
     private void render(Player player, PlayerBars state) {
         if (!renderingEnabled()) return;
-        java.util.Set<Channel> ch = channels;
+        Set<Channel> ch = channels;
         if (ch.contains(Channel.BOSSBAR)) {
             syncBossbars(player, state);
         }
@@ -356,7 +358,7 @@ public final class BuffBossbarManager implements Listener {
         renderAuxiliary(player, state, channels);
     }
 
-    private void renderAuxiliary(Player player, PlayerBars state, java.util.Set<Channel> ch) {
+    private void renderAuxiliary(Player player, PlayerBars state, Set<Channel> ch) {
         if (ch.contains(Channel.ACTIONBAR)) {
             player.sendActionBar(joinTitles(state, actionbarSeparator));
         }
@@ -420,7 +422,7 @@ public final class BuffBossbarManager implements Listener {
             ensureTickTask();
             return;
         }
-        java.util.Set<Channel> ch = channels;
+        Set<Channel> ch = channels;
         boolean rotate = ch.contains(Channel.BOSSBAR) && layoutMode == LayoutMode.ROTATING;
         boolean refreshActionBar = ch.contains(Channel.ACTIONBAR)
                 && currentTick % actionbarRefreshTicks == 0;

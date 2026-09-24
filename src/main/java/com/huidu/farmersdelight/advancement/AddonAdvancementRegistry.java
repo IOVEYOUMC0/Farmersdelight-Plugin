@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class AddonAdvancementRegistry {
 
     private final Plugin plugin;
-    private record TreeDefinition(List<AdvancementDef> advancements, boolean autoLayout) {}
+    private record TreeDefinition(List<AdvancementDef> advancements) {}
 
     private final Map<String, TreeDefinition> definitions = new ConcurrentHashMap<>();
     private final Map<String, AddonAdvancementTab> tabs = new ConcurrentHashMap<>();
@@ -30,14 +30,10 @@ public final class AddonAdvancementRegistry {
     }
 
     public boolean register(String tabName, List<AdvancementDef> defs) {
-        return register(tabName, defs, false);
-    }
-
-    boolean register(String tabName, List<AdvancementDef> defs, boolean autoLayout) {
         if (tabName == null || defs == null || defs.isEmpty()) {
             return false;
         }
-        definitions.put(tabName, new TreeDefinition(List.copyOf(defs), autoLayout));
+        definitions.put(tabName, new TreeDefinition(List.copyOf(defs)));
         if (ready) {
             return buildOne(tabName);
         }
@@ -89,7 +85,7 @@ public final class AddonAdvancementRegistry {
                     FarmersDelightPlugin.getInstance(), config.namespace(), config.file(), config.yaml());
             if (!defs.isEmpty()) {
                 String tab = config.namespace();
-                register(tab, defs, AddonAdvancementPackLoader.usesAutomaticLayout(config.yaml()));
+                register(tab, defs);
                 loadedPackTabs.add(tab);
             }
         }
@@ -193,8 +189,7 @@ public final class AddonAdvancementRegistry {
             return false;
         }
         // Build the replacement first; load() unregisters any existing UAA tab of this name before creating it.
-        AddonAdvancementTab fresh = new AddonAdvancementTab(plugin, tabName,
-                definition.advancements(), definition.autoLayout());
+        AddonAdvancementTab fresh = new AddonAdvancementTab(plugin, tabName, definition.advancements());
         if (!fresh.load()) {
             AddonAdvancementTab stale = tabs.remove(tabName);
             if (stale != null) {

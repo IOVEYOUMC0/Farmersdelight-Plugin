@@ -29,10 +29,12 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.view.AnvilView;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -59,26 +61,25 @@ public final class KnifeEnchantFilter implements Listener {
 
     public void reload(EnchantmentSettings newSettings, boolean backstabbingEnabled) {
         settings = newSettings == null ? EnchantmentSettings.defaults() : newSettings;
-        Enchantment mending = RegistryAccess.registryAccess()
-                .getRegistry(RegistryKey.ENCHANTMENT)
-                .get(NamespacedKey.minecraft("mending"));
 
         Map<EnchantmentSettings.GroupId, List<Enchantment>> tableGroups =
                 new EnumMap<>(EnchantmentSettings.GroupId.class);
         Map<EnchantmentSettings.GroupId, Set<Enchantment>> anvilGroups =
                 new EnumMap<>(EnchantmentSettings.GroupId.class);
         for (EnchantmentSettings.GroupId groupId : EnchantmentSettings.GroupId.values()) {
+            EnchantmentSettings.Group group = settings.group(groupId);
             List<Enchantment> resolved = new ArrayList<>(resolveEnchantments(
-                    settings.group(groupId).table().enchantments(),
+                    group.table().enchantments(),
                     backstabbingEnabled
             ));
             appendRegisteredEnchants(groupId, resolved);
             tableGroups.put(groupId, List.copyOf(resolved));
 
+            // The anvil accepts everything the table offers, plus the group's anvil-only additions.
+            // Keeping the two lists separate is what stops an anvil-only enchant (mending, or whatever
+            // the operator adds) from turning up in the table's offer rolls.
             Set<Enchantment> anvilSet = new LinkedHashSet<>(resolved);
-            if (mending != null) {
-                anvilSet.add(mending);
-            }
+            anvilSet.addAll(resolveEnchantments(group.extraEnchantments(), backstabbingEnabled));
             anvilGroups.put(groupId, Set.copyOf(anvilSet));
         }
         tableEnchantments = Map.copyOf(tableGroups);
@@ -276,7 +277,7 @@ public final class KnifeEnchantFilter implements Listener {
         plugin.scheduler().runLaterForEntity(player, () -> {
             var openView = player.getOpenInventory();
             if (player.isOnline()
-                    && openView instanceof org.bukkit.inventory.view.AnvilView openAnvilView
+                    && openView instanceof AnvilView openAnvilView
                     && openView.getTopInventory().equals(view.getTopInventory())) {
                 openAnvilView.setRepairCost(repairCost);
             }
@@ -533,7 +534,7 @@ public final class KnifeEnchantFilter implements Listener {
         }
         Set<String> configuredTags = plugin.getKnifeTagIds();
         for (String tagId : ItemUtils.getItemTagIds(item)) {
-            if (configuredTags.contains(tagId.toLowerCase(java.util.Locale.ROOT))) {
+            if (configuredTags.contains(tagId.toLowerCase(Locale.ROOT))) {
                 return EnchantmentSettings.GroupId.KNIVES;
             }
         }
@@ -555,7 +556,7 @@ public final class KnifeEnchantFilter implements Listener {
                 String tagName = id.substring(1);
                 NamespacedKey tagKey = NamespacedKey.fromString(tagName);
                 if (tagKey == null) {
-                    I18n.logWarning("enchantment.invalid_tag_key", "tag", tagName);
+                    I18n.logWarning("plugin.enchantment.invalid_tag_key", "tag", tagName);
                     continue;
                 }
                 try {
@@ -569,10 +570,10 @@ public final class KnifeEnchantFilter implements Listener {
                             resolved.add(ench);
                         }
                     } else {
-                        I18n.logWarning("enchantment.unknown_tag", "tag", tagName);
+                        I18n.logWarning("plugin.enchantment.unknown_tag", "tag", tagName);
                     }
                 } catch (Exception e) {
-                    I18n.logWarning("enchantment.tag_resolve_failed", "tag", tagName, "error", e.getMessage());
+                    I18n.logWarning("plugin.enchantment.tag_resolve_failed", "tag", tagName, "error", e.getMessage());
                 }
                 continue;
             }
@@ -586,7 +587,7 @@ public final class KnifeEnchantFilter implements Listener {
             if (enchantment != null) {
                 resolved.add(enchantment);
             } else if (!id.equals(backstabbingId)) {
-                I18n.logWarning("enchantment.unknown", "id", id);
+                I18n.logWarning("plugin.enchantment.unknown", "id", id);
             }
         }
         return List.copyOf(resolved);

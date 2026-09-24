@@ -14,6 +14,7 @@ import com.huidu.farmersdelight.util.PermissionChecker;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.block.behavior.EntityBlock;
 import net.momirealms.craftengine.core.block.behavior.WorldlyContainerHolder;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
@@ -34,6 +35,7 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
+import java.util.UUID;
 
 public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements EntityBlock, WorldlyContainerHolder {
 
@@ -52,7 +54,7 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
     private final Property<Boolean> supportProperty;
     private int controllerId;
 
-    public static final BlockBehaviorFactory<SkilletBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+    public static final BlockBehaviorFactory<SkilletBlockBehavior> FACTORY = (BlockDefinition block, ConfigSection section) -> {
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         String permission = BehaviorArgParser.getString(arguments, "permission", "farmersdelight.use.skillet");
         String addFoodSound = BehaviorArgParser.getArgumentString(arguments, "add-food-sound", Constants.SOUND_SKILLET_ADD_FOOD);
@@ -198,7 +200,7 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
         if (!(worldObj instanceof net.momirealms.craftengine.core.world.World ceWorld) || !(posObj instanceof BlockPos pos)) {
             return;
         }
-        org.bukkit.World world = Bukkit.getWorld(ceWorld.uuid());
+        World world = Bukkit.getWorld(ceWorld.uuid());
         SkilletManager manager = getManager();
         if (world == null || manager == null) {
             return;
@@ -253,7 +255,7 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
         }
     }
 
-    public static void cleanupWorld(java.util.UUID worldId) {
+    public static void cleanupWorld(UUID worldId) {
         SkilletManager manager = getManager();
         if (manager != null) {
             manager.cleanupWorld(worldId);

@@ -4,10 +4,13 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
+import com.huidu.farmersdelight.api.recipe.IngredientMatchMemo;
+import com.huidu.farmersdelight.api.recipe.IngredientMatching;
 import com.huidu.farmersdelight.api.recipe.JumpTarget;
 import com.huidu.farmersdelight.api.recipe.RecipeType;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
+import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.recipe.SpecialRecipeRegistry;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -50,9 +53,22 @@ final class RecipeCraftability {
     List<CookingPotRecipe> filterCraftableCookingPotRecipes(List<CookingPotRecipe> recipes, Player player) {
         CookingPotBlockEntity entity = cookingPotLocation == null ? null : CookingPotBlockBehavior.getBlockEntity(cookingPotLocation);
         List<ItemStack> available = getAvailableCookingPotItems(entity, player);
+        // One memo for the whole draw: a page tests the same few ingredient expressions against the same
+        // stacks for every recipe, and every test resolves CraftEngine item ids and tags. The container is
+        // not part of "can I cook this" -- the pot cooks from ingredients alone and the bowl is supplied at
+        // extraction time, so a meal recipe stays craftable even when the player carries no bowl.
+        // Containment question, not the real cook: does the inventory (+ current pot inputs) hold enough of
+        // each ingredient, ignoring the unrelated items every inventory carries? canCraft's lenient pass
+        // would reject on the first foreign slot, so it can't be used here.
+        IngredientMatchMemo<ItemStack, RecipeIngredient> matches = IngredientMatchMemo.of(
+                plugin.getCookingPotRecipes()::matchesIngredient, RecipeIngredient::stableKey);
         List<CookingPotRecipe> craftableRecipes = new ArrayList<>();
         for (CookingPotRecipe recipe : recipes) {
-            if (canCraftCookingPotRecipe(recipe, entity, available)) {
+            if (entity != null && !canRecipeFitCookingPot(recipe, entity)) {
+                continue;
+            }
+            if (IngredientMatching.containsIngredients(
+                    recipe.getIngredients(), available, matches, ItemStack::getAmount)) {
                 craftableRecipes.add(recipe);
             }
         }
@@ -123,29 +139,21 @@ final class RecipeCraftability {
         return null;
     }
 
-    private boolean canCraftCookingPotRecipe(CookingPotRecipe recipe, CookingPotBlockEntity entity, List<ItemStack> available) {
-        if (entity != null && !canRecipeFitCookingPot(recipe, entity)) {
-            return false;
-        }
-        // The container is not part of "can I cook this": the pot cooks from ingredients alone and the bowl is
-        // supplied at extraction time, so a meal recipe stays craftable even when the player carries no bowl.
-        // Containment question, not the real cook: does the inventory (+ current pot inputs) hold enough of
-        // each ingredient, ignoring the unrelated items every inventory carries? canCraft's lenient pass would
-        // reject on the first foreign slot, so it can't be used here.
-        return plugin.getCookingPotRecipes().containsIngredientsFor(recipe, available);
-    }
-
+    // Returns the live stacks rather than copies: every consumer only reads them (containsIngredients copies
+    // the amounts into a local array), and this runs for each list draw while the "craftable only" filter is
+    // on, so cloning every slot per call was pure allocation. The same instances also key the per-draw
+    // matching memo, which is what makes one snapshot per draw the right shape.
     private List<ItemStack> getAvailableCookingPotItems(CookingPotBlockEntity entity, Player player) {
         List<ItemStack> items = new ArrayList<>();
         for (ItemStack item : player.getInventory().getStorageContents()) {
             if (item != null && !item.getType().isAir()) {
-                items.add(item.clone());
+                items.add(item);
             }
         }
         if (entity != null) {
             for (ItemStack item : entity.getInventory()) {
                 if (item != null && !item.getType().isAir()) {
-                    items.add(item.clone());
+                    items.add(item);
                 }
             }
         }

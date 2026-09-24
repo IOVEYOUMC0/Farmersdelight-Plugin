@@ -15,21 +15,21 @@ templates:
           default: north
       appearances:
         east:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 90
         north:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
         south:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 180
         west:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 270
@@ -57,7 +57,7 @@ templates:
         place: minecraft:block.wood.place
         step: minecraft:block.wood.step
     states:
-      auto-state: mushroom_stem
+      auto_state: mushroom_stem
       model:
         path: ${__NAMESPACE__}:block/${__ID__}
   farmersdelight:block_cabinet_template:
@@ -94,40 +94,40 @@ templates:
           default: false
       appearances:
         east:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 90
         east_open:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}_open
             y: 90
         north:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
         north_open:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}_open
         south:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 180
         south_open:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}_open
             y: 180
         west:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 270
         west_open:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}_open
             y: 270
@@ -169,6 +169,11 @@ items:
     model: farmersdelight:block/cooking_pot_bail
   farmersdelight:skillet:
     material: nether_brick
+    behavior:
+      type: farmersdelight:skillet_item
+      permission: farmersdelight.use.skillet
+      cooking-model: farmersdelight:skillet_cooking
+      ingredient-overlay-model: farmersdelight:item/skillet_food
     data:
       components:
         minecraft:max_stack_size: 1
@@ -597,6 +602,8 @@ block:
     behavior:
     - type: farmersdelight:stove
       crackle-sound: farmersdelight:block.stove.crackle
+      burn-enabled: true
+      burn-damage: 1.0
     loot:
       template: default:loot_table/self
     states:
@@ -609,40 +616,40 @@ block:
           default: true
       appearances:
         east:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 90
         east_on:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}_on
             y: 90
         north:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
         north_on:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}_on
         south:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 180
         south_on:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}_on
             y: 180
         west:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 270
         west_on:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}_on
             y: 270
@@ -817,7 +824,7 @@ block:
           range: 0~7
       appearances:
         composting=0:
-          auto-state: note_block
+          auto_state: note_block
           model:
           - path: farmersdelight:block/organic_compost_0
           - path: farmersdelight:block/organic_compost_0
@@ -827,7 +834,7 @@ block:
           - path: farmersdelight:block/organic_compost_0
             y: 270
         composting=1:
-          auto-state: note_block
+          auto_state: note_block
           model:
           - path: farmersdelight:block/organic_compost_1
           - path: farmersdelight:block/organic_compost_1
@@ -837,7 +844,7 @@ block:
           - path: farmersdelight:block/organic_compost_1
             y: 270
         composting=2:
-          auto-state: note_block
+          auto_state: note_block
           model:
           - path: farmersdelight:block/organic_compost_2
           - path: farmersdelight:block/organic_compost_2
@@ -847,7 +854,7 @@ block:
           - path: farmersdelight:block/organic_compost_2
             y: 270
         composting=3:
-          auto-state: note_block
+          auto_state: note_block
           model:
           - path: farmersdelight:block/organic_compost_3
           - path: farmersdelight:block/organic_compost_3
@@ -857,7 +864,7 @@ block:
           - path: farmersdelight:block/organic_compost_3
             y: 270
         composting=4:
-          auto-state: note_block
+          auto_state: note_block
           model:
           - path: farmersdelight:block/organic_compost_4
           - path: farmersdelight:block/organic_compost_4
@@ -867,7 +874,7 @@ block:
           - path: farmersdelight:block/organic_compost_4
             y: 270
         composting=5:
-          auto-state: note_block
+          auto_state: note_block
           model:
           - path: farmersdelight:block/organic_compost_5
           - path: farmersdelight:block/organic_compost_5
@@ -877,7 +884,7 @@ block:
           - path: farmersdelight:block/organic_compost_5
             y: 270
         composting=6:
-          auto-state: note_block
+          auto_state: note_block
           model:
           - path: farmersdelight:block/organic_compost_6
           - path: farmersdelight:block/organic_compost_6
@@ -887,7 +894,7 @@ block:
           - path: farmersdelight:block/organic_compost_6
             y: 270
         composting=7:
-          auto-state: note_block
+          auto_state: note_block
           model:
           - path: farmersdelight:block/organic_compost_7
           - path: farmersdelight:block/organic_compost_7
@@ -964,7 +971,7 @@ block:
     loot:
       template: default:loot_table/self
     state:
-      auto-state: note_block
+      auto_state: note_block
       model:
       - path: farmersdelight:block/rich_soil
       - path: farmersdelight:block/rich_soil
@@ -1074,14 +1081,14 @@ block:
             - handle
       appearances:
         east_none:
-          auto-state:
+          auto_state:
             type: cactus
             id: east_cooking_pot
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 90
         east_tray:
-          auto-state:
+          auto_state:
             type: cactus
             id: east_cooking_pot
           entity_renderer:
@@ -1090,7 +1097,7 @@ block:
             position: 0.5,-0.5,0.5
             rotation: -90
         east_handle:
-          auto-state:
+          auto_state:
             type: cactus
             id: east_cooking_pot
           entity_renderer:
@@ -1098,13 +1105,13 @@ block:
             item: farmersdelight:cooking_pot_handle
             rotation: -90
         north_none:
-          auto-state:
+          auto_state:
             type: cactus
             id: north_cooking_pot
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
         north_tray:
-          auto-state:
+          auto_state:
             type: cactus
             id: north_cooking_pot
           entity_renderer:
@@ -1113,7 +1120,7 @@ block:
             position: 0.5,-0.5,0.5
             rotation: 180
         north_handle:
-          auto-state:
+          auto_state:
             type: cactus
             id: north_cooking_pot
           entity_renderer:
@@ -1121,14 +1128,14 @@ block:
             item: farmersdelight:cooking_pot_handle
             rotation: 180
         south_none:
-          auto-state:
+          auto_state:
             type: cactus
             id: south_cooking_pot
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 180
         south_tray:
-          auto-state:
+          auto_state:
             type: cactus
             id: south_cooking_pot
           entity_renderer:
@@ -1137,7 +1144,7 @@ block:
             position: 0.5,-0.5,0.5
             rotation: 0
         south_handle:
-          auto-state:
+          auto_state:
             type: cactus
             id: south_cooking_pot
           entity_renderer:
@@ -1145,14 +1152,14 @@ block:
             item: farmersdelight:cooking_pot_handle
             rotation: 0
         west_none:
-          auto-state:
+          auto_state:
             type: cactus
             id: west_cooking_pot
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 270
         west_tray:
-          auto-state:
+          auto_state:
             type: cactus
             id: west_cooking_pot
           entity_renderer:
@@ -1161,7 +1168,7 @@ block:
             position: 0.5,-0.5,0.5
             rotation: 90
         west_handle:
-          auto-state:
+          auto_state:
             type: cactus
             id: west_cooking_pot
           entity_renderer:
@@ -1242,7 +1249,7 @@ block:
               position: 0.5,-0.5,0.5
               rotation: 90
         north:
-          state: iron_trapdoor[open=false, half=bottom, powered=true]       
+          state: iron_trapdoor[open=false, half=bottom, powered=true]
           transparent: true
           entity-renderer:        
             item: ${__NAMESPACE__}:${__ID__}
@@ -1256,7 +1263,7 @@ block:
               item: farmersdelight:tray
               position: 0.5,-0.5,0.5
         south:
-          state: iron_trapdoor[open=false, half=bottom, powered=true]       
+          state: iron_trapdoor[open=false, half=bottom, powered=true]
           transparent: true
           entity-renderer:        
             item: ${__NAMESPACE__}:${__ID__}
@@ -1273,7 +1280,7 @@ block:
               position: 0.5,-0.5,0.5
               rotation: 180
         west:
-          state: iron_trapdoor[open=false, half=bottom, powered=true]       
+          state: iron_trapdoor[open=false, half=bottom, powered=true]
           transparent: true
           entity-renderer:        
             item: ${__NAMESPACE__}:${__ID__}
@@ -1396,24 +1403,24 @@ block:
           default: up
       appearances:
         east:
-          auto-state: non_tintable_leaves
+          auto_state: non_tintable_leaves
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
             y: 90
         north:
-          auto-state: non_tintable_leaves
+          auto_state: non_tintable_leaves
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
         south:
-          auto-state: non_tintable_leaves
+          auto_state: non_tintable_leaves
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
             y: 180
         west:
-          auto-state: non_tintable_leaves
+          auto_state: non_tintable_leaves
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
@@ -1423,7 +1430,7 @@ block:
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
         down:
-          auto-state: non_tintable_leaves
+          auto_state: non_tintable_leaves
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 180
@@ -1494,34 +1501,34 @@ block:
           default: up
       appearances:
         east:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
             y: 90
         north:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
         south:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
             y: 180
         west:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
             y: 270
         up:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
         down:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 180
@@ -1551,7 +1558,7 @@ block:
         place: minecraft:block.wool.place
         step: minecraft:block.wool.step
     states:
-      auto-state: mushroom
+      auto_state: mushroom
       model:
         path: ${__NAMESPACE__}:block/${__ID__}
   farmersdelight:straw_bale:
@@ -1584,18 +1591,18 @@ block:
           default: up
       appearances:
         x:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
         y:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
             y: 90
         z:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
       variants:
@@ -1642,37 +1649,37 @@ block:
           default: false
       appearances:
         half:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/tatami_half
         even_down:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/tatami_even
             x: 180
         odd_east:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/tatami_odd
             x: 90
             y: 90
         even_north:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/tatami_even
             x: 90
         odd_south:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/tatami_odd
             x: 90
             y: 180
         odd_up:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/tatami_odd
         even_west:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/tatami_even
             x: 90
@@ -1808,7 +1815,23 @@ block:
       properties:
         variant:
           type: string
-          values: [none, no_north, no_south, no_east, no_west, no_north_south, no_east_west, no_north_east, no_north_west, no_south_east, no_south_west, no_north_south_east, no_north_south_west, no_east_west_north, no_east_west_south, surrounded]
+          values:
+            - none
+            - no_north
+            - no_south
+            - no_east
+            - no_west
+            - no_north_south
+            - no_east_west
+            - no_north_east
+            - no_north_west
+            - no_south_east
+            - no_south_west
+            - no_north_south_east
+            - no_north_south_west
+            - no_east_west_north
+            - no_east_west_south
+            - surrounded
           default: none
       appearances:
         none:
@@ -1994,7 +2017,9 @@ block:
       properties:
         part:
           type: string
-          values: [head, foot]
+          values:
+            - head
+            - foot
           default: head
         facing:
           type: horizontal_direction
@@ -2073,21 +2098,21 @@ block:
           appearance: west_foot
 block-state-mappings:
   campfire[facing=east,lit=false,signal_fire=true,waterlogged=false]: campfire[facing=east,lit=false,signal_fire=false,waterlogged=false]
-  campfire[facing=east,lit=false,signal_fire=true,waterlogged=true]:  campfire[facing=east,lit=false,signal_fire=false,waterlogged=true]
+  campfire[facing=east,lit=false,signal_fire=true,waterlogged=true]: campfire[facing=east,lit=false,signal_fire=false,waterlogged=true]
   campfire[facing=north,lit=false,signal_fire=true,waterlogged=false]: campfire[facing=north,lit=false,signal_fire=false,waterlogged=false]
-  campfire[facing=north,lit=false,signal_fire=true,waterlogged=true]:  campfire[facing=north,lit=false,signal_fire=false,waterlogged=true]
+  campfire[facing=north,lit=false,signal_fire=true,waterlogged=true]: campfire[facing=north,lit=false,signal_fire=false,waterlogged=true]
   campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]: campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
-  campfire[facing=south,lit=false,signal_fire=true,waterlogged=true]:  campfire[facing=south,lit=false,signal_fire=false,waterlogged=true]
+  campfire[facing=south,lit=false,signal_fire=true,waterlogged=true]: campfire[facing=south,lit=false,signal_fire=false,waterlogged=true]
   campfire[facing=west,lit=false,signal_fire=true,waterlogged=false]: campfire[facing=west,lit=false,signal_fire=false,waterlogged=false]
-  campfire[facing=west,lit=false,signal_fire=true,waterlogged=true]:  campfire[facing=west,lit=false,signal_fire=false,waterlogged=true]
+  campfire[facing=west,lit=false,signal_fire=true,waterlogged=true]: campfire[facing=west,lit=false,signal_fire=false,waterlogged=true]
   soul_campfire[facing=east,lit=false,signal_fire=true,waterlogged=false]: soul_campfire[facing=east,lit=false,signal_fire=false,waterlogged=false]
-  soul_campfire[facing=east,lit=false,signal_fire=true,waterlogged=true]:  soul_campfire[facing=east,lit=false,signal_fire=false,waterlogged=true]
+  soul_campfire[facing=east,lit=false,signal_fire=true,waterlogged=true]: soul_campfire[facing=east,lit=false,signal_fire=false,waterlogged=true]
   soul_campfire[facing=north,lit=false,signal_fire=true,waterlogged=false]: soul_campfire[facing=north,lit=false,signal_fire=false,waterlogged=false]
-  soul_campfire[facing=north,lit=false,signal_fire=true,waterlogged=true]:  soul_campfire[facing=north,lit=false,signal_fire=false,waterlogged=true]
+  soul_campfire[facing=north,lit=false,signal_fire=true,waterlogged=true]: soul_campfire[facing=north,lit=false,signal_fire=false,waterlogged=true]
   soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
-  soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=true]:  soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=true]
+  soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=true]: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=true]
   soul_campfire[facing=west,lit=false,signal_fire=true,waterlogged=false]: soul_campfire[facing=west,lit=false,signal_fire=false,waterlogged=false]
-  soul_campfire[facing=west,lit=false,signal_fire=true,waterlogged=true]:  soul_campfire[facing=west,lit=false,signal_fire=false,waterlogged=true]
+  soul_campfire[facing=west,lit=false,signal_fire=true,waterlogged=true]: soul_campfire[facing=west,lit=false,signal_fire=false,waterlogged=true]
   iron_trapdoor[facing=west,half=bottom,open=false,powered=true,waterlogged=false]: iron_trapdoor[facing=west,half=bottom,open=false,powered=false,waterlogged=false]
   iron_trapdoor[facing=east,half=bottom,open=false,powered=true,waterlogged=false]: iron_trapdoor[facing=east,half=bottom,open=false,powered=false,waterlogged=false]
   iron_trapdoor[facing=north,half=bottom,open=false,powered=true,waterlogged=false]: iron_trapdoor[facing=north,half=bottom,open=false,powered=false,waterlogged=false]

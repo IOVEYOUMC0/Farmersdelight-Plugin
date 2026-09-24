@@ -1,8 +1,10 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.api.util.ItemDelivery;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.config.HeatSourceConfig;
 import com.huidu.farmersdelight.gui.CookingPotGui;
+import com.huidu.farmersdelight.manager.HandleManager;
 import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.manager.TrayManager;
 import com.huidu.farmersdelight.util.BehaviorArgParser;
@@ -16,6 +18,7 @@ import com.huidu.farmersdelight.util.PermissionChecker;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
+import net.kyori.adventure.text.Component;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
@@ -24,6 +27,7 @@ import net.momirealms.craftengine.core.block.behavior.WorldlyContainerHolder;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.block.entity.BlockEntityController;
 import net.momirealms.craftengine.core.block.property.Property;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.util.Direction;
@@ -31,12 +35,14 @@ import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.CEWorld;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
 import org.bukkit.Bukkit;
+import org.bukkit.Color;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Transformation;
 import org.joml.AxisAngle4f;
@@ -145,10 +151,8 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
 
     @Override
     public int getAnalogOutputSignal(Object thisBlock, Object[] args) {
-        // args[1] = Level, args[2] = BlockPos. The mod's CookingPotBlock feeds its whole 9-slot handler through
-        // MathUtils.calcRedstoneFromItemHandler, so the signal tracks the pot's overall fill, not just the meal
-        // slot: every occupied slot contributes amount / min(slotLimit, maxStackSize), the sum is divided by the
-        // slot count, and any non-empty slot lifts the floor to 1.
+        // args[1] = Level, args[2] = BlockPos. Comparator strength measures all inventory slots.
+        // Average each slot's amount / min(slotLimit, maxStackSize), then give any non-empty pot a floor of 1.
         World world = CraftEngineAdapter.toWorld(args[1]);
         BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
         if (world == null || pos == null) {
@@ -456,7 +460,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         recentPlacements.clear();
     }
 
-    public static void collectLiveDisplayIds(java.util.Set<Integer> out) {
+    public static void collectLiveDisplayIds(Set<Integer> out) {
         for (Map<BlockPosKey, Integer> displays : worldProgressDisplays.values()) {
             out.addAll(displays.values());
         }
@@ -517,7 +521,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
             return;
         }
 
-        net.kyori.adventure.text.Component component = net.kyori.adventure.text.Component.text(text);
+        Component component = Component.text(text);
         Map<BlockPosKey, Integer> worldDisplays = worldProgressDisplays.computeIfAbsent(
                 world.getUID(), ignored -> new ConcurrentHashMap<>());
         Integer existingId = worldDisplays.get(posKey);
@@ -541,7 +545,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
                 displayLoc,
                 component,
                 transformation,
-                org.bukkit.Color.fromARGB(0, 0, 0, 0),
+                Color.fromARGB(0, 0, 0, 0),
                 true,
                 false));
         if (newId >= 0) {
@@ -557,7 +561,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         if (recipeItem != null && !recipeItem.getType().isAir()) {
             // Resolve the display name once here — it doesn't change while this recipe cooks, so the
             // progress-display tick just reads it back instead of re-deriving it every interval.
-            cookingRecipeNames.put(stateKey, com.huidu.farmersdelight.util.ItemUtils.getDisplayName(recipeItem));
+            cookingRecipeNames.put(stateKey, ItemUtils.getDisplayName(recipeItem));
         } else {
             cookingRecipeNames.remove(stateKey);
         }
@@ -677,7 +681,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
             return false;
         }
         Block block = world.getBlockAt(posKey.x(), posKey.y(), posKey.z());
-        return com.huidu.farmersdelight.util.CustomBlockUtils.hasBehavior(block, CookingPotBlockBehavior.class);
+        return CustomBlockUtils.hasBehavior(block, CookingPotBlockBehavior.class);
     }
 
     public static ItemStack insertIngredientLikeHopper(Location location, ItemStack item) {
@@ -753,7 +757,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         }
     }
 
-    public static final BlockBehaviorFactory<CookingPotBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+    public static final BlockBehaviorFactory<CookingPotBlockBehavior> FACTORY = (BlockDefinition block, ConfigSection section) -> {
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         String permission = BehaviorArgParser.getString(arguments, "permission", "farmersdelight.use.cooking_pot");
         boolean openWhileSneaking = BehaviorArgParser.getBoolean(arguments, "open-while-sneaking", false);
@@ -834,7 +838,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         if (bukkitPlayer.isSneaking()
                 && (heldItem == null || heldItem.getType().isAir())) {
             FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-            com.huidu.farmersdelight.manager.HandleManager hm = plugin == null ? null : plugin.getHandleManager();
+            HandleManager hm = plugin == null ? null : plugin.getHandleManager();
             if (hm == null) {
                 return InteractionResult.PASS;
             }
@@ -941,15 +945,11 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
             heldItem.setAmount(heldItem.getAmount() - 1);
             if (heldItem.getAmount() <= 0) {
                 player.getInventory().setItem(hand == InteractionHand.OFF_HAND
-                        ? org.bukkit.inventory.EquipmentSlot.OFF_HAND : org.bukkit.inventory.EquipmentSlot.HAND, null);
+                        ? EquipmentSlot.OFF_HAND : EquipmentSlot.HAND, null);
             }
         }
 
-        Map<Integer, ItemStack> leftovers = player.getInventory().addItem(meal);
-        if (!leftovers.isEmpty()) {
-            Location dropLocation = posKey.toLocation(world).add(0.5, 0.7, 0.5);
-            leftovers.values().forEach(item -> world.dropItemNaturally(dropLocation, item));
-        }
+        ItemDelivery.giveOrDrop(player, posKey.toLocation(world).add(0.5, 0.7, 0.5), meal);
 
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         blockEntity.awardUsedRecipes(player);
@@ -1011,7 +1011,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         // gating the close on getBlockEntity != null would skip it for the common case and leave a still-open
         // Bukkit Inventory as a free pool of items the viewer can click out (dupe). closeOpenGuisAt only needs
         // the world + coords and is a cheap no-op when no viewer is open at this position.
-        com.huidu.farmersdelight.gui.CookingPotGui.closeOpenGuisAt(world, pos.x(), pos.y(), pos.z());
+        CookingPotGui.closeOpenGuisAt(world, pos.x(), pos.y(), pos.z());
         BlockPosKey posKey = new BlockPosKey(pos);
         if (getBlockEntity(world, posKey) == null) {
             return;
@@ -1087,7 +1087,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
 
     private static Map<String, Object> getMap(Map<String, Object> arguments) {
         Object value = getArgument(arguments, "custom");
-        if (value instanceof net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
+        if (value instanceof ConfigSection section) {
             return section.values();
         }
         if (value != null) {
@@ -1097,6 +1097,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
     }
 
     private static String normalizeBlank(String value) {
-        return com.huidu.farmersdelight.util.ItemUtils.normalizeBlank(value);
+        return ItemUtils.normalizeBlank(value);
     }
 }

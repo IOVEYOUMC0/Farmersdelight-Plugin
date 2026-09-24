@@ -1,5 +1,7 @@
 package com.huidu.farmersdelight.util;
 
+import net.momirealms.craftengine.core.plugin.config.ConfigConstants;
+import net.momirealms.craftengine.core.plugin.config.KnownResourceException;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -7,6 +9,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class BehaviorArgParserTest {
 
@@ -24,17 +27,27 @@ class BehaviorArgParserTest {
     }
 
     @Test
-    void fallsBackOnMissingOrInvalidValues() {
+    void defaultsMissingValuesAndRejectsInvalidValuesWithTheirConfigPaths() {
         Map<String, Object> args = Map.of(
                 "count", "bad",
                 "scale", "bad",
                 "blank", " "
         );
 
-        assertEquals(7, BehaviorArgParser.getInt(args, "count", 7));
-        assertEquals(1.5F, BehaviorArgParser.getFloat(args, "scale", 1.5F));
+        assertEquals(7, BehaviorArgParser.getInt(args, "missing-count", 7));
+        assertEquals(1.5F, BehaviorArgParser.getFloat(args, "missing-scale", 1.5F));
+        var count = assertThrows(KnownResourceException.class, () -> BehaviorArgParser.getInt(args, "count", 7));
+        assertEquals("count", count.node());
+        assertEquals(ConfigConstants.PARSE_INT_FAILED, count.translationKey());
+        var scale = assertThrows(KnownResourceException.class, () -> BehaviorArgParser.getFloat(args, "scale", 1.5F));
+        assertEquals("scale", scale.node());
+        assertEquals(ConfigConstants.PARSE_FLOAT_FAILED, scale.translationKey());
         assertFalse(BehaviorArgParser.hasArgument(args, "blank"));
-        assertEquals("fallback", BehaviorArgParser.getArgumentString(args, "blank", "fallback"));
+        assertEquals("fallback", BehaviorArgParser.getArgumentString(args, "missing-text", "fallback"));
+        var blank = assertThrows(KnownResourceException.class,
+                () -> BehaviorArgParser.getArgumentString(args, "blank", "fallback"));
+        assertEquals("blank", blank.node());
+        assertEquals(ConfigConstants.PARSE_NONEMPTY_STRING_FAILED, blank.translationKey());
     }
 
     @Test

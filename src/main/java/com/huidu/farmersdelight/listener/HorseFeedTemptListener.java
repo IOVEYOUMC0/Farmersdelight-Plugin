@@ -33,6 +33,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class HorseFeedTemptListener implements Listener {
 
@@ -61,8 +62,8 @@ public class HorseFeedTemptListener implements Listener {
     // from it, skipping List.copyOf per iteration when the membership hasn't changed (the common case).
     // The generation is mutated by multiple threads (region threads), so AtomicLong is used; the cached
     // snapshot is read/written only by the single-threaded tickTemptGoals, so a plain field suffices.
-    private final java.util.concurrent.atomic.AtomicLong tempterGeneration = new java.util.concurrent.atomic.AtomicLong();
-    private java.util.List<Map.Entry<UUID, Player>> cachedTempterSnapshot = java.util.List.of();
+    private final AtomicLong tempterGeneration = new AtomicLong();
+    private List<Map.Entry<UUID, Player>> cachedTempterSnapshot = List.of();
     private long cachedTempterSnapshotGeneration = -1L;
 
     public HorseFeedTemptListener(FarmersDelightPlugin plugin) {
@@ -238,10 +239,10 @@ public class HorseFeedTemptListener implements Listener {
         // the cache so we avoid List.copyOf on every iteration.
         long generation = tempterGeneration.get();
         if (cachedTempterSnapshotGeneration != generation) {
-            cachedTempterSnapshot = java.util.List.copyOf(activeTempterPlayers.entrySet());
+            cachedTempterSnapshot = List.copyOf(activeTempterPlayers.entrySet());
             cachedTempterSnapshotGeneration = generation;
         }
-        java.util.List<Map.Entry<UUID, Player>> snapshot = cachedTempterSnapshot;
+        List<Map.Entry<UUID, Player>> snapshot = cachedTempterSnapshot;
         int size = snapshot.size();
         int budget = Math.min(tickBudget, size);
         int start = tickCursor >= size ? 0 : tickCursor;

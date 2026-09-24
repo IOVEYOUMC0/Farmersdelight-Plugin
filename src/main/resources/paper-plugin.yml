@@ -55,6 +55,14 @@ dependencies:
       load: BEFORE
       required: false
       join-classpath: true
+    SimpleClaimSystem:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    LandClaimPlugin:
+      load: BEFORE
+      required: false
+      join-classpath: true
     PlotSquared:
       load: BEFORE
       required: false

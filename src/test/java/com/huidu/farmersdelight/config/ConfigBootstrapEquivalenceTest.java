@@ -20,6 +20,24 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ConfigBootstrapEquivalenceTest {
 
+    @Test
+    void perItemGuiOverridesAreMapsAndOnlyEmptyLegacyListsAreMigrated() throws Exception {
+        YamlConfiguration gui = new YamlConfiguration();
+        gui.loadFromString(Files.readString(Path.of("src/main/resources/gui.yml")));
+        for (String path : List.of("cooking-pot-guis", "recipe-view-gui.recipe-detail-cooking-pot-guis",
+                "recipe-editor-cooking-pot-guis")) {
+            assertTrue(gui.isConfigurationSection(path), path);
+            gui.set(path, List.of());
+        }
+        assertEquals(3, ConfigBootstrap.migrateEmptyGuiMaps(gui));
+        assertEquals(0, ConfigBootstrap.migrateEmptyGuiMaps(gui));
+        gui.set("cooking-pot-guis.custom:pot.title", "Custom pot");
+        gui.set("recipe-editor-cooking-pot-guis", List.of("invalid-entry"));
+        assertEquals(0, ConfigBootstrap.migrateEmptyGuiMaps(gui));
+        assertEquals("Custom pot", gui.getString("cooking-pot-guis.custom:pot.title"));
+        assertEquals(List.of("invalid-entry"), gui.getList("recipe-editor-cooking-pot-guis"));
+    }
+
     private static final String[][] LEGACY_MIGRATIONS = {
             {"knife-drops", "mob-extra-drops"},
             {"entity-extra-drops", "mob-extra-drops"},

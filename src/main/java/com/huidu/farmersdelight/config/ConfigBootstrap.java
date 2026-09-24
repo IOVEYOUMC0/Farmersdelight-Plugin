@@ -6,6 +6,7 @@ import com.huidu.farmersdelight.api.config.ConfigKeyRename;
 import com.huidu.farmersdelight.api.config.ConfigUpdatePolicy;
 import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.IOException;
@@ -306,7 +307,7 @@ public final class ConfigBootstrap {
     }
 
     static void copyLegacyDrops(ConfigurationSection legacy, Path dropsPath)
-            throws IOException, org.bukkit.configuration.InvalidConfigurationException {
+            throws IOException, InvalidConfigurationException {
         YamlConfiguration drops = ConfigFileUpdater.readYamlFile(dropsPath);
         for (String section : DROPS_REGISTRY_SECTIONS) {
             drops.set(section, null);
@@ -337,7 +338,7 @@ public final class ConfigBootstrap {
     }
 
     static void copyLegacyWorldData(ConfigurationSection legacy, Path worldDataPath)
-            throws IOException, org.bukkit.configuration.InvalidConfigurationException {
+            throws IOException, InvalidConfigurationException {
         YamlConfiguration worldData = ConfigFileUpdater.readYamlFile(worldDataPath);
         worldData.set("trades", null);
         ConfigFileUpdater.copySection(legacy, worldData);
@@ -398,6 +399,7 @@ public final class ConfigBootstrap {
             YamlConfiguration existing = ConfigFileUpdater.readYamlFile(guiPath);
 
             int migrated = migrateLegacyGuiSections(existing.getConfigurationSection("recipe-view-gui"));
+            migrated += migrateEmptyGuiMaps(existing);
             int added = ConfigFileUpdater.copyMissingKeys(bundled, existing, List.of());
             if (migrated > 0 || added > 0) {
                 backupQuietly(guiPath);
@@ -408,6 +410,19 @@ public final class ConfigBootstrap {
         } catch (Exception e) {
             I18n.logWarning("plugin.config_merge_failed", "file", "gui.yml", "error", e.getMessage());
         }
+    }
+
+    /** Repair the empty lists shipped in place of per-item GUI maps, without replacing operator entries. */
+    static int migrateEmptyGuiMaps(ConfigurationSection gui) {
+        int migrated = 0;
+        for (String path : List.of("cooking-pot-guis", "recipe-view-gui.recipe-detail-cooking-pot-guis",
+                "recipe-editor-cooking-pot-guis")) {
+            if (gui.get(path) instanceof List<?> entries && entries.isEmpty()) {
+                gui.createSection(path);
+                migrated++;
+            }
+        }
+        return migrated;
     }
 
     /** Copies the pre-split recipe detail layout into any newly introduced detail sections. */

@@ -13,6 +13,7 @@ import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.libraries.nbt.CompoundTag;
 import net.momirealms.craftengine.libraries.nbt.Tag;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.Material;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -20,6 +21,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Serialization support so recipe results and containers keep the full NBT of a real item (custom
@@ -38,8 +40,8 @@ import java.util.Map;
  */
 public final class RecipeItemCodec {
 
-    // CE 26.8 exposes core.util.TagParser and its proxy artifact. Resolve the parser lazily so the
-    // plugin does not link parser classes during config bootstrap, while still using only the 26.8 API.
+    // CE 26.8.2 exposes core.util.TagParser and its proxy artifact. Resolve the parser lazily so the
+    // plugin does not link parser classes during config bootstrap.
     private static volatile Method snbtParseMethod;
     private static volatile Object snbtParseTarget;
 
@@ -58,8 +60,8 @@ public final class RecipeItemCodec {
     // Decoded snapshots, keyed by the encoded string the recipe owns. The ingredient matcher calls this
     // on every comparison with the same constant input, and each miss is a Base64 decode plus a full
     // ItemStack deserialisation. Bounded by the number of NBT-carrying ingredients that were loaded.
-    private static final java.util.Map<String, ItemStack> DECODED = new java.util.concurrent.ConcurrentHashMap<>();
-    private static final ItemStack UNDECODABLE = new ItemStack(org.bukkit.Material.AIR);
+    private static final Map<String, ItemStack> DECODED = new ConcurrentHashMap<>();
+    private static final ItemStack UNDECODABLE = new ItemStack(Material.AIR);
 
     public static ItemStack itemFromBase64(String encoded) {
         if (encoded == null || encoded.isBlank()) {

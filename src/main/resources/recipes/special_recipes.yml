@@ -58,6 +58,7 @@ special_recipes:
     display-type: "item_description"
     description:
       - "gui.special_recipe.wheat_dough.desc.1"
+      - "gui.special_recipe.wheat_dough.desc.2"
   straw:
     title: "gui.special_recipe.straw.title"
     icon: "farmersdelight:straw"

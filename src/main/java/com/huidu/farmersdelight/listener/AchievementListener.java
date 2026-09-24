@@ -95,9 +95,8 @@ public class AchievementListener implements Listener {
         if ((Constants.BLOCK_BROWN_MUSHROOM_COLONY.equals(pickedId)
                 || Constants.BLOCK_RED_MUSHROOM_COLONY.equals(pickedId))
                 && !am.hasAdvancement(player, "get_mushroom_colony")) {
-            // Obtaining EITHER colour completes it (the mod's requirement is an OR of the two). Award off the
-            // picked item id directly — EntityPickupItemEvent fires before the item enters the inventory, so an
-            // inventory scan here wouldn't see the just-picked colony yet.
+            // Either colony color completes the advancement. Check the picked-up ID directly because
+            // EntityPickupItemEvent runs before the item enters the player's inventory.
             am.award(player, "get_mushroom_colony");
         }
         if (Constants.ITEM_ORGANIC_COMPOST.equals(pickedId)) {
@@ -137,15 +136,16 @@ public class AchievementListener implements Listener {
     private void handleCraftedItem(Player player, ItemStack result) {
         if (result == null || result.getType().isAir()) return;
 
-        String customItemId = ItemUtils.getCustomItemId(result);
-        if (customItemId == null) return;
-
         AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
         if (am == null) return;
 
-        if (FarmersDelightPlugin.getInstance().isKnifeItemId(customItemId)) {
+        // Checked before the CraftEngine id gate so a knife from another item source (MMOItems) is awarded too.
+        if (FarmersDelightPlugin.getInstance().isKnife(result)) {
             am.award(player, "craft_knife");
         }
+
+        String customItemId = ItemUtils.getCustomItemId(result);
+        if (customItemId == null) return;
 
         if (customItemId.equals(Constants.ITEM_NETHERITE_KNIFE)) {
             am.award(player, "obtain_netherite_knife");

@@ -1,6 +1,5 @@
-# Villager and wandering-trader offers bundled with the mod. Composting chances and furnace burn times live in
-# the CraftEngine item configuration under settings: compost_probability and fuel_time. Deleting an entry
-# disables it; the plugin does not add deleted trade entries back during updates.
+# Villager and wandering-trader offers. Deleting entries disables them; updates do not restore them.
+# Composting and burn time belong to CE item settings compost_probability and fuel_time.
 trades:
   villager:
     enabled: true

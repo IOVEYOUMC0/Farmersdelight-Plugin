@@ -1,14 +1,19 @@
 package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.FarmersDelightApi;
 import com.huidu.farmersdelight.api.recipe.JumpTarget;
 import com.huidu.farmersdelight.api.recipe.SpecialRecipeInfo;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
+import com.huidu.farmersdelight.gui.editor.CookingPotEditorGui;
+import com.huidu.farmersdelight.gui.editor.CuttingBoardEditorGui;
+import com.huidu.farmersdelight.gui.recipebook.RecipeBookGui;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
 import com.huidu.farmersdelight.recipe.RecipeDiscoveryManager;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
+import com.huidu.farmersdelight.recipe.SpecialRecipeRegistry;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.Text;
 import net.kyori.adventure.text.Component;
@@ -20,6 +25,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
@@ -28,28 +34,22 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class RecipeViewGui extends AbstractInventoryGui {
 
     private static final Map<UUID, RecipeViewGui> activeGuis = new ConcurrentHashMap<>();
-    private static volatile boolean listenerRegistered = false;
-    private static volatile RecipeViewGuiConfig cachedConfig = null;
-    private static final Set<String> warnedMissingCustomCookingPotDetailConfigs = ConcurrentHashMap.newKeySet();
-    private static final Set<String> warnedCookingPotDetailCapacityConfigs = ConcurrentHashMap.newKeySet();
-    // Fully-built recipe-list display item (result icon + formatted ingredient/tool lore) keyed by
-    // type + group + preview-count + recipe id + locale. Rebuilding it per list draw runs the whole
-    // name-resolution + lore-format chain (the profile's formatCompactIngredientLoreLines/getDisplayName
-    // hot node); this collapses a warm open/page to one clone. Cleared on config reload and whenever a
-    // recipe manager republishes (loadRecipes). Values and returns are cloned like itemCache.
-    private static final Map<String, ItemStack> recipeListDisplayCache = new ConcurrentHashMap<>();
+    // The parsed config, built list display items and warn-once sets live in RecipeViewCache, so what is
+    // cached and when it is dropped read as one thing.
     // Ingredient option caches live in RecipeIngredientIcons; tool preview options live in ToolPreviewRenderer.
     private static final ItemStack EMPTY_SLOT_BACKGROUND = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
     static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
@@ -83,8 +83,8 @@ public class RecipeViewGui extends AbstractInventoryGui {
     volatile int currentToolPreviewIndex = 0;
     // Auto-cycle drivers for the detail slots that rotate through candidates (cutting-board tool preview,
     // special-recipe catalyst items). The shared CyclicSlot keeps the per-tick advancing in one place.
-    private final CyclicSlot toolCycle = new CyclicSlot(INGREDIENT_SWITCH_INTERVAL);
-    private final CyclicSlot catalystCycle = new CyclicSlot(INGREDIENT_SWITCH_INTERVAL);
+    private final CyclicSlot toolCycle = new CyclicSlot(INGREDIENT_SWITCH_CALLBACKS);
+    private final CyclicSlot catalystCycle = new CyclicSlot(INGREDIENT_SWITCH_CALLBACKS);
     private final SpecialRecipeRenderer specialRecipeRenderer;
     final RecipeIngredientDisplay ingredientDisplay;
     final ToolPreviewRenderer toolPreviewRenderer;
@@ -95,7 +95,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
     private int expandedIngredientPage;
     private DetailState ingredientOptionsOrigin;
     final RecipeDetailRenderer detailRenderer = new RecipeDetailRenderer(this);
-    static final int INGREDIENT_SWITCH_INTERVAL = 20;
+    // Ingredient/tool preview rotation: this many GUI tick callbacks, and each callback is
+    // GuiTickManager.TICK_INTERVAL (4) game ticks, so the preview switches every 80 ticks (4s).
+    static final int INGREDIENT_SWITCH_CALLBACKS = 20;
     
     private final boolean fromCookingPot;
     private final Location cookingPotLocation;
@@ -114,7 +116,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
     // another recipe's output) pushes the detail it left, so "back" returns to that recipe instead of always
     // dropping to the original list. Reset when a detail is opened fresh from a list; empty history returns to
     // recipeBackState. Touched only inside the click handler (single-threaded per viewer).
-    private final java.util.Deque<DetailState> detailHistory = new java.util.ArrayDeque<>();
+    private final Deque<DetailState> detailHistory = new ArrayDeque<>();
 
     // Chain node for the detail-to-detail back stack. Records whichever detail page was left so "back"
     // can restore it exactly: either a normal (pot/board) recipe detail, a special-recipe detail, or
@@ -178,33 +180,26 @@ public class RecipeViewGui extends AbstractInventoryGui {
     }
 
     private RecipeViewGuiConfig getOrCreateConfig() {
-        if (cachedConfig != null) {
-            return cachedConfig;
-        }
-        
+        return RecipeViewCache.config(this::loadConfig);
+    }
+
+    private RecipeViewGuiConfig loadConfig() {
         var section = plugin.getRecipeViewGuiSection();
-        if (section != null) {
-            cachedConfig = RecipeViewGuiConfig.fromConfig(section);
-        } else {
-            cachedConfig = createDefaultConfig();
-        }
-        return cachedConfig;
+        return section != null ? RecipeViewGuiConfig.fromConfig(section) : createDefaultConfig();
     }
 
     public static void clearConfigCache() {
-        cachedConfig = null;
+        RecipeViewCache.clearConfig();
         // Built display items cache resolved names/lore (from the language files), so clear them too; otherwise
         // stale item names would linger in the recipe GUI after /fd reload lang/gui.
         RecipeIngredientIcons.clearCaches();
-        recipeListDisplayCache.clear();
+        RecipeViewCache.clearDisplay();
         ToolPreviewRenderer.clearToolPreviewCache();
         RecipeDetailRenderer.clearProcessBarFrameCache();
-        warnedMissingCustomCookingPotDetailConfigs.clear();
-        warnedCookingPotDetailCapacityConfigs.clear();
     }
 
     public static void clearRecipeDisplayCache() {
-        recipeListDisplayCache.clear();
+        RecipeViewCache.clearDisplay();
         ToolPreviewRenderer.clearToolPreviewCache();
     }
 
@@ -255,7 +250,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             gui.selectedRecipeId = target.recipeId();
             gui.recipeBackState = GuiState.CUTTING_BOARD_LIST;
             gui.state = GuiState.RECIPE_DETAIL;
-        } else if (com.huidu.farmersdelight.recipe.SpecialRecipeRegistry.TYPE_ID.equals(target.typeId())) {
+        } else if (SpecialRecipeRegistry.TYPE_ID.equals(target.typeId())) {
             SpecialRecipeInfo info = plugin.getSpecialRecipeRegistry() == null
                     ? null : plugin.getSpecialRecipeRegistry().get(target.recipeId());
             if (info == null) {
@@ -431,7 +426,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         setGuiItem(menuConfig, "cutting_board", menuConfig.getCuttingBoardSlot());
         // Addon recipe-book button: only shown when an addon has registered a recipe type.
         if (menuConfig.getRecipeBookSlot() >= 0
-                && !com.huidu.farmersdelight.api.FarmersDelightApi.get().recipeTypes().isEmpty()) {
+                && !FarmersDelightApi.get().recipeTypes().isEmpty()) {
             setGuiItem(menuConfig, "recipe_book", menuConfig.getRecipeBookSlot());
         }
         // Special recipe button: only shown when special recipes are registered.
@@ -488,12 +483,12 @@ public class RecipeViewGui extends AbstractInventoryGui {
                     displayItem = plugin.getRecipeDiscoveryManager().lockedPlaceholder(player);
                 } else if (isCookingPot) {
                     CookingPotRecipe potRecipe = (CookingPotRecipe) recipe;
-                    displayItem = recipeListDisplayCache.computeIfAbsent(
+                    displayItem = RecipeViewCache.displayCache().computeIfAbsent(
                             cacheKeyPrefix + potRecipe.getId() + '|' + locale,
                             k -> createCookingPotRecipeDisplayItem(potRecipe, player)).clone();
                 } else {
                     CuttingBoardRecipe boardRecipe = (CuttingBoardRecipe) recipe;
-                    displayItem = recipeListDisplayCache.computeIfAbsent(
+                    displayItem = RecipeViewCache.displayCache().computeIfAbsent(
                             cacheKeyPrefix + boardRecipe.getId() + '|' + locale,
                             k -> createCuttingBoardRecipeDisplayItem(boardRecipe, player)).clone();
                 }
@@ -1035,7 +1030,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         RecipeViewGui source = this;
         plugin.scheduler().runLaterForEntity(player, () -> {
             if (player.isOnline()) {
-                com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.openRecipe(player, addon.type(),
+                RecipeBookGui.openRecipe(player, addon.type(),
                         addon.recipeId(), () -> source.open(player));
             }
         }, 1L);
@@ -1143,7 +1138,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     // The "on" image string for an active condition, or the "<key>-off" cover string for an inactive
     // one (e.g. catalyst_info-off draws the none image over the mushroom slot); both default to empty.
-    private String conditionImage(org.bukkit.configuration.ConfigurationSection layout, String key, boolean active) {
+    private String conditionImage(ConfigurationSection layout, String key, boolean active) {
         return active ? layout.getString(key, "") : layout.getString(key + "-off", "");
     }
 
@@ -1345,13 +1340,13 @@ public class RecipeViewGui extends AbstractInventoryGui {
             backButtonCommandsEnabled = false;
             navigateToState(player, GuiState.CUTTING_BOARD_LIST, false);
         } else if (slot == menuConfig.getRecipeBookSlot()
-                && !com.huidu.farmersdelight.api.FarmersDelightApi.get().recipeTypes().isEmpty()) {
+                && !FarmersDelightApi.get().recipeTypes().isEmpty()) {
             // Hand off to the generic addon recipe book (deferred a tick, like the editor handoff).
             plugin.scheduler().runLaterForEntity(player, () -> {
                 if (player.isOnline()) {
                     // Backing out of the addon book returns to this recipe menu (where the player came from)
                     // instead of closing, which would strand them.
-                    com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.openMenu(player, null,
+                    RecipeBookGui.openMenu(player, null,
                             () -> new RecipeViewGui(plugin, player).open(player));
                 }
             }, 1L);
@@ -1584,7 +1579,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             return false;
         }
         if (!fromSpecial && linkedRecipe.cookingPot() == cookingPotMode
-                && java.util.Objects.equals(linkedRecipe.recipeId(), selectedRecipeId)) {
+                && Objects.equals(linkedRecipe.recipeId(), selectedRecipeId)) {
             return true;
         }
         Object linkedTarget = linkedRecipe.cookingPot()
@@ -1617,7 +1612,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
     private RecipeViewGuiConfig.RecipeDetailConfig getActiveCookingPotDetailConfig() {
         String customId = getActiveCookingPotRecipeGroup();
         if (customId != null && !customId.isBlank() && !config.hasCustomCookingPotDetail(customId)
-                && warnedMissingCustomCookingPotDetailConfigs.add(customId)) {
+                && RecipeViewCache.warnMissingCustomDetailOnce(customId)) {
             plugin.getLogger().warning(I18n.formatNamedArgs("console.gui.missing_custom_recipe_detail",
                     "id", customId));
         }
@@ -1628,7 +1623,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     private void warnIfCookingPotDetailTooSmall(String customId, RecipeViewGuiConfig.RecipeDetailConfig detailConfig) {
         String warningKey = customId == null || customId.isBlank() ? "default" : customId;
-        if (!warnedCookingPotDetailCapacityConfigs.add(warningKey)) {
+        if (!RecipeViewCache.warnCapacityOnce(warningKey)) {
             return;
         }
         int visibleIngredients = detailConfig.getIngredientSlots().size();
@@ -1662,7 +1657,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
                     return;
                 }
                 CookingPotRecipe existing = plugin.getCookingPotRecipes().getRecipe(recipeId);
-                new com.huidu.farmersdelight.gui.editor.CookingPotEditorGui(
+                new CookingPotEditorGui(
                         plugin, player, recipeId, null, existing, editorConfig).open();
             } else {
                 RecipeViewGuiConfig.BaseConfig boardConfig =
@@ -1671,7 +1666,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
                     return;
                 }
                 CuttingBoardRecipe existing = plugin.getCuttingBoardRecipes().getRecipe(recipeId);
-                new com.huidu.farmersdelight.gui.editor.CuttingBoardEditorGui(
+                new CuttingBoardEditorGui(
                         plugin, player, recipeId, existing, boardConfig).open();
             }
         }, 1L);
@@ -1881,10 +1876,10 @@ public class RecipeViewGui extends AbstractInventoryGui {
             }
         }
         activeGuis.clear();
-        cachedConfig = null;
+        RecipeViewCache.clearConfig();
         RecipeIngredientIcons.clearItemCache();
         // Soft re-enable must register a new dispatcher after disable removes the listener.
-        listenerRegistered = false;
+        GuiListenerRegistrar.reset(RecipeViewEventDispatcher.class);
     }
 
     public static void closeAllOpenGuis() {
@@ -1918,12 +1913,8 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     @Override
     protected void ensureListenerRegistered() {
-        if (listenerRegistered) return;
-        synchronized (RecipeViewGui.class) {
-            if (listenerRegistered) return;
-            Bukkit.getPluginManager().registerEvents(new RecipeViewEventDispatcher(), plugin);
-            listenerRegistered = true;
-        }
+        GuiListenerRegistrar.ensureRegistered(RecipeViewEventDispatcher.class,
+                RecipeViewEventDispatcher::new, plugin);
     }
 
     static RecipeViewGui removeActiveGui(UUID playerId) {

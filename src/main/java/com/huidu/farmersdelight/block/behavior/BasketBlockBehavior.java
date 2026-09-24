@@ -12,7 +12,7 @@ import java.util.Map;
 
 public class BasketBlockBehavior extends FarmersDelightBlockBehavior implements EntityBlock {
 
-    // The reference BasketBlockEntity waits eight ticks after each successful pickup (setCooldown(8)).
+    // Wait eight ticks after a successful pickup.
     public static final int DEFAULT_TRANSFER_COOLDOWN = 8;
 
     private final int transferCooldown;

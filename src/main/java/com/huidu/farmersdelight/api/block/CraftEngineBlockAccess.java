@@ -1,5 +1,7 @@
 package com.huidu.farmersdelight.api.block;
 
+import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.world.BlockPos;
@@ -35,22 +37,22 @@ public final class CraftEngineBlockAccess {
      * return shapes, and logs the failure once instead of propagating it.
      */
     public static CEWorld getCEWorld(World world) {
-        return com.huidu.farmersdelight.util.CustomBlockUtils.getCEWorld(world);
+        return CustomBlockUtils.getCEWorld(world);
     }
 
     /** The Bukkit world owning this block entity, or null. */
     public static World getBukkitWorld(BlockEntity blockEntity) {
-        return com.huidu.farmersdelight.util.CustomBlockUtils.getBukkitWorld(blockEntity);
+        return CustomBlockUtils.getBukkitWorld(blockEntity);
     }
 
     /** Converts a CraftEngine/NMS level handle to its Bukkit world, or null when it is not one. */
     public static World toWorld(Object levelHandle) {
-        return com.huidu.farmersdelight.util.compat.CraftEngineAdapter.toWorld(levelHandle);
+        return CraftEngineAdapter.toWorld(levelHandle);
     }
 
     /** Converts a CraftEngine/NMS block-position handle to a CE BlockPos, or null. */
     public static BlockPos toBlockPos(Object posHandle) {
-        return com.huidu.farmersdelight.util.compat.CraftEngineAdapter.toBlockPos(posHandle);
+        return CraftEngineAdapter.toBlockPos(posHandle);
     }
 
     /**
@@ -58,21 +60,21 @@ public final class CraftEngineBlockAccess {
      * every state change that must survive a restart has to be followed by this call.
      */
     public static void markDirty(BlockEntity blockEntity) {
-        com.huidu.farmersdelight.util.CustomBlockUtils.markBlockEntityDirty(blockEntity);
+        CustomBlockUtils.markBlockEntityDirty(blockEntity);
     }
 
     /** The custom block id of a state ("namespace:id"), or null when the state is not a custom block. */
     public static String blockId(ImmutableBlockState state) {
-        return com.huidu.farmersdelight.util.CustomBlockUtils.getId(state);
+        return CustomBlockUtils.getId(state);
     }
 
     /** The horizontal facing of a state, defaulting to NORTH when it has no facing property. */
     public static BlockFace facing(ImmutableBlockState state) {
-        return com.huidu.farmersdelight.util.CustomBlockUtils.getFacing(state);
+        return CustomBlockUtils.getFacing(state);
     }
 
     /** A state property as a string, or null when the state has no such property. */
     public static String property(ImmutableBlockState state, String propertyName) {
-        return com.huidu.farmersdelight.util.CustomBlockUtils.getPropertyString(state, propertyName);
+        return CustomBlockUtils.getPropertyString(state, propertyName);
     }
 }

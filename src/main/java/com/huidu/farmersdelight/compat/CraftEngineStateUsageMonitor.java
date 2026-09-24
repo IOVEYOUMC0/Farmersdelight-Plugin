@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.compat;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.FarmersDelightApi;
 import com.huidu.farmersdelight.i18n.I18n;
 import net.momirealms.craftengine.bukkit.block.BukkitBlockManager;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -8,7 +9,9 @@ import net.momirealms.craftengine.core.pack.allocator.IdAllocator;
 import net.momirealms.craftengine.core.plugin.config.Config;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public final class CraftEngineStateUsageMonitor {
     private static final String FARMERS_DELIGHT_NAMESPACE = "farmersdelight:";
@@ -75,8 +78,8 @@ public final class CraftEngineStateUsageMonitor {
         }
 
         // Namespace prefixes of registered addons (e.g. "brewinandchewin:"), counted alongside FD's own.
-        java.util.Set<String> addonPrefixes = new java.util.HashSet<>();
-        for (String ns : com.huidu.farmersdelight.api.FarmersDelightApi.get().addonBlockNamespaces()) {
+        Set<String> addonPrefixes = new HashSet<>();
+        for (String ns : FarmersDelightApi.get().addonBlockNamespaces()) {
             addonPrefixes.add(ns + ":");
         }
 
@@ -105,7 +108,7 @@ public final class CraftEngineStateUsageMonitor {
         return new Usage(total, used, Math.max(0, total - used), farmersDelightStates, addonStates);
     }
 
-    private static boolean matchesAddon(String owner, java.util.Set<String> addonPrefixes) {
+    private static boolean matchesAddon(String owner, Set<String> addonPrefixes) {
         for (String prefix : addonPrefixes) {
             if (owner.startsWith(prefix)) {
                 return true;

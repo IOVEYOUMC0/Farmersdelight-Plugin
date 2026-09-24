@@ -30,7 +30,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 public class PetFoodConfig {
@@ -39,7 +41,7 @@ public class PetFoodConfig {
 
     private static Logger LOGGER;
     private static boolean registered;
-    private final Map<String, PetFoodDefinition> petFoods = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<String, PetFoodDefinition> petFoods = new ConcurrentHashMap<>();
 
     public static void setLogger(Logger logger) {
         LOGGER = logger;
@@ -111,7 +113,7 @@ public class PetFoodConfig {
         List<String> entityList = section.getStringList("entities");
         for (String entityId : entityList) {
             try {
-                EntityType type = EntityType.valueOf(entityId.toUpperCase(java.util.Locale.ROOT));
+                EntityType type = EntityType.valueOf(entityId.toUpperCase(Locale.ROOT));
                 entities.add(type);
             } catch (IllegalArgumentException e) {
                 if (LOGGER != null) {
@@ -146,7 +148,7 @@ public class PetFoodConfig {
         String particleName = section.getString("particle-type", "END_ROD");
         Particle particleType;
         try {
-            particleType = Particle.valueOf(particleName.toUpperCase(java.util.Locale.ROOT));
+            particleType = Particle.valueOf(particleName.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             particleType = Particle.END_ROD;
             if (LOGGER != null) {
@@ -183,7 +185,7 @@ public class PetFoodConfig {
 
         List<EffectDefinition> parsedEffects = section.getSectionList("effects", PetFoodConfig::parseEffectDefinition);
         if (parsedEffects != null) {
-            parsedEffects.stream().filter(java.util.Objects::nonNull).forEach(effects::add);
+            parsedEffects.stream().filter(Objects::nonNull).forEach(effects::add);
         }
 
         Sound sound = resolveSound(section.getString("sound"));

@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.listener;
 
+import com.huidu.farmersdelight.api.util.ItemDelivery;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.RopeBlockBehavior;
 import com.huidu.farmersdelight.i18n.I18n;
@@ -20,6 +21,7 @@ import org.bukkit.Chunk;
 import org.bukkit.GameMode;
 import org.bukkit.Sound;
 import org.bukkit.World;
+import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
@@ -37,6 +39,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class RopeBlockListener implements Listener {
 
@@ -150,7 +153,7 @@ public class RopeBlockListener implements Listener {
         if (!pendingRopeRefreshes.add(key)) {
             return;
         }
-        plugin.scheduler().runLaterAt(new org.bukkit.Location(world, pos.x(), pos.y(), pos.z()), () -> {
+        plugin.scheduler().runLaterAt(new Location(world, pos.x(), pos.y(), pos.z()), () -> {
             pendingRopeRefreshes.remove(key);
             if (stopped) {
                 return;
@@ -197,9 +200,7 @@ public class RopeBlockListener implements Listener {
         if (!isCreative) {
             ItemStack recovered = RopeBlockBehavior.createItemForRopeBlock(bottomBlock);
             if (recovered != null) {
-                for (ItemStack leftover : player.getInventory().addItem(recovered).values()) {
-                    world.dropItemNaturally(bottomBlock.getLocation(), leftover);
-                }
+                ItemDelivery.giveOrDrop(player, bottomBlock.getLocation(), recovered);
             }
         }
 
@@ -230,7 +231,7 @@ public class RopeBlockListener implements Listener {
         if (block == null) {
             return;
         }
-        // Fast-path: no tracked ropes anywhere → skip the 5x cell lookups below. R-PERF-002.
+        // Skip cell lookups when no ropes are tracked.
         if (placedRopes.isEmpty()) {
             return;
         }
@@ -303,13 +304,8 @@ public class RopeBlockListener implements Listener {
         removeRope(new Cell(b.getWorld().getUID(), b.getX(), b.getY(), b.getZ()));
     }
 
-    // Rebuild the index for a chunk as it comes back. Ropes are stateful custom blocks with no block
-    // entity, so they are absent from CEChunk.blockEntities() and cannot be recovered the way
-    // ChunkLoadListener recovers block-entity backed blocks; the chunk's own block states are the only
-    // authority. ChunkLoadEvent is delivered on the region that owns the chunk, so the CraftEngine chunk
-    // is read on the correct thread (R-CONC-006). Re-adding cells already present is a no-op, so a chunk
-    // that loads more than once (or overlaps the CustomBlockPlace path) stays consistent.
-    // ChunkLoadEvent does not implement Cancellable, so ignoreCancelled would have no meaning here.
+    // Rebuild rope positions from the loading chunk's states; ropes have no block entity to enumerate.
+    // ChunkLoadEvent runs on the owning region. Index insertion is idempotent for repeated loads.
     @EventHandler(priority = EventPriority.MONITOR)
     public void onChunkLoad(ChunkLoadEvent event) {
         Chunk chunk = event.getChunk();
@@ -366,8 +362,7 @@ public class RopeBlockListener implements Listener {
     }
 
     // One-shot latch so a persistently broken world logs once instead of once per section per chunk load.
-    private static final java.util.concurrent.atomic.AtomicBoolean PALETTE_FAILURE_LOGGED =
-            new java.util.concurrent.atomic.AtomicBoolean();
+    private static final AtomicBoolean PALETTE_FAILURE_LOGGED = new AtomicBoolean();
 
     // Palette probe: a CraftEngine section stores its states in a paletted container, so the distinct
     // states of all 4096 positions are a handful of palette entries. Testing those decides whether the

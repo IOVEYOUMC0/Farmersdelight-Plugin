@@ -21,6 +21,8 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -73,7 +75,7 @@ public class KnifeDropHandler implements Listener {
                 List<String> toolItems = loadRuleToolItems(entitySection);
                 List<String> toolTags = loadRuleToolTags(entitySection);
 
-                newRules.put(entityType.toLowerCase(java.util.Locale.ROOT), new KnifeDropRule(
+                newRules.put(entityType.toLowerCase(Locale.ROOT), new KnifeDropRule(
                         entityType, normalItem, burningItem, baseChance, lootingMultiplier, toolItems, toolTags
                 ));
             }
@@ -120,7 +122,7 @@ public class KnifeDropHandler implements Listener {
             return List.of();
         }
         return ConfigSectionReader.optionalStringList(section, keys[0],
-                java.util.Arrays.copyOfRange(keys, 1, keys.length));
+                Arrays.copyOfRange(keys, 1, keys.length));
     }
 
     private List<String> normalizeIds(List<String> ids) {
@@ -129,7 +131,7 @@ public class KnifeDropHandler implements Listener {
         }
         return ids.stream()
                 .filter(Objects::nonNull)
-                .map(id -> id.trim().toLowerCase(java.util.Locale.ROOT))
+                .map(id -> id.trim().toLowerCase(Locale.ROOT))
                 .filter(id -> !id.isEmpty())
                 .toList();
     }
@@ -178,7 +180,7 @@ public class KnifeDropHandler implements Listener {
             return;
         }
 
-        String entityKey = entity.getType().name().toLowerCase(java.util.Locale.ROOT);
+        String entityKey = entity.getType().name().toLowerCase(Locale.ROOT);
         KnifeDropRule rule = dropRules.get(entityKey);
         if (rule == null) return;
 
@@ -226,7 +228,7 @@ public class KnifeDropHandler implements Listener {
     // Checks whether the configured drop is a ham variant.
     private boolean isHamItem(String itemId) {
         if (itemId == null) return false;
-        String id = itemId.toLowerCase(java.util.Locale.ROOT);
+        String id = itemId.toLowerCase(Locale.ROOT);
         return id.equals(Constants.ITEM_HAM)
                 || id.equals(Constants.ITEM_SMOKED_HAM)
                 || id.equals(Constants.ITEM_HONEY_GLAZED_HAM);
@@ -280,18 +282,18 @@ public class KnifeDropHandler implements Listener {
     }
 
     public void addDropRule(String entityType, KnifeDropRule rule) {
-        dropRules.put(entityType.toLowerCase(java.util.Locale.ROOT), rule);
+        dropRules.put(entityType.toLowerCase(Locale.ROOT), rule);
     }
 
     public void removeDropRule(String entityType) {
-        dropRules.remove(entityType.toLowerCase(java.util.Locale.ROOT));
+        dropRules.remove(entityType.toLowerCase(Locale.ROOT));
     }
 
     public void registerExternalDropRule(String entityType, KnifeDropRule rule) {
         if (entityType == null || rule == null) {
             return;
         }
-        String key = entityType.toLowerCase(java.util.Locale.ROOT);
+        String key = entityType.toLowerCase(Locale.ROOT);
         externalRules.put(key, rule);
         dropRules.put(key, rule);
     }
@@ -300,7 +302,7 @@ public class KnifeDropHandler implements Listener {
         if (entityType == null) {
             return false;
         }
-        String key = entityType.toLowerCase(java.util.Locale.ROOT);
+        String key = entityType.toLowerCase(Locale.ROOT);
         if (externalRules.remove(key) == null) {
             return false;
         }

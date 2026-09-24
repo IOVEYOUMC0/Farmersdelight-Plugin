@@ -4,12 +4,14 @@ import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.plugin.config.ConfigConstants;
 import net.momirealms.craftengine.core.plugin.config.KnownResourceException;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 public final class BehaviorArgParser {
+    private static final String PARSE_LIST_FAILED = "resource.argument.parser.list";
 
     private BehaviorArgParser() {
     }
@@ -172,13 +174,13 @@ public final class BehaviorArgParser {
             return List.of();
         }
         if (!(value instanceof Iterable<?> iterable)) {
-            throw new KnownResourceException(ConfigConstants.PARSE_LIST_FAILED, key, valueText(value));
+            throw new KnownResourceException(PARSE_LIST_FAILED, key, valueText(value));
         }
-        List<String> result = new java.util.ArrayList<>();
+        List<String> result = new ArrayList<>();
         for (Object entry : iterable) {
             if (entry == null || !(entry instanceof String || entry instanceof Number
                     || entry instanceof Boolean || entry instanceof Character)) {
-                throw new KnownResourceException(ConfigConstants.PARSE_LIST_FAILED, key, valueText(value));
+                throw new KnownResourceException(PARSE_LIST_FAILED, key, valueText(value));
             }
             result.add(String.valueOf(entry));
         }

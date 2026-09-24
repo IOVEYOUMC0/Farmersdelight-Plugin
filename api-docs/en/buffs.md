@@ -355,10 +355,10 @@ it carries a `UUID`, not a `Player`.
 
 ### Admin command and placeholders
 
-`/fd buff give <buff> [level] [seconds] [player]` routes through `CustomBuffRegistry.apply`, which is why
-implementing `apply()` is what makes your buff grantable. A buff token resolves by exact namespaced id first,
-then by the short suffix (`tipsy` finds `brewinandchewin:tipsy`). `/fd buff clear` uses `clearAll` or removes
-one named buff directly.
+`/fd buff give <player> <buff> <time> <level>` routes through `CustomBuffRegistry.apply`, which is why
+implementing `apply()` is what makes your buff grantable. Time and level are optional and use the command
+defaults when omitted. A buff token resolves by exact namespaced id first, then by the short suffix (`tipsy`
+finds `brewinandchewin:tipsy`). `/fd buff clear` uses `clearAll` or removes one named buff through the registry.
 
 When PlaceholderAPI is installed, every registered buff is exposed under the `farmersdelight` identifier:
 

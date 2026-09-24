@@ -10,22 +10,24 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class CuttingBoardDisplayConfig {
 
     private static final float DEFAULT_ITEM_SPREAD = 0.15F;
     private static final Vector3f ZERO_OFFSET = new Vector3f(0.0F, 0.0F, 0.0F);
 
-    private final Map<String, DisplayOverride> itemOverrides = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<String, DisplayOverride> itemOverrides = new ConcurrentHashMap<>();
     // tagOverrides keeps LinkedHashMap for definition-order iteration (first-match override semantics);
     // mutations only happen on reload from the main thread, reads from event handlers — wrap with
     // synchronized to make those reload-vs-read transitions atomic without losing ordering.
-    private final Map<String, DisplayOverride> tagOverrides = java.util.Collections.synchronizedMap(new LinkedHashMap<>());
+    private final Map<String, DisplayOverride> tagOverrides = Collections.synchronizedMap(new LinkedHashMap<>());
     private final DisplayOverride fallbackDefaults;
     private final float fallbackItemSpread;
     // Reload writes, event handlers read on Folia region threads — volatile publishes the new values.

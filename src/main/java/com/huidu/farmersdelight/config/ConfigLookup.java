@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.config;
 import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.List;
+import java.util.Arrays;
 
 /** Small read-only helpers for config aliases used during migration. */
 public final class ConfigLookup {
@@ -58,7 +59,7 @@ public final class ConfigLookup {
         if (config == null || paths == null) {
             return List.of();
         }
-        return java.util.Arrays.stream(paths)
+        return Arrays.stream(paths)
                 .filter(path -> path != null && config.contains(path, true))
                 .toList();
     }

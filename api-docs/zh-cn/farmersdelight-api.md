@@ -90,6 +90,8 @@ if (version >= 1) {
 | `common-tags`                 | 中心标签注册表：附属注册自己的 标签→物品 映射，整个family解析同一套标签（`registerCommonTags` / `unregisterCommonTags`）                                      |
 | `advancement-triggers`        | 统一处理物品获得/制作/产出与食用触发的成就映射                                                                  |
 
+内容加载完成后注册或移除公共标签，会自动重建依赖标签的配方和 GUI 缓存。
+
 关心某一项能力时优先用 `hasFeature`，需要比较先后顺序时才用 `apiVersion()`。和 `apiVersion()` 一样，在 引入它之前的构建上调用 `hasFeature` 会抛 `NoSuchMethodError`，若你要兼容那种构建，第一次探测要包起来。
 
 ```java

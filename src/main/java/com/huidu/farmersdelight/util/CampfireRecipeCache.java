@@ -28,6 +28,9 @@ public final class CampfireRecipeCache {
     // load (rare), O(1) at query.
     private final AtomicReference<Map<Material, List<CampfireRecipe>>> byMaterial =
             new AtomicReference<>(Map.of());
+    // Inputs the registered recipes accept, published by rebuild(). Consumers that need "everything that can
+    // be cooked" (the handheld cooking model generator) read this instead of scanning the recipe table again.
+    private final AtomicReference<List<ItemStack>> ingredients = new AtomicReference<>(List.of());
     // Tracks whether the cache has been built, separate from "is the cache empty": when the server
     // has no campfire recipes, the cache is empty but still counts as built, avoiding a full recipe-table rescan per lookup.
     private final AtomicBoolean built = new AtomicBoolean(false);
@@ -79,8 +82,42 @@ public final class CampfireRecipeCache {
             }
         }
         byMaterial.set(buildMaterialBucket(recipes));
+        ingredients.set(buildIngredients(recipes));
         built.set(true);
         debug.accept(() -> "Loaded " + recipes.size() + " cached campfire recipes for " + debugName);
+    }
+
+    /**
+     * Every input the registered recipes accept, as single-item stacks: material choices become plain
+     * vanilla stacks and exact choices keep their full stack (custom items and data-component matches).
+     * Duplicates are expected - recipes overlap and callers only use this to derive item models.
+     */
+    public List<ItemStack> ingredients() {
+        return ingredients.get();
+    }
+
+    private static List<ItemStack> buildIngredients(List<CampfireRecipe> recipes) {
+        List<ItemStack> inputs = new ArrayList<>();
+        for (CampfireRecipe recipe : recipes) {
+            RecipeChoice choice = recipe.getInputChoice();
+            if (choice instanceof RecipeChoice.MaterialChoice materialChoice) {
+                for (Material material : materialChoice.getChoices()) {
+                    if (material != null && !material.isLegacy() && material.isItem()) {
+                        inputs.add(new ItemStack(material));
+                    }
+                }
+            } else if (choice instanceof RecipeChoice.ExactChoice exactChoice) {
+                for (ItemStack stack : exactChoice.getChoices()) {
+                    if (stack == null || stack.getType().isAir()) {
+                        continue;
+                    }
+                    ItemStack unit = stack.clone();
+                    unit.setAmount(1);
+                    inputs.add(unit);
+                }
+            }
+        }
+        return List.copyOf(inputs);
     }
 
     private static Map<Material, List<CampfireRecipe>> buildMaterialBucket(List<CampfireRecipe> recipes) {

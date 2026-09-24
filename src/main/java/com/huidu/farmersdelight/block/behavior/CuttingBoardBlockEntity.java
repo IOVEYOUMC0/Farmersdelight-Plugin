@@ -20,6 +20,8 @@ import org.joml.Vector3f;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
+import java.util.logging.Level;
 
 public class CuttingBoardBlockEntity {
 
@@ -36,7 +38,7 @@ public class CuttingBoardBlockEntity {
     private int displayedCount;
     private CuttingBoardDisplayConfig.DisplayOverride displayedOverride;
 
-    void collectDisplayIds(java.util.Set<Integer> out) {
+    void collectDisplayIds(Set<Integer> out) {
         out.addAll(displayEntityIds);
     }
 
@@ -115,7 +117,7 @@ public class CuttingBoardBlockEntity {
             // The item is already stored by the time the display is (re)built; a cosmetic display failure must
             // not propagate into setStoredItem, or the cutting board's place-then-consume flow would leave the
             // player's hand item unconsumed (a duplication) with no display.
-            FarmersDelightPlugin.getInstance().getLogger().log(java.util.logging.Level.WARNING,
+            FarmersDelightPlugin.getInstance().getLogger().log(Level.WARNING,
                     "Cutting board display update failed at " + posKey + " (item still stored)", t);
         }
     }
@@ -325,7 +327,7 @@ public class CuttingBoardBlockEntity {
     }
 
     private ItemStack cloneOrNull(ItemStack item) {
-        return com.huidu.farmersdelight.util.ItemUtils.cloneOrNull(item);
+        return ItemUtils.cloneOrNull(item);
     }
 
     private void syncWorldlyContainer() {

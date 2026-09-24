@@ -7,36 +7,25 @@ import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.ApiStatus;
 
 import java.util.LinkedHashSet;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * What one plugin has declared to be a heat source, so a cooking pot, skillet or addon station standing
- * on it will cook.
- *
- * <p>The four kinds are separate because they are matched differently. A vanilla block is matched by id.
- * A conductor is a block that passes heat up from the block below it. A custom block is a CraftEngine
- * block and may carry a state filter, "endsdelight:end_stove[fire:true]", which is the form to
- * use for anything that can be switched off: CraftEngine copies block-level settings onto every state, so
- * a tag on the block alone would make the unlit state a heat source too. A custom tag covers a whole
- * CraftEngine block tag at once.
- *
- * <p>Registrations are remembered per plugin and replayed automatically whenever FarmersDelight rebuilds
- * its heat-source table, which happens on every /fd reload. Registering through the raw api and forgetting
- * that is how an addon's heat source used to disappear on the first reload with no log line.
- *
- * <p>Query the result with FarmersDelightApi.get().isHeatSource(block) and
- * isConductor(block); those stay on the api because stations call them every tick.
+ * Registers per-plugin heat sources and conductors, replaying them when the heat table reloads.
+ * Vanilla blocks match by ID. CE blocks may also carry state filters so an unlit state does not
+ * provide heat. Conductors pass heat from below; custom tags match groups of CE blocks.
+ * Query the effective table through FarmersDelightApi.isHeatSource and isConductor.
  */
 public final class HeatSources {
 
     private static final Map<String, HeatSources> GROUPS = new ConcurrentHashMap<>();
 
-    private final Set<String> vanillaBlocks = java.util.Collections.synchronizedSet(new LinkedHashSet<>());
-    private final Set<String> conductors = java.util.Collections.synchronizedSet(new LinkedHashSet<>());
-    private final Set<String> customBlocks = java.util.Collections.synchronizedSet(new LinkedHashSet<>());
-    private final Set<String> customTags = java.util.Collections.synchronizedSet(new LinkedHashSet<>());
+    private final Set<String> vanillaBlocks = Collections.synchronizedSet(new LinkedHashSet<>());
+    private final Set<String> conductors = Collections.synchronizedSet(new LinkedHashSet<>());
+    private final Set<String> customBlocks = Collections.synchronizedSet(new LinkedHashSet<>());
+    private final Set<String> customTags = Collections.synchronizedSet(new LinkedHashSet<>());
 
     private final String owner;
 

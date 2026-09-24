@@ -6,6 +6,12 @@ Returning a `RecipeEditor` from `RecipeType.editor()` makes your recipes editabl
 FarmersDelight's generic editor GUI. FarmersDelight drives the GUI; **your addon owns the storage**. The editor
 hands you an `EditableRecipe` draft to persist or delete, and never touches your files itself.
 
+The built-in `/fd recipe edit pot` and `/fd recipe edit board` commands write FarmersDelight's own recipe files
+and can also write addon recipe files loaded through the shared `AddonRecipeFiles` helper. For an addon recipe
+registered only through the API, the editor stores a persistent `external-overrides` entry in FarmersDelight's
+recipe file. Removing that override lets the addon's next registration take effect again, without guessing an addon
+file path.
+
 ## RecipeEditor
 
 ```java

@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.FarmersDelightPlugin;
 import net.momirealms.craftengine.bukkit.util.ItemStackUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.core.plugin.config.Config;
@@ -73,7 +74,7 @@ final class SimpleBlockEntityData {
                     item = ItemStackUtils.parseBukkitItem(value, Config.itemDataFixerUpperFallbackVersion());
                 } catch (RuntimeException e) {
                     // Corrupt/version-skewed item: skip this key rather than aborting the whole load.
-                    com.huidu.farmersdelight.FarmersDelightPlugin.getInstance().getLogger()
+                    FarmersDelightPlugin.getInstance().getLogger()
                             .warning("Skipping unreadable block-entity item '" + key + "': " + e.getMessage());
                     continue;
                 }

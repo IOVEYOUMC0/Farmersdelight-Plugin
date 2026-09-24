@@ -45,12 +45,21 @@ public class SkilletPlaceListener implements Listener {
         if (!isSkilletItem(mainHand)) {
             return;
         }
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        if (plugin != null && plugin.getSkilletManager() != null
+                && (plugin.getSkilletManager().isHandheldCooking(player)
+                || plugin.getSkilletManager().hasHandheldIngredient(mainHand))) {
+            return;
+        }
 
         Block targetBlock = resolvePlacementTarget(event.getClickedBlock(), event.getBlockFace());
         if (!canReplace(targetBlock)) {
             return;
         }
-        if (!ProtectionCompat.canBuild(player, targetBlock, ProtectionCompat.Feature.SKILLET)) {
+        if (!ProtectionCompat.canPlace(player, targetBlock, ProtectionCompat.Feature.SKILLET)) {
+            event.setUseItemInHand(Event.Result.DENY);
+            event.setUseInteractedBlock(Event.Result.DENY);
+            event.setCancelled(true);
             return;
         }
 
@@ -71,7 +80,6 @@ public class SkilletPlaceListener implements Listener {
             mainHand.setAmount(mainHand.getAmount() - 1);
         }
 
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin.getSkilletManager() != null) {
             plugin.getSkilletManager().recordPlacedSkillet(targetBlock.getLocation(), placedSnapshot);
         }

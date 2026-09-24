@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.util.compat;
 
 import org.bukkit.Location;
+import org.bukkit.GameMode;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -67,6 +68,24 @@ public final class ProtectionCompat {
 
     public static boolean canBuild(Player player, Location location) {
         return canBuild(player, location, (String) null);
+    }
+
+    /**
+     * Checks a player-driven custom block placement. Direct CraftEngine writes bypass
+     * Paper's normal placement event, so Adventure and Spectator must be rejected here.
+     */
+    public static boolean canPlace(Player player, Block block, Feature feature) {
+        return player != null
+                && player.getGameMode() != GameMode.ADVENTURE
+                && player.getGameMode() != GameMode.SPECTATOR
+                && canBuild(player, block, feature);
+    }
+
+    public static boolean canPlace(Player player, Location location, Feature feature) {
+        return player != null
+                && player.getGameMode() != GameMode.ADVENTURE
+                && player.getGameMode() != GameMode.SPECTATOR
+                && canBuild(player, location, feature);
     }
 
     // Feature-aware overloads.

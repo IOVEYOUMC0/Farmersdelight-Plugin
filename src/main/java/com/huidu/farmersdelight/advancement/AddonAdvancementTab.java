@@ -12,6 +12,7 @@ import com.fren_gor.ultimateAdvancementAPI.database.TeamProgression;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.entity.Player;
+import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
@@ -26,13 +27,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
 
 public final class AddonAdvancementTab {
 
     private final Plugin plugin;
     private final String tabName;
     private final List<AdvancementDef> definitions;
-    private final boolean autoLayout;
     private final Map<String, Advancement> byId = new ConcurrentHashMap<>();
     private final Map<String, Map<String, TaskAdvancement>> multiTasks = new ConcurrentHashMap<>();
     private final Set<UUID> rootAwarded = ConcurrentHashMap.newKeySet();
@@ -45,14 +46,9 @@ public final class AddonAdvancementTab {
     private boolean autoAwardRoot;
 
     public AddonAdvancementTab(Plugin plugin, String tabName, List<AdvancementDef> definitions) {
-        this(plugin, tabName, definitions, false);
-    }
-
-    AddonAdvancementTab(Plugin plugin, String tabName, List<AdvancementDef> definitions, boolean autoLayout) {
         this.plugin = plugin;
         this.tabName = tabName;
         this.definitions = List.copyOf(definitions);
-        this.autoLayout = autoLayout;
     }
 
     public String tabName() {
@@ -82,7 +78,7 @@ public final class AddonAdvancementTab {
             disposeQuietly();
             // A build failure otherwise leaves the addon's advancements missing in-game with no error; log the
             // localized message + stack trace so the cause is diagnosable (I18n.logWarning can't carry the throwable).
-            plugin.getLogger().log(java.util.logging.Level.WARNING,
+            plugin.getLogger().log(Level.WARNING,
                     I18n.formatConsole("advancement.addon_tab_build_failed", "tab", tabName), e);
             return false;
         }
@@ -167,7 +163,7 @@ public final class AddonAdvancementTab {
         }
 
         // Use UAA's vanilla tidy-tree layout so CE-pack advancement positions follow their parent graph.
-        tab.registerAdvancements(root, all, autoLayout);
+        tab.registerAdvancements(root, all, true);
         tab.automaticallyShowToPlayers();
         // Recorded only once the tab is actually registered, so a build that threw part-way does not become the
         // baseline the next build compares against.
@@ -210,7 +206,7 @@ public final class AddonAdvancementTab {
     private LocalizedAdvancementDisplay display(AdvancementDef def) {
         ItemStack icon = def.icon() != null && !def.icon().getType().isAir()
                 ? def.icon()
-                : new ItemStack(org.bukkit.Material.BOOK);
+                : new ItemStack(Material.BOOK);
         return new LocalizedAdvancementDisplay(icon, def.title(), def.description(),
                 frameOf(def.frame()), def.showToast(), def.announceChat(), def.x(), def.y());
     }

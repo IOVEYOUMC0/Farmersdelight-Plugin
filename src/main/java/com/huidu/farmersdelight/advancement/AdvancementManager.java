@@ -11,7 +11,7 @@ import com.fren_gor.ultimateAdvancementAPI.advancement.tasks.TaskAdvancement;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.Constants;
-import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.api.item.FarmersDelightItems;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
 
 public class AdvancementManager {
 
@@ -56,15 +57,12 @@ public class AdvancementManager {
     private static final Map<String, ContentRequirement> DISH_REQUIREMENTS = dishRequirements();
 
     private static final List<NodeSpec> NODES = List.of(
-            // Root, awarded on join, sits centre-left; the tree spreads rightward like the original mod,
-            // with one generation per column (along +x) and sibling branches stacked in y. The three main
-            // branches read top-to-bottom as: cooking (campfire), farming (seed), harvesting (knife).
-            // UltimateAdvancementAPI requires every x,y to be non-negative.
+            // UltimateAdvancementAPI lays this tree out from the parent graph; the x,y of each node are unused.
             node(ROOT_ID, null, "farmersdelight:cooking_pot", Material.BRICKS, AdvancementFrameType.TASK, 0, 3),
             // ---- Cooking branch (top) ----
             // Placing a vanilla campfire / soul campfire.
             node("place_campfire", ROOT_ID, null, Material.CAMPFIRE, AdvancementFrameType.TASK, 1, 0),
-            // Cooking on any block carrying SkilletBlockBehavior.
+            // Completing portable skillet cooking; placed skillets use the following placement node.
             node("use_skillet", "place_campfire", "farmersdelight:skillet", Material.IRON_SWORD, AdvancementFrameType.TASK, 2, 0),
             node("place_skillet", "use_skillet", "farmersdelight:skillet", Material.IRON_SWORD, AdvancementFrameType.TASK, 3, 0),
             // Placing any block carrying CookingPotBlockBehavior.
@@ -73,15 +71,15 @@ public class AdvancementManager {
             node("eat_nourishing_food", "place_cooking_pot", "farmersdelight:steak_and_potatoes", Material.COOKED_BEEF, AdvancementFrameType.TASK, 3, 1),
             // Placing any block carrying the farmersdelight:feasts block tag.
             node("place_feast", "eat_nourishing_food", "farmersdelight:roast_chicken", Material.COOKED_CHICKEN, AdvancementFrameType.TASK, 4, 1),
-            // Eating every dish; unobtainable only once every dish item is gone. Original icon is honey-glazed ham.
+            // Eating every dish; unobtainable only once every dish item is gone.
             multiNode("master_chef", "place_feast", "farmersdelight:honey_glazed_ham", Material.COOKED_PORKCHOP, 5, 1,
                     DISHES, ContentRequirement.anyItem(prefixed())),
             // ---- Farming branch (centre) ----
-            // Crafting or picking up any of AchievementListener.FD_SEED_IDS. Original icon is wild onions.
+            // Crafting or picking up any of AchievementListener.FD_SEED_IDS.
             node("get_fd_seed", ROOT_ID, "farmersdelight:wild_onions", Material.SHORT_GRASS, AdvancementFrameType.TASK, 1, 3,
                     ContentRequirement.anyItem(Constants.ITEM_CABBAGE_SEEDS, Constants.ITEM_TOMATO_SEEDS,
                             Constants.ITEM_ONION, Constants.ITEM_RICE)),
-            // Obtaining either colony item (the mod's requirement is an OR of the two).
+            // Either mushroom colony item satisfies this advancement.
             node("get_mushroom_colony", "get_fd_seed", "farmersdelight:red_mushroom_colony", Material.RED_MUSHROOM, AdvancementFrameType.TASK, 2, 2,
                     ContentRequirement.anyItemOrBlock(List.of(Constants.BLOCK_BROWN_MUSHROOM_COLONY,
                             Constants.BLOCK_RED_MUSHROOM_COLONY))),
@@ -163,7 +161,7 @@ public class AdvancementManager {
             clearRegistries();
             // A build failure discards the whole tab, so all 23 advancements vanish in-game at once. Log the
             // throwable with its stack trace (I18n.logWarning can't carry one) or the cause is undiagnosable.
-            plugin.getLogger().log(java.util.logging.Level.WARNING,
+            plugin.getLogger().log(Level.WARNING,
                     I18n.formatConsole("advancement.tab_build_failed", "tab", TAB), e);
         }
     }
@@ -208,7 +206,7 @@ public class AdvancementManager {
             }
             ItemStack icon = icon(spec.iconId(), spec.iconFallback());
             if (spec.parentId() == null) {
-                // Root shows no toast and makes no chat broadcast, matching the original mod's root advancement.
+                // Hide the root advancement's toast and chat announcement.
                 root = new RootAdvancement(tab, spec.id(),
                         display(spec.id(), icon, spec.frame(), spec.x(), spec.y(), false, false), ROOT_BACKGROUND);
                 byId.put(spec.id(), root);
@@ -221,7 +219,7 @@ public class AdvancementManager {
             byId.put(spec.id(), built);
             children.add(built);
         }
-        tab.registerAdvancements(root, children);
+        tab.registerAdvancements(root, children, true);
         // Recorded only once the tab is actually registered: a build that threw part-way must not become the
         // baseline, or the next successful build would compare against a tree that never existed and skip the
         // line announcing that an advancement came back.
@@ -260,8 +258,7 @@ public class AdvancementManager {
     }
 
     private static ItemStack icon(String ceId, Material fallback) {
-        ItemStack item = ceId == null ? null : ItemUtils.createItem(ceId);
-        return item != null && !item.getType().isAir() ? item : new ItemStack(fallback);
+        return FarmersDelightItems.createOrFallback(ceId, fallback);
     }
 
     private LocalizedAdvancementDisplay display(String key, ItemStack icon, AdvancementFrameType frame, float x, float y) {
@@ -346,7 +343,7 @@ public class AdvancementManager {
                     award(player, "root");
                     showToNow(player);
                 } catch (Exception e) {
-                    plugin.getLogger().log(java.util.logging.Level.WARNING,
+                    plugin.getLogger().log(Level.WARNING,
                             "Failed to resync advancements for " + player.getName() + ':', e);
                 }
             };

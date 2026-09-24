@@ -67,8 +67,9 @@ final class WorldChunkLocationIndex {
         return snapshot(byWorld.get(worldId));
     }
 
-    List<Location> chunkLocations(UUID worldId, long chunkKey) {
+    List<Location> chunkLocationsAtBlock(UUID worldId, int blockX, int blockZ) {
         Map<Long, Set<Location>> worldChunks = byChunk.get(worldId);
+        long chunkKey = ManagerSupport.chunkKey(blockX >> 4, blockZ >> 4);
         return worldChunks == null ? List.of() : snapshot(worldChunks.get(chunkKey));
     }
 

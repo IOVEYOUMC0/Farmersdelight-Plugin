@@ -9,6 +9,7 @@ import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
+import com.huidu.farmersdelight.tool.ToolAttackListener;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.block.behavior.AbstractCanSurviveBlockBehavior;
@@ -16,6 +17,7 @@ import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.block.behavior.BonemealableBlock;
 import net.momirealms.craftengine.core.block.behavior.RandomTickBlock;
 import net.momirealms.craftengine.core.block.property.Property;
@@ -40,6 +42,7 @@ import org.bukkit.inventory.meta.Damageable;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -190,7 +193,7 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
                 : Set.copyOf(normalized);
     }
 
-    public static final BlockBehaviorFactory<MushroomColonyBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+    public static final BlockBehaviorFactory<MushroomColonyBehavior> FACTORY = (BlockDefinition block, ConfigSection section) -> {
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         // The age is not optional: it carries how many mushrooms the colony holds, so without it the
         // colony reads as empty and can never be harvested, while growth and bone meal fail on every
@@ -311,8 +314,7 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
             if (!CraftEngineBlocks.place(block.getLocation(), resetState, false)) {
                 return InteractionResult.PASS;
             }
-            // Mirrors original MushroomColonyBlock: knife harvest plays the block's break sound
-            // (colony copies vanilla mushroom = SoundType.GRASS) rather than a crop-growth sound.
+            // Knife harvesting plays the colony block's grass break sound.
             world.playSound(loc, Sound.BLOCK_GRASS_BREAK, 1.0f, 1.0f);
             spawnHarvestParticles(world, loc, 10, 0.2, 0.1);
         }
@@ -322,7 +324,7 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
         // Outside any block-entity monitor: this behavior holds none.
         Bukkit.getPluginManager().callEvent(new FarmersDelightHarvestEvent(
                 player, block.getLocation(), CustomBlockUtils.getId(state), heldItem,
-                java.util.List.of(mushroomDrop)));
+                List.of(mushroomDrop)));
 
         world.dropItemNaturally(loc, mushroomDrop);
         ItemUtils.swingHand(player, context.getHand());
@@ -340,8 +342,8 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
         if (player.getGameMode() == GameMode.CREATIVE) {
             return;
         }
-        if (com.huidu.farmersdelight.tool.ToolAttackListener.resolveToolData(item) != null) {
-            com.huidu.farmersdelight.tool.ToolAttackListener.consumeDurability(item, player.getLocation());
+        if (ToolAttackListener.resolveToolData(item) != null) {
+            ToolAttackListener.consumeDurability(item, player.getLocation());
             return;
         }
         if (!(item.getItemMeta() instanceof Damageable damageable) || damageable.isUnbreakable()) {
@@ -426,8 +428,7 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
     }
 
     private boolean matchesLegacyKnifeItem(ItemStack item) {
-        String customId = ItemUtils.getCustomItemId(item);
-        return FarmersDelightPlugin.getInstance().isKnifeItemId(customId);
+        return FarmersDelightPlugin.getInstance().isKnife(item);
     }
 
     @Override
@@ -541,7 +542,7 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
     private static SoilRuleSupport.SoilRules parseGrowSoilRules(Map<String, Object> arguments) {
         if (BehaviorArgParser.hasArgument(arguments, "grow-on-blocks")
                 || BehaviorArgParser.hasArgument(arguments, "grow-on-block-tags")) {
-            Map<String, Object> aliasedArguments = new java.util.HashMap<>();
+            Map<String, Object> aliasedArguments = new HashMap<>();
             if (arguments != null) {
                 aliasedArguments.putAll(arguments);
             }
@@ -557,7 +558,7 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
                 && !BehaviorArgParser.hasArgument(arguments, "place-on-block-tags")) {
             return new SoilRuleSupport.SoilRules(Set.of(), Set.of(), Set.of(), List.of(), Set.of());
         }
-        Map<String, Object> aliasedArguments = new java.util.HashMap<>();
+        Map<String, Object> aliasedArguments = new HashMap<>();
         if (arguments != null) {
             aliasedArguments.putAll(arguments);
         }

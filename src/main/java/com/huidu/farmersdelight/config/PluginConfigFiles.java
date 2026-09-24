@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.config;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.InputStreamReader;
@@ -45,7 +46,7 @@ public final class PluginConfigFiles {
         return yaml;
     }
 
-    public PetFoodConfig loadPetFood(org.bukkit.configuration.ConfigurationSection legacySection) {
+    public PetFoodConfig loadPetFood(ConfigurationSection legacySection) {
         PetFoodConfig config = new PetFoodConfig();
         config.loadFromCraftEngine();
         if (legacySection != null) {

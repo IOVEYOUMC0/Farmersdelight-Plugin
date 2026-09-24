@@ -8,7 +8,8 @@
 #       - <item_id_or_tag>   # tags must start with #; MMOItems ids use "mmoitems:<TYPE>:<ID>"
 #                            # tag exclusion: "#namespace:tag,!namespace:item,!#namespace:other_tag"
 #                            # alternatives for the same slot: "item_a|item_b|#namespace:tag"
-#     container: <item_id>   # optional, e.g. a bowl or glass bottle
+#     container: <item_id>   # required when the original output has a craft remainder (bowl/bottle/etc.)
+#                            # the plugin does not infer containers from item use_remainder/craftRemainder
 #     result: <item_id>      # vanilla, CraftEngine custom, or MMOItems ("mmoitems:<TYPE>:<ID>")
 #     result-count: <count>  # optional, default 1
 #     experience: <number>   # optional, default 0
@@ -100,7 +101,7 @@ cooking_pot_recipes:
     ingredients:
       - "#c:foods/raw_cod"
       - "#c:crops/potato"
-      - "#eggs"
+      - "#c:eggs"
       - "#c:crops/tomato"
     container: "minecraft:bowl"
     result: "farmersdelight:baked_cod_stew"
@@ -146,7 +147,7 @@ cooking_pot_recipes:
       - "minecraft:rabbit"
       - "#c:crops/carrot"
       - "#c:crops/potato"
-      - "#c:mushrooms"
+      - "minecraft:brown_mushroom|minecraft:red_mushroom"
     container: "minecraft:bowl"
     result: "minecraft:rabbit_stew"
     experience: 1.0
@@ -155,8 +156,8 @@ cooking_pot_recipes:
   
   bone_broth:
     ingredients:
-      - "minecraft:bone"
-      - "minecraft:glow_berries|minecraft:brown_mushroom|minecraft:red_mushroom|minecraft:hanging_roots|minecraft:glow_lichen"
+      - "#c:bones"
+      - "minecraft:glow_berries|#c:mushrooms|minecraft:hanging_roots|minecraft:glow_lichen"
     container: "minecraft:bowl"
     result: "farmersdelight:bone_broth"
     experience: 0.35
@@ -167,7 +168,7 @@ cooking_pot_recipes:
     ingredients:
       - "#c:crops/onion"
       - "#c:crops/onion"
-      - "minecraft:bread"
+      - "#c:foods/bread"
       - "#c:drinks/milk"
     container: "minecraft:bowl"
     result: "farmersdelight:onion_soup"
@@ -203,7 +204,7 @@ cooking_pot_recipes:
   fried_rice:
     ingredients:
       - "#c:crops/rice"
-      - "#eggs"
+      - "#c:eggs"
       - "#c:crops/carrot"
       - "#c:crops/onion"
     container: "minecraft:bowl"
@@ -266,7 +267,7 @@ cooking_pot_recipes:
   noodle_soup:
     ingredients:
       - "#c:foods/pasta"
-      - "#eggs"
+      - "#c:eggs"
       - "minecraft:dried_kelp"
       - "#c:foods/raw_pork"
     container: "minecraft:bowl"
@@ -320,13 +321,13 @@ cooking_pot_recipes:
     ingredients:
       - "#c:drinks/milk"
       - "minecraft:glow_berries"
-      - "#eggs"
+      - "#c:eggs"
       - "minecraft:sugar"
     container: "minecraft:glass_bottle"
     result: "farmersdelight:glow_berry_custard"
     experience: 1.0
     cook-time: 200
-    category: drinks
+    category: misc
   
   # ========================================
   # Other

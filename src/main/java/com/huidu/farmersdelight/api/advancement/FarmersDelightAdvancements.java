@@ -5,6 +5,7 @@ import com.huidu.farmersdelight.advancement.AddonAdvancementRegistry;
 import com.huidu.farmersdelight.advancement.AddonAdvancementTab;
 import com.huidu.farmersdelight.advancement.AdvancementDef;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.advancement.AutomaticAdvancementLayout;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -18,12 +19,28 @@ public final class FarmersDelightAdvancements {
     private FarmersDelightAdvancements() {
     }
 
-    // Returns true only when the advancement system is usable: FarmersDelight loaded, its advancement
-    // feature enabled, and UltimateAdvancementAPI present & enabled.
-    public static boolean isAvailable() {
+    // The single evaluation of the advancement system's state: every internal gate and every addon reads
+    // this, so a caller can never disagree with the reason reported for a tab that was not registered.
+    public static AdvancementAvailability availability() {
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        return plugin != null && plugin.isAdvancementsEnabled()
-                && Bukkit.getPluginManager().isPluginEnabled("UltimateAdvancementAPI");
+        if (plugin == null) {
+            return AdvancementAvailability.PLUGIN_UNAVAILABLE;
+        }
+        if (!plugin.isAdvancementsEnabled()) {
+            return AdvancementAvailability.DISABLED_BY_CONFIG;
+        }
+        if (!Bukkit.getPluginManager().isPluginEnabled("UltimateAdvancementAPI")) {
+            return AdvancementAvailability.API_NOT_INSTALLED;
+        }
+        if (!AutomaticAdvancementLayout.isSupported()) {
+            return AdvancementAvailability.API_PATCH_MISSING;
+        }
+        return AdvancementAvailability.AVAILABLE;
+    }
+
+    // Returns true only when the advancement system is usable.
+    public static boolean isAvailable() {
+        return availability() == AdvancementAvailability.AVAILABLE;
     }
 
     // ------------------------------------------------------------------ FarmersDelight's own tab

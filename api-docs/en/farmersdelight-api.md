@@ -123,6 +123,8 @@ The complete set answered by the current build:
 | `common-tags` | Central tag registry: addons register their tag→item mappings so the whole family resolves the same tags (`registerCommonTags` / `unregisterCommonTags`) |
 | `advancement-triggers` | Shared obtain/craft/produce and consume advancement item triggers |
 
+Common-tag registration after content load rebuilds tag-dependent recipes and GUI caches automatically.
+
 Prefer `hasFeature` when you care about one capability, and `apiVersion()` when you need an ordering. Like
 `apiVersion()`, calling `hasFeature` on a build older than the one that introduced it throws
 `NoSuchMethodError`, so guard the first probe if you support such builds.

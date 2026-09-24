@@ -112,16 +112,16 @@ blocks:
           range: 0~3
       appearances:
         age=0:
-          auto-state: lower_tripwire
+          auto_state: lower_tripwire
           model: farmersdelight:block/brown_mushroom_colony_stage0
         age=1:
-          auto-state: lower_tripwire
+          auto_state: lower_tripwire
           model: farmersdelight:block/brown_mushroom_colony_stage1
         age=2:
-          auto-state: higher_tripwire
+          auto_state: higher_tripwire
           model: farmersdelight:block/brown_mushroom_colony_stage2
         age=3:
-          auto-state: sugar_cane
+          auto_state: sugar_cane
           model: farmersdelight:block/brown_mushroom_colony_stage3
       variants:
         age=0:
@@ -204,16 +204,16 @@ blocks:
           range: 0~3
       appearances:
         age=0:
-          auto-state: lower_tripwire
+          auto_state: lower_tripwire
           model: farmersdelight:block/red_mushroom_colony_stage0
         age=1:
-          auto-state: lower_tripwire
+          auto_state: lower_tripwire
           model: farmersdelight:block/red_mushroom_colony_stage1
         age=2:
-          auto-state: higher_tripwire
+          auto_state: higher_tripwire
           model: farmersdelight:block/red_mushroom_colony_stage2
         age=3:
-          auto-state: sugar_cane
+          auto_state: sugar_cane
           model: farmersdelight:block/red_mushroom_colony_stage3
       variants:
         age=0:

@@ -9,13 +9,17 @@ import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
+import org.bukkit.Bukkit;
+import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.Lightable;
 import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.logging.Logger;
@@ -32,7 +36,7 @@ public class HeatSourceConfig {
     private final Set<Material> vanillaBlocks = new HashSet<>();
     private final Set<Material> vanillaLitBlocks = new HashSet<>();
     private final Set<String> vanillaTags = new HashSet<>();
-    private final Set<org.bukkit.Tag<Material>> resolvedVanillaBlockTags = new HashSet<>();
+    private final Set<Tag<Material>> resolvedVanillaBlockTags = new HashSet<>();
     private final Set<Key> customBlockTags = new HashSet<>();
     private final Set<CustomBlockStateMatcher> customBlockStates = new HashSet<>();
     private final Set<Material> conductors = new HashSet<>();
@@ -41,7 +45,7 @@ public class HeatSourceConfig {
     // decides. One entry carries both what to match (vanilla block / vanilla tag / CE block / CE block
     // tag, each optionally narrowed by block state) and what it means (heat source? conductor?), so a
     // negative entry placed earlier can carve a state out of a broader entry that follows it.
-    private final List<HeatEntry> entries = new java.util.ArrayList<>();
+    private final List<HeatEntry> entries = new ArrayList<>();
 
     public static void setLogger(Logger logger) {
         LOGGER = logger;
@@ -125,7 +129,7 @@ public class HeatSourceConfig {
 
     public void addVanillaBlock(String blockId) {
         try {
-            NamespacedKey key = NamespacedKey.minecraft(blockId.replace("minecraft:", "").toLowerCase(java.util.Locale.ROOT));
+            NamespacedKey key = NamespacedKey.minecraft(blockId.replace("minecraft:", "").toLowerCase(Locale.ROOT));
             Material material = Registry.MATERIAL.get(key);
             // For well-formed but unknown ids, Registry.get returns null (rather than throwing), so a misspelled
             // block id would otherwise add a null to the set with no diagnostics.
@@ -145,7 +149,7 @@ public class HeatSourceConfig {
 
     public void addVanillaTag(String tagId) {
         vanillaTags.add(tagId);
-        String normalizedTag = (tagId.startsWith("#") ? tagId.substring(1) : tagId).toLowerCase(java.util.Locale.ROOT);
+        String normalizedTag = (tagId.startsWith("#") ? tagId.substring(1) : tagId).toLowerCase(Locale.ROOT);
         if (normalizedTag.equals("minecraft:campfires") || normalizedTag.equals("campfires")) {
             // Campfires count as heat sources only when lit, so vanillaLitBlocks handles the exact campfire tag.
             // Generic tag matching would ignore lit state and substring matching would also catch unrelated tags.
@@ -153,7 +157,7 @@ public class HeatSourceConfig {
             vanillaLitBlocks.add(Material.SOUL_CAMPFIRE);
             return;
         }
-        org.bukkit.Tag<Material> blockTag = resolveVanillaBlockTag(tagId);
+        Tag<Material> blockTag = resolveVanillaBlockTag(tagId);
         if (blockTag != null) {
             resolvedVanillaBlockTags.add(blockTag);
         } else if (LOGGER != null) {
@@ -161,13 +165,13 @@ public class HeatSourceConfig {
         }
     }
 
-    private static org.bukkit.Tag<Material> resolveVanillaBlockTag(String tagId) {
-        String normalized = (tagId.startsWith("#") ? tagId.substring(1) : tagId).toLowerCase(java.util.Locale.ROOT);
+    private static Tag<Material> resolveVanillaBlockTag(String tagId) {
+        String normalized = (tagId.startsWith("#") ? tagId.substring(1) : tagId).toLowerCase(Locale.ROOT);
         NamespacedKey key = NamespacedKey.fromString(normalized);
         if (key == null) {
             return null;
         }
-        return org.bukkit.Bukkit.getTag(org.bukkit.Tag.REGISTRY_BLOCKS, key, Material.class);
+        return Bukkit.getTag(Tag.REGISTRY_BLOCKS, key, Material.class);
     }
 
     public void addCustomBlockTag(Key tag) {
@@ -203,7 +207,7 @@ public class HeatSourceConfig {
 
     public void addVanillaConductor(String conductorId) {
         try {
-            NamespacedKey key = NamespacedKey.minecraft(conductorId.replace("minecraft:", "").toLowerCase(java.util.Locale.ROOT));
+            NamespacedKey key = NamespacedKey.minecraft(conductorId.replace("minecraft:", "").toLowerCase(Locale.ROOT));
             Material material = Registry.MATERIAL.get(key);
             if (material == null) {
                 if (LOGGER != null) {
@@ -234,7 +238,7 @@ public class HeatSourceConfig {
         }
     }
 
-    private record VanillaTagMatcher(org.bukkit.Tag<Material> tag, Map<String, String> states) implements EntryMatcher {
+    private record VanillaTagMatcher(Tag<Material> tag, Map<String, String> states) implements EntryMatcher {
         @Override
         public boolean matches(Block block, ImmutableBlockState customState) {
             return tag.isTagged(block.getType()) && vanillaStatesMatch(block, states);
@@ -303,10 +307,10 @@ public class HeatSourceConfig {
         EntryMatcher matcher = null;
         if (vanillaBlock != null) {
             Material material = Registry.MATERIAL.get(NamespacedKey.minecraft(
-                    vanillaBlock.replace("minecraft:", "").toLowerCase(java.util.Locale.ROOT)));
+                    vanillaBlock.replace("minecraft:", "").toLowerCase(Locale.ROOT)));
             matcher = material == null ? null : new VanillaBlockMatcher(material, states);
         } else if (vanillaTag != null) {
-            org.bukkit.Tag<Material> tag = resolveVanillaBlockTag(vanillaTag);
+            Tag<Material> tag = resolveVanillaBlockTag(vanillaTag);
             matcher = tag == null ? null : new VanillaTagMatcher(tag, states);
         } else if (customBlock != null) {
             CustomBlockStateMatcher delegate = parseBlockState(appendStates(customBlock, states));
@@ -447,7 +451,7 @@ public class HeatSourceConfig {
             return false;
         }
 
-        for (org.bukkit.Tag<Material> tag : resolvedVanillaBlockTags) {
+        for (Tag<Material> tag : resolvedVanillaBlockTags) {
             if (tag.isTagged(blockType)) {
                 return true;
             }

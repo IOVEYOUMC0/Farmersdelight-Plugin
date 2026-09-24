@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.api.util.ItemDelivery;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.block.CuttingBoardInteractionContext;
 import com.huidu.farmersdelight.api.block.CuttingBoardInteractionHandler;
@@ -18,6 +19,7 @@ import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.block.behavior.EntityBlock;
 import net.momirealms.craftengine.core.block.behavior.WorldlyContainerHolder;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
@@ -64,8 +66,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
     private static final Map<UUID, Map<WorldPos, Long>> recentManualInsertions = new ConcurrentHashMap<>();
     private static final long MANUAL_INSERT_GUARD_MILLIS = 250L;
     private static final int DEFAULT_RELOAD_VISUAL_REFRESH_BUDGET = 32;
-    // Added to the per-unit keep chance for each level of Fortune on the cutting tool, matching the mod's
-    // cuttingBoardFortuneBonus default.
+    // Increase each output unit's keep chance by this amount per Fortune level.
     private static final double FORTUNE_BONUS_PER_LEVEL = 0.1d;
     private static final Object displayRefreshLock = new Object();
     private static final Deque<DisplayRefresh> pendingDisplayRefreshes = new ArrayDeque<>();
@@ -486,7 +487,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
                 && !CustomBlockUtils.hasId(block, Constants.BLOCK_CUTTING_BOARD);
     }
 
-    public static final BlockBehaviorFactory<CuttingBoardBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+    public static final BlockBehaviorFactory<CuttingBoardBlockBehavior> FACTORY = (BlockDefinition block, ConfigSection section) -> {
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         Property<?> facingProperty = block.getProperty("facing");
         if (facingProperty == null) {
@@ -689,11 +690,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
             removeStoredData(world, posKey);
 
             if (storedItem != null && !storedItem.getType().isAir() && bukkitPlayer.getGameMode() != GameMode.CREATIVE) {
-                Map<Integer, ItemStack> leftovers = bukkitPlayer.getInventory().addItem(storedItem);
-                if (!leftovers.isEmpty()) {
-                    Location dropLocation = posKey.toLocation(world).add(0.5, 0.2, 0.5);
-                    leftovers.values().forEach(item -> world.dropItemNaturally(dropLocation, item));
-                }
+                ItemDelivery.giveOrDrop(bukkitPlayer, posKey.toLocation(world).add(0.5, 0.2, 0.5), storedItem);
             }
 
             FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
@@ -887,9 +884,8 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
 
     @Override
     public int getAnalogOutputSignal(Object thisBlock, Object[] args) {
-        // args[1] = Level, args[2] = BlockPos. Scales the stored stack against the board's own stack limit,
-        // matching the mod's CuttingBoardBlock.getAnalogOutputSignal: a single-stacking item (a tool) reads 15,
-        // one unit of a 64-stacking item reads 1.
+        // args[1] = Level, args[2] = BlockPos. Scale comparator strength by the board's stack limit:
+        // a single non-stackable tool yields 15; one item from a 64-item stack yields 1.
         World world = CraftEngineAdapter.toWorld(args[1]);
         BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
         if (world == null || pos == null) {

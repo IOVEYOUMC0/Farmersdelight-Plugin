@@ -321,10 +321,8 @@ public final class RecipeDiscoveryManager {
         int sep = key.indexOf(' ');
         String typeId = sep <= 0 ? "" : key.substring(0, sep);
         String recipeId = sep <= 0 ? key : key.substring(sep + 1);
-        // The placeholder takes a component, not a string, so the item name reaches the client as the
-        // translatable it is: a CraftEngine item name is a client-side lang key, and only the client can
-        // turn it into the player's own language. The recipe id is the fallback when the recipe cannot be
-        // found, which is what this message always used to show.
+        // Pass the item-name component so the client resolves its translation key in the player's language.
+        // Use the recipe ID when the result item cannot be resolved.
         ItemStack result = resultOf(typeId, recipeId);
         Component name = result == null
                 ? Component.text(recipeId)

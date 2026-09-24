@@ -2,7 +2,7 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
-import com.huidu.farmersdelight.util.DatapackSupport;
+import com.huidu.farmersdelight.api.util.DatapackSupport;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 
@@ -13,18 +13,19 @@ import java.util.Enumeration;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-// Installs the standalone FarmersDelight damage-type datapack (farmersdelight:stove_burn + the
-// no_knockback tag), independent of the loot datapack so each can be toggled and reinstalled on its
-// own. Also migrates the damage files out of the legacy loot datapack folder (pre-split installs
-// wrote them to datapacks/farmersdelight/), otherwise both datapacks would define stove_burn and the
-// duplicate definition would clash at load time.
+// Installs the standalone FarmersDelight damage-type datapack (farmersdelight:stove_burn plus the
+// vanilla damage-type tags it is appended to: no_knockback, is_fire so fire-immune entities are immune
+// to it, and burn_from_stepping so Frost Walker reacts to it), independent of the loot datapack so each
+// can be toggled and reinstalled on its own. Also migrates the damage files out of the legacy loot
+// datapack folder (pre-split installs wrote them to datapacks/farmersdelight/), otherwise both
+// datapacks would define stove_burn and the duplicate definition would clash at load time.
 public final class DamageTypeDatapackInstaller {
 
     private static final String DATAPACK_NAME = "farmersdelight_damage";
     private static final String RESOURCE_PREFIX = "datapack/damage/";
     private static final String PACK_METADATA_FILE = "pack.mcmeta";
     private static final String PACK_DESCRIPTION =
-            "FarmersDelight damage types (stove_burn, no_knockback tag)";
+            "FarmersDelight damage types (stove_burn, no_knockback/is_fire/burn_from_stepping tags)";
     private static final String LEGACY_LOOT_DATAPACK = "farmersdelight";
     private static final String LEGACY_DAMAGE_DIR = "data/farmersdelight/damage_type";
     private static final String LEGACY_NO_KNOCKBACK = "data/minecraft/tags/damage_type/no_knockback.json";
@@ -41,7 +42,7 @@ public final class DamageTypeDatapackInstaller {
             try {
                 if (Files.exists(legacy)) {
                     DatapackSupport.deleteRecursively(legacy);
-                    I18n.logInfo("loot_datapack_legacy_removed", "world", world.getName());
+                    I18n.logInfo("plugin.loot_datapack_legacy_removed", "world", world.getName());
                 }
             } catch (IOException e) {
                 plugin.getLogger().warning("FarmersDelight loot datapack: failed to remove legacy folder under "
@@ -63,11 +64,11 @@ public final class DamageTypeDatapackInstaller {
     // the primary world. Copies in non-primary worlds are removed.
     public void installToPrimaryWorld(World primaryWorld) {
         if (!installEnabled) {
-            I18n.logInfo("damage_datapack_disabled");
+            I18n.logInfo("plugin.damage_datapack_disabled");
             return;
         }
         if (primaryWorld == null) {
-            I18n.logWarning("damage_datapack_no_worlds");
+            I18n.logWarning("plugin.damage_datapack_no_worlds");
             return;
         }
         boolean wrote = installToWorld(primaryWorld);
@@ -104,7 +105,7 @@ public final class DamageTypeDatapackInstaller {
                 if (Files.exists(redundant)) {
                     DatapackSupport.deleteRecursively(redundant);
                     removed++;
-                    I18n.logInfo("damage_datapack_redundant_removed", "world", world.getName());
+                    I18n.logInfo("plugin.damage_datapack_redundant_removed", "world", world.getName());
                 }
             } catch (IOException e) {
                 plugin.getLogger().warning("FarmersDelight damage datapack: failed to remove redundant folder under "
@@ -147,10 +148,10 @@ public final class DamageTypeDatapackInstaller {
                     Path dest = datapackDir.resolve(relative);
                     if (Files.exists(dest)) {
                         skipped++;
-                        if (debug) I18n.logInfo("loot_datapack_debug_skipped", "path", relative);
+                        if (debug) I18n.logInfo("plugin.loot_datapack_debug_skipped", "path", relative);
                         continue;
                     }
-                    if (debug) I18n.logInfo("loot_datapack_debug_added", "path", relative);
+                    if (debug) I18n.logInfo("plugin.loot_datapack_debug_added", "path", relative);
                     DatapackSupport.copyFromJar(ownJar, entry, dest);
                     count++;
                 }
@@ -164,17 +165,17 @@ public final class DamageTypeDatapackInstaller {
             Path legacy = worldRoot.resolve("datapacks").resolve(LEGACY_LOOT_DATAPACK);
             int migrated = removeLegacyFiles(legacy);
             if (migrated > 0) {
-                I18n.logInfo("damage_datapack_legacy_removed", "world", world.getName(), "count", migrated);
+                I18n.logInfo("plugin.damage_datapack_legacy_removed", "world", world.getName(), "count", migrated);
             }
             if (debug) {
-                I18n.logInfo("loot_datapack_debug_summary", "count", count, "skipped", skipped, "dir", datapackDir.toString());
+                I18n.logInfo("plugin.loot_datapack_debug_summary", "count", count, "skipped", skipped, "dir", datapackDir.toString());
             }
             if (count > 0) {
-                I18n.logDetail("startup", "damage_datapack_written", "count", count, "dir", datapackDir);
+                I18n.logDetail("startup", "plugin.damage_datapack_written", "count", count, "dir", datapackDir);
             }
             return count > 0;
         } catch (IOException e) {
-            I18n.logWarning("damage_datapack_install_failed", "world", world.getName(), "error", e.getMessage());
+            I18n.logWarning("plugin.damage_datapack_install_failed", "world", world.getName(), "error", e.getMessage());
             return false;
         }
     }

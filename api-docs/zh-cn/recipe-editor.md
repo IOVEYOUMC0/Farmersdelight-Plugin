@@ -8,6 +8,8 @@ icon: book-copy
 
 从 `RecipeType.editor()` 返回一个 `RecipeEditor`，你的配方就能通过 FarmersDelight 的通用编辑器 GUI 在游戏内编辑。 GUI 由 FarmersDelight 驱动，**存储归你的附属所有**：编辑器把一个 `EditableRecipe` 草稿交给你去落盘或删除，自己 从不碰你的文件。
 
+内置 `/fd recipe edit pot` 和 `/fd recipe edit board` 会写 FarmersDelight 自己的配方文件，也会回写通过统一 `AddonRecipeFiles` 加载的附属配方文件。附属若只通过注册 API 提供配方，编辑器会把修改写入 FD 配方文件的 `external-overrides` 覆盖记录；删除覆盖后，附属重新注册的原配方会恢复。这样不猜测附属文件路径，也能让修改在重载和重启后保留。
+
 ## RecipeEditor
 
 ```java

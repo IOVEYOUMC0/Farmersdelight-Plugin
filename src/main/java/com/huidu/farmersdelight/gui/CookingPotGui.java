@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.event.FarmersDelightProduceEvent;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
 import com.huidu.farmersdelight.block.behavior.CookingPotLayout;
@@ -32,6 +33,7 @@ import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.PlayerInventory;
 
 import java.util.ArrayList;
@@ -50,7 +52,6 @@ import javax.annotation.Nullable;
 public class CookingPotGui extends AbstractInventoryGui {
 
     static final Map<UUID, CookingPotGui> activeGuis = new ConcurrentHashMap<>();
-    private static volatile boolean listenerRegistered = false;
     private static final Pattern SHIFT_TAG_PATTERN = Pattern.compile("<shift:([+-]?\\d+)>");
     private static final Pattern IMAGE_TAG_PATTERN = Pattern.compile("<image:([a-z0-9_./-]+:[a-z0-9_./-]+)>");
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
@@ -370,7 +371,7 @@ public class CookingPotGui extends AbstractInventoryGui {
         if (amount <= display.getMaxStackSize()) {
             return;
         }
-        org.bukkit.inventory.meta.ItemMeta meta = display.getItemMeta();
+        ItemMeta meta = display.getItemMeta();
         if (meta == null) {
             return;
         }
@@ -436,14 +437,14 @@ public class CookingPotGui extends AbstractInventoryGui {
             return;
         }
 
-        org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+        ItemMeta meta = item.getItemMeta();
         if (meta == null) {
             return;
         }
 
-        java.util.List<Component> lore = meta.lore();
+        List<Component> lore = meta.lore();
         if (lore == null) {
-            lore = new java.util.ArrayList<>();
+            lore = new ArrayList<>();
         }
 
         Player viewer = null;
@@ -458,6 +459,10 @@ public class CookingPotGui extends AbstractInventoryGui {
 
         lore.add(Component.empty());
         lore.add(hint.decoration(TextDecoration.ITALIC, false));
+        List<Component> containerLore = container.getItemMeta() == null ? null : container.getItemMeta().lore();
+        if (containerLore != null && !containerLore.isEmpty()) {
+            lore.addAll(containerLore);
+        }
         meta.lore(lore);
         item.setItemMeta(meta);
     }
@@ -487,7 +492,9 @@ public class CookingPotGui extends AbstractInventoryGui {
         if (world != null && blockEntity.getPosKey() != null) {
             TickManager tickManager = plugin.getTickManager();
             if (tickManager != null) {
-                if (blockEntity.hasStoredContents()) {
+                // Matching TickManager's tick: a pot with progress still to decay stays active, so closing the
+                // GUI after stripping the ingredients does not freeze the bar where it stopped.
+                if (blockEntity.hasStoredContents() || blockEntity.getCookingProgress() > 0) {
                     tickManager.markActive(world, blockEntity.getPosKey(), TickManager.BlockType.COOKING_POT);
                 } else {
                     tickManager.markInactive(world, blockEntity.getPosKey(), TickManager.BlockType.COOKING_POT);
@@ -593,7 +600,7 @@ public class CookingPotGui extends AbstractInventoryGui {
                 outputTaker.deliverOutputToPlayer(event, player, outputItem);
                 outputTaker.applyOutputExperienceReward(player, outputItem);
                 player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.0f);
-                Bukkit.getPluginManager().callEvent(new com.huidu.farmersdelight.api.event.FarmersDelightProduceEvent(
+                Bukkit.getPluginManager().callEvent(new FarmersDelightProduceEvent(
                         player.getUniqueId(), "cooking_pot", outputItem, cookingPotLocation));
 
                 updateDisplayItems();
@@ -1013,10 +1020,10 @@ public class CookingPotGui extends AbstractInventoryGui {
         }
         activeGuis.clear();
         GuiTickManager.cleanup();
-        // Calling HandlerList.unregisterAll(plugin) on disable removes the EventDispatcher, but this
-        // static flag must also be reset so a fresh dispatcher is re-registered on soft restart;
+        // Calling HandlerList.unregisterAll(plugin) on disable removes the EventDispatcher, but the
+        // registrar entry must also be reset so a fresh dispatcher is re-registered on soft restart;
         // otherwise GUI clicks would no longer be cancelled (dupe/loss).
-        listenerRegistered = false;
+        GuiListenerRegistrar.reset(EventDispatcher.class);
     }
 
     public static void closeAllOpenGuis() {
@@ -1037,7 +1044,7 @@ public class CookingPotGui extends AbstractInventoryGui {
         if (world == null) {
             return;
         }
-        java.util.UUID worldId = world.getUID();
+        UUID worldId = world.getUID();
         for (Map.Entry<UUID, CookingPotGui> entry : new ArrayList<>(activeGuis.entrySet())) {
             CookingPotGui gui = entry.getValue();
             if (gui == null) {
@@ -1082,12 +1089,7 @@ public class CookingPotGui extends AbstractInventoryGui {
     }
 
     public static void warm(FarmersDelightPlugin plugin) {
-        if (listenerRegistered) return;
-        synchronized (CookingPotGui.class) {
-            if (listenerRegistered) return;
-            Bukkit.getPluginManager().registerEvents(new EventDispatcher(), plugin);
-            listenerRegistered = true;
-        }
+        GuiListenerRegistrar.ensureRegistered(EventDispatcher.class, EventDispatcher::new, plugin);
     }
 
     public static class EventDispatcher implements Listener {

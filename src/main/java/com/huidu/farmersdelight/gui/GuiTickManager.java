@@ -7,6 +7,7 @@ import org.bukkit.entity.Player;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.logging.Level;
 
 public class GuiTickManager {
 
@@ -59,7 +60,7 @@ public class GuiTickManager {
                             // it with the stack so it stays observable in production, not just in debug.
                             // The finally block drops the scheduled flag so the failing GUI still stops
                             // being retried this tick without aborting the loop over the other callbacks.
-                            plugin.getLogger().log(java.util.logging.Level.WARNING,
+                            plugin.getLogger().log(Level.WARNING,
                                     "GUI tick callback failed for " + player.getName(), e);
                         } finally {
                             scheduledCallbacks.remove(callback);
@@ -105,4 +106,3 @@ public class GuiTickManager {
         return playerTickCallbacks.size();
     }
 }
-

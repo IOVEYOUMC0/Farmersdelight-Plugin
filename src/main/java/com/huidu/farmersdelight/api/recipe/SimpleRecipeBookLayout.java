@@ -5,8 +5,10 @@ import com.huidu.farmersdelight.api.gui.GuiItems;
 import com.huidu.farmersdelight.api.text.FarmersDelightText;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextDecoration;
+import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.HashMap;
 import java.util.List;
@@ -44,8 +46,7 @@ public record SimpleRecipeBookLayout(Component title, int rows, List<String> lay
         String rawTitle = ConfigSectionReader.optionalString(section, "title");
         Component title = rawTitle == null
                 ? fallback.title()
-                : FarmersDelightText.deserializeGlyphs(applyTitleLayout(section, rawTitle))
-                        .decoration(TextDecoration.ITALIC, false);
+                : FarmersDelightText.deserializeGlyphsTitle(applyTitleLayout(section, rawTitle));
 
         int rows = Math.max(1, Math.min(6, ConfigSectionReader.optionalInt(section, "rows", fallback.rows())));
 
@@ -103,5 +104,46 @@ public record SimpleRecipeBookLayout(Component title, int rows, List<String> lay
         String icon = ConfigSectionReader.optionalString(craftEngine, "icon", "");
         return rawTitle.replace("<offset>", offset == null ? "" : offset)
                 .replace("<icon>", icon == null ? "" : icon);
+    }
+
+    /**
+     * The stock recipe browser: five rows of recipe cells over a previous / back / next footer. A station
+     * that has no layout of its own uses this so every addon book opens with the same grid; only the
+     * title differs, and it is the caller's.
+     */
+    public static SimpleRecipeBookLayout defaultBrowser(Component title) {
+        Map<Character, String> legend = new HashMap<>();
+        legend.put('R', "recipe");
+        legend.put('P', "prev_page");
+        legend.put('N', "next_page");
+        legend.put('B', "back");
+        legend.put('X', "background");
+        Map<String, ItemStack> decorations = new HashMap<>();
+        decorations.put("background", namedItem(Material.GRAY_STAINED_GLASS_PANE, " ", true));
+        decorations.put("prev_page", namedItem(Material.ARROW, "Previous", false));
+        decorations.put("next_page", namedItem(Material.ARROW, "Next", false));
+        decorations.put("back", namedItem(Material.BARRIER, "Close", false));
+        List<String> layout = List.of(
+                "RRRRRRRRR",
+                "RRRRRRRRR",
+                "RRRRRRRRR",
+                "RRRRRRRRR",
+                "RRRRRRRRR",
+                "PXXXBXXXN");
+        return new SimpleRecipeBookLayout(title, 6, layout, legend, decorations);
+    }
+
+    /** A GUI icon with a non-italic name and an optional hidden tooltip. */
+    public static ItemStack namedItem(Material material, String name, boolean hideTooltip) {
+        ItemStack item = new ItemStack(material);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.displayName(Component.text(name).decoration(TextDecoration.ITALIC, false));
+            if (hideTooltip) {
+                meta.setHideTooltip(true);
+            }
+            item.setItemMeta(meta);
+        }
+        return item;
     }
 }

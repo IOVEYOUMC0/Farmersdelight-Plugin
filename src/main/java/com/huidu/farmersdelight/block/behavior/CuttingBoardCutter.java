@@ -5,6 +5,8 @@ import com.huidu.farmersdelight.api.sound.ToolSoundTable;
 import com.huidu.farmersdelight.config.CuttingBoardSounds;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
+import com.huidu.farmersdelight.tool.ToolAttackListener;
+import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.SoundUtils;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
@@ -16,6 +18,8 @@ import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Item;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
 
@@ -26,8 +30,7 @@ import java.util.concurrent.ThreadLocalRandom;
 // separate from the block behavior so the interaction flow stays lean.
 final class CuttingBoardCutter {
 
-    // Added to the per-unit keep chance for each level of Fortune on the cutting tool, matching the mod's
-    // cuttingBoardFortuneBonus default.
+    // Increase each output unit's keep chance by this amount per Fortune level.
     private static final double FORTUNE_BONUS_PER_LEVEL = 0.1d;
 
     private final CuttingBoardToolMatcher toolMatcher;
@@ -97,9 +100,8 @@ final class CuttingBoardCutter {
         }
 
         Location location = player.getLocation();
-        int fortuneLevel = tool.getEnchantmentLevel(org.bukkit.enchantments.Enchantment.FORTUNE);
-        // Fortune raises the per-unit keep chance, exactly as the mod's ChanceResult.rollOutput does. It never
-        // pushes a result above its configured count.
+        int fortuneLevel = tool.getEnchantmentLevel(Enchantment.FORTUNE);
+        // Fortune raises the chance of keeping each unit without exceeding the configured result count.
         double fortuneBonus = FORTUNE_BONUS_PER_LEVEL * fortuneLevel;
 
         ItemStack firstResult = null;
@@ -111,10 +113,8 @@ final class CuttingBoardCutter {
             }
             hasPossibleResult = true;
 
-            // One roll per output UNIT, not per result entry. Rolling once for the whole entry made a
-            // count-N chance result all-or-nothing (N or 0, never anything between) and left Fortune unable to
-            // move the count the way the recipe intends; the mod starts at the configured count and drops one
-            // unit per failed roll, so Fortune scales every unit of a stacked result.
+            // Roll separately for each output unit. Per-entry rolls would allow only all-or-nothing results
+            // and prevent Fortune from increasing the retained portion of a stack.
             int outputAmount = configuredResult.getAmount();
             for (int roll = 0; roll < configuredResult.getAmount(); roll++) {
                 if (ThreadLocalRandom.current().nextDouble() > resultEntry.chance() + fortuneBonus) {
@@ -163,7 +163,7 @@ final class CuttingBoardCutter {
         }
 
         if (player.getGameMode() != GameMode.CREATIVE) {
-            com.huidu.farmersdelight.tool.ToolAttackListener.consumeDurability(tool, player.getLocation());
+            ToolAttackListener.consumeDurability(tool, player.getLocation());
         }
 
         if (storedItem.getAmount() > 1) {
@@ -175,7 +175,7 @@ final class CuttingBoardCutter {
             CuttingBoardBlockBehavior.saveBlockEntityData(world, posKey);
         }
 
-        com.huidu.farmersdelight.FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         var advancementManager = plugin.getAdvancementManager();
         if (advancementManager != null) {
             advancementManager.award(player, "use_cutting_board");
@@ -211,7 +211,7 @@ final class CuttingBoardCutter {
             // chance). Kept as its own path so the dispenser cut carries none of the player-side effects
             // (action bar, swing, advancement, profession experience) that the manual cut adds.
             double fortuneBonus = FORTUNE_BONUS_PER_LEVEL
-                    * tool.getEnchantmentLevel(org.bukkit.enchantments.Enchantment.FORTUNE);
+                    * tool.getEnchantmentLevel(Enchantment.FORTUNE);
             boolean hasPossibleResult = false;
             for (CuttingBoardRecipe.ResultEntry resultEntry : recipe.getResults()) {
                 ItemStack configuredResult = resultEntry.item();
@@ -243,7 +243,7 @@ final class CuttingBoardCutter {
 
             // A dispenser has no creative exemption, so its tool always takes durability, exactly like a
             // survival player's. A broken tool is emptied; the caller then clears the dispenser slot.
-            com.huidu.farmersdelight.tool.ToolAttackListener.consumeDurability(tool, effectLocation);
+            ToolAttackListener.consumeDurability(tool, effectLocation);
 
             if (storedItem.getAmount() > 1) {
                 storedItem.setAmount(storedItem.getAmount() - 1);
@@ -299,7 +299,7 @@ final class CuttingBoardCutter {
             droppedStack.setAmount(Math.min(remaining, maxStackSize));
             remaining -= droppedStack.getAmount();
 
-            org.bukkit.entity.Item droppedItem = world.dropItem(location, droppedStack);
+            Item droppedItem = world.dropItem(location, droppedStack);
             droppedItem.setVelocity(new Vector(
                     ejectFace.getModX() * 0.2,
                     0.0,
@@ -329,7 +329,7 @@ final class CuttingBoardCutter {
         if (item == null || item.getType().isAir()) {
             return "air";
         }
-        String customId = com.huidu.farmersdelight.util.ItemUtils.getCustomItemId(item);
+        String customId = ItemUtils.getCustomItemId(item);
         return customId != null ? customId + " x" + item.getAmount() : item.getType().name() + " x" + item.getAmount();
     }
 }

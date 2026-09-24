@@ -9,7 +9,6 @@ import net.momirealms.craftengine.core.block.entity.BlockEntityController;
 import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.item.component.DataComponentKeys;
 import net.momirealms.craftengine.libraries.nbt.CompoundTag;
-import org.bukkit.Location;
 import org.bukkit.World;
 
 import java.util.Map;
@@ -27,7 +26,6 @@ public final class StoveBlockEntityController extends BlockEntityController {
 
     public StoveBlockEntityController(BlockEntity blockEntity) {
         super(blockEntity);
-        updateBurnIndex(true);
     }
 
     @Override
@@ -70,7 +68,6 @@ public final class StoveBlockEntityController extends BlockEntityController {
 
     @Override
     public void loadCustomData(CompoundTag tag) {
-        updateBurnIndex(true);
         CompoundTag data = tag.getCompound(DATA_KEY);
         if (data == null) return;
         queueLoadData(data);
@@ -78,14 +75,12 @@ public final class StoveBlockEntityController extends BlockEntityController {
 
     @Override
     public void loadCustomDataFromItem(Item item) {
-        updateBurnIndex(true);
         CompoundTag data = CustomBlockUtils.getNestedComponentCompound(item, DataComponentKeys.BLOCK_ENTITY_DATA, DATA_KEY);
         if (data == null) return;
         queueLoadData(data);
     }
 
     public void loadPendingDataIfReady() {
-        updateBurnIndex(true);
         if (this.applyingPendingLoad) {
             return;
         }
@@ -128,26 +123,6 @@ public final class StoveBlockEntityController extends BlockEntityController {
 
     private World getBukkitWorld() {
         return CustomBlockUtils.getBukkitWorld(this.blockEntity);
-    }
-
-    @Override
-    public void onRemove() {
-        updateBurnIndex(false);
-        super.onRemove();
-    }
-
-    private void updateBurnIndex(boolean present) {
-        StoveManager manager = getManager();
-        World world = getBukkitWorld();
-        if (manager == null || world == null) {
-            return;
-        }
-        Location location = new Location(world, this.blockEntity.pos.x(), this.blockEntity.pos.y(), this.blockEntity.pos.z());
-        if (present) {
-            manager.trackBurnStove(location);
-        } else {
-            manager.untrackBurnStove(location);
-        }
     }
 
     private StoveManager getManager() {

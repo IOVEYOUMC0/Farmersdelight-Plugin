@@ -2,8 +2,10 @@ package com.huidu.farmersdelight.i18n;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.config.ConfigFileUpdater;
+import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.Text;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.kyori.adventure.translation.GlobalTranslator;
 import net.momirealms.craftengine.core.plugin.config.Config;
 import net.momirealms.craftengine.core.plugin.locale.TranslationManager;
@@ -22,6 +24,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Locale;
+import java.util.IllegalFormatException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
@@ -367,11 +370,11 @@ public class I18n {
 
         // Adventure GlobalTranslator for vanilla Minecraft translation keys
         try {
-            java.util.Locale loc = locale != null && !locale.isEmpty()
-                    ? java.util.Locale.forLanguageTag(locale.replace('_', '-'))
-                    : java.util.Locale.getDefault();
+            Locale loc = locale != null && !locale.isEmpty()
+                    ? Locale.forLanguageTag(locale.replace('_', '-'))
+                    : Locale.getDefault();
             Component rendered = GlobalTranslator.render(Component.translatable(key), loc);
-            String plain = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(rendered);
+            String plain = PlainTextComponentSerializer.plainText().serialize(rendered);
             if (!plain.equals(key)) {
                 return plain;
             }
@@ -562,7 +565,7 @@ public class I18n {
     }
 
     public static String serverText(String key) {
-        return com.huidu.farmersdelight.util.ItemUtils.translate(key, state.defaultLocale());
+        return ItemUtils.translate(key, state.defaultLocale());
     }
 
     public static Component serverComponent(String key, Object... args) {
@@ -574,13 +577,13 @@ public class I18n {
         for (int i = 0; i < args.length; i++) {
             Object a = args[i];
             flat[i] = a instanceof Component c
-                    ? net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(c)
+                    ? PlainTextComponentSerializer.plainText().serialize(c)
                     : String.valueOf(a);
         }
         String formatted;
         try {
             formatted = String.format(resolved, flat);
-        } catch (java.util.IllegalFormatException ex) {
+        } catch (IllegalFormatException ex) {
             formatted = resolved;
         }
         return Text.deserialize(formatted);
@@ -594,7 +597,7 @@ public class I18n {
             Object a = args[i];
             if (a instanceof Component c) {
                 argComponents[i] = c;
-                flat[i] = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(c);
+                flat[i] = PlainTextComponentSerializer.plainText().serialize(c);
             } else {
                 String s = String.valueOf(a);
                 argComponents[i] = Component.text(s);
@@ -608,7 +611,7 @@ public class I18n {
         } else {
             try {
                 fallback = String.format(template, flat);
-            } catch (java.util.IllegalFormatException ex) {
+            } catch (IllegalFormatException ex) {
                 fallback = template;
             }
         }

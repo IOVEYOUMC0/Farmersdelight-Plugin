@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.util;
 
+import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.BlockBehaviorConfigs;
 import com.huidu.farmersdelight.block.behavior.ConfiguredBlockSet;
 import com.huidu.farmersdelight.i18n.I18n;
@@ -7,12 +8,15 @@ import com.huidu.farmersdelight.util.compat.MMOItemsCompat;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TranslatableComponent;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import net.kyori.adventure.translation.GlobalTranslator;
 import net.momirealms.craftengine.bukkit.api.CraftEngineItems;
 import net.momirealms.craftengine.bukkit.item.BukkitItemDefinition;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
+import net.momirealms.craftengine.bukkit.util.ItemStackUtils;
 import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.item.component.DataComponentKeys;
+import net.momirealms.craftengine.libraries.nbt.CompoundTag;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.util.UniqueKey;
 import org.bukkit.Bukkit;
@@ -23,11 +27,16 @@ import org.bukkit.Tag;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.block.Container;
+import org.bukkit.inventory.meta.BlockStateMeta;
+import org.bukkit.inventory.meta.BundleMeta;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Collections;
+import java.util.EnumMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -102,7 +111,7 @@ public final class ItemUtils {
     /** Returns the Bukkit player already wrapped by CraftEngine, or null for non-Bukkit contexts. */
     public static org.bukkit.entity.Player getBukkitPlayer(
             net.momirealms.craftengine.core.entity.player.Player player) {
-        return player != null && player.platformPlayer() instanceof org.bukkit.entity.Player bukkitPlayer
+        return player != null && player.platformPlayer() instanceof Player bukkitPlayer
                 ? bukkitPlayer : null;
     }
 
@@ -177,7 +186,7 @@ public final class ItemUtils {
             if (tags.isEmpty()) {
                 return Set.of();
             }
-            Set<String> ids = new java.util.LinkedHashSet<>(tags.size());
+        Set<String> ids = new LinkedHashSet<>(tags.size());
             for (Key tag : tags) {
                 ids.add(tag.toString());
             }
@@ -339,8 +348,8 @@ public final class ItemUtils {
         return built;
     }
 
-    public static net.momirealms.craftengine.libraries.nbt.CompoundTag saveBukkitItemAsTag(ItemStack item) {
-        return net.momirealms.craftengine.bukkit.util.ItemStackUtils.saveBukkitItemAsTag(item);
+    public static CompoundTag saveBukkitItemAsTag(ItemStack item) {
+        return ItemStackUtils.saveBukkitItemAsTag(item);
     }
 
     public static boolean isValidItemId(String itemId) {
@@ -407,7 +416,7 @@ public final class ItemUtils {
             return humanizeKey(customItemId.substring(customItemId.indexOf(':') + 1));
         }
 
-        String materialName = item.getType().name().toLowerCase(java.util.Locale.ROOT);
+        String materialName = item.getType().name().toLowerCase(Locale.ROOT);
         String translated = translate("item.minecraft." + materialName, locale);
         if (!translated.equals("item.minecraft." + materialName)) {
             return translated;
@@ -573,10 +582,10 @@ public final class ItemUtils {
             }
         }
         try {
-            java.util.Locale loc = locale != null && !locale.isEmpty()
-                    ? java.util.Locale.forLanguageTag(locale.replace('_', '-'))
-                    : java.util.Locale.getDefault();
-            Component rendered = net.kyori.adventure.translation.GlobalTranslator.render(component, loc);
+            Locale loc = locale != null && !locale.isEmpty()
+                    ? Locale.forLanguageTag(locale.replace('_', '-'))
+                    : Locale.getDefault();
+            Component rendered = GlobalTranslator.render(component, loc);
             String plain = PLAIN_TEXT.serialize(rendered);
             if (!plain.isBlank() && !plain.equals(PLAIN_TEXT.serialize(component))) {
                 return plain;
@@ -825,7 +834,7 @@ public final class ItemUtils {
         if (customId == null && mmoId == null) {
             return vanillaId == null ? Set.of() : Set.of(vanillaId);
         }
-        java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>();
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
         if (customId != null) {
             ids.add(customId);
         }
@@ -842,7 +851,7 @@ public final class ItemUtils {
         if (item == null || item.getType().isAir()) {
             return Set.of();
         }
-        java.util.LinkedHashSet<String> tags = new java.util.LinkedHashSet<>();
+        LinkedHashSet<String> tags = new LinkedHashSet<>();
         // CE-declared tags (self-identifying, e.g. a knife declaring farmersdelight:tools/knives).
         String customId = getCustomItemId(item);
         if (customId != null) {
@@ -866,7 +875,7 @@ public final class ItemUtils {
         if (item == null || item.getType().isAir()) {
             return List.of();
         }
-        java.util.LinkedHashSet<String> tags = new java.util.LinkedHashSet<>(getItemTagIds(item));
+        LinkedHashSet<String> tags = new LinkedHashSet<>(getItemTagIds(item));
         ensureMaterialTagIndex();
         List<String> vanillaTags = MATERIAL_TAG_INDEX.get(item.getType());
         if (vanillaTags != null) {
@@ -885,7 +894,7 @@ public final class ItemUtils {
             if (!MATERIAL_TAG_INDEX.isEmpty()) {
                 return;
             }
-            Map<Material, List<String>> building = new java.util.EnumMap<>(Material.class);
+            Map<Material, List<String>> building = new EnumMap<>(Material.class);
             for (Tag<Material> tag : Bukkit.getTags("items", Material.class)) {
                 String tagId = tag.getKey().toString();
                 Collection<Material> taggedMaterials = tag.getValues();
@@ -896,7 +905,7 @@ public final class ItemUtils {
                     building.computeIfAbsent(material, k -> new ArrayList<>()).add(tagId);
                 }
             }
-            Map<Material, List<String>> published = new java.util.EnumMap<>(Material.class);
+            Map<Material, List<String>> published = new EnumMap<>(Material.class);
             building.forEach((material, tags) -> published.put(material, List.copyOf(tags)));
             MATERIAL_TAG_INDEX = Map.copyOf(published);
         }
@@ -976,7 +985,7 @@ public final class ItemUtils {
         if (mmoId != null) {
             return mmoId;
         }
-        return "minecraft:" + item.getType().name().toLowerCase(java.util.Locale.ROOT);
+        return "minecraft:" + item.getType().name().toLowerCase(Locale.ROOT);
     }
 
     public static ItemStack cloneOrNull(ItemStack item) {
@@ -986,18 +995,16 @@ public final class ItemUtils {
         return item.clone();
     }
 
-    // Identity comparison used by recipe cross-reference / GUI linking: custom items match by custom id
-    // (ignoring base material), everything else by material type. Amount and NBT are not compared.
+    // Identity comparison used by recipe cross-reference / GUI linking: any item with its own identity
+    // (a CraftEngine id or an mmoitems:<TYPE>:<ID>) matches that identity instead of its base material;
+    // everything else matches by material type. Amount and NBT are not compared.
     public static boolean isSameItem(ItemStack a, ItemStack b) {
         if (a == null || b == null || a.getType().isAir() || b.getType().isAir()) {
             return false;
         }
-        String aId = getCustomItemId(a);
-        String bId = getCustomItemId(b);
-        if (aId != null || bId != null) {
-            return aId != null && aId.equals(bId);
-        }
-        return a.getType() == b.getType();
+        String aId = resolveItemId(a);
+        String bId = resolveItemId(b);
+        return aId != null && aId.equals(bId);
     }
 
     public static String normalizeBlank(String value) {
@@ -1023,11 +1030,11 @@ public final class ItemUtils {
         // shulker boxes keep a block-entity Container (minecraft:container), bundles keep bundle_contents.
         // Detect both through item meta so a filled shulker/bundle can't smuggle a nested payload into the pot.
         ItemMeta meta = item.getItemMeta();
-        if (meta instanceof org.bukkit.inventory.meta.BlockStateMeta blockStateMeta
-                && blockStateMeta.getBlockState() instanceof org.bukkit.block.Container) {
+        if (meta instanceof BlockStateMeta blockStateMeta
+                && blockStateMeta.getBlockState() instanceof Container) {
             return true;
         }
-        if (meta instanceof org.bukkit.inventory.meta.BundleMeta) {
+        if (meta instanceof BundleMeta) {
             return true;
         }
         if (!isAnyCustomItemLoaded()) {
@@ -1046,8 +1053,7 @@ public final class ItemUtils {
             return null;
         }
         String customId = getCustomItemId(item);
-        com.huidu.farmersdelight.FarmersDelightPlugin plugin =
-                com.huidu.farmersdelight.FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (customId != null && plugin != null && plugin.getContainerReturnConfig() != null) {
             return plugin.getContainerReturnConfig().getReturnItem(customId, 1);
         }

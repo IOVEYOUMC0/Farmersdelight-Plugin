@@ -9,6 +9,7 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.HashMap;
 
 public final class WorldGuardCompat {
     private static final String WORLD_GUARD_PLUGIN = "WorldGuard";
@@ -62,7 +63,7 @@ public final class WorldGuardCompat {
             }
             masterFlag = registerStateFlag(registry, stateFlagClass, register, get, MASTER_FLAG_NAME);
             // Start from the current map so addon flags registered before FD's own onLoad are preserved.
-            Map<String, Object> resolved = new java.util.HashMap<>(customFlags);
+            Map<String, Object> resolved = new HashMap<>(customFlags);
             for (ProtectionCompat.Feature feature : ProtectionCompat.Feature.values()) {
                 Object flag = registerStateFlag(registry, stateFlagClass, register, get, feature.flagName());
                 if (flag != null) {
@@ -106,7 +107,7 @@ public final class WorldGuardCompat {
             Class<?> stateFlagClass = Class.forName("com.sk89q.worldguard.protection.flags.StateFlag");
             Object flag = registerStateFlag(registry, stateFlagClass, register, get, flagName);
             if (flag != null) {
-                Map<String, Object> copy = new java.util.HashMap<>(customFlags);
+                Map<String, Object> copy = new HashMap<>(customFlags);
                 copy.put(flagName, flag);
                 customFlags = Map.copyOf(copy);
             }
@@ -283,7 +284,7 @@ public final class WorldGuardCompat {
             return;
         }
         queryFailureReported = true;
-        I18n.logWarning("worldguard_query_failed", "error", detail);
+        I18n.logWarning("plugin.worldguard_query_failed", "error", detail);
     }
 
     private static boolean isAvailable() {

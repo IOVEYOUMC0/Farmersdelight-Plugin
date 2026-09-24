@@ -1,11 +1,15 @@
 package com.huidu.farmersdelight.command;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.event.FarmersDelightCleanupEvent;
+import com.huidu.farmersdelight.api.event.FarmersDelightCollectLiveDisplaysEvent;
 import com.huidu.farmersdelight.i18n.I18n;
+import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 final class CleanupSubCommand extends SubCommand {
 
@@ -23,19 +27,17 @@ final class CleanupSubCommand extends SubCommand {
         if (displayManager != null) {
             // Remove only proxy displays without a live owning block. Preserve visuals owned by a stove,
             // skillet, cutting board, or cooking pot.
-            java.util.Set<Integer> liveIds = plugin.collectLiveDisplayIds();
+            Set<Integer> liveIds = plugin.collectLiveDisplayIds();
             // Let addons mark their own packet-display handles as live (e.g. the items shown on a coaster)
             // so the orphan sweep doesn't wipe them.
-            org.bukkit.Bukkit.getPluginManager().callEvent(
-                    new com.huidu.farmersdelight.api.event.FarmersDelightCollectLiveDisplaysEvent(liveIds));
+            Bukkit.getPluginManager().callEvent(new FarmersDelightCollectLiveDisplaysEvent(liveIds));
             displays = displayManager.cleanupOrphans(liveIds);
         }
 
         // Same hook style as FarmersDelightReloadEvent — addons (BAC etc.) clean their own orphan
         // state in step and report counts back via event.addRemoved().
-        com.huidu.farmersdelight.api.event.FarmersDelightCleanupEvent cleanupEvent =
-                new com.huidu.farmersdelight.api.event.FarmersDelightCleanupEvent();
-        org.bukkit.Bukkit.getPluginManager().callEvent(cleanupEvent);
+        FarmersDelightCleanupEvent cleanupEvent = new FarmersDelightCleanupEvent();
+        Bukkit.getPluginManager().callEvent(cleanupEvent);
         int addon = cleanupEvent.getRemoved();
 
         sender.sendMessage(I18n.getComponent("command.cleanup_done_displays", Map.of(

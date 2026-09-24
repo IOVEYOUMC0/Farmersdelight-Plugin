@@ -1,9 +1,12 @@
 package com.huidu.farmersdelight.recipe;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.recipe.AddonRecipeFiles;
+import com.huidu.farmersdelight.api.recipe.AddonRecipeFiles.RecipeOwner;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.Constants;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 
 import java.io.File;
@@ -25,6 +28,7 @@ public final class RecipeEditorStore {
     private static final String COOKING_POT_ROOT = "cooking_pot_recipes";
     private static final String CUSTOM_COOKING_POT_ROOT = "custom_cooking_pot_recipes";
     private static final String CUTTING_BOARD_ROOT = "cutting_board_recipes";
+    private static final String EXTERNAL_OVERRIDES_ROOT = "external-overrides";
 
     private final FarmersDelightPlugin plugin;
 
@@ -33,21 +37,71 @@ public final class RecipeEditorStore {
     }
 
     public boolean saveCookingPotRecipe(CookingPotRecipe recipe, String customGroupId) {
+        if (customGroupId == null || customGroupId.isBlank()) {
+            RecipeOwner owner =
+                    AddonRecipeFiles.ownerOf(
+                            "cooking_pot", recipe.getId());
+            if (owner != null) {
+                return mutateExternal(owner, yaml -> yaml.set(owner.yamlPath(), buildCookingPotBody(recipe)));
+            }
+            if (plugin.getCookingPotRecipes().isExternalRecipe(recipe.getId())) {
+                return mutate(COOKING_POT_FILE, yaml -> {
+                    putRecipe(yaml, COOKING_POT_ROOT, recipe.getId(), buildCookingPotBody(recipe));
+                    setExternalOverride(yaml, "cooking_pot", recipe.getId(), true);
+                });
+            }
+        }
         String path = cookingPotPath(recipe.getId(), customGroupId);
         return mutate(COOKING_POT_FILE, yaml -> yaml.set(path, buildCookingPotBody(recipe)));
     }
 
     public boolean deleteCookingPotRecipe(String recipeId, String customGroupId) {
+        if (customGroupId == null || customGroupId.isBlank()) {
+            RecipeOwner owner =
+                    AddonRecipeFiles.ownerOf("cooking_pot", recipeId);
+            if (owner != null) {
+                return mutateExternal(owner, yaml -> yaml.set(owner.yamlPath(), null));
+            }
+            if (plugin.getCookingPotRecipes().isExternalRecipe(recipeId)) {
+                return mutate(COOKING_POT_FILE, yaml -> {
+                    putRecipe(yaml, COOKING_POT_ROOT, recipeId, null);
+                    setExternalOverride(yaml, "cooking_pot", recipeId, false);
+                });
+            }
+        }
         String path = cookingPotPath(recipeId, customGroupId);
         return mutate(COOKING_POT_FILE, yaml -> yaml.set(path, null));
     }
 
     public boolean saveCuttingBoardRecipe(CuttingBoardRecipe recipe) {
+        RecipeOwner owner =
+                AddonRecipeFiles.ownerOf(
+                        "cutting_board", recipe.getId());
+        if (owner != null) {
+            return mutateExternal(owner, yaml -> yaml.set(owner.yamlPath(), buildCuttingBoardBody(recipe)));
+        }
+        if (plugin.getCuttingBoardRecipes().isExternalRecipe(recipe.getId())) {
+            return mutate(CUTTING_BOARD_FILE, yaml -> {
+                putRecipe(yaml, CUTTING_BOARD_ROOT, recipe.getId(), buildCuttingBoardBody(recipe));
+                setExternalOverride(yaml, "cutting_board", recipe.getId(), true);
+            });
+        }
         String path = CUTTING_BOARD_ROOT + "." + recipe.getId();
         return mutate(CUTTING_BOARD_FILE, yaml -> yaml.set(path, buildCuttingBoardBody(recipe)));
     }
 
     public boolean deleteCuttingBoardRecipe(String recipeId) {
+        RecipeOwner owner =
+                AddonRecipeFiles.ownerOf("cutting_board", recipeId);
+        if (owner != null) {
+            return mutateExternal(owner, yaml -> yaml.set(owner.yamlPath(), null));
+        }
+        if (plugin.getCuttingBoardRecipes().isExternalRecipe(recipeId)) {
+            return mutate(CUTTING_BOARD_FILE, yaml -> {
+                putRecipe(yaml, CUTTING_BOARD_ROOT, recipeId, null);
+                setExternalOverride(yaml, "cutting_board", recipeId, false);
+            });
+        }
         String path = CUTTING_BOARD_ROOT + "." + recipeId;
         return mutate(CUTTING_BOARD_FILE, yaml -> yaml.set(path, null));
     }
@@ -162,6 +216,43 @@ public final class RecipeEditorStore {
             I18n.logWarning("plugin.recipe_save_failed", "file", relativePath, "error", e.getMessage());
             return false;
         }
+    }
+
+    private boolean mutateExternal(RecipeOwner owner,
+                                   YamlMutation mutation) {
+        try {
+            YamlConfiguration yaml = YamlConfiguration.loadConfiguration(owner.file());
+            mutation.apply(yaml);
+            writeAtomically(owner.file(), yaml.saveToString());
+            plugin.reloadRecipeFiles();
+            return true;
+        } catch (Exception e) {
+            I18n.logWarning("plugin.recipe_save_failed", "file", owner.file().getPath(), "error", e.getMessage());
+            return false;
+        }
+    }
+
+    private static void putRecipe(YamlConfiguration yaml, String rootName, String id, Object value) {
+        ConfigurationSection root = yaml.getConfigurationSection(rootName);
+        Map<String, Object> entries = root == null
+                ? new LinkedHashMap<>()
+                : new LinkedHashMap<>(root.getValues(false));
+        if (value == null) {
+            entries.remove(id);
+        } else {
+            entries.put(id, value);
+        }
+        yaml.set(rootName, entries.isEmpty() ? null : entries);
+    }
+
+    private static void setExternalOverride(YamlConfiguration yaml, String station, String id, boolean enabled) {
+        String path = EXTERNAL_OVERRIDES_ROOT + "." + station;
+        List<String> ids = new ArrayList<>(yaml.getStringList(path));
+        ids.removeIf(id::equals);
+        if (enabled) {
+            ids.add(id);
+        }
+        yaml.set(path, ids.isEmpty() ? null : ids);
     }
 
     // Package-private and static so RecipeDiscoveryManager flushes the same way: a torn write there loses

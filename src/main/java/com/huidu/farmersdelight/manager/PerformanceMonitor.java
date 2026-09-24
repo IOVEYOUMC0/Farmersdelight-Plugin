@@ -8,16 +8,29 @@ import com.huidu.farmersdelight.util.ManagerSupport;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 
+import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 
-// Aggregates cooking-pot tick timings into P50/P95/P99-ready samples and emits density/total warnings.
-// The snapshot builder lives in TickManager because it stitches in metrics owned by the tick loop.
-class PerformanceMonitor {
+// Collects bounded, opt-in timings; world access remains in the calling region/entity task.
+public final class PerformanceMonitor {
 
     private static final int PERFORMANCE_HISTORY_CAPACITY = 4096;
+    private static final int HOTSPOT_CAPACITY = 4096;
+
+    public enum Feature {
+        COOKING_POT("cooking_pot"), HANDHELD("handheld"),
+        HANDHELD_DISPLAY("handheld_display"), SKILLET("skillet"), STOVE("stove");
+
+        private final String id;
+
+        Feature(String id) { this.id = id; }
+
+        public String id() { return id; }
+    }
 
     private final FarmersDelightPlugin plugin;
     private boolean warningsEnabled = true;
@@ -26,20 +39,8 @@ class PerformanceMonitor {
     private long warningCooldownMillis = 600_000L;
     private final Map<String, Long> warningTimes = new ConcurrentHashMap<>();
 
-    private volatile boolean statsEnabled;
-    private final AtomicLong samples = new AtomicLong();
-    private final AtomicLong totalNanos = new AtomicLong();
-    private final AtomicLong lastNanos = new AtomicLong();
-    private final AtomicLong maxNanos = new AtomicLong();
-    private final AtomicLong lastActiveBlocks = new AtomicLong();
-    private final AtomicLong lastProcessedBlocks = new AtomicLong();
-    // Per-block hot-spot sampling: keyed by BlockPosKey so a pot is attributed once per pass across all
-    // regions. Grows only while a profile runs, handed off to the caller on snapshot(), then reset so
-    // per-profile attribution never bleeds into the next run.
-    private final Map<BlockPosKey, Long> blockNanos = new ConcurrentHashMap<>();
-    // Rolling per-pass duration history for P50/P95/P99 reporting, mirroring Spark's MSPT distribution.
-    private long[] history = new long[PERFORMANCE_HISTORY_CAPACITY];
-    private int historySize;
+    private volatile Session session;
+    private long nextSessionId;
 
     PerformanceMonitor(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -57,97 +58,143 @@ class PerformanceMonitor {
     }
 
     boolean isRecording() {
-        return statsEnabled;
+        Session current = session;
+        return current != null && current.active;
     }
 
-    void setRecording(boolean enabled) {
-        statsEnabled = enabled;
+    synchronized long start(Feature feature) {
+        if (isRecording()) return 0L;
+        session = new Session(++nextSessionId, feature);
+        return session.id;
     }
 
-    void reset(int snapshotActiveBlocks) {
-        samples.set(0L);
-        totalNanos.set(0L);
-        lastNanos.set(0L);
-        maxNanos.set(0L);
-        lastActiveBlocks.set(Math.max(0, snapshotActiveBlocks));
-        lastProcessedBlocks.set(0L);
-        blockNanos.clear();
-        historySize = 0;
-        statsEnabled = true;
+    synchronized Snapshot finish(long id) {
+        Session current = session;
+        if (current == null || current.id != id || !current.active) return null;
+        current.stop();
+        return current.snapshot();
     }
 
-    void recordPass(long durationNanos, int activeCount, int processedCount) {
-        if (!statsEnabled) {
-            return;
+    synchronized void stop() {
+        if (session != null) session.stop();
+    }
+
+    Snapshot snapshot() {
+        Session current = session;
+        return current == null ? Snapshot.EMPTY : current.snapshot();
+    }
+
+    Session recording() {
+        Session current = session;
+        return current != null && current.active ? current : null;
+    }
+
+    Timing timing(Feature feature) {
+        Session current = recording();
+        return current == null ? null : current.timings.get(feature);
+    }
+
+    public record Hotspot(UUID worldId, BlockPosKey position) { }
+
+    public record TimingSnapshot(long calls, long totalNanos, long lastNanos, long maxNanos,
+                                 long[] historyNanos) {
+        private static final TimingSnapshot EMPTY = new TimingSnapshot(0, 0, 0, 0, new long[0]);
+
+        public double averageNanos() { return calls == 0 ? 0 : (double) totalNanos / calls; }
+
+        public long percentile(int percent) {
+            if (historyNanos.length == 0) return 0;
+            long[] sorted = historyNanos.clone();
+            Arrays.sort(sorted);
+            int index = (int) Math.ceil(sorted.length * Math.max(1, Math.min(100, percent)) / 100.0) - 1;
+            return sorted[index];
         }
-        long bounded = Math.max(0L, durationNanos);
-        samples.incrementAndGet();
-        totalNanos.addAndGet(bounded);
-        lastNanos.set(bounded);
-        lastActiveBlocks.set(Math.max(0, activeCount));
-        lastProcessedBlocks.set(Math.max(0, processedCount));
-        updateMax(maxNanos, bounded);
-        appendHistory(bounded);
     }
 
-    void recordBlockCost(BlockPosKey posKey, long cost) {
-        blockNanos.merge(posKey, cost, Long::sum);
+    public record Snapshot(boolean active, long elapsedNanos, TimingSnapshot pass,
+                           int lastActiveBlocks, int lastProcessedBlocks,
+                           Map<Feature, TimingSnapshot> features, Map<Hotspot, Long> blockNanos,
+                           long omittedHotspotCalls) {
+        private static final Snapshot EMPTY = new Snapshot(false, 0, TimingSnapshot.EMPTY,
+                0, 0, Map.of(), Map.of(), 0);
     }
 
-    // Grow-only per-pass duration history for percentile reporting; capped so a long profile cannot
-    // allocate unbounded. Percentiles stay valid because the cap only drops the oldest samples.
-    private void appendHistory(long durationNanos) {
-        if (historySize >= history.length) {
-            return;
+    static final class Session {
+        final long id;
+        final long startedNanos = System.nanoTime();
+        volatile boolean active = true;
+        private long elapsedNanos;
+        final Timing pass = new Timing(this);
+        final Map<Feature, Timing> timings = new EnumMap<>(Feature.class);
+        private final Map<Hotspot, Long> blockNanos = new HashMap<>();
+        private int lastActiveBlocks;
+        private int lastProcessedBlocks;
+        private long omittedHotspotCalls;
+
+        Session(long id, Feature feature) {
+            this.id = id;
+            for (Feature value : Feature.values()) {
+                if (feature == null || feature == value) timings.put(value, new Timing(this));
+            }
         }
-        history[historySize] = durationNanos;
-        historySize++;
-    }
 
-    private void updateMax(AtomicLong target, long value) {
-        long current;
-        do {
-            current = target.get();
-            if (value <= current) {
+        synchronized void stop() {
+            if (!active) return;
+            active = false;
+            elapsedNanos = System.nanoTime() - startedNanos;
+        }
+
+        synchronized void recordPass(long nanos, int activeCount, int processedCount) {
+            if (!active) return;
+            pass.record(nanos);
+            lastActiveBlocks = activeCount;
+            lastProcessedBlocks = processedCount;
+        }
+
+        synchronized void recordBlockCost(UUID worldId, BlockPosKey posKey, long nanos) {
+            if (!active) return;
+            Hotspot key = new Hotspot(worldId, posKey);
+            if (blockNanos.size() >= HOTSPOT_CAPACITY && !blockNanos.containsKey(key)) {
+                omittedHotspotCalls++;
                 return;
             }
-        } while (!target.compareAndSet(current, value));
+            blockNanos.merge(key, Math.max(0, nanos), Long::sum);
+        }
+
+        synchronized Snapshot snapshot() {
+            Map<Feature, TimingSnapshot> features = new EnumMap<>(Feature.class);
+            timings.forEach((feature, timing) -> features.put(feature, timing.snapshot()));
+            long elapsed = active ? System.nanoTime() - startedNanos : elapsedNanos;
+            return new Snapshot(active, elapsed, pass.snapshot(), lastActiveBlocks,
+                    lastProcessedBlocks, Map.copyOf(features), Map.copyOf(blockNanos), omittedHotspotCalls);
+        }
     }
 
-    long samples() {
-        return samples.get();
-    }
+    static final class Timing {
+        private final Session owner;
+        private final long[] history = new long[PERFORMANCE_HISTORY_CAPACITY];
+        private long calls;
+        private long totalNanos;
+        private long lastNanos;
+        private long maxNanos;
 
-    long totalNanos() {
-        return totalNanos.get();
-    }
+        Timing(Session owner) { this.owner = owner; }
 
-    long lastNanos() {
-        return lastNanos.get();
-    }
+        // ponytail: one short lock per feature during sampling; shard only if profiling shows contention.
+        synchronized void record(long nanos) {
+            if (!owner.active) return;
+            long bounded = Math.max(0, nanos);
+            history[(int) (calls % history.length)] = bounded;
+            calls++;
+            totalNanos += bounded;
+            lastNanos = bounded;
+            maxNanos = Math.max(maxNanos, bounded);
+        }
 
-    long maxNanos() {
-        return maxNanos.get();
-    }
-
-    long lastActiveBlocks() {
-        return lastActiveBlocks.get();
-    }
-
-    long lastProcessedBlocks() {
-        return lastProcessedBlocks.get();
-    }
-
-    boolean statsEnabled() {
-        return statsEnabled;
-    }
-
-    long[] historyCopy() {
-        return java.util.Arrays.copyOf(history, historySize);
-    }
-
-    Map<BlockPosKey, Long> blockNanosCopy() {
-        return new HashMap<>(blockNanos);
+        synchronized TimingSnapshot snapshot() {
+            return new TimingSnapshot(calls, totalNanos, lastNanos, maxNanos,
+                    Arrays.copyOf(history, (int) Math.min(calls, history.length)));
+        }
     }
 
     void checkPooledWarnings() {

@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.api.lang;
 
+import com.huidu.farmersdelight.i18n.I18n;
 import net.momirealms.craftengine.core.plugin.config.Config;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -277,7 +278,7 @@ public final class AddonLanguage {
 
     private String selectFarmersDelightLocale() {
         try {
-            return normalizeLocale(com.huidu.farmersdelight.i18n.I18n.getDefaultLocale(), false);
+            return normalizeLocale(I18n.getDefaultLocale(), false);
         } catch (RuntimeException | LinkageError ignored) {
             // FarmersDelight not loaded / locale state not initialised yet; fall through to CE then JVM.
             return null;

@@ -1,7 +1,10 @@
 package com.huidu.farmersdelight.manager;
 
+import com.huidu.farmersdelight.api.util.ItemDelivery;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.StoveBlockEntityController;
+import com.huidu.farmersdelight.api.block.StoveSnapshot;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.ManagerSupport;
 import com.huidu.farmersdelight.util.SoundUtils;
@@ -14,12 +17,14 @@ import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
+import net.momirealms.craftengine.core.world.BlockPos;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.World;
+import org.bukkit.util.BoundingBox;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
@@ -52,7 +57,6 @@ public class StoveManager {
     private static final double DEFAULT_CRACKLE_CHANCE = Constants.STOVE_CRACKLE_CHANCE;
 
     private final FarmersDelightPlugin plugin;
-    private final StoveBurnLogic burnLogic;
     private final StoveVisualManager visualManager;
     private final Map<Location, StoveData> stoves = new ConcurrentHashMap<>();
     private final WorldChunkLocationIndex locationIndex = new WorldChunkLocationIndex();
@@ -64,9 +68,8 @@ public class StoveManager {
     private volatile List<Location> tickLocationsSnapshot = List.of();
     private volatile long tickLocationsSnapshotVersion = -1L;
     private final CampfireRecipeCache campfireRecipes = new CampfireRecipeCache("stove", this::debug);
-    // R-CONC-002 (#010 precedent): tickTask is written by region threads (ensureTaskRunning, reached from
-    // block events) and read+nulled by the global tick thread (stopTaskIfIdle) — volatile for visibility
-    // + a dedicated lock so the check-then-schedule / check-then-cancel are atomic (no double-schedule).
+    // Region events start tickTask; the global task may cancel it when idle.
+    // Volatile publishes the handle, and the lock makes start/stop checks atomic to prevent duplicate tasks.
     private volatile PluginTask tickTask;
     private final Object tickTaskLock = new Object();
     private int heartbeatTicks;
@@ -100,11 +103,15 @@ public class StoveManager {
     // identical chunk coordinates in different worlds never collide. Cleared on tick rollover.
     private volatile int chunkEffectBudgetLimit = 50;
     private final Map<UUID, Map<Long, ChunkFxContext>> chunkFx = new ConcurrentHashMap<>();
-    private volatile long effectBudgetResetTick = -1L;
 
     private static final class ChunkFxContext {
         final AtomicInteger budget = new AtomicInteger();
         volatile List<Player> seeing;
+        // The tick this chunk's budget was last reset on. Per chunk rather than one field for the whole
+        // manager: on Folia Bukkit.getCurrentTick() reports the CURRENT REGION's counter, so two regions
+        // ticking stoves would disagree on a shared field almost every call, clear the whole map each
+        // time, and leave the per-chunk packet cap never actually applying to anything.
+        volatile long budgetTick = Long.MIN_VALUE;
     }
 
     // Reusable per-thread recipient list for targeted particle/sound sends. Per-thread so it stays safe
@@ -114,22 +121,9 @@ public class StoveManager {
 
     public StoveManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
-        this.burnLogic = new StoveBurnLogic(plugin);
         this.visualManager = new StoveVisualManager(plugin);
         reloadConfig();
         campfireRecipes.rebuild();
-    }
-
-    public void trackBurnStove(Location location) {
-        burnLogic.trackBurnStove(location);
-    }
-
-    public void untrackBurnStove(Location location) {
-        burnLogic.untrackBurnStove(location);
-    }
-
-    private void untrackBurnStoveChunk(World world, int chunkX, int chunkZ) {
-        burnLogic.untrackBurnStoveChunk(world, chunkX, chunkZ);
     }
 
     public void reloadConfig() {
@@ -142,7 +136,6 @@ public class StoveManager {
         this.coolingDecrement = Math.max(0, plugin.getConfigInt(DEFAULT_COOLING_DECREMENT,
                 "stove.cooking.cooling-decrement",
                 "stove.cooling-decrement"));
-        burnLogic.reload(plugin.getConfigDouble(StoveBurnLogic.DEFAULT_BURN_MOB_RADIUS, "stove.burn.mob-scan-radius"));
         this.chunkEffectBudgetLimit = Math.max(1, plugin.getConfigInt(50, "performance.chunk-effect-packet-budget"));
         loadEffectsConfig();
         visualManager.reloadSlotOffsets();
@@ -212,7 +205,6 @@ public class StoveManager {
     public StoveData getOrCreateStove(Location location) {
         ensureTaskRunning();
         Location normalized = ManagerSupport.normalize(location);
-        trackBurnStove(normalized);
         StoveData existing = stoves.get(normalized);
         if (existing != null) {
             return existing;
@@ -223,8 +215,8 @@ public class StoveManager {
         // entry that would shadow the stored contents and let the late apply overwrite this interaction.
         if (normalized.getWorld() != null) {
             CustomBlockUtils.notifyControllerChanged(normalized.getWorld(), new BlockPosKey(normalized),
-                    com.huidu.farmersdelight.block.behavior.StoveBlockEntityController.class, null,
-                    com.huidu.farmersdelight.block.behavior.StoveBlockEntityController::loadPendingDataIfReady);
+                    StoveBlockEntityController.class, null,
+                    StoveBlockEntityController::loadPendingDataIfReady);
             StoveData loaded = stoves.get(normalized);
             if (loaded != null) {
                 return loaded;
@@ -241,7 +233,7 @@ public class StoveManager {
         return created;
     }
 
-    public void collectLiveDisplayIds(java.util.Set<Integer> out) {
+    public void collectLiveDisplayIds(Set<Integer> out) {
         for (StoveData stove : stoves.values()) {
             for (int id : stove.displayEntities) {
                 if (id >= 0) {
@@ -264,7 +256,7 @@ public class StoveManager {
         // One-shot user-click path, often before any StoveData exists — an uncached check is exact
         // semantics and computes a single collision shape.
         if (isStoveBlockedAbove(location)) {
-            debug("Stove interact blocked above for " + formatItem(itemInHand) + " at " + formatLocation(location));
+            debug(() -> "Stove interact blocked above for " + formatItem(itemInHand) + " at " + formatLocation(location));
             return false;
         }
 
@@ -272,7 +264,7 @@ public class StoveManager {
 
         CookingRecipe<?> recipe = findCampfireRecipe(itemInHand);
         if (recipe == null) {
-            debug("Stove interact no campfire recipe for " + formatItem(itemInHand) + " at " + formatLocation(location));
+            debug(() -> "Stove interact no campfire recipe for " + formatItem(itemInHand) + " at " + formatLocation(location));
             return false;
         }
 
@@ -283,7 +275,7 @@ public class StoveManager {
         synchronized (stove) {
             emptySlot = findEmptySlot(stove);
             if (emptySlot < 0) {
-                debug("Stove interact no empty slot for " + formatItem(itemInHand) + " at " + formatLocation(location));
+                debug(() -> "Stove interact no empty slot for " + formatItem(itemInHand) + " at " + formatLocation(location));
                 return false;
             }
             ItemStack toPlace = itemInHand.clone();
@@ -293,18 +285,18 @@ public class StoveManager {
             stove.maxTime[emptySlot] = recipe.getCookingTime() > 0 ? recipe.getCookingTime() : defaultCookTime;
             stove.ownerIds[emptySlot] = player.getUniqueId();
             stove.ownerNames[emptySlot] = player.getName();
-            debug("create state: slot=" + emptySlot + ", stored=" + formatItem(toPlace)
+            debug(() -> "create state: slot=" + emptySlot + ", stored=" + formatItem(toPlace)
                     + ", duration=" + stove.maxTime[emptySlot] + ", location=" + formatLocation(location));
         }
 
         visualManager.createVisual(location, stove, emptySlot, CustomBlockUtils.getFacing(block).getOppositeFace());
         saveStove(location, stove);
         if (player.getGameMode() != GameMode.CREATIVE) {
-            debug("consume: slot=" + emptySlot + ", before=" + itemInHand.getAmount() + ", after=" + (itemInHand.getAmount() - 1)
+            debug(() -> "consume: slot=" + emptySlot + ", before=" + itemInHand.getAmount() + ", after=" + (itemInHand.getAmount() - 1)
                     + ", item=" + formatItem(itemInHand) + ", location=" + formatLocation(location));
             itemInHand.setAmount(itemInHand.getAmount() - 1);
         } else {
-            debug("consume: skipped for creative mode, slot=" + emptySlot + ", item=" + formatItem(itemInHand)
+            debug(() -> "consume: skipped for creative mode, slot=" + emptySlot + ", item=" + formatItem(itemInHand)
                     + ", location=" + formatLocation(location));
         }
 
@@ -341,13 +333,12 @@ public class StoveManager {
     private void flushControllerPendingData(Location location) {
         if (location == null || location.getWorld() == null) return;
         CustomBlockUtils.notifyControllerChanged(location.getWorld(), new BlockPosKey(location),
-                com.huidu.farmersdelight.block.behavior.StoveBlockEntityController.class, null,
-                com.huidu.farmersdelight.block.behavior.StoveBlockEntityController::loadPendingDataIfReady);
+                StoveBlockEntityController.class, null,
+                StoveBlockEntityController::loadPendingDataIfReady);
     }
 
     public void breakStove(Location blockLocation, Location dropLocation, boolean shouldDropItems) {
         Location normalized = ManagerSupport.normalize(blockLocation);
-        untrackBurnStove(normalized);
         flushControllerPendingData(normalized);
         StoveData stove = removeTrackedStove(normalized);
         if (stove != null) {
@@ -419,7 +410,7 @@ public class StoveManager {
     }
 
     public void cleanupWorld(UUID worldId) {
-        burnLogic.clearWorld(worldId);
+        chunkFx.remove(worldId);
         List<Location> locations = locationIndex.removeWorld(worldId);
         if (locations.isEmpty()) {
             return;
@@ -443,8 +434,9 @@ public class StoveManager {
         if (world == null) {
             return;
         }
-        untrackBurnStoveChunk(world, minX >> 4, minZ >> 4);
-        List<Location> locations = locationIndex.chunkLocations(world.getUID(), ManagerSupport.chunkKey(minX, minZ));
+        Map<Long, ChunkFxContext> worldFx = chunkFx.get(world.getUID());
+        if (worldFx != null) worldFx.remove(ManagerSupport.chunkKey(minX >> 4, minZ >> 4));
+        List<Location> locations = locationIndex.chunkLocationsAtBlock(world.getUID(), minX, minZ);
         if (locations.isEmpty()) {
             return;
         }
@@ -473,12 +465,12 @@ public class StoveManager {
     private boolean passivateToController(World world, Location location) {
         boolean[] stashed = {false};
         CustomBlockUtils.notifyControllerChanged(world, new BlockPosKey(location),
-                com.huidu.farmersdelight.block.behavior.StoveBlockEntityController.class, null,
+                StoveBlockEntityController.class, null,
                 controller -> stashed[0] = controller.passivate());
         return stashed[0];
     }
 
-    public boolean loadStove(World world, net.momirealms.craftengine.core.world.BlockPos pos, Map<String, Object> data) {
+    public boolean loadStove(World world, BlockPos pos, Map<String, Object> data) {
         return loadStove(world, new BlockPosKey(pos), data);
     }
 
@@ -493,7 +485,6 @@ public class StoveManager {
             // not destroyed. A genuinely replaced block just carries inert leftover NBT.
             return false;
         }
-        trackBurnStove(location);
         if (stoves.containsKey(ManagerSupport.normalize(location))) {
             // A live entry exists (created by an interaction before this deferred load applied); the live
             // state is newer than the saved snapshot, so consume the snapshot without overwriting it.
@@ -505,19 +496,19 @@ public class StoveManager {
         BlockFace facing = CustomBlockUtils.getFacing(location.getBlock()).getOppositeFace();
 
         for (int i = 0; i < SLOT_COUNT; i++) {
-            Object itemObject = data.get("slot_" + i + "_item");
+            Object itemObject = data.get(slotItemKey(i));
             if (itemObject instanceof ItemStack item && !item.getType().isAir()) {
                 stove.items[i] = item.clone();
-                stove.cookingTime[i] = data.get("slot_" + i + "_progress") instanceof Number progress ? progress.intValue() : 0;
-                stove.maxTime[i] = data.get("slot_" + i + "_duration") instanceof Number duration ? duration.intValue() : defaultCookTime;
-                if (data.get("slot_" + i + "_owner_id") instanceof String ownerId) {
+                stove.cookingTime[i] = data.get(slotProgressKey(i)) instanceof Number progress ? progress.intValue() : 0;
+                stove.maxTime[i] = data.get(slotDurationKey(i)) instanceof Number duration ? duration.intValue() : defaultCookTime;
+                if (data.get(slotOwnerIdKey(i)) instanceof String ownerId) {
                     try {
                         stove.ownerIds[i] = UUID.fromString(ownerId);
                     } catch (IllegalArgumentException ignored) {
                         stove.ownerIds[i] = null;
                     }
                 }
-                if (data.get("slot_" + i + "_owner_name") instanceof String ownerName) {
+                if (data.get(slotOwnerNameKey(i)) instanceof String ownerName) {
                     stove.ownerNames[i] = ownerName;
                 }
                 visualManager.createVisual(location, stove, i, facing);
@@ -535,7 +526,7 @@ public class StoveManager {
         return true;
     }
 
-    public com.huidu.farmersdelight.api.block.StoveSnapshot snapshot(Location location) {
+    public StoveSnapshot snapshot(Location location) {
         Location normalized = ManagerSupport.normalize(location);
         if (normalized == null) {
             return null;
@@ -554,7 +545,7 @@ public class StoveManager {
                 progress.add(stove.cookingTime[slot]);
                 durations.add(stove.maxTime[slot]);
             }
-            return new com.huidu.farmersdelight.api.block.StoveSnapshot(
+            return new StoveSnapshot(
                     normalized, items, progress, durations, lit, stove.blockedAbove);
         }
     }
@@ -577,8 +568,6 @@ public class StoveManager {
                 tickTask = null;
             }
         }
-        burnLogic.shutdown();
-        burnLogic.clearAll();
         for (StoveData stove : stoves.values()) {
             visualManager.cleanupAllVisuals(stove);
         }
@@ -724,6 +713,16 @@ public class StoveManager {
     }
 
     private void tickStove(Location location, StoveData stove) {
+        PerformanceMonitor.Timing timing = plugin.getTickManager().featureTiming(PerformanceMonitor.Feature.STOVE);
+        long started = timing == null ? 0L : System.nanoTime();
+        try {
+            advanceCooking(location, stove);
+        } finally {
+            if (timing != null) timing.record(System.nanoTime() - started);
+        }
+    }
+
+    private void advanceCooking(Location location, StoveData stove) {
         if (stoves.get(location) != stove) {
             return;
         }
@@ -785,14 +784,8 @@ public class StoveManager {
             debug(() -> "tick state: lit=" + isLit + ", hasAnyItem=" + hasAnyItem(stove)
                     + ", location=" + formatLocation(location));
         }
-        // Cache the "any player within particle/sound range" check once per tick so the per-slot
-        // random rolls and broadcast calls below are skipped on empty regions. Bukkit drops packets
-        // for far players internally, but the random + spawnParticle call cost still scales with
-        // (stove count × tick rate). The cookingTime progression stays unconditional.
-        // Use the chunk-holder tracked-player set (R-PERF-005) + per-player distance²: spark showed
-        // world.getNearbyPlayers is the #2 CPU hot (~65k samples in a 3000-stove test) because it
-        // walks the full online-player list per stove. The chunk-tracked set is typically <10 and
-        // Paper maintains it as O(1) off the chunk holder.
+        // Cache chunk observers for the current tick and filter by distance for each stove.
+        // This avoids a world-wide player lookup per stove; cooking progress does not depend on viewers.
         int stoveChunkX = location.getBlockX() >> 4;
         int stoveChunkZ = location.getBlockZ() >> 4;
         // Per-chunk per-tick effect context: one getPlayersSeeingChunk lookup shared by every stove in
@@ -804,21 +797,22 @@ public class StoveManager {
         // permanently silence 3/4 of chunks. The chunk was checked loaded at the top of this method and
         // cannot unload within the same region tick, so getChunkAt cannot trigger a sync load here.
         long chunkKey = ManagerSupport.chunkKey(stoveChunkX, stoveChunkZ);
-        if (currentBukkitTick != effectBudgetResetTick) {
-            chunkFx.clear();
-            effectBudgetResetTick = currentBukkitTick;
-        }
         ChunkFxContext fx = chunkFx.computeIfAbsent(world.getUID(), w -> new ConcurrentHashMap<>())
                 .computeIfAbsent(chunkKey, k -> new ChunkFxContext());
+        // A chunk is only ticked by the one region that owns it, so this comparison is against that
+        // region's own clock and the reset happens exactly once per tick per chunk.
+        if (fx.budgetTick != currentBukkitTick) {
+            fx.budgetTick = currentBukkitTick;
+            fx.budget.set(0);
+            fx.seeing = null;
+        }
         List<Player> seeingPlayers = fx.seeing;
         if (seeingPlayers == null) {
             seeingPlayers = List.copyOf(world.getChunkAt(stoveChunkX, stoveChunkZ).getPlayersSeeingChunk());
             fx.seeing = seeingPlayers;
         }
-        // Filter the cached chunk set down to this stove's effect range once, into a reusable per-thread
-        // list. The list is both the "any player near?" gate and the exact recipient set for the
-        // particle/sound sends below, so we target player.spawnParticle/playSound instead of
-        // world.spawnParticle, which re-walks the whole world player list per call (R-PERF-006).
+        // Filter chunk observers into a per-thread list and send directly to those recipients.
+        // This avoids repeating a world-wide player scan for each particle or sound broadcast.
         List<Player> nearbyViewers = NEARBY_VIEWER_SCRATCH.get();
         nearbyViewers.clear();
         double viewDsq = effectViewerDistance * effectViewerDistance;
@@ -890,6 +884,9 @@ public class StoveManager {
             removeStoredData(location);
             removeTrackedStove(location);
         }
+        // Drop the player references as soon as the emission ends: this scratch list is cached on the region
+        // thread, which outlives the players it last saw.
+        nearbyViewers.clear();
     }
 
     private boolean isStoveLit(ImmutableBlockState state) {
@@ -916,7 +913,7 @@ public class StoveManager {
             return false;
         }
 
-        org.bukkit.util.BoundingBox grillingArea = new org.bukkit.util.BoundingBox(
+        BoundingBox grillingArea = new BoundingBox(
                 3.0D / 16.0D,
                 0.0D,
                 3.0D / 16.0D,
@@ -932,7 +929,7 @@ public class StoveManager {
         if (input == null) return;
 
         CookingRecipe<?> recipe = findCampfireRecipe(input);
-        debug("finish cooking: slot=" + slot + ", input=" + formatItem(input)
+        debug(() -> "finish cooking: slot=" + slot + ", input=" + formatItem(input)
                 + ", recipe=" + (recipe != null ? recipe.getKey() : "null")
                 + ", location=" + formatLocation(location));
         ItemStack result = recipe != null ? recipe.getResult() : input;
@@ -966,13 +963,18 @@ public class StoveManager {
         for (int i = 0; i < SLOT_COUNT; i++) {
             if (stove.items[i] != null && !stove.items[i].getType().isAir()) {
                 location.getWorld().dropItemNaturally(location.clone().add(0.5, 1.0, 0.5), stove.items[i].clone());
-                stove.items[i] = null;
-                stove.cookingTime[i] = 0;
-                stove.maxTime[i] = defaultCookTime;
-                stove.ownerIds[i] = null;
-                stove.ownerNames[i] = null;
+                clearSlot(stove, i);
             }
         }
+    }
+
+    /** Clears one slot's item, timer and owner attribution; shared by every path that removes a slot. */
+    private void clearSlot(StoveData stove, int slot) {
+        stove.items[slot] = null;
+        stove.cookingTime[slot] = 0;
+        stove.maxTime[slot] = defaultCookTime;
+        stove.ownerIds[slot] = null;
+        stove.ownerNames[slot] = null;
     }
 
     private void spawnCookingParticles(List<Player> viewers, Location location, int slot, BlockFace facing) {
@@ -1010,20 +1012,13 @@ public class StoveManager {
         }
 
         ItemStack toReturn = item.clone();
-        stove.items[slot] = null;
-        stove.cookingTime[slot] = 0;
-        stove.maxTime[slot] = defaultCookTime;
-        stove.ownerIds[slot] = null;
-        stove.ownerNames[slot] = null;
+        clearSlot(stove, slot);
         visualManager.removeVisual(location, stove, slot);
 
         if (player.getInventory().getItemInMainHand().getType().isAir()) {
             player.getInventory().setItemInMainHand(toReturn);
         } else {
-            Map<Integer, ItemStack> leftovers = player.getInventory().addItem(toReturn);
-            for (ItemStack leftover : leftovers.values()) {
-                location.getWorld().dropItemNaturally(location.clone().add(0.5, 1.0, 0.5), leftover);
-            }
+            ItemDelivery.giveOrDrop(player, location.clone().add(0.5, 1.0, 0.5), toReturn);
         }
 
         // Mark unconditionally: with other slots still occupied the disk copy would otherwise keep the
@@ -1084,16 +1079,16 @@ public class StoveManager {
     private void saveStove(Location location, StoveData stove) {
         Location normalized = ManagerSupport.normalize(location);
         if (stove == null || !hasAnyItem(stove)) {
-            debug("save state: removing persisted stove state at " + formatLocation(normalized));
+            debug(() -> "save state: removing persisted stove state at " + formatLocation(normalized));
             markStoveDirty(normalized);
             return;
         }
 
         markStoveDirty(normalized);
-        debug("save state: slots=" + countSavedSlots(stove) + ", location=" + formatLocation(normalized));
+        debug(() -> "save state: slots=" + countSavedSlots(stove) + ", location=" + formatLocation(normalized));
     }
 
-    public Map<String, Object> exportStoveData(org.bukkit.World world, BlockPosKey posKey) {
+    public Map<String, Object> exportStoveData(World world, BlockPosKey posKey) {
         if (world == null || posKey == null) {
             return Map.of();
         }
@@ -1105,18 +1100,40 @@ public class StoveManager {
         for (int i = 0; i < SLOT_COUNT; i++) {
             ItemStack item = stove.items[i];
             if (item != null && !item.getType().isAir()) {
-                data.put("slot_" + i + "_item", item.clone());
-                data.put("slot_" + i + "_progress", stove.cookingTime[i]);
-                data.put("slot_" + i + "_duration", stove.maxTime[i]);
+                data.put(slotItemKey(i), item.clone());
+                data.put(slotProgressKey(i), stove.cookingTime[i]);
+                data.put(slotDurationKey(i), stove.maxTime[i]);
                 if (stove.ownerIds[i] != null) {
-                    data.put("slot_" + i + "_owner_id", stove.ownerIds[i].toString());
+                    data.put(slotOwnerIdKey(i), stove.ownerIds[i].toString());
                 }
                 if (stove.ownerNames[i] != null) {
-                    data.put("slot_" + i + "_owner_name", stove.ownerNames[i]);
+                    data.put(slotOwnerNameKey(i), stove.ownerNames[i]);
                 }
             }
         }
         return data;
+    }
+
+    // Persisted slot field names, shared by the load and export paths so the two sides cannot drift apart
+    // and silently drop a field from saved stoves.
+    private static String slotItemKey(int slot) {
+        return "slot_" + slot + "_item";
+    }
+
+    private static String slotProgressKey(int slot) {
+        return "slot_" + slot + "_progress";
+    }
+
+    private static String slotDurationKey(int slot) {
+        return "slot_" + slot + "_duration";
+    }
+
+    private static String slotOwnerIdKey(int slot) {
+        return "slot_" + slot + "_owner_id";
+    }
+
+    private static String slotOwnerNameKey(int slot) {
+        return "slot_" + slot + "_owner_name";
     }
 
     private int countSavedSlots(StoveData stove) {

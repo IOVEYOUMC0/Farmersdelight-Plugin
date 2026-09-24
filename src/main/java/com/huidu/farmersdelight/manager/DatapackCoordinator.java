@@ -5,6 +5,7 @@ import com.huidu.farmersdelight.advancement.AdvancementDatapackInstaller;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
+import org.bukkit.World;
 
 import java.nio.file.Path;
 import java.util.logging.Level;
@@ -55,7 +56,7 @@ public final class DatapackCoordinator {
         if (removalQueued) {
             return;
         }
-        org.bukkit.World primaryWorld = plugin.getPrimaryWorld();
+        World primaryWorld = plugin.getPrimaryWorld();
         if (primaryWorld == null) {
             return;
         }

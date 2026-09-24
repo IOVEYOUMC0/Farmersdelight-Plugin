@@ -1,8 +1,9 @@
 package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.CommonTagResolver;
-import com.huidu.farmersdelight.util.DatapackSupport;
+import com.huidu.farmersdelight.api.util.DatapackSupport;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.event.EventHandler;
@@ -17,6 +18,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Collections;
+import java.util.HashSet;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.stream.Stream;
@@ -53,7 +56,7 @@ public final class TagDatapackInstaller implements Listener {
     public void onServerLoad(ServerLoadEvent event) {
         if (installToPrimaryWorld(plugin.getPrimaryWorld())) {
             plugin.queueDatapackReload(
-                    com.huidu.farmersdelight.i18n.I18n.formatConsole("plugin.datapack_reason_apply_tag_changes"));
+                    I18n.formatConsole("plugin.datapack_reason_apply_tag_changes"));
         }
     }
 
@@ -124,7 +127,7 @@ public final class TagDatapackInstaller implements Listener {
                 }
             }
             if (!vanilla.isEmpty()) {
-                result.put(entry.getKey(), java.util.Collections.unmodifiableSet(new LinkedHashSet<>(vanilla)));
+                result.put(entry.getKey(), Collections.unmodifiableSet(new LinkedHashSet<>(vanilla)));
             }
         }
         return result;
@@ -145,7 +148,7 @@ public final class TagDatapackInstaller implements Listener {
     }
 
     private static int deleteStaleFiles(Path root, List<GeneratedFile> generated) throws IOException {
-        Set<Path> expected = new java.util.HashSet<>();
+        Set<Path> expected = new HashSet<>();
         for (GeneratedFile file : generated) {
             expected.add(file.path().toAbsolutePath().normalize());
         }

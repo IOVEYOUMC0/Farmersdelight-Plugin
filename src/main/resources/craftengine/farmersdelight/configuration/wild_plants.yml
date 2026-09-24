@@ -66,7 +66,7 @@ blocks:
       - type: farmersdelight:wild_plant
         is-bone-meal-target: true
     state:
-      auto-state: sugar_cane
+      auto_state: sugar_cane
       models:
         - path: farmersdelight:block/wild_cabbages
     loot:
@@ -127,7 +127,7 @@ blocks:
       - type: farmersdelight:wild_plant
         is-bone-meal-target: true
     state:
-      auto-state: sugar_cane
+      auto_state: sugar_cane
       models:
         - path: farmersdelight:block/wild_onions
     loot:
@@ -176,7 +176,7 @@ blocks:
       - type: farmersdelight:wild_plant
         is-bone-meal-target: true
     state:
-      auto-state: sugar_cane
+      auto_state: sugar_cane
       models:
         - path: farmersdelight:block/wild_tomatoes
     loot:
@@ -244,10 +244,10 @@ blocks:
           default: lower
       appearances:
         half=lower:
-          auto-state: kelp
+          auto_state: kelp
           model: farmersdelight:block/wild_rice_bottom
         half=upper:
-          auto-state: higher_tripwire
+          auto_state: higher_tripwire
           model: farmersdelight:block/wild_rice_top
       variants:
         half=lower:

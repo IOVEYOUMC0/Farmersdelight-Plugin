@@ -7,6 +7,7 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.ApiStatus;
 
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -18,10 +19,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public final class CustomBuffRegistry {
 
     private static final List<CustomBuff> ENTRIES = new CopyOnWriteArrayList<>();
-    // Parallel id→buff index so PAPI placeholder lookups (called from HUD plugins at tick rate ×
-    // online-player count × placeholder count) avoid the prior O(N) linear scan + ArrayList copy.
-    // Kept in sync with ENTRIES under the assumption that register/unregister only fire on plugin
-    // enable/disable — those code paths are single-threaded and rare, so the two-store cost is fine.
+    // Index buffs by ID for frequent placeholder lookups without scanning the registration list.
+    // Registration and removal update both stores during the plugin lifecycle.
     private static final Map<String, CustomBuff> BY_ID = new ConcurrentHashMap<>();
     private static final List<CustomBuff> ENTRIES_VIEW = Collections.unmodifiableList(ENTRIES);
     // Last level observed per (player, buff id) — the diff cache that turns the "push the current
@@ -31,11 +30,9 @@ public final class CustomBuffRegistry {
     // to remember. An entry is dropped as soon as the level returns to 0, so the map holds only
     // currently-buffed players; forget drops what is left when a player disconnects still buffed.
     private static final Map<UUID, Map<String, Integer>> LAST_LEVELS = new ConcurrentHashMap<>();
-    // Buff master switch, mirrored here from FarmersDelight's config (buff.enabled) so every entry point can
-    // check it with one field read instead of reaching back through the plugin singleton. Written by the
-    // config load / reload path and read from region and tick threads, so it is volatile (R-CONC-002).
-    // Registration still works while it is off — an addon enabling into a switched-off server must not fail,
-    // it just gets no grants until an admin turns the system back on.
+    // Cache buff.enabled for a single-field check at every entry point.
+    // The reload path publishes this volatile value to region and tick threads.
+    // Addons may still register buffs while disabled; only granting buffs is suppressed.
     private static volatile boolean systemEnabled = true;
 
     private CustomBuffRegistry() {
@@ -256,8 +253,23 @@ public final class CustomBuffRegistry {
         return removed;
     }
 
-    public static java.util.List<CustomBuff> activeBuffs(Player player) {
-        java.util.List<CustomBuff> active = new java.util.ArrayList<>();
+    /** Removes one named buff with the same exception isolation and transition sync as clearAll. */
+    public static boolean clear(Player player, String id) {
+        if (player == null || id == null) return false;
+        CustomBuff buff = byId(id);
+        if (buff == null) return false;
+        try {
+            if (!buff.isActive(player)) return false;
+            buff.remove(player);
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+        syncState(player, buff);
+        return true;
+    }
+
+    public static List<CustomBuff> activeBuffs(Player player) {
+        List<CustomBuff> active = new ArrayList<>();
         if (player == null) {
             return active;
         }

@@ -131,6 +131,39 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         return data;
     }
 
+    /**
+     * The drop's data when only the ready meal is packed: the pending slots' meals plus the serving container
+     * they still owe, every other slot empty and no cooking progress. Used where the pot contents are scattered
+     * instead of packed — a meal in a pending slot has already been paid for with the ingredients and has not
+     * consumed its serving container, so it is packed rather than spilled (dropping it loose would hand out a
+     * free bowl) or deleted. The mod packs that slot on every break path.
+     */
+    public static CompoundTag savePendingMealData(CookingPotBlockEntity entity) {
+        CompoundTag data = new CompoundTag();
+        data.putInt(DATA_VERSION, VersionHelper.WORLD_VERSION);
+        synchronized (entity.getLock()) {
+            ItemStack[] inventory = entity.getInventoryInternal();
+            ItemStack[] packed = new ItemStack[inventory.length];
+            for (int slot : entity.getLayout().pendingOutputSlots()) {
+                if (slot >= 0 && slot < packed.length) {
+                    packed[slot] = inventory[slot];
+                }
+            }
+            data.put(ITEMS, ItemStackUtils.saveBukkitItemsAsListTag(packed));
+        }
+        // The packed meal is finished; any in-flight batch belongs to the ingredients that stay behind.
+        data.putInt(COOKING_PROGRESS, 0);
+        data.putInt(COOKING_DURATION, entity.getCookingDuration());
+        ItemStack mealContainer = entity.getMealContainer();
+        if (mealContainer != null && !mealContainer.getType().isAir()) {
+            Tag mealContainerTag = ItemUtils.saveBukkitItemAsTag(mealContainer);
+            if (mealContainerTag != null) {
+                data.put(MEAL_CONTAINER, mealContainerTag);
+            }
+        }
+        return data;
+    }
+
     @Override
     public void loadCustomData(CompoundTag tag) {
         CompoundTag data = tag.getCompound(this.behavior.getCustomDataKey());
@@ -195,7 +228,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
                     dataVersion);
         } catch (RuntimeException e) {
             // Corrupt/version-skewed inventory: load empty rather than aborting the whole block-entity load.
-            com.huidu.farmersdelight.FarmersDelightPlugin.getInstance().getLogger()
+            FarmersDelightPlugin.getInstance().getLogger()
                     .warning("Skipping unreadable cooking pot inventory: " + e.getMessage());
             items = new ItemStack[entity.getInventorySize()];
         }
@@ -210,7 +243,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
             try {
                 entity.setMealContainer(ItemStackUtils.parseBukkitItem(mealContainerTag, dataVersion));
             } catch (RuntimeException e) {
-                com.huidu.farmersdelight.FarmersDelightPlugin.getInstance().getLogger()
+                FarmersDelightPlugin.getInstance().getLogger()
                         .warning("Skipping unreadable cooking pot meal container: " + e.getMessage());
                 entity.setMealContainer(null);
             }

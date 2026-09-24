@@ -1,4 +1,4 @@
-package com.huidu.farmersdelight.util;
+package com.huidu.farmersdelight.api.util;
 
 import org.bukkit.Bukkit;
 import org.bukkit.World;
@@ -80,11 +80,70 @@ public final class DatapackSupport {
 
     // Exposed with an explicit version so installers can be unit-tested without a live server.
     public static String renderPackMetadata(String description, String version) {
-        PackFormat format = packFormatFor(version);
+        PackFormat format = serverDataPackFormat();
+        if (format == null) {
+            format = packFormatFor(version);
+        }
         String line = format.range
                 ? "    \"min_format\": " + format.value + ",\n    \"max_format\": " + MAX_RANGE_FORMAT
                 : "    \"pack_format\": " + format.value;
         return "{\n  \"pack\": {\n" + line + ",\n    \"description\": \"" + description + "\"\n  }\n}\n";
+    }
+
+    // Ask the running server for its own data-pack format instead of mapping it from the version string.
+    // The table below only ever knew the releases it was written for, and it answered 88 for everything
+    // newer -- 88 is 26.2's RESOURCE pack major, while its DATA major is 107, so the generated packs
+    // declared a format outside the server's accepted range and were skipped. A skipped pack still has
+    // its tag files read, so minecraft:on_random_loot ended up referencing an enchantment that was never
+    // registered, and every vanilla loot table using that tag failed to parse.
+    //
+    // 1.21.4 exposes getPackVersion(PackType) returning an int; 26.x renamed it to packVersion(PackType)
+    // and returns a PackFormat record. Both are reached reflectively so one jar covers the whole range.
+    private static PackFormat serverDataPackFormat() {
+        try {
+            Class<?> shared = Class.forName("net.minecraft.SharedConstants");
+            Object worldVersion = null;
+            for (String name : new String[]{"getCurrentVersion", "currentVersion"}) {
+                try {
+                    worldVersion = shared.getMethod(name).invoke(null);
+                    break;
+                } catch (NoSuchMethodException ignored) {
+                    // try the other spelling
+                }
+            }
+            if (worldVersion == null) {
+                return null;
+            }
+            Class<?> packTypeClass = Class.forName("net.minecraft.server.packs.PackType");
+            Object serverData = null;
+            for (Object constant : packTypeClass.getEnumConstants()) {
+                if ("SERVER_DATA".equals(((Enum<?>) constant).name())) {
+                    serverData = constant;
+                    break;
+                }
+            }
+            if (serverData == null) {
+                return null;
+            }
+            for (String name : new String[]{"packVersion", "getPackVersion"}) {
+                try {
+                    Object result = worldVersion.getClass()
+                            .getMethod(name, packTypeClass).invoke(worldVersion, serverData);
+                    if (result instanceof Integer value) {
+                        // 1.21.4-1.21.8: a bare major, written as a single pack_format.
+                        return new PackFormat(value, false);
+                    }
+                    // 1.21.9+: a PackFormat record; its major is what pack.mcmeta needs.
+                    Object major = result.getClass().getMethod("major").invoke(result);
+                    return new PackFormat(((Number) major).intValue(), true);
+                } catch (NoSuchMethodException ignored) {
+                    // try the other spelling
+                }
+            }
+        } catch (Throwable ignored) {
+            // Any linkage or access failure falls back to the version table below.
+        }
+        return null;
     }
 
     private static final int MAX_RANGE_FORMAT = 150;

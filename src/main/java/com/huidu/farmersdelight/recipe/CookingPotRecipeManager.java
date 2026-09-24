@@ -20,10 +20,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.ToIntFunction;
+import com.huidu.farmersdelight.api.recipe.AddonRecipeFiles;
+import com.huidu.farmersdelight.gui.RecipeViewGui;
+import com.huidu.farmersdelight.util.CommonTagResolver;
 
 public class CookingPotRecipeManager {
 
@@ -47,7 +51,7 @@ public class CookingPotRecipeManager {
     // LRU access-order LinkedHashMap mutates internal state on get(), so concurrent reads from
     // multiple region threads (Folia) would corrupt the doubly-linked list. Wrap in synchronizedMap;
     // callers MUST synchronize externally when iterating (currently no iteration happens).
-    private final Map<String, CookingPotRecipe> recipeCache = java.util.Collections.synchronizedMap(
+    private final Map<String, CookingPotRecipe> recipeCache = Collections.synchronizedMap(
             new LinkedHashMap<>(MAX_CACHE_SIZE + 1, 0.75f, true) {
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<String, CookingPotRecipe> eldest) {
@@ -62,7 +66,7 @@ public class CookingPotRecipeManager {
     // Negative-result cache: input+container multisets known to match nothing, so an unchanged incomplete
     // pot (mid-fill, hopper-fed, or junk) does not re-scan every recipe each tick. Bounded LRU like
     // recipeCache, only touched under the recipeCache monitor, cleared + generation-bumped alongside it.
-    private final Set<String> recipeMisses = java.util.Collections.newSetFromMap(
+    private final Set<String> recipeMisses = Collections.newSetFromMap(
             new LinkedHashMap<String, Boolean>(MAX_CACHE_SIZE + 1, 0.75f, false) {
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
@@ -105,6 +109,7 @@ public class CookingPotRecipeManager {
         Set<String> newValidContainerKeys = new HashSet<>();
 
         YamlConfiguration config = RecipeFileLoader.loadRecipeFile(plugin, "recipes/cooking_pot_recipes.yml");
+        Set<String> overriddenExternalIds = externalOverrideIds(config, "cooking_pot");
         RecipeFileLoader.loadRecipeSections(plugin, config, "cooking_pot_recipes", "cooking pot",
                 "recipes/cooking_pot_recipes.yml", (recipeId, section) -> {
                     CookingPotRecipe recipe = parseRecipe(recipeId, section, 6);
@@ -135,11 +140,14 @@ public class CookingPotRecipeManager {
             loadCustomRecipes(loaded.config(), newCustomRecipes, newCustomIngredientToRecipes, newValidContainerKeys);
         }
 
-        // Merge addon-registered recipes last so they survive reloads (and override file ids on clash).
+        // Merge addon-registered recipes last so they survive reloads; an editor override is explicit and wins.
         for (CookingPotRecipe recipe : externalRecipes.values()) {
-            newRecipes.put(recipe.getId(), recipe);
-            indexDefaultRecipe(newIngredientToRecipes, recipe.getId(), recipe);
-            indexContainer(newValidContainerKeys, recipe);
+            if (!overriddenExternalIds.contains(recipe.getId()) || !newRecipes.containsKey(recipe.getId())
+                    || AddonRecipeFiles.ownerOf("cooking_pot", recipe.getId()) != null) {
+                newRecipes.put(recipe.getId(), recipe);
+                indexDefaultRecipe(newIngredientToRecipes, recipe.getId(), recipe);
+                indexContainer(newValidContainerKeys, recipe);
+            }
         }
 
         List<CookingPotRecipe> newSortedRecipes = sortedRecipeList(newRecipes);
@@ -178,7 +186,7 @@ public class CookingPotRecipeManager {
         }
         // Invalidate the recipe-list GUI display cache: this republish path (incl. addon register/
         // unregister) bypasses RecipeViewGui.clearConfigCache.
-        com.huidu.farmersdelight.gui.RecipeViewGui.clearRecipeDisplayCache();
+        RecipeViewGui.clearRecipeDisplayCache();
         // The decoded-snapshot cache is keyed by strings owned by the recipes being replaced, so it is
         // dropped with them rather than being left to hold entries no recipe references any more.
         RecipeItemCodec.clearDecodeCache();
@@ -262,7 +270,7 @@ public class CookingPotRecipeManager {
             if (customId != null) {
                 containerKeys.add(customId);
             }
-            containerKeys.add("minecraft:" + container.getType().name().toLowerCase(java.util.Locale.ROOT));
+            containerKeys.add("minecraft:" + container.getType().name().toLowerCase(Locale.ROOT));
         }
     }
 
@@ -367,7 +375,7 @@ public class CookingPotRecipeManager {
         if (ingredient instanceof RecipeIngredient.Tag tag) {
             return !plugin.getCraftEngine().itemManager().itemIdsByTag(tag.key()).isEmpty()
                     || !getVanillaItemIdsByTag(tag.key()).isEmpty()
-                    || !com.huidu.farmersdelight.util.CommonTagResolver.getMembers(tag.key()).isEmpty();
+                    || !CommonTagResolver.getMembers(tag.key()).isEmpty();
         }
         if (ingredient instanceof RecipeIngredient.Choice choice) {
             return choice.options().stream().anyMatch(this::ingredientHasMembers);
@@ -665,15 +673,10 @@ public class CookingPotRecipeManager {
     }
 
     private boolean matchRecipePrefiltered(CookingPotRecipe recipe, List<ItemStack> nonEmptyInputs, boolean exactSlots) {
-        // Unit budget per filled slot. The exact pass mirrors the mod's CookingPotRecipe.matches, which pairs
-        // filled input STACKS against ingredients (RecipeMatcher.findMatches over the stack list) and then
-        // shrinks every filled slot by exactly one on cook. Feeding the slot's amount as its unit budget lets
-        // one stacked slot cover several ingredients, so with slotCount == ingredientCount the matcher can
-        // report a match while another filled slot participates in nothing and is never consumed. Capping the
-        // exact pass at one unit per slot forces the perfect matching the mod requires: every filled slot must
-        // carry exactly one ingredient. The lenient pass keeps the amount budget on purpose — that pass exists
-        // for the same ingredient spread over several slots, and it separately requires every filled slot to
-        // hold an item the recipe can use.
+        // Exact matching gives each filled slot a budget of one unit so every slot matches one ingredient.
+        // Using stack amounts here could satisfy several ingredients from one slot and leave another unused.
+        // Lenient matching uses stack amounts to support ingredients spread across slots,
+        // while separately requiring every filled slot to contain a usable ingredient.
         ToIntFunction<ItemStack> unitBudget = exactSlots ? slot -> 1 : ItemStack::getAmount;
         return IngredientMatching.matchesIngredients(
                 recipe.getIngredients(), nonEmptyInputs, exactSlots,
@@ -682,20 +685,6 @@ public class CookingPotRecipeManager {
 
     public boolean canCraft(CookingPotRecipe recipe, List<ItemStack> inputs) {
         return recipe != null && matchRecipe(recipe, inputs);
-    }
-
-    public boolean containsIngredientsFor(CookingPotRecipe recipe, List<ItemStack> available) {
-        if (recipe == null) {
-            return false;
-        }
-        List<ItemStack> nonEmpty = new ArrayList<>();
-        for (ItemStack item : available) {
-            if (item != null && !item.getType().isAir()) {
-                nonEmpty.add(item);
-            }
-        }
-        return IngredientMatching.containsIngredients(
-                recipe.getIngredients(), nonEmpty, this::matchIngredient, ItemStack::getAmount);
     }
 
     public boolean matchesIngredient(ItemStack item, RecipeIngredient ingredient) {
@@ -822,6 +811,14 @@ public class CookingPotRecipeManager {
 
     public int getExternalRecipeCount() {
         return externalRecipes.size();
+    }
+
+    public boolean isExternalRecipe(String id) {
+        return id != null && externalRecipes.containsKey(id);
+    }
+
+    private static Set<String> externalOverrideIds(YamlConfiguration config, String station) {
+        return Set.copyOf(config.getStringList("external-overrides." + station));
     }
 
     public int getCustomRecipeCount() {

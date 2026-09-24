@@ -6,8 +6,6 @@ import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
 
 // Pure tool-recognition logic for the cutting board: decides whether an item can act as a cutting tool
 // against the configured tag / item allowlists. Carries the per-instance config lists so the block
@@ -41,27 +39,9 @@ final class CuttingBoardToolMatcher {
             return true;
         }
 
-        String customId = ItemUtils.getCustomItemId(item);
-        if (customId != null) {
-            Set<Key> itemTags = ItemUtils.getCustomItemTags(Key.of(customId));
-            for (Key tag : toolTags) {
-                if (itemTags.contains(tag)) {
-                    return true;
-                }
-            }
-        }
-
-        String vanillaId = "minecraft:" + item.getType().name().toLowerCase(Locale.ROOT);
         for (Key toolTag : toolTags) {
-            if (!"minecraft".equals(toolTag.namespace())) {
-                continue;
-            }
-            var vanillaItems = FarmersDelightPlugin.getInstance().getCraftEngine().itemManager()
-                    .vanillaItemIdsByTag(toolTag);
-            for (var vanillaItem : vanillaItems) {
-                if (vanillaItem.toString().equals(vanillaId)) {
-                    return true;
-                }
+            if (ItemUtils.matchesCustomOrVanillaTag(item, toolTag.toString())) {
+                return true;
             }
         }
 
@@ -69,8 +49,7 @@ final class CuttingBoardToolMatcher {
     }
 
     private boolean isKnifeTool(ItemStack item) {
-        String customId = ItemUtils.getCustomItemId(item);
-        return FarmersDelightPlugin.getInstance().isKnifeItemId(customId);
+        return FarmersDelightPlugin.getInstance().isKnife(item);
     }
 
     private boolean isAxeTool(ItemStack item) {

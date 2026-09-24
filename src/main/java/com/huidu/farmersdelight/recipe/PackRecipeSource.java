@@ -38,6 +38,11 @@ final class PackRecipeSource {
 
         List<Loaded> result = new ArrayList<>();
         for (Pack pack : packManager.loadedPacks()) {
+            // A pack with enable: false keeps its files on disk and stays in loadedPacks, but CraftEngine
+            // registers none of its items, so its recipes could only resolve to nothing.
+            if (!pack.enabled()) {
+                continue;
+            }
             Path recipeDir = pack.folder().resolve("farmersdelight");
             if (!Files.isDirectory(recipeDir)) {
                 continue;

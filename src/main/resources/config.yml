@@ -64,9 +64,14 @@ enchantments:
           - minecraft:fortune
           - minecraft:vanishing_curse
           - $backstabbing
-      # Anvil auto-inherits this group's table list and also allows mending.
+      # The anvil accepts everything the table offers, plus extra-enchantments below. Listing an enchant
+      # here and NOT in the table list makes it anvil-only: applicable from a book, never offered by the
+      # enchanting table. That is how vanilla treats mending. An empty list means the anvil accepts
+      # exactly the table list and nothing more.
       anvil:
         enabled: true
+        extra-enchantments:
+          - minecraft:mending
 
     skillet:
       table:
@@ -82,9 +87,11 @@ enchantments:
           - minecraft:knockback
           - minecraft:looting
           - minecraft:vanishing_curse
-      # Anvil auto-inherits this group's table list and also allows mending.
+      # Anvil-only additions on top of the table list; see the knives group above.
       anvil:
         enabled: true
+        extra-enchantments:
+          - minecraft:mending
 
     # Durability-only custom items (the farmersdelight:durable setting). They are not weapons, so the
     # whitelist defaults to just unbreaking and vanishing_curse; the anvil inherits both and also allows
@@ -97,8 +104,11 @@ enchantments:
         enchantments:
           - minecraft:unbreaking
           - minecraft:vanishing_curse
+      # Anvil-only additions on top of the table list; see the knives group above.
       anvil:
         enabled: true
+        extra-enchantments:
+          - minecraft:mending
 
   backstabbing:
     enabled: true
@@ -130,8 +140,9 @@ enchantments:
 # Set to ["all"] or ["*"] to temporarily enable every category.
 debug:
   enabled: false
-  categories: []
-
+  categories:
+    # No entries.
+    []
 # Vanilla damage-type injection (farmersdelight_damage datapack): the custom farmersdelight:stove_burn
 # damage type used by the stove grilling surface, plus its no_knockback tag entry. Installed into
 # the primary world's datapacks/ folder and requires a server restart (or /reload) to take effect.
@@ -151,10 +162,13 @@ advancements:
   # Always keep these advancements visible, even when their CraftEngine content is missing.
   # Entries are the advancement id (master_chef) or tab-qualified (farmersdelight:master_chef).
   # A bare id applies to every registered tab, so prefer the tab-qualified form when addons add tabs.
-  force-enable: []
+  force-enable:
+    # No entries.
+    []
   # Always hide these advancements. Beats force-enable and automatic detection.
-  force-disable: []
-
+  force-disable:
+    # No entries.
+    []
 # CraftEngine resource auto-completion.
 # First startup always extracts the full built-in CraftEngine resources to CraftEngine/resources/farmersdelight.
 # When auto-completion=true, every later startup also restores deleted/missing resource files.
@@ -294,9 +308,8 @@ cutting-board:
   # default-display-rotation: 90,180,0
   # default-display-scale: 0.6
 
-  # Random spread range when multiple items stack on the board.
-  # 0.15 means x/z up to about +/-0.075 block, close to the original mod's look.
-  # Decrease if food looks too scattered, e.g. 0.08; increase to show stacking layers, e.g. 0.20.
+  # Random spread for stacked board items. A value of 0.15 allows X/Z offsets up to +/-0.075 blocks.
+  # Reduce it for a tighter pile or increase it to separate copies.
   display-item-spread: 0.1
 
   # Override the board display for a specific item.
@@ -620,16 +633,19 @@ heat-sources:
   entries:
     # An unlit campfire is not a heat source; the lit one is. Order matters: the negative comes first.
     - vanilla-block: minecraft:campfire
-      states: { lit: 'false' }
+      states:
+        lit: 'false'
       heat-source: false
     - vanilla-block: minecraft:soul_campfire
-      states: { lit: 'false' }
+      states:
+        lit: 'false'
       heat-source: false
     - vanilla-block-tag: minecraft:campfires
     # The stove heats only while lit. A CE block tag cannot express this: CraftEngine copies block-level
     # settings onto every state, so farmersdelight:heat_sources would match the unlit stove as well.
     - custom-block: farmersdelight:stove
-      states: { fire: 'true' }
+      states:
+        fire: 'true'
     - custom-block-tag: farmersdelight:heat_sources
     - vanilla-block: minecraft:hopper
       conductor: true
@@ -663,8 +679,9 @@ heat-sources:
     - minecraft:hopper
 
   # CraftEngine heat-conducting block tags.
-  conductor-tags: []
-
+  conductor-tags:
+    # No entries.
+    []
 # Mushroom colony block placement rules. Growth speed, age and drops are still configured in CraftEngine mushrooms.yml.
 mushroom-colonies:
   placement:
@@ -688,7 +705,17 @@ rope:
 
 # Skillet configuration.
 skillet:
-  # true = when hopper-interactions.enabled is on, the skillet allows hopper ingredient input; results still pop out directly per the original mod behavior, with no hopper output slot.
+  handheld:
+    # Enables portable cooking by right-clicking a skillet near a configured heat source.
+    # Also gates automatic handheld model generation and merging into the CE resource pack.
+    enabled: true
+    progress-display:
+      # Sends a client-only durability bar every 4 ticks; real item durability is never replaced.
+      # When disabled, unchanged cooking models need no periodic display packets.
+      enabled: true
+
+  # Allow hopper ingredient input when hopper-interactions.enabled is on.
+  # Results pop out above the skillet; there is no hopper output slot.
   hopper-interactions: true
 
   # Max active skillets processed every 4 ticks.
@@ -707,9 +734,8 @@ skillet:
     cooling-decrement: 2
 
   heat:
-    # true = the skillet also takes heat from a source one block further down, through a conductor listed in
-    # heat-sources.conductors (a hopper). This matches the original mod, whose skillet does not require direct
-    # heat, so it is on by default. Set to false to make the skillet accept only a heat source directly below.
+    # When true, heat can pass through a heat-sources.conductors block such as a hopper
+    # from a source two blocks below the skillet. When false, require heat directly below.
     allow-conductors: true
 
   effects:
@@ -738,12 +764,11 @@ skillet:
     # Supports the same position/translation/rotation/scale/display-overrides/display-tag-overrides as the cutting board.
     # rotation overrides the automatic facing; for per-item or per-tag tweaks, prefer writing them in overrides.
     # rotation: 90,0,0
-    # Base height of the food display entity, about 0.1 in the original mod.
+    # Base height of the food display entity in blocks.
     # If food sinks into the skillet, raise it slightly; if it floats noticeably, lower it slightly.
     y-offset: 0.1
-    # Random spread range of multiple foods on the skillet.
-    # About 0.15 in the original mod, i.e. up to about +/-0.075 block.
-    # If the x/z horizontal spread is too large, lower this value first.
+    # Random spread for multiple skillet items. A value of 0.15 allows offsets up to +/-0.075 blocks.
+    # Reduce it if the pile spreads too far along X/Z.
     item-spread: 0.15
     # display-overrides: {}
     # display-tag-overrides: {}
@@ -758,13 +783,6 @@ stove:
     default-cook-time: 600
     # How much cooking progress reverts per tick when the stove goes out; set to 0 for no revert.
     cooling-decrement: 2
-
-  # A lit stove burns living entities standing on its central grilling area. Burn damage/type is on the
-  # CraftEngine stove block; this only bounds the always-on poll.
-  burn:
-    # Radius (blocks) around each online player scanned for mobs to burn. Lower on high-population servers
-    # to shrink the per-player entity scan; also limits how far away mobs get grilled.
-    mob-scan-radius: 12.0
 
   effects:
     # How many blocks away a player must be for the stove to broadcast its particles/sounds. 32 = vanilla
@@ -857,8 +875,12 @@ buff:
     # hyphen/underscore tolerant. Addons (e.g. BrewinAndChewin) configure their own buff styles in
     # their own config.yml; this section only covers FD's two built-in buffs.
     styles:
-      nourishment: {color: GREEN, overlay: PROGRESS}
-      comfort:     {color: BLUE,  overlay: PROGRESS}
+      nourishment:
+        color: GREEN
+        overlay: PROGRESS
+      comfort:
+        color: BLUE
+        overlay: PROGRESS
 
   # Comfort mechanics. Assign Comfort to a CraftEngine food with an on-consume
   # farmersdelight:comfort function in that item's CE configuration.

@@ -7,6 +7,7 @@ import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.core.world.BlockPos;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.ExperienceOrb;
@@ -18,14 +19,15 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class CookingPotBlockEntity {
 
-    // Per-slot stack ceiling used by the comparator fill fraction, matching the default slot limit of the
-    // ItemStackHandler the mod's pot uses.
+    // Per-slot stack limit used when calculating comparator fullness.
     private static final int SLOT_STACK_LIMIT = 64;
 
     private final BlockPosKey posKey;
@@ -41,12 +43,16 @@ public class CookingPotBlockEntity {
     // Written by the cook tick on the pot's region, drained by awardUsedRecipes on the taking player's
     // region (a GUI viewer can stand in a different region). Concurrent map + atomic per-key removal so
     // neither side can lose a craft or trip over a resize.
-    private final Map<String, Integer> usedRecipeTracker = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<String, Integer> usedRecipeTracker = new ConcurrentHashMap<>();
     private final AtomicInteger cookingProgress = new AtomicInteger(0);
     private final AtomicInteger cookingDuration = new AtomicInteger(200);
     private final AtomicBoolean hasHeatSource = new AtomicBoolean(false);
     private final AtomicReference<CookingPotRecipe> currentRecipe = new AtomicReference<>(null);
-    private final AtomicReference<String> lastRecipeId = new AtomicReference<>(null);
+    // The recipe the accumulated cookingProgress belongs to. Only the pot tick replaces it (see
+    // beginCookingRecipe), so it survives the passes where no recipe matches at all — an ingredient swap
+    // normally goes through such a pass, and comparing against canCook's per-pass result would let the bar
+    // carry over into a different dish.
+    private final AtomicReference<String> progressRecipeId = new AtomicReference<>(null);
     // Recipe recorded by canCookInternal on the no-match to match transition, parked here until the
     // caller has released inventoryLock/cookingLock and can dispatch FarmersDelightCookStartEvent
     // without holding this block entity's monitors. Only the transition is recorded, so a pot that
@@ -126,10 +132,10 @@ public class CookingPotBlockEntity {
             this.recipeGroupId = normalizeBlank(newRecipeGroupId);
             if (this.layout.isDefault() == newLayout.isDefault()
                     && this.layout.size() == newLayout.size()
-                    && java.util.Arrays.equals(this.layout.inputSlots(), newLayout.inputSlots())
-                    && java.util.Arrays.equals(this.layout.pendingOutputSlots(), newLayout.pendingOutputSlots())
-                    && java.util.Arrays.equals(this.layout.outputSlots(), newLayout.outputSlots())
-                    && java.util.Arrays.equals(this.layout.containerSlots(), newLayout.containerSlots())) {
+                    && Arrays.equals(this.layout.inputSlots(), newLayout.inputSlots())
+                    && Arrays.equals(this.layout.pendingOutputSlots(), newLayout.pendingOutputSlots())
+                    && Arrays.equals(this.layout.outputSlots(), newLayout.outputSlots())
+                    && Arrays.equals(this.layout.containerSlots(), newLayout.containerSlots())) {
                 this.layout = newLayout;
                 return;
             }
@@ -489,7 +495,7 @@ public class CookingPotBlockEntity {
         Location location = currentWorld == null
                 ? null
                 : new Location(currentWorld, posKey.x(), posKey.y(), posKey.z());
-        org.bukkit.Bukkit.getPluginManager().callEvent(new FarmersDelightCookStartEvent(
+        Bukkit.getPluginManager().callEvent(new FarmersDelightCookStartEvent(
                 location, started.getId(), started.getResult(), started.getCookTime()));
     }
 
@@ -518,7 +524,6 @@ public class CookingPotBlockEntity {
             if (instance == null || !instance.getCookingPotRecipes()
                     .canCraft(recipe, getIngredientSlotsInternal())) {
                 currentRecipe.set(null);
-                lastRecipeId.set(null);
                 return false;
             }
         }
@@ -527,6 +532,8 @@ public class CookingPotBlockEntity {
         if (resultItem == null) return false;
 
         ItemStack outputItem = resultItem.clone();
+        CookingPotCraftingHandler.Consumption consumption = craftingHandler.prepareConsumption(recipe);
+        if (consumption == null) return false;
 
         boolean stored = storeCookedResult(outputItem, recipe);
         if (!stored) {
@@ -535,10 +542,9 @@ public class CookingPotBlockEntity {
             return false;
         }
 
-        consumeIngredients(recipe, world, blockLoc);
+        craftingHandler.consumeIngredientsInternal(consumption, world, blockLoc);
         cookingProgress.set(0);
         currentRecipe.set(null);
-        lastRecipeId.set(null);
 
         syncWorldlyContainer();
         fireCookFinished(world, blockLoc, recipe);
@@ -551,7 +557,7 @@ public class CookingPotBlockEntity {
         }
         // Notify addons (achievements, statistics, loot) that the pot produced a meal. The id is null when a
         // villager cooked, letting listeners tell player vs automated production via getPlayerId() == null.
-        org.bukkit.Bukkit.getPluginManager().callEvent(new FarmersDelightProduceEvent(
+        Bukkit.getPluginManager().callEvent(new FarmersDelightProduceEvent(
                 null, "cooking", recipe.getResult(), blockLoc));
     }
 
@@ -589,10 +595,9 @@ public class CookingPotBlockEntity {
             CookingPotRecipe previousRecipe = currentRecipe.get();
             if (previousRecipe != null
                     && instance.getCookingPotRecipes().canCraft(previousRecipe, inputItems)) {
-                if (hasRoomForResult(previousRecipe)) {
+                if (!hasRoomForResult(previousRecipe)) {
                     return false;
                 }
-                lastRecipeId.set(previousRecipe.getId());
                 currentRecipe.set(previousRecipe);
                 return true;
             }
@@ -602,22 +607,12 @@ public class CookingPotBlockEntity {
 
             if (recipe == null) {
                 currentRecipe.set(null);
-                lastRecipeId.set(null);
                 return false;
             }
 
-            if (hasRoomForResult(recipe)) {
+            if (!hasRoomForResult(recipe)) {
                 return false;
             }
-
-            String newRecipeId = recipe.getId();
-            String lastId = lastRecipeId.get();
-
-            if (lastId != null && !newRecipeId.equals(lastId)) {
-                cookingProgress.set(0);
-            }
-
-            lastRecipeId.set(newRecipeId);
 
             currentRecipe.set(recipe);
             // Idle to cooking is the only transition worth announcing. Reaching here with a non-null
@@ -635,19 +630,31 @@ public class CookingPotBlockEntity {
 
     private boolean hasRoomForResult(CookingPotRecipe recipe) {
         ItemStack result = recipe.getResult();
-        if (result == null || result.getType().isAir()) {
-            return true;
+        if (result == null || result.getType().isAir() || result.getAmount() <= 0) {
+            return false;
         }
-        if (recipe.needsContainer()) {
-            ItemStack requiredContainer = recipe.getContainer();
-            if (getMovableOutputAmount(result) >= result.getAmount()
-                    && getAvailableContainerAmount(requiredContainer) >= result.getAmount()) {
+        ItemStack requiredContainer = recipe.needsContainer() ? recipe.getContainer() : null;
+        if (recipe.needsContainer() && (requiredContainer == null || requiredContainer.getType().isAir())) {
+            return false;
+        }
+        // One container snapshot belongs to the entire pending batch, including custom multi-slot pots.
+        // New meals must fit that batch before they can be served into the output slots.
+        if (hasAnyItem(layout.pendingOutputSlots())) {
+            ItemStack pendingContainer = mealContainerStack.get();
+            boolean pendingNeedsContainer = pendingContainer != null && !pendingContainer.getType().isAir();
+            if (recipe.needsContainer() != pendingNeedsContainer
+                    || (pendingNeedsContainer && !isSameContainer(requiredContainer, pendingContainer))) {
                 return false;
             }
-            return !hasSpaceFor(layout.pendingOutputSlots(), result);
+            for (int slot : layout.pendingOutputSlots()) {
+                ItemStack pending = inventory[slot];
+                if (pending != null && !pending.getType().isAir() && pending.getAmount() > 0
+                        && !pending.isSimilar(result)) {
+                    return false;
+                }
+            }
         }
-        return !hasSpaceFor(layout.outputSlots(), result)
-                && !hasSpaceFor(layout.pendingOutputSlots(), result);
+        return hasSpaceFor(layout.pendingOutputSlots(), result);
     }
 
     private List<ItemStack> getIngredientSlotsInternal() {
@@ -673,21 +680,16 @@ public class CookingPotBlockEntity {
     }
 
     public void setMealContainer(ItemStack container) {
-        mealContainerStack.set(copyOrNull(container));
+        synchronized (inventoryLock) {
+            mealContainerStack.set(copyOrNull(container));
+            bumpInventoryVersion();
+        }
         syncWorldlyContainer();
     }
     
     public boolean isContainerValid(ItemStack containerItem) {
         if (containerItem == null || containerItem.getType().isAir()) return false;
-        ItemStack requiredContainer = mealContainerStack.get();
-        if (requiredContainer == null) return true;
-        
-        String requiredId = ItemUtils.getCustomItemId(requiredContainer);
-        String providedId = ItemUtils.getCustomItemId(containerItem);
-        if (requiredId != null && providedId != null) {
-            return requiredId.equals(providedId);
-        }
-        return requiredContainer.isSimilar(containerItem);
+        return isSameContainer(mealContainerStack.get(), containerItem);
     }
     
     public ItemStack useContainerToTakeMeal() {
@@ -849,7 +851,7 @@ public class CookingPotBlockEntity {
         double totalExp = (double) craftedAmount * (double) experience;
         int expValue = (int) Math.floor(totalExp);
         double fraction = totalExp - expValue;
-        if (fraction > 0.0D && java.util.concurrent.ThreadLocalRandom.current().nextDouble() < fraction) {
+        if (fraction > 0.0D && ThreadLocalRandom.current().nextDouble() < fraction) {
             expValue += 1;
         }
         if (expValue > 0) {
@@ -884,81 +886,63 @@ public class CookingPotBlockEntity {
     }
 
     public void tryMovePendingToOutput() {
+        tryMovePendingToOutput(false);
+    }
+
+    private void tryMovePendingToOutput(boolean forceSync) {
+        boolean changed = false;
         synchronized (inventoryLock) {
             if (!hasAnyItem(layout.pendingOutputSlots())) {
                 ItemStack previousContainer = mealContainerStack.getAndSet(null);
                 if (previousContainer != null && !previousContainer.getType().isAir()) {
-                    syncWorldlyContainer();
+                    changed = true;
                 }
-                return;
-            }
+            } else {
+                for (int pendingSlot : layout.pendingOutputSlots()) {
+                    ItemStack pending = inventory[pendingSlot];
+                    if (pending == null || pending.getType().isAir()) {
+                        continue;
+                    }
+                    int movableAmount = getMovablePendingAmount(pending);
+                    if (movableAmount <= 0) {
+                        continue;
+                    }
 
-            for (int pendingSlot : layout.pendingOutputSlots()) {
-                ItemStack pending = inventory[pendingSlot];
-                if (pending == null || pending.getType().isAir()) {
-                    continue;
-                }
-                int movableAmount = getMovablePendingAmount(pending);
-                if (movableAmount <= 0) {
-                    continue;
-                }
+                    SplitItem moving = splitItemFromSlot(pendingSlot, movableAmount);
+                    addItemToSlots(layout.outputSlots(), moving.item());
 
-                SplitItem moving = splitItemFromSlot(pendingSlot, movableAmount);
-                addItemToSlots(layout.outputSlots(), moving.item());
+                    ItemStack requiredContainer = mealContainerStack.get();
+                    if (requiredContainer != null && !requiredContainer.getType().isAir()) {
+                        consumeContainerAmount(requiredContainer, movableAmount);
+                    }
 
-                ItemStack requiredContainer = mealContainerStack.get();
-                if (requiredContainer != null && !requiredContainer.getType().isAir()) {
-                    consumeContainerAmount(requiredContainer, movableAmount);
+                    if (pending.getAmount() <= 0) {
+                        setSlot(pendingSlot, null);
+                    }
+                    changed = true;
                 }
-
-                if (pending.getAmount() <= 0) {
-                    setSlot(pendingSlot, null);
+                if (!hasAnyItem(layout.pendingOutputSlots())) {
+                    ItemStack previousContainer = mealContainerStack.getAndSet(null);
+                    changed |= previousContainer != null && !previousContainer.getType().isAir();
                 }
-            }
-            if (!hasAnyItem(layout.pendingOutputSlots())) {
-                mealContainerStack.set(null);
             }
         }
-        syncWorldlyContainer();
+        if (forceSync || changed) syncWorldlyContainer();
     }
 
     private boolean storeCookedResult(ItemStack result, CookingPotRecipe recipe) {
         synchronized (inventoryLock) {
-            if (!recipe.needsContainer()) {
-                if (hasSpaceFor(layout.outputSlots(), result)) {
-                    addItemToSlots(layout.outputSlots(), result);
-                    usedRecipeTracker.merge(recipe.getId(), 1, Integer::sum);
-                    return true;
-                }
-
-                if (hasSpaceFor(layout.pendingOutputSlots(), result)) {
-                    addItemToSlots(layout.pendingOutputSlots(), result);
-                    mealContainerStack.set(null);
-                    usedRecipeTracker.merge(recipe.getId(), 1, Integer::sum);
-                    return true;
-                }
+            if (!hasRoomForResult(recipe)) {
                 return false;
             }
-
-            ItemStack requiredContainer = recipe.getContainer();
-            int directMove = getMovableOutputAmount(result);
-            int availableContainers = getAvailableContainerAmount(requiredContainer);
-            if (directMove >= result.getAmount() && availableContainers >= result.getAmount()) {
-                addItemToSlots(layout.outputSlots(), result);
-                consumeContainerAmount(requiredContainer, result.getAmount());
-                mealContainerStack.set(null);
-                usedRecipeTracker.merge(recipe.getId(), 1, Integer::sum);
-                return true;
+            if (!hasAnyItem(layout.pendingOutputSlots())) {
+                mealContainerStack.set(recipe.needsContainer() ? copyOrNull(recipe.getContainer()) : null);
             }
-
-            if (hasSpaceFor(layout.pendingOutputSlots(), result)) {
-                addItemToSlots(layout.pendingOutputSlots(), result);
-                mealContainerStack.set(copyOrNull(requiredContainer));
-                usedRecipeTracker.merge(recipe.getId(), 1, Integer::sum);
-                return true;
-            }
-
-            return false;
+            addItemToSlots(layout.pendingOutputSlots(), result);
+            usedRecipeTracker.merge(recipe.getId(), 1, Integer::sum);
+            // All serving uses the same capacity check and per-portion container debit.
+            tryMovePendingToOutput(true);
+            return true;
         }
     }
 
@@ -976,13 +960,10 @@ public class CookingPotBlockEntity {
         return Math.min(pending.getAmount(), Math.min(outputSpace, availableContainers));
     }
 
-    private int getMovableOutputAmount(ItemStack item) {
-        return getAvailableSpace(layout.outputSlots(), item);
-    }
-
     private boolean isSameContainer(ItemStack required, ItemStack provided) {
         if (required == null || required.getType().isAir()) return true;
         if (provided == null || provided.getType().isAir()) return false;
+        if (required.isSimilar(provided)) return true;
         String requiredId = ItemUtils.getCustomItemId(required);
         String providedId = ItemUtils.getCustomItemId(provided);
         if (requiredId != null && providedId != null) {
@@ -1159,6 +1140,9 @@ public class CookingPotBlockEntity {
         if (first.getType() != second.getType()) {
             return false;
         }
+        if (first.isSimilar(second)) {
+            return true;
+        }
 
         String firstCustomId = ItemUtils.getCustomItemId(first);
         String secondCustomId = ItemUtils.getCustomItemId(second);
@@ -1179,6 +1163,40 @@ public class CookingPotBlockEntity {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
+    /**
+     * Adopts the recipe the pot tick is about to advance, restarting the progress bar when the accumulated
+     * progress belongs to a different dish. The tick is the only writer of cookingProgress, and the remembered
+     * id is replaced only here — never on the passes where no recipe matches — so the bar still restarts when an
+     * ingredient swap leaves the pot without a valid recipe for a tick in between. Deliberate deviation from the
+     * mod, which keeps its cookTime across a swap and only re-totals it, letting a nearly finished long dish
+     * finish a short one instantly.
+     */
+    public void beginCookingRecipe(String recipeId) {
+        if (isDifferentDish(progressRecipeId.getAndSet(recipeId), recipeId)) {
+            cookingProgress.set(0);
+        }
+    }
+
+    /** True when progress accumulated for cookedRecipeId must restart because matchedRecipeId differs. */
+    static boolean isDifferentDish(String cookedRecipeId, String matchedRecipeId) {
+        return cookedRecipeId != null && !cookedRecipeId.equals(matchedRecipeId);
+    }
+
+    /**
+     * The progress after elapsedTicks of pot time: a cooking pot advances by those ticks (capped at the
+     * duration), an idle one regresses by two per tick — the mod's cookTime behaviour — so an unheated
+     * pot, or one whose ingredients no longer match, visibly winds back instead of freezing where it stopped.
+     */
+    public static int advanceOrDecayProgress(int progress, int duration, int elapsedTicks, boolean cooking) {
+        if (elapsedTicks <= 0) {
+            return progress;
+        }
+        if (cooking) {
+            return Math.min(Math.max(duration, 0), progress + elapsedTicks);
+        }
+        return Math.max(0, progress - elapsedTicks * 2);
+    }
+
     public int getProgressPercent() {
         int duration = cookingDuration.get();
         if (duration <= 0) return 0;
@@ -1195,14 +1213,6 @@ public class CookingPotBlockEntity {
         // (defeating "save only changed chunks"). The live value is still persisted by saveData()
         // on chunk save/unload, while meaningful state changes (ingredients/output) are what mark it dirty.
         cookingProgress.set(progress);
-    }
-
-    public void incrementCookingProgress() {
-        cookingProgress.incrementAndGet();
-    }
-
-    public void decrementCookingProgress() {
-        cookingProgress.updateAndGet(v -> Math.max(0, v - 2));
     }
 
     public int getCookingDuration() {

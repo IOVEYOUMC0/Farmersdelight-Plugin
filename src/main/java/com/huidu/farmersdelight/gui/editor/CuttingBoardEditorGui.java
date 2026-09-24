@@ -13,6 +13,7 @@ import com.huidu.farmersdelight.util.Text;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.momirealms.craftengine.core.util.Key;
+import net.momirealms.craftengine.core.util.UniqueKey;
 import org.bukkit.Material;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
@@ -26,6 +27,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -472,7 +474,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
     private List<ItemStack> resolveTagMembers(Key tag) {
         Map<String, ItemStack> unique = new LinkedHashMap<>();
         if (plugin.getCraftEngine() != null) {
-            for (net.momirealms.craftengine.core.util.UniqueKey uniqueKey
+            for (UniqueKey uniqueKey
                     : plugin.getCraftEngine().itemManager().itemIdsByTag(tag)) {
                 ItemStack stack = ItemUtils.createItem(uniqueKey.key().toString());
                 if (stack != null && !stack.getType().isAir() && stack.getType() != Material.BARRIER) {
@@ -566,7 +568,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
         if (item == null) {
             item = config.getItem("background");
         }
-        return item == null ? new ItemStack(Material.AIR) : item.createItem(new java.util.HashMap<>(placeholders));
+        return item == null ? new ItemStack(Material.AIR) : item.createItem(new HashMap<>(placeholders));
     }
 
     private ItemStack displayForIngredient(RecipeIngredient ingredient) {

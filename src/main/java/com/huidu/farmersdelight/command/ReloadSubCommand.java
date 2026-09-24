@@ -1,15 +1,17 @@
 package com.huidu.farmersdelight.command;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.event.FarmersDelightReloadEvent;
 import com.huidu.farmersdelight.api.event.ReloadTarget;
 import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.command.CommandSender;
+import org.bukkit.Bukkit;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
-import static com.huidu.farmersdelight.command.CommandSupport.MINI;
 import static com.huidu.farmersdelight.command.CommandSupport.normalize;
 
 final class ReloadSubCommand extends SubCommand {
@@ -49,9 +51,9 @@ final class ReloadSubCommand extends SubCommand {
         }
 
         // Notify addons so they reload in sync. "all" already fires this inside reloadAll().
-        if (!target.isAll()) {
-            org.bukkit.Bukkit.getPluginManager().callEvent(
-                    new com.huidu.farmersdelight.api.event.FarmersDelightReloadEvent(target.eventReason()));
+        if (!target.isAll() && target != ReloadTarget.RECIPES) {
+            Bukkit.getPluginManager().callEvent(
+                    new FarmersDelightReloadEvent(target.eventReason()));
         }
 
         sender.sendMessage(I18n.getComponent("general.config_reloaded"));
@@ -74,8 +76,7 @@ final class ReloadSubCommand extends SubCommand {
     }
 
     private void sendReloadUsage(CommandSender sender) {
-        sender.sendMessage(MINI.deserialize(
-                "<yellow>/fd reload <" + String.join("|", RELOAD_TARGETS) + "></yellow>"
-        ));
+        sender.sendMessage(I18n.getComponent("command.reload_usage",
+                Map.of("targets", String.join("|", RELOAD_TARGETS))));
     }
 }

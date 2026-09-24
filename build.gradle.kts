@@ -1,8 +1,6 @@
 plugins {
     id("java")
-    // com.gradleup.shadow is the maintained successor of the goooler fork; 9.x is the line that supports
-    // Gradle 9. The old 8.1.7 fork cannot relocate this project at all: its Groovy RelocatorRemapper
-    // throws on the generated BuildFlags class, which is why the bundled libraries shipped un-relocated.
+    // Use the Shadow release that supports Gradle 9 and relocates the generated Java classes.
     id("com.gradleup.shadow") version "9.0.0"
 }
 
@@ -17,17 +15,19 @@ repositories {
     maven("https://repo.extendedclip.com/content/repositories/placeholderapi/")
 }
 
-// CraftEngine is pinned to the vendored 26.8 jar shipped under libs/.
+// CraftEngine is pinned to the official Maven 26.9.1 artifacts.
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
     compileOnly("org.jetbrains:annotations:26.1.0")
+    // Already provided by Paper; only the transport API is needed for per-player display packets.
+    compileOnly("io.netty:netty-transport:4.1.135.Final")
 
-    // CraftEngine — pinned to the vendored 26.8 jar (26.8-SNAPSHOT is not published to maven).
-    compileOnly(files("libs/craft-engine-26.8.jar"))
-    compileOnly(files("libs/craft-engine-core-26.8.jar"))
-    // CE 26.8 keeps proxy classes in its jar-in-jar proxy artifact.
-    compileOnly(files("libs/craft-engine-proxy-26.8.jar"))
+    // CraftEngine 26.9.1 from the official Maven repository.
+    compileOnly("net.momirealms:craft-engine-bukkit:26.9.1")
+    compileOnly("net.momirealms:craft-engine-core:26.9.1")
+    // CE 26.9.1 keeps proxy classes in its jar-in-jar proxy artifact.
+    compileOnly("net.momirealms:craft-engine-bukkit-proxy:26.9.1")
 
     compileOnly("me.clip:placeholderapi:2.11.6")
     // AntiGriefLib: unified protection facade over 24+ land/claim plugins (MIT). Bundled and relocated:
@@ -42,10 +42,11 @@ dependencies {
     // UltimateAdvancementAPI: separate server plugin; vendored only for offline compile against its API.
     compileOnly(files("libs/UltimateAdvancementAPI-Plugin-2.8.0-folia.jar"))
     testImplementation("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
-    testImplementation(files("libs/craft-engine-26.8.jar"))
-    testImplementation(files("libs/craft-engine-core-26.8.jar"))
-    testImplementation(files("libs/craft-engine-proxy-26.8.jar"))
+    testImplementation("net.momirealms:craft-engine-bukkit:26.9.1")
+    testImplementation("net.momirealms:craft-engine-core:26.9.1")
+    testImplementation("net.momirealms:craft-engine-bukkit-proxy:26.9.1")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testImplementation("io.netty:netty-transport:4.1.135.Final")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
@@ -77,6 +78,16 @@ tasks.withType<JavaCompile>().configureEach {
 
 tasks.test {
     useJUnitPlatform()
+    doLast {
+        // Incomplete JUnit reports must not turn a test-listener failure into a successful build.
+        val skipped = Regex("(?m)^\\s*<skipped(?:\\s|/|>)")
+        val reportsWithSkips = reports.junitXml.outputLocation.get().asFile.walkTopDown()
+            .filter { it.isFile && it.name.startsWith("TEST-") && it.extension == "xml" }
+            .filter { skipped.containsMatchIn(it.readText()) }.toList()
+        check(reportsWithSkips.isEmpty()) {
+            "Tests were skipped or not fully reported: ${reportsWithSkips.joinToString { it.name }}"
+        }
+    }
 }
 
 tasks.processResources {
@@ -130,7 +141,7 @@ tasks.compileJava {
 
 tasks.shadowJar {
     archiveBaseName.set(pluginArchiveBaseName)
-    archiveClassifier.set("")
+    archiveClassifier.set(if (debugToolsBuild.get()) "debug" else "")
     if (!debugToolsBuild.get()) {
         exclude("com/huidu/farmersdelight/debug/**")
     }

@@ -55,12 +55,30 @@ class CookingPotEffectManager {
     // Per-chunk tracked-player list + budget, so pots sharing a chunk pay one getPlayersSeeingChunk lookup
     // that tick. World-keyed so identical chunk coordinates in different worlds never collide.
     private final Map<UUID, Map<Long, CookingPotFxContext>> chunkFx = new ConcurrentHashMap<>();
-    private volatile long effectBudgetResetTick = -1L;
     private static final ThreadLocal<List<Player>> NEARBY_VIEWER_SCRATCH = ThreadLocal.withInitial(ArrayList::new);
 
     private static final class CookingPotFxContext {
+        // Bukkit tick this chunk's budget and viewer snapshot belong to. Stamped per chunk instead of
+        // clearing the whole world table on every tick change: the global clear also discarded the budget a
+        // concurrently running region had already spent in the same tick, and it rebuilt an inner map per
+        // world per tick. A context is dropped by the chunk/world unload cleanup like the other managers.
+        volatile long budgetTick = Long.MIN_VALUE;
         final AtomicInteger budget = new AtomicInteger();
         volatile List<Player> seeing;
+    }
+
+    void cleanupChunk(UUID worldId, long chunkKey) {
+        Map<Long, CookingPotFxContext> chunks = chunkFx.get(worldId);
+        // Other Folia regions can add entries to the same world concurrently.
+        if (chunks != null) chunks.remove(chunkKey);
+    }
+
+    void cleanupWorld(UUID worldId) {
+        chunkFx.remove(worldId);
+    }
+
+    void cleanup() {
+        chunkFx.clear();
     }
 
     // Memo of sound resolution keyed on (configured, defaultSound). The vanilla sound registry is frozen
@@ -100,6 +118,11 @@ class CookingPotEffectManager {
             return;
         }
 
+        // Skip all state, location and viewer work on throttled passes.
+        if (cookingPotEffectInterval > 1 && (currentBukkitTick / 4) % cookingPotEffectInterval != 0) {
+            return;
+        }
+
         boolean hasActivity = entity.hasInput()
                 || entity.hasPendingOutput()
                 || entity.hasMealDisplayItem()
@@ -119,17 +142,13 @@ class CookingPotEffectManager {
         int chunkX = posKey.x() >> 4;
         int chunkZ = posKey.z() >> 4;
         long effectChunkKey = ManagerSupport.chunkKey(chunkX, chunkZ);
-        // Throttle to 1-in-N passes (cooking-pot.effects.interval); off-passes skip the chunk lookup +
-        // broadcast. Cooking PROGRESS already ran in tickCookingPot, so this is cosmetic-only.
-        if (cookingPotEffectInterval > 1 && (currentBukkitTick / 4) % cookingPotEffectInterval != 0) {
-            return;
-        }
-        if (currentBukkitTick != effectBudgetResetTick) {
-            chunkFx.clear();
-            effectBudgetResetTick = currentBukkitTick;
-        }
         CookingPotFxContext fx = chunkFx.computeIfAbsent(world.getUID(), w -> new ConcurrentHashMap<>())
                 .computeIfAbsent(effectChunkKey, k -> new CookingPotFxContext());
+        if (fx.budgetTick != currentBukkitTick) {
+            fx.budgetTick = currentBukkitTick;
+            fx.budget.set(0);
+            fx.seeing = null;
+        }
         List<Player> seeing = fx.seeing;
         if (seeing == null) {
             seeing = world.isChunkLoaded(chunkX, chunkZ)
@@ -154,10 +173,12 @@ class CookingPotEffectManager {
             }
         }
         if (nearbyViewers.isEmpty()) {
+            nearbyViewers.clear();
             return;
         }
         AtomicInteger chunkBudget = fx.budget;
         if (chunkBudget.get() >= cookingPotChunkEffectBudgetLimit) {
+            nearbyViewers.clear();
             return;
         }
 
@@ -236,6 +257,9 @@ class CookingPotEffectManager {
             }
             playConfiguredSound(nearbyViewers, center, boilSound, volume, pitch);
         }
+        // Drop the player references as soon as the emission ends: this scratch list is cached on the region
+        // thread, which outlives the players it last saw.
+        nearbyViewers.clear();
     }
 
     private String firstNonBlank(String primary, String fallback) {

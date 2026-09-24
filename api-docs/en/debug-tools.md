@@ -9,6 +9,25 @@ debug CLI of its own.
 
 The feature id is `debug-tools`.
 
+Use `/fd stats profile 200 all` to measure feature timings. Replace `all` with `handheld`,
+`handheld_display`, `cooking_pot`, `skillet` or `stove` to select one feature. Release builds support
+this command too. See [performance troubleshooting](../../server-guide/en/troubleshooting.md) for
+timing boundaries and interpretation. Debug builds use the `-debug.jar` suffix; install either the
+release or debug jar, never both. `/fd perf` always aliases `/fd stats`.
+
+Debug builds can create a small, local test load manually:
+
+```text
+/fd debugtools test cooking_pot 64 200
+/fd debugtools test skillet 64 200
+/fd debugtools test stove 64 200
+/fd debugtools test all 128 600
+```
+
+`test` places stations near the player in compact batches, fills their test state, and starts a matching profile. It processes at most 16 positions per slice so the command does not occupy the server thread for one long operation. `count` is the number of positions and `ticks` is the profile duration (20-12000). `place` only places a batch and does not activate it; run `/fd debugtools activate <target>` separately when needed. Use `/fd debugtools undo` to remove the latest batch and `/fd debugtools stop` to stop an unfinished placement, activation, or handheld test. `all` covers cooking pots, placed skillets and stoves.
+
+For handheld cooking, hold a skillet in the main hand and campfire-cookable food in the off hand near a heat source, then run `/fd debugtools test handheld 1 200`. It does not replace either held item; it starts the real handheld session and samples it. Cooking still consumes the ingredient and delivers the result normally. The session stops automatically when the profile window ends; stop holding right click or use `/fd debugtools stop` to end it early. `undo` does not clean handheld state.
+
 The `recipe validate` action checks loaded cooking-pot and cutting-board recipes for empty structure,
 missing results/containers, and tags that resolve to no vanilla, CraftEngine, or registered common-tag
 members. Parse failures are still reported by the normal `recipe.load_failed` logger.

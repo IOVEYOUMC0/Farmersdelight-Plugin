@@ -300,7 +300,7 @@ CustomBuffRegistry.syncState(player, ExampleCustomBuff.ID);
 
 ### 管理指令与占位符
 
-`/fd buff give <buff> [level] [seconds] [player]` 走的就是 `CustomBuffRegistry.apply`，所以实现 `apply()` 才能让 你的 buff 变得可授予。buff 参数先按完整带命名空间 id 匹配，匹配不到再按短后缀匹配（`tipsy` 能找到 `brewinandchewin:tipsy`）。`/fd buff clear` 走 `clearAll`，或直接移除指定的那一个 buff。
+`/fd buff give <player> <buff> <time> <level>` 走的就是 `CustomBuffRegistry.apply`，所以实现 `apply()` 才能让你的 buff 变得可授予。时间和等级可省略并使用默认值。buff 参数先按完整带命名空间 id 匹配，匹配不到再按短后缀匹配（`tipsy` 能找到 `brewinandchewin:tipsy`）。`/fd buff clear` 走 `clearAll`，或通过注册表移除指定的那一个 buff。
 
 装了 PlaceholderAPI 时，所有已注册 buff 都会暴露在 `farmersdelight` 标识符下：
 

@@ -170,7 +170,7 @@ public class RicePlantListener implements Listener {
             event.setCancelled(true);
             return;
         }
-        if (!ProtectionCompat.canBuild(player, plantLocation, ProtectionCompat.Feature.RICE)) {
+        if (!ProtectionCompat.canPlace(player, plantLocation, ProtectionCompat.Feature.RICE)) {
             event.setCancelled(true);
             return;
         }
@@ -207,7 +207,7 @@ public class RicePlantListener implements Listener {
     private void plantWildRice(PlayerInteractEvent event, Player player, EquipmentSlot hand, ItemStack item, Block clickedBlock) {
         Location plantLocation = findPlantLocation(clickedBlock);
         if (plantLocation != null && canPlantWildRiceAt(plantLocation.getBlock())) {
-            if (!ProtectionCompat.canBuild(player, plantLocation, ProtectionCompat.Feature.RICE)) {
+            if (!ProtectionCompat.canPlace(player, plantLocation, ProtectionCompat.Feature.RICE)) {
                 event.setCancelled(true);
                 return;
             }
