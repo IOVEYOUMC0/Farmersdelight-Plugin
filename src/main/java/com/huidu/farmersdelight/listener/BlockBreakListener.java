@@ -415,13 +415,16 @@ public class BlockBreakListener implements Listener {
         // one (configuration/meal_icons.yml). Built from an empty root so the name keeps the normal font instead
         // of inheriting the glyph font, which would render the letters as boxes.
         Component name = ItemUtils.getTranslatableDisplayComponentNoAnvil(meal).colorIfAbsent(NamedTextColor.WHITE);
-        String glyph = PresentationUtils.imageGlyph(mealGlyphId(ItemUtils.getCustomItemId(meal),
-                ItemUtils.getVanillaMaterialItemId(meal)));
-        if (glyph.isEmpty()) {
+        String glyphId = mealGlyphId(ItemUtils.getCustomItemId(meal), ItemUtils.getVanillaMaterialItemId(meal));
+        if (glyphId == null) {
             lore.add(name.decoration(TextDecoration.ITALIC, false));
         } else {
+            // The <image:...> tag stays in the lore instead of being resolved to the glyph character here:
+            // characters are allocated while the pack is generated and move when an icon set changes, whereas
+            // CraftEngine replaces this tag inside the item-lore packet with the current allocation. A pot filled
+            // before an icon update therefore keeps rendering the icon its own pack declares.
             lore.add(Component.empty()
-                    .append(Text.deserialize(glyph).color(NamedTextColor.WHITE))
+                    .append(Text.deserialize("<image:" + glyphId + ">").color(NamedTextColor.WHITE))
                     .append(Component.space())
                     .append(name)
                     .decoration(TextDecoration.ITALIC, false));
