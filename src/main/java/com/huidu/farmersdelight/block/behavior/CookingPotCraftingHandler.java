@@ -46,7 +46,8 @@ public class CookingPotCraftingHandler {
         for (int slot : slots) {
             available.add(inventory[slot]);
         }
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        // The entity already carries the plugin it was created with, so this handler takes it from there.
+        FarmersDelightPlugin plugin = entity.plugin();
         var recipes = plugin == null ? null : plugin.getCookingPotRecipes();
         if (recipes == null) return null;
         // Use each filled slot once when possible, then allow stacked units for overlapping ingredients.

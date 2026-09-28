@@ -29,6 +29,27 @@ final class CraftEngineReadinessCoordinator {
     private final AtomicBoolean contentSummaryRequested = new AtomicBoolean();
     private volatile boolean active = true;
     private PluginTask pendingReloadTask;
+    private PluginTask pendingReadinessTask;
+    private int readinessAttempt;
+    /** Whether the pending readiness retry is the start-up pass rather than a reload pass. */
+    private boolean readinessRetryIsStartup;
+
+    /** First readiness re-check delay, in ticks; the schedule widens from here. */
+    private static final long READINESS_RETRY_INITIAL_TICKS = 20L;
+    /** Delay ceiling for the readiness re-checks. */
+    private static final long READINESS_RETRY_MAX_TICKS = 100L;
+    /**
+     * Attempts allowed, covering about 20 seconds (20+20+40+40+60+60+80+80 ticks).
+     *
+     * <p>CraftEngine fires the reload event one tick after its own enable completes
+     * (CraftEngine.callReloadEvent() is scheduled right after isEnabling is cleared) while its
+     * pack contents finish loading asynchronously afterwards. Waiting a fixed handful of ticks therefore
+     * probes readiness before any custom item exists, and without a re-check the warm-up and the content
+     * summary never ran at all on a normal startup. Gating on readiness instead of on a fixed delay is what
+     * keeps this correct on slower servers: the observed gap on the test server was about 12 seconds, so the
+     * window is deliberately wider than that.
+     */
+    private static final int READINESS_RETRY_ATTEMPTS = 8;
 
     CraftEngineReadinessCoordinator(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -85,6 +106,10 @@ final class CraftEngineReadinessCoordinator {
         }
     }
 
+    /**
+     * Coalesces the summary requests the recipe managers raise as their content registers, so the report is
+     * written once per burst instead of once per recipe.
+     */
     void requestContentSummary() {
         if (!active || !contentSummaryRequested.compareAndSet(false, true)) {
             return;
@@ -97,6 +122,30 @@ final class CraftEngineReadinessCoordinator {
         }, 1L);
     }
 
+    /**
+     * Runs the readiness-gated start-up work, or defers it until CraftEngine has content.
+     *
+     * <p>FarmersDelight normally enables before CraftEngine has finished loading its packs, so every
+     * readiness-gated call made from onEnable is a no-op there. The CraftEngine reload event is the
+     * intended follow-up pass, but it is not something the start-up path can require: CraftEngine fires it
+     * from a delayed task rather than after its packs finish, and a listener that never reaches this
+     * coordinator would otherwise leave the recipe managers empty until an explicit /fd reload.
+     * Scheduling the retry here makes the warm-up independent of that event.
+     *
+     * <p>Safe to call after the work already ran: runStartupReadinessWork() reports the summary
+     * rather than accumulating it. Unlike the reload event, this pass is not a config reload, so it leaves
+     * the language files and the config-backed caches alone.
+     */
+    void startupReadinessWork() {
+        if (isReady()) {
+            runStartupReadinessWork();
+            return;
+        }
+        readinessAttempt = 0;
+        readinessRetryIsStartup = true;
+        scheduleReadinessRetry();
+    }
+
     void queueReloadProcessing() {
         if (!active || !plugin.isEnabled()) {
             return;
@@ -106,6 +155,14 @@ final class CraftEngineReadinessCoordinator {
         if (pendingReloadTask != null && !pendingReloadTask.isCancelled()) {
             pendingReloadTask.cancel();
         }
+        // A fresh reload supersedes a readiness retry still waiting from an earlier event: that pass would
+        // run the same gated work a second time.
+        if (pendingReadinessTask != null) {
+            pendingReadinessTask.cancel();
+            pendingReadinessTask = null;
+        }
+        readinessAttempt = 0;
+        readinessRetryIsStartup = false;
         pendingReloadTask = plugin.scheduler().runLater(() -> processReload(generation), 5L);
     }
 
@@ -115,6 +172,10 @@ final class CraftEngineReadinessCoordinator {
             pendingReloadTask.cancel();
             pendingReloadTask = null;
         }
+        if (pendingReadinessTask != null) {
+            pendingReadinessTask.cancel();
+            pendingReadinessTask = null;
+        }
     }
 
     private void processReload(long generation) {
@@ -123,6 +184,14 @@ final class CraftEngineReadinessCoordinator {
         }
         try {
             pendingReloadTask = null;
+            // Everything below reads CraftEngine content. When the reload event arrives before that content
+            // finished loading, wait for it instead of doing the work against empty registries.
+            if (!isReady()) {
+                readinessRetryIsStartup = false;
+                scheduleReadinessRetry();
+                return;
+            }
+            readinessAttempt = 0;
             I18n.reload();
             I18n.logDetail("startup", "plugin.craftengine_reload");
             plugin.refreshAfterCraftEngineReload();
@@ -145,6 +214,78 @@ final class CraftEngineReadinessCoordinator {
             Bukkit.getLogger().log(Level.SEVERE,
                     "Error during CraftEngine reload processing in " + plugin.getClass().getSimpleName(), e);
         }
+    }
+    /**
+     * Re-checks readiness on a widening delay, then runs the pending readiness work once it is true.
+     *
+     * <p>Used when CraftEngine's reload event arrives before its pack contents finished loading; see
+     * READINESS_RETRY_ATTEMPTS. Gives up with a visible line rather than retrying forever, so a
+     * CraftEngine that never finishes loading does not leave a task spinning behind it.
+     */
+    private void scheduleReadinessRetry() {
+        if (!active) {
+            return;
+        }
+        if (readinessAttempt >= READINESS_RETRY_ATTEMPTS) {
+            I18n.logWarning("plugin.craftengine_not_ready");
+            return;
+        }
+        long delay = Math.min(READINESS_RETRY_MAX_TICKS,
+                READINESS_RETRY_INITIAL_TICKS * (1L + readinessAttempt / 2L));
+        readinessAttempt++;
+        if (pendingReadinessTask != null) {
+            pendingReadinessTask.cancel();
+        }
+        pendingReadinessTask = plugin.scheduler().runLater(this::retryWhenReady, delay);
+    }
+
+    private void retryWhenReady() {
+        pendingReadinessTask = null;
+        if (!active) {
+            return;
+        }
+        if (!isReady()) {
+            scheduleReadinessRetry();
+            return;
+        }
+        readinessAttempt = 0;
+        if (readinessRetryIsStartup) {
+            runStartupReadinessWork();
+            return;
+        }
+        runDeferredReadinessWork();
+    }
+
+    /**
+     * The start-up variant of the readiness pass. It repeats the pack-dependent half of onEnable
+     * that the readiness gate skipped, without the reload-only steps: the config and language files were read
+     * from disk a moment ago and have not changed.
+     */
+    private void runStartupReadinessWork() {
+        loadRecipesWhenReady("plugin.loading_recipes");
+        refreshAdvancementsWhenReady(false);
+        // Pet food, special recipes and the stove/skillet recipe caches are all read out of CraftEngine
+        // content, so the pass that first sees that content has to refresh them here.
+        plugin.refreshAfterCraftEngineReload();
+        // Explicit rather than left to warmUp's own gate, so an operator debugging start-up ordering can
+        // see whether this pass ran.
+        indexLoadedChunkContentWhenReady();
+        warmUp("enable");
+        ToolRegistry.refresh();
+        reportContentSummaryWhenReady();
+    }
+
+    /**
+     * The work gated on CraftEngine readiness, run once it is actually available. Kept in one place so the
+     * event path and its readiness retry cannot drift apart.
+     */
+    private void runDeferredReadinessWork() {
+        loadRecipesWhenReady("plugin.refreshing_recipes_after_ce");
+        refreshAdvancementsWhenReady(false);
+        warmUpWhenReady("enable");
+        indexLoadedChunkContentWhenReady();
+        ToolRegistry.refresh();
+        reportContentSummaryWhenReady();
     }
 
     private void warmUp(String reason) {
@@ -178,6 +319,20 @@ final class CraftEngineReadinessCoordinator {
         contentWarmupCompleted.set(true);
         Bukkit.getPluginManager().callEvent(
                 new FarmersDelightWarmupEvent(reason));
+    }
+
+    /**
+     * Rebuilds the resolved ingredient-option caches after a change that invalidated them (common-tag
+     * membership) so the next player to open the recipe book does not pay for the whole resolution.
+     *
+     * <p>Warming is normally part of warmUp(String), which only runs once per enable; this is the
+     * targeted entry point for a tag change at runtime.
+     */
+    void rewarmRecipeIngredientIcons() {
+        if (!isReady()) {
+            return;
+        }
+        warmRecipeIngredientIcons();
     }
 
     private void warmRecipeIngredientIcons() {

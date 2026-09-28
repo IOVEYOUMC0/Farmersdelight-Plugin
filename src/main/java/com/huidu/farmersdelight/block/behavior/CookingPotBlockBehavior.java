@@ -126,17 +126,19 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
             Property<String> supportProperty
     ) {}
 
+    private final FarmersDelightPlugin plugin;
     private final Config config;
     private int controllerId;
 
-    private CookingPotBlockBehavior(BlockDefinition block, Config config) {
+    private CookingPotBlockBehavior(FarmersDelightPlugin plugin, BlockDefinition block, Config config) {
         super(block);
+        this.plugin = plugin;
         this.config = config;
     }
 
     @Override
     public BlockEntityController createBlockEntityController(BlockEntity blockEntity) {
-        return new CookingPotBlockEntityController(blockEntity, this);
+        return new CookingPotBlockEntityController(plugin, blockEntity, this);
     }
 
     @Override
@@ -225,7 +227,10 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
     private static CookingPotBlockEntity createBlockEntity(BlockPosKey key, World world, CookingPotBlockBehavior behavior) {
         CookingPotLayout layout = behavior != null ? behavior.getLayout() : CookingPotLayout.DEFAULT;
         String recipeGroup = behavior != null ? behavior.getCustomRecipeGroupId() : null;
-        return new CookingPotBlockEntity(key, world, layout, recipeGroup);
+        // The behavior carries the plugin; the no-behavior path (a tracked pot whose block state was not
+        // resolved) is the only one that has to look it up.
+        FarmersDelightPlugin owner = behavior != null ? behavior.plugin : FarmersDelightPlugin.getInstance();
+        return new CookingPotBlockEntity(owner, key, world, layout, recipeGroup);
     }
 
     public static CookingPotBlockBehavior getBlockBehavior(Location location) {
@@ -243,6 +248,13 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
             return worldEntities;
         }
         return Map.of();
+    }
+
+    /** Tracked pot count without materialising the per-world map; used for the bounded cleanup sweep. */
+    public static int getBlockEntityCount(World world) {
+        if (world == null) return 0;
+        Map<BlockPosKey, CookingPotBlockEntity> worldEntities = worldBlockEntities.get(world.getUID());
+        return worldEntities == null ? 0 : worldEntities.size();
     }
 
     public static Set<Map.Entry<BlockPosKey, CookingPotBlockEntity>> getBlockEntityEntries(World world) {
@@ -799,12 +811,13 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         String recipeGroupResolved = normalizeBlank(customRecipeGroupId);
         String titleResolved = normalizeBlank(titleOverride);
         Property<String> supportProperty = BlockBehaviorFactory.getOptionalProperty(block, SUPPORT_PROPERTY, String.class);
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (supportProperty == null) {
-            FarmersDelightPlugin.getInstance().getLogger()
+            plugin.getLogger()
                     .warning("[FarmersDelight] Block " + block.id() + " is missing the 'support' property"
                             + " — tray and handle entity_renderer switching is disabled for this block.");
         }
-        return new CookingPotBlockBehavior(block, new Config(
+        return new CookingPotBlockBehavior(plugin, block, new Config(
                 permission,
                 openWhileSneaking,
                 placeTrayOnOpen,
@@ -839,7 +852,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         ItemStack heldItem = ItemUtils.getItemInHand(bukkitPlayer, context.getHand());
         if (bukkitPlayer.isSneaking()
                 && (heldItem == null || heldItem.getType().isAir())) {
-            FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
             HandleManager hm = plugin == null ? null : plugin.getHandleManager();
             if (hm == null) {
                 return InteractionResult.PASS;
@@ -896,7 +908,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         blockEntity.applyBehavior(this);
         blockEntity.setWorld(world);
         
-        TickManager tickManager = FarmersDelightPlugin.getInstance().getTickManager();
+        TickManager tickManager = plugin.getTickManager();
         if (tickManager != null) {
             tickManager.markActive(world, posKey, TickManager.BlockType.COOKING_POT);
         }
@@ -906,13 +918,13 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
             return InteractionResult.SUCCESS_AND_CANCEL;
         }
 
-        TrayManager trayManager = FarmersDelightPlugin.getInstance().getTrayManager();
+        TrayManager trayManager = plugin.getTrayManager();
         if (config.placeTrayOnOpen() && trayManager != null) {
             trayManager.checkAndPlaceTray(world, pos);
         }
 
         CookingPotGui gui = new CookingPotGui(
-                FarmersDelightPlugin.getInstance(), 
+                plugin, 
                 blockEntity, 
                 this, 
                 world,
@@ -953,7 +965,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
 
         ItemDelivery.giveOrDrop(player, posKey.toLocation(world).add(0.5, 0.7, 0.5), meal);
 
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         blockEntity.awardUsedRecipes(player);
         plugin.callCookingPotExperienceEvent(player, meal, 0.0D);
 
@@ -964,7 +975,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
     }
 
     public boolean checkHeatSource(BlockPos pos, World world) {
-        HeatSourceConfig config = FarmersDelightPlugin.getInstance().getHeatSourceConfig();
+        HeatSourceConfig config = plugin.getHeatSourceConfig();
         if (config == null) return false;
         
         Location locationBelow = new Location(world, pos.x(), pos.y() - 1, pos.z());
@@ -1024,7 +1035,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
 
     @Override
     public Object getContainer(Object thisBlock, Object[] args) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin == null || !plugin.isCookingPotHopperInteractionsEnabled()) {
             return null;
         }

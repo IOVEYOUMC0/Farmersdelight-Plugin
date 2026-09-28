@@ -31,7 +31,8 @@ import java.util.logging.Level;
 
 public final class AddonAdvancementTab {
 
-    private final Plugin plugin;
+    // Held as the concrete type: the gate below needs plugin services, not just the Bukkit Plugin surface.
+    private final FarmersDelightPlugin plugin;
     private final String tabName;
     private final List<AdvancementDef> definitions;
     private final Map<String, Advancement> byId = new ConcurrentHashMap<>();
@@ -45,7 +46,7 @@ public final class AddonAdvancementTab {
     private String rootId;
     private boolean autoAwardRoot;
 
-    public AddonAdvancementTab(Plugin plugin, String tabName, List<AdvancementDef> definitions) {
+    public AddonAdvancementTab(FarmersDelightPlugin plugin, String tabName, List<AdvancementDef> definitions) {
         this.plugin = plugin;
         this.tabName = tabName;
         this.definitions = List.copyOf(definitions);
@@ -102,7 +103,7 @@ public final class AddonAdvancementTab {
 
         // Drop the advancements whose declared CraftEngine content is gone, then re-hang their children on the
         // nearest surviving ancestor. Addons that declared no requirement keep every advancement, as before.
-        AdvancementGate gate = AdvancementGate.fromConfig(FarmersDelightPlugin.getInstance(), tabName);
+        AdvancementGate gate = AdvancementGate.fromConfig(plugin, tabName);
         Map<String, String> declaredParents = new HashMap<>();
         Set<String> kept = new LinkedHashSet<>();
         for (AdvancementDef def : definitions) {

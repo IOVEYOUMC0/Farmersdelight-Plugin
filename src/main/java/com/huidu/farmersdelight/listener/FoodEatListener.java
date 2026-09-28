@@ -52,10 +52,14 @@ public class FoodEatListener implements Listener {
             externalDurations.put(kind, new ConcurrentHashMap<>());
             enabled.put(kind, false);
         }
-        loadLegacyFoodMappings();
     }
 
-    private void loadLegacyFoodMappings() {
+    /**
+     * Reads the legacy food mappings from config. Kept out of the constructor so the handler can be built
+     * without a live plugin (the registry's order is asserted by a test); the registration path calls this
+     * immediately after construction.
+     */
+    public void loadLegacyFoodMappings() {
         for (BuffKind kind : BuffKind.values()) {
             Map<String, Integer> map = configDurations.get(kind);
             map.clear();
@@ -100,7 +104,7 @@ public class FoodEatListener implements Listener {
         String itemId = getItemId(item);
         if (itemId == null) return;
 
-        AdvancementManager advancementManager = FarmersDelightPlugin.getInstance().getAdvancementManager();
+        AdvancementManager advancementManager = plugin.getAdvancementManager();
 
         // Each distinct FD food awards one master_chef criterion on consume
         if (advancementManager != null && itemId.startsWith("farmersdelight:")) {

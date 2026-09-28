@@ -24,8 +24,11 @@ public final class StoveBlockEntityController extends BlockEntityController {
     // Guards loadPendingDataIfReady against re-entry from manager entry-creation hooks that flush pending data.
     private volatile boolean applyingPendingLoad;
 
-    public StoveBlockEntityController(BlockEntity blockEntity) {
+    private final FarmersDelightPlugin plugin;
+
+    public StoveBlockEntityController(FarmersDelightPlugin plugin, BlockEntity blockEntity) {
         super(blockEntity);
+        this.plugin = plugin;
     }
 
     @Override
@@ -126,7 +129,6 @@ public final class StoveBlockEntityController extends BlockEntityController {
     }
 
     private StoveManager getManager() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         return plugin == null ? null : plugin.getStoveManager();
     }
 }

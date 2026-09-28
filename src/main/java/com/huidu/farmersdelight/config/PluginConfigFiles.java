@@ -5,8 +5,6 @@ import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -42,8 +40,12 @@ public final class PluginConfigFiles {
             }
             return yaml;
         }
-        try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(path), StandardCharsets.UTF_8)) {
-            yaml.load(reader);
+        try {
+            // Shares the validation pass's parse when this runs inside a reload.
+            YamlConfiguration parsed = bootstrap.readGuiForLoad(path);
+            if (parsed != null) {
+                return parsed;
+            }
         } catch (Exception e) {
             I18n.logWarning("plugin.gui_load_failed", "error", e.getMessage());
         }

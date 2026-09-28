@@ -27,6 +27,14 @@ import java.util.Set;
 
 public class AchievementListener implements Listener {
 
+    // Handed in by the registrar instead of looked up: the advancement system only exists while the plugin
+    // is enabled, and the registrar creates this listener at exactly that point.
+    private final FarmersDelightPlugin plugin;
+
+    public AchievementListener(FarmersDelightPlugin plugin) {
+        this.plugin = plugin;
+    }
+
     private static final Set<String> FD_SEED_IDS = Set.of(
             Constants.ITEM_CABBAGE_SEEDS,
             Constants.ITEM_TOMATO_SEEDS,
@@ -68,7 +76,7 @@ public class AchievementListener implements Listener {
         String customBlockId = CustomBlockUtils.getId(clicked);
         if (!Constants.BLOCK_TOMATO_CROP_ON_ROPE.equals(customBlockId)) return;
 
-        AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
+        AdvancementManager am = plugin.getAdvancementManager();
         if (am != null) {
             am.award(event.getPlayer(), "harvest_ropelogged_tomato");
         }
@@ -85,7 +93,7 @@ public class AchievementListener implements Listener {
             return;
         }
         FarmersDelightApi.get().awardItemAdvancements(player, pickedId);
-        AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
+        AdvancementManager am = plugin.getAdvancementManager();
         if (am == null) {
             return;
         }
@@ -115,7 +123,7 @@ public class AchievementListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerJoin(PlayerJoinEvent event) {
-        AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
+        AdvancementManager am = plugin.getAdvancementManager();
         if (am != null) {
             am.showTo(event.getPlayer());
             am.award(event.getPlayer(), "root");
@@ -125,22 +133,22 @@ public class AchievementListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerQuit(PlayerQuitEvent event) {
-        AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
+        AdvancementManager am = plugin.getAdvancementManager();
         if (am != null) {
             am.forgetPlayer(event.getPlayer().getUniqueId());
         }
-        FarmersDelightPlugin.getInstance().getAddonAdvancementRegistry()
+        plugin.getAddonAdvancementRegistry()
                 .forgetPlayer(event.getPlayer().getUniqueId());
     }
 
     private void handleCraftedItem(Player player, ItemStack result) {
         if (result == null || result.getType().isAir()) return;
 
-        AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
+        AdvancementManager am = plugin.getAdvancementManager();
         if (am == null) return;
 
         // Checked before the CraftEngine id gate so a knife from another item source (MMOItems) is awarded too.
-        if (FarmersDelightPlugin.getInstance().isKnife(result)) {
+        if (plugin.isKnife(result)) {
             am.award(player, "craft_knife");
         }
 
@@ -171,7 +179,7 @@ public class AchievementListener implements Listener {
     }
 
     private void checkInventoryAdvancements(Player player) {
-        AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
+        AdvancementManager am = plugin.getAdvancementManager();
         if (am == null) {
             return;
         }

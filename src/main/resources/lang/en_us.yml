@@ -8,8 +8,11 @@ crop:
   need_water: "<red>Rice must be planted in water."
   invalid_soil: "<red>This crop needs suitable soil."
 general:
+  # The chat prefix for player-facing messages. Reference it as {prefix} from any message instead of
+  # repeating the markup; placeholders are substituted before MiniMessage parses the text.
+  prefix: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> "
   no_permission: "<red>You don't have permission to do that."
-  config_reloaded: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <white>Configuration reloaded</white>"
+  config_reloaded: "{prefix}<white>Configuration reloaded</white>"
 recipe-discovery:
   unlocked: "<green>Recipe unlocked: <white>{recipe}"
   unlocked-multi: "<green>Unlocked <white>{count}<green> new recipes."
@@ -184,6 +187,10 @@ console:
     recipes_loaded_timing: "Recipe files loaded: cooking pot {pot}ms, cutting board {board}ms, total {total}ms."
     warmup_breakdown: "Warmup split: items {items}ms, GUI/behavior {gui}ms, ingredient icons {icons}ms, recipe index {index}ms."
     warmup_failed: "Cache warmup failed; the first interaction may briefly lag."
+    reload_breakdown: "Reload split (synchronous, on the server thread): {total}ms total - config {config}ms, tools+language {tools}ms, cache invalidation {caches}ms, managers {managers}ms, listeners {listeners}ms."
+    reload_addons: "Addon reload event took {ms}ms (addons rebuild synchronously on the server thread; not included in the split above)."
+    reload_breakdown_config: "Config split: read config.yml {read}ms, key migration {migrate}ms, type validation {validate}ms, load other yml {load}ms."
+    reload_report: "Reload report: {total}ms total ({split}), {issues} issue(s) found."
     configuration_reloaded: "Configuration reloaded."
     main_configuration_reloaded: "Main configuration reloaded."
     gui_configuration_reloaded: "GUI configuration reloaded: {file}"
@@ -309,6 +316,7 @@ console:
     pack_sections_registered: "Claimed the CraftEngine pack sections: {ids}"
     pack_sections_unavailable: "CraftEngine's pack manager is not ready yet, so the pack sections could not be claimed; craft-engine pack recipes, special recipes and advancements will not be read."
     pack_sections_conflict: "The CraftEngine pack section(s) {ids} are claimed by another plugin, so this plugin cannot read them; craft-engine pack recipes, special recipes and advancements in those sections are ignored."
+    craftengine_not_ready: "Timed out waiting for CraftEngine to load its custom items (about 20 seconds): recipes, advancements and the display caches were not warmed. Run /fd reload recipes once CraftEngine is ready to load them."
   advancement:
     loaded_keys: "Loaded {count} advancement keys"
     unknown: "Unknown advancement: {id}"
@@ -332,7 +340,6 @@ console:
   knife:
     dropped: "Dropped {item} from {entity} at {location}"
     invalid_item_id: "Invalid item ID format: {id}"
-    mob_extra_ignored: "drops.yml section '{section}' is no longer read and has been ignored: the mob knife drops now live in the CraftEngine pack (vanilla_loots.yml). See changed_log.txt for the migration."
   recipe:
     loaded_single: "Loaded {type} recipe: {id}"
     load_failed: "Failed to load recipe '{id}': {error}"
@@ -425,6 +432,10 @@ console:
 command:
   player_only: "<red>This command can only be used by a player."
   reload_usage: "<yellow>/fd reload <{targets}></yellow>"
+  reload_busy: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <red>A reload is still running, please wait."
+  reload_cooldown: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <red>Reloading too often; try again in <white>{seconds}</white>s."
+  reload_report: "{prefix}<white>Reload finished</white> <gray>(</gray><yellow>{total}ms</yellow><gray>: </gray><gray>{split}</gray><gray>)</gray>"
+  reload_report_issues: "{prefix}<red>⚠ Found </red><bold><red>{issues}</red></bold><red> issue(s) - see the console for details.</red>"
   runtime_management_refused: "<yellow>[{plugin}]</yellow> <red>This plugin does not support runtime management. /stop and restart the server to apply changes."
   recipe_discovery_usage: "<yellow>/fd recipe discovery unlock|lock <type> <recipeId|all> [player]</yellow> <gray>|</gray> <yellow>/fd recipe discovery unlock|lock all [player]</yellow> <gray>|</gray> <yellow>/fd recipe discovery list [type] [player]</yellow> <gray>|</gray> <yellow>/fd recipe discovery status [player]</yellow>"
   recipe_discovery_unavailable: "<red>Recipe discovery is not available right now."

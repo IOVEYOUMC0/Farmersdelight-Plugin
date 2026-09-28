@@ -36,3 +36,46 @@ jobs:
           name: test-results
           path: build/reports/tests/test/
           if-no-files-found: ignore
+
+  lint:
+    name: Repo contract checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The machine-enforceable half of the maintenance contracts written down in the project notes: shipped
+      # CraftEngine configuration carries no comments, meal icons match the recipes that actually produce
+      # them, no language key is referenced without a definition in both locales, addons only compile against
+      # the api facade, and every config path the code reads exists in a file we ship. They used to be manual
+      # (or unenforced) steps, which meant a contract held only when someone remembered to check it.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install checker dependencies
+        run: python -m pip install --quiet pyyaml
+
+      - name: CraftEngine config files carry no comments
+        run: python tools/strip_ce_comments.py --check
+
+      - name: Meal icons match the cooking pot recipes
+        run: python tools/meal_icons.py --check
+
+      - name: Language keys are defined in both locales
+        run: python tools/check_lang_keys.py --quiet
+
+      # The whole addon split rests on this rule: an addon may only compile against api.**, never against
+      # FarmersDelight's internals. It was convention (and a jar-layout audit) until now; this makes a
+      # violating import fail the build. It also fails if an api class exposes an internal type in a public
+      # signature without the @ApiStatus.Internal marker that says "not for addons".
+      - name: Addons only depend on the api facade
+        run: python tools/check_api_boundary.py --quiet
+
+      # ConfigLookup falls back to the compiled default when none of a call site's aliases is set, so a
+      # renamed or misspelled path silently ignores the operator's value instead of failing. This resolves
+      # every literal path the code reads against the files we actually ship. An intentional exception marks
+      # itself in the source with "config-path-check: no shipped key, on purpose".
+      - name: Every config path read exists in a shipped file
+        run: python tools/check_config_paths.py --quiet

@@ -53,11 +53,17 @@ public final class EnchantmentDatapackInstaller implements Listener {
     );
 
     private final FarmersDelightPlugin plugin;
-    private final boolean installEnabled;
 
     public EnchantmentDatapackInstaller(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
-        this.installEnabled = plugin.getConfig().getBoolean("enchantments.install-datapack", true);
+    }
+
+    /**
+     * Read per install rather than at construction: the switch belongs to the config the operator may have
+     * reloaded since, and keeping it out of the constructor lets the installer be built without a live plugin.
+     */
+    private boolean installEnabled() {
+        return plugin == null || plugin.getConfig().getBoolean("enchantments.install-datapack", true);
     }
 
     // Registry-scoped datapack content (enchantments, enchantment tags) is loaded by the server from
@@ -127,7 +133,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
     }
 
     private boolean shouldInstall(EnchantmentSettings settings) {
-        if (!installEnabled || !settings.enabled()) {
+        if (!installEnabled() || !settings.enabled()) {
             return false;
         }
         return isBackstabEnabled(settings) || !FarmersDelightEnchantments.managedDefinitions().isEmpty();

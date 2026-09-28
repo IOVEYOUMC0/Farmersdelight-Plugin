@@ -141,6 +141,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
             SoilRules soilRules
     ) {}
 
+    private final FarmersDelightPlugin plugin;
     private final Config config;
     private static final Map<Key, TallCropBlockBehavior> BEHAVIORS = new ConcurrentHashMap<>();
     private static final Map<Key, SoilRules> SOIL_RULES = new ConcurrentHashMap<>();
@@ -162,14 +163,17 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         }
     };
 
-    private TallCropBlockBehavior(BlockDefinition block, Config config) {
+    private TallCropBlockBehavior(FarmersDelightPlugin plugin, BlockDefinition block, Config config) {
         super(block);
+        this.plugin = plugin;
         this.config = config;
     }
 
     public static final BlockBehaviorFactory<TallCropBlockBehavior> FACTORY = new BlockBehaviorFactory<TallCropBlockBehavior>() {
         @Override
         public TallCropBlockBehavior create(BlockDefinition block, ConfigSection section) {
+            // Runs while CraftEngine parses the pack, which is always after this plugin enabled.
+            FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
             String path = section != null ? section.path() : Constants.BEHAVIOR_TALL_CROP;
 
@@ -250,7 +254,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
             String upperBlockStr = BehaviorArgParser.getString(arguments, "upper.block", "");
             Key upperBlockId = upperBlockStr.isEmpty() ? null : Key.of(upperBlockStr);
 
-            TallCropBlockBehavior behavior = new TallCropBlockBehavior(block, new Config(
+            TallCropBlockBehavior behavior = new TallCropBlockBehavior(plugin, block, new Config(
                     ageProperty, halfProperty, supportingProperty,
                     growSpeed, minGrowLight, isBoneMealTarget, boneMealAgeBonus,
                     maxAgeLower, maxAgeUpper, upperMinAge, vanillaGrowth, boneMealOverflow,
@@ -865,12 +869,12 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
             return;
         }
 
-        var strawDropConfig = FarmersDelightPlugin.getInstance().getStrawDropConfig();
+        var strawDropConfig = plugin.getStrawDropConfig();
         if (strawDropConfig == null || !strawDropConfig.hasRule("mature_rice")) {
             return;
         }
 
-        var advancementManager = FarmersDelightPlugin.getInstance().getAdvancementManager();
+        var advancementManager = plugin.getAdvancementManager();
         if (advancementManager != null) {
             advancementManager.award(player, "harvest_straw");
         }
@@ -913,7 +917,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
                 continue;
             }
 
-            boolean matchesCustomTag = FarmersDelightPlugin.getInstance()
+            boolean matchesCustomTag = plugin
                     .getCraftEngine()
                     .itemManager()
                     .itemIdsByTag(tag)
@@ -927,7 +931,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
     }
 
     private boolean matchesLegacyKnife(ItemStack item) {
-        return FarmersDelightPlugin.getInstance().isKnife(item);
+        return plugin.isKnife(item);
     }
 
     @Override

@@ -1,10 +1,15 @@
 package com.huidu.farmersdelight.api.advancement;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.PluginAccess;
 import com.huidu.farmersdelight.advancement.AddonAdvancementRegistry;
+import com.huidu.farmersdelight.api.PluginAccess;
 import com.huidu.farmersdelight.advancement.AddonAdvancementTab;
+import com.huidu.farmersdelight.api.PluginAccess;
 import com.huidu.farmersdelight.advancement.AdvancementDef;
+import com.huidu.farmersdelight.api.PluginAccess;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.api.PluginAccess;
 import com.huidu.farmersdelight.advancement.AutomaticAdvancementLayout;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
 import org.bukkit.Bukkit;
@@ -22,7 +27,7 @@ public final class FarmersDelightAdvancements {
     // The single evaluation of the advancement system's state: every internal gate and every addon reads
     // this, so a caller can never disagree with the reason reported for a tab that was not registered.
     public static AdvancementAvailability availability() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         if (plugin == null) {
             return AdvancementAvailability.PLUGIN_UNAVAILABLE;
         }
@@ -121,7 +126,7 @@ public final class FarmersDelightAdvancements {
         AddonAdvancementTab tab = addonTab(tabId);
         if (tab != null) {
             if (FarmersDelightApi.get().isFolia() && player != null) {
-                FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+                FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
                 player.getScheduler().run(plugin, task -> tab.showTo(player), null);
             } else {
                 tab.showTo(player);
@@ -142,7 +147,7 @@ public final class FarmersDelightAdvancements {
         if (!isAvailable()) {
             return null;
         }
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         return plugin == null ? null : plugin.getAdvancementManager();
     }
 
@@ -150,7 +155,7 @@ public final class FarmersDelightAdvancements {
         if (!isAvailable()) {
             return null;
         }
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         return plugin == null ? null : plugin.getAddonAdvancementRegistry();
     }
 

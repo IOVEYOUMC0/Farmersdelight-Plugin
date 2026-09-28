@@ -1,10 +1,10 @@
 package com.huidu.farmersdelight.gui;
 
-import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -25,7 +25,7 @@ final class RecipeIngredientDisplay {
 
     private static final int MAX_COMPACT_INGREDIENT_LINE_LENGTH = 42;
     private static final int MAX_COMPACT_ITEM_PREVIEW = 6;
-    private static final int PREVIEW_ITEMS = 5;
+    private static final PlainTextComponentSerializer PLAIN_TEXT = PlainTextComponentSerializer.plainText();
 
     private final RecipeViewGui gui;
 
@@ -279,7 +279,12 @@ final class RecipeIngredientDisplay {
 
         for (ItemStack option : options) {
             Component name = gui.itemNameComponent(option, player).colorIfAbsent(NamedTextColor.WHITE);
-            int nameLength = Math.max(1, getItemDisplayName(option, player).length());
+            // The wrap width is decided from the same name the line will show, so take the text from the
+            // component that was just built instead of resolving the item's name a second time. Each
+            // resolution walks the item meta, the CraftEngine item id and the translation layers, and a list
+            // page does this for every preview option of every recipe on the page, which made this loop the
+            // dominant cost of drawing the recipe list.
+            int nameLength = Math.max(1, PLAIN_TEXT.serialize(name).length());
             int extraLength = hasCurrent ? nameLength + 2 : nameLength;
             if (hasCurrent && currentLength + extraLength > MAX_COMPACT_INGREDIENT_LINE_LENGTH) {
                 lines.add(current);
@@ -420,16 +425,5 @@ final class RecipeIngredientDisplay {
             return;
         }
         lore.add(gui.tr("gui.recipe.more_items", remainingCount));
-    }
-
-    private String unknownRecipeText(Player player) {
-        return I18n.get("gui.recipe.unknown", player);
-    }
-
-    private String getItemDisplayName(ItemStack item, Player player) {
-        if (item == null) {
-            return unknownRecipeText(player);
-        }
-        return ItemUtils.getDisplayName(item, player);
     }
 }

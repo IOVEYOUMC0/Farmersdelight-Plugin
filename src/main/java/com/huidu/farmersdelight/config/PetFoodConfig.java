@@ -312,10 +312,10 @@ public class PetFoodConfig {
             return;
         }
 
-        int duration = getInt(effectMap.get("duration"), 6000);
-        int amplifier = getInt(effectMap.get("amplifier"), 0);
-        boolean ambient = getBoolean(effectMap.get("ambient"), false);
-        boolean particles = getBoolean(effectMap.get("particles"), true);
+        int duration = ConfigValues.intValue(effectMap.get("duration"), 6000);
+        int amplifier = ConfigValues.intValue(effectMap.get("amplifier"), 0);
+        boolean ambient = ConfigValues.booleanValue(effectMap.get("ambient"), false);
+        boolean particles = ConfigValues.booleanValue(effectMap.get("particles"), true);
         effects.add(new EffectDefinition(effectType, duration, amplifier, ambient, particles));
     }
 
@@ -378,29 +378,6 @@ public class PetFoodConfig {
             LOGGER.warning(I18n.formatConsole("plugin.config_value_invalid",
                     "file", "CraftEngine item", "path", path, "error", "invalid value " + value));
         }
-    }
-
-    private static int getInt(Object value, int defaultValue) {
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
-        if (value instanceof String stringValue) {
-            try {
-                return Integer.parseInt(stringValue);
-            } catch (NumberFormatException ignored) {
-            }
-        }
-        return defaultValue;
-    }
-
-    private static boolean getBoolean(Object value, boolean defaultValue) {
-        if (value instanceof Boolean bool) {
-            return bool;
-        }
-        if (value instanceof String stringValue) {
-            return Boolean.parseBoolean(stringValue);
-        }
-        return defaultValue;
     }
 
     public PetFoodDefinition getFoodDefinition(String foodId) {

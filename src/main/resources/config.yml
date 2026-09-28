@@ -136,6 +136,7 @@ enchantments:
 #   gui        - GUI rendering
 #   interact   - Player interaction events
 #   config     - Config file integrity checks
+#   reload     - Per-phase timings for /fd reload, so a stall can be attributed
 #   resource   - Resource auto-completion details (+ added / = skipped)
 # Set to ["all"] or ["*"] to temporarily enable every category.
 debug:
@@ -150,6 +151,16 @@ debug:
 # Reinstall via /fd reload damage.
 damage-type:
   install-datapack: true
+
+# /fd reload guards. A full reload runs synchronously on the server thread: FarmersDelight itself takes
+# roughly 200ms, then every installed addon rebuilds on the following tick for another 100-200ms. Running it
+# twice in quick succession therefore stacks two stalls back to back, so a request that arrives while a reload
+# is still running, or within the cooldown below, is refused with a message instead of being queued.
+# Only one reload ever runs at a time; the cooldown additionally covers the addon pass that follows it.
+reload:
+  # Seconds to refuse a second reload after the previous one finished. 0 keeps the one-at-a-time rule but
+  # removes the spacing. Raise this if you drive /fd reload from a script.
+  cooldown-seconds: 2
 
 # Advancement system. When disabled, the built-in advancement datapack is not synced.
 advancements:

@@ -13,7 +13,6 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
 // Collects bounded, opt-in timings; world access remains in the calling region/entity task.
@@ -38,7 +37,7 @@ public final class PerformanceMonitor {
     private int densityWarningThreshold = 64;
     private int totalWarningThreshold = 1000;
     private long warningCooldownMillis = 600_000L;
-    private final Map<String, Long> warningTimes = new ConcurrentHashMap<>();
+    private final WarningThrottle warningThrottle = new WarningThrottle(System::currentTimeMillis);
 
     private volatile Session session;
     private long nextSessionId;
@@ -240,10 +239,9 @@ public final class PerformanceMonitor {
     }
 
     void pruneOldWarnings() {
-        // The warning-times map is keyed by world/chunk and would grow unbounded otherwise; remove
+        // The throttle's key map is keyed by world/chunk and would grow unbounded otherwise; remove
         // entries past the cooldown (a later warning for the same key re-adds it).
-        long cutoff = System.currentTimeMillis() - warningCooldownMillis;
-        warningTimes.entrySet().removeIf(entry -> entry.getValue() < cutoff);
+        warningThrottle.prune(warningCooldownMillis);
     }
 
     private long packChunkKey(int chunkX, int chunkZ) {
@@ -259,28 +257,28 @@ public final class PerformanceMonitor {
     }
 
     private void warnWithCooldown(String key, String message) {
-        long now = System.currentTimeMillis();
-        Long previous = warningTimes.get(key);
-        if (previous != null && now - previous < warningCooldownMillis) {
-            return;
+        if (warningThrottle.allow(key, warningCooldownMillis)) {
+            plugin.getLogger().warning(message);
         }
-        warningTimes.put(key, now);
-        plugin.getLogger().warning(message);
     }
 
     // Reports a failed cooking-pot cleanup that was caused by an exception this plugin did not write
     // (the CE state lookup reads the chunk and can run other plugins' listeners). Throttled per world:
     // cleanup walks every tracked pot, so an unthrottled report would print one stack per entry per run.
-    // Keyed on the world id so the cooldown-pruned warningTimes map stays small.
+    // Keyed on the world id so the cooldown-pruned key map stays small.
     void warnCleanupFailure(World world, BlockPosKey posKey, Throwable failure) {
-        String key = "cleanup-failure:" + world.getUID();
-        long now = System.currentTimeMillis();
-        Long previous = warningTimes.get(key);
-        if (previous != null && now - previous < warningCooldownMillis) {
-            return;
+        warnFeatureFailure("cleanup-failure", I18n.formatNamedArgs("console.tick.cleanup_failed",
+                "world", world.getName(), "pos", posKey.toString(), "error", String.valueOf(failure)),
+                world, failure);
+    }
+
+    // Reports a failure raised while ticking one tracked block, so the repeating task that drives the tick
+    // survives it. Throttled per world and per feature: these tasks run every few ticks, so an unthrottled
+    // report would print one stack per affected block per pass.
+    void warnFeatureFailure(String feature, String message, World world, Throwable failure) {
+        String key = feature + ":" + (world == null ? "?" : world.getUID());
+        if (warningThrottle.allow(key, warningCooldownMillis)) {
+            plugin.getLogger().log(Level.WARNING, message, failure);
         }
-        warningTimes.put(key, now);
-        plugin.getLogger().log(Level.WARNING, I18n.formatNamedArgs("console.tick.cleanup_failed",
-                "world", world.getName(), "pos", posKey.toString(), "error", String.valueOf(failure)), failure);
     }
 }

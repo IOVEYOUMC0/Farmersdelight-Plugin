@@ -90,12 +90,16 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
     // lazily on the first step; a /ce reload replaces this behavior together with the block definition.
     private volatile DamageType burnDamageType;
 
-    private StoveCookingBlockBehavior(BlockDefinition block, Property<Boolean> fireProperty, String crackleSound,
-                                       boolean burnEnabled, double burnDamage, boolean igniteEnabled,
-                                       boolean extinguishEnabled, String igniteSound, String fireChargeSound,
-                                       String extinguishSound, String waterExtinguishSound,
-                                       int stateChangeToolDamage) {
+    // Captured from the factory so the controller it creates does not have to look the plugin up.
+    private final FarmersDelightPlugin plugin;
+
+    private StoveCookingBlockBehavior(FarmersDelightPlugin plugin, BlockDefinition block, Property<Boolean> fireProperty,
+                                      String crackleSound, boolean burnEnabled, double burnDamage, boolean igniteEnabled,
+                                      boolean extinguishEnabled, String igniteSound, String fireChargeSound,
+                                      String extinguishSound, String waterExtinguishSound,
+                                      int stateChangeToolDamage) {
         super(block);
+        this.plugin = plugin;
         this.fireProperty = fireProperty;
         this.crackleSound = crackleSound;
         this.burnEnabled = burnEnabled;
@@ -140,9 +144,9 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
                     BehaviorArgParser.getStringStrict(arguments, "extinguish.water-sound", "water-extinguish-sound",
                             Constants.SOUND_STOVE_EXTINGUISH_WATER).trim());
             int stateChangeToolDamage = Math.max(0, BehaviorArgParser.getInt(arguments, "tool-damage", 1));
-            return new StoveCookingBlockBehavior(block, fireProperty, crackleSound, burnEnabled, burnDamage,
-                    igniteEnabled, extinguishEnabled, igniteSound, fireChargeSound, extinguishSound,
-                    waterExtinguishSound, stateChangeToolDamage);
+            return new StoveCookingBlockBehavior(FarmersDelightPlugin.getInstance(), block, fireProperty, crackleSound,
+                    burnEnabled, burnDamage, igniteEnabled, extinguishEnabled, igniteSound, fireChargeSound,
+                    extinguishSound, waterExtinguishSound, stateChangeToolDamage);
         }
     };
 
@@ -246,7 +250,7 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
 
     @Override
     public BlockEntityController createBlockEntityController(BlockEntity blockEntity) {
-        return new StoveBlockEntityController(blockEntity);
+        return new StoveBlockEntityController(plugin, blockEntity);
     }
 
     @Override
@@ -279,7 +283,6 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
         BlockPos pos = context.getClickedPos();
         Block block = world.getBlockAt(pos.x(), pos.y(), pos.z());
         ItemStack heldItem = ItemUtils.getItemInHand(player, context.getHand());
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         StoveManager manager = getManager();
         if (plugin == null || manager == null) {
             return InteractionResult.PASS;
@@ -450,7 +453,7 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
             return;
         }
         World world = Bukkit.getWorld(ceWorld.uuid());
-        StoveManager manager = getManager();
+        StoveManager manager = getManagerStatic();
         if (world == null || manager == null) {
             return;
         }
@@ -460,28 +463,36 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
     }
 
     public static void cleanupAll() {
-        StoveManager manager = getManager();
+        StoveManager manager = getManagerStatic();
         if (manager != null) {
             manager.cleanup();
         }
     }
 
     public static void saveAllData() {
-        StoveManager manager = getManager();
+        StoveManager manager = getManagerStatic();
         if (manager != null) {
             manager.saveAllData();
         }
     }
 
     public static void cleanupWorld(UUID worldId) {
-        StoveManager manager = getManager();
+        StoveManager manager = getManagerStatic();
         if (manager != null) {
             manager.cleanupWorld(worldId);
         }
     }
 
-    private static StoveManager getManager() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+    private StoveManager getManager() {
+        return managerOf(plugin);
+    }
+
+    // Static callers (cleanup / save / state removal) have no behaviour instance to take the plugin from.
+    private static StoveManager getManagerStatic() {
+        return managerOf(FarmersDelightPlugin.getInstance());
+    }
+
+    private static StoveManager managerOf(FarmersDelightPlugin plugin) {
         if (plugin == null) {
             return null;
         }

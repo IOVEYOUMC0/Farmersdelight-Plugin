@@ -12,10 +12,12 @@ import java.util.List;
 // behavior stays focused on interaction flow.
 final class CuttingBoardToolMatcher {
 
+    private final FarmersDelightPlugin plugin;
     private final List<Key> toolTags;
     private final List<Key> toolItems;
 
-    CuttingBoardToolMatcher(List<Key> toolTags, List<Key> toolItems) {
+    CuttingBoardToolMatcher(FarmersDelightPlugin plugin, List<Key> toolTags, List<Key> toolItems) {
+        this.plugin = plugin;
         this.toolTags = toolTags;
         this.toolItems = toolItems;
     }
@@ -25,7 +27,6 @@ final class CuttingBoardToolMatcher {
             return false;
         }
 
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin.getCuttingBoardRecipes() != null && plugin.getCuttingBoardRecipes().isRecipeTool(item)) {
             return true;
         }
@@ -49,7 +50,7 @@ final class CuttingBoardToolMatcher {
     }
 
     private boolean isKnifeTool(ItemStack item) {
-        return FarmersDelightPlugin.getInstance().isKnife(item);
+        return plugin.isKnife(item);
     }
 
     private boolean isAxeTool(ItemStack item) {

@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.api.loot;
 
+import com.huidu.farmersdelight.api.PluginAccess;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.loot.KnifeDropHandler;
 import com.huidu.farmersdelight.loot.KnifeDropRule;
@@ -53,8 +54,8 @@ public final class FarmersDelightKnifeDrops {
     }
 
     private static KnifeDropHandler handler() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (plugin == null || !FarmersDelightPlugin.isEnabled0()) {
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
+        if (plugin == null) {
             return null;
         }
         return plugin.getKnifeDrops();

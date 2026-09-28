@@ -33,9 +33,11 @@ final class CuttingBoardCutter {
     // Increase each output unit's keep chance by this amount per Fortune level.
     private static final double FORTUNE_BONUS_PER_LEVEL = 0.1d;
 
+    private final FarmersDelightPlugin plugin;
     private final CuttingBoardToolMatcher toolMatcher;
 
-    CuttingBoardCutter(CuttingBoardToolMatcher toolMatcher) {
+    CuttingBoardCutter(FarmersDelightPlugin plugin, CuttingBoardToolMatcher toolMatcher) {
+        this.plugin = plugin;
         this.toolMatcher = toolMatcher;
     }
 
@@ -61,7 +63,7 @@ final class CuttingBoardCutter {
         }
         ItemStack singleItem = storedItem.clone();
         singleItem.setAmount(1);
-        return FarmersDelightPlugin.getInstance().getCuttingBoardRecipes().matchRecipe(singleItem, tool) != null;
+        return plugin.getCuttingBoardRecipes().matchRecipe(singleItem, tool) != null;
     }
 
     boolean processCutting(CuttingBoardBlockEntity blockEntity, ItemStack tool, Player player,
@@ -93,7 +95,7 @@ final class CuttingBoardCutter {
 
         ItemStack recipeInput = storedItem.clone();
         recipeInput.setAmount(1);
-        CuttingBoardRecipe recipe = FarmersDelightPlugin.getInstance().getCuttingBoardRecipes()
+        CuttingBoardRecipe recipe = plugin.getCuttingBoardRecipes()
                 .matchRecipe(recipeInput, tool);
         if (recipe == null) {
             return false;
@@ -175,7 +177,6 @@ final class CuttingBoardCutter {
             CuttingBoardBlockBehavior.saveBlockEntityData(world, posKey);
         }
 
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         var advancementManager = plugin.getAdvancementManager();
         if (advancementManager != null) {
             advancementManager.award(player, "use_cutting_board");
@@ -201,7 +202,7 @@ final class CuttingBoardCutter {
             }
             ItemStack recipeInput = storedItem.clone();
             recipeInput.setAmount(1);
-            CuttingBoardRecipe recipe = FarmersDelightPlugin.getInstance().getCuttingBoardRecipes()
+            CuttingBoardRecipe recipe = plugin.getCuttingBoardRecipes()
                     .matchRecipe(recipeInput, tool);
             if (recipe == null) {
                 return false;
@@ -270,7 +271,7 @@ final class CuttingBoardCutter {
         if (recipeSound != null && !recipeSound.isBlank()) {
             SoundUtils.play(world, effectLocation, recipeSound, Sound.BLOCK_WOOD_BREAK, 1.0f, 1.0f);
         } else {
-            CuttingBoardSounds sounds = FarmersDelightPlugin.getInstance().getCuttingBoardSounds();
+            CuttingBoardSounds sounds = plugin.getCuttingBoardSounds();
             ToolSoundTable.Entry entry = sounds.resolve(tool);
             SoundUtils.play(world, effectLocation, entry.soundKey(), Sound.BLOCK_WOOD_BREAK,
                     entry.volume(), entry.pitch());
@@ -319,8 +320,7 @@ final class CuttingBoardCutter {
     }
 
     private void debug(String message) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (plugin != null && plugin.isDebugEnabled("interact")) {
+        if (plugin.isDebugEnabled("interact")) {
             plugin.getLogger().info(I18n.formatConsole("debug.cutting_board", "message", message));
         }
     }

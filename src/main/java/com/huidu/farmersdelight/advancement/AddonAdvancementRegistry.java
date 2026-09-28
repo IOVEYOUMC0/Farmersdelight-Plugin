@@ -16,7 +16,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public final class AddonAdvancementRegistry {
 
-    private final Plugin plugin;
+    // Held as the concrete type: the loaders below need plugin services, not just the Bukkit Plugin surface.
+    private final FarmersDelightPlugin plugin;
     private record TreeDefinition(List<AdvancementDef> advancements) {}
 
     private final Map<String, TreeDefinition> definitions = new ConcurrentHashMap<>();
@@ -25,7 +26,7 @@ public final class AddonAdvancementRegistry {
     private final AtomicLong loadGeneration = new AtomicLong();
     private volatile boolean ready = false;
 
-    public AddonAdvancementRegistry(Plugin plugin) {
+    public AddonAdvancementRegistry(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
     }
 
@@ -70,7 +71,7 @@ public final class AddonAdvancementRegistry {
     public void onSystemReady() {
         long generation = loadGeneration.incrementAndGet();
         ready = false;
-        AddonAdvancementPackLoader.load(FarmersDelightPlugin.getInstance(), configs -> {
+        AddonAdvancementPackLoader.load(plugin, configs -> {
             if (generation != loadGeneration.get()) {
                 return;
             }
@@ -82,7 +83,7 @@ public final class AddonAdvancementRegistry {
         Set<String> loadedPackTabs = new HashSet<>();
         for (AddonAdvancementPackLoader.Config config : configs) {
             List<AdvancementDef> defs = AddonAdvancementPackLoader.parse(
-                    FarmersDelightPlugin.getInstance(), config.namespace(), config.source(), config.yaml());
+                    plugin, config.namespace(), config.source(), config.yaml());
             if (!defs.isEmpty()) {
                 String tab = config.namespace();
                 register(tab, defs);

@@ -53,6 +53,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class BlockBreakListener implements Listener {
 
+    // Handed in by the registrar instead of looked up: every handler below runs while the plugin is enabled.
+    private final FarmersDelightPlugin plugin;
+
+    public BlockBreakListener(FarmersDelightPlugin plugin) {
+        this.plugin = plugin;
+    }
+
     // Pending meals of exploded pots, keyed by the pot's block position. CraftEngine's loot table drops those
     // pots' items, and that drop cannot carry plugin-side block entity data, so the meal waits here for the
     // item the same explosion spawns at that position (see parkExplodedMeal / onItemSpawn).
@@ -80,7 +87,7 @@ public class BlockBreakListener implements Listener {
         }
         // Block.getLocation() already returns a fresh Location object — the extra clone() before
         // mutating add() was double-allocating per break event.
-        FarmersDelightPlugin.getInstance().getStoveManager()
+        plugin.getStoveManager()
                 .invalidateBlockedAboveCache(block.getLocation().add(0, -1, 0));
         syncTraysAroundSupportChange(block);
         if (isProtectedBlock(state)
@@ -105,7 +112,7 @@ public class BlockBreakListener implements Listener {
         if (event.isCancelled()) {
             return;
         }
-        FarmersDelightPlugin.getInstance().getStoveManager()
+        plugin.getStoveManager()
                 .invalidateBlockedAboveCache(event.bukkitBlock().getLocation().add(0, -1, 0));
         syncTraysAroundSupportChange(event.bukkitBlock());
         // Resolve the block state once and reuse it across the managed-type checks and cleanup, avoiding
@@ -121,7 +128,7 @@ public class BlockBreakListener implements Listener {
         if (isCookingPotBlock(state)) {
             boolean shouldDropItems = event.dropItems() && event.getPlayer().getGameMode() != GameMode.CREATIVE;
             event.setDropItems(false);
-            boolean preserveContents = FarmersDelightPlugin.getInstance().isCookingPotPackContentsOnBreak();
+            boolean preserveContents = plugin.isCookingPotPackContentsOnBreak();
             cleanupBlockAt(event.bukkitBlock(), state, preserveContents, shouldDropItems);
             return;
         }
@@ -187,8 +194,7 @@ public class BlockBreakListener implements Listener {
         if (block == null) {
             return;
         }
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (plugin == null || plugin.getTrayManager() == null) {
+        if (plugin.getTrayManager() == null) {
             return;
         }
         plugin.getTrayManager().syncAroundSupportChange(block.getLocation());
@@ -224,7 +230,7 @@ public class BlockBreakListener implements Listener {
         // close (CookingPotBlockBehavior.handleStateRemoval) would then early-return on the now-null entity and
         // never fire, leaving a cross-player viewer with a live GUI over the dropped meal (dupe).
         CookingPotGui.closeOpenGuisAt(world, pos.x(), pos.y(), pos.z());
-        FarmersDelightPlugin fdPlugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin fdPlugin = plugin;
         if (fdPlugin != null && fdPlugin.getHandleManager() != null) {
             fdPlugin.getHandleManager().removeHandle(world, pos);
         }
@@ -358,8 +364,7 @@ public class BlockBreakListener implements Listener {
         ExplodedPotKey key = new ExplodedPotKey(world.getUID(), pos.x(), pos.y(), pos.z());
         pendingExplodedMeals.put(key, new PendingExplodedMeal(CustomBlockUtils.getId(state), behavior,
                 CookingPotBlockEntityController.savePendingMealData(entity), meal));
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (plugin != null && plugin.scheduler() != null) {
+        if (plugin.scheduler() != null) {
             plugin.scheduler().runLater(() -> pendingExplodedMeals.remove(key), 1L);
         }
     }
@@ -482,7 +487,7 @@ public class BlockBreakListener implements Listener {
     }
 
     private void cleanupSkillet(Location blockLocation, Location dropLocation, boolean shouldDropItems, boolean explosion) {
-        FarmersDelightPlugin.getInstance().getSkilletManager().breakSkillet(blockLocation, dropLocation, shouldDropItems, explosion);
+        plugin.getSkilletManager().breakSkillet(blockLocation, dropLocation, shouldDropItems, explosion);
     }
 
     private void cleanupCuttingBoard(BlockPos pos, World world, Location dropLocation, boolean shouldDropItems) {
@@ -502,7 +507,7 @@ public class BlockBreakListener implements Listener {
     }
 
     private void cleanupStove(Location blockLocation, Location dropLocation, boolean shouldDropItems) {
-        FarmersDelightPlugin.getInstance().getStoveManager().breakStove(blockLocation, dropLocation, shouldDropItems);
+        plugin.getStoveManager().breakStove(blockLocation, dropLocation, shouldDropItems);
     }
 
     private boolean isManagedInteractiveBlock(ImmutableBlockState state) {

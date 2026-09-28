@@ -10,7 +10,6 @@ import com.huidu.farmersdelight.api.block.CuttingBoardInteractionMode;
 import com.huidu.farmersdelight.api.buff.CustomBuffRegistry;
 import com.huidu.farmersdelight.api.enchant.FarmersDelightEnchantments;
 import com.huidu.farmersdelight.api.event.FarmersDelightReloadEvent;
-import com.huidu.farmersdelight.api.util.PluginManagerGuard;
 import com.huidu.farmersdelight.api.util.ShutdownBudget;
 import com.huidu.farmersdelight.block.behavior.BlockBehaviorConfigs;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
@@ -20,32 +19,13 @@ import com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.TallCropBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.WildRiceBlockBehavior;
-import com.huidu.farmersdelight.listener.AchievementListener;
-import com.huidu.farmersdelight.listener.BackstabListener;
-import com.huidu.farmersdelight.listener.BlockBreakListener;
 import com.huidu.farmersdelight.listener.BlockPlaceListener;
-import com.huidu.farmersdelight.listener.ChunkLoadListener;
 import com.huidu.farmersdelight.listener.CraftEngineWatchdogListener;
-import com.huidu.farmersdelight.listener.CropInteractProtectionListener;
-import com.huidu.farmersdelight.listener.CuttingBoardDispenseListener;
-import com.huidu.farmersdelight.listener.CuttingBoardInteractListener;
-import com.huidu.farmersdelight.listener.DamageTypeDatapackInstaller;
-import com.huidu.farmersdelight.listener.EnchantmentDatapackInstaller;
-import com.huidu.farmersdelight.listener.SkilletLifecycleListener;
-import com.huidu.farmersdelight.listener.TagDatapackInstaller;
 import com.huidu.farmersdelight.listener.FoodEatListener;
 import com.huidu.farmersdelight.listener.HorseFeedTemptListener;
-import com.huidu.farmersdelight.listener.KnifeEnchantFilter;
 import com.huidu.farmersdelight.listener.PetFoodListener;
 import com.huidu.farmersdelight.listener.RecipeDiscoveryListener;
-import com.huidu.farmersdelight.listener.RicePlantListener;
-import com.huidu.farmersdelight.listener.RichSoilHoeListener;
-import com.huidu.farmersdelight.listener.RottenTomatoListener;
 import com.huidu.farmersdelight.listener.RopeBlockListener;
-import com.huidu.farmersdelight.listener.SkilletPlaceListener;
-import com.huidu.farmersdelight.listener.StrawDropListener;
-import com.huidu.farmersdelight.listener.TatamiBreakListener;
-import com.huidu.farmersdelight.tool.ToolAttackListener;
 import com.huidu.farmersdelight.command.FarmersDelightCommandRegistrar;
 import com.huidu.farmersdelight.config.ContainerReturnConfig;
 import com.huidu.farmersdelight.config.ConfigLookup;
@@ -61,7 +41,6 @@ import com.huidu.farmersdelight.config.DebugSettings;
 import com.huidu.farmersdelight.config.KnifeSettings;
 import com.huidu.farmersdelight.compat.AuraSkillsHook;
 import com.huidu.farmersdelight.compat.CraftEngineStateUsageMonitor;
-import com.huidu.farmersdelight.effect.EffectListener;
 import com.huidu.farmersdelight.gui.CookingPotGui;
 import com.huidu.farmersdelight.gui.GuiCacheInvalidator;
 import com.huidu.farmersdelight.gui.GuiConfig;
@@ -94,14 +73,11 @@ import com.huidu.farmersdelight.visual.ProxyItemDisplayManager;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import com.huidu.farmersdelight.api.visual.DisplayGroup;
-import com.huidu.farmersdelight.listener.worlddata.VillagerTradeListener;
 import com.huidu.farmersdelight.listener.worlddata.WorldDataConfig;
-import com.huidu.farmersdelight.resource.ResourceInstaller;
 import com.huidu.farmersdelight.pack.PackSection;
 import com.huidu.farmersdelight.gui.editor.RecipeEditorListener;
 import com.huidu.farmersdelight.gui.editor.RecipeEditorView;
 import com.huidu.farmersdelight.pack.PackSections;
-import com.huidu.farmersdelight.registry.BehaviorRegistrar;
 import com.huidu.farmersdelight.tool.ToolRegistry;
 import com.huidu.farmersdelight.compat.PlaceholderApiHook;
 import com.huidu.farmersdelight.effect.EffectManager;
@@ -121,7 +97,6 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.enchantment.PrepareItemEnchantEvent;
 import org.bukkit.event.world.WorldLoadEvent;
@@ -177,21 +152,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private CookingPotRecipeManager cookingPotRecipeManager;
     private CuttingBoardRecipeManager cuttingBoardRecipeManager;
     private SpecialRecipeRegistry specialRecipeRegistry;
-    private BlockBreakListener blockBreakListener;
-    private BlockPlaceListener blockPlaceListener;
-    private StrawDropListener strawDropListener;
-    private ChunkLoadListener chunkLoadListener;
-    private RopeBlockListener ropeBlockListener;
-    private FoodEatListener foodEatListener;
-    private PetFoodListener petFoodListener;
-    private HorseFeedTemptListener horseFeedTemptListener;
-    private AchievementListener achievementListener;
-    private EffectListener effectListener;
-    private BackstabListener backstabListener;
-    private KnifeEnchantFilter knifeEnchantFilter;
-    private EnchantmentDatapackInstaller enchantmentDatapackInstaller;
-    private DamageTypeDatapackInstaller damageTypeDatapackInstaller;
-    private TagDatapackInstaller tagDatapackInstaller;
+    // Owns every event listener and the reload/stop hooks their state needs; see ListenerRegistry.
+    private final ListenerRegistry listeners = new ListenerRegistry(this);
+    // Owns the load-phase registrations that must complete before CraftEngine parses its packs.
+    private final LoadPhaseRegistrar loadPhaseRegistrar = new LoadPhaseRegistrar(this);
     private final ConfigBootstrap configBootstrap = new ConfigBootstrap(this);
     private final PluginConfigFiles configFiles = new PluginConfigFiles(this, configBootstrap);
 
@@ -240,6 +204,11 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return enabled;
     }
 
+    /** The plugin jar on disk; JavaPlugin#getFile is protected, so collaborators need this accessor. */
+    java.io.File pluginJarFile() {
+        return getFile();
+    }
+
     void loadRecipeManagers(String logKey) {
         I18n.logDetail("recipe", logKey);
         // Both loads read YAML from disk (the plugin's own files plus a scan of every CraftEngine pack's
@@ -285,10 +254,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     void disableAdvancementSystem() {
-        if (achievementListener != null) {
-            HandlerList.unregisterAll(achievementListener);
-            achievementListener = null;
-        }
+        listeners.unregisterAchievementListener();
         if (advancementManager != null) {
             advancementManager.dispose();
         }
@@ -331,10 +297,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             return;
         }
 
-        if (achievementListener == null) {
-            achievementListener = new AchievementListener();
-            getServer().getPluginManager().registerEvents(achievementListener, this);
-        }
+        listeners.registerAchievementListener();
 
         // Remove any legacy advancement datapacks to avoid their vanilla advancement tree duplicating the UAA tab.
         queueAdvancementDatapackRemoval(I18n.formatConsole("plugin.datapack_reason_remove_legacy_advancements"));
@@ -369,38 +332,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         instance = this;
         I18n.init(this);
         configBootstrap.ensureConfigDefaults();
-        // Load the family-wide tag map before CraftEngine's dependent plugins begin their enable phase.
-        CommonTagResolver.reload(this);
         // ensureConfigDefaults has just guaranteed config.yml exists, so the debug switch is readable this
         // early and the load-phase detail lines below can be surfaced by their category like the rest.
         loadDebugFlags();
-        new ResourceInstaller(this, getFile()).installCraftEngineResourcesOnce();
-        BehaviorRegistrar.registerBlockBehaviors();
-        BehaviorRegistrar.registerItemBehaviors();
-        BehaviorRegistrar.registerFunctions();
-        BehaviorRegistrar.registerConditions();
-        BehaviorRegistrar.registerLootFunctions();
-        // Register the farmersdelight:sword settings modifier before CraftEngine parses item YAML files.
-        ToolRegistry.register();
-        // Register the farmersdelight:pet_food settings modifier before CraftEngine parses item YAML files.
-        PetFoodConfig.setLogger(getLogger());
-        PetFoodConfig.registerCraftEngineSetting();
-        // Claim the pack sections CraftEngine hands to this plugin. Must happen here: CraftEngine dispatches
-        // them to the registered parsers while it loads packs in its own onEnable, which runs after this method.
-        packSections = PackSections.register();
-        // Register the WorldGuard custom region flag here (onLoad): WG locks its FlagRegistry once it
-        // enables, so this must run during the load phase. No-op if WorldGuard is absent.
-        ProtectionCompat.registerFlags();
-    }
-
-    // Registers several transient listeners in one shot. Transient listeners own no long-lived state and are
-    // never retained as fields (they are not individually torn down or reloaded), so a bulk-varargs registration
-    // keeps the onEnable bootstrap readable without changing behaviour or order.
-    private void registerEvents(Listener... listeners) {
-        JavaPlugin plugin = this;
-        for (Listener listener : listeners) {
-            getServer().getPluginManager().registerEvents(listener, plugin);
-        }
+        packSections = loadPhaseRegistrar.register();
     }
 
     private static final String RELOAD_GUARD_PROPERTY = "farmersdelight.enabled.in.this.jvm";
@@ -453,7 +388,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         logStartupSummary();
 
         knifeDropHandler = new KnifeDropHandler(this);
-        knifeDropHandler.warnAboutLegacyConfig(dropsConfig);
         getServer().getPluginManager().registerEvents(knifeDropHandler, this);
 
         cookingPotRecipeManager = new CookingPotRecipeManager(this);
@@ -488,39 +422,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             }
         }, 6000L, 6000L);
 
-        blockBreakListener = new BlockBreakListener();
-        getServer().getPluginManager().registerEvents(blockBreakListener, this);
-
-        blockPlaceListener = new BlockPlaceListener();
-        getServer().getPluginManager().registerEvents(blockPlaceListener, this);
-        MushroomColonyBehavior.reloadMushroomSupportCache(this);
-        registerEvents(
-                new SkilletPlaceListener(),
-                new SkilletLifecycleListener(),
-                new ToolAttackListener(),
-                new RottenTomatoListener(this),
-                new CuttingBoardInteractListener(),
-                new CuttingBoardDispenseListener(this));
-
-        strawDropListener = new StrawDropListener(this);
-        getServer().getPluginManager().registerEvents(strawDropListener, this);
-
-        registerEvents(new RicePlantListener(this));
-
-        // Awards master_chef criteria and preserves addon/legacy food registrations. Built-in food buffs run as CE functions.
-        foodEatListener = new FoodEatListener(this);
-        getServer().getPluginManager().registerEvents(foodEatListener, this);
-
-        petFoodListener = new PetFoodListener(this);
-        getServer().getPluginManager().registerEvents(petFoodListener, this);
-        horseFeedTemptListener = new HorseFeedTemptListener(this);
-        getServer().getPluginManager().registerEvents(horseFeedTemptListener, this);
-        horseFeedTemptListener.start();
-        effectListener = new EffectListener(this);
-        getServer().getPluginManager().registerEvents(effectListener, this);
-        effectListener.start();
-
-        registerEvents(this, new PluginManagerGuard(getName()));
+        listeners.registerInteractionHandlers();
 
         tickManager = new TickManager(this);
         tickManager.start();
@@ -540,67 +442,20 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         buffBossbarManager.applyConfig(getFirstConfigSection("buff.display", "bossbar"), buffSystemEnabled);
         EffectManager.applyBossbarStyles(
                 getFirstConfigSection("buff.display.styles", "bossbar.styles"));
-        getServer().getPluginManager().registerEvents(buffBossbarManager, this);
         buffBossbarManager.start();
-        ropeBlockListener = new RopeBlockListener(this);
-        getServer().getPluginManager().registerEvents(ropeBlockListener, this);
-        registerEvents(
-                new TatamiBreakListener(),
-                new RichSoilHoeListener(this),
-                new CropInteractProtectionListener());
+        listeners.registerVisualAndWorldHandlers(buffBossbarManager);
 
-        backstabListener = new BackstabListener(this);
-        getServer().getPluginManager().registerEvents(backstabListener, this);
+        listeners.registerDamageTypeDatapack();
 
-        knifeEnchantFilter = new KnifeEnchantFilter(this);
-        getServer().getPluginManager().registerEvents(knifeEnchantFilter, this);
-
-        enchantmentDatapackInstaller = new EnchantmentDatapackInstaller(this);
-        enchantmentDatapackInstaller.installToPrimaryWorld(getPrimaryWorld());
-        getServer().getPluginManager().registerEvents(enchantmentDatapackInstaller, this);
-
-        // Registry tags are server-global (shared by every world), so the common-item tag data pack is
-        // written once into the primary world's datapacks folder; a per-world inject would be redundant.
-        tagDatapackInstaller = new TagDatapackInstaller(this);
-        if (tagDatapackInstaller.installToPrimaryWorld(getPrimaryWorld())) {
-            queueDatapackReload(I18n.formatConsole("plugin.datapack_reason_apply_tag_changes"));
-        }
-        getServer().getPluginManager().registerEvents(tagDatapackInstaller, this);
-
-        // Villager and wandering trader trades use the world-data section. Composting chances and furnace
-        // burn times are configured in CraftEngine item definitions.
-        registerEvents(new VillagerTradeListener());
-
-        craftEngineReadinessCoordinator.indexLoadedChunkContentWhenReady();
-
-        chunkLoadListener = new ChunkLoadListener(this);
-        getServer().getPluginManager().registerEvents(chunkLoadListener, this);
-        chunkLoadListener.loadAlreadyLoadedChunks();
-
-        DamageTypeDatapackInstaller damageInstaller = new DamageTypeDatapackInstaller(this);
-        this.damageTypeDatapackInstaller = damageInstaller;
-        damageInstaller.installToPrimaryWorld(getPrimaryWorld());
-        // Remove the obsolete loot datapack folder; chest, grass, and mob injections use CE-native loot sources.
-        damageInstaller.cleanupLegacyLootDatapack();
-
-        craftEngineReadinessCoordinator.refreshAdvancementsWhenReady(false);
-        // Warm CE item/GUI/behavior caches now IF CE is already up (FD enabled after CraftEngine). When CE
-        // loads after FD, onCraftEngineReload runs the warmup instead — the readiness gate makes them exclusive.
-        craftEngineReadinessCoordinator.warmUpWhenReady("enable");
+        // Every call below reads CraftEngine content, which is normally still loading while FarmersDelight
+        // enables (FD is declared to load before CraftEngine finishes its packs). The coordinator runs them
+        // now when CraftEngine is already up, and otherwise retries until its content exists — so the
+        // warm-up does not depend on CraftEngine's reload event arriving.
+        craftEngineReadinessCoordinator.startupReadinessWork();
 
         scheduler.run(() -> startupSyncCompleted = true);
 
         registerMainCommand();
-
-        // Both the content counts and the CraftEngine state figures are only meaningful once CraftEngine has
-        // finished loading. When FarmersDelight enables first (the usual order) neither is reported here and
-        // the CraftEngine readiness pass does it instead; the readiness gate keeps the two exclusive.
-        reportContentSummaryWhenReady();
-        if (craftEngineReadinessCoordinator.isReady()) {
-            // The reason is spliced into "... usage after {reason}", so it needs the phrase form, not the
-            // startup_config label the config summary is titled with. Mirrors craftengine_reload_reason.
-            CraftEngineStateUsageMonitor.logRealStateUsage(this, I18n.formatConsole("plugin.startup_reason"));
-        }
 
         // PlaceholderAPI bridge — registers iff PAPI is loaded so HUD plugins (BetterHud, MythicHud,
         // etc.) can read every CustomBuffRegistry entry per player. Soft-dep, no-op when absent.
@@ -657,13 +512,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         disableBudget = ShutdownBudget.ofMillis(
                 getConfigInt(DEFAULT_SHUTDOWN_WAIT_MILLIS, "performance.shutdown-wait-millis"), getLogger());
 
-        runDisableStep("plugin.disable_step_unregister_listeners", () -> HandlerList.unregisterAll((Plugin) this));
-        runDisableStep("plugin.disable_step_detach_static_callbacks", () -> {
-            RicePlantListener.shutdownActive();
-            if (ropeBlockListener != null) {
-                ropeBlockListener.shutdown();
-            }
-        });
+        // Order inside ListenerRegistry#stop: event delivery is detached before any listener state is torn
+        // down, then the listeners' own tasks stop, then the world/chunk handlers detach.
+        runDisableStep("plugin.disable_step_unregister_listeners", listeners::stop);
 
         runDisableStep("plugin.disable_step_stop_tick_manager", () -> {
             if (tickManager != null) {
@@ -698,19 +549,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             saveOnlinePlayerBuffs();
         });
 
-        runDisableStep("plugin.disable_step_stop_effect_listener", () -> {
-            if (effectListener != null) {
-                effectListener.stop();
-                effectListener = null;
-            }
-        });
-
-        runDisableStep("plugin.disable_step_stop_horse_feed_tempt_listener", () -> {
-            if (horseFeedTemptListener != null) {
-                horseFeedTemptListener.stop();
-                horseFeedTemptListener = null;
-            }
-        });
         runDisableStep("plugin.disable_step_close_cooking_pot_guis", CookingPotGui::cleanupAll);
         runDisableStep("plugin.disable_step_close_recipe_view_guis", () -> {
             RecipeViewGui.cleanupAll();
@@ -723,12 +561,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
         runDisableStep("plugin.disable_step_clear_placement_cache", this::cleanupPlacementCache);
         runDisableStep("plugin.disable_step_clear_interaction_debounce_cache", this::cleanupInteractionDebouncer);
-
-        runDisableStep("plugin.disable_step_shutdown_chunk_loader", () -> {
-            if (chunkLoadListener != null) {
-                chunkLoadListener.shutdown();
-            }
-        });
 
         runDisableStep("plugin.disable_step_cleanup_stoves", () -> {
             if (stoveManager != null) {
@@ -789,9 +621,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         knifeDropHandler = null;
         cookingPotRecipeManager = null;
         cuttingBoardRecipeManager = null;
-        blockBreakListener = null;
-        strawDropListener = null;
-        foodEatListener = null;
         auraSkillsHook = null;
 
         heatSourceConfig = null;
@@ -1019,8 +848,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // known to be ready. PetFoodListener reads the config per interaction, so only the tempt list needs
         // refreshing.
         petFoodConfig = configFiles.loadPetFood(getConfig().getConfigurationSection("pet-foods"));
-        if (horseFeedTemptListener != null) {
-            horseFeedTemptListener.reload();
+        if (listeners.horseFeedTemptListener() != null) {
+            listeners.horseFeedTemptListener().reload();
         }
 
         if (stoveManager != null) {
@@ -1036,31 +865,44 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     private void reloadCommon(boolean reloadLanguages) {
+        long reloadStart = System.nanoTime();
+        // One parse per user file for this whole pass: validation and the load pass read the same four files,
+        // and a reload could not see two different contents anyway. Cleared at the start of every reload.
+        configBootstrap.beginReload();
+        resetReloadTimings();
+        long phase = System.nanoTime();
         configBootstrap.ensureConfigDefaults();
         reloadConfig();
+        long readConfigNanos = System.nanoTime() - phase;
+        phase = System.nanoTime();
         configBootstrap.migrateConfigKeys();
+        long migrateNanos = System.nanoTime() - phase;
+        phase = System.nanoTime();
+        configBootstrap.prefetchReloadFiles();
         configBootstrap.validateConfigTypes();
+        long validateNanos = System.nanoTime() - phase;
         boolean previousAdvancementsEnabled = advancementsEnabled;
+        phase = System.nanoTime();
         loadConfigs();
+        long loadNanos = System.nanoTime() - phase;
+        long configNanos = readConfigNanos + migrateNanos + validateNanos + loadNanos;
+        phase = System.nanoTime();
         ToolRegistry.refresh();
-        if (backstabListener != null) {
-            backstabListener.reload(enchantmentSettings, backstabEnchantmentEnabled);
-        }
-        if (knifeEnchantFilter != null) {
-            knifeEnchantFilter.reload(enchantmentSettings, backstabEnchantmentEnabled);
-        }
-        if (enchantmentDatapackInstaller != null) {
-            enchantmentDatapackInstaller.installToPrimaryWorld(getPrimaryWorld());
-        }
+        listeners.refreshEnchantmentFallback();
         if (reloadLanguages) {
             I18n.reload();
         }
+        long toolsNanos = System.nanoTime() - phase;
+        phase = System.nanoTime();
         ReloadCacheInvalidator.clear();
         MushroomColonyBehavior.reloadMushroomSupportCache(this);
+        long cachesNanos = System.nanoTime() - phase;
+        phase = System.nanoTime();
 
-        if (knifeDropHandler != null) {
-            knifeDropHandler.warnAboutLegacyConfig(dropsConfig);
-        }
+        // drops.yml carries only the straw registry now. The retired mob-extra sections were dropped from the
+        // bundled file and are no longer read, so a leftover copy on disk is ignored silently. This phase is
+        // the one that reruns every CraftEngine-backed cache (campfire recipe scans, display entities), so it
+        // is timed separately: it is the part that scales with how much CE content the server has.
         if (stoveManager != null) {
             stoveManager.reloadConfig();
             stoveManager.reloadRecipeCache();
@@ -1076,28 +918,41 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             skilletManager.reloadConfig();
             skilletManager.reloadRecipeCache();
         }
-        if (buffBossbarManager != null) {
-            buffBossbarManager.applyConfig(getFirstConfigSection("buff.display", "bossbar"), buffSystemEnabled);
-            EffectManager.applyBossbarStyles(
-                    getFirstConfigSection("buff.display.styles", "bossbar.styles"));
-        }
-        // The buff ticker is armed on demand, so a reload that switches the system back on has to re-arm it
-        // for players who still hold a buff, and a reload that switches it off has to stop the running pass.
-        if (effectListener != null) {
-            effectListener.applySystemEnabled(buffSystemEnabled);
-        }
-        if (foodEatListener != null) {
-            foodEatListener.reload();
-        }
+        long managersNanos = System.nanoTime() - phase;
+        phase = System.nanoTime();
+        listeners.reload(buffSystemEnabled);
         if (recipeDiscoveryManager != null) {
             recipeDiscoveryManager.reloadConfig();
-        }
-        if (horseFeedTemptListener != null) {
-            horseFeedTemptListener.reload();
         }
         if (previousAdvancementsEnabled != advancementsEnabled) {
             refreshAdvancementSystem(true);
         }
+        long listenersNanos = System.nanoTime() - phase;
+
+        reloadConfigNanos.set(configNanos);
+        reloadToolsNanos.set(toolsNanos);
+        reloadManagersNanos.set(managersNanos);
+        reloadListenersNanos.set(listenersNanos);
+        // The addon pass is a separate tick and has not run yet; it overwrites this when it lands.
+        reloadAddonsNanos.set(0L);
+
+        // A full reload runs synchronously inside one tick, so on a large server it is the single biggest
+        // server-thread stall the plugin causes. The split says which phase to attack; it is off unless the
+        // `reload` debug category is on, so a normal server never pays for the timing itself.
+        I18n.logDetail("reload", "plugin.reload_breakdown",
+                "total", (System.nanoTime() - reloadStart) / 1_000_000L,
+                "config", configNanos / 1_000_000L,
+                "tools", toolsNanos / 1_000_000L,
+                "caches", cachesNanos / 1_000_000L,
+                "managers", managersNanos / 1_000_000L,
+                "listeners", listenersNanos / 1_000_000L);
+        // The config bucket on its own does not say whether the cost is disk, merging or validation, and each
+        // of those points at a different fix (read off-thread / merge fewer keys / validate fewer files).
+        I18n.logDetail("reload", "plugin.reload_breakdown_config",
+                "read", readConfigNanos / 1_000_000L,
+                "migrate", migrateNanos / 1_000_000L,
+                "validate", validateNanos / 1_000_000L,
+                "load", loadNanos / 1_000_000L);
     }
 
     public void reloadAll() {
@@ -1109,7 +964,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // so a reload that changed nothing stays silent.
         reportContentSummaryWhenReady();
 
-        Bukkit.getPluginManager().callEvent(new FarmersDelightReloadEvent("reloadAll"));
+        // Addons rebuild their own content off this event, synchronously. It runs on the next tick so their work
+        // does not stack onto this command's tick; see notifyAddonsOfReload for why that is safe.
+        notifyAddonsOfReload("reloadAll");
         I18n.logInfo("plugin.configuration_reloaded");
     }
 
@@ -1139,6 +996,111 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         I18n.logInfo("plugin.language_files_reloaded");
     }
 
+    private void fireReloadEvent(String reason) {
+        Bukkit.getPluginManager().callEvent(new FarmersDelightReloadEvent(reason));
+    }
+
+    /**
+     * Notifies addons that content changed, on the <em>next</em> tick rather than inside the command tick.
+     *
+     * <p>Four addons listen to this and rebuild their own content synchronously, so calling it inline made
+     * /fd reload all block the server for FarmersDelight's own work <em>plus</em> every addon's. The
+     * event is a notification hook — nothing in FarmersDelight reads a result back from it — so moving it one
+     * tick later keeps the observable behaviour ("the reload happened") while halving the worst-case stall of
+     * a single tick. This is the same treatment reloadRecipeFiles already gave it.
+     *
+     * <p>Uses runLater(..., 1) and not run(...): run executes immediately when it is
+     * already called from the primary thread, which is exactly the case here, so it would not defer at all.
+     */
+    public void notifyAddonsOfReload(String reason) {
+        if (scheduler == null) {
+            fireReloadEvent(reason);
+            return;
+        }
+        scheduler.runLater(() -> {
+            long addonStart = System.nanoTime();
+            fireReloadEvent(reason);
+            long addonNanos = System.nanoTime() - addonStart;
+            reloadAddonsNanos.set(addonNanos);
+            // Timed separately because this work is invisible in the reloadCommon breakdown: on a server with
+            // several addons it can exceed everything FarmersDelight does itself.
+            I18n.logDetail("reload", "plugin.reload_addons", "ms", addonNanos / 1_000_000L);
+            // Now that the addon pass has landed, repeat the summary in the console with the complete split.
+            I18n.logDetail("reload", "plugin.reload_report",
+                    "total", reloadTotalMillis(),
+                    "split", reloadTimingSummary());
+        }, 1L);
+    }
+
+    /**
+     * Minimum spacing between two accepted /fd reload runs, in milliseconds; 0 disables the spacing but
+     * still refuses a reload while one is running.
+     *
+     * <p>Read per call rather than cached so an edited config.yml takes effect without a reload of its own. The
+     * default covers a full pass plus the addon cascade that follows it on the next tick.
+     */
+    public long reloadCooldownMillis() {
+        return Math.max(0, getConfigInt(2, "reload.cooldown-seconds")) * 1000L;
+    }
+
+    /** Phase timings of the last reload, so the command can report them the way CraftEngine does. */
+    private final java.util.concurrent.atomic.AtomicLong reloadConfigNanos =
+            new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong reloadToolsNanos =
+            new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong reloadManagersNanos =
+            new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong reloadListenersNanos =
+            new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong reloadAddonsNanos =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    private void resetReloadTimings() {
+        reloadConfigNanos.set(0L);
+        reloadToolsNanos.set(0L);
+        reloadManagersNanos.set(0L);
+        reloadListenersNanos.set(0L);
+        reloadAddonsNanos.set(0L);
+    }
+
+    /**
+     * Reports the last reload the way CraftEngine reports its own: elapsed milliseconds plus the problems the
+     * pass found. The addon figure is only filled in on the following tick; a command that reports before that
+     * simply shows the phase timings it has.
+     */
+    public String reloadTimingSummary() {
+        StringBuilder text = new StringBuilder();
+        appendTiming(text, "config", reloadConfigNanos.get());
+        appendTiming(text, "tools", reloadToolsNanos.get());
+        appendTiming(text, "managers", reloadManagersNanos.get());
+        appendTiming(text, "listeners", reloadListenersNanos.get());
+        appendTiming(text, "addons", reloadAddonsNanos.get());
+        return text.toString();
+    }
+
+    private void appendTiming(StringBuilder text, String phase, long nanos) {
+        if (nanos <= 0) {
+            return;
+        }
+        if (text.length() > 0) {
+            text.append(" / ");
+        }
+        // Deliberately not an i18n key: these are diagnostic phase names for the debug/reload log line, not
+        // player-facing text, and a dotted lookup would also look like a missing lang key to the checker.
+        text.append(phase).append(' ').append(nanos / 1_000_000L).append("ms");
+    }
+
+    /** Total milliseconds the last reload's own pass occupied; the addon pass is reported separately. */
+    public long reloadTotalMillis() {
+        return (reloadConfigNanos.get() + reloadToolsNanos.get() + reloadManagersNanos.get()
+                + reloadListenersNanos.get()) / 1_000_000L;
+    }
+
+    /** Problems the last reload found: config type mismatches plus recipe parse/reconcile issues. */
+    public int reloadIssueCount() {
+        return configBootstrap.validationIssueCount() + RecipeFileLoader.reportedIssueCount();
+    }
+
     public void reloadRecipeFiles() {
         refreshAfterCraftEngineReload();
         RecipeFileLoader.resetReportedIssues();
@@ -1146,8 +1108,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // Same reason as reloadAll: the reloaded per-type counts are the only evidence the edited files
         // actually parsed, and the summary suppresses itself when they are unchanged.
         reportContentSummaryWhenReady();
-        scheduler().run(() -> Bukkit.getPluginManager().callEvent(
-                new FarmersDelightReloadEvent("reloadRecipes")));
+        fireReloadEvent("reloadRecipes");
         I18n.logInfo("plugin.recipe_files_reloaded");
     }
 
@@ -1160,11 +1121,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         CommonTagResolver.reload(this);
         refreshTagDependentRecipes();
         // Refresh the exported vanilla-member tag data pack; Bukkit/Paper reloads it automatically.
-        if (tagDatapackInstaller != null) {
-            if (tagDatapackInstaller.installToPrimaryWorld(getPrimaryWorld())) {
-                queueDatapackReload(I18n.formatConsole("plugin.datapack_reason_apply_tag_changes"));
-            }
-        }
+        listeners.refreshTagDatapack();
         I18n.logInfo("plugin.tags_reloaded");
     }
 
@@ -1176,28 +1133,29 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         scheduler().run(() -> {
             RecipeFileLoader.resetReportedIssues();
             reloadRecipesWhenReady("plugin.reloading_recipes_after_tags");
+            // The resolved tag/choice caches are stale the moment the tag registry changes. Loading recipes
+            // does not populate them (the warm-up pass does), so drop them and rebuild them here: leaving the
+            // clear as the last step would hand the entire tag resolution to the next player who opens the
+            // recipe book instead of doing it on the reload that invalidated it.
             RecipeIngredientIcons.clearCaches();
+            craftEngineReadinessCoordinator.rewarmRecipeIngredientIcons();
         });
     }
 
     // Loot injections are CraftEngine-native. /fd reload loot only removes the obsolete loot datapack
     // folder and is idempotent.
     public void reloadLootDatapack() {
-        if (damageTypeDatapackInstaller == null) {
-            return;
-        }
-        damageTypeDatapackInstaller.cleanupLegacyLootDatapack();
+        listeners.refreshLootDatapack();
     }
 
     // Installs farmersdelight_damage and migrates damage files out of the obsolete loot datapack.
     // Datapack writes require a server restart and are excluded from general reload passes.
     public void reloadDamageTypeDatapack() {
-        if (damageTypeDatapackInstaller == null) {
+        if (!listeners.hasDamageTypeDatapack()) {
             I18n.logWarning("plugin.loot_datapack_not_ready");
             return;
         }
-        damageTypeDatapackInstaller.installToPrimaryWorld(getPrimaryWorld());
-        damageTypeDatapackInstaller.cleanupLegacyLootDatapack();
+        listeners.refreshDamageTypeDatapack();
     }
 
     private void loadDebugFlags() {
@@ -1581,11 +1539,11 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     HorseFeedTemptListener getHorseFeedTemptListener() {
-        return horseFeedTemptListener;
+        return listeners.horseFeedTemptListener();
     }
 
     RopeBlockListener getRopeBlockListener() {
-        return ropeBlockListener;
+        return listeners.ropeBlockListener();
     }
 
     public CookingPotRecipeManager getCookingPotRecipes() {
@@ -1734,6 +1692,11 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return buffBossbarManager;
     }
 
+    /** Null-tolerant accessor for reload paths that run before the manager exists (or after it is gone). */
+    BuffBossbarManager getBuffBossbarManagerOrNull() {
+        return buffBossbarManager;
+    }
+
     public StoveManager getStoveManager() {
         return stoveManager;
     }
@@ -1772,7 +1735,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     public FoodEatListener getFoodEatListener() {
-        return foodEatListener;
+        return listeners.foodEatListener();
     }
 
     public RecipeDiscoveryManager getRecipeDiscoveryManager() {
@@ -1902,12 +1865,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 + conflict + "); knife enchanting stays active. Set "
                 + "enchantments.compatibility.auto-disable-on-conflict: false to force backstab on.");
         backstabEnchantmentEnabled = false;
-        if (backstabListener != null) {
-            backstabListener.reload(current, false);
-        }
-        if (knifeEnchantFilter != null) {
-            knifeEnchantFilter.reload(current, false);
-        }
+        listeners.disableBackstabOnConflict(current);
     }
 
     /** Re-writes the enchantment datapack, including addon enchants registered through the API, and
@@ -1915,12 +1873,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
      *  FarmersDelightEnchantments.register / addToPool from an addon's onEnable. A datapack registry object
      *  still needs a server restart to become usable — the installer prints its own banner. */
     public void refreshEnchantSystem() {
-        if (enchantmentDatapackInstaller != null) {
-            enchantmentDatapackInstaller.installToPrimaryWorld(getPrimaryWorld());
-        }
-        if (knifeEnchantFilter != null) {
-            knifeEnchantFilter.reload(enchantmentSettings, backstabEnchantmentEnabled);
-        }
+        listeners.refreshEnchantmentFallback();
+        listeners.reloadEnchantCandidates();
     }
 
 }

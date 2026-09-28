@@ -45,6 +45,11 @@ public final class RecipeFileLoader {
         REPORTED_ISSUES.clear();
     }
 
+    /** Problems reported since the last resetReportedIssues(), for the reload command's summary. */
+    public static int reportedIssueCount() {
+        return REPORTED_ISSUES.size();
+    }
+
     static void loadRecipeSections(FarmersDelightPlugin plugin,
                                    BiConsumer<String, ConfigurationSection> sectionConsumer) {
         loadRecipeSections(plugin, loadRecipeFile(plugin, "recipes/cutting_board_recipes.yml"), "cutting_board_recipes", "cutting board", sectionConsumer);

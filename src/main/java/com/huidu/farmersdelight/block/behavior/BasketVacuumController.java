@@ -32,6 +32,7 @@ public final class BasketVacuumController extends BlockEntityController {
     // isBlockIndirectlyPowered (6-neighbour signal scan) from a per-cooldown-expiry call into ~1/s per
     // idle basket regardless of the configured transfer cooldown.
     private static final int REDSTONE_POLL_INTERVAL = 20;
+    private final FarmersDelightPlugin plugin;
     private final int transferCooldownTicks;
     // Controls whether the basket pushes contents into the container it faces. Collection always runs.
     private final boolean eject;
@@ -40,8 +41,9 @@ public final class BasketVacuumController extends BlockEntityController {
     private boolean poweredByRedstone;
     private int redstonePollTicks;
 
-    public BasketVacuumController(BlockEntity blockEntity, int transferCooldownTicks, boolean eject) {
+    public BasketVacuumController(FarmersDelightPlugin plugin, BlockEntity blockEntity, int transferCooldownTicks, boolean eject) {
         super(blockEntity);
+        this.plugin = plugin;
         this.transferCooldownTicks = transferCooldownTicks;
         this.eject = eject;
     }
@@ -101,7 +103,7 @@ public final class BasketVacuumController extends BlockEntityController {
         boolean facedOwned = true;
         if (eject && (fx != 0 || fz != 0)) {
             Location facedCell = new Location(world, pos.x() + fx, pos.y() + fy, pos.z() + fz);
-            facedOwned = FarmersDelightPlugin.getInstance().scheduler().isOwnedByCurrentRegion(facedCell);
+            facedOwned = plugin.scheduler().isOwnedByCurrentRegion(facedCell);
         }
 
         if (eject && facedOwned) {
@@ -194,7 +196,7 @@ public final class BasketVacuumController extends BlockEntityController {
         boolean includeFaced = true;
         if (fx != 0 || fz != 0) {
             Location facedCell = new Location(world, pos.x() + fx, pos.y() + fy, pos.z() + fz);
-            includeFaced = FarmersDelightPlugin.getInstance().scheduler().isOwnedByCurrentRegion(facedCell);
+            includeFaced = plugin.scheduler().isOwnedByCurrentRegion(facedCell);
         }
         int rx = includeFaced ? fx : 0;
         int ry = includeFaced ? fy : 0;

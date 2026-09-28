@@ -45,6 +45,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class BlockPlaceListener implements Listener {
 
+    // Handed in by the registrar instead of looked up: every handler below runs while the plugin is enabled.
+    private final FarmersDelightPlugin plugin;
+
+    public BlockPlaceListener(FarmersDelightPlugin plugin) {
+        this.plugin = plugin;
+    }
+
     private static final Key FEAST_BLOCKS_TAG = Key.of("farmersdelight:feasts");
     private static final Map<Material, String> VANILLA_CROP_CRITERIA = Map.ofEntries(
             Map.entry(Material.WHEAT, "wheat"),
@@ -84,7 +91,7 @@ public class BlockPlaceListener implements Listener {
     public void onBlockPlace(BlockPlaceEvent event) {
         Player player = event.getPlayer();
 
-        StoveManager stoveManager = FarmersDelightPlugin.getInstance().getStoveManager();
+        StoveManager stoveManager = plugin.getStoveManager();
         stoveManager.invalidateBlockedAboveCache(event.getBlock().getLocation().add(0, -1, 0));
         syncTraysAroundSupportChange(event.getBlock().getLocation());
 
@@ -92,7 +99,7 @@ public class BlockPlaceListener implements Listener {
         if (customBlockId == null) {
             Material placedType = event.getBlock().getType();
             if (placedType == Material.CAMPFIRE || placedType == Material.SOUL_CAMPFIRE) {
-                AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
+                AdvancementManager am = plugin.getAdvancementManager();
                 if (am != null) {
                     am.award(player, "place_campfire");
                 }
@@ -121,8 +128,7 @@ public class BlockPlaceListener implements Listener {
         if (location == null) {
             return;
         }
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (plugin == null || plugin.getTrayManager() == null) {
+        if (plugin.getTrayManager() == null) {
             return;
         }
         plugin.getTrayManager().syncAroundSupportChange(location);
@@ -171,7 +177,6 @@ public class BlockPlaceListener implements Listener {
             return;
         }
 
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         AdvancementManager am = plugin.getAdvancementManager();
 
         if (isCookingPotPlacement(blockLocation)) {
@@ -221,7 +226,7 @@ public class BlockPlaceListener implements Listener {
         CuttingBoardBlockBehavior.putBlockEntity(
                 blockLocation.getWorld(),
                 posKey,
-                new CuttingBoardBlockEntity(posKey, blockLocation.getWorld())
+                new CuttingBoardBlockEntity(plugin, posKey, blockLocation.getWorld())
         );
     }
 
@@ -243,7 +248,7 @@ public class BlockPlaceListener implements Listener {
             return;
         }
         CookingPotBlockEntityController.loadDataIntoEntity(entity, data);
-        TickManager tickManager = FarmersDelightPlugin.getInstance().getTickManager();
+        TickManager tickManager = plugin.getTickManager();
         if (tickManager != null && entity.hasStoredContents()) {
             tickManager.markActive(world, entity.getPosKey(), TickManager.BlockType.COOKING_POT);
         }
@@ -268,7 +273,7 @@ public class BlockPlaceListener implements Listener {
         // Vanilla placed_block can't recognize CraftEngine custom crop IDs, so advance manually: FD's own
         // "plant all crops" criterion plus the vanilla "A Seedy Place" advancement (idempotent).
         VanillaAdvancements.grantPlantSeed(player);
-        AdvancementManager am = FarmersDelightPlugin.getInstance().getAdvancementManager();
+        AdvancementManager am = plugin.getAdvancementManager();
         if (am != null) {
             am.awardCriteria(player, "plant_all_crops", criterion);
         }
@@ -309,7 +314,7 @@ public class BlockPlaceListener implements Listener {
                 return;
             }
 
-            cleanupTask = FarmersDelightPlugin.getInstance().scheduler().runLater(
+            cleanupTask = plugin.scheduler().runLater(
                     () -> {
                         pendingPlacedItems.clear();
                         synchronized (cleanupTaskLock) {

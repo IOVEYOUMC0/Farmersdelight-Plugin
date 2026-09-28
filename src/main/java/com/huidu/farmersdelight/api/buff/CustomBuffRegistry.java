@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.api.buff;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.PluginAccess;
 import com.huidu.farmersdelight.api.event.FarmersDelightBuffChangeEvent;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -106,8 +107,8 @@ public final class CustomBuffRegistry {
             callChange(event);
             return;
         }
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (plugin == null || !FarmersDelightPlugin.isEnabled0()) {
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
+        if (plugin == null) {
             // No scheduler to hand it to (the plugin is down); dispatching inline is the only option left
             // and callChange absorbs the rejection.
             callChange(event);
@@ -136,7 +137,7 @@ public final class CustomBuffRegistry {
         if (LAST_LEVELS.isEmpty()) {
             return;
         }
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         for (UUID playerId : LAST_LEVELS.keySet()) {
             Player player = Bukkit.getPlayer(playerId);
             if (player == null) {

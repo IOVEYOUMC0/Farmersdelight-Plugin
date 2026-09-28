@@ -87,16 +87,16 @@ class SkilletHandheldSessionTest {
             var session = session(hand, slot, foodSlot, pan, food);
             session.lastInput = System.currentTimeMillis();
             usingHand.set(hand == EquipmentSlot.HAND ? EquipmentSlot.OFF_HAND : EquipmentSlot.HAND);
-            assertFalse(SkilletManager.isHandheldInputActive(player, session), "Eating must stop even a nearly finished cook");
+            assertFalse(SkilletHandheldCooking.isHandheldInputActive(player, session), "Eating must stop even a nearly finished cook");
             assertFalse(session.consumed);
             assertEquals(12, food.getAmount());
             usingHand.set(null);
             session.lastInput = System.currentTimeMillis();
-            assertTrue(SkilletManager.isHandheldInputActive(player, session));
+            assertTrue(SkilletHandheldCooking.isHandheldInputActive(player, session));
             session.lastInput = System.currentTimeMillis() - 1_000;
-            assertFalse(SkilletManager.isHandheldInputActive(player, session));
+            assertFalse(SkilletHandheldCooking.isHandheldInputActive(player, session));
             usingHand.set(hand);
-            assertTrue(SkilletManager.isHandheldInputActive(player, session), "Using the cooking tool itself remains supported");
+            assertTrue(SkilletHandheldCooking.isHandheldInputActive(player, session), "Using the cooking tool itself remains supported");
         }
     }
 
@@ -105,13 +105,13 @@ class SkilletHandheldSessionTest {
         Stack pan = new Stack("pan", 1, 57);
         pan.model = NamespacedKey.fromString("custom:normal");
         var model = NamespacedKey.fromString("custom:cooking");
-        Stack display = (Stack) SkilletManager.createHandheldDisplay(pan, model, 20, 100, true);
+        Stack display = (Stack) SkilletHandheldCooking.createHandheldDisplay(pan, model, 20, 100, true);
         assertEquals(57, pan.damage);
         assertEquals(NamespacedKey.fromString("custom:normal"), pan.model);
         assertEquals(200, display.damage);
         assertEquals(model, display.model);
         pan.damage += 2;
-        display = (Stack) SkilletManager.createHandheldDisplay(pan, null, 30, 100, false);
+        display = (Stack) SkilletHandheldCooking.createHandheldDisplay(pan, null, 30, 100, false);
         assertEquals(59, display.damage);
         assertEquals(59, pan.damage);
         assertEquals(pan.model, display.model);
@@ -166,8 +166,8 @@ class SkilletHandheldSessionTest {
         assertEquals(1, food.getAmount());
     }
 
-    private SkilletManager.HandheldSession session(EquipmentSlot hand, int slot, int foodSlot, Stack pan, Stack food) {
-        return new SkilletManager.HandheldSession(hand, slot, foodSlot, pan.clone(), food.clone(), null, 100, null);
+    private SkilletHandheldCooking.HandheldSession session(EquipmentSlot hand, int slot, int foodSlot, Stack pan, Stack food) {
+        return new SkilletHandheldCooking.HandheldSession(hand, slot, foodSlot, pan.clone(), food.clone(), null, 100, null);
     }
 
     private PlayerInventory inventory(Map<Integer, ItemStack> slots) {

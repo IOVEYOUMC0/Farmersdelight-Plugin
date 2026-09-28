@@ -36,6 +36,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
     private static final String ITEM_CARVED = "item_carved";
     private static final int[] SLOT = {0};
 
+    private final FarmersDelightPlugin plugin;
     private final CuttingBoardBlockBehavior behavior;
     private final Object container;
     private final Inventory inventory;
@@ -50,8 +51,9 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
     // Guards loadPendingDataIfReady against re-entry from entity-creation hooks that flush pending data.
     private volatile boolean applyingPendingLoad;
 
-    public CuttingBoardBlockEntityController(BlockEntity blockEntity, CuttingBoardBlockBehavior behavior) {
+    public CuttingBoardBlockEntityController(FarmersDelightPlugin plugin, BlockEntity blockEntity, CuttingBoardBlockBehavior behavior) {
         super(blockEntity);
+        this.plugin = plugin;
         this.behavior = behavior;
         this.container = CraftEngine.instance().platform().createContainer(this);
         this.inventory = CraftInventoryProxy.INSTANCE.newInstance(this.container);
@@ -173,13 +175,13 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
             storedItem = ItemStackUtils.parseBukkitItem(itemTag, Config.itemDataFixerUpperFallbackVersion());
         } catch (RuntimeException e) {
             // Corrupt/version-skewed stored item: drop it (return true so it isn't retried forever) and warn.
-            FarmersDelightPlugin.getInstance().getLogger()
+            plugin.getLogger()
                     .warning("Skipping unreadable cutting board item at " + posKey + ": " + e.getMessage());
             return true;
         }
         if (storedItem == null || storedItem.getType().isAir()) return true;
 
-        CuttingBoardBlockEntity entity = new CuttingBoardBlockEntity(posKey, world);
+        CuttingBoardBlockEntity entity = new CuttingBoardBlockEntity(plugin, posKey, world);
         entity.setItem(storedItem, world, posKey, CustomBlockUtils.getFacing(posKey.toLocation(world).getBlock()),
                 data.getBoolean(ITEM_CARVED, false));
         CuttingBoardBlockBehavior.putBlockEntity(world, posKey, entity);
@@ -201,7 +203,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
             entity = CuttingBoardBlockBehavior.getBlockEntity(world, posKey);
         }
         if (entity == null) {
-            entity = new CuttingBoardBlockEntity(posKey, world);
+            entity = new CuttingBoardBlockEntity(plugin, posKey, world);
             CuttingBoardBlockBehavior.putBlockEntity(world, posKey, entity);
         }
         return entity;
@@ -226,7 +228,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
         BlockPosKey posKey = new BlockPosKey(this.blockEntity.pos);
         CuttingBoardBlockEntity entity = CuttingBoardBlockBehavior.getBlockEntity(world, posKey);
         if (entity == null) {
-            entity = new CuttingBoardBlockEntity(posKey, world);
+            entity = new CuttingBoardBlockEntity(plugin, posKey, world);
             CuttingBoardBlockBehavior.putBlockEntity(world, posKey, entity);
         }
 
@@ -396,7 +398,6 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
         }
         // Once the board holds an item, allow more only when stacking is enabled,
         // the items match, and the amount is below the stack limit.
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         ItemStack stored = entity.getStoredItem();
         ItemStack incoming = asBukkitStack(item);
         return plugin != null

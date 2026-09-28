@@ -27,6 +27,13 @@ import org.bukkit.inventory.ItemStack;
 /** Lifecycle cleanup for portable skillet state; interaction itself belongs to the CE ItemBehavior. */
 public final class SkilletLifecycleListener implements Listener {
 
+    // Handed in by the registrar instead of looked up: this handler only runs while the plugin is enabled.
+    private final FarmersDelightPlugin plugin;
+
+    public SkilletLifecycleListener(FarmersDelightPlugin plugin) {
+        this.plugin = plugin;
+    }
+
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onStopUsing(PlayerStopUsingItemEvent event) {
         SkilletManager manager = manager();
@@ -136,7 +143,6 @@ public final class SkilletLifecycleListener implements Listener {
     }
 
     private SkilletManager manager() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         return plugin == null ? null : plugin.getSkilletManager();
     }
 }

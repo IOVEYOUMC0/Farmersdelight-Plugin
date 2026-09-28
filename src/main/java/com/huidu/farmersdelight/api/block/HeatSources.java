@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.api.block;
 
+import com.huidu.farmersdelight.api.PluginAccess;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.config.HeatSourceConfig;
 import net.momirealms.craftengine.core.util.Key;
@@ -127,7 +128,7 @@ public final class HeatSources {
     }
 
     private static HeatSourceConfig config() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         return plugin == null ? null : plugin.getHeatSourceConfig();
     }
 

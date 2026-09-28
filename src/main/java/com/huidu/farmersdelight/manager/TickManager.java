@@ -135,8 +135,8 @@ public class TickManager {
             return;
         }
 
-        int cleanedCount = cleanupInvalidCookingPotBlockEntities();
-        
+        int cleanedCount = sweepInvalidCookingPotBlockEntities();
+
         if (cleanedCount > 0) {
             I18n.logInfo("tick.cleanup_completed", "count", cleanedCount);
         }
@@ -171,27 +171,94 @@ public class TickManager {
 
         cleanupCursor = (start + Math.max(1, budget)) % size;
     }
-    
-    private int cleanupInvalidCookingPotBlockEntities() {
-        int count = 0;
-        for (World world : Bukkit.getWorlds()) {
-            Map<BlockPosKey, CookingPotBlockEntity> entities = CookingPotBlockBehavior.getAllBlockEntities(world);
-            for (BlockPosKey posKey : entities.keySet()) {
-                boolean removed;
-                try {
-                    removed = cleanupInvalidCookingPotBlockEntity(world, posKey);
-                } catch (Throwable t) {
-                    // The CE state lookup reads the chunk and can run other plugins' listeners; their
-                    // failure leaves this entry tracked for a later run instead of aborting the sweep.
-                    performanceMonitor.warnCleanupFailure(world, posKey, t);
-                    continue;
-                }
-                if (removed) {
-                    count++;
-                }
+
+    /**
+     * Bounded sweep of the tracked cooking pots for the single-threaded (Paper) path.
+     *
+     * <p>Every entry costs a chunk-residency check plus a CraftEngine block-state read, so sweeping the whole
+     * tracked set in one pass put "worlds x tracked pots" of work on the main thread in a single tick — the
+     * same spike the Folia path already avoids by dispatching a bounded batch. Below the budget the sweep is
+     * the whole set, as before. Above it, a snapshot is rotated through so that every entry is still reached
+     * across successive runs, while any one run costs at most CLEANUP_DISPATCH_BUDGET entries.
+     */
+    private int sweepInvalidCookingPotBlockEntities() {
+        int total = 0;
+        List<World> worlds = Bukkit.getWorlds();
+        for (World world : worlds) {
+            if (world != null) {
+                total += CookingPotBlockBehavior.getBlockEntityCount(world);
             }
         }
-        return count;
+        if (total == 0) {
+            cleanupCursor = 0;
+            return 0;
+        }
+
+        if (total <= CLEANUP_DISPATCH_BUDGET) {
+            int cleaned = 0;
+            for (World world : worlds) {
+                if (world == null) {
+                    continue;
+                }
+                cleaned += sweepInvalidCookingPotBlockEntities(world);
+            }
+            cleanupCursor = 0;
+            return cleaned;
+        }
+
+        List<PendingCleanup> pending = new ArrayList<>(total);
+        for (World world : worlds) {
+            if (world == null) {
+                continue;
+            }
+            for (Map.Entry<BlockPosKey, CookingPotBlockEntity> entry : CookingPotBlockBehavior.getBlockEntityEntries(world)) {
+                pending.add(new PendingCleanup(world, entry.getKey()));
+            }
+        }
+
+        int size = pending.size();
+        SweepWindow window = SweepWindow.of(size, cleanupCursor, CLEANUP_DISPATCH_BUDGET);
+        cleanupCursor = window.nextCursor();
+        if (window.count() == 0) {
+            return 0;
+        }
+
+        int cleaned = 0;
+        for (int processed = 0; processed < window.count(); processed++) {
+            PendingCleanup entry = pending.get(window.indexAt(processed));
+            try {
+                if (cleanupInvalidCookingPotBlockEntity(entry.world(), entry.posKey())) {
+                    cleaned++;
+                }
+            } catch (Throwable t) {
+                // The CE state lookup reads the chunk and can run other plugins' listeners; their failure
+                // leaves this entry tracked for a later run instead of aborting the sweep.
+                performanceMonitor.warnCleanupFailure(entry.world(), entry.posKey(), t);
+            }
+        }
+
+        return cleaned;
+    }
+
+    private int sweepInvalidCookingPotBlockEntities(World world) {
+        int cleaned = 0;
+        for (Map.Entry<BlockPosKey, CookingPotBlockEntity> entry : CookingPotBlockBehavior.getBlockEntityEntries(world)) {
+            BlockPosKey posKey = entry.getKey();
+            try {
+                if (cleanupInvalidCookingPotBlockEntity(world, posKey)) {
+                    cleaned++;
+                }
+            } catch (Throwable t) {
+                // The CE state lookup reads the chunk and can run other plugins' listeners; their failure
+                // leaves this entry tracked for a later run instead of aborting the sweep.
+                performanceMonitor.warnCleanupFailure(world, posKey, t);
+            }
+        }
+        return cleaned;
+    }
+
+    /** One tracked pot captured for the rotating cleanup sweep. */
+    private record PendingCleanup(World world, BlockPosKey posKey) {
     }
 
     private void cleanupCookingPotBlockEntity(World world, BlockPosKey posKey) {
@@ -231,6 +298,36 @@ public class TickManager {
     public void markInactive(World world, BlockPosKey posKey, BlockType type) {
         if (world == null || posKey == null || type == null) return;
         pendingChanges.add(new PendingChange(new ActiveBlock(world.getUID(), world, posKey, type), false));
+    }
+
+    /**
+     * Queues removal of every tracked block in one unloading chunk.
+     *
+     * <p>The chunk-unload cleanup drops the block entities and CraftEngine's per-chunk index, but nothing
+     * told this manager, so the entries stayed in activeBlocks plus its three per-block maps. That is
+     * the same defect cleanupWorld(UUID) documents one level up: the tick loop's chunk guard
+     * (!world.isChunkLoaded) returns early, so nothing ever unregistered them, and the entries
+     * accumulated for every chunk a player visited that held a station. Removing them here is safe because a
+     * chunk reload always re-registers: CookingPotBlockBehavior and the pot controller both call
+     * markActive when the entity is (re)hydrated, and the controller's cached-chunk path
+     * (getChunkAtIfLoaded) marks active without waiting for loadCustomData.
+     *
+     * <p>Only the tick bookkeeping is dropped; the cooked progress lives in the block entity, which the
+     * chunk-unload save pass has already snapshotted into the controller.
+     */
+    public void markInactiveInChunk(World world, int chunkX, int chunkZ) {
+        if (world == null) {
+            return;
+        }
+        UUID worldId = world.getUID();
+        for (ActiveBlock block : activeBlocks) {
+            BlockPosKey key = block.posKey();
+            if (worldId.equals(block.worldId())
+                    && (key.x() >> 4) == chunkX
+                    && (key.z() >> 4) == chunkZ) {
+                pendingChanges.add(new PendingChange(block, false));
+            }
+        }
     }
 
     /**
@@ -365,6 +462,14 @@ public class TickManager {
         return performanceMonitor.timing(feature);
     }
 
+    /**
+     * Throttled report of a failure raised while ticking one block, shared with the skillet and stove
+     * managers: their tick tasks run on the same cadence and need the same per-world throttle.
+     */
+    void warnFeatureFailure(String feature, String message, World world, Throwable failure) {
+        performanceMonitor.warnFeatureFailure(feature, message, world, failure);
+    }
+
     public PerformanceSnapshot getPerformanceSnapshot() {
         return getPerformanceSnapshot(performanceMonitor.snapshot());
     }
@@ -459,15 +564,17 @@ public class TickManager {
                 throw new IllegalArgumentException("Unexpected value: " + activeBlock.type());
             }
         } catch (Exception e) {
-            plugin.getLogger().warning(I18n.formatNamedArgs("console.tick.error_ticking",
+            // Throttled per world and type: this runs every TICK_INTERVAL ticks, so an unthrottled report
+            // would print one line per affected block per pass.
+            performanceMonitor.warnFeatureFailure("tick-" + activeBlock.type(), I18n.formatNamedArgs(
+                    "console.tick.error_ticking",
                     "type", activeBlock.type(),
                     "pos", posKey,
-                    "error", e.getMessage()));
+                    "error", e.getMessage()), world, e);
         }
     }
 
-    private int consumeElapsedTicks(ActiveBlock activeBlock, long currentTick) {
-        Long previousTick = lastProcessedTicks.put(activeBlock, currentTick);
+    private int consumeElapsedTicks(ActiveBlock activeBlock, long currentTick) {        Long previousTick = lastProcessedTicks.put(activeBlock, currentTick);
         if (previousTick == null) {
             return TICK_INTERVAL;
         }

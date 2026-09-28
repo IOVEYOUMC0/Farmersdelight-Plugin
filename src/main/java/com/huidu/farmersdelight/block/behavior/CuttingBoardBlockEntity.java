@@ -27,6 +27,7 @@ public class CuttingBoardBlockEntity {
 
     private static final int NO_DISPLAY = -1;
 
+    private final FarmersDelightPlugin plugin;
     private final BlockPosKey posKey;
     private volatile World world;
     private ItemStack storedItem;
@@ -42,7 +43,11 @@ public class CuttingBoardBlockEntity {
         out.addAll(displayEntityIds);
     }
 
-    public CuttingBoardBlockEntity(BlockPosKey posKey, World world) {
+    /**
+     * @param plugin the running plugin, or null in a unit test that does not exercise the display path
+     */
+    public CuttingBoardBlockEntity(FarmersDelightPlugin plugin, BlockPosKey posKey, World world) {
+        this.plugin = plugin;
         this.posKey = posKey;
         this.world = world;
     }
@@ -117,7 +122,7 @@ public class CuttingBoardBlockEntity {
             // The item is already stored by the time the display is (re)built; a cosmetic display failure must
             // not propagate into setStoredItem, or the cutting board's place-then-consume flow would leave the
             // player's hand item unconsumed (a duplication) with no display.
-            FarmersDelightPlugin.getInstance().getLogger().log(Level.WARNING,
+            plugin.getLogger().log(Level.WARNING,
                     "Cutting board display update failed at " + posKey + " (item still stored)", t);
         }
     }
@@ -128,10 +133,10 @@ public class CuttingBoardBlockEntity {
             return;
         }
 
-        ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getItemDisplayManager();
+        ItemDisplayManager visualManager = plugin == null ? null : plugin.getItemDisplayManager();
         if (visualManager == null || !visualManager.isAvailable()) return;
 
-        CuttingBoardDisplayConfig displayConfig = FarmersDelightPlugin.getInstance().getCuttingBoardDisplayConfig();
+        CuttingBoardDisplayConfig displayConfig = plugin.getCuttingBoardDisplayConfig();
         CuttingBoardDisplayConfig.DisplayOverride displayOverride = displayConfig.getOverride(storedItem);
         ItemStack visualItem = displayConfig.resolveDisplayItem(storedItem, displayOverride);
         if (visualItem == null || visualItem.getType().isAir()) {
@@ -160,7 +165,7 @@ public class CuttingBoardBlockEntity {
 
     public void removeDisplayEntity() {
         if (!displayEntityIds.isEmpty()) {
-            ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getItemDisplayManager();
+            ItemDisplayManager visualManager = plugin == null ? null : plugin.getItemDisplayManager();
             if (visualManager != null) {
                 for (Integer entityId : displayEntityIds) {
                     if (entityId != null && entityId != NO_DISPLAY) {
@@ -269,7 +274,7 @@ public class CuttingBoardBlockEntity {
         );
 
         Random random = new Random(getDisplaySeed(visualItem) + (index * 341873128712L));
-        float spread = FarmersDelightPlugin.getInstance().getCuttingBoardDisplayConfig().getItemSpread();
+        float spread = plugin.getCuttingBoardDisplayConfig().getItemSpread();
         float xOffset = totalCount == 1 ? 0.0f : (random.nextFloat() * 2.0f - 1.0f) * spread * 0.5f;
         float zOffset = totalCount == 1 ? 0.0f : (random.nextFloat() * 2.0f - 1.0f) * spread * 0.5f;
         if (displayOverride.offset() != null) {

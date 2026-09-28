@@ -6,7 +6,6 @@ import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.Material;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Ageable;
 import org.bukkit.entity.Player;
@@ -45,22 +44,6 @@ public class KnifeDropHandler implements Listener {
 
     public int getDropRuleCount() {
         return externalRules.size();
-    }
-
-    // Reports a drops.yml that still carries the removed mob-extra sections. Those keys are no longer read,
-    // so staying silent would let an operator believe their customized rules are still in effect while the
-    // bundle drops its own. The same rules now live in the CraftEngine pack.
-    public void warnAboutLegacyConfig(ConfigurationSection dropsConfig) {
-        if (dropsConfig == null) {
-            return;
-        }
-        for (String section : new String[]{"mob-extra", "mob-extra-tools"}) {
-            ConfigurationSection legacy = dropsConfig.getConfigurationSection(section);
-            if (legacy == null || legacy.getKeys(false).isEmpty()) {
-                continue;
-            }
-            I18n.logWarning("knife.mob_extra_ignored", "section", section);
-        }
     }
 
     // NORMAL rather than HIGHEST so loot / quest / economy plugins listening at HIGH and HIGHEST still
@@ -111,7 +94,7 @@ public class KnifeDropHandler implements Listener {
 
             // When a ham item actually drops, trigger the ham-related advancement.
             if (isHamItem(itemId)) {
-                AdvancementManager advancementManager = FarmersDelightPlugin.getInstance().getAdvancementManager();
+                AdvancementManager advancementManager = plugin.getAdvancementManager();
                 if (advancementManager != null) {
                     advancementManager.award(killer, "get_ham");
                 }

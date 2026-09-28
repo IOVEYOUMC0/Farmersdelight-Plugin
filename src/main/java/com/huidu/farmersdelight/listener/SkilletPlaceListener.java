@@ -27,6 +27,13 @@ import org.bukkit.inventory.ItemStack;
 
 public class SkilletPlaceListener implements Listener {
 
+    // Handed in by the registrar instead of looked up: this handler only runs while the plugin is enabled.
+    private final FarmersDelightPlugin plugin;
+
+    public SkilletPlaceListener(FarmersDelightPlugin plugin) {
+        this.plugin = plugin;
+    }
+
     private static final Key SKILLET_BLOCK_ID = Key.of("farmersdelight:skillet");
     private static final String SKILLET_ITEM_ID = "farmersdelight:skillet";
 
@@ -45,7 +52,6 @@ public class SkilletPlaceListener implements Listener {
         if (!isSkilletItem(mainHand)) {
             return;
         }
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin != null && plugin.getSkilletManager() != null
                 && (plugin.getSkilletManager().isHandheldCooking(player)
                 || plugin.getSkilletManager().hasHandheldIngredient(mainHand))) {

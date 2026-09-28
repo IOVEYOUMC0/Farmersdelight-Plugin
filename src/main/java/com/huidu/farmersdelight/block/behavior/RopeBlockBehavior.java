@@ -122,9 +122,11 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
     private final PlacementMode placementMode;
     private final ConnectionMode connectionMode;
     private final ConfiguredBlockSet connectorBlocks;
+    private final FarmersDelightPlugin plugin;
     private final ConfiguredBlockSet exceptionBlocks;
 
-    private RopeBlockBehavior(BlockDefinition block,
+    private RopeBlockBehavior(FarmersDelightPlugin plugin,
+                              BlockDefinition block,
                               Property<Boolean> northProperty,
                               Property<Boolean> southProperty,
                               Property<Boolean> eastProperty,
@@ -134,6 +136,7 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
                               ConfiguredBlockSet connectorBlocks,
                               ConfiguredBlockSet exceptionBlocks) {
         super(block);
+        this.plugin = plugin;
         this.northProperty = northProperty;
         this.southProperty = southProperty;
         this.eastProperty = eastProperty;
@@ -149,10 +152,13 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
     // value class checked, so a property declared under one of these names but not as a boolean is skipped
     // like an absent one instead of throwing out of the placement path on the first rope put down.
     public static final BlockBehaviorFactory<RopeBlockBehavior> FACTORY = (BlockDefinition block, ConfigSection section) -> {
+        // Runs while CraftEngine parses the pack, which is always after this plugin enabled.
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         Object connectorRaw = BehaviorArgParser.getRaw(arguments, "connector-blocks");
         Object exceptionRaw = BehaviorArgParser.getRaw(arguments, "connection-exceptions");
         return new RopeBlockBehavior(
+                plugin,
                 block,
                 BlockBehaviorFactory.getOptionalProperty(block, PROP_NORTH, Boolean.class),
                 BlockBehaviorFactory.getOptionalProperty(block, PROP_SOUTH, Boolean.class),
@@ -284,7 +290,6 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
             // index has to be told about this rope directly or later neighbour changes will not refresh it.
             RopeBlockListener.syncRopeIndex(world, bp);
 
-            FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
             if (plugin != null) {
                 plugin.scheduler().runAt(placeLoc, () -> refreshAdjacentRopes(world, bp));
             }
@@ -322,7 +327,7 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
         // ring the first bell found. Any gap, or any block that is neither a rope nor a bell, stops the search.
         int x = pos.x();
         int z = pos.z();
-        int maxDistance = Math.max(1, FarmersDelightPlugin.getInstance().getConfigInt(24, "rope.bell-ring-max-distance"));
+        int maxDistance = Math.max(1, plugin.getConfigInt(24, "rope.bell-ring-max-distance"));
         for (int i = 1, y = pos.y() + 1; i <= maxDistance && y < world.getMaxHeight(); i++, y++) {
             Block above = world.getBlockAt(x, y, z);
             if (above.getType() == Material.BELL) {
@@ -355,7 +360,6 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
                     : null;
             bellState.ring(player, direction);
         };
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin != null) {
             plugin.scheduler().runAt(bell.getLocation(), ring);
         } else {

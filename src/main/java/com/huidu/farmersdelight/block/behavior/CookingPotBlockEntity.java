@@ -61,17 +61,27 @@ public class CookingPotBlockEntity {
     private final AtomicReference<ItemStack> mealContainerStack = new AtomicReference<>(null);
     private final Object inventoryLock = new Object();
     private final Object cookingLock = new Object();
+    private final FarmersDelightPlugin plugin;
     private final CookingPotCraftingHandler craftingHandler;
 
     public CookingPotBlockEntity(BlockPosKey posKey) {
-        this(posKey, null, CookingPotLayout.DEFAULT, null);
+        this(null, posKey, null, CookingPotLayout.DEFAULT, null);
     }
 
     public CookingPotBlockEntity(BlockPosKey posKey, World world) {
-        this(posKey, world, CookingPotLayout.DEFAULT, null);
+        this(null, posKey, world, CookingPotLayout.DEFAULT, null);
     }
 
     public CookingPotBlockEntity(BlockPosKey posKey, World world, CookingPotLayout layout, String recipeGroupId) {
+        this(null, posKey, world, layout, recipeGroupId);
+    }
+
+    /**
+     * @param plugin the running plugin, or null in a unit test that does not exercise the plugin paths
+     */
+    public CookingPotBlockEntity(FarmersDelightPlugin plugin, BlockPosKey posKey, World world,
+                                 CookingPotLayout layout, String recipeGroupId) {
+        this.plugin = plugin;
         this.posKey = posKey;
         this.world = world;
         this.layout = layout != null ? layout : CookingPotLayout.DEFAULT;
@@ -82,6 +92,11 @@ public class CookingPotBlockEntity {
 
     public void setWorld(World world) {
         this.world = world;
+    }
+
+    /** The plugin this entity was created with, or null in a unit test that did not supply one. */
+    public FarmersDelightPlugin plugin() {
+        return plugin;
     }
 
     public World getWorld() {
@@ -163,7 +178,6 @@ public class CookingPotBlockEntity {
             return;
         }
         World currentWorld = this.world;
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (currentWorld == null || plugin == null) {
             return;
         }
@@ -520,8 +534,7 @@ public class CookingPotBlockEntity {
         } else {
             // The cached recipe may become invalid between canCook and finishCooking if inputs change (e.g. cross-region GUI sync,
             // hopper interaction); re-validate under the lock before producing, to avoid conjuring a result from zero/insufficient ingredients (item duping).
-            FarmersDelightPlugin instance = FarmersDelightPlugin.getInstance();
-            if (instance == null || !instance.getCookingPotRecipes()
+            if (plugin == null || !plugin.getCookingPotRecipes()
                     .canCraft(recipe, getIngredientSlotsInternal())) {
                 currentRecipe.set(null);
                 return false;
@@ -570,10 +583,9 @@ public class CookingPotBlockEntity {
     private boolean canCookResult;
 
     private boolean canCookInternal() {
-        FarmersDelightPlugin cachePlugin = FarmersDelightPlugin.getInstance();
-        long generation = cachePlugin == null || cachePlugin.getCookingPotRecipes() == null
+        long generation = plugin == null || plugin.getCookingPotRecipes() == null
                 ? -1L
-                : cachePlugin.getCookingPotRecipes().recipeGeneration();
+                : plugin.getCookingPotRecipes().recipeGeneration();
         if (inventoryVersion == canCookVersion && generation == canCookRecipeGeneration) {
             return canCookResult;
         }
@@ -585,8 +597,7 @@ public class CookingPotBlockEntity {
 
     private boolean computeCanCook() {
         try {
-            FarmersDelightPlugin instance = FarmersDelightPlugin.getInstance();
-            if (instance == null || !FarmersDelightPlugin.isEnabled0()) {
+            if (plugin == null || !FarmersDelightPlugin.isEnabled0()) {
                 return false;
             }
 
@@ -594,7 +605,7 @@ public class CookingPotBlockEntity {
             ItemStack containerItem = getContainerItemInternal();
             CookingPotRecipe previousRecipe = currentRecipe.get();
             if (previousRecipe != null
-                    && instance.getCookingPotRecipes().canCraft(previousRecipe, inputItems)) {
+                    && plugin.getCookingPotRecipes().canCraft(previousRecipe, inputItems)) {
                 if (!hasRoomForResult(previousRecipe)) {
                     return false;
                 }
@@ -602,7 +613,7 @@ public class CookingPotBlockEntity {
                 return true;
             }
 
-            CookingPotRecipe recipe = instance.getCookingPotRecipes()
+            CookingPotRecipe recipe = plugin.getCookingPotRecipes()
                     .matchRecipe(inputItems, containerItem, recipeGroupId);
 
             if (recipe == null) {
@@ -836,7 +847,6 @@ public class CookingPotBlockEntity {
         for (String recipeId : List.copyOf(usedRecipeTracker.keySet())) {
             Integer craftedAmount = usedRecipeTracker.remove(recipeId);
             if (craftedAmount == null) continue;
-            FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
             if (plugin == null) continue;
             var recipes = plugin.getCookingPotRecipes();
             if (recipes == null) continue;
@@ -859,7 +869,6 @@ public class CookingPotBlockEntity {
             Location loc = new Location(world, posKey.x() + 0.5, posKey.y() + 1.0, posKey.z() + 0.5);
             // Reward collection runs on the taking player's region, which need not own the pot's chunk;
             // spawning there would trip Folia's tick-thread check and abort the whole take.
-            FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
             if (plugin != null) {
                 plugin.scheduler().runAt(loc, () -> world.spawn(loc, ExperienceOrb.class, orb -> orb.setExperience(amount)));
             }

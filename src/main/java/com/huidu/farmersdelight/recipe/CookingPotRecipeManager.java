@@ -406,9 +406,9 @@ public class CookingPotRecipeManager {
         int maxCookTime = Math.max(minCookTime, plugin.getConfigInt(6000,
                 "cooking-pot.cooking.max-cook-time",
                 "cooking-pot.max-cook-time"));
-        int cookTime = Math.max(minCookTime, Math.min(maxCookTime, getInt(section,
-                defaultCookTime
-        )));
+        int cookTime = Math.max(minCookTime, Math.min(maxCookTime,
+                ConfigSectionReader.optionalInt(section, "cooking_time", defaultCookTime,
+                        "cooking-time", "cook-time")));
         String category = ConfigSectionReader.optionalString(section, "category", "misc");
         int priority = ConfigSectionReader.optionalInt(section, "priority", 0);
 
@@ -490,15 +490,6 @@ public class CookingPotRecipeManager {
             return choice.options().stream().anyMatch(this::ingredientHasMembers);
         }
         return false;
-    }
-
-    private int getInt(ConfigurationSection section, int defaultValue) {
-        for (String key : new String[]{"cooking_time", "cooking-time", "cook-time"}) {
-            if (section.contains(key)) {
-                return ConfigSectionReader.optionalInt(section, key, defaultValue);
-            }
-        }
-        return defaultValue;
     }
 
     private RecipeIngredient parseIngredient(String str) {

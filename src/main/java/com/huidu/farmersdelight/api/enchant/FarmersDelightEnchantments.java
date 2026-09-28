@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.api.enchant;
 
+import com.huidu.farmersdelight.api.PluginAccess;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import org.jetbrains.annotations.ApiStatus;
 
@@ -118,12 +119,12 @@ public final class FarmersDelightEnchantments {
     }
 
     private static boolean available() {
-        return FarmersDelightPlugin.getInstance() != null && FarmersDelightPlugin.isEnabled0();
+        return PluginAccess.isAvailable();
     }
 
     private static void refresh() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (plugin != null && FarmersDelightPlugin.isEnabled0()) {
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
+        if (plugin != null) {
             plugin.refreshEnchantSystem();
         }
     }

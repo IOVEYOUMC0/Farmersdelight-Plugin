@@ -739,6 +739,14 @@ public class StoveManager {
         long started = timing == null ? 0L : System.nanoTime();
         try {
             advanceCooking(location, stove);
+        } catch (Throwable t) {
+            // One bad block must not escape the repeating task: on Paper it would abort the whole pass, and
+            // on Folia the throw would leave this location's in-flight guard set forever. Throttled per world.
+            plugin.getTickManager().warnFeatureFailure("tick-stove", I18n.formatNamedArgs(
+                    "console.tick.error_ticking",
+                    "type", "stove",
+                    "pos", new BlockPosKey(location).toString(),
+                    "error", String.valueOf(t.getMessage())), location.getWorld(), t);
         } finally {
             if (timing != null) timing.record(System.nanoTime() - started);
         }

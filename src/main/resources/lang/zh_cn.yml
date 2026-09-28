@@ -8,8 +8,11 @@ crop:
   invalid_soil: "<red>该作物貌似需要种在指定方块上..."
   need_water: "<red>该作物貌似需要种在水中..."
 general:
+  # The chat prefix for player-facing messages. Reference it as {prefix} from any message instead of
+  # repeating the markup; placeholders are substituted before MiniMessage parses the text.
+  prefix: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> "
   no_permission: "<red>你没有权限这样做。"
-  config_reloaded: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <white>配置已重新加载</white>"
+  config_reloaded: "{prefix}<white>配置已重新加载</white>"
 recipe-discovery:
   unlocked: "<green>已解锁配方：<white>{recipe}"
   unlocked-multi: "<green>已解锁 <white>{count} <green>个新配方。"
@@ -184,6 +187,10 @@ console:
     recipes_loaded_timing: "配方文件加载完成：厨锅 {pot}ms、砧板 {board}ms，合计 {total}ms。"
     warmup_breakdown: "预热分项：物品 {items}ms、GUI/行为 {gui}ms、材料图标 {icons}ms、配方索引 {index}ms。"
     warmup_failed: "缓存预热失败；首次交互可能会短暂卡顿。"
+    reload_breakdown: "重载分项（主线程同步执行）：合计 {total}ms——配置 {config}ms、工具与语言 {tools}ms、缓存失效 {caches}ms、管理器刷新 {managers}ms、监听器 {listeners}ms。"
+    reload_addons: "附属重载事件耗时 {ms}ms（附属在主线程同步重建，不包含在上面的分项里）。"
+    reload_breakdown_config: "配置分项：读 config.yml {read}ms、键迁移 {migrate}ms、类型校验 {validate}ms、加载其余 yml {load}ms。"
+    reload_report: "重载报告：合计 {total}ms（{split}）。"
     configuration_reloaded: "配置已重新加载。"
     main_configuration_reloaded: "主配置已重新加载。"
     gui_configuration_reloaded: "GUI 配置已重新加载：{file}"
@@ -309,6 +316,7 @@ console:
     pack_sections_registered: "已占用 CraftEngine 数据包段：{ids}"
     pack_sections_unavailable: "CraftEngine 的数据包管理器尚未就绪，未能占用数据包段；数据包内的配方、特殊配方与进度都不会被读取。"
     pack_sections_conflict: "CraftEngine 数据包段 {ids} 已被其他插件占用，本插件无法读取；这些段里的数据包配方、特殊配方与进度将被忽略。"
+    craftengine_not_ready: "等待 CraftEngine 加载自定义物品超时（约 20 秒）：配方、进度与显示缓存均未预热。请在 CraftEngine 就绪后执行 /fd reload recipes 完成加载。"
   advancement:
     loaded_keys: "已加载 {count} 个进度键"
     unknown: "未知进度：{id}"
@@ -332,7 +340,6 @@ console:
   knife:
     dropped: "已在 {location} 从 {entity} 掉落 {item}"
     invalid_item_id: "物品 ID 格式无效：{id}"
-    mob_extra_ignored: "drops.yml 的 '{section}' 段已不再读取，本次已忽略：生物刀具掉落现已迁入 CraftEngine 资源包（vanilla_loots.yml）。迁移方式见 changed_log.txt。"
   recipe:
     loaded_single: "已加载 {type} 配方：{id}"
     load_failed: "加载配方 '{id}' 失败：{error}"
@@ -425,6 +432,10 @@ console:
 command:
   player_only: "<red>这个命令只能由玩家执行。"
   reload_usage: "<yellow>/fd reload <{targets}></yellow>"
+  reload_busy: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <red>上一次重载还在进行中，请稍候。"
+  reload_cooldown: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <red>重载过于频繁，请在 <white>{seconds}</white> 秒后重试。"
+  reload_report: "{prefix}<white>重载完成</white><gray>（</gray><yellow>{total}ms</yellow><gray>：</gray><gray>{split}</gray><gray>）</gray>"
+  reload_report_issues: "{prefix}<red>⚠ 发现</red><bold><red>{issues}</red></bold><red> 个问题，详见控制台。</red>"
   runtime_management_refused: "<yellow>[{plugin}]</yellow> <red>本插件不支持在运行时卸载或重载。请执行 /stop 停服后重新启动服务器以应用改动。"
   recipe_discovery_usage: "<yellow>/fd recipe discovery unlock|lock <类型> <配方id|all> [玩家]</yellow> <gray>|</gray> <yellow>/fd recipe discovery unlock|lock all [玩家]</yellow> <gray>|</gray> <yellow>/fd recipe discovery list [类型] [玩家]</yellow> <gray>|</gray> <yellow>/fd recipe discovery status [玩家]</yellow>"
   recipe_discovery_unavailable: "<red>配方解锁功能当前不可用。"

@@ -179,7 +179,7 @@ public final class FarmersDelightApi {
     }
 
     private void refreshTagDependentRecipes() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         if (plugin != null && isContentLoaded()) {
             plugin.refreshTagDependentRecipes();
         }
@@ -252,7 +252,7 @@ public final class FarmersDelightApi {
         }
         LinkedHashSet<JumpTarget> targets =
                 new LinkedHashSet<>(FarmersDelightRecipes.findRecipesProducing(item));
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         if (plugin != null) {
             if (plugin.getSpecialRecipeRegistry() != null) {
                 String specialId = plugin.getSpecialRecipeRegistry().findProducingRecipe(item);
@@ -267,7 +267,7 @@ public final class FarmersDelightApi {
     }
 
     private void invalidateRecipeDiscoveryIndex() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         if (plugin != null && plugin.getRecipeDiscoveryManager() != null) {
             plugin.getRecipeDiscoveryManager().invalidateIndex();
         }
@@ -275,10 +275,9 @@ public final class FarmersDelightApi {
 
     // Shared rule for the runtime-mutating register/unregister methods below: get the plugin and let it pass
     // through only if it is available. Returning null makes the caller's null-guard double as the
-    // availability check, so we avoid repeating getInstance() plus isAvailable() in every method.
+    // availability check, so we avoid repeating the availability test in every method.
     private static FarmersDelightPlugin availablePlugin() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        return (plugin != null && plugin.isEnabled0()) ? plugin : null;
+        return PluginAccess.pluginOrNull();
     }
 
     public void registerCookingPotRecipe(String id, List<String> ingredients, ItemStack container,
@@ -548,7 +547,7 @@ public final class FarmersDelightApi {
     }
 
     public boolean isAvailable() {
-        return FarmersDelightPlugin.getInstance() != null && FarmersDelightPlugin.isEnabled0();
+        return PluginAccess.isAvailable();
     }
 
     /**
@@ -563,7 +562,7 @@ public final class FarmersDelightApi {
     }
 
     public boolean isFolia() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         return plugin != null && plugin.scheduler().isFolia();
     }
 
@@ -576,7 +575,7 @@ public final class FarmersDelightApi {
     }
 
     public static boolean isDebugEnabled(String category) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         return plugin != null && plugin.isDebugEnabled(category);
     }
 
@@ -587,17 +586,17 @@ public final class FarmersDelightApi {
      * target exactly this world instead of copying the pack into every world.
      */
     public World primaryWorld() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         return plugin != null ? plugin.getPrimaryWorld() : null;
     }
 
     public boolean isHeatSource(Block block) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         return plugin != null && block != null && plugin.getHeatSourceConfig().isHeatSource(block);
     }
 
     public boolean isConductor(Block block) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         return plugin != null && block != null && plugin.getHeatSourceConfig().isConductor(block);
     }
 
@@ -714,7 +713,7 @@ public final class FarmersDelightApi {
 
     public void awardItemAdvancements(Player player, String itemId) {
         awardItemAdvancements(player, itemId, advancementTriggers);
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         if (plugin != null) plugin.getAddonAdvancementRegistry().awardForItem(player, itemId);
     }
 
@@ -750,8 +749,8 @@ public final class FarmersDelightApi {
     // Shared gate + manager lookup for the packet display/text methods below. Returns null when the plugin
     // is not available so each caller's single null-check doubles as the availability guard.
     private ItemDisplayManager displayManager() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        return (plugin != null && plugin.isEnabled0()) ? plugin.getItemDisplayManager() : null;
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
+        return plugin == null ? null : plugin.getItemDisplayManager();
     }
 
     // Packet item displays
@@ -845,7 +844,7 @@ public final class FarmersDelightApi {
     }
 
     public void runAtLocation(Location location, Runnable task) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         if (plugin == null || task == null) {
             return;
         }
@@ -853,7 +852,7 @@ public final class FarmersDelightApi {
     }
 
     public void runLaterAtLocation(Location location, Runnable task, long delayTicks) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         if (plugin == null || task == null) {
             return;
         }
@@ -861,7 +860,7 @@ public final class FarmersDelightApi {
     }
 
     public ApiTask runRepeating(Runnable task, long delayTicks, long periodTicks) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         if (plugin == null || task == null) {
             return ApiTask.NOOP;
         }
@@ -881,7 +880,7 @@ public final class FarmersDelightApi {
 
     public void awardCraftingExperience(Player player, Location location, ItemStack result,
                                         double baseExperience, String source) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         if (plugin == null || player == null) {
             return;
         }

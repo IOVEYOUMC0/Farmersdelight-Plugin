@@ -76,7 +76,7 @@ public class StrawDropListener implements Listener {
         if (!event.isDropItems() || player.getGameMode() == GameMode.CREATIVE) return;
 
         if (isStrawBlock(block)) {
-            AdvancementManager advancementManager = FarmersDelightPlugin.getInstance().getAdvancementManager();
+            AdvancementManager advancementManager = plugin.getAdvancementManager();
             if (advancementManager != null) {
                 advancementManager.award(player, "harvest_straw");
             }

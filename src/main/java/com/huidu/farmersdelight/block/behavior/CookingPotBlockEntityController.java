@@ -43,6 +43,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     private static final String COOKING_DURATION = "cooking_duration";
     private static final String MEAL_CONTAINER = "meal_container";
 
+    private final FarmersDelightPlugin plugin;
     private final CookingPotBlockBehavior behavior;
     private final CookingPotLayout layout;
     private final Item[] items;
@@ -73,8 +74,9 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     // (called per slot during container scans) need not reallocate it on every access.
     private BlockPosKey cachedPosKey;
 
-    public CookingPotBlockEntityController(BlockEntity blockEntity, CookingPotBlockBehavior behavior) {
+    public CookingPotBlockEntityController(FarmersDelightPlugin plugin, BlockEntity blockEntity, CookingPotBlockBehavior behavior) {
         super(blockEntity);
+        this.plugin = plugin;
         this.behavior = behavior;
         this.layout = behavior != null ? behavior.getLayout() : CookingPotLayout.DEFAULT;
         this.items = new Item[this.layout.size()];
@@ -269,7 +271,6 @@ public final class CookingPotBlockEntityController extends BlockEntityController
 
         loadDataIntoEntity(entity, data);
         if (entity.hasStoredContents()) {
-            FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
             if (plugin != null && plugin.getTickManager() != null) {
                 plugin.getTickManager().markActive(world, posKey, TickManager.BlockType.COOKING_POT);
             }
@@ -390,7 +391,6 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         entity.tryMovePendingToOutput();
         refreshFromEntity(entity);
 
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin != null && plugin.getTickManager() != null && entity.hasStoredContents()) {
             plugin.getTickManager().markActive(world, new BlockPosKey(this.blockEntity.pos), TickManager.BlockType.COOKING_POT);
         }

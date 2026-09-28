@@ -178,6 +178,11 @@ public class ChunkLoadListener implements Listener {
     }
 
     private void cleanupCookingPotEntities(World world, int chunkX, int chunkZ) {
+        // Deregister from the tick loop as well as dropping the entities below. This runs before the empty
+        // check on purpose: the tick bookkeeping can hold entries for a chunk whose entity snapshot is already
+        // empty, and those are exactly the ones that would otherwise accumulate for every chunk a player
+        // visits. A chunk reload re-registers through markActive.
+        plugin.getTickManager().markInactiveInChunk(world, chunkX, chunkZ);
         Map<BlockPosKey, CookingPotBlockEntity> entities =
                 CookingPotBlockBehavior.getBlockEntitiesInChunk(world, chunkX, chunkZ);
         if (entities.isEmpty()) return;

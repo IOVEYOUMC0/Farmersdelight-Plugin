@@ -42,11 +42,17 @@ public final class TagDatapackInstaller implements Listener {
     private static final String VANILLA_NAMESPACE = "minecraft";
 
     private final FarmersDelightPlugin plugin;
-    private final boolean installEnabled;
 
     public TagDatapackInstaller(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
-        this.installEnabled = plugin.getConfig().getBoolean("datapacks.tags-enabled", true);
+    }
+
+    /**
+     * Read per install rather than at construction: the switch belongs to the config the operator may have
+     * reloaded since, and keeping it out of the constructor lets the installer be built without a live plugin.
+     */
+    private boolean installEnabled() {
+        return plugin == null || plugin.getConfig().getBoolean("datapacks.tags-enabled", true);
     }
 
     // Addons register their tag sources on their own enable, which happens after FD's. Exporting only
@@ -69,7 +75,7 @@ public final class TagDatapackInstaller implements Listener {
         Path datapackDir = DatapackSupport.worldRoot(primaryWorld)
                 .resolve("datapacks")
                 .resolve(DATAPACK_DIRECTORY);
-        if (!installEnabled) {
+        if (!installEnabled()) {
             return deletePack(datapackDir);
         }
         Map<String, Set<String>> tags = vanillaTagSnapshot();

@@ -82,10 +82,12 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
     );
     private static volatile Set<String> cachedMushroomSupports = DEFAULT_MUSHROOM_ALWAYS_VALID_SUPPORTS;
 
+    private final FarmersDelightPlugin plugin;
     private final Config config;
 
-    private MushroomColonyBehavior(BlockDefinition block, Config config) {
+    private MushroomColonyBehavior(FarmersDelightPlugin plugin, BlockDefinition block, Config config) {
         super(block, 0);
+        this.plugin = plugin;
         this.config = config;
     }
 
@@ -148,6 +150,7 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
             return true;
         }
 
+        // Static helper: it has no behavior instance to take the plugin from.
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin != null && !plugin.getConfigBoolean(true,
                 "mushroom-colonies.placement.allow-solid-supports-below-max-light")) {
@@ -194,6 +197,8 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
     }
 
     public static final BlockBehaviorFactory<MushroomColonyBehavior> FACTORY = (BlockDefinition block, ConfigSection section) -> {
+        // Runs while CraftEngine parses the pack, which is always after this plugin enabled.
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         // The age is not optional: it carries how many mushrooms the colony holds, so without it the
         // colony reads as empty and can never be harvested, while growth and bone meal fail on every
@@ -223,7 +228,7 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
                 "place-on.overrides-default", "place-on-overrides-default", false);
         String mushroomItemId = BehaviorArgParser.getString(arguments, "mushroom-type", "");
 
-        MushroomColonyBehavior behavior = new MushroomColonyBehavior(block, new Config(
+        MushroomColonyBehavior behavior = new MushroomColonyBehavior(plugin, block, new Config(
                 ageProperty, maxAge, growSpeed, minGrowLight,
                 bonemealMinAgeBonus, bonemealMaxAgeBonus,
                 harvestToolTags, harvestToolItems, growSoilRules, placementSoilRules,
@@ -421,14 +426,14 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
         if (customId == null) {
             return false;
         }
-        return FarmersDelightPlugin.getInstance().getCraftEngine().itemManager()
+        return plugin.getCraftEngine().itemManager()
                 .itemIdsByTag(harvestToolTag)
                 .stream()
                 .anyMatch(uniqueKey -> uniqueKey.key().toString().equalsIgnoreCase(customId));
     }
 
     private boolean matchesLegacyKnifeItem(ItemStack item) {
-        return FarmersDelightPlugin.getInstance().isKnife(item);
+        return plugin.isKnife(item);
     }
 
     @Override

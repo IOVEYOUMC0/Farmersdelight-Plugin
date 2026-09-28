@@ -168,7 +168,7 @@ public final class ConfigBootstrap {
         Path guiPath = plugin.getDataFolder().toPath().resolve("gui.yml");
         if (Files.exists(guiPath)) {
             try {
-                validateFile("gui.yml", ConfigFileUpdater.readYamlFile(guiPath), readBundledYaml("gui.yml"), List.of());
+                validateFile("gui.yml", readUserYaml(guiPath, true), readBundledYaml("gui.yml"), List.of());
             } catch (Exception e) {
                 I18n.logWarning("plugin.config_load_failed", "file", "gui.yml", "error", e.getMessage());
             }
@@ -181,7 +181,7 @@ public final class ConfigBootstrap {
             return;
         }
         try {
-            validateFile(fileName, ConfigFileUpdater.readYamlFile(path), readBundledYaml(fileName), registrySections);
+            validateFile(fileName, readUserYaml(path, true), readBundledYaml(fileName), registrySections);
         } catch (Exception e) {
             I18n.logWarning("plugin.config_load_failed", "file", fileName, "error", e.getMessage());
         }
@@ -215,6 +215,7 @@ public final class ConfigBootstrap {
             issues.add(path + " - " + String.valueOf(actual) + " (expected " + typeName(expected) + ")");
         }
         if (!issues.isEmpty()) {
+            validationIssues += issues.size();
             I18n.logWarning("plugin.config_issues_header", "file", fileName, "count", issues.size());
             for (int i = 0; i < issues.size(); i++) {
                 I18n.logWarning("plugin.config_issue_detail", "index", i + 1, "detail", issues.get(i));
@@ -304,7 +305,9 @@ public final class ConfigBootstrap {
     private YamlConfiguration loadExternalConfig(String fileName, List<String> registrySections) {
         Path configPath = plugin.getDataFolder().toPath().resolve(fileName);
         try {
-            YamlConfiguration existing = ConfigFileUpdater.readYamlFile(configPath);
+            // Shares the validation pass's parse. This is the one reader that may add missing keys in place,
+            // which is why the mutated instance is stored back rather than being left to diverge from the cache.
+            YamlConfiguration existing = readUserYaml(configPath, true);
             YamlConfiguration bundled = readBundledYaml(fileName);
             if (bundled == null) {
                 return existing;
@@ -315,11 +318,19 @@ public final class ConfigBootstrap {
                 ConfigFileUpdater.tidy(existing);
                 ConfigFileUpdater.writeStringAtomically(configPath, existing.saveToString(), true);
                 I18n.logInfo("plugin.config_keys_added", "file", fileName, "count", added);
+                rememberReloadRead(configPath, existing);
             }
             return existing;
         } catch (Exception e) {
             I18n.logWarning("plugin.config_merge_failed", "file", fileName, "error", e.getMessage());
             return new YamlConfiguration();
+        }
+    }
+
+    /** Keeps the reload read cache consistent with an instance a caller has just mutated in place. */
+    private void rememberReloadRead(Path path, YamlConfiguration parsed) {
+        if (cachingReloadReads && parsed != null) {
+            reloadReads.put(path, parsed);
         }
     }
 
@@ -468,7 +479,7 @@ public final class ConfigBootstrap {
             return;
         }
         try {
-            YamlConfiguration existing = ConfigFileUpdater.readYamlFile(guiPath);
+            YamlConfiguration existing = readUserYaml(guiPath, true);
 
             int migrated = migrateLegacyGuiSections(existing.getConfigurationSection("recipe-view-gui"));
             migrated += migrateEmptyGuiMaps(existing);
@@ -477,6 +488,7 @@ public final class ConfigBootstrap {
                 backupQuietly(guiPath);
                 ConfigFileUpdater.tidy(existing);
                 ConfigFileUpdater.writeStringAtomically(guiPath, existing.saveToString(), true);
+                rememberReloadRead(guiPath, existing);
                 I18n.logInfo("plugin.config_keys_added", "file", "gui.yml", "count", migrated + added);
             }
         } catch (Exception e) {
@@ -524,6 +536,73 @@ public final class ConfigBootstrap {
             I18n.logWarning("plugin.config_merge_failed", "file", resourcePath, "error", e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * The user-file reads within one reload, so a file is opened and parsed once instead of once per pass.
+     *
+     * <p>A reload reads the same four files twice: validateConfigTypes() parses them to compare against
+     * the bundled types, and loadConfigs() parses them again to build runtime settings. The content
+     * cannot change between the two passes of one reload, so both share the parse. Only reads that merely
+     * inspect the values are memoised; a read whose result is about to be mutated and written back stays fresh.
+     *
+     * <p>Left empty outside a reload, so the enable path keeps its existing behaviour exactly.
+     */
+    private final Map<Path, YamlConfiguration> reloadReads = new java.util.concurrent.ConcurrentHashMap<>();
+    private volatile boolean cachingReloadReads;
+    /** Problems the last validation pass reported, so the reload command can summarise them. */
+    private int validationIssues;
+
+    /** Opens the read cache for one reload. Must be called before the pass that validates and loads. */
+    public void beginReload() {
+        reloadReads.clear();
+        validationIssues = 0;
+        cachingReloadReads = true;
+    }
+
+    private YamlConfiguration readUserYaml(Path path, boolean shareable)
+            throws IOException, InvalidConfigurationException {
+        if (!cachingReloadReads || !shareable) {
+            return ConfigFileUpdater.readYamlFile(path);
+        }
+        YamlConfiguration cached = reloadReads.get(path);
+        if (cached != null) {
+            return cached;
+        }
+        YamlConfiguration parsed = ConfigFileUpdater.readYamlFile(path);
+        if (parsed != null) {
+            reloadReads.put(path, parsed);
+        }
+        return parsed;
+    }
+
+    /** Parses the files a reload needs up front, so validation and the load pass share one read each. */
+    public void prefetchReloadFiles() {
+        for (String fileName : new String[]{"config.yml", "gui.yml", DROPS_FILE, WORLD_DATA_FILE,
+                DISPLAY_OVERRIDES_FILE}) {
+            Path path = plugin.getDataFolder().toPath().resolve(fileName);
+            if (Files.notExists(path)) {
+                continue;
+            }
+            try {
+                readUserYaml(path, true);
+            } catch (Exception e) {
+                I18n.logWarning("plugin.config_load_failed", "file", fileName, "error", e.getMessage());
+            }
+        }
+    }
+
+    /** Type problems the last validation pass found. Reset by beginReload(). */
+    public int validationIssueCount() {
+        return validationIssues;
+    }
+
+    /**
+     * The already-parsed gui.yml, so the GUI load pass does not re-open the file the validation pass just read.
+     * Outside a reload this reads the file, preserving the previous behaviour.
+     */
+    public YamlConfiguration readGuiForLoad(Path guiPath) throws IOException, InvalidConfigurationException {
+        return readUserYaml(guiPath, true);
     }
 
     private boolean removeRetiredConfigKeys() {
