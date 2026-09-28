@@ -37,3 +37,11 @@ AntiGriefLib -- MIT License -- Copyright (c) 2024 XiaoMoMi
 bStats       -- MIT License -- Copyright (c) Bastian Oppermann
 
 Both are distributed under the MIT terms reproduced above.
+
+--------------------------------------------------------------------------------
+Plugin licence
+--------------------------------------------------------------------------------
+
+The plugin's own code is released under the GNU General Public License v3.0 only.
+The full text is in the LICENSE file at the root of the source repository:
+https://github.com/IOVEYOUMC0/Farmersdelight

@@ -14,6 +14,7 @@ folia-supported: true
 description: CraftEngine port of Farmer's Delight by vectorwing (MIT).
 authors:
   - HuiDu_OwO
+website: https://github.com/IOVEYOUMC0/Farmersdelight
 
 # The /farmersdelight command is registered through Paper's lifecycle API in onEnable:
 # paper-plugin.yml has no commands: section.
@@ -32,6 +33,12 @@ dependencies:
       required: false
       join-classpath: true
     PlaceholderAPI:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    # Declared in the dependency graph on purpose: MMOItems resolves over the class loader only when it is a
+    # (transitive) dependency, and the item-id bridge looks its classes up reflectively.
+    MMOItems:
       load: BEFORE
       required: false
       join-classpath: true

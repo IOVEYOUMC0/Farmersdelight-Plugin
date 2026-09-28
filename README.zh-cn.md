@@ -17,7 +17,7 @@ FarmersDelight 是基于 CraftEngine 的 Farmer's Delight Paper/Folia 移植插�
 
 - Paper 或 Folia 1.21.4 及以上
 - Java 21
-- CraftEngine 26.9.1
+- CraftEngine 26.8.2 及以上（用 26.9.1 编译；26.8.2 / 26.9 / 26.9.1 已实机核对）
 
 先安装 CraftEngine，再将 FarmersDelight 放入 `plugins/`。修改插件配置后使用 `/fd reload`，修改 CraftEngine 资源后使用 `/ce reload`。
 
@@ -31,4 +31,14 @@ FarmersDelight 是基于 CraftEngine 的 Farmer's Delight Paper/Folia 移植插�
 ./gradlew build
 ```
 
-构建使用官方 Maven 的 CraftEngine 26.9.1 API。附属通过生成的 FarmersDelight API-only JAR 编译，并要求与本仓库处于同级目录。
+构建使用官方 Maven 的 CraftEngine 26.9.1 API，加 `-PceVersion=<版本>` 可改为对着别的版本编译。附属通过生成的 FarmersDelight API-only JAR 编译，并要求与本仓库处于同级目录。
+
+## 授权
+
+GNU General Public License v3.0 only，全文见 [LICENSE](LICENSE)。
+
+允许使用、修改、再分发（收费分发也可以），前提是满足 GPL-3.0：保留版权与授权声明、随分发提供
+完整对应源码、修改版同样以 GPL-3.0 授权。第三方内容（搬运的 Farmer's Delight 素材、shade 进来的
+库，均为 MIT）保留各自的声明，见 [NOTICE.md](NOTICE.md)。
+
+本仓库是本插件唯一的源码来源。其他人发布的构建产物（无论有没有加过代码）都与作者无关。
