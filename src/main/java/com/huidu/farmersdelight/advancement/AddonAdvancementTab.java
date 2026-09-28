@@ -8,9 +8,11 @@ import com.fren_gor.ultimateAdvancementAPI.advancement.RootAdvancement;
 import com.fren_gor.ultimateAdvancementAPI.advancement.display.AdvancementFrameType;
 import com.fren_gor.ultimateAdvancementAPI.advancement.tasks.MultiTasksAdvancement;
 import com.fren_gor.ultimateAdvancementAPI.advancement.tasks.TaskAdvancement;
+import com.fren_gor.ultimateAdvancementAPI.database.TeamProgression;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.entity.Player;
+import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
@@ -25,23 +27,26 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
 
 public final class AddonAdvancementTab {
 
-    private final Plugin plugin;
+    // Held as the concrete type: the gate below needs plugin services, not just the Bukkit Plugin surface.
+    private final FarmersDelightPlugin plugin;
     private final String tabName;
     private final List<AdvancementDef> definitions;
     private final Map<String, Advancement> byId = new ConcurrentHashMap<>();
     private final Map<String, Map<String, TaskAdvancement>> multiTasks = new ConcurrentHashMap<>();
     private final Set<UUID> rootAwarded = ConcurrentHashMap.newKeySet();
-    // Which ids each tab's previous build gated off, so only the difference is logged. Keyed by tab name rather
-    // than held per instance because a rebuild replaces the whole AddonAdvancementTab.
+    // IDs gated by each tab's last completed construction. The tab name owns the state because rebuilding
+    // replaces the AddonAdvancementTab instance.
     private static final Map<String, Set<String>> GATED_OFF_BY_TAB = new ConcurrentHashMap<>();
 
     private AdvancementTab tab;
     private String rootId;
+    private boolean autoAwardRoot;
 
-    public AddonAdvancementTab(Plugin plugin, String tabName, List<AdvancementDef> definitions) {
+    public AddonAdvancementTab(FarmersDelightPlugin plugin, String tabName, List<AdvancementDef> definitions) {
         this.plugin = plugin;
         this.tabName = tabName;
         this.definitions = List.copyOf(definitions);
@@ -63,8 +68,7 @@ public final class AddonAdvancementTab {
         try {
             UltimateAdvancementAPI api = UltimateAdvancementAPI.getInstance(plugin);
             if (api.isAdvancementTabRegistered(tabName)) {
-                // Rebuilds follow CE/datapack reloads; the client may have already discarded the old
-                // virtual tree, so do not send stale remove packets for it.
+                // The client may have discarded the virtual tree, so do not send remove packets for it.
                 api.unregisterAdvancementTab(tabName, false);
             }
             tab = api.createAdvancementTab(tabName);
@@ -75,7 +79,7 @@ public final class AddonAdvancementTab {
             disposeQuietly();
             // A build failure otherwise leaves the addon's advancements missing in-game with no error; log the
             // localized message + stack trace so the cause is diagnosable (I18n.logWarning can't carry the throwable).
-            plugin.getLogger().log(java.util.logging.Level.WARNING,
+            plugin.getLogger().log(Level.WARNING,
                     I18n.formatConsole("advancement.addon_tab_build_failed", "tab", tabName), e);
             return false;
         }
@@ -99,7 +103,7 @@ public final class AddonAdvancementTab {
 
         // Drop the advancements whose declared CraftEngine content is gone, then re-hang their children on the
         // nearest surviving ancestor. Addons that declared no requirement keep every advancement, as before.
-        AdvancementGate gate = AdvancementGate.fromConfig(FarmersDelightPlugin.getInstance(), tabName);
+        AdvancementGate gate = AdvancementGate.fromConfig(plugin, tabName);
         Map<String, String> declaredParents = new HashMap<>();
         Set<String> kept = new LinkedHashSet<>();
         for (AdvancementDef def : definitions) {
@@ -134,6 +138,7 @@ public final class AddonAdvancementTab {
         RootAdvancement root = new RootAdvancement(tab, rootDef.id(), display(rootDef), background);
         byId.put(rootDef.id(), root);
         rootId = rootDef.id();
+        autoAwardRoot = rootDef.requiredIds().isEmpty();
         if (rootDef.isMulti()) {
             // A root is never a multi-task in practice; ignore criteria on the root.
             multiTasks.remove(rootDef.id());
@@ -148,12 +153,19 @@ public final class AddonAdvancementTab {
             Advancement parent = byId.get(parents.get(id));
             BaseAdvancement built = def.isMulti()
                     ? buildMulti(def, parent, gated ? gate : null)
-                    : new BaseAdvancement(def.id(), display(def), parent);
+                    : new BaseAdvancement(def.id(), display(def), parent) {
+                        @Override
+                        public boolean isVisible(TeamProgression progression) {
+                            return !def.hidden() || isGranted(progression);
+                        }
+                    };
             byId.put(def.id(), built);
             all.add(built);
         }
 
-        tab.registerAdvancements(root, all);
+        // Use UAA's vanilla tidy-tree layout so CE-pack advancement positions follow their parent graph.
+        tab.registerAdvancements(root, all, true);
+        tab.automaticallyShowToPlayers();
         // Recorded only once the tab is actually registered, so a build that threw part-way does not become the
         // baseline the next build compares against.
         GATED_OFF_BY_TAB.put(tabName, AdvancementGate.logChanges(tabName, GATED_OFF_BY_TAB.get(tabName),
@@ -174,7 +186,12 @@ public final class AddonAdvancementTab {
         List<String> criteria = gate == null
                 ? def.criteria()
                 : gate.filterCriteria(def.id(), def.criteria(), def.criterionRequirements());
-        MultiTasksAdvancement multi = new MultiTasksAdvancement(def.id(), display(def), parent, criteria.size());
+        MultiTasksAdvancement multi = new MultiTasksAdvancement(def.id(), display(def), parent, criteria.size()) {
+            @Override
+            public boolean isVisible(TeamProgression progression) {
+                return !def.hidden() || isGranted(progression);
+            }
+        };
         Map<String, TaskAdvancement> taskMap = new HashMap<>();
         List<TaskAdvancement> tasks = new ArrayList<>();
         for (String criterion : criteria) {
@@ -190,12 +207,9 @@ public final class AddonAdvancementTab {
     private LocalizedAdvancementDisplay display(AdvancementDef def) {
         ItemStack icon = def.icon() != null && !def.icon().getType().isAir()
                 ? def.icon()
-                : new ItemStack(org.bukkit.Material.BOOK);
-        // The tab root shows no toast and makes no chat broadcast, matching the original mod's root
-        // advancement (announce_to_chat / show_toast both false); other advancements announce as usual.
-        boolean announce = !def.isRoot();
+                : new ItemStack(Material.BOOK);
         return new LocalizedAdvancementDisplay(icon, def.title(), def.description(),
-                frameOf(def.frame()), announce, announce, def.x(), def.y());
+                frameOf(def.frame()), def.showToast(), def.announceChat(), def.x(), def.y());
     }
 
     private static AdvancementFrameType frameOf(String frame) {
@@ -219,7 +233,7 @@ public final class AddonAdvancementTab {
         if (tab == null || !tab.isInitialised() || player == null) {
             return;
         }
-        if (rootId != null) {
+        if (autoAwardRoot && rootId != null) {
             award(player, rootId);
         }
         showTo(player);
@@ -249,6 +263,9 @@ public final class AddonAdvancementTab {
             return;
         }
         try {
+            if (advancement.isGranted(player)) {
+                return;
+            }
             if (advancement instanceof MultiTasksAdvancement) {
                 Map<String, TaskAdvancement> taskMap = multiTasks.get(advancementId);
                 if (taskMap != null) {
@@ -258,7 +275,7 @@ public final class AddonAdvancementTab {
                         }
                     }
                 }
-            } else if (!advancement.isGranted(player)) {
+            } else {
                 advancement.grant(player);
             }
         } catch (Exception ignored) {
@@ -274,6 +291,15 @@ public final class AddonAdvancementTab {
         Map<String, TaskAdvancement> taskMap = multiTasks.get(advancementId);
         if (taskMap == null) {
             return;
+        }
+        Advancement advancement = byId.get(advancementId);
+        if (advancement != null) {
+            try {
+                if (advancement.isGranted(player)) {
+                    return;
+                }
+            } catch (Exception ignored) {
+            }
         }
         TaskAdvancement task = taskMap.get(criterion);
         if (task == null) {
@@ -326,7 +352,7 @@ public final class AddonAdvancementTab {
     }
 
     private void ensureRoot(Player player, String advancementId) {
-        if (rootId == null || rootId.equals(advancementId)) {
+        if (!autoAwardRoot || rootId == null || rootId.equals(advancementId)) {
             return;
         }
         if (rootAwarded.contains(player.getUniqueId())) {
@@ -360,7 +386,9 @@ public final class AddonAdvancementTab {
         try {
             UltimateAdvancementAPI api = UltimateAdvancementAPI.getInstance(plugin);
             if (api.isAdvancementTabRegistered(tabName)) {
-                api.unregisterAdvancementTab(tabName);
+                // deleteClient=false: the client may still be showing this tab and UAA prefers keeping it,
+                // since the client discards the virtual tree on its own after a datapack reload.
+                api.unregisterAdvancementTab(tabName, false);
             }
         } catch (Exception ignored) {
             // UAA already unloaded / not enabled

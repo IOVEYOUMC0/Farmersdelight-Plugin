@@ -12,6 +12,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntConsumer;
+import java.util.function.ToIntFunction;
 
 import static com.huidu.farmersdelight.command.CommandSupport.MINI;
 import static com.huidu.farmersdelight.command.CommandSupport.isInteger;
@@ -21,9 +24,11 @@ import static com.huidu.farmersdelight.command.CommandSupport.parsePositiveInt;
 import static com.huidu.farmersdelight.command.CommandSupport.prefixFilter;
 
 final class BuffSubCommand extends SubCommand {
+    private final FarmersDelightPlugin plugin;
 
     BuffSubCommand(FarmersDelightPlugin plugin) {
         super("buff", List.of("effect"), "farmersdelight.admin", "command.help_buff", plugin::isBuffSystemEnabled);
+        this.plugin = plugin;
     }
 
     // /fd buff give <player> <buffId> <time> <level>  — grant a registered custom buff (fixed order)
@@ -61,21 +66,18 @@ final class BuffSubCommand extends SubCommand {
         }
         int seconds = (args.length >= 5 && isInteger(args[4])) ? parsePositiveInt(args[4], 30) : 30;
         int level = (args.length >= 6 && isInteger(args[5])) ? parsePositiveInt(args[5], 1) : 1;
-        int granted = 0;
-        for (Player target : targets) {
-            if (CustomBuffRegistry.apply(target, buff.id(), level, seconds)) {
-                granted++;
-            }
-        }
-        if (granted == 0) {
-            sender.sendMessage(I18n.getComponent("command.buff_not_grantable", Map.of("buff", buff.id())));
-            return;
-        }
-        sender.sendMessage(I18n.getComponent("command.buff_given", Map.of(
-                "buff", buff.id(),
-                "level", String.valueOf(level),
-                "seconds", String.valueOf(seconds),
-                "player", describeTargets(targets))));
+        dispatchTargets(targets, target -> CustomBuffRegistry.apply(target, buff.id(), level, seconds) ? 1 : 0,
+                granted -> plugin.scheduler().run(() -> {
+                    if (granted == 0) {
+                        sender.sendMessage(I18n.getComponent("command.buff_not_grantable", Map.of("buff", buff.id())));
+                        return;
+                    }
+                    sender.sendMessage(I18n.getComponent("command.buff_given", Map.of(
+                            "buff", buff.id(),
+                            "level", String.valueOf(level),
+                            "seconds", String.valueOf(seconds),
+                            "player", describeTargets(targets))));
+                }));
     }
 
     private void executeBuffClear(CommandSender sender, String[] args) {
@@ -95,22 +97,38 @@ final class BuffSubCommand extends SubCommand {
             return;
         }
         if (one == null) {
-            int removed = 0;
-            for (Player target : targets) {
-                removed += CustomBuffRegistry.clearAll(target);
+            dispatchTargets(targets, target -> CustomBuffRegistry.clearAll(target),
+                    removed -> plugin.scheduler().run(() -> sender.sendMessage(I18n.getComponent(
+                            "command.buff_cleared_all", Map.of(
+                                    "count", String.valueOf(removed), "player", describeTargets(targets))))));
+            return;
+        }
+        dispatchTargets(targets, target -> CustomBuffRegistry.clear(target, one.id()) ? 1 : 0,
+                removed -> plugin.scheduler().run(() -> sender.sendMessage(I18n.getComponent(
+                        "command.buff_cleared_one", Map.of(
+                                "buff", one.id(), "player", describeTargets(targets),
+                                "count", String.valueOf(removed))))));
+    }
+
+    /** Executes player mutations on each entity scheduler, then reports the aggregate on the global scheduler. */
+    private void dispatchTargets(List<Player> targets, ToIntFunction<Player> action, IntConsumer complete) {
+        AtomicInteger remaining = new AtomicInteger(targets.size());
+        AtomicInteger result = new AtomicInteger();
+        for (Player target : targets) {
+            Runnable finished = () -> {
+                if (remaining.decrementAndGet() == 0) complete.accept(result.get());
+            };
+            try {
+                plugin.scheduler().runForEntity(target, () -> {
+                    try {
+                        result.addAndGet(action.applyAsInt(target));
+                    } finally {
+                        finished.run();
+                    }
+                }, finished);
+            } catch (RuntimeException ignored) {
+                finished.run();
             }
-            sender.sendMessage(I18n.getComponent("command.buff_cleared_all", Map.of(
-                    "count", String.valueOf(removed), "player", describeTargets(targets))));
-        } else {
-            int removed = 0;
-            for (Player target : targets) {
-                if (one.isActive(target)) {
-                    one.remove(target);
-                    removed++;
-                }
-            }
-            sender.sendMessage(I18n.getComponent("command.buff_cleared_one", Map.of(
-                    "buff", one.id(), "player", describeTargets(targets), "count", String.valueOf(removed))));
         }
     }
 

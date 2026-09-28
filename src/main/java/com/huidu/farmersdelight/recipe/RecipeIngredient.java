@@ -6,8 +6,32 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public sealed interface RecipeIngredient permits RecipeIngredient.Item, RecipeIngredient.Tag, RecipeIngredient.Choice {
+
+    /**
+     * A key that is equal for two ingredients matching exactly the same stacks, used to memoize matching
+     * within one draw (see IngredientMatchMemo). It covers every field that affects matching, so two
+     * ingredients sharing a key can share one cached answer; option order is irrelevant because a choice
+     * matches when any option does.
+     */
+    default String stableKey() {
+        return switch (this) {
+            case Item item -> "item:" + item.key() + (item.nbt() == null ? "" : "@" + item.nbt());
+            case Tag tag -> "tag:" + tag.key()
+                    + "|" + sortedKeys(tag.excludedItems())
+                    + "|" + sortedKeys(tag.excludedTags());
+            case Choice choice -> "choice:" + choice.options().stream()
+                    .map(RecipeIngredient::stableKey)
+                    .sorted()
+                    .collect(Collectors.joining(","));
+        };
+    }
+
+    private static String sortedKeys(Set<Key> keys) {
+        return keys.stream().map(Key::toString).sorted().collect(Collectors.joining(","));
+    }
 
     /** An exact item id, with an optional full-stack snapshot for unregistered custom items. */
     record Item(Key key, String nbt) implements RecipeIngredient {

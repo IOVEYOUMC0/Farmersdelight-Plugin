@@ -1,7 +1,6 @@
 package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.i18n.I18n;
-import net.momirealms.craftengine.core.plugin.config.ConfigConstants;
 import net.momirealms.craftengine.core.plugin.config.KnownResourceException;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -19,6 +18,7 @@ import java.util.Locale;
 import java.util.Set;
 
 public final class ConfiguredBlockSet {
+    private static final String PARSE_LIST_FAILED = "resource.argument.parser.list";
 
     public static final ConfiguredBlockSet EMPTY =
             new ConfiguredBlockSet(Set.of(), Set.of(), Set.of(), Set.of());
@@ -40,7 +40,7 @@ public final class ConfiguredBlockSet {
 
     public static ConfiguredBlockSet parse(Object rawValue) {
         if (rawValue != null && !(rawValue instanceof Iterable<?>)) {
-            throw new KnownResourceException(ConfigConstants.PARSE_LIST_FAILED, "blocks", String.valueOf(rawValue));
+            throw new KnownResourceException(PARSE_LIST_FAILED, "blocks", String.valueOf(rawValue));
         }
         if (!(rawValue instanceof Iterable<?> entries)) {
             return EMPTY;

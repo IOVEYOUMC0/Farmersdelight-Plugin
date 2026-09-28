@@ -42,11 +42,18 @@ final class StartupSummary {
 
         int cookingPotRecipes = cookingPot == null ? 0 : cookingPot.getRecipeCount();
         int cookingPotExternal = cookingPot == null ? 0 : cookingPot.getExternalRecipeCount();
-        int fdCookingPot = cookingPotRecipes - cookingPotExternal;
+        int cookingPotPack = cookingPot == null ? 0 : cookingPot.getPackRecipeCount();
+        // "FD" is the plugin's own recipe file; "addon" is everything an addon brings, whether it arrives as
+        // pack content (the default route) or as a runtime API registration. Folding packs into the addon
+        // figure keeps the two numbers adding up to the total on language files that predate the pack route.
+        int addonCookingPot = cookingPotExternal + cookingPotPack;
+        int fdCookingPot = cookingPotRecipes - addonCookingPot;
         int customPotRecipes = cookingPot == null ? 0 : cookingPot.getCustomRecipeCount();
         int cuttingBoardRecipes = cuttingBoard == null ? 0 : cuttingBoard.getRecipeCount();
         int cuttingBoardExternal = cuttingBoard == null ? 0 : cuttingBoard.getExternalRecipeCount();
-        int fdCuttingBoard = cuttingBoardRecipes - cuttingBoardExternal;
+        int cuttingBoardPack = cuttingBoard == null ? 0 : cuttingBoard.getPackRecipeCount();
+        int addonCuttingBoard = cuttingBoardExternal + cuttingBoardPack;
+        int fdCuttingBoard = cuttingBoardRecipes - addonCuttingBoard;
         int dropRules = knifeDrops == null ? 0 : knifeDrops.getDropRuleCount();
         int petFoodCount = petFoods == null ? 0 : petFoods.getTemptFoodCount();
         int advancementCount = advancements == null ? 0 : advancements.getLoadedCount();
@@ -56,24 +63,30 @@ final class StartupSummary {
         int addonAdvancementCount = plugin.getAddonAdvancementRegistry().getLoadedAdvancementCount();
         int items = warmedItems;
 
-        String counts = cookingPotRecipes + "/" + cookingPotExternal + "/" + customPotRecipes + "/"
-                + cuttingBoardRecipes + "/" + cuttingBoardExternal + "/"
+        String counts = cookingPotRecipes + "/" + cookingPotExternal + "/" + cookingPotPack + "/"
+                + customPotRecipes + "/" + cuttingBoardRecipes + "/" + cuttingBoardExternal + "/"
+                + cuttingBoardPack + "/"
                 + dropRules + "/" + petFoodCount + "/" + advancementCount + "/" + addonAdvancementCount
                 + "/" + items;
 
         Object[] args = {
                 "cooking_pot", cookingPotRecipes,
                 "fd_pot", fdCookingPot,
-                "cooking_pot_addon", cookingPotExternal,
+                "cooking_pot_addon", addonCookingPot,
                 "custom_pot", customPotRecipes,
                 "cutting_board", cuttingBoardRecipes,
                 "fd_board", fdCuttingBoard,
-                "cutting_board_addon", cuttingBoardExternal,
+                "cutting_board_addon", addonCuttingBoard,
                 "drop_rules", dropRules,
                 "pet_foods", petFoodCount,
                 "advancements", advancementCount,
                 "addon_advancements", addonAdvancementCount
         };
+        // The split the summary line cannot show without changing an existing language string: how much of
+        // the addon figure arrived as CraftEngine pack content. Detail level, so a normal boot stays quiet.
+        if (cookingPotPack > 0 || cuttingBoardPack > 0) {
+            I18n.logDetail("recipe", "recipe.pack_recipes", "pot", cookingPotPack, "board", cuttingBoardPack);
+        }
 
         // The warmup runs on enable and on the CraftEngine readiness pass, never on a reload, so its timing is
         // only reported by the message that carries it. Repeating it after a reload would present the enable

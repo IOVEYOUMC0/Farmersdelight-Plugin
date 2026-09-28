@@ -11,6 +11,7 @@ import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.block.behavior.BonemealableBlock;
 import net.momirealms.craftengine.core.block.behavior.RandomTickBlock;
 import net.momirealms.craftengine.core.block.property.Property;
@@ -54,21 +55,10 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
 
     @Override
     public void performBonemeal(Object thisBlock, Object[] args) {
-        // args[0] = level, args[1] = random, args[2] = pos, args[3] = state — per CE's BonemealableBlock
-        // bridge contract (mirrors NMS BonemealableBlock.performBonemeal(level, random, pos, state)).
-        //
-        // 3-block dispatch mirroring original FD 1.21:
-        //   - budding (sibling crop_block has bone-meal-age-bonus=0, so its performBonemeal is a no-op):
-        //     owns the age math directly. bonusAge = bonemealBonusMin..Max; overflow past maxAge=3
-        //     transitions to ground tomatoes at age (newAge - 4), clamped to [0, 3] — mirrors original
-        //     BuddingTomatoBlock.performBonemeal.
-        //   - hanging (cropOnRope): sibling crop_block already advanced age. 30% chance to climb,
-        //     matching original TomatoBlock.performBonemeal "normal increment" branch (HangingTomato
-        //     inherits TomatoBlock).
-        //   - ground tomatoes age < 3: same 30% climb chance after sibling advance.
-        //   - ground tomatoes age == 3 (= original TomatoBlock vine_age 3 / max): original
-        //     "newAge > maxAge" branch — forward +1 age to a non-max hanging directly above if one
-        //     exists, else attempt climb.
+        // CE passes level, random, position and state as args[0..3].
+        // Budding crops own their age increment and transition into ground tomatoes on overflow.
+        // Hanging and immature ground crops already receive the sibling crop behavior's age increment
+        // and may climb. Mature ground crops advance the hanging crop above or attempt to climb.
         if (args == null || args.length < 3) return;
         World world = CraftEngineAdapter.toWorld(args[0]);
         BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
@@ -173,6 +163,7 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
             int bonemealBonusMax
     ) {}
 
+    private final FarmersDelightPlugin plugin;
     private final Config config;
     // Lazily resolved from the hanging block's sibling bush_block.max-height so the climb cap and the
     // survival cap share ONE authority (the CE bush_block config). -1 = not yet resolved. Recomputed
@@ -180,12 +171,15 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
     // without a stale cache. A benign race just recomputes the same value; volatile guards visibility.
     private volatile int resolvedMaxStackHeight = -1;
 
-    private TomatoVineBlockBehavior(BlockDefinition block, Config config) {
+    private TomatoVineBlockBehavior(FarmersDelightPlugin plugin, BlockDefinition block, Config config) {
         super(block);
+        this.plugin = plugin;
         this.config = config;
     }
 
-    public static final BlockBehaviorFactory<TomatoVineBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+    public static final BlockBehaviorFactory<TomatoVineBlockBehavior> FACTORY = (BlockDefinition block, ConfigSection section) -> {
+        // Runs while CraftEngine parses the pack, which is always after this plugin enabled.
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         // Every stage of the vine is driven by the age of the block the behavior sits on: budding
         // transitions at max age, the ground and hanging blocks gate climbing and harvesting on it.
@@ -196,21 +190,14 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
         // per state at runtime rather than holding this one handle.
         String path = section != null ? section.path() : Constants.BEHAVIOR_TOMATO_VINE;
         BlockBehaviorFactory.getProperty(path, block, AGE_PROPERTY, Integer.class);
-        // Reads both the nested sections (blocks / max-age / bonemeal) and the flat keys they
-        // group, with the nested spelling winning where an author wrote both. Anything worth
-        // telling the operator about comes back as a warning list rather than being logged from
-        // the resolution itself, and none of it stops the block from loading. See
-        // TomatoVineSettings for the accepted shapes and the resolution rule.
-        // max-stack-height is a fallback only: the live climb cap is derived from the hanging
-        // block's bush_block max-height at runtime (see effectiveMaxStackHeight), and this value
-        // is used solely when the hanging block has no bush_block behavior. Default 3 matches
-        // original FD 1.21 (TomatoBlock.climbRopeAbove uses `vineHeight < 3` = 3 hangings +
-        // 1 ground = 4 total).
+        // Read grouped and flat settings, with grouped values taking precedence.
+        // Unknown keys and conflicts produce warnings; invalid value types abort parsing.
+        // Use max-stack-height only when the hanging block has no bush_block behavior supplying its height cap.
         TomatoVineSettings settings = TomatoVineSettings.parse(arguments, block.id().toString());
         for (TomatoVineSettings.Warning warning : settings.warnings()) {
             I18n.logWarning(warning.key(), warning.arguments());
         }
-        TomatoVineBlockBehavior behavior = new TomatoVineBlockBehavior(block, new Config(
+        TomatoVineBlockBehavior behavior = new TomatoVineBlockBehavior(plugin, block, new Config(
                 Key.of(settings.buddingBlock()), Key.of(settings.tomatoesBlock()),
                 Key.of(settings.cropOnRopeBlock()), Key.of(settings.ropeBlock()),
                 settings.matureAge(), settings.minLight(), settings.maxStackHeight(),
@@ -341,7 +328,6 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
         if (ropeBlock == null) return;
 
         Location placeLoc = new Location(world, pos.x() + 0.5, pos.y(), pos.z() + 0.5);
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         Runnable placeRope = () -> {
             ImmutableBlockState connected = RopeBlockBehavior.computeConnectionState(
                     ropeBlock.defaultState(), world, pos);

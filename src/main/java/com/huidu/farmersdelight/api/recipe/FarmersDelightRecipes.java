@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.api.recipe;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.PluginAccess;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipeManager;
@@ -18,7 +19,7 @@ public final class FarmersDelightRecipes {
     }
 
     public static boolean matchesCookingPot(List<ItemStack> inputs, ItemStack container) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         if (plugin == null || inputs == null) {
             return false;
         }
@@ -26,7 +27,7 @@ public final class FarmersDelightRecipes {
     }
 
     public static ItemStack cookingPotResult(List<ItemStack> inputs, ItemStack container) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         if (plugin == null || inputs == null) {
             return null;
         }
@@ -42,12 +43,12 @@ public final class FarmersDelightRecipes {
     }
 
     public static boolean hasCuttingBoardRecipe(ItemStack input) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         return plugin != null && plugin.getCuttingBoardRecipes().hasAnyRecipeFor(input);
     }
 
     public static List<ItemStack> cuttingBoardResults(ItemStack input, ItemStack tool) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         if (plugin == null) {
             return List.of();
         }
@@ -65,7 +66,7 @@ public final class FarmersDelightRecipes {
     }
 
     public static List<String> cookingPotRecipeIds() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         if (plugin == null) {
             return List.of();
         }
@@ -73,7 +74,7 @@ public final class FarmersDelightRecipes {
     }
 
     public static RecipeInfo cookingPotRecipe(String id) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         if (plugin == null || id == null) {
             return null;
         }
@@ -92,7 +93,7 @@ public final class FarmersDelightRecipes {
     }
 
     public static List<String> cuttingBoardRecipeIds() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         if (plugin == null) {
             return List.of();
         }
@@ -100,7 +101,7 @@ public final class FarmersDelightRecipes {
     }
 
     public static RecipeInfo cuttingBoardRecipe(String id) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         if (plugin == null || id == null) {
             return null;
         }
@@ -134,7 +135,7 @@ public final class FarmersDelightRecipes {
     // managers' O(1) reverse result index instead of a full recipe scan.
     public static List<JumpTarget> findRecipesProducing(ItemStack item, RecipeStationType... stations) {
         List<JumpTarget> targets = new ArrayList<>();
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         if (plugin == null || item == null || item.getType().isAir()) {
             return targets;
         }
@@ -159,7 +160,7 @@ public final class FarmersDelightRecipes {
     // Every recipe that consumes this item as an ingredient (cooking-pot ingredient or cutting-board input).
     public static List<JumpTarget> findRecipesUsing(ItemStack item, RecipeStationType... stations) {
         List<JumpTarget> targets = new ArrayList<>();
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         if (plugin == null || item == null || item.getType().isAir()) {
             return targets;
         }

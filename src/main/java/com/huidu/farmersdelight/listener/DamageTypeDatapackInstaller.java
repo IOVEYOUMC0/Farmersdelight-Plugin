@@ -2,36 +2,45 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
-import com.huidu.farmersdelight.util.DatapackSupport;
+import com.huidu.farmersdelight.api.util.DatapackSupport;
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
 import org.bukkit.Bukkit;
+import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-// Installs the standalone FarmersDelight damage-type datapack (farmersdelight:stove_burn + the
-// no_knockback tag), independent of the loot datapack so each can be toggled and reinstalled on its
-// own. Also migrates the damage files out of the legacy loot datapack folder (pre-split installs
-// wrote them to datapacks/farmersdelight/), otherwise both datapacks would define stove_burn and the
-// duplicate definition would clash at load time.
+// Installs the standalone FarmersDelight damage-type datapack (farmersdelight:stove_burn plus the
+// vanilla damage-type tags it is appended to: no_knockback, is_fire so fire-immune entities are immune
+// to it, and burn_from_stepping so Frost Walker reacts to it), independent of the loot datapack so each
+// can be toggled and reinstalled on its own. Also migrates the damage files out of the legacy loot
+// datapack folder (pre-split installs wrote them to datapacks/farmersdelight/), otherwise both
+// datapacks would define stove_burn and the duplicate definition would clash at load time.
 public final class DamageTypeDatapackInstaller {
 
     private static final String DATAPACK_NAME = "farmersdelight_damage";
     private static final String RESOURCE_PREFIX = "datapack/damage/";
+    private static final String PACK_METADATA_FILE = "pack.mcmeta";
+    private static final String PACK_DESCRIPTION =
+            "FarmersDelight damage types (stove_burn, no_knockback/is_fire/burn_from_stepping tags)";
     private static final String LEGACY_LOOT_DATAPACK = "farmersdelight";
     private static final String LEGACY_DAMAGE_DIR = "data/farmersdelight/damage_type";
     private static final String LEGACY_NO_KNOCKBACK = "data/minecraft/tags/damage_type/no_knockback.json";
+    private static final String DAMAGE_TYPE_ID = "farmersdelight:stove_burn";
+    // The three vanilla damage-type tags this pack appends stove_burn to. They are generated from the
+    // current server state instead of copied, see installToWorld.
+    private static final List<String> DISTRIBUTION_TAGS = List.of("no_knockback", "is_fire", "burn_from_stepping");
 
-    // Deletes the old FarmersDelight loot datapack (datapacks/farmersdelight) that pre-CE-native
-    // builds installed to inject items into vanilla chest/grass/mob loot tables. The injections now
-    // live as CraftEngine vanilla/container loot sources, so keeping the stale datapack would
-    // double-add CE items. The damage files that old datapack also carried are migrated by
-    // removeLegacyFiles first, so nothing is lost when the whole folder is deleted afterwards.
-    // Runs across every world (the legacy folder is stale wherever it exists).
+    // Deletes the obsolete FarmersDelight loot datapack (datapacks/farmersdelight). Loot injections
+    // use CraftEngine vanilla/container loot sources; damage files are migrated by removeLegacyFiles
+    // before the folder is deleted. Runs across every world where the folder exists.
     public void cleanupLegacyLootDatapack() {
         if (!installEnabled) {
             return;
@@ -41,7 +50,7 @@ public final class DamageTypeDatapackInstaller {
             try {
                 if (Files.exists(legacy)) {
                     DatapackSupport.deleteRecursively(legacy);
-                    I18n.logInfo("loot_datapack_legacy_removed", "world", world.getName());
+                    I18n.logInfo("plugin.loot_datapack_legacy_removed", "world", world.getName());
                 }
             } catch (IOException e) {
                 plugin.getLogger().warning("FarmersDelight loot datapack: failed to remove legacy folder under "
@@ -60,42 +69,51 @@ public final class DamageTypeDatapackInstaller {
 
     // Registry-scoped datapack content (damage types, damage_type tags) is loaded by the server from
     // the primary world's datapacks folder and shared by every world, so the pack is written once into
-    // the primary world. Copies the old all-world installer may have left in other worlds are removed.
+    // the primary world. Copies in non-primary worlds are removed.
     public void installToPrimaryWorld(World primaryWorld) {
         if (!installEnabled) {
-            I18n.logInfo("damage_datapack_disabled");
+            I18n.logInfo("plugin.damage_datapack_disabled");
             return;
         }
         if (primaryWorld == null) {
-            I18n.logWarning("damage_datapack_no_worlds");
+            I18n.logWarning("plugin.damage_datapack_no_worlds");
             return;
         }
         boolean wrote = installToWorld(primaryWorld);
         int cleaned = cleanupRedundantDatapacks(primaryWorld);
         if (wrote || cleaned > 0) {
-            printRestartBanner();
+            announceInstalled(primaryWorld);
         }
     }
 
-    // Deletes the farmersdelight_damage datapack from every non-primary world. Those folders were only
-    // ever written by the old per-world installer and are never read by the server (only the primary
-    // world's datapacks/ is scanned), so they are harmless-but-stale files. The legacy farmersdelight
-    // loot folder cleanup is a separate pass (cleanupLegacyLootDatapack) that covers every world.
+    // Deletes the farmersdelight_damage datapack from every non-primary world. The server scans only
+    // the primary world's datapacks/ folder. Loot-folder cleanup is handled separately by
+    // cleanupLegacyLootDatapack across every world.
     private int cleanupRedundantDatapacks(World primaryWorld) {
+        Path primaryDatapack = DatapackSupport.worldRoot(primaryWorld)
+                .resolve("datapacks")
+                .resolve(DATAPACK_NAME)
+                .toAbsolutePath()
+                .normalize();
         String primaryName = primaryWorld.getName();
         int removed = 0;
         for (World world : Bukkit.getWorlds()) {
             if (primaryName.equals(world.getName())) {
                 continue;
             }
-            Path redundant = DatapackSupport.worldRoot(world)
+            Path redundant = world.getWorldFolder().toPath()
                     .resolve("datapacks")
                     .resolve(DATAPACK_NAME);
+            // Modern dimension folders resolve to the same level.dat root as the primary world.
+            // Do not delete the primary pack while iterating those worlds.
+            if (DatapackSupport.sameNormalizedPath(primaryDatapack, redundant)) {
+                continue;
+            }
             try {
                 if (Files.exists(redundant)) {
                     DatapackSupport.deleteRecursively(redundant);
                     removed++;
-                    I18n.logInfo("damage_datapack_redundant_removed", "world", world.getName());
+                    I18n.logInfo("plugin.damage_datapack_redundant_removed", "world", world.getName());
                 }
             } catch (IOException e) {
                 plugin.getLogger().warning("FarmersDelight damage datapack: failed to remove redundant folder under "
@@ -105,12 +123,11 @@ public final class DamageTypeDatapackInstaller {
         return removed;
     }
 
-    private void printRestartBanner() {
-        plugin.getLogger().warning("==================================================================");
-        plugin.getLogger().warning(" Installed FarmersDelight damage-type datapack (primary world only).");
-        plugin.getLogger().warning(" RESTART the server (or run /reload) for the stove_burn damage type");
-        plugin.getLogger().warning(" to take effect.");
-        plugin.getLogger().warning("==================================================================");
+    private void announceInstalled(World primaryWorld) {
+        I18n.logInfo("plugin.datapack_installed",
+                "name", DATAPACK_NAME,
+                "dir", DatapackSupport.worldRoot(primaryWorld).resolve("datapacks").resolve(DATAPACK_NAME),
+                "hint", I18n.formatConsole("plugin.datapack_hint_reload"));
     }
 
     private boolean installToWorld(World world) {
@@ -129,35 +146,79 @@ public final class DamageTypeDatapackInstaller {
                     String name = entry.getName();
                     if (!name.startsWith(RESOURCE_PREFIX)) continue;
                     String relative = name.substring(RESOURCE_PREFIX.length());
-                    Path dest = datapackDir.resolve(relative);
-                    if (Files.exists(dest)) {
-                        skipped++;
-                        if (debug) I18n.logInfo("loot_datapack_debug_skipped", "path", relative);
+                    // pack.mcmeta is generated from the running server version instead of copied: the
+                    // bundled copy carries a fixed pack_format, which the server rejects on any other
+                    // release. Rewriting it also refreshes a stale format left by an earlier server.
+                    if (PACK_METADATA_FILE.equals(relative)) {
                         continue;
                     }
-                    if (debug) I18n.logInfo("loot_datapack_debug_added", "path", relative);
+                    Path dest = datapackDir.resolve(relative);
+                    if (relative.replace('\\', '/').startsWith("data/minecraft/tags/damage_type/")) {
+                        // Rewritten below from the current server state.
+                        continue;
+                    }
+                    if (Files.exists(dest)) {
+                        skipped++;
+                        if (debug) I18n.logInfo("plugin.loot_datapack_debug_skipped", "path", relative);
+                        continue;
+                    }
+                    if (debug) I18n.logInfo("plugin.loot_datapack_debug_added", "path", relative);
                     DatapackSupport.copyFromJar(ownJar, entry, dest);
                     count++;
                 }
+            }
+            // A tag may only reference a damage type the server has actually loaded. On the run that first
+            // writes the pack the registry does not know stove_burn yet, so the tags are written empty and
+            // filled in on the next start; naming a missing entry makes the server's tag load fail, which
+            // cascades into every loot table on newer releases.
+            boolean registered = isDamageTypeRegistered();
+            for (String tag : DISTRIBUTION_TAGS) {
+                Path dest = datapackDir.resolve("data/minecraft/tags/damage_type/" + tag + ".json");
+                if (DatapackSupport.writeIfChanged(dest, renderDistributionTag(registered))) {
+                    count++;
+                }
+            }
+            if (!registered) {
+                I18n.logWarning("plugin.datapack_registry_pending_restart",
+                        "ids", DAMAGE_TYPE_ID,
+                        "hint", I18n.formatConsole("plugin.datapack_hint_restart"));
+            }
+            if (DatapackSupport.writeIfChanged(datapackDir.resolve(PACK_METADATA_FILE),
+                    DatapackSupport.renderPackMetadata(PACK_DESCRIPTION))) {
+                count++;
             }
             // Migrate the damage files out of the legacy loot datapack folder so the two datapacks
             // never define stove_burn twice. No-op on fresh installs and after a previous migration.
             Path legacy = worldRoot.resolve("datapacks").resolve(LEGACY_LOOT_DATAPACK);
             int migrated = removeLegacyFiles(legacy);
             if (migrated > 0) {
-                I18n.logInfo("damage_datapack_legacy_removed", "world", world.getName(), "count", migrated);
+                I18n.logInfo("plugin.damage_datapack_legacy_removed", "world", world.getName(), "count", migrated);
             }
             if (debug) {
-                I18n.logInfo("loot_datapack_debug_summary", "count", count, "skipped", skipped, "dir", datapackDir.toString());
+                I18n.logInfo("plugin.loot_datapack_debug_summary", "count", count, "skipped", skipped, "dir", datapackDir.toString());
             }
             if (count > 0) {
-                I18n.logDetail("startup", "damage_datapack_written", "count", count, "dir", datapackDir);
+                I18n.logDetail("startup", "plugin.damage_datapack_written", "count", count, "dir", datapackDir);
             }
             return count > 0;
         } catch (IOException e) {
-            I18n.logWarning("damage_datapack_install_failed", "world", world.getName(), "error", e.getMessage());
+            I18n.logWarning("plugin.damage_datapack_install_failed", "world", world.getName(), "error", e.getMessage());
             return false;
         }
+    }
+
+    // True when the running server has already loaded farmersdelight:stove_burn. A datapack written during
+    // this run is only picked up by the next start, so this is false on the first run after the pack appears.
+    private static boolean isDamageTypeRegistered() {
+        NamespacedKey key = NamespacedKey.fromString(DAMAGE_TYPE_ID);
+        return key != null
+                && RegistryAccess.registryAccess().getRegistry(RegistryKey.DAMAGE_TYPE).get(key) != null;
+    }
+
+    private static String renderDistributionTag(boolean registered) {
+        return "{\n  \"replace\": false,\n  \"values\": ["
+                + (registered ? "\"" + DAMAGE_TYPE_ID + "\"" : "")
+                + "]\n}\n";
     }
 
     // Deletes the pre-split damage files from datapacks/farmersdelight/ (both the stove_burn damage

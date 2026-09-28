@@ -119,7 +119,7 @@ class CookingPotConcurrencyTest {
 
     private static CookingPotBlockEntity freshPot() {
         // null World keeps syncWorldlyContainer() a no-op so we don't drag CE's block manager into the test.
-        return new CookingPotBlockEntity(new BlockPosKey(0, 0, 0), null, CookingPotLayout.DEFAULT, null);
+        return new CookingPotBlockEntity(null, new BlockPosKey(0, 0, 0), null, CookingPotLayout.DEFAULT, null);
     }
 
     private static void seedOutput(CookingPotBlockEntity be, int amount) {

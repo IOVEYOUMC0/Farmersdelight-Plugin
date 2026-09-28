@@ -2,12 +2,17 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.property.Property;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
+import net.momirealms.craftengine.core.plugin.config.KnownResourceException;
 import net.momirealms.craftengine.core.util.Direction;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.context.BlockPlaceContext;
@@ -15,10 +20,12 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.entity.Player;
 
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.HashSet;
 
 // Generic "double block" behavior for a 2-cell mat: one placement spawns a head + foot half in adjacent
 // cells along the player's facing, and removing either half tears down the partner so no orphan cell
@@ -42,21 +49,21 @@ public class DoubleBlockRugBlockBehavior extends RugBlockBehavior {
 
     public static final BlockBehaviorFactory<DoubleBlockRugBlockBehavior> FACTORY = new BlockBehaviorFactory<DoubleBlockRugBlockBehavior>() {
         @Override
-        public DoubleBlockRugBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
+        public DoubleBlockRugBlockBehavior create(BlockDefinition block, ConfigSection section) {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
             String facingPropertyName = BehaviorArgParser.getString(arguments, "facing-property", "facing");
             String partPropertyName = BehaviorArgParser.getString(arguments, "part-property", "part");
             Property<Direction> facingProperty = BlockBehaviorFactory.getOptionalProperty(
                     block, facingPropertyName, Direction.class);
             Property<?> partProperty = block.getProperty(partPropertyName);
-            Set<String> partnerIds = new java.util.HashSet<>(BehaviorArgParser.getStringList(arguments, "partner-ids"));
+            Set<String> partnerIds = new HashSet<>(BehaviorArgParser.getStringList(arguments, "partner-ids"));
             if (partnerIds.isEmpty()) {
                 partnerIds.add(block.id().namespace() + ":" + block.id().value());
             }
 
             String path = section != null ? section.path() : Constants.BEHAVIOR_DOUBLE_BLOCK;
             if (facingProperty == null || partProperty == null) {
-                throw new net.momirealms.craftengine.core.plugin.config.KnownResourceException(
+                throw new KnownResourceException(
                         "resource.block.behavior.missing_property", path, "facing/part");
             }
             return new DoubleBlockRugBlockBehavior(block, facingProperty, partProperty, partnerIds);
@@ -73,6 +80,12 @@ public class DoubleBlockRugBlockBehavior extends RugBlockBehavior {
             return null;
         }
         if (footCellBlocked(context, face)) {
+            return null;
+        }
+        // The foot cell is written by CraftEngineBlocks.place in placeMultiState, which bypasses the
+        // vanilla build check the head cell went through. Reject the whole placement here (atomically,
+        // before either cell exists) when the second cell falls in protected land.
+        if (!footCellAllowed(context, face)) {
             return null;
         }
         return withFacing(state, face);
@@ -112,8 +125,18 @@ public class DoubleBlockRugBlockBehavior extends RugBlockBehavior {
             return;
         }
         Block partner = partnerOf(self, state);
-        ImmutableBlockState partnerState = partner == null ? null : CraftEngineBlocks.getCustomBlockState(partner);
-        if (partner == null || partnerState == null || partnerState.isEmpty() || !isPartner(partnerState)) {
+        if (partner == null) {
+            teardownSelf(self);
+            return;
+        }
+        if (!partner.getWorld().isChunkLoaded(partner.getX() >> 4, partner.getZ() >> 4)) {
+            // The other half sits in a chunk that is not resident: reading its state would load that chunk, and
+            // treating it as missing would wrongly tear this half down. The pair is re-checked when the
+            // partner's chunk loads again.
+            return;
+        }
+        ImmutableBlockState partnerState = CustomBlockUtils.getStateIfResident(partner);
+        if (partnerState == null || partnerState.isEmpty() || !isPartner(partnerState)) {
             teardownSelf(self);
         }
     }
@@ -165,11 +188,24 @@ public class DoubleBlockRugBlockBehavior extends RugBlockBehavior {
         CraftEngineBlocks.place(partner.getLocation(), withPart(state, "foot"), false);
     }
 
+    private boolean footCellAllowed(BlockPlaceContext context, BlockFace facing) {
+        if (context.getPlayer() == null || !(context.getLevel().platformWorld() instanceof World world)) {
+            return true;
+        }
+        Player bukkitPlayer = ItemUtils.getBukkitPlayer(context.getPlayer());
+        if (bukkitPlayer == null) {
+            return true;
+        }
+        BlockPos clicked = context.getClickedPos();
+        Block foot = world.getBlockAt(clicked.x(), clicked.y(), clicked.z()).getRelative(facing);
+        return ProtectionCompat.canBuild(bukkitPlayer, foot, (String) null);
+    }
+
     private boolean footCellBlocked(BlockPlaceContext context, BlockFace facing) {
         if (!(context.getLevel().platformWorld() instanceof World world)) {
             return true;
         }
-        net.momirealms.craftengine.core.world.BlockPos clicked = context.getClickedPos();
+        BlockPos clicked = context.getClickedPos();
         Block foot = world.getBlockAt(clicked.x(), clicked.y(), clicked.z()).getRelative(facing);
         return !foot.getType().isAir();
     }

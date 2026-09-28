@@ -20,16 +20,37 @@ public final class StoveData {
     final int[] displayEntities = new int[SLOT_COUNT];
     final UUID[] ownerIds = new UUID[SLOT_COUNT];
     final String[] ownerNames = new String[SLOT_COUNT];
-    // Blocked-above flag with a tick-stamp TTL, replacing the old Location-keyed cache map: the
-    // steady-state per-tick cost is two volatile reads instead of a CHM lookup + lambda. MIN_VALUE
+    // Blocked-above flag with a tick-stamp TTL: the steady-state per-tick cost is two volatile reads
+    // instead of a CHM lookup + lambda. MIN_VALUE
     // marks "never checked / event-invalidated" and must be compared explicitly — a plain
     // subtraction against it overflows.
     volatile long blockedAboveCheckedTick = Long.MIN_VALUE;
     volatile boolean blockedAbove;
+    // Game tick of the last cooking credit. Recipe durations and the cooling rate are documented in game
+    // ticks, so progress has to be credited by elapsed time rather than once per tick-loop visit (the loop
+    // only revisits a stove every STOVE_TICK_INTERVAL ticks). MIN_VALUE marks "never credited".
+    volatile long lastCookingCreditTick = Long.MIN_VALUE;
 
     StoveData(Location location, int defaultCookTime) {
         this.location = location;
         Arrays.fill(maxTime, defaultCookTime);
         Arrays.fill(displayEntities, -1);
+    }
+
+    /**
+     * Game ticks elapsed since the previous credit, or the interval on the first one. Bounded so a long stall
+     * (or a chunk that was unloaded) cannot credit an implausible batch in a single step.
+     */
+    int elapsedSinceLastCredit(long currentTick, int interval, int cap) {
+        long previous = lastCookingCreditTick;
+        lastCookingCreditTick = currentTick;
+        if (previous == Long.MIN_VALUE) {
+            return interval;
+        }
+        long elapsed = currentTick - previous;
+        if (elapsed <= 0L) {
+            return interval;
+        }
+        return (int) Math.min(cap, elapsed);
     }
 }

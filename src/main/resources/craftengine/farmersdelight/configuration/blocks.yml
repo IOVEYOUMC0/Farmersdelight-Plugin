@@ -15,21 +15,21 @@ templates:
           default: north
       appearances:
         east:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 90
         north:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
         south:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 180
         west:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 270
@@ -57,7 +57,7 @@ templates:
         place: minecraft:block.wood.place
         step: minecraft:block.wood.step
     states:
-      auto-state: mushroom_stem
+      auto_state: mushroom_stem
       model:
         path: ${__NAMESPACE__}:block/${__ID__}
   farmersdelight:block_cabinet_template:
@@ -94,40 +94,40 @@ templates:
           default: false
       appearances:
         east:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 90
         east_open:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}_open
             y: 90
         north:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
         north_open:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}_open
         south:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 180
         south_open:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}_open
             y: 180
         west:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 270
         west_open:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}_open
             y: 270
@@ -169,6 +169,11 @@ items:
     model: farmersdelight:block/cooking_pot_bail
   farmersdelight:skillet:
     material: nether_brick
+    behavior:
+      type: farmersdelight:skillet_item
+      permission: farmersdelight.use.skillet
+      cooking-model: farmersdelight:skillet_cooking
+      ingredient-overlay-model: farmersdelight:item/skillet_food
     data:
       components:
         minecraft:max_stack_size: 1
@@ -588,7 +593,6 @@ block:
       - minecraft:netherite_pickaxe
       tags:
       - minecraft:mineable/pickaxe
-      - farmersdelight:heat_sources
       sounds:
         break: minecraft:block.stone.break
         fall: minecraft:block.stone.fall
@@ -598,6 +602,9 @@ block:
     behavior:
     - type: farmersdelight:stove
       crackle-sound: farmersdelight:block.stove.crackle
+      burn:
+        enabled: true
+        damage: 1.0
     loot:
       template: default:loot_table/self
     states:
@@ -610,40 +617,40 @@ block:
           default: true
       appearances:
         east:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 90
         east_on:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}_on
             y: 90
         north:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
         north_on:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}_on
         south:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 180
         south_on:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}_on
             y: 180
         west:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 270
         west_on:
-          auto-state: note_block
+          auto_state: note_block
           model:
             path: ${__NAMESPACE__}:block/${__ID__}_on
             y: 270
@@ -674,103 +681,6 @@ block:
           appearance: west_on
           settings:
             luminance: 13
-    events:
-    - on: right_click
-      conditions:
-      - type: hand
-        hand: main_hand
-      - type: match_block_property
-        properties:
-          fire: true
-      - type: match_item
-        item: ".*_shovel"
-        regex: true
-      functions:
-      - type: cancel_event
-      - type: update_interaction_tick
-      - type: update_block_property
-        properties:
-          fire: false
-      - type: play_sound
-        sound: minecraft:block.fire.extinguish
-      - type: damage_item
-        damage: 1
-      - type: swing_hand
-    - on: right_click
-      conditions:
-      - type: hand
-        hand: main_hand
-      - type: match_block_property
-        properties:
-          fire: true
-      - type: match_item
-        id: minecraft:water_bucket
-      functions:
-      - type: cancel_event
-      - type: update_interaction_tick
-      - type: update_block_property
-        properties:
-          fire: false
-      - type: play_sound
-        sound: minecraft:entity.generic.extinguish_fire
-      - type: set_count
-        target: self
-        count: -1
-        add: true
-      - type: swing_hand
-      - type: drop_loot
-        x: <arg:block.block_x>
-        y: <arg:block.block_y> + 2
-        z: <arg:block.block_z>
-        loot:
-          pools:
-          - rolls: 1
-            entries:
-            - type: item
-              item: minecraft:bucket
-              count: 1
-    - on: right_click
-      conditions:
-      - type: hand
-        hand: main_hand
-      - type: match_block_property
-        properties:
-          fire: false
-      - type: match_item
-        id: minecraft:flint_and_steel
-      functions:
-      - type: cancel_event
-      - type: update_interaction_tick
-      - type: update_block_property
-        properties:
-          fire: true
-      - type: play_sound
-        sound: minecraft:item.flintandsteel.use
-      - type: damage_item
-        damage: 1
-      - type: swing_hand
-    - on: right_click
-      conditions:
-      - type: hand
-        hand: main_hand
-      - type: match_block_property
-        properties:
-          fire: false
-      - type: match_item
-        id: minecraft:fire_charge
-      functions:
-      - type: cancel_event
-      - type: update_interaction_tick
-      - type: update_block_property
-        properties:
-          fire: true
-      - type: play_sound
-        sound: minecraft:item.firecharge.use
-      - type: set_count
-        target: self
-        count: -1
-        add: true
-      - type: swing_hand
   farmersdelight:organic_compost:
     settings:
       hardness: 1.2
@@ -791,11 +701,14 @@ block:
     - type: farmersdelight:organic_compost
       rich-soil-block: farmersdelight:rich_soil
       max-stage: 7
-      activator-bonus-per-neighbor: 0.02
-      water-bonus: 0.10
-      light-high-bonus: 0.10
-      light-low-bonus: 0.05
-      light-threshold: 12
+      activator:
+        bonus-per-neighbor: 0.02
+      water:
+        bonus: 0.10
+      light:
+        high-bonus: 0.10
+        low-bonus: 0.05
+        threshold: 12
       activators:
       - minecraft:brown_mushroom
       - minecraft:red_mushroom
@@ -818,7 +731,7 @@ block:
           range: 0~7
       appearances:
         composting=0:
-          auto-state: note_block
+          auto_state: note_block
           model:
           - path: farmersdelight:block/organic_compost_0
           - path: farmersdelight:block/organic_compost_0
@@ -828,7 +741,7 @@ block:
           - path: farmersdelight:block/organic_compost_0
             y: 270
         composting=1:
-          auto-state: note_block
+          auto_state: note_block
           model:
           - path: farmersdelight:block/organic_compost_1
           - path: farmersdelight:block/organic_compost_1
@@ -838,7 +751,7 @@ block:
           - path: farmersdelight:block/organic_compost_1
             y: 270
         composting=2:
-          auto-state: note_block
+          auto_state: note_block
           model:
           - path: farmersdelight:block/organic_compost_2
           - path: farmersdelight:block/organic_compost_2
@@ -848,7 +761,7 @@ block:
           - path: farmersdelight:block/organic_compost_2
             y: 270
         composting=3:
-          auto-state: note_block
+          auto_state: note_block
           model:
           - path: farmersdelight:block/organic_compost_3
           - path: farmersdelight:block/organic_compost_3
@@ -858,7 +771,7 @@ block:
           - path: farmersdelight:block/organic_compost_3
             y: 270
         composting=4:
-          auto-state: note_block
+          auto_state: note_block
           model:
           - path: farmersdelight:block/organic_compost_4
           - path: farmersdelight:block/organic_compost_4
@@ -868,7 +781,7 @@ block:
           - path: farmersdelight:block/organic_compost_4
             y: 270
         composting=5:
-          auto-state: note_block
+          auto_state: note_block
           model:
           - path: farmersdelight:block/organic_compost_5
           - path: farmersdelight:block/organic_compost_5
@@ -878,7 +791,7 @@ block:
           - path: farmersdelight:block/organic_compost_5
             y: 270
         composting=6:
-          auto-state: note_block
+          auto_state: note_block
           model:
           - path: farmersdelight:block/organic_compost_6
           - path: farmersdelight:block/organic_compost_6
@@ -888,7 +801,7 @@ block:
           - path: farmersdelight:block/organic_compost_6
             y: 270
         composting=7:
-          auto-state: note_block
+          auto_state: note_block
           model:
           - path: farmersdelight:block/organic_compost_7
           - path: farmersdelight:block/organic_compost_7
@@ -936,8 +849,9 @@ block:
     behavior:
     - type: farmersdelight:rich_soil
       boost-chance: 0.2
-      brown-mushroom-colony: farmersdelight:brown_mushroom_colony
-      red-mushroom-colony: farmersdelight:red_mushroom_colony
+      mushroom-colony:
+        brown: farmersdelight:brown_mushroom_colony
+        red: farmersdelight:red_mushroom_colony
       unaffected-blocks:
       - minecraft:grass_block
       - minecraft:short_grass
@@ -965,7 +879,7 @@ block:
     loot:
       template: default:loot_table/self
     state:
-      auto-state: note_block
+      auto_state: note_block
       model:
       - path: farmersdelight:block/rich_soil
       - path: farmersdelight:block/rich_soil
@@ -1048,17 +962,21 @@ block:
         step: minecraft:block.lantern.step
     behavior:
     - type: farmersdelight:cooking_pot
-      display-support: true
-      require-non-full-support: true
-      handle-toggle-sound: minecraft:block.lantern.place
-      handle-toggle-sound-volume: 0.7
-      handle-toggle-sound-pitch: 1.0
-      boil-sound: farmersdelight:block.cooking_pot.boil
-      soup-boil-sound: farmersdelight:block.cooking_pot.boil_soup
-      sound-chance: 0.1
-      sound-volume: 0.5
-      sound-pitch-min: 0.9
-      sound-pitch-max: 1.1
+      support:
+        display: true
+        require-non-full: true
+      handle-toggle-sound:
+        sound: minecraft:block.lantern.place
+        volume: 0.7
+        pitch: 1.0
+      boil:
+        sound: farmersdelight:block.cooking_pot.boil
+        soup-sound: farmersdelight:block.cooking_pot.boil_soup
+      sound:
+        chance: 0.1
+        volume: 0.5
+        pitch-min: 0.9
+        pitch-max: 1.1
     loot:
       template: default:loot_table/self
     states:
@@ -1075,14 +993,14 @@ block:
             - handle
       appearances:
         east_none:
-          auto-state:
+          auto_state:
             type: cactus
             id: east_cooking_pot
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 90
         east_tray:
-          auto-state:
+          auto_state:
             type: cactus
             id: east_cooking_pot
           entity_renderer:
@@ -1091,7 +1009,7 @@ block:
             position: 0.5,-0.5,0.5
             rotation: -90
         east_handle:
-          auto-state:
+          auto_state:
             type: cactus
             id: east_cooking_pot
           entity_renderer:
@@ -1099,13 +1017,13 @@ block:
             item: farmersdelight:cooking_pot_handle
             rotation: -90
         north_none:
-          auto-state:
+          auto_state:
             type: cactus
             id: north_cooking_pot
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
         north_tray:
-          auto-state:
+          auto_state:
             type: cactus
             id: north_cooking_pot
           entity_renderer:
@@ -1114,7 +1032,7 @@ block:
             position: 0.5,-0.5,0.5
             rotation: 180
         north_handle:
-          auto-state:
+          auto_state:
             type: cactus
             id: north_cooking_pot
           entity_renderer:
@@ -1122,14 +1040,14 @@ block:
             item: farmersdelight:cooking_pot_handle
             rotation: 180
         south_none:
-          auto-state:
+          auto_state:
             type: cactus
             id: south_cooking_pot
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 180
         south_tray:
-          auto-state:
+          auto_state:
             type: cactus
             id: south_cooking_pot
           entity_renderer:
@@ -1138,7 +1056,7 @@ block:
             position: 0.5,-0.5,0.5
             rotation: 0
         south_handle:
-          auto-state:
+          auto_state:
             type: cactus
             id: south_cooking_pot
           entity_renderer:
@@ -1146,14 +1064,14 @@ block:
             item: farmersdelight:cooking_pot_handle
             rotation: 0
         west_none:
-          auto-state:
+          auto_state:
             type: cactus
             id: west_cooking_pot
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             y: 270
         west_tray:
-          auto-state:
+          auto_state:
             type: cactus
             id: west_cooking_pot
           entity_renderer:
@@ -1162,7 +1080,7 @@ block:
             position: 0.5,-0.5,0.5
             rotation: 90
         west_handle:
-          auto-state:
+          auto_state:
             type: cactus
             id: west_cooking_pot
           entity_renderer:
@@ -1212,8 +1130,9 @@ block:
     behavior:
     - type: farmersdelight:skillet
       permission: farmersdelight.use.skillet
-      display-support: true
-      require-non-full-support: true
+      support:
+        display: true
+        require-non-full: true
       add-food-sound: farmersdelight:block.skillet.add_food
       sizzle-sound: farmersdelight:block.skillet.sizzle
     states:
@@ -1243,7 +1162,7 @@ block:
               position: 0.5,-0.5,0.5
               rotation: 90
         north:
-          state: iron_trapdoor[open=false, half=bottom, powered=true]       
+          state: iron_trapdoor[open=false, half=bottom, powered=true]
           transparent: true
           entity-renderer:        
             item: ${__NAMESPACE__}:${__ID__}
@@ -1257,7 +1176,7 @@ block:
               item: farmersdelight:tray
               position: 0.5,-0.5,0.5
         south:
-          state: iron_trapdoor[open=false, half=bottom, powered=true]       
+          state: iron_trapdoor[open=false, half=bottom, powered=true]
           transparent: true
           entity-renderer:        
             item: ${__NAMESPACE__}:${__ID__}
@@ -1274,7 +1193,7 @@ block:
               position: 0.5,-0.5,0.5
               rotation: 180
         west:
-          state: iron_trapdoor[open=false, half=bottom, powered=true]       
+          state: iron_trapdoor[open=false, half=bottom, powered=true]
           transparent: true
           entity-renderer:        
             item: ${__NAMESPACE__}:${__ID__}
@@ -1397,24 +1316,24 @@ block:
           default: up
       appearances:
         east:
-          auto-state: non_tintable_leaves
+          auto_state: non_tintable_leaves
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
             y: 90
         north:
-          auto-state: non_tintable_leaves
+          auto_state: non_tintable_leaves
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
         south:
-          auto-state: non_tintable_leaves
+          auto_state: non_tintable_leaves
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
             y: 180
         west:
-          auto-state: non_tintable_leaves
+          auto_state: non_tintable_leaves
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
@@ -1424,7 +1343,7 @@ block:
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
         down:
-          auto-state: non_tintable_leaves
+          auto_state: non_tintable_leaves
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 180
@@ -1495,34 +1414,34 @@ block:
           default: up
       appearances:
         east:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
             y: 90
         north:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
         south:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
             y: 180
         west:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
             y: 270
         up:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
         down:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 180
@@ -1552,7 +1471,7 @@ block:
         place: minecraft:block.wool.place
         step: minecraft:block.wool.step
     states:
-      auto-state: mushroom
+      auto_state: mushroom
       model:
         path: ${__NAMESPACE__}:block/${__ID__}
   farmersdelight:straw_bale:
@@ -1585,18 +1504,18 @@ block:
           default: up
       appearances:
         x:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
         y:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
             y: 90
         z:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
       variants:
@@ -1619,8 +1538,9 @@ block:
     - type: farmersdelight:tatami
       block-id: farmersdelight:tatami
       facing-property: facing
-      paired-property: paired
-      pair-while-sneaking: false
+      pair:
+        property: paired
+        while-sneaking: false
     settings:
       hardness: 0.8
       resistance: 0.8
@@ -1643,37 +1563,37 @@ block:
           default: false
       appearances:
         half:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/tatami_half
         even_down:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/tatami_even
             x: 180
         odd_east:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/tatami_odd
             x: 90
             y: 90
         even_north:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/tatami_even
             x: 90
         odd_south:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/tatami_odd
             x: 90
             y: 180
         odd_up:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/tatami_odd
         even_west:
-          auto-state: mushroom
+          auto_state: mushroom
           model:
             path: ${__NAMESPACE__}:block/tatami_even
             x: 90
@@ -1809,7 +1729,23 @@ block:
       properties:
         variant:
           type: string
-          values: [none, no_north, no_south, no_east, no_west, no_north_south, no_east_west, no_north_east, no_north_west, no_south_east, no_south_west, no_north_south_east, no_north_south_west, no_east_west_north, no_east_west_south, surrounded]
+          values:
+            - none
+            - no_north
+            - no_south
+            - no_east
+            - no_west
+            - no_north_south
+            - no_east_west
+            - no_north_east
+            - no_north_west
+            - no_south_east
+            - no_south_west
+            - no_north_south_east
+            - no_north_south_west
+            - no_east_west_north
+            - no_east_west_south
+            - surrounded
           default: none
       appearances:
         none:
@@ -1995,7 +1931,9 @@ block:
       properties:
         part:
           type: string
-          values: [head, foot]
+          values:
+            - head
+            - foot
           default: head
         facing:
           type: horizontal_direction
@@ -2074,21 +2012,21 @@ block:
           appearance: west_foot
 block-state-mappings:
   campfire[facing=east,lit=false,signal_fire=true,waterlogged=false]: campfire[facing=east,lit=false,signal_fire=false,waterlogged=false]
-  campfire[facing=east,lit=false,signal_fire=true,waterlogged=true]:  campfire[facing=east,lit=false,signal_fire=false,waterlogged=true]
+  campfire[facing=east,lit=false,signal_fire=true,waterlogged=true]: campfire[facing=east,lit=false,signal_fire=false,waterlogged=true]
   campfire[facing=north,lit=false,signal_fire=true,waterlogged=false]: campfire[facing=north,lit=false,signal_fire=false,waterlogged=false]
-  campfire[facing=north,lit=false,signal_fire=true,waterlogged=true]:  campfire[facing=north,lit=false,signal_fire=false,waterlogged=true]
+  campfire[facing=north,lit=false,signal_fire=true,waterlogged=true]: campfire[facing=north,lit=false,signal_fire=false,waterlogged=true]
   campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]: campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
-  campfire[facing=south,lit=false,signal_fire=true,waterlogged=true]:  campfire[facing=south,lit=false,signal_fire=false,waterlogged=true]
+  campfire[facing=south,lit=false,signal_fire=true,waterlogged=true]: campfire[facing=south,lit=false,signal_fire=false,waterlogged=true]
   campfire[facing=west,lit=false,signal_fire=true,waterlogged=false]: campfire[facing=west,lit=false,signal_fire=false,waterlogged=false]
-  campfire[facing=west,lit=false,signal_fire=true,waterlogged=true]:  campfire[facing=west,lit=false,signal_fire=false,waterlogged=true]
+  campfire[facing=west,lit=false,signal_fire=true,waterlogged=true]: campfire[facing=west,lit=false,signal_fire=false,waterlogged=true]
   soul_campfire[facing=east,lit=false,signal_fire=true,waterlogged=false]: soul_campfire[facing=east,lit=false,signal_fire=false,waterlogged=false]
-  soul_campfire[facing=east,lit=false,signal_fire=true,waterlogged=true]:  soul_campfire[facing=east,lit=false,signal_fire=false,waterlogged=true]
+  soul_campfire[facing=east,lit=false,signal_fire=true,waterlogged=true]: soul_campfire[facing=east,lit=false,signal_fire=false,waterlogged=true]
   soul_campfire[facing=north,lit=false,signal_fire=true,waterlogged=false]: soul_campfire[facing=north,lit=false,signal_fire=false,waterlogged=false]
-  soul_campfire[facing=north,lit=false,signal_fire=true,waterlogged=true]:  soul_campfire[facing=north,lit=false,signal_fire=false,waterlogged=true]
+  soul_campfire[facing=north,lit=false,signal_fire=true,waterlogged=true]: soul_campfire[facing=north,lit=false,signal_fire=false,waterlogged=true]
   soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
-  soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=true]:  soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=true]
+  soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=true]: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=true]
   soul_campfire[facing=west,lit=false,signal_fire=true,waterlogged=false]: soul_campfire[facing=west,lit=false,signal_fire=false,waterlogged=false]
-  soul_campfire[facing=west,lit=false,signal_fire=true,waterlogged=true]:  soul_campfire[facing=west,lit=false,signal_fire=false,waterlogged=true]
+  soul_campfire[facing=west,lit=false,signal_fire=true,waterlogged=true]: soul_campfire[facing=west,lit=false,signal_fire=false,waterlogged=true]
   iron_trapdoor[facing=west,half=bottom,open=false,powered=true,waterlogged=false]: iron_trapdoor[facing=west,half=bottom,open=false,powered=false,waterlogged=false]
   iron_trapdoor[facing=east,half=bottom,open=false,powered=true,waterlogged=false]: iron_trapdoor[facing=east,half=bottom,open=false,powered=false,waterlogged=false]
   iron_trapdoor[facing=north,half=bottom,open=false,powered=true,waterlogged=false]: iron_trapdoor[facing=north,half=bottom,open=false,powered=false,waterlogged=false]

@@ -5,10 +5,11 @@ import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 
 /**
- * Obfuscation-safe facade over the internal region-protection checks. Addons compile against this class
- * (the api-only jar ships it); the implementation lives inside the real plugin, so addons never touch
- * FarmersDelight internals. Behind the scenes the checks cover WorldGuard's master flag plus an addon's
- * own registered flag (or the FD built-in feature flags), and every AntiGriefLib-backed land plugin.
+ * The api facade over the internal region-protection checks. Addons compile against this class (the
+ * api-only jar ships it); the implementation lives inside the real plugin, which is why the addon never
+ * touches FarmersDelight internals. Behind the scenes the checks cover WorldGuard's master flag plus an
+ * addon's own registered flag (or the FD built-in feature flags), and every AntiGriefLib-backed land
+ * plugin.
  *
  * <p>An addon that owns custom blocks should:
  * <ol>

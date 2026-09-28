@@ -9,6 +9,7 @@ import org.bukkit.World;
 import org.bukkit.entity.Player;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -93,7 +94,7 @@ public final class SoundUtils {
     }
 
     private static Object resolve(String soundKey) {
-        String normalized = soundKey.trim().toLowerCase(java.util.Locale.ROOT);
+        String normalized = soundKey.trim().toLowerCase(Locale.ROOT);
         NamespacedKey key = normalized.contains(":")
                 ? NamespacedKey.fromString(normalized)
                 : NamespacedKey.minecraft(normalized);

@@ -19,11 +19,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-// Owns the "fill this cooking pot straight from the recipe detail GUI" flow. Pure gameplay logic with no
-// inventory rendering: it is invoked from a single onClick path, so it was a safe standalone block to pull
-// out of RecipeViewGui. Only depends on the plugin, the pot location and the resolved recipe group id --
-// no back-reference to the GUI -- which keeps it easily testable. The player owning the inventory is passed
-// in as a parameter because no GUI state is needed here.
+// Transfers ingredients from a player inventory into a cooking pot for the selected recipe.
+// The caller supplies the player, pot location and recipe group; no GUI state is retained.
 final class CookingPotFiller {
 
     private final FarmersDelightPlugin plugin;
@@ -354,19 +351,28 @@ final class CookingPotFiller {
         if (slots == null || item == null || item.getType().isAir()) {
             return;
         }
+        int target = -1;
+        int amount = Integer.MAX_VALUE;
         for (int i = 0; i < slots.length; i++) {
-            if (slots[i] == null || slots[i].getType().isAir()) {
-                ItemStack placed = item.clone();
-                placed.setAmount(1);
-                slots[i] = placed;
-                return;
+            ItemStack slotItem = slots[i];
+            if (slotItem != null && !slotItem.getType().isAir()
+                    && (!slotItem.isSimilar(item) || slotItem.getAmount() >= slotItem.getMaxStackSize())) {
+                continue;
+            }
+            int count = slotItem == null || slotItem.getType().isAir() ? 0 : slotItem.getAmount();
+            if (count < amount) {
+                amount = count;
+                target = i;
             }
         }
-        for (ItemStack slotItem : slots) {
-            if (slotItem != null && !slotItem.getType().isAir() && slotItem.isSimilar(item)
-                    && slotItem.getAmount() < slotItem.getMaxStackSize()) {
+        if (target >= 0) {
+            ItemStack slotItem = slots[target];
+            if (slotItem == null || slotItem.getType().isAir()) {
+                slotItem = item.clone();
+                slotItem.setAmount(1);
+                slots[target] = slotItem;
+            } else {
                 slotItem.setAmount(slotItem.getAmount() + 1);
-                return;
             }
         }
     }

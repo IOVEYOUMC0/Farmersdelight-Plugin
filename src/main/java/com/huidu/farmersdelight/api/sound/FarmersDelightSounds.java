@@ -4,6 +4,8 @@ import com.huidu.farmersdelight.util.SoundUtils;
 import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
+import org.bukkit.World;
+import org.bukkit.entity.Player;
 import org.jetbrains.annotations.ApiStatus;
 
 import java.util.List;
@@ -20,17 +22,17 @@ public final class FarmersDelightSounds {
     private FarmersDelightSounds() {
     }
 
-    public static void play(org.bukkit.World world, Location location, String soundKey,
+    public static void play(World world, Location location, String soundKey,
                             Sound fallback, float volume, float pitch) {
         SoundUtils.play(world, location, soundKey, fallback, volume, pitch);
     }
 
-    public static void play(org.bukkit.entity.Player player, Location location, String soundKey,
+    public static void play(Player player, Location location, String soundKey,
                                     Sound fallback, float volume, float pitch) {
                 SoundUtils.play(player, location, soundKey, fallback, SoundCategory.BLOCKS, volume, pitch);
             }
 
-    public static void play(List<org.bukkit.entity.Player> viewers, Location location, String soundKey,
+    public static void play(List<Player> viewers, Location location, String soundKey,
                             Sound fallback, float volume, float pitch) {
         SoundUtils.play(viewers, location, soundKey, fallback, volume, pitch);
     }

@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.api.trade;
 
+import com.huidu.farmersdelight.api.PluginAccess;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.listener.worlddata.ExternalVillagerTrades;
 import com.huidu.farmersdelight.listener.worlddata.WorldDataConfig;
@@ -73,7 +74,6 @@ public final class FarmersDelightVillagerTrades {
     }
 
     private static boolean available() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        return plugin != null && FarmersDelightPlugin.isEnabled0();
+        return PluginAccess.isAvailable();
     }
 }

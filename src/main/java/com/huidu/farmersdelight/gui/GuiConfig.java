@@ -1,14 +1,17 @@
 package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.api.config.ConfigSectionReader;
+import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.CompatItemMeta;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.Text;
+import net.kyori.adventure.text.Component;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -18,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Locale;
 
 public class GuiConfig {
 
@@ -157,7 +161,8 @@ public class GuiConfig {
             }
         }
 
-        warnUnknownLayoutCharacters(section.getCurrentPath(), rows, layout, legend);
+        GuiLayoutWarnings.warnUnknownLayoutCharacters(section.getCurrentPath(), "cooking-pot-gui",
+                rows, layout, legend);
         return new GuiConfig(title, titleLayoutOffset, titleLayoutIcon, fillersEnabled, rows, layout, legend, items,
                 progressItems);
     }
@@ -170,52 +175,6 @@ public class GuiConfig {
         GuiItem decoration = items.get("decoration");
         if (background != null && decoration != null) {
             items.put("decoration", decoration.withMissingVisualOptionsFrom(background));
-        }
-    }
-
-    private static void warnUnknownLayoutCharacters(
-            String sectionPath,
-            int rows,
-            List<String> layout,
-            Map<Character, String> legend
-    ) {
-        String path = sectionPath == null || sectionPath.isBlank() ? "cooking-pot-gui" : sectionPath;
-        if (layout.size() != rows) {
-            warnConfig("console.gui.rows_mismatch",
-                    "path", path,
-                    "rows", rows,
-                    "layout_rows", layout.size());
-        }
-        for (int row = 0; row < layout.size(); row++) {
-            String line = layout.get(row);
-            if (line.length() != 9) {
-                warnConfig("console.gui.row_length_mismatch",
-                        "path", path,
-                        "row", row + 1,
-                        "length", line.length());
-            }
-            for (int col = 0; col < line.length(); col++) {
-                char c = line.charAt(col);
-                if (!Character.isWhitespace(c) && !legend.containsKey(c)) {
-                    warnConfig("console.gui.unknown_layout_character",
-                            "path", path,
-                            "character", c,
-                            "row", row + 1,
-                            "column", col + 1);
-                }
-            }
-        }
-    }
-
-    @SuppressWarnings("UnstableApiUsage")
-    private static void warnConfig(String key, Object... placeholders) {
-        String message = I18n.formatNamedArgs(key, placeholders);
-        com.huidu.farmersdelight.FarmersDelightPlugin plugin =
-                com.huidu.farmersdelight.FarmersDelightPlugin.getInstance();
-        if (plugin != null) {
-            plugin.getLogger().warning(message);
-        } else {
-            org.bukkit.Bukkit.getLogger().warning(I18n.formatConsole("prefix") + " " + message);
         }
     }
 
@@ -485,7 +444,7 @@ public class GuiConfig {
             Material material = null;
             if (materialName != null && !materialName.isEmpty()) {
                 try {
-                    material = Registry.MATERIAL.get(NamespacedKey.minecraft(materialName.toLowerCase(java.util.Locale.ROOT)));
+                    material = Registry.MATERIAL.get(NamespacedKey.minecraft(materialName.toLowerCase(Locale.ROOT)));
                 } catch (Exception e) {
                     material = Material.GRAY_STAINED_GLASS_PANE;
                 }
@@ -527,7 +486,7 @@ public class GuiConfig {
             Object materialValue = map.get("material");
             if (materialValue != null) {
                 try {
-                    material = Registry.MATERIAL.get(NamespacedKey.minecraft(materialValue.toString().toLowerCase(java.util.Locale.ROOT)));
+                    material = Registry.MATERIAL.get(NamespacedKey.minecraft(materialValue.toString().toLowerCase(Locale.ROOT)));
                 } catch (Exception ignored) {
                     material = Material.GRAY_STAINED_GLASS_PANE;
                 }
@@ -664,7 +623,7 @@ public class GuiConfig {
 
             ItemStack item = resolveBaseItem();
 
-            org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+            ItemMeta meta = item.getItemMeta();
             if (meta == null) {
                 return item;
             }
@@ -682,7 +641,7 @@ public class GuiConfig {
             }
 
             if ((lore != null && !lore.isEmpty()) || !loreKeys.isEmpty()) {
-                List<net.kyori.adventure.text.Component> processedLore = new ArrayList<>();
+                List<Component> processedLore = new ArrayList<>();
                 if (lore != null) {
                     for (String line : lore) {
                         processedLore.add(Text.lore(applyPlaceholders(line, placeholders)));

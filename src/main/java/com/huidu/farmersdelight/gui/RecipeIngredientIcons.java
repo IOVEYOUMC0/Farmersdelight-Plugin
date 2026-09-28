@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.gui;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
+import com.huidu.farmersdelight.util.CommonTagResolver;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.util.UniqueKey;
@@ -187,8 +188,8 @@ public final class RecipeIngredientIcons {
             uniqueDisplays.putIfAbsent(buildIngredientDisplayKey(item), item);
         }
         // Expand registered tag (c:... and addon) members from the central registry; CE has no native c: tags.
-        if (com.huidu.farmersdelight.util.CommonTagResolver.isCommonTag(tagIngredient.key().toString())) {
-            for (String memberId : com.huidu.farmersdelight.util.CommonTagResolver.getMembers(tagIngredient.key())) {
+        if (CommonTagResolver.isCommonTag(tagIngredient.key().toString())) {
+            for (String memberId : CommonTagResolver.getMembers(tagIngredient.key())) {
                 // ItemUtils.createItem routes mmoitems:/custom/vanilla ids, unlike createItemFromKey.
                 ItemStack item = ItemUtils.createItem(memberId);
                 if (item == null || item.getType().isAir() || item.getType() == Material.BARRIER) {

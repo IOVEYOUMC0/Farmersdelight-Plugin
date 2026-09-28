@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.api.util.ItemDelivery;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.block.CuttingBoardInteractionContext;
 import com.huidu.farmersdelight.api.block.CuttingBoardInteractionHandler;
@@ -18,6 +19,7 @@ import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.block.behavior.EntityBlock;
 import net.momirealms.craftengine.core.block.behavior.WorldlyContainerHolder;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
@@ -64,8 +66,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
     private static final Map<UUID, Map<WorldPos, Long>> recentManualInsertions = new ConcurrentHashMap<>();
     private static final long MANUAL_INSERT_GUARD_MILLIS = 250L;
     private static final int DEFAULT_RELOAD_VISUAL_REFRESH_BUDGET = 32;
-    // Added to the per-unit keep chance for each level of Fortune on the cutting tool, matching the mod's
-    // cuttingBoardFortuneBonus default.
+    // Increase each output unit's keep chance by this amount per Fortune level.
     private static final double FORTUNE_BONUS_PER_LEVEL = 0.1d;
     private static final Object displayRefreshLock = new Object();
     private static final Deque<DisplayRefresh> pendingDisplayRefreshes = new ArrayDeque<>();
@@ -77,6 +78,9 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
     private record DisplayRefresh(World world, BlockPosKey posKey, CuttingBoardBlockEntity entity) {
     }
 
+    // The plugin is handed to the constructor by the behavior factory rather than fetched statically, so the
+    // interaction paths below read the same services the factory was built against.
+    private final FarmersDelightPlugin plugin;
     private final Property<?> facingProperty;
     private final String knifeSound;
     private final int maxStackAmount;
@@ -85,19 +89,20 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
     private final CuttingBoardCutter cutter;
     private int controllerId;
 
-    private CuttingBoardBlockBehavior(BlockDefinition block, Property<?> facingProperty, List<Key> toolTags, List<Key> toolItems, String knifeSound, int maxStackAmount, String customDataKey) {
+    private CuttingBoardBlockBehavior(FarmersDelightPlugin plugin, BlockDefinition block, Property<?> facingProperty, List<Key> toolTags, List<Key> toolItems, String knifeSound, int maxStackAmount, String customDataKey) {
         super(block);
+        this.plugin = plugin;
         this.facingProperty = facingProperty;
         this.knifeSound = knifeSound;
         this.maxStackAmount = maxStackAmount;
         this.customDataKey = customDataKey;
-        this.toolMatcher = new CuttingBoardToolMatcher(toolTags, toolItems);
-        this.cutter = new CuttingBoardCutter(toolMatcher);
+        this.toolMatcher = new CuttingBoardToolMatcher(plugin, toolTags, toolItems);
+        this.cutter = new CuttingBoardCutter(plugin, toolMatcher);
     }
 
     @Override
     public BlockEntityController createBlockEntityController(BlockEntity blockEntity) {
-        return new CuttingBoardBlockEntityController(blockEntity, this);
+        return new CuttingBoardBlockEntityController(plugin, blockEntity, this);
     }
 
     @Override
@@ -363,7 +368,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         }
 
         int budget = Math.max(1, plugin.getConfigInt(DEFAULT_RELOAD_VISUAL_REFRESH_BUDGET,
-                "performance.reload-visual-refreshes-per-tick"));
+                "performance.budgets.reload-visual-refreshes-per-tick"));
         for (int i = 0; i < budget; i++) {
             DisplayRefresh refresh;
             synchronized (displayRefreshLock) {
@@ -454,11 +459,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         CustomBlockUtils.markBlockEntityDirty(world, posKey);
     }
 
-    public static void loadBlockEntity(World world, BlockPos pos) {
-        loadBlockEntity(world, new BlockPosKey(pos));
-    }
-
-    public static void loadBlockEntity(World world, BlockPosKey posKey) {
+    public static void loadBlockEntity(FarmersDelightPlugin plugin, World world, BlockPosKey posKey) {
         if (posKey == null || isCuttingBoardBlock(world, posKey)) return;
         // Saved data may still be parked on the controller (deferred startup load, or a chunk served from
         // CraftEngine's chunk cache); apply it first so the computeIfAbsent below does not create a blank
@@ -469,7 +470,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         CuttingBoardBlockEntity entity = worldBlockEntities.computeIfAbsent(world.getUID(), k -> new ConcurrentHashMap<>())
                 .computeIfAbsent(posKey, key -> {
                     created[0] = true;
-                    return new CuttingBoardBlockEntity(key, world);
+                    return new CuttingBoardBlockEntity(plugin, key, world);
                 });
         if (created[0]) {
             indexAdd(world.getUID(), posKey);
@@ -486,11 +487,13 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
                 && !CustomBlockUtils.hasId(block, Constants.BLOCK_CUTTING_BOARD);
     }
 
-    public static final BlockBehaviorFactory<CuttingBoardBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+    public static final BlockBehaviorFactory<CuttingBoardBlockBehavior> FACTORY = (BlockDefinition block, ConfigSection section) -> {
+        // The factory runs while CraftEngine parses the pack, which is always after this plugin enabled.
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         Property<?> facingProperty = block.getProperty("facing");
         if (facingProperty == null) {
-            FarmersDelightPlugin.getInstance().getLogger()
+            plugin.getLogger()
                     .warning("[FarmersDelight] Block " + block.id() + " is missing the 'facing' property"
                             + " — the cutting board will not face any direction and may misbehave when placed.");
         }
@@ -516,7 +519,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         String knifeSound = BehaviorArgParser.getArgumentString(arguments, "knife-sound", Constants.SOUND_CUTTING_BOARD_KNIFE);
         int maxStackAmount = BehaviorArgParser.getInt(arguments, "max-stack-amount", 64);
         String customDataKey = BehaviorArgParser.getArgumentString(arguments, "data-key", "farmersdelight:cutting_board");
-        return new CuttingBoardBlockBehavior(block, facingProperty, toolTags, toolItems, knifeSound, maxStackAmount, customDataKey);
+        return new CuttingBoardBlockBehavior(plugin, block, facingProperty, toolTags, toolItems, knifeSound, maxStackAmount, customDataKey);
     };
 
     public String getKnifeSound() {
@@ -573,11 +576,11 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
                 world.getUID(), k -> new ConcurrentHashMap<>());
         CuttingBoardBlockEntity blockEntity = worldEntities.get(posKey);
         if (blockEntity == null) {
-            loadBlockEntity(world, posKey);
+            loadBlockEntity(plugin, world, posKey);
             blockEntity = worldEntities.get(posKey);
         }
         if (blockEntity == null) {
-            blockEntity = new CuttingBoardBlockEntity(posKey, world);
+            blockEntity = new CuttingBoardBlockEntity(plugin, posKey, world);
             worldEntities.put(posKey, blockEntity);
             // put always writes to the authoritative map, so update the index unconditionally.
             indexAdd(world.getUID(), posKey);
@@ -586,10 +589,10 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
 
         ItemStack mainHand = bukkitPlayer.getInventory().getItemInMainHand();
         ItemStack offHand = bukkitPlayer.getInventory().getItemInOffHand();
-        boolean allowOffhandInteractions = FarmersDelightPlugin.getInstance().isCuttingBoardOffhandInteractionsAllowed();
-        boolean stackingEnabled = FarmersDelightPlugin.getInstance().isCuttingBoardStackingEnabled();
+        boolean allowOffhandInteractions = plugin.isCuttingBoardOffhandInteractionsAllowed();
+        boolean stackingEnabled = plugin.isCuttingBoardStackingEnabled();
         BlockFace facing = getFacing(state);
-        debug("useOnBlock mode=" + FarmersDelightPlugin.getInstance().getCuttingBoardInteractionMode().configKey()
+        debug("useOnBlock mode=" + plugin.getCuttingBoardInteractionMode().configKey()
                 + ", hasItem=" + blockEntity.hasItem()
                 + ", main=" + formatItem(mainHand)
                 + ", off=" + formatItem(offHand)
@@ -599,7 +602,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
 
         // Addon-registered handlers get the interaction first (after permission / protection checks, before
         // FarmersDelight's own placement, cutting and stacking logic). The first handler that consumes wins.
-        if (runExternalInteractionHandlers(bukkitPlayer, block, blockEntity, facing, world, posKey,
+        if (runExternalInteractionHandlers(plugin, bukkitPlayer, block, blockEntity, facing, world, posKey,
                 mainHand, offHand)) {
             return InteractionResult.SUCCESS_AND_CANCEL;
         }
@@ -619,7 +622,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
             }
 
             if (toolMatcher.isTool(mainHand) || (allowOffhandInteractions && toolMatcher.isTool(offHand))) {
-                boolean hasRecipe = FarmersDelightPlugin.getInstance().getCuttingBoardRecipes()
+                boolean hasRecipe = plugin.getCuttingBoardRecipes()
                         .hasAnyRecipeFor(blockEntity.getStoredItem());
                 if (!hasRecipe) {
                     bukkitPlayer.sendActionBar(I18n.getComponent("messages.cutting_board.no_recipe", bukkitPlayer));
@@ -668,7 +671,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
             }
 
             if (!allowOffhandInteractions || offHandEmpty
-                    || !FarmersDelightPlugin.getInstance().getCuttingBoardRecipes().hasAnyRecipeFor(offHand)) {
+                    || !plugin.getCuttingBoardRecipes().hasAnyRecipeFor(offHand)) {
                 bukkitPlayer.sendActionBar(I18n.getComponent("messages.cutting_board.no_recipe", bukkitPlayer));
                 bukkitPlayer.playSound(bukkitPlayer.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.5f, 1.0f);
                 return InteractionResult.SUCCESS_AND_CANCEL;
@@ -689,14 +692,9 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
             removeStoredData(world, posKey);
 
             if (storedItem != null && !storedItem.getType().isAir() && bukkitPlayer.getGameMode() != GameMode.CREATIVE) {
-                Map<Integer, ItemStack> leftovers = bukkitPlayer.getInventory().addItem(storedItem);
-                if (!leftovers.isEmpty()) {
-                    Location dropLocation = posKey.toLocation(world).add(0.5, 0.2, 0.5);
-                    leftovers.values().forEach(item -> world.dropItemNaturally(dropLocation, item));
-                }
+                ItemDelivery.giveOrDrop(bukkitPlayer, posKey.toLocation(world).add(0.5, 0.2, 0.5), storedItem);
             }
 
-            FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
             // Sound config is cached on the plugin (reload-refreshed volatile); reading it here instead of
             // re-parsing YAML on every retrieval right-click, matching the other real-time config getters.
             float volume = plugin.getCuttingBoardFailVolume();
@@ -711,11 +709,11 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
 
     // Runs every addon-registered cutting-board handler against this right-click until one consumes. Runs on
     // the world region thread. A throwing handler is logged and skipped so one addon cannot break the board.
-    private static boolean runExternalInteractionHandlers(Player player, Block block, CuttingBoardBlockEntity blockEntity,
+    private static boolean runExternalInteractionHandlers(FarmersDelightPlugin plugin, Player player, Block block, CuttingBoardBlockEntity blockEntity,
                                                           BlockFace facing, World world, BlockPosKey posKey,
                                                           ItemStack mainHand, ItemStack offHand) {
         List<CuttingBoardInteractionHandler> handlers =
-                FarmersDelightPlugin.getInstance().getCuttingBoardInteractionHandlers();
+                plugin.getCuttingBoardInteractionHandlers();
         if (handlers.isEmpty()) {
             return false;
         }
@@ -730,7 +728,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
                     return true;
                 }
             } catch (RuntimeException e) {
-                FarmersDelightPlugin.getInstance().getLogger()
+                plugin.getLogger()
                         .warning("cutting board interaction handler failed: " + e);
             }
         }
@@ -759,9 +757,9 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
 
         // Optional restriction: only recipe-input items (or tools) may be placed. Rejected items fall
         // through to the existing "no recipe" feedback in useOnBlock. Real-time read so /fd reload applies.
-        if (FarmersDelightPlugin.getInstance().isCuttingBoardRecipeOnlyPlacement()
+        if (plugin.isCuttingBoardRecipeOnlyPlacement()
                 && !toolMatcher.isTool(sourceItem)
-                && !FarmersDelightPlugin.getInstance().getCuttingBoardRecipes().hasAnyRecipeFor(sourceItem)) {
+                && !plugin.getCuttingBoardRecipes().hasAnyRecipeFor(sourceItem)) {
             return false;
         }
 
@@ -770,7 +768,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         int amountToMove = itemToPlace.getAmount();
         // Read the stacking switch in real time to avoid using a stale cached value after /fd reload switches interaction-mode
         // (consistent with the checks in useOnBlock and the hopper controller).
-        if (FarmersDelightPlugin.getInstance().isCuttingBoardStackingEnabled()) {
+        if (plugin.isCuttingBoardStackingEnabled()) {
             amountToMove = Math.min(amountToMove, stackLimit);
         } else {
             amountToMove = 1;
@@ -786,10 +784,10 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         // stays empty: no dupe and no loss.
         try {
             storeItemInBoard(world, posKey, facing, blockEntity, itemToPlace, carveTool);
-        } catch (Throwable t) {
+        } catch (RuntimeException | LinkageError t) {
             try {
                 blockEntity.setStoredItem(null, world, posKey, facing);
-            } catch (Throwable ignored) {
+            } catch (RuntimeException | LinkageError ignored) {
                 // display cleanup is best-effort; block removal proceeds regardless
             }
             debug("place rolled back after store failure: " + t);
@@ -821,7 +819,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
                                       BlockFace facing, World world, BlockPosKey posKey) {
         // Read the stacking switch in real time to avoid using a stale cached value after /fd reload switches interaction-mode
         // (consistent with the checks in useOnBlock and the hopper controller).
-        if (!FarmersDelightPlugin.getInstance().isCuttingBoardStackingEnabled() || player.isSneaking() || toolMatcher.isTool(mainHand)) {
+        if (!plugin.isCuttingBoardStackingEnabled() || player.isSneaking() || toolMatcher.isTool(mainHand)) {
             return false;
         }
         if (mainHand == null || mainHand.getType().isAir()) {
@@ -848,11 +846,11 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
             // the player keeps the item and the board is unchanged: no dupe, no loss.
             try {
                 blockEntity.setStoredItem(stored, world, posKey, facing);
-            } catch (Throwable t) {
+            } catch (RuntimeException | LinkageError t) {
                 stored.setAmount(previousAmount);
                 try {
                     blockEntity.setStoredItem(stored, world, posKey, facing);
-                } catch (Throwable ignored) {
+                } catch (RuntimeException | LinkageError ignored) {
                     // display restore is best-effort; the rollback has already restored the item stack
                 }
                 return false;
@@ -887,9 +885,8 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
 
     @Override
     public int getAnalogOutputSignal(Object thisBlock, Object[] args) {
-        // args[1] = Level, args[2] = BlockPos. Scales the stored stack against the board's own stack limit,
-        // matching the mod's CuttingBoardBlock.getAnalogOutputSignal: a single-stacking item (a tool) reads 15,
-        // one unit of a 64-stacking item reads 1.
+        // args[1] = Level, args[2] = BlockPos. Scale comparator strength by the board's stack limit:
+        // a single non-stackable tool yields 15; one item from a 64-item stack yields 1.
         World world = CraftEngineAdapter.toWorld(args[1]);
         BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
         if (world == null || pos == null) {
@@ -944,7 +941,6 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
 
     @Override
     public Object getContainer(Object thisBlock, Object[] args) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin == null || !plugin.isCuttingBoardHopperInteractionsEnabled()) {
             return null;
         }
@@ -1026,7 +1022,6 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
     }
 
     private void debug(String message) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin != null && plugin.isDebugEnabled("interact")) {
             plugin.getLogger().info(I18n.formatConsole("debug.cutting_board", "message", message));
         }

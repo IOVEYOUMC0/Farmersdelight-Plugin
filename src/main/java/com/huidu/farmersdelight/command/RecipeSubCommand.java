@@ -2,9 +2,13 @@ package com.huidu.farmersdelight.command;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.event.FarmersDelightRecipeDiscoveryEvent.Source;
+import com.huidu.farmersdelight.api.FarmersDelightApi;
+import com.huidu.farmersdelight.api.recipe.RecipeType;
 import com.huidu.farmersdelight.api.recipe.RecipeStationType;
 import com.huidu.farmersdelight.gui.RecipeViewGui;
+import com.huidu.farmersdelight.gui.recipebook.RecipeBookGui;
 import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.gui.editor.RecipeEditorView;
 import com.huidu.farmersdelight.recipe.RecipeDiscoveryManager;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -12,6 +16,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -62,7 +67,7 @@ final class RecipeSubCommand extends SubCommand {
         if (args.length >= 2) {
             String sub = normalize(args[1]);
             if (sub.equals("book") || sub.equals("addon") || sub.equals("addons") || sub.equals("recipebook")) {
-                com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.openMenu(player, null);
+                RecipeBookGui.openMenu(player, null);
                 return;
             }
         }
@@ -81,12 +86,12 @@ final class RecipeSubCommand extends SubCommand {
         } else if (RecipeStationType.isCuttingBoard(sub)) {
             gui.openCuttingBoardRecipes(player);
         } else {
-            com.huidu.farmersdelight.api.recipe.RecipeType type = resolveRecipeType(sub);
+            RecipeType type = resolveRecipeType(sub);
             if (type != null) {
                 // Hand-off to the addon recipe book so a named type (e.g.
                 // barbequesdelight:grilling) opens straight into its own list, rendered with
                 // FarmersDelight's recipe-list style rather than FD's cooking-pot list.
-                com.huidu.farmersdelight.gui.recipebook.RecipeBookGui.openType(player, type, null);
+                RecipeBookGui.openType(player, type, null);
             } else {
                 gui.open(player);
             }
@@ -96,19 +101,18 @@ final class RecipeSubCommand extends SubCommand {
     // Matches a recipe type by its short name (the segment after the namespace colon, e.g. "grilling")
     // or, when that short name is ambiguous, by the full prefixed id (e.g. "barbequesdelight:grilling").
     // The exact id always wins; a repeated short name resolves to null, forcing the caller to disambiguate.
-    private com.huidu.farmersdelight.api.recipe.RecipeType resolveRecipeType(String token) {
+    private RecipeType resolveRecipeType(String token) {
         if (token.isEmpty()) {
             return null;
         }
-        List<com.huidu.farmersdelight.api.recipe.RecipeType> types =
-                com.huidu.farmersdelight.api.FarmersDelightApi.get().recipeTypes();
-        for (com.huidu.farmersdelight.api.recipe.RecipeType type : types) {
+        List<RecipeType> types = FarmersDelightApi.get().recipeTypes();
+        for (RecipeType type : types) {
             if (type.id().equalsIgnoreCase(token)) {
                 return type;
             }
         }
-        com.huidu.farmersdelight.api.recipe.RecipeType unique = null;
-        for (com.huidu.farmersdelight.api.recipe.RecipeType type : types) {
+        RecipeType unique = null;
+        for (RecipeType type : types) {
             if (shortId(type.id()).equalsIgnoreCase(token)) {
                 if (unique != null) {
                     return null;
@@ -134,48 +138,13 @@ final class RecipeSubCommand extends SubCommand {
             return;
         }
         String type = normalize(args[2]);
-        if (args.length < 4) {
-            RecipeViewGui gui = new RecipeViewGui(plugin, player);
-            if (RecipeStationType.isCookingPot(type)) {
-                gui.openCookingPotRecipesForEdit(player);
-            } else if (RecipeStationType.isCuttingBoard(type)) {
-                gui.openCuttingBoardRecipesForEdit(player);
-            } else {
-                player.sendMessage(I18n.getComponent("gui.editor.usage", player));
-            }
-            return;
-        }
-        String id = normalize(args[3]);
-        // Addon-registered recipes carry a namespace (e.g. barbequesdelight:kebab_wrap), so allow an
-        // optional "namespace:" prefix in addition to plain ids.
-        if (!id.matches("[a-z0-9_]+(?::[a-z0-9_]+)?")) {
+        String id = args.length >= 4 ? normalize(args[3]) : null;
+        if (id != null && !RecipeEditorView.isValidRecipeId(id)) {
             player.sendMessage(I18n.getComponent("gui.editor.feedback.invalid_id", player));
             return;
         }
-        if (RecipeStationType.isCookingPot(type)) {
-            String group = args.length >= 5 ? normalize(args[4]) : null;
-            com.huidu.farmersdelight.gui.RecipeViewGuiConfig.BaseConfig editorConfig =
-                    plugin.getRecipeEditorGuiConfig().getCookingPotConfig(group);
-            if (editorConfig == null) {
-                player.sendMessage(I18n.getComponent("gui.editor.feedback.not_configured", player));
-                return;
-            }
-            com.huidu.farmersdelight.recipe.CookingPotRecipe existing = (group == null || group.isBlank())
-                    ? plugin.getCookingPotRecipes().getRecipe(id)
-                    : plugin.getCookingPotRecipes().getRecipe(group, id);
-            new com.huidu.farmersdelight.gui.editor.CookingPotEditorGui(plugin, player, id, group, existing, editorConfig).open();
-        } else if (RecipeStationType.isCuttingBoard(type)) {
-            com.huidu.farmersdelight.gui.RecipeViewGuiConfig.BaseConfig boardConfig =
-                    plugin.getRecipeEditorGuiConfig().getCuttingBoardConfig();
-            if (boardConfig == null) {
-                player.sendMessage(I18n.getComponent("gui.editor.feedback.not_configured", player));
-                return;
-            }
-            com.huidu.farmersdelight.recipe.CuttingBoardRecipe existing = plugin.getCuttingBoardRecipes().getRecipe(id);
-            new com.huidu.farmersdelight.gui.editor.CuttingBoardEditorGui(plugin, player, id, existing, boardConfig).open();
-        } else {
-            player.sendMessage(I18n.getComponent("gui.editor.usage", player));
-        }
+        String group = args.length >= 5 ? normalize(args[4]) : null;
+        RecipeEditorView.open(plugin, player, type, id, group);
     }
 
     // /fd recipe discovery unlock|lock <type> <recipeId|all> [player]   — one recipe or a whole type
@@ -414,13 +383,12 @@ final class RecipeSubCommand extends SubCommand {
         if (args.length == 2) {
             String partial = normalize(args[1]);
             List<String> base = new ArrayList<>(List.of("cooking_pot", "cutting_board", "book", "special"));
-            java.util.List<com.huidu.farmersdelight.api.recipe.RecipeType> types =
-                    com.huidu.farmersdelight.api.FarmersDelightApi.get().recipeTypes();
-            Map<String, Integer> shortCount = new java.util.HashMap<>();
-            for (com.huidu.farmersdelight.api.recipe.RecipeType type : types) {
+            List<RecipeType> types = FarmersDelightApi.get().recipeTypes();
+            Map<String, Integer> shortCount = new HashMap<>();
+            for (RecipeType type : types) {
                 shortCount.merge(shortId(type.id()), 1, Integer::sum);
             }
-            for (com.huidu.farmersdelight.api.recipe.RecipeType type : types) {
+            for (RecipeType type : types) {
                 String id = type.id();
                 String shortName = shortId(id);
                 // A short name is only offered when it is unambiguous and does not collide with a reserved
@@ -475,9 +443,6 @@ final class RecipeSubCommand extends SubCommand {
         if (args.length == 3) {
             return prefixFilter(normalize(args[2]), List.of("unlock", "lock", "list", "status"));
         }
-        // allRecipeKeysByType is uncached and walks every default recipe, every custom-group recipe and every
-        // addon type's recipes into a fresh map, so it is looked up only in the branches that read it — not
-        // once per keystroke for the branches that only complete player names.
         switch (normalize(args[2])) {
             case "unlock", "lock" -> {
                 if (args.length == 4) {

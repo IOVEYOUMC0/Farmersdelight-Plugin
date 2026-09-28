@@ -209,4 +209,17 @@ class TextTest {
         assertEquals("Bold", Text.plain("<bold>Bold</bold>"));
         assertEquals("", Text.plain(null));
     }
+
+    // The pot and keg tooltip lines keep CraftEngine's <image:...> tag in the lore instead of resolving it to a
+    // glyph character: characters are allocated while the pack is generated and move when an icon set changes,
+    // so a lore holding one would draw whatever image took that slot afterwards. CraftEngine replaces the tag
+    // inside the item-lore packet, which only works while the tag survives parsing untouched.
+    @Test
+    void keepsCraftEngineImageTagsForPacketTimeResolution() {
+        String tag = "<image:farmersdelight:meal_beef_stew>";
+        assertEquals(tag, PLAIN.serialize(Text.deserialize(tag)));
+        String line = PLAIN.serialize(Text.deserialize(tag + " Beef Stew"));
+        assertTrue(line.startsWith(tag), line);
+        assertTrue(line.endsWith("Beef Stew"), line);
+    }
 }

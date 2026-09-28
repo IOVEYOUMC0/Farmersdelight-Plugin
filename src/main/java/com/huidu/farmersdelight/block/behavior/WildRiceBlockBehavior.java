@@ -6,8 +6,10 @@ import com.huidu.farmersdelight.util.RiceCropRules;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
 import com.huidu.farmersdelight.util.SoilRuleSupport.SoilRules;
 import net.momirealms.craftengine.core.block.BlockDefinition;
+import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.block.property.type.DoubleBlockHalf;
 import net.momirealms.craftengine.core.util.Key;
@@ -20,13 +22,63 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
+import com.huidu.farmersdelight.listener.RicePlantListener;
+import net.momirealms.craftengine.core.world.BlockPos;
+import org.bukkit.World;
+import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
+import net.momirealms.craftengine.proxy.minecraft.world.level.ScheduledTickAccessProxy;
+import net.momirealms.craftengine.proxy.minecraft.world.level.material.FluidsProxy;
 
 public class WildRiceBlockBehavior extends FarmersDelightBlockBehavior {
+    // Vanilla's water tick delay; Fluids.WATER.getTickDelay returns this in every dimension.
+    private static final int WATER_TICK_DELAY = 5;
+
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
         return false;
     }
+
+    // Rice validates its own support when something changes next to it. These are the NMS hooks vanilla
+    // crops use for exactly this; they replaced a BlockPhysicsEvent listener that had to inspect every
+    // block update in the world before it could tell whether the block was rice. neighborChanged covers
+    // updateNeighborsAt and updateShape covers updateNeighbourShapes, which is the pair the old listener saw.
+    @Override
+    public void neighborChanged(Object thisBlock, Object[] args) {
+        if (args.length >= 3) {
+            notifyRice(args[1], args[2]);
+        }
+    }
+
+    @Override
+    public Object updateShape(Object thisBlock, Object[] args) {
+        if (args.length >= 7) {
+            scheduleWaterTick(args);
+            notifyRice(args[1], args[3]);
+        }
+        return args[0];
+    }
+
+    // The lower half uses a water-bearing kelp state. CE replaces updateShape, so this behavior
+    // must schedule water ticks to keep surrounding fluid flowing. The upper tripwire half has no fluid.
+    private void scheduleWaterTick(Object[] args) {
+        ImmutableBlockState state = BlockStateUtils.getOptionalCustomBlockState(args[0]).orElse(null);
+        if (state == null || state.isEmpty() || !isLowerHalf(state)) {
+            return;
+        }
+        ScheduledTickAccessProxy.INSTANCE.scheduleTick$1(args[2], args[3], FluidsProxy.WATER, WATER_TICK_DELAY);
+    }
+
+    private static void notifyRice(Object levelHandle, Object posHandle) {
+        World world = CraftEngineAdapter.toWorld(levelHandle);
+        BlockPos pos = CraftEngineAdapter.toBlockPos(posHandle);
+        if (world == null || pos == null) {
+            return;
+        }
+        RicePlantListener.onRiceNeighborChanged(world.getBlockAt(pos.x(), pos.y(), pos.z()));
+    }
+
 
     private static final Map<Key, WildRiceBlockBehavior> BEHAVIORS = new ConcurrentHashMap<>();
     private static final SoilRules FALLBACK_SOIL_RULES = new SoilRules(
@@ -76,7 +128,7 @@ public class WildRiceBlockBehavior extends FarmersDelightBlockBehavior {
 
     public static final BlockBehaviorFactory<WildRiceBlockBehavior> FACTORY = new BlockBehaviorFactory<WildRiceBlockBehavior>() {
         @Override
-        public WildRiceBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
+        public WildRiceBlockBehavior create(BlockDefinition block, ConfigSection section) {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
             // The half state is not optional: without it every state reads as the lower half, so the
             // upper half of a placed plant fails its own survival check (it looks for soil under it and
@@ -176,7 +228,7 @@ public class WildRiceBlockBehavior extends FarmersDelightBlockBehavior {
         if (block == null) {
             return false;
         }
-        ImmutableBlockState lowerState = net.momirealms.craftengine.bukkit.api.CraftEngineBlocks.getCustomBlockState(block);
+        ImmutableBlockState lowerState = CraftEngineBlocks.getCustomBlockState(block);
         return lowerState != null
                 && !lowerState.isEmpty()
                 && lowerState.owner().value().id().equals(this.blockDefinition.id())

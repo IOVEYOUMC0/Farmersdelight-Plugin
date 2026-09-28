@@ -20,11 +20,14 @@ import org.joml.Vector3f;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
+import java.util.logging.Level;
 
 public class CuttingBoardBlockEntity {
 
     private static final int NO_DISPLAY = -1;
 
+    private final FarmersDelightPlugin plugin;
     private final BlockPosKey posKey;
     private volatile World world;
     private ItemStack storedItem;
@@ -36,11 +39,15 @@ public class CuttingBoardBlockEntity {
     private int displayedCount;
     private CuttingBoardDisplayConfig.DisplayOverride displayedOverride;
 
-    void collectDisplayIds(java.util.Set<Integer> out) {
+    void collectDisplayIds(Set<Integer> out) {
         out.addAll(displayEntityIds);
     }
 
-    public CuttingBoardBlockEntity(BlockPosKey posKey, World world) {
+    /**
+     * @param plugin the running plugin, or null in a unit test that does not exercise the display path
+     */
+    public CuttingBoardBlockEntity(FarmersDelightPlugin plugin, BlockPosKey posKey, World world) {
+        this.plugin = plugin;
         this.posKey = posKey;
         this.world = world;
     }
@@ -115,7 +122,7 @@ public class CuttingBoardBlockEntity {
             // The item is already stored by the time the display is (re)built; a cosmetic display failure must
             // not propagate into setStoredItem, or the cutting board's place-then-consume flow would leave the
             // player's hand item unconsumed (a duplication) with no display.
-            FarmersDelightPlugin.getInstance().getLogger().log(java.util.logging.Level.WARNING,
+            plugin.getLogger().log(Level.WARNING,
                     "Cutting board display update failed at " + posKey + " (item still stored)", t);
         }
     }
@@ -126,10 +133,10 @@ public class CuttingBoardBlockEntity {
             return;
         }
 
-        ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getItemDisplayManager();
+        ItemDisplayManager visualManager = plugin == null ? null : plugin.getItemDisplayManager();
         if (visualManager == null || !visualManager.isAvailable()) return;
 
-        CuttingBoardDisplayConfig displayConfig = FarmersDelightPlugin.getInstance().getCuttingBoardDisplayConfig();
+        CuttingBoardDisplayConfig displayConfig = plugin.getCuttingBoardDisplayConfig();
         CuttingBoardDisplayConfig.DisplayOverride displayOverride = displayConfig.getOverride(storedItem);
         ItemStack visualItem = displayConfig.resolveDisplayItem(storedItem, displayOverride);
         if (visualItem == null || visualItem.getType().isAir()) {
@@ -158,7 +165,7 @@ public class CuttingBoardBlockEntity {
 
     public void removeDisplayEntity() {
         if (!displayEntityIds.isEmpty()) {
-            ItemDisplayManager visualManager = FarmersDelightPlugin.getInstance().getItemDisplayManager();
+            ItemDisplayManager visualManager = plugin == null ? null : plugin.getItemDisplayManager();
             if (visualManager != null) {
                 for (Integer entityId : displayEntityIds) {
                     if (entityId != null && entityId != NO_DISPLAY) {
@@ -240,8 +247,7 @@ public class CuttingBoardBlockEntity {
         if (displayOverride.rotationDegrees() != null) {
             // The configured rotation is the item's LOCAL pose; the board's facing yaw still applies on
             // top so the item turns with the board (X/Z are pitch/roll — facing-independent — so they
-            // replace outright, but Y composes: yRotation already holds the facing yaw + carved flip).
-            // Previously Y was overwritten, which pinned the item to one absolute yaw regardless of facing.
+            // replace outright, but Y composes because yRotation already contains the facing yaw and carved flip).
             xRotation = displayOverride.rotationDegrees().x();
             yRotation += displayOverride.rotationDegrees().y();
             zRotation = displayOverride.rotationDegrees().z();
@@ -268,7 +274,7 @@ public class CuttingBoardBlockEntity {
         );
 
         Random random = new Random(getDisplaySeed(visualItem) + (index * 341873128712L));
-        float spread = FarmersDelightPlugin.getInstance().getCuttingBoardDisplayConfig().getItemSpread();
+        float spread = plugin.getCuttingBoardDisplayConfig().getItemSpread();
         float xOffset = totalCount == 1 ? 0.0f : (random.nextFloat() * 2.0f - 1.0f) * spread * 0.5f;
         float zOffset = totalCount == 1 ? 0.0f : (random.nextFloat() * 2.0f - 1.0f) * spread * 0.5f;
         if (displayOverride.offset() != null) {
@@ -326,7 +332,7 @@ public class CuttingBoardBlockEntity {
     }
 
     private ItemStack cloneOrNull(ItemStack item) {
-        return com.huidu.farmersdelight.util.ItemUtils.cloneOrNull(item);
+        return ItemUtils.cloneOrNull(item);
     }
 
     private void syncWorldlyContainer() {

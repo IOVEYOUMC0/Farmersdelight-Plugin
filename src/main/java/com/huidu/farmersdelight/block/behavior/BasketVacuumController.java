@@ -9,14 +9,19 @@ import net.momirealms.craftengine.core.block.entity.BlockEntityController;
 import net.momirealms.craftengine.core.block.entity.tick.BlockEntityTicker;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.CEWorld;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.block.BlockState;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.Container;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Item;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.BoundingBox;
 
+import java.util.Collection;
 import java.util.Map;
 
 public final class BasketVacuumController extends BlockEntityController {
@@ -27,17 +32,18 @@ public final class BasketVacuumController extends BlockEntityController {
     // isBlockIndirectlyPowered (6-neighbour signal scan) from a per-cooldown-expiry call into ~1/s per
     // idle basket regardless of the configured transfer cooldown.
     private static final int REDSTONE_POLL_INTERVAL = 20;
+    private final FarmersDelightPlugin plugin;
     private final int transferCooldownTicks;
     // Controls whether the basket pushes contents into the container it faces. Collection always runs.
     private final boolean eject;
-    // Access is confined to the block entity's region tick thread, so cross-thread synchronization is unnecessary.
-    // Start negative to match the original basket, which is ready to collect immediately after startup.
+    // Access stays on the owning region tick thread. A negative initial cooldown allows immediate collection.
     private int transferCooldown = -1;
     private boolean poweredByRedstone;
     private int redstonePollTicks;
 
-    public BasketVacuumController(BlockEntity blockEntity, int transferCooldownTicks, boolean eject) {
+    public BasketVacuumController(FarmersDelightPlugin plugin, BlockEntity blockEntity, int transferCooldownTicks, boolean eject) {
         super(blockEntity);
+        this.plugin = plugin;
         this.transferCooldownTicks = transferCooldownTicks;
         this.eject = eject;
     }
@@ -63,16 +69,9 @@ public final class BasketVacuumController extends BlockEntityController {
             return;
         }
 
-        // The basket does nothing while it receives a redstone signal, mirroring the reference
-        // BasketBlock ENABLED = !hasNeighborSignal. Block.isBlockIndirectlyPowered maps to the vanilla
-        // level.hasNeighborSignal(pos), so the disable state is read live each tick and no block-state
-        // property is added. This reads the basket's own block on the region that ticks it; the
-        // neighbour-signal scan stays inside the region's owned area, which always keeps a chunk border
-        // for block ticking, so it is region-safe on Folia and needs no ownership guard.
-        // The poll is adaptive: an idle basket re-checks every REDSTONE_POLL_INTERVAL ticks, but the
-        // moment a signal is seen the check runs every tick so the basket resumes as soon as the signal
-        // drops. Redstone state rarely changes, so the hot 6-neighbour scan is no longer paid on every
-        // cooldown expiry.
+        // Pause collection while the basket receives a redstone signal.
+        // Check periodically when unpowered and every tick while powered,
+        // so collection resumes promptly without continuous idle neighbor scans.
         if (this.poweredByRedstone || ++this.redstonePollTicks >= REDSTONE_POLL_INTERVAL) {
             this.redstonePollTicks = 0;
             this.poweredByRedstone = world.getBlockAt(pos.x(), pos.y(), pos.z()).isBlockIndirectlyPowered();
@@ -103,8 +102,8 @@ public final class BasketVacuumController extends BlockEntityController {
         // collect branch, which vacuums only the basket's own cell.
         boolean facedOwned = true;
         if (eject && (fx != 0 || fz != 0)) {
-            org.bukkit.Location facedCell = new org.bukkit.Location(world, pos.x() + fx, pos.y() + fy, pos.z() + fz);
-            facedOwned = FarmersDelightPlugin.getInstance().scheduler().isOwnedByCurrentRegion(facedCell);
+            Location facedCell = new Location(world, pos.x() + fx, pos.y() + fy, pos.z() + fz);
+            facedOwned = plugin.scheduler().isOwnedByCurrentRegion(facedCell);
         }
 
         if (eject && facedOwned) {
@@ -135,8 +134,8 @@ public final class BasketVacuumController extends BlockEntityController {
     }
 
     private static Inventory facedContainerInventory(World world, int x, int y, int z) {
-        org.bukkit.block.BlockState facedState = world.getBlockAt(x, y, z).getState(false);
-        if (facedState instanceof org.bukkit.block.Container container) {
+        BlockState facedState = world.getBlockAt(x, y, z).getState(false);
+        if (facedState instanceof Container container) {
             return container.getInventory();
         }
         return null;
@@ -196,8 +195,8 @@ public final class BasketVacuumController extends BlockEntityController {
         // in the same column and is always owned, so it never pays this check. Paper always reports owned.
         boolean includeFaced = true;
         if (fx != 0 || fz != 0) {
-            org.bukkit.Location facedCell = new org.bukkit.Location(world, pos.x() + fx, pos.y() + fy, pos.z() + fz);
-            includeFaced = FarmersDelightPlugin.getInstance().scheduler().isOwnedByCurrentRegion(facedCell);
+            Location facedCell = new Location(world, pos.x() + fx, pos.y() + fy, pos.z() + fz);
+            includeFaced = plugin.scheduler().isOwnedByCurrentRegion(facedCell);
         }
         int rx = includeFaced ? fx : 0;
         int ry = includeFaced ? fy : 0;
@@ -210,13 +209,17 @@ public final class BasketVacuumController extends BlockEntityController {
         double maxZ = pos.z() + 1 + Math.max(0, rz);
 
         // Query only the vacuum box for dropped items, not the whole chunk's entity list. getNearbyEntities is
-        // spatially filtered (via the server's entity slices) and returns only Item entities in range, so a
-        // chunk dense with custom-block display entities no longer costs a full entity wrap+copy every scan.
+        // spatially filtered through the server's entity slices and returns only Item entities in range.
         // The box stays inside the basket's own cell (plus the faced cell only when it is region-owned), so on
         // Folia it never reaches into an unowned region; a region-ownership rejection at a chunk edge is caught
         // and the scan is skipped for this tick.
-        org.bukkit.util.BoundingBox box = new org.bukkit.util.BoundingBox(minX, minY, minZ, maxX, maxY, maxZ);
-        java.util.Collection<Entity> entities;
+        BoundingBox box = new BoundingBox(minX, minY, minZ, maxX, maxY, maxZ);
+        if (!Bukkit.isOwnedByCurrentRegion(world,
+                (int) Math.floor(minX) >> 4, (int) Math.floor(minZ) >> 4,
+                (int) Math.floor(maxX) >> 4, (int) Math.floor(maxZ) >> 4)) {
+            return false;
+        }
+        Collection<Entity> entities;
         try {
             entities = world.getNearbyEntities(box, entity -> entity instanceof Item);
         } catch (Exception regionRejected) {
@@ -228,10 +231,8 @@ public final class BasketVacuumController extends BlockEntityController {
             if (!item.isValid() || item.isDead()) {
                 continue;
             }
-            // Leave permanently un-pickuppable drops alone: a pickup delay pinned to the never-pickup
-            // sentinel marks items other plugins spawn as ground decoration or mechanic markers, which the
-            // basket should not swallow. Normal drops carry a short delay that counts down, so they are still
-            // collected like the reference mod and vanilla hoppers.
+            // Ignore drops with a permanent never-pickup delay, which may be decorations or mechanic markers.
+            // Normal drops with a finite delay remain eligible for collection.
             if (item.getPickupDelay() >= Short.MAX_VALUE) {
                 continue;
             }

@@ -1,22 +1,32 @@
 package com.huidu.farmersdelight.advancement;
 
+import com.huidu.farmersdelight.FarmersDelightPlugin;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
+import com.huidu.farmersdelight.api.FarmersDelightApi;
 
 import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 public final class AddonAdvancementRegistry {
 
-    private final Plugin plugin;
-    private final Map<String, List<AdvancementDef>> definitions = new ConcurrentHashMap<>();
+    // Held as the concrete type: the loaders below need plugin services, not just the Bukkit Plugin surface.
+    private final FarmersDelightPlugin plugin;
+    private record TreeDefinition(List<AdvancementDef> advancements) {}
+
+    private final Map<String, TreeDefinition> definitions = new ConcurrentHashMap<>();
     private final Map<String, AddonAdvancementTab> tabs = new ConcurrentHashMap<>();
+    private final Set<String> packTabs = ConcurrentHashMap.newKeySet();
+    private final AtomicLong loadGeneration = new AtomicLong();
     private volatile boolean ready = false;
 
-    public AddonAdvancementRegistry(Plugin plugin) {
+    public AddonAdvancementRegistry(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
     }
 
@@ -24,7 +34,7 @@ public final class AddonAdvancementRegistry {
         if (tabName == null || defs == null || defs.isEmpty()) {
             return false;
         }
-        definitions.put(tabName, List.copyOf(defs));
+        definitions.put(tabName, new TreeDefinition(List.copyOf(defs)));
         if (ready) {
             return buildOne(tabName);
         }
@@ -59,6 +69,39 @@ public final class AddonAdvancementRegistry {
     }
 
     public void onSystemReady() {
+        long generation = loadGeneration.incrementAndGet();
+        ready = false;
+        AddonAdvancementPackLoader.load(plugin, configs -> {
+            if (generation != loadGeneration.get()) {
+                return;
+            }
+            applyPackDefinitions(configs);
+        });
+    }
+
+    private void applyPackDefinitions(List<AddonAdvancementPackLoader.Config> configs) {
+        Set<String> loadedPackTabs = new HashSet<>();
+        for (AddonAdvancementPackLoader.Config config : configs) {
+            List<AdvancementDef> defs = AddonAdvancementPackLoader.parse(
+                    plugin, config.namespace(), config.source(), config.yaml());
+            if (!defs.isEmpty()) {
+                String tab = config.namespace();
+                register(tab, defs);
+                loadedPackTabs.add(tab);
+            }
+        }
+        // A removed CE package must not leave its old virtual tab and definitions behind after reload.
+        for (String oldTab : packTabs) {
+            if (!loadedPackTabs.contains(oldTab)) {
+                definitions.remove(oldTab);
+                AddonAdvancementTab stale = tabs.remove(oldTab);
+                if (stale != null) {
+                    stale.dispose();
+                }
+            }
+        }
+        packTabs.clear();
+        packTabs.addAll(loadedPackTabs);
         ready = true;
         for (String tabName : definitions.keySet()) {
             buildOne(tabName);
@@ -78,7 +121,7 @@ public final class AddonAdvancementRegistry {
         }
         for (AddonAdvancementTab tab : tabs.values()) {
             for (Player player : online) {
-                tab.resyncPlayer(player);
+                runForPlayer(player, () -> tab.resyncPlayer(player));
             }
         }
     }
@@ -93,12 +136,38 @@ public final class AddonAdvancementRegistry {
         }
         for (AddonAdvancementTab tab : tabs.values()) {
             for (Player player : online) {
-                tab.forceResend(player);
+                runForPlayer(player, () -> tab.forceResend(player));
             }
         }
     }
 
+    public void awardForItem(Player player, String itemId) {
+        if (!ready || player == null || itemId == null) return;
+        for (Map.Entry<String, TreeDefinition> entry : definitions.entrySet()) {
+            AddonAdvancementTab tab = tabs.get(entry.getKey());
+            if (tab == null) continue;
+            for (AdvancementDef def : entry.getValue().advancements()) {
+                if (!def.criteria().isEmpty()) {
+                    for (Map.Entry<String, List<String>> c : def.criteriaRequirements().entrySet()) {
+                        if (c.getValue().contains(itemId)) tab.awardCriteria(player, def.id(), c.getKey());
+                    }
+                } else if (def.requiredIds().contains(itemId)) {
+                    tab.award(player, def.id());
+                }
+            }
+        }
+    }
+
+    private void runForPlayer(Player player, Runnable action) {
+        if (FarmersDelightApi.get().isFolia()) {
+            player.getScheduler().run(plugin, task -> action.run(), null);
+        } else {
+            action.run();
+        }
+    }
+
     public void onSystemDown() {
+        loadGeneration.incrementAndGet();
         ready = false;
         for (AddonAdvancementTab tab : tabs.values()) {
             tab.dispose();
@@ -116,13 +185,12 @@ public final class AddonAdvancementRegistry {
     }
 
     private boolean buildOne(String tabName) {
-        List<AdvancementDef> defs = definitions.get(tabName);
-        if (defs == null) {
+        TreeDefinition definition = definitions.get(tabName);
+        if (definition == null) {
             return false;
         }
-        // Build the replacement first; load() unregisters any existing UAA tab of this name before creating the
-        // new one, so the old tab stays live until the new one is built.
-        AddonAdvancementTab fresh = new AddonAdvancementTab(plugin, tabName, defs);
+        // Build the replacement first; load() unregisters any existing UAA tab of this name before creating it.
+        AddonAdvancementTab fresh = new AddonAdvancementTab(plugin, tabName, definition.advancements());
         if (!fresh.load()) {
             AddonAdvancementTab stale = tabs.remove(tabName);
             if (stale != null) {
@@ -130,8 +198,7 @@ public final class AddonAdvancementRegistry {
             }
             return false;
         }
-        // Swap in the new wrapper without disposing the old one (dispose() unregisters by name and would tear
-        // down the freshly-built tab).
+        // Swap in the new wrapper without disposing the replaced wrapper because dispose() unregisters by name.
         tabs.put(tabName, fresh);
         return true;
     }

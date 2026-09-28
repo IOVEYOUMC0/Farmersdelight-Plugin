@@ -7,6 +7,7 @@ import com.huidu.farmersdelight.gui.RecipeViewGuiConfig;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.recipe.RecipeSerializer;
 import com.huidu.farmersdelight.util.ItemUtils;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
@@ -46,7 +47,7 @@ public final class ChoiceBuilderGui extends AbstractInventoryGui implements Edit
                 ItemStack display = new ItemStack(Material.NAME_TAG);
                 var meta = display.getItemMeta();
                 if (meta != null) {
-                    meta.displayName(net.kyori.adventure.text.Component.text(RecipeSerializer.serializeIngredient(tag)));
+                    meta.displayName(Component.text(RecipeSerializer.serializeIngredient(tag)));
                     display.setItemMeta(meta);
                 }
                 return new IngredientEntry(ingredient, display);
@@ -237,7 +238,7 @@ public final class ChoiceBuilderGui extends AbstractInventoryGui implements Edit
 
     private void openTagPicker(int idx, ItemStack source) {
         RecipeViewGuiConfig.BaseConfig pickerConfig =
-                plugin.getRecipeEditorGuiConfig().getTagPickerConfig();
+                RecipeEditorView.guiConfig().getTagPickerConfig();
         if (pickerConfig == null) return;
         List<String> tags = ItemUtils.getAllItemTagIds(source);
         if (tags.isEmpty()) return;

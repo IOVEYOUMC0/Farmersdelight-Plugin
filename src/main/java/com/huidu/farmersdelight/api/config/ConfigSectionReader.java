@@ -2,7 +2,9 @@ package com.huidu.farmersdelight.api.config;
 
 import org.bukkit.configuration.ConfigurationSection;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A thin typed read facade over Bukkit ConfigurationSection that borrows SparrowYAML's idea of
@@ -177,7 +179,7 @@ public final class ConfigSectionReader {
             return List.of();
         }
         if (value instanceof List<?> list) {
-            List<String> strings = new java.util.ArrayList<>(list.size());
+            List<String> strings = new ArrayList<>(list.size());
             for (Object element : list) {
                 if (element instanceof String || isScalar(element)) {
                     strings.add(String.valueOf(element));
@@ -191,15 +193,15 @@ public final class ConfigSectionReader {
     }
 
     /** Returns a list of map values, or an empty list when the key is missing/null. Throws on a bad value. */
-    public static List<java.util.Map<?, ?>> optionalMapList(ConfigurationSection section, String path) {
+    public static List<Map<?, ?>> optionalMapList(ConfigurationSection section, String path) {
         Object value = valueOf(section, path);
         if (value == null) {
             return List.of();
         }
         if (value instanceof List<?> list) {
-            List<java.util.Map<?, ?>> maps = new java.util.ArrayList<>(list.size());
+            List<Map<?, ?>> maps = new ArrayList<>(list.size());
             for (Object e : list) {
-                if (e instanceof java.util.Map<?, ?> map) {
+                if (e instanceof Map<?, ?> map) {
                     maps.add(map);
                 } else {
                     throw invalid(section, path, e, "a list of maps");

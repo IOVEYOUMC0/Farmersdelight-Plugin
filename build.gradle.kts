@@ -1,6 +1,7 @@
 plugins {
     id("java")
-    id("io.github.goooler.shadow") version "8.1.7"
+    // Use the Shadow release that supports Gradle 9 and relocates the generated Java classes.
+    id("com.gradleup.shadow") version "9.0.0"
 }
 
 group = "com.huidu.farmersdelight"
@@ -14,39 +15,40 @@ repositories {
     maven("https://repo.extendedclip.com/content/repositories/placeholderapi/")
 }
 
-// CraftEngine is pinned to the vendored 26.8 jar shipped under libs/.
+// CraftEngine is resolved from Maven. Overridable so a compatibility check can build the same sources
+// against another release without editing this file:  gradlew build -PceVersion=26.8.2
+val ceVersion = providers.gradleProperty("ceVersion").getOrElse("26.9.1")
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
     compileOnly("org.jetbrains:annotations:26.1.0")
+    // Already provided by Paper; only the transport API is needed for per-player display packets.
+    compileOnly("io.netty:netty-transport:4.1.135.Final")
 
-    // CraftEngine — pinned to the vendored 26.8 jar (26.8-SNAPSHOT is not published to maven).
-    compileOnly(files("libs/craft-engine-26.8.jar"))
-    compileOnly(files("libs/craft-engine-core-26.8.jar"))
-    // CE 26.8 keeps proxy classes in its jar-in-jar proxy artifact.
-    compileOnly(files("libs/craft-engine-proxy-26.8.jar"))
+    // CraftEngine from the official Maven repository.
+    compileOnly("net.momirealms:craft-engine-bukkit:$ceVersion")
+    compileOnly("net.momirealms:craft-engine-core:$ceVersion")
+    // CE 26.9.1 keeps proxy classes in its jar-in-jar proxy artifact.
+    compileOnly("net.momirealms:craft-engine-bukkit-proxy:$ceVersion")
 
     compileOnly("me.clip:placeholderapi:2.11.6")
-    // AntiGriefLib: unified protection facade over 24+ land/claim plugins (MIT). Bundled by shadowJar (not
-    // relocated — Bukkit plugin classloaders are isolated, so the package cannot clash with another plugin's).
-    // isTransitive=false skips its compile-only annotations. Its per-plugin providers load only when the
-    // matching land plugin is present, so bundling it adds no runtime coupling to absent plugins.
+    // AntiGriefLib: unified protection facade over 24+ land/claim plugins (MIT). Bundled and relocated:
+    // Bukkit plugin classloaders are NOT isolated for legacy plugin.yml plugins (PluginClassLoader falls
+    // back to the other plugins' loaders), so an un-relocated copy is shared server-wide and whichever
+    // plugin loads first decides the version everyone gets. isTransitive=false skips its compile-only
+    // annotations. Its per-plugin providers load only when the matching land plugin is present.
     implementation("net.momirealms:antigrieflib:1.0.11") { isTransitive = false }
-    // bStats metrics (Maven Central). Bundled by shadowJar un-relocated, same as antigrieflib above:
-    // Bukkit plugin classloaders are isolated so org.bstats cannot clash with another plugin's copy, and
-    // relocating triggers shadow 8.1.7's ASM remap bug. bStats' own relocation self-check is disabled at
-    // runtime via System.setProperty("bstats.relocatecheck", "false") before Metrics is constructed.
+    // bStats metrics (Maven Central). Relocated for the same reason, which is also what bStats itself
+    // requires of every plugin that bundles it.
     implementation("org.bstats:bstats-bukkit:3.1.0")
-    // Jackson JSON (Maven Central): parses and merges the vanilla chest loot tables with the FD
-    // append pools at datapack install time. Bundled by shadowJar like the other implementation deps.
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.17.3")
     // UltimateAdvancementAPI: separate server plugin; vendored only for offline compile against its API.
     compileOnly(files("libs/UltimateAdvancementAPI-Plugin-2.8.0-folia.jar"))
     testImplementation("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
-    testImplementation(files("libs/craft-engine-26.8.jar"))
-    testImplementation(files("libs/craft-engine-core-26.8.jar"))
-    testImplementation(files("libs/craft-engine-proxy-26.8.jar"))
+    testImplementation("net.momirealms:craft-engine-bukkit:$ceVersion")
+    testImplementation("net.momirealms:craft-engine-core:$ceVersion")
+    testImplementation("net.momirealms:craft-engine-bukkit-proxy:$ceVersion")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testImplementation("io.netty:netty-transport:4.1.135.Final")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
@@ -60,8 +62,7 @@ configurations.all {
 
 val debugToolsBuild = providers.gradleProperty("debugTools")
     .map { it.equals("true", ignoreCase = true) }
-    // Debug tools require a special build (-PdebugTools=true); the runtime statistics they used to
-    // carry now live in the main plugin as /fd stats, so a normal build needs no debug source set.
+    // Debug tools require -PdebugTools=true. Runtime statistics are available through /fd stats.
     .orElse(false)
 val pluginArchiveBaseName = "farmersdelight"
 
@@ -79,11 +80,32 @@ tasks.withType<JavaCompile>().configureEach {
 
 tasks.test {
     useJUnitPlatform()
+    // ApiDocsDriftTest reads the api pages from the wiki repository (checked out beside this repository's
+    // parent locally, under wiki/ in CI). Declaring them as inputs keeps the task from staying "up to date"
+    // when only a page changed, which is exactly the drift the test exists to catch. Only a checkout that
+    // is actually present can be declared: a directory input has to exist.
+    listOf(
+        file("api-docs"),
+        file("wiki/api-docs"),
+        file("../../FarmersdelightPluginWiKi/api-docs"),
+    ).filter { it.isDirectory }.forEach { docs ->
+        inputs.dir(docs).withPropertyName("apiDocs:${docs.name}")
+    }
+    doLast {
+        // Incomplete JUnit reports must not turn a test-listener failure into a successful build.
+        val skipped = Regex("(?m)^\\s*<skipped(?:\\s|/|>)")
+        val reportsWithSkips = reports.junitXml.outputLocation.get().asFile.walkTopDown()
+            .filter { it.isFile && it.name.startsWith("TEST-") && it.extension == "xml" }
+            .filter { skipped.containsMatchIn(it.readText()) }.toList()
+        check(reportsWithSkips.isEmpty()) {
+            "Tests were skipped or not fully reported: ${reportsWithSkips.joinToString { it.name }}"
+        }
+    }
 }
 
 tasks.processResources {
     filteringCharset = "UTF-8"
-    filesMatching("plugin.yml") {
+    filesMatching("paper-plugin.yml") {
         expand("version" to version)
     }
 }
@@ -132,10 +154,19 @@ tasks.compileJava {
 
 tasks.shadowJar {
     archiveBaseName.set(pluginArchiveBaseName)
-    archiveClassifier.set("")
+    // Only the debug build, which never leaves the development machine, carries a classifier.
+    archiveClassifier.set(if (debugToolsBuild.get()) "debug" else "")
     if (!debugToolsBuild.get()) {
         exclude("com/huidu/farmersdelight/debug/**")
     }
+    manifest {
+        attributes(
+            "Implementation-Title" to "FarmersDelight",
+            "Implementation-Version" to project.version
+        )
+    }
+    relocate("org.bstats", "com.huidu.farmersdelight.libs.bstats")
+    relocate("net.momirealms.antigrieflib", "com.huidu.farmersdelight.libs.antigrieflib")
 }
 
 tasks.jar {

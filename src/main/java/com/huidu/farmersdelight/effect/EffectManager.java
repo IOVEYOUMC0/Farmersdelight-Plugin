@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.effect;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.buff.BuffBossbar;
+import com.huidu.farmersdelight.api.buff.CustomBuffRegistry;
 import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.api.text.FarmersDelightText;
 import com.huidu.farmersdelight.util.CompatAttributes;
@@ -20,6 +21,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
 
 public final class EffectManager {
 
@@ -154,7 +156,7 @@ public final class EffectManager {
     }
 
     private static void applyBuff(Player player, BuffKind kind, int durationSeconds, int level) {
-        if (!com.huidu.farmersdelight.api.buff.CustomBuffRegistry.isSystemEnabled()) return;
+        if (!CustomBuffRegistry.isSystemEnabled()) return;
         UUID playerId = player.getUniqueId();
         int lvl = Math.max(1, level);
         BuffState current = getBuff(playerId, kind);
@@ -225,7 +227,7 @@ public final class EffectManager {
 
     public static void tick(Player player) {
         if (player == null || !player.isValid() || !player.isOnline() || player.isDead()) return;
-        if (!com.huidu.farmersdelight.api.buff.CustomBuffRegistry.isSystemEnabled()) {
+        if (!CustomBuffRegistry.isSystemEnabled()) {
             EffectListener.untrackPlayer(player.getUniqueId());
             return;
         }
@@ -257,7 +259,7 @@ public final class EffectManager {
             // attempts for this player, while propagating would abort the caller's loop over the rest.
             FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
             if (plugin != null) {
-                plugin.getLogger().log(java.util.logging.Level.WARNING,
+                plugin.getLogger().log(Level.WARNING,
                         "Buff tick failed for " + player.getName(), e);
             }
             EffectListener.untrackPlayer(player.getUniqueId());

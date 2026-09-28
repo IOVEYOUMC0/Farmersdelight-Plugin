@@ -6,18 +6,18 @@ import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
 
 // Pure tool-recognition logic for the cutting board: decides whether an item can act as a cutting tool
 // against the configured tag / item allowlists. Carries the per-instance config lists so the block
 // behavior stays focused on interaction flow.
 final class CuttingBoardToolMatcher {
 
+    private final FarmersDelightPlugin plugin;
     private final List<Key> toolTags;
     private final List<Key> toolItems;
 
-    CuttingBoardToolMatcher(List<Key> toolTags, List<Key> toolItems) {
+    CuttingBoardToolMatcher(FarmersDelightPlugin plugin, List<Key> toolTags, List<Key> toolItems) {
+        this.plugin = plugin;
         this.toolTags = toolTags;
         this.toolItems = toolItems;
     }
@@ -27,7 +27,6 @@ final class CuttingBoardToolMatcher {
             return false;
         }
 
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin.getCuttingBoardRecipes() != null && plugin.getCuttingBoardRecipes().isRecipeTool(item)) {
             return true;
         }
@@ -41,27 +40,9 @@ final class CuttingBoardToolMatcher {
             return true;
         }
 
-        String customId = ItemUtils.getCustomItemId(item);
-        if (customId != null) {
-            Set<Key> itemTags = ItemUtils.getCustomItemTags(Key.of(customId));
-            for (Key tag : toolTags) {
-                if (itemTags.contains(tag)) {
-                    return true;
-                }
-            }
-        }
-
-        String vanillaId = "minecraft:" + item.getType().name().toLowerCase(Locale.ROOT);
         for (Key toolTag : toolTags) {
-            if (!"minecraft".equals(toolTag.namespace())) {
-                continue;
-            }
-            var vanillaItems = FarmersDelightPlugin.getInstance().getCraftEngine().itemManager()
-                    .vanillaItemIdsByTag(toolTag);
-            for (var vanillaItem : vanillaItems) {
-                if (vanillaItem.toString().equals(vanillaId)) {
-                    return true;
-                }
+            if (ItemUtils.matchesCustomOrVanillaTag(item, toolTag.toString())) {
+                return true;
             }
         }
 
@@ -69,8 +50,7 @@ final class CuttingBoardToolMatcher {
     }
 
     private boolean isKnifeTool(ItemStack item) {
-        String customId = ItemUtils.getCustomItemId(item);
-        return FarmersDelightPlugin.getInstance().isKnifeItemId(customId);
+        return plugin.isKnife(item);
     }
 
     private boolean isAxeTool(ItemStack item) {

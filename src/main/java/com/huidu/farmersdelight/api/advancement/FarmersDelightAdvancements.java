@@ -1,10 +1,17 @@
 package com.huidu.farmersdelight.api.advancement;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.PluginAccess;
 import com.huidu.farmersdelight.advancement.AddonAdvancementRegistry;
+import com.huidu.farmersdelight.api.PluginAccess;
 import com.huidu.farmersdelight.advancement.AddonAdvancementTab;
+import com.huidu.farmersdelight.api.PluginAccess;
 import com.huidu.farmersdelight.advancement.AdvancementDef;
+import com.huidu.farmersdelight.api.PluginAccess;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.api.PluginAccess;
+import com.huidu.farmersdelight.advancement.AutomaticAdvancementLayout;
+import com.huidu.farmersdelight.api.FarmersDelightApi;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.ApiStatus;
@@ -17,12 +24,28 @@ public final class FarmersDelightAdvancements {
     private FarmersDelightAdvancements() {
     }
 
-    // Returns true only when the advancement system is usable: FarmersDelight loaded, its advancement
-    // feature enabled, and UltimateAdvancementAPI present & enabled.
+    // The single evaluation of the advancement system's state: every internal gate and every addon reads
+    // this, so a caller can never disagree with the reason reported for a tab that was not registered.
+    public static AdvancementAvailability availability() {
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
+        if (plugin == null) {
+            return AdvancementAvailability.PLUGIN_UNAVAILABLE;
+        }
+        if (!plugin.isAdvancementsEnabled()) {
+            return AdvancementAvailability.DISABLED_BY_CONFIG;
+        }
+        if (!Bukkit.getPluginManager().isPluginEnabled("UltimateAdvancementAPI")) {
+            return AdvancementAvailability.API_NOT_INSTALLED;
+        }
+        if (!AutomaticAdvancementLayout.isSupported()) {
+            return AdvancementAvailability.API_PATCH_MISSING;
+        }
+        return AdvancementAvailability.AVAILABLE;
+    }
+
+    // Returns true only when the advancement system is usable.
     public static boolean isAvailable() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        return plugin != null && plugin.isAdvancementsEnabled()
-                && Bukkit.getPluginManager().isPluginEnabled("UltimateAdvancementAPI");
+        return availability() == AdvancementAvailability.AVAILABLE;
     }
 
     // ------------------------------------------------------------------ FarmersDelight's own tab
@@ -102,7 +125,12 @@ public final class FarmersDelightAdvancements {
     public static void showTab(String tabId, Player player) {
         AddonAdvancementTab tab = addonTab(tabId);
         if (tab != null) {
-            tab.showTo(player);
+            if (FarmersDelightApi.get().isFolia() && player != null) {
+                FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
+                player.getScheduler().run(plugin, task -> tab.showTo(player), null);
+            } else {
+                tab.showTo(player);
+            }
         }
     }
 
@@ -119,7 +147,7 @@ public final class FarmersDelightAdvancements {
         if (!isAvailable()) {
             return null;
         }
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         return plugin == null ? null : plugin.getAdvancementManager();
     }
 
@@ -127,7 +155,7 @@ public final class FarmersDelightAdvancements {
         if (!isAvailable()) {
             return null;
         }
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         return plugin == null ? null : plugin.getAddonAdvancementRegistry();
     }
 

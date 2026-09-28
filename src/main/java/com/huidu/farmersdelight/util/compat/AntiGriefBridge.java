@@ -22,6 +22,10 @@ final class AntiGriefBridge {
         Flag<Location> probe = Flag.INTERACT;
         if (probe != null) {
             antiGrief = AntiGriefLib.builder(plugin)
+                    // Operators already bypass WorldGuard's BUILD/region checks. Keep the same
+                    // administrator semantics for the other claim providers; otherwise an OP can
+                    // still be denied while breaking a CraftEngine block in a protected region.
+                    .ignoreOP(true)
                     .suppressErrors(false)
                     .exclude(other -> "WorldGuard".equals(other.getName()))
                     .build();
@@ -51,7 +55,7 @@ final class AntiGriefBridge {
         }
         try {
             return agl.test(player, flag, location);
-        } catch (Throwable t) {
+        } catch (RuntimeException | LinkageError t) {
             return true;
         }
     }

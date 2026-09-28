@@ -1,7 +1,6 @@
 package com.huidu.farmersdelight.util;
 
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
-import net.momirealms.craftengine.core.plugin.config.ConfigConstants;
 import net.momirealms.craftengine.core.plugin.config.KnownResourceException;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.util.Key;
@@ -17,12 +16,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class SoilRuleSupport {
+    private static final String PARSE_LIST_FAILED = "resource.argument.parser.list";
 
     // Resolved Bukkit block tags stay constant for the server's lifetime; cache them so the crop
     // grow/place hot path skips rerunning NamespacedKey.fromString + Bukkit.getTag per call.
@@ -40,7 +41,7 @@ public final class SoilRuleSupport {
 
         Object raw = arguments != null ? arguments.get("bottom-blocks") : null;
         if (arguments != null && arguments.containsKey("bottom-blocks") && raw != null && !(raw instanceof Iterable<?>)) {
-            throw new KnownResourceException(ConfigConstants.PARSE_LIST_FAILED, "bottom-blocks", String.valueOf(raw));
+            throw new KnownResourceException(PARSE_LIST_FAILED, "bottom-blocks", String.valueOf(raw));
         }
         if (raw instanceof Iterable<?> iterable) {
             for (Object value : iterable) {
@@ -66,7 +67,7 @@ public final class SoilRuleSupport {
                 String materialName = text.contains(":")
                         ? text.substring(text.indexOf(':') + 1)
                         : text;
-                NamespacedKey nk = NamespacedKey.minecraft(materialName.toLowerCase(java.util.Locale.ROOT));
+                NamespacedKey nk = NamespacedKey.minecraft(materialName.toLowerCase(Locale.ROOT));
                 Material material = Registry.MATERIAL.get(nk);
                 if (material != null) {
                     materials.add(material);
@@ -146,7 +147,7 @@ public final class SoilRuleSupport {
     public static Set<Key> parseKeys(Map<String, Object> arguments, String key) {
         Object raw = arguments != null ? arguments.get(key) : null;
         if (arguments != null && arguments.containsKey(key) && raw != null && !(raw instanceof Iterable<?>)) {
-            throw new KnownResourceException(ConfigConstants.PARSE_LIST_FAILED, key, String.valueOf(raw));
+            throw new KnownResourceException(PARSE_LIST_FAILED, key, String.valueOf(raw));
         }
         if (!(raw instanceof Iterable<?> iterable)) {
             return Collections.emptySet();

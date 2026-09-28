@@ -1,5 +1,7 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import net.momirealms.craftengine.core.plugin.config.ConfigConstants;
+import net.momirealms.craftengine.core.plugin.config.KnownResourceException;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
@@ -8,6 +10,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class TomatoVineSettingsTest {
 
@@ -118,13 +121,12 @@ class TomatoVineSettingsTest {
     }
 
     @Test
-    void aGroupWrittenAsASingleValueIsReportedRatherThanApplied() {
+    void aGroupWrittenAsASingleValueIsRejectedWithItsConfigPath() {
         Map<String, Object> arguments = new LinkedHashMap<>();
         arguments.put("blocks", "test:not_a_section");
 
-        TomatoVineSettings settings = TomatoVineSettings.parse(arguments, BLOCK_ID);
-        TomatoVineSettings defaults = TomatoVineSettings.parse(new LinkedHashMap<>(), BLOCK_ID);
-        assertEquals(defaults.buddingBlock(), settings.buddingBlock());
-        assertFalse(settings.warnings().isEmpty(), "a group written as a scalar has to be reported");
+        var error = assertThrows(KnownResourceException.class, () -> TomatoVineSettings.parse(arguments, BLOCK_ID));
+        assertEquals("blocks", error.node());
+        assertEquals(ConfigConstants.PARSE_SECTION_FAILED, error.translationKey());
     }
 }

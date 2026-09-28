@@ -1,10 +1,15 @@
 package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.CommonTagResolver;
-import com.huidu.farmersdelight.util.DatapackSupport;
+import com.huidu.farmersdelight.api.util.DatapackSupport;
 import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.server.ServerLoadEvent;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -13,6 +18,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Collections;
+import java.util.HashSet;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.stream.Stream;
@@ -28,18 +35,35 @@ import java.util.stream.Stream;
 // whitelist would be meaningless here and is deliberately absent. Only "minecraft:" members are
 // written: addon (CraftEngine) items stay declared in the CE item configs, the very source CraftEngine
 // already serves customItemIdsByTag from.
-public final class TagDatapackInstaller {
+public final class TagDatapackInstaller implements Listener {
 
     private static final String DATAPACK_DIRECTORY = "farmersdelight_tags";
     private static final String PACK_DESCRIPTION = "FarmersDelight common-item tags (vanilla members)";
     private static final String VANILLA_NAMESPACE = "minecraft";
 
     private final FarmersDelightPlugin plugin;
-    private final boolean installEnabled;
 
     public TagDatapackInstaller(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
-        this.installEnabled = plugin.getConfig().getBoolean("datapacks.tags-enabled", true);
+    }
+
+    /**
+     * Read per install rather than at construction: the switch belongs to the config the operator may have
+     * reloaded since, and keeping it out of the constructor lets the installer be built without a live plugin.
+     */
+    private boolean installEnabled() {
+        return plugin == null || plugin.getConfig().getBoolean("datapacks.tags-enabled", true);
+    }
+
+    // Addons register their tag sources on their own enable, which happens after FD's. Exporting only
+    // during FD's enable would therefore drop every addon-contributed vanilla member. Re-export once the
+    // whole server has loaded; CraftEngine absorbs the written members on the next start.
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onServerLoad(ServerLoadEvent event) {
+        if (installToPrimaryWorld(plugin.getPrimaryWorld())) {
+            plugin.queueDatapackReload(
+                    I18n.formatConsole("plugin.datapack_reason_apply_tag_changes"));
+        }
     }
 
     // Writes the tag data pack into the primary world's datapacks folder. Idempotent: rewrites any
@@ -51,7 +75,7 @@ public final class TagDatapackInstaller {
         Path datapackDir = DatapackSupport.worldRoot(primaryWorld)
                 .resolve("datapacks")
                 .resolve(DATAPACK_DIRECTORY);
-        if (!installEnabled) {
+        if (!installEnabled()) {
             return deletePack(datapackDir);
         }
         Map<String, Set<String>> tags = vanillaTagSnapshot();
@@ -79,11 +103,10 @@ public final class TagDatapackInstaller {
             }
             changed += deleteStaleFiles(datapackDir, generated);
             if (changed > 0) {
-                plugin.getLogger().warning("==========================================================");
-                plugin.getLogger().warning(" Updated FarmersDelight common-item tag data pack ("
-                        + changed + " file(s)).");
-                plugin.getLogger().warning(" A server data reload is required before registry tags take effect.");
-                plugin.getLogger().warning("==========================================================");
+                I18n.logInfo("plugin.datapack_installed",
+                        "name", DATAPACK_DIRECTORY,
+                        "dir", datapackDir,
+                        "hint", I18n.formatConsole("plugin.datapack_hint_reload"));
             }
             return changed > 0;
         } catch (Exception exception) {
@@ -109,7 +132,7 @@ public final class TagDatapackInstaller {
                 }
             }
             if (!vanilla.isEmpty()) {
-                result.put(entry.getKey(), java.util.Collections.unmodifiableSet(new LinkedHashSet<>(vanilla)));
+                result.put(entry.getKey(), Collections.unmodifiableSet(new LinkedHashSet<>(vanilla)));
             }
         }
         return result;
@@ -121,7 +144,9 @@ public final class TagDatapackInstaller {
                 return false;
             }
             DatapackSupport.deleteRecursively(datapackDir);
-            plugin.getLogger().warning("Removed stale FarmersDelight common-item tag data pack; restart the server.");
+            I18n.logWarning("plugin.datapack_removed",
+                    "name", DATAPACK_DIRECTORY,
+                    "hint", I18n.formatConsole("plugin.datapack_hint_restart"));
             return true;
         } catch (IOException exception) {
             plugin.getLogger().warning("Failed to remove tag data pack: " + exception.getMessage());
@@ -130,7 +155,7 @@ public final class TagDatapackInstaller {
     }
 
     private static int deleteStaleFiles(Path root, List<GeneratedFile> generated) throws IOException {
-        Set<Path> expected = new java.util.HashSet<>();
+        Set<Path> expected = new HashSet<>();
         for (GeneratedFile file : generated) {
             expected.add(file.path().toAbsolutePath().normalize());
         }
@@ -160,7 +185,7 @@ public final class TagDatapackInstaller {
 
     static String renderTag(Set<String> members) {
         StringBuilder values = new StringBuilder();
-        for (String member : members) {
+        for (String member : members.stream().sorted().toList()) {
             if (!values.isEmpty()) {
                 values.append(",\n");
             }

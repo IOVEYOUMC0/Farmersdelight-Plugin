@@ -27,6 +27,12 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
         registerCommands(plugin);
     }
 
+    FarmersDelightCommand(SubCommand... commands) {
+        for (SubCommand command : commands) {
+            register(command);
+        }
+    }
+
     private void registerCommands(FarmersDelightPlugin plugin) {
         register(new RecipeSubCommand(plugin));
         register(new ReloadSubCommand(plugin));
@@ -99,8 +105,8 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
             return List.of();
         }
 
-        if (args.length == 1) {
-            String partial = normalize(args[0]);
+        if (args.length <= 1) {
+            String partial = args.length == 0 ? "" : normalize(args[0]);
             List<String> completions = new ArrayList<>();
             for (SubCommand subCommand : commandList) {
                 if (subCommand.canUse(sender) && subCommand.name().startsWith(partial)) {

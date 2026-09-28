@@ -3,6 +3,8 @@
 # the member list below; a member matching a slot's item satisfies the tag for recipe lookup, matching
 # and the recipe-book ingredient icon. The recipe's excluded-items/tags still apply on top.
 tags:
+  "c:rods/wooden":
+    - "minecraft:stick"
   "c:drinks/milk":
     - "minecraft:milk_bucket"
     - "crabbersdelight:coconut_milk"
@@ -16,6 +18,15 @@ tags:
     - "minecraft:porkchop"
     - "minecraft:chicken"
     - "minecraft:mutton"
+  "c:foods/raw_dragon_meat":
+    - "endsdelight:raw_dragon_meat"
+    - "endsdelight:raw_dragon_meat_cuts"
+  "c:foods/shulker_meat":
+    - "endsdelight:shulker_meat"
+    - "endsdelight:shulker_meat_slice"
+  "c:foods/roasted_shulker_meat":
+    - "endsdelight:roasted_shulker_meat"
+    - "endsdelight:roasted_shulker_meat_slice"
   "c:foods/raw_fish":
     - "minecraft:cod"
     - "minecraft:salmon"

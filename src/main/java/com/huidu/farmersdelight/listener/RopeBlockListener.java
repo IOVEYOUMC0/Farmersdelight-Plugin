@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.listener;
 
+import com.huidu.farmersdelight.api.util.ItemDelivery;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.RopeBlockBehavior;
 import com.huidu.farmersdelight.i18n.I18n;
@@ -20,6 +21,7 @@ import org.bukkit.Chunk;
 import org.bukkit.GameMode;
 import org.bukkit.Sound;
 import org.bukkit.World;
+import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
@@ -27,28 +29,29 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
-import org.bukkit.event.block.BlockPhysicsEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
 import org.bukkit.event.world.WorldUnloadEvent;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class RopeBlockListener implements Listener {
 
     private final FarmersDelightPlugin plugin;
-    // Positions already queued for a rope refresh next tick. Used to coalesce high-frequency
-    // BlockPhysicsEvent storms (flowing water / redstone / pistons near ropes), so each position
-    // is scanned and refreshed at most once per tick rather than once per physics event.
-    private final Set<String> pendingRopeRefreshes = ConcurrentHashMap.newKeySet();
+    // Positions already queued for a rope refresh next tick. Used to coalesce bursts of neighbour updates
+    // (flowing water / redstone / pistons near ropes), so each position is scanned and refreshed at most
+    // once per tick rather than once per update.
+    private final Set<Cell> pendingRopeRefreshes = ConcurrentHashMap.newKeySet();
+    private volatile boolean stopped;
     // Tracked rope positions. Maintained by CustomBlockPlace/Break, rebuilt per chunk on ChunkLoad, and
-    // drained on chunk/world unload. Gives the hot-path scheduleRopeRefreshIfNearby a Set.isEmpty() /
-    // Set.contains() short-circuit so servers with no ropes (or no nearby ropes) skip 5 CE hasBehavior
-    // queries per BlockPhysicsEvent.
+    // drained on chunk/world unload. Gives scheduleRopeRefreshIfNearby a Set.isEmpty() / Set.contains()
+    // short-circuit so a place or break with no rope nearby skips 5 CE hasBehavior queries.
     // Coverage is "ropes placed through CustomBlockPlace, ropes this plugin writes itself and reports
     // through syncRopeIndex, plus every rope in a chunk that has loaded since this listener registered" —
     // not "every rope that exists". A rope written straight into an already-loaded chunk by an external
@@ -56,7 +59,39 @@ public class RopeBlockListener implements Listener {
     // CustomBlockPlaceEvent and gets no ChunkLoad rebuild, so it stays outside the index and its connected
     // texture is not refreshed until its chunk next cycles. The global isEmpty() gate does not save that
     // case: any other rope on the server keeps the set non-empty, so the miss lands on contains() instead.
-    private final Set<Cell> placedRopes = ConcurrentHashMap.newKeySet();
+    // Tracked rope positions, bucketed by chunk. A flat set meant every chunk unload had to scan every
+    // rope on the server to find the handful in that chunk; the bucket is dropped whole instead.
+    private final Map<ChunkCell, Set<Cell>> placedRopes = new ConcurrentHashMap<>();
+
+    private record ChunkCell(UUID worldId, int chunkX, int chunkZ) {
+    }
+
+    private static ChunkCell chunkOf(Cell cell) {
+        return new ChunkCell(cell.worldId(), cell.x() >> 4, cell.z() >> 4);
+    }
+
+    // The insert happens inside compute so it is atomic against removeRope's drop-if-empty:
+    // computeIfAbsent(..).add(..) would publish the set, release the bin lock and only then add, long
+    // enough for a concurrent remove to observe an empty set and discard the whole mapping.
+    private void addRope(Cell cell) {
+        placedRopes.compute(chunkOf(cell), (ignored, cells) -> {
+            Set<Cell> target = cells != null ? cells : ConcurrentHashMap.newKeySet();
+            target.add(cell);
+            return target;
+        });
+    }
+
+    private void removeRope(Cell cell) {
+        placedRopes.computeIfPresent(chunkOf(cell), (ignored, cells) -> {
+            cells.remove(cell);
+            return cells.isEmpty() ? null : cells;
+        });
+    }
+
+    private boolean hasRope(Cell cell) {
+        Set<Cell> cells = placedRopes.get(chunkOf(cell));
+        return cells != null && cells.contains(cell);
+    }
 
     // The registered listener, so rope code outside this class can keep the index honest. Replaced whenever a
     // listener is constructed, which on a plugin reload hands the index over to the new instance.
@@ -71,6 +106,18 @@ public class RopeBlockListener implements Listener {
         active = this;
     }
 
+    /**
+     * Detaches the instance used by CraftEngine neighbour callbacks during plugin shutdown.
+     */
+    public void shutdown() {
+        if (active == this) {
+            active = null;
+        }
+        stopped = true;
+        pendingRopeRefreshes.clear();
+        placedRopes.clear();
+    }
+
     // Brings the index in line with what actually stands at pos. Ropes written straight into the world with
     // CraftEngineBlocks.place or removed with CraftEngineBlocks.remove produce no CustomBlockPlace/BreakEvent,
     // so without this the reel-down and retract paths would leave the index disagreeing with the world. The
@@ -83,10 +130,36 @@ public class RopeBlockListener implements Listener {
         Cell cell = new Cell(world.getUID(), pos.x(), pos.y(), pos.z());
         Block block = world.getBlockAt(pos.x(), pos.y(), pos.z());
         if (CustomBlockUtils.hasBehavior(block, RopeBlockBehavior.class)) {
-            listener.placedRopes.add(cell);
+            listener.addRope(cell);
         } else {
-            listener.placedRopes.remove(cell);
+            listener.removeRope(cell);
         }
+    }
+
+    // Entry point for RopeBlockBehavior's updateShape/neighborChanged hooks, which replaced a
+    // BlockPhysicsEvent listener that ran for every block update in the world. Those hooks fire on the rope
+    // itself, so the nearby-rope test the other callers need is already satisfied and only the per-position
+    // dedupe and the one-tick defer are left.
+    public static void queueNeighborRefresh(World world, BlockPos pos) {
+        RopeBlockListener listener = active;
+        if (listener == null || world == null || pos == null) {
+            return;
+        }
+        listener.queueRefresh(world, pos);
+    }
+
+    private void queueRefresh(World world, BlockPos pos) {
+        Cell key = new Cell(world.getUID(), pos.x(), pos.y(), pos.z());
+        if (!pendingRopeRefreshes.add(key)) {
+            return;
+        }
+        plugin.scheduler().runLaterAt(new Location(world, pos.x(), pos.y(), pos.z()), () -> {
+            pendingRopeRefreshes.remove(key);
+            if (stopped) {
+                return;
+            }
+            RopeBlockBehavior.refreshAdjacentRopes(world, pos);
+        }, 1L);
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -127,9 +200,7 @@ public class RopeBlockListener implements Listener {
         if (!isCreative) {
             ItemStack recovered = RopeBlockBehavior.createItemForRopeBlock(bottomBlock);
             if (recovered != null) {
-                for (ItemStack leftover : player.getInventory().addItem(recovered).values()) {
-                    world.dropItemNaturally(bottomBlock.getLocation(), leftover);
-                }
+                ItemDelivery.giveOrDrop(player, bottomBlock.getLocation(), recovered);
             }
         }
 
@@ -140,7 +211,7 @@ public class RopeBlockListener implements Listener {
         BlockPos bp = new BlockPos(block.getX(), bottomY, block.getZ());
         // CraftEngineBlocks.remove fires no CustomBlockBreakEvent, so drop the cell here rather than waiting
         // for the scheduled refresh to notice.
-        placedRopes.remove(new Cell(world.getUID(), bp.x(), bp.y(), bp.z()));
+        removeRope(new Cell(world.getUID(), bp.x(), bp.y(), bp.z()));
         plugin.scheduler().runAt(bottomBlock.getLocation(),
                 () -> RopeBlockBehavior.refreshAdjacentRopes(world, bp));
     }
@@ -156,30 +227,17 @@ public class RopeBlockListener implements Listener {
         scheduleRopeRefreshIfNearby(event.getBlock());
     }
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onBlockPhysics(BlockPhysicsEvent event) {
-        // Cheapest gate first: with no tracked rope anywhere there is nothing to refresh, so skip even
-        // the getChangedType()/getType() world lookups. R-PERF-002. The same check inside
-        // scheduleRopeRefreshIfNearby still guards the other callers.
-        if (placedRopes.isEmpty()) {
-            return;
-        }
-        if (event.getChangedType() != event.getBlock().getType()) {
-            scheduleRopeRefreshIfNearby(event.getBlock());
-        }
-    }
-
     private void scheduleRopeRefreshIfNearby(Block block) {
         if (block == null) {
             return;
         }
-        // Fast-path: no tracked ropes anywhere → skip the 5x cell lookups below. R-PERF-002.
+        // Skip cell lookups when no ropes are tracked.
         if (placedRopes.isEmpty()) {
             return;
         }
 
         World world = block.getWorld();
-        String key = world.getUID() + ":" + block.getX() + ":" + block.getY() + ":" + block.getZ();
+        Cell key = new Cell(world.getUID(), block.getX(), block.getY(), block.getZ());
         // Already queued for this position this tick: skip the nearby-rope scan and rescheduling.
         if (pendingRopeRefreshes.contains(key)) {
             return;
@@ -194,6 +252,9 @@ public class RopeBlockListener implements Listener {
         BlockPos pos = new BlockPos(block.getX(), block.getY(), block.getZ());
         plugin.scheduler().runLaterAt(block.getLocation(), () -> {
             pendingRopeRefreshes.remove(key);
+            if (stopped) {
+                return;
+            }
             RopeBlockBehavior.refreshAdjacentRopes(world, pos);
         }, 1L);
     }
@@ -210,11 +271,11 @@ public class RopeBlockListener implements Listener {
         int x = block.getX();
         int y = block.getY();
         int z = block.getZ();
-        if (placedRopes.contains(new Cell(worldId, x, y, z))) {
+        if (hasRope(new Cell(worldId, x, y, z))) {
             return true;
         }
         for (BlockFace face : HORIZONTAL_FACES) {
-            if (placedRopes.contains(new Cell(worldId, x + face.getModX(), y, z + face.getModZ()))) {
+            if (hasRope(new Cell(worldId, x + face.getModX(), y, z + face.getModZ()))) {
                 return true;
             }
         }
@@ -231,7 +292,7 @@ public class RopeBlockListener implements Listener {
         if (state == null || state.isEmpty()) return;
         if (!CustomBlockUtils.hasBehavior(state, RopeBlockBehavior.class)) return;
         Block b = event.bukkitBlock();
-        placedRopes.add(new Cell(b.getWorld().getUID(), b.getX(), b.getY(), b.getZ()));
+        addRope(new Cell(b.getWorld().getUID(), b.getX(), b.getY(), b.getZ()));
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -240,16 +301,11 @@ public class RopeBlockListener implements Listener {
         if (state == null || state.isEmpty()) return;
         if (!CustomBlockUtils.hasBehavior(state, RopeBlockBehavior.class)) return;
         Block b = event.bukkitBlock();
-        placedRopes.remove(new Cell(b.getWorld().getUID(), b.getX(), b.getY(), b.getZ()));
+        removeRope(new Cell(b.getWorld().getUID(), b.getX(), b.getY(), b.getZ()));
     }
 
-    // Rebuild the index for a chunk as it comes back. Ropes are stateful custom blocks with no block
-    // entity, so they are absent from CEChunk.blockEntities() and cannot be recovered the way
-    // ChunkLoadListener recovers block-entity backed blocks; the chunk's own block states are the only
-    // authority. ChunkLoadEvent is delivered on the region that owns the chunk, so the CraftEngine chunk
-    // is read on the correct thread (R-CONC-006). Re-adding cells already present is a no-op, so a chunk
-    // that loads more than once (or overlaps the CustomBlockPlace path) stays consistent.
-    // ChunkLoadEvent does not implement Cancellable, so ignoreCancelled would have no meaning here.
+    // Rebuild rope positions from the loading chunk's states; ropes have no block entity to enumerate.
+    // ChunkLoadEvent runs on the owning region. Index insertion is idempotent for repeated loads.
     @EventHandler(priority = EventPriority.MONITOR)
     public void onChunkLoad(ChunkLoadEvent event) {
         Chunk chunk = event.getChunk();
@@ -297,7 +353,7 @@ public class RopeBlockListener implements Listener {
                 if (!CustomBlockUtils.hasBehavior(state, RopeBlockBehavior.class)) {
                     continue;
                 }
-                placedRopes.add(new Cell(worldId,
+                addRope(new Cell(worldId,
                         baseX + (index & 15),
                         baseY + ((index >> 8) & 15),
                         baseZ + ((index >> 4) & 15)));
@@ -306,8 +362,7 @@ public class RopeBlockListener implements Listener {
     }
 
     // One-shot latch so a persistently broken world logs once instead of once per section per chunk load.
-    private static final java.util.concurrent.atomic.AtomicBoolean PALETTE_FAILURE_LOGGED =
-            new java.util.concurrent.atomic.AtomicBoolean();
+    private static final AtomicBoolean PALETTE_FAILURE_LOGGED = new AtomicBoolean();
 
     // Palette probe: a CraftEngine section stores its states in a paletted container, so the distinct
     // states of all 4096 positions are a handful of palette entries. Testing those decides whether the
@@ -358,14 +413,14 @@ public class RopeBlockListener implements Listener {
         UUID worldId = event.getWorld().getUID();
         int cx = event.getChunk().getX();
         int cz = event.getChunk().getZ();
-        placedRopes.removeIf(cell ->
-                worldId.equals(cell.worldId()) && (cell.x() >> 4) == cx && (cell.z() >> 4) == cz);
+        // One bucket lookup instead of a scan over every tracked rope on the server.
+        placedRopes.remove(new ChunkCell(worldId, cx, cz));
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onWorldUnload(WorldUnloadEvent event) {
         if (placedRopes.isEmpty()) return;
         UUID worldId = event.getWorld().getUID();
-        placedRopes.removeIf(cell -> worldId.equals(cell.worldId()));
+        placedRopes.keySet().removeIf(key -> worldId.equals(key.worldId()));
     }
 }

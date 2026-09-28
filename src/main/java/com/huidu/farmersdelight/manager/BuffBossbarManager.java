@@ -15,11 +15,14 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.Plugin;
 
 import java.util.Iterator;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class BuffBossbarManager implements Listener {
@@ -64,8 +67,7 @@ public final class BuffBossbarManager implements Listener {
     // Display switch (buff.display.enabled): silences every channel while the effects themselves keep
     // running and ticking.
     private volatile boolean enabled = true;
-    // Buff master switch (buff.enabled): when off there are no effects at all, so there is nothing to draw.
-    // Written by the reload path, read from the tick and from addon push threads (R-CONC-002).
+    // The volatile buff.enabled snapshot controls display updates across reload, tick and addon threads.
     private volatile boolean systemEnabled = true;
     private volatile LayoutMode layoutMode = LayoutMode.STACKED;
     private volatile long rotationIntervalTicks = 80L;
@@ -74,7 +76,7 @@ public final class BuffBossbarManager implements Listener {
     private volatile long actionbarRefreshTicks = 30L;
     // Enabled render channels. EnumSet, replaced wholesale on reload (never mutated in place) so readers
     // see a consistent snapshot. Defaults to BOSSBAR to preserve pre-channels behaviour.
-    private volatile java.util.Set<Channel> channels = java.util.EnumSet.of(Channel.BOSSBAR);
+    private volatile Set<Channel> channels = EnumSet.of(Channel.BOSSBAR);
     // Joins the buff titles on the action bar line. Configurable so admins can widen/narrow the gap.
     private volatile Component actionbarSeparator = Component.text("   ");
     private volatile PluginTask tickTask;
@@ -96,14 +98,14 @@ public final class BuffBossbarManager implements Listener {
 
     public void applyConfig(ConfigurationSection section, boolean systemEnabled) {
         boolean wasRendering = renderingEnabled();
-        java.util.Set<Channel> oldChannels = this.channels;
+        Set<Channel> oldChannels = this.channels;
         this.systemEnabled = systemEnabled;
         if (section == null) {
             this.enabled = true;
             this.layoutMode = LayoutMode.STACKED;
             this.rotationIntervalTicks = 80L;
             this.actionbarRefreshTicks = 30L;
-            this.channels = java.util.EnumSet.of(Channel.BOSSBAR);
+            this.channels = EnumSet.of(Channel.BOSSBAR);
             this.actionbarSeparator = Component.text("   ");
         } else {
             this.enabled = ConfigSectionReader.optionalBoolean(section, "enabled", true);
@@ -120,24 +122,27 @@ public final class BuffBossbarManager implements Listener {
             ensureTickTask();
             return;
         }
-        java.util.Set<Channel> newChannels = this.channels;
+        Set<Channel> newChannels = this.channels;
         for (Map.Entry<UUID, PlayerBars> entry : players.entrySet()) {
             Player p = Bukkit.getPlayer(entry.getKey());
             if (p != null) {
                 PlayerBars state = entry.getValue();
-                // Every other render caller holds the per-player state monitor; this reload path must too,
-                // else a concurrent per-tick update() (state.bars.put) races the LinkedHashMap iteration -> CME.
-                synchronized (state) {
-                    clearDroppedChannels(p, state, oldChannels, newChannels);
-                    render(p, state);
-                }
+                dispatchToPlayer(p, () -> {
+                    if (!p.isOnline()) return;
+                    // Every other render caller holds the per-player state monitor; this reload path must too,
+                    // else a concurrent per-tick update() (state.bars.put) races the LinkedHashMap iteration -> CME.
+                    synchronized (state) {
+                        clearDroppedChannels(p, state, oldChannels, newChannels);
+                        render(p, state);
+                    }
+                });
             }
         }
         ensureTickTask();
     }
 
-    private static java.util.Set<Channel> parseChannels(java.util.List<String> raw) {
-        java.util.EnumSet<Channel> parsed = java.util.EnumSet.noneOf(Channel.class);
+    private static Set<Channel> parseChannels(List<String> raw) {
+        EnumSet<Channel> parsed = EnumSet.noneOf(Channel.class);
         if (raw != null) {
             for (String s : raw) {
                 Channel c = Channel.parse(s);
@@ -145,11 +150,11 @@ public final class BuffBossbarManager implements Listener {
             }
         }
         // Empty / missing / all-unknown -> boss bar, preserving the pre-channels default.
-        return parsed.isEmpty() ? java.util.EnumSet.of(Channel.BOSSBAR) : parsed;
+        return parsed.isEmpty() ? EnumSet.of(Channel.BOSSBAR) : parsed;
     }
 
     private void clearDroppedChannels(Player player, PlayerBars state,
-                                      java.util.Set<Channel> oldCh, java.util.Set<Channel> newCh) {
+                                      Set<Channel> oldCh, Set<Channel> newCh) {
         if (oldCh.contains(Channel.BOSSBAR) && !newCh.contains(Channel.BOSSBAR)) {
             hideBossbars(player, state);
         }
@@ -204,7 +209,14 @@ public final class BuffBossbarManager implements Listener {
     public void update(Plugin owner, Player player, NamespacedKey key,
                        Component title, float progress,
                        BossBar.Color color, BossBar.Overlay overlay) {
-        if (!renderingEnabled() || player == null || key == null || !player.isOnline()) return;
+        if (!renderingEnabled() || player == null || key == null) return;
+        dispatchToPlayer(player, () -> updateOnPlayer(owner, player, key, title, progress, color, overlay));
+    }
+
+    private void updateOnPlayer(Plugin owner, Player player, NamespacedKey key,
+                                Component title, float progress,
+                                BossBar.Color color, BossBar.Overlay overlay) {
+        if (!renderingEnabled() || !player.isOnline()) return;
         float clamped = quantize(clamp(progress));
         BossBar.Color c = color == null ? BossBar.Color.WHITE : color;
         BossBar.Overlay o = overlay == null ? BossBar.Overlay.PROGRESS : overlay;
@@ -251,6 +263,10 @@ public final class BuffBossbarManager implements Listener {
         if (player == null || key == null) return;
         PlayerBars state = players.get(player.getUniqueId());
         if (state == null) return;
+        dispatchToPlayer(player, () -> hideOnPlayer(player, key, state));
+    }
+
+    private void hideOnPlayer(Player player, NamespacedKey key, PlayerBars state) {
         BossBar removed;
         synchronized (state) {
             removed = state.bars.remove(key);
@@ -285,18 +301,21 @@ public final class BuffBossbarManager implements Listener {
         if (player == null) return;
         PlayerBars state = players.remove(player.getUniqueId());
         if (state == null) return;
-        if (player.isOnline()) {
-            synchronized (state) {
-                for (BossBar bar : state.bars.values()) {
-                    player.hideBossBar(bar);
-                }
+        dispatchToPlayer(player, () -> hideAllOnPlayer(player, state));
+    }
+
+    private void hideAllOnPlayer(Player player, PlayerBars state) {
+        if (!player.isOnline()) return;
+        synchronized (state) {
+            for (BossBar bar : state.bars.values()) {
+                player.hideBossBar(bar);
             }
-            clearAuxiliary(player);
         }
+        clearAuxiliary(player);
     }
 
     private void clearAuxiliary(Player player) {
-        java.util.Set<Channel> ch = channels;
+        Set<Channel> ch = channels;
         if (ch.contains(Channel.ACTIONBAR)) player.sendActionBar(Component.empty());
         if (ch.contains(Channel.TAB_FOOTER)) player.sendPlayerListFooter(Component.empty());
     }
@@ -318,13 +337,8 @@ public final class BuffBossbarManager implements Listener {
             Map.Entry<UUID, PlayerBars> entry = it.next();
             Player player = Bukkit.getPlayer(entry.getKey());
             PlayerBars state = entry.getValue();
-            if (player != null && player.isOnline()) {
-                synchronized (state) {
-                    for (BossBar bar : state.bars.values()) {
-                        player.hideBossBar(bar);
-                    }
-                }
-                clearAuxiliary(player);
+            if (player != null) {
+                dispatchToPlayer(player, () -> hideAllOnPlayer(player, state));
             }
             it.remove();
         }
@@ -332,7 +346,7 @@ public final class BuffBossbarManager implements Listener {
 
     private void render(Player player, PlayerBars state) {
         if (!renderingEnabled()) return;
-        java.util.Set<Channel> ch = channels;
+        Set<Channel> ch = channels;
         if (ch.contains(Channel.BOSSBAR)) {
             syncBossbars(player, state);
         }
@@ -344,7 +358,7 @@ public final class BuffBossbarManager implements Listener {
         renderAuxiliary(player, state, channels);
     }
 
-    private void renderAuxiliary(Player player, PlayerBars state, java.util.Set<Channel> ch) {
+    private void renderAuxiliary(Player player, PlayerBars state, Set<Channel> ch) {
         if (ch.contains(Channel.ACTIONBAR)) {
             player.sendActionBar(joinTitles(state, actionbarSeparator));
         }
@@ -408,7 +422,7 @@ public final class BuffBossbarManager implements Listener {
             ensureTickTask();
             return;
         }
-        java.util.Set<Channel> ch = channels;
+        Set<Channel> ch = channels;
         boolean rotate = ch.contains(Channel.BOSSBAR) && layoutMode == LayoutMode.ROTATING;
         boolean refreshActionBar = ch.contains(Channel.ACTIONBAR)
                 && currentTick % actionbarRefreshTicks == 0;
@@ -417,32 +431,45 @@ public final class BuffBossbarManager implements Listener {
         }
         for (Map.Entry<UUID, PlayerBars> entry : players.entrySet()) {
             PlayerBars state = entry.getValue();
-            // Cheap unlocked pre-check: rotation needs >1 bar past the interval; action-bar refresh needs
-            // any active buff. Skip the lock entirely when neither applies.
-            boolean canRotate = rotate && state.bars.size() > 1
-                    && currentTick - state.lastRotationTick >= rotationIntervalTicks;
-            boolean canRefresh = refreshActionBar && !state.snapshots.isEmpty();
+            boolean canRotate;
+            boolean canRefresh;
+            synchronized (state) {
+                canRotate = rotate && state.bars.size() > 1
+                        && currentTick - state.lastRotationTick >= rotationIntervalTicks;
+                canRefresh = refreshActionBar && !state.snapshots.isEmpty();
+            }
             if (!canRotate && !canRefresh) continue;
             Player player = Bukkit.getPlayer(entry.getKey());
-            if (player == null || !player.isOnline()) continue;
-            synchronized (state) {
-                if (rotate && state.bars.size() > 1
-                        && currentTick - state.lastRotationTick >= rotationIntervalTicks) {
-                    // Advance currentVisible to the next key in insertion order; wrap.
-                    NamespacedKey next = findNext(state);
-                    if (next != null) {
-                        BossBar oldBar = state.currentVisible == null ? null : state.bars.get(state.currentVisible);
-                        if (oldBar != null) player.hideBossBar(oldBar);
-                        state.currentVisible = next;
-                        state.lastRotationTick = currentTick;
-                        player.showBossBar(state.bars.get(next));
+            if (player == null) continue;
+            dispatchToPlayer(player, () -> {
+                if (!player.isOnline()) return;
+                synchronized (state) {
+                    if (rotate && state.bars.size() > 1
+                            && currentTick - state.lastRotationTick >= rotationIntervalTicks) {
+                        // Advance currentVisible to the next key in insertion order; wrap.
+                        NamespacedKey next = findNext(state);
+                        if (next != null) {
+                            BossBar oldBar = state.currentVisible == null ? null : state.bars.get(state.currentVisible);
+                            if (oldBar != null) player.hideBossBar(oldBar);
+                            state.currentVisible = next;
+                            state.lastRotationTick = currentTick;
+                            player.showBossBar(state.bars.get(next));
+                        }
+                    }
+                    // Re-send the action bar so it doesn't fade; it always shows all active buffs.
+                    if (refreshActionBar && !state.snapshots.isEmpty()) {
+                        player.sendActionBar(joinTitles(state, actionbarSeparator));
                     }
                 }
-                // Re-send the action bar so it doesn't fade; it always shows all active buffs.
-                if (refreshActionBar && !state.snapshots.isEmpty()) {
-                    player.sendActionBar(joinTitles(state, actionbarSeparator));
-                }
-            }
+            });
+        }
+    }
+
+    private void dispatchToPlayer(Player player, Runnable action) {
+        if (plugin.scheduler().isFolia() && !Bukkit.isOwnedByCurrentRegion(player)) {
+            plugin.scheduler().runForEntity(player, action);
+        } else {
+            action.run();
         }
     }
 

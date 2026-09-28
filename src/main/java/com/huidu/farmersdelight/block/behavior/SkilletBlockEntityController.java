@@ -48,8 +48,11 @@ public final class SkilletBlockEntityController extends BlockEntityController im
     // Guards loadPendingDataIfReady against re-entry from manager entry-creation hooks that flush pending data.
     private volatile boolean applyingPendingLoad;
 
-    public SkilletBlockEntityController(BlockEntity blockEntity) {
+    private final FarmersDelightPlugin plugin;
+
+    public SkilletBlockEntityController(FarmersDelightPlugin plugin, BlockEntity blockEntity) {
         super(blockEntity);
+        this.plugin = plugin;
         this.container = CraftEngine.instance().platform().createContainer(this);
         this.inventory = CraftInventoryProxy.INSTANCE.newInstance(this.container);
     }
@@ -156,10 +159,9 @@ public final class SkilletBlockEntityController extends BlockEntityController im
             return stack == null ? null : stack.clone();
         }
 
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         SkilletManager manager = getManager();
         Location location = getLocation();
-        if (plugin == null || plugin.isSkilletHopperInteractionsEnabled() || manager == null || location == null) {
+        if (plugin == null || !plugin.isSkilletHopperInteractionsEnabled() || manager == null || location == null) {
             return stack.clone();
         }
 
@@ -378,7 +380,6 @@ public final class SkilletBlockEntityController extends BlockEntityController im
     }
 
     private SkilletManager getManager() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         return plugin == null ? null : plugin.getSkilletManager();
     }
 }

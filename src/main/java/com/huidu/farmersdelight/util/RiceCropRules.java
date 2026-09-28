@@ -33,6 +33,10 @@ public final class RiceCropRules {
         return false;
     }
 
+    public static boolean isSingleSourceWater(Block block) {
+        return isSourceWater(block) && !isWaterBlock(block.getRelative(BlockFace.UP));
+    }
+
     public static boolean isValidSoil(Block block) {
         return isValidSoil(block, RICE_CROP_ID);
     }
@@ -59,6 +63,11 @@ public final class RiceCropRules {
                 || type == Material.PODZOL
                 || type == Material.MYCELIUM) {
             return true;
+        }
+
+        // These can never be supporting soil; avoid a custom-block lookup for the common empty/fluid cases.
+        if (type == Material.AIR || type == Material.WATER) {
+            return false;
         }
 
         ImmutableBlockState customState = CraftEngineBlocks.getCustomBlockState(block);
@@ -107,8 +116,12 @@ public final class RiceCropRules {
     }
 
     public static boolean canPlantRiceAt(Block waterBlock, Key cropId) {
-        return isSourceWater(waterBlock)
+        return isSingleSourceWater(waterBlock)
                 && isValidSoil(waterBlock.getRelative(BlockFace.DOWN), cropId);
+    }
+
+    private static boolean isWaterBlock(Block block) {
+        return block != null && block.getType() == Material.WATER;
     }
 
     public static boolean canLowerRiceStay(Block block) {
@@ -120,11 +133,8 @@ public final class RiceCropRules {
             return false;
         }
 
-        // After placement, CE may use a carrier block to represent planted rice
-        // instead of a literal WATER block. The water check at planting time stays in
-        // canPlantRiceAt(...), but once rice is planted, follow the reference plugin's
-        // support rule: the lower half stays valid as long as the soil below is valid.
+        // Require water at planting time in canPlantRiceAt. Once planted, CE uses a carrier state,
+        // so continued survival depends on valid soil beneath the lower half.
         return isValidSoil(block.getRelative(BlockFace.DOWN), cropId);
     }
 }
-

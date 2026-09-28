@@ -8,6 +8,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -68,9 +69,8 @@ final class SpecialRecipeRenderer {
         return lore;
     }
 
-    // Reserved for future compat: when a lang key embeds '\n' the client renders it as one squashed
-    // line, so the key must be split into separate lore lines server-side. Descriptions currently
-    // avoid '\n' by listing each line as its own translation key, so this stays unused for now.
+    // Split embedded newlines into separate server-side lore components because the client renders a
+    // translated component as one line.
     private static List<Component> translatedLines(List<String> keys, NamedTextColor color, Player player) {
         List<Component> lore = new ArrayList<>();
         for (String key : keys) {
@@ -99,10 +99,8 @@ final class SpecialRecipeRenderer {
     }
 
     /**
-     * A catalyst cycle slot item. Unlike the tool/ingredient switchers (which rebuild the whole lore on
-     * every tick), this used to depend on a one-time appendCatalystListLore after page draw, so the full
-     * catalyst list was wiped as soon as auto-cycle overwrote the slot. Each candidate now carries its own
-     * copy of the list lore when showFullList is set, so switching can never lose it.
+     * A catalyst cycle slot item. Pagination redraws cycle slots every tick, so each candidate carries the
+     * full catalyst lore when showFullList is set.
      */
     ItemStack createSpecialCycleDisplay(ItemStack item, int currentIndex, int total,
                                         boolean showFullList, List<ItemStack> options, Player player) {
@@ -128,7 +126,7 @@ final class SpecialRecipeRenderer {
         ItemMeta meta = item.getItemMeta();
         // Hide the carrier: the description is text shown on hover, so render the slot with the
         // transparent "air" item model instead of a visible paper icon.
-        meta.setItemModel(new org.bukkit.NamespacedKey("minecraft", "air"));
+        meta.setItemModel(new NamespacedKey("minecraft", "air"));
         if (translationKeys.isEmpty()) {
             meta.displayName(Component.text(""));
             meta.lore(List.of());
@@ -197,9 +195,9 @@ final class SpecialRecipeRenderer {
     // hover text. A near-invisible pane with the "air" item model keeps the grid slot clear while still
     // offering the translated name/lore on hover.
     private ItemStack createLoreCarrierItem(String nameKey, String loreKey, NamedTextColor nameColor) {
-        ItemStack item = new ItemStack(org.bukkit.Material.LIGHT_GRAY_STAINED_GLASS_PANE);
+        ItemStack item = new ItemStack(Material.LIGHT_GRAY_STAINED_GLASS_PANE);
         ItemMeta meta = item.getItemMeta();
-        meta.setItemModel(new org.bukkit.NamespacedKey("minecraft", "air"));
+        meta.setItemModel(new NamespacedKey("minecraft", "air"));
         meta.displayName(translatable(nameKey, nameColor));
         meta.lore(translatableLore(loreKey, NamedTextColor.GRAY));
         item.setItemMeta(meta);

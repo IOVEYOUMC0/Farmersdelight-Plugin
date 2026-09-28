@@ -2,11 +2,14 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
+import net.momirealms.craftengine.core.plugin.config.KnownResourceException;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.world.BlockPos;
 import org.bukkit.World;
@@ -14,6 +17,7 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -39,18 +43,18 @@ public class ConnectedRugBlockBehavior extends RugBlockBehavior {
 
     public static final BlockBehaviorFactory<ConnectedRugBlockBehavior> FACTORY = new BlockBehaviorFactory<ConnectedRugBlockBehavior>() {
         @Override
-        public ConnectedRugBlockBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
+        public ConnectedRugBlockBehavior create(BlockDefinition block, ConfigSection section) {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
             String variantPropertyName = BehaviorArgParser.getString(arguments, "variant-property", null);
             Property<?> variantProperty = variantPropertyName == null ? null : block.getProperty(variantPropertyName);
-            Set<String> connectedIds = new java.util.HashSet<>(BehaviorArgParser.getStringList(arguments, "connected-ids"));
+            Set<String> connectedIds = new HashSet<>(BehaviorArgParser.getStringList(arguments, "connected-ids"));
             if (connectedIds.isEmpty()) {
                 connectedIds.add(block.id().namespace() + ":" + block.id().value());
             }
 
             String path = section != null ? section.path() : Constants.BEHAVIOR_CONNECTED_RUG;
             if (variantPropertyName != null && variantProperty == null) {
-                throw new net.momirealms.craftengine.core.plugin.config.KnownResourceException(
+                throw new KnownResourceException(
                         "resource.block.behavior.missing_property", path, variantPropertyName);
             }
             return new ConnectedRugBlockBehavior(block, variantProperty, connectedIds);
@@ -136,7 +140,9 @@ public class ConnectedRugBlockBehavior extends RugBlockBehavior {
     private void writeVariant(World world, Block self, ImmutableBlockState state) {
         Set<BlockFace> connected = EnumSet.noneOf(BlockFace.class);
         for (BlockFace face : HORIZONTAL) {
-            if (isConnected(CraftEngineBlocks.getCustomBlockState(self.getRelative(face)))) {
+            // A neighbour in a chunk that is not loaded counts as unconnected: reading its CE state would load
+            // the chunk, and the variant rewrite below would cross into the owning region.
+            if (isConnected(CustomBlockUtils.getStateIfResident(self.getRelative(face)))) {
                 connected.add(face);
             }
         }
@@ -159,7 +165,7 @@ public class ConnectedRugBlockBehavior extends RugBlockBehavior {
     private void refreshNeighbors(World world, Block center) {
         for (BlockFace face : HORIZONTAL) {
             Block neighbor = center.getRelative(face);
-            ImmutableBlockState neighborState = CraftEngineBlocks.getCustomBlockState(neighbor);
+            ImmutableBlockState neighborState = CustomBlockUtils.getStateIfResident(neighbor);
             if (neighborState == null || neighborState.isEmpty() || !isConnected(neighborState)) {
                 continue;
             }
