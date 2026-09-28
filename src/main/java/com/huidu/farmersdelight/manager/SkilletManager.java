@@ -7,26 +7,46 @@ import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CampfireRecipeCache;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.api.util.ItemDelivery;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.SkilletBlockEntityController;
+import com.huidu.farmersdelight.api.block.SkilletSnapshot;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
+import com.huidu.farmersdelight.util.compat.CraftEngineModelMappings;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
+import net.momirealms.craftengine.bukkit.api.BukkitAdaptor;
+import net.momirealms.craftengine.bukkit.plugin.network.BukkitNetworkManager;
+import net.momirealms.craftengine.proxy.minecraft.network.protocol.game.ClientboundSetPlayerInventoryPacketProxy;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
+import net.momirealms.craftengine.core.item.component.DataComponentKeys;
+import net.momirealms.craftengine.core.util.Key;
+import net.momirealms.craftengine.core.util.VersionHelper;
+import net.momirealms.craftengine.core.world.BlockPos;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
+import org.bukkit.Material;
 import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
 import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Item;
 import org.bukkit.inventory.CookingRecipe;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.Damageable;
+import org.bukkit.persistence.PersistentDataContainer;
+import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.util.Vector;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -41,12 +61,56 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 public class SkilletManager {
 
+    // ---- hand-held cooking, delegated to SkilletHandheldCooking -------------------------------
+    // Only these five members are read from outside (SkilletItemBehavior, SkilletLifecycleListener);
+    // everything else about hand-held sessions lives in the extracted class.
+    //
+    // Every one of them guards for null even though the constructor always assigns the field: listeners are
+    // registered after it, but a partially-built manager (a throw part-way through the constructor) would
+    // otherwise turn every later skillet interaction into an NPE instead of a no-op.
+
+    /** Hand-held cooking; assigned in the constructor after the display models it depends on exist. */
+    private SkilletHandheldCooking handheldCooking;
+
+    public boolean handleHandheldInteract(Player player, EquipmentSlot skilletHand,
+                                          NamespacedKey cookingModel, NamespacedKey overlayModel,
+                                          Map<String, NamespacedKey> ingredientModels) {
+        return handheldCooking != null && handheldCooking.handleHandheldInteract(player, skilletHand,
+                cookingModel, overlayModel, ingredientModels);
+    }
+
+    public void stopHandheldUse(Player player, ItemStack releasedItem) {
+        if (handheldCooking != null) {
+            handheldCooking.stopHandheldUse(player, releasedItem);
+        }
+    }
+
+    public boolean isHandheldCooking(Player player) {
+        return handheldCooking != null && handheldCooking.isHandheldCooking(player);
+    }
+
+    public boolean hasHandheldIngredient(ItemStack skillet) {
+        return handheldCooking != null && handheldCooking.hasHandheldIngredient(skillet);
+    }
+
+    /** Defaults to true, matching the config default, so an unbuilt manager does not report "disabled". */
+    public boolean isHandheldCookingEnabled() {
+        return handheldCooking == null || handheldCooking.cookingEnabled();
+    }
+
+
     private static final int HEARTBEAT_LOG_INTERVAL = 20;
     private static final int DEFAULT_TICK_BUDGET = 512;
+    static final int PLACED_TICK_INTERVAL = 4;
+    // Upper bound on the ticks one placed-skillet visit may credit. A skillet starved by the tick budget is
+    // revisited every 4 * (count / budget) ticks rather than every 4, and that real elapsed time is credited
+    // so it cooks in real time; the cap only keeps a long region stall from crediting an absurd batch at once.
+    private static final int MAX_ELAPSED_CREDIT_TICKS = 1200;
     private static final int DEFAULT_COOK_TIME = Constants.DEFAULT_COOKING_TIME_SKILLET;
     private static final int DEFAULT_MIN_COOK_TIME = 60;
     private static final int DEFAULT_COOLING_DECREMENT = 2;
@@ -62,8 +126,7 @@ public class SkilletManager {
     private final SkilletVisualManager visualManager;
     private final SkilletEffectManager effectManager;
     private final Map<Location, SkilletData> skillets = new ConcurrentHashMap<>();
-    private final Map<UUID, Set<Location>> skilletsByWorld = new ConcurrentHashMap<>();
-    private final Map<UUID, Map<Long, Set<Location>>> skilletsByChunk = new ConcurrentHashMap<>();
+    private final WorldChunkLocationIndex locationIndex = new WorldChunkLocationIndex();
     private final Set<Location> scheduledSkilletTicks = ConcurrentHashMap.newKeySet();
     private final Object visualRefreshLock = new Object();
     private final Deque<SkilletData> pendingVisualRefreshes = new ArrayDeque<>();
@@ -71,29 +134,41 @@ public class SkilletManager {
     private volatile List<Location> tickLocationsSnapshot = List.of();
     private volatile long tickLocationsSnapshotVersion = -1L;
     private final CampfireRecipeCache campfireRecipes = new CampfireRecipeCache("skillet", this::debug);
-    // R-CONC-002 (#010 precedent): tickTask is written by region threads (ensureTaskRunning, reached from
-    // block events) and read+nulled by the global tick thread (stopTaskIfIdle) — volatile for visibility
-    // + a dedicated lock so the check-then-schedule / check-then-cancel are atomic (no double-schedule).
+    // Region events start tickTask; the global task may cancel it when idle.
+    // Volatile publishes the handle, and the lock makes start/stop checks atomic to prevent duplicate tasks.
     private volatile PluginTask tickTask;
     private PluginTask visualRefreshTask;
     private final Object tickTaskLock = new Object();
     private int heartbeatTicks;
     private int tickCursor;
-    private int tickBudget;
-    private int defaultCookingTime = DEFAULT_COOK_TIME;
-    private int minCookingTime = DEFAULT_MIN_COOK_TIME;
-    private int coolingDecrement = DEFAULT_COOLING_DECREMENT;
+    private volatile int tickBudget;
+    private volatile int defaultCookingTime = DEFAULT_COOK_TIME;
+    private volatile int minCookingTime = DEFAULT_MIN_COOK_TIME;
+    private volatile int coolingDecrement = DEFAULT_COOLING_DECREMENT;
     private volatile int reloadVisualRefreshBudget = DEFAULT_RELOAD_VISUAL_REFRESH_BUDGET;
-    private double cookTimeMultiplier = DEFAULT_COOK_TIME_MULTIPLIER;
-    private double fireAspectBonus = DEFAULT_FIRE_ASPECT_BONUS;
+    private volatile double cookTimeMultiplier = DEFAULT_COOK_TIME_MULTIPLIER;
+    private volatile double fireAspectBonus = DEFAULT_FIRE_ASPECT_BONUS;
 
     public SkilletManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
         this.visualManager = new SkilletVisualManager(plugin);
         this.effectManager = new SkilletEffectManager(plugin);
+        // Read the settings before the hand-held block exists: this call runs with handheldCooking still null
+        // (it only pushes the two switches when the field is set), and it fixes the definite-assignment order,
+        // because the supplier below closes over handheldCooking.
+        reloadConfig();
+        HandheldCookingModels models = new HandheldCookingModels(plugin,
+                plugin.getDataFolder().toPath().resolve("generated/handheld-cooking"),
+                () -> handheldCooking != null && handheldCooking.cookingEnabled(),
+                () -> campfireRecipes.ingredients());
+        this.handheldCooking = new SkilletHandheldCooking(plugin, campfireRecipes, models,
+                this::awardUseSkillet, defaultCookingTime, minCookingTime, cookTimeMultiplier, fireAspectBonus);
+        plugin.getServer().getPluginManager().registerEvents(models, plugin);
+        // Second pass so the two hand-held switches actually land in the extracted block.
         reloadConfig();
         campfireRecipes.rebuild();
     }
+
 
     public void reloadConfig() {
         this.tickBudget = Math.max(1, plugin.getConfigInt(DEFAULT_TICK_BUDGET,
@@ -109,13 +184,20 @@ public class SkilletManager {
                 "skillet.cooking.cooling-decrement",
                 "skillet.cooling-decrement"));
         this.reloadVisualRefreshBudget = Math.max(1, plugin.getConfigInt(DEFAULT_RELOAD_VISUAL_REFRESH_BUDGET,
-                "performance.reload-visual-refreshes-per-tick"));
+                "performance.budgets.reload-visual-refreshes-per-tick"));
         this.cookTimeMultiplier = ManagerSupport.clampChance(plugin.getConfigDouble(DEFAULT_COOK_TIME_MULTIPLIER,
                 "skillet.cooking.cook-time-multiplier",
                 "skillet.cooking-time-reduction"));
         this.fireAspectBonus = ManagerSupport.clampChance(plugin.getConfigDouble(DEFAULT_FIRE_ASPECT_BONUS,
                 "skillet.cooking.fire-aspect-bonus",
                 "skillet.fire-aspect-bonus"));
+        if (handheldCooking != null) {
+            handheldCooking.applyConfig(
+                    plugin.getConfigBoolean(true, "skillet.handheld.enabled", "skillet.handheld-cooking.enabled"),
+                    plugin.getConfigBoolean(true,
+                            "skillet.handheld.progress-display.enabled", "skillet.handheld-progress-display.enabled"),
+                    defaultCookingTime, minCookingTime, cookTimeMultiplier, fireAspectBonus);
+        }
         effectManager.reloadConfig();
         refreshVisualsAfterConfigReload();
     }
@@ -129,7 +211,7 @@ public class SkilletManager {
                 return;
             }
             debug("tick task: starting skillet tick task");
-            tickTask = plugin.scheduler().runRepeating(this::tick, 1L, 4L);
+            tickTask = plugin.scheduler().runRepeating(this::tick, 1L, PLACED_TICK_INTERVAL);
         }
     }
 
@@ -159,9 +241,7 @@ public class SkilletManager {
         // CraftEngine's chunk cache where loadCustomData never re-ran); apply it before creating a blank
         // entry that would shadow the stored contents and let the late apply overwrite this interaction.
         if (normalized.getWorld() != null) {
-            CustomBlockUtils.notifyControllerChanged(normalized.getWorld(), new BlockPosKey(normalized),
-                    com.huidu.farmersdelight.block.behavior.SkilletBlockEntityController.class, null,
-                    com.huidu.farmersdelight.block.behavior.SkilletBlockEntityController::loadPendingDataIfReady);
+            flushControllerPendingData(normalized);
             SkilletData loaded = skillets.get(normalized);
             if (loaded != null) {
                 return loaded;
@@ -173,12 +253,12 @@ public class SkilletManager {
         if (previous != null) {
             return previous;
         }
-        indexSkillet(normalized);
+        locationIndex.add(normalized);
         markTickLocationsDirty();
         return created;
     }
 
-    public void collectLiveDisplayIds(java.util.Set<Integer> out) {
+    public void collectLiveDisplayIds(Set<Integer> out) {
         for (SkilletData skillet : skillets.values()) {
             out.addAll(skillet.displayEntityIds);
         }
@@ -196,6 +276,32 @@ public class SkilletManager {
         TrayManager trayManager = plugin.getTrayManager();
         if (trayManager != null) {
             trayManager.checkAndPlaceTray(location);
+        }
+    }
+
+    /**
+     * The item a placed skillet hands over when a player picks the block (creative middle-click): the stack the
+     * block was placed from, i.e. the item it would also drop. Handing over the snapshot keeps the enchantments
+     * and, because it is the very stack the player still holds, lets the pick select that stack instead of
+     * adding a second skillet next to it. Null means the block is not tracked (or its item is unknown), and
+     * CraftEngine falls back to the block's own item id.
+     */
+    public ItemStack pickupSnapshot(Location blockLocation) {
+        if (blockLocation == null || blockLocation.getWorld() == null) {
+            return null;
+        }
+        SkilletData skillet = skillets.get(ManagerSupport.normalize(blockLocation));
+        if (skillet == null) {
+            return null;
+        }
+        // Same monitor the tick and break paths use, so the snapshot cannot be read mid-replacement.
+        synchronized (skillet) {
+            if (skillet.skilletStack == null || skillet.skilletStack.getType().isAir()) {
+                return null;
+            }
+            ItemStack snapshot = skillet.skilletStack.clone();
+            snapshot.setAmount(1);
+            return snapshot;
         }
     }
 
@@ -235,10 +341,7 @@ public class SkilletManager {
             } else if (hand != EquipmentSlot.OFF_HAND && player.getInventory().getItemInMainHand().getType().isAir()) {
                 player.getInventory().setItemInMainHand(toReturn);
             } else {
-                Map<Integer, ItemStack> leftovers = player.getInventory().addItem(toReturn);
-                for (ItemStack leftover : leftovers.values()) {
-                    block.getWorld().dropItemNaturally(location.clone().add(0.5, 1.0, 0.5), leftover);
-                }
+                ItemDelivery.giveOrDrop(player, location.clone().add(0.5, 1.0, 0.5), toReturn);
             }
             block.getWorld().playSound(location, Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.0f);
             return true;
@@ -273,13 +376,25 @@ public class SkilletManager {
             debug("recipe match: stacking onto skillet, recipe=" + recipe.getKey() + ", move=" + toMove
                     + ", storedBefore=" + formatItem(skillet.storedItem) + ", input=" + formatItem(heldItem)
                     + ", location=" + formatLocation(location));
-            skillet.storedItem.setAmount(skillet.storedItem.getAmount() + toMove);
+            int previousAmount = skillet.storedItem.getAmount();
+            skillet.storedItem.setAmount(previousAmount + toMove);
+            UUID previousOwnerId = skillet.ownerId;
+            String previousOwnerName = skillet.ownerName;
             skillet.ownerId = player.getUniqueId();
             skillet.ownerName = player.getName();
             debug("create state: stacked item now=" + formatItem(skillet.storedItem)
                     + ", recipe=" + skillet.currentRecipe.getKey() + ", location=" + formatLocation(location));
-            createVisual(location, skillet);
-            saveSkillet(location, skillet);
+            try {
+                createVisual(location, skillet);
+                saveSkillet(location, skillet);
+            } catch (RuntimeException | LinkageError failure) {
+                // Nothing has been taken from the player yet, so the stored food is put back exactly as it was:
+                // a failing display or save must not leave the same items in the hand and in the skillet.
+                skillet.storedItem.setAmount(previousAmount);
+                skillet.ownerId = previousOwnerId;
+                skillet.ownerName = previousOwnerName;
+                throw failure;
+            }
 
             if (player.getGameMode() != GameMode.CREATIVE) {
                 debug("consume: stacked move=" + toMove + ", before=" + heldItem.getAmount()
@@ -291,7 +406,6 @@ public class SkilletManager {
                         + ", location=" + formatLocation(location));
             }
 
-            awardUseSkillet(player);
             SoundUtils.play(block.getWorld(), location, getAddFoodSound(location), Sound.BLOCK_LANTERN_PLACE, 0.7f, 1.0f);
             return true;
         }
@@ -312,6 +426,7 @@ public class SkilletManager {
         ItemStack toPlace = heldItem.clone();
         int placeAmount = heldItem.getAmount();
         toPlace.setAmount(placeAmount);
+        StoredState previousState = captureStoredState(skillet);
         skillet.storedItem = toPlace;
         skillet.currentRecipe = recipe;
         skillet.cookingDuration = getAdjustedCookingTime(recipe.getCookingTime(), skillet.fireAspectLevel);
@@ -322,8 +437,15 @@ public class SkilletManager {
                 + ", duration=" + skillet.cookingDuration + ", fireAspect=" + skillet.fireAspectLevel
                 + ", location=" + formatLocation(location));
 
-        createVisual(location, skillet);
-        saveSkillet(location, skillet);
+        try {
+            createVisual(location, skillet);
+            saveSkillet(location, skillet);
+        } catch (RuntimeException | LinkageError failure) {
+            // The hand stack has not been consumed yet, so restoring the previous stored state keeps the food
+            // in exactly one place when the display or the persistence step fails.
+            restoreStoredState(skillet, previousState);
+            throw failure;
+        }
 
         if (player.getGameMode() != GameMode.CREATIVE) {
             debug("consume: before=" + heldItem.getAmount() + ", after=" + (heldItem.getAmount() - placeAmount)
@@ -334,7 +456,6 @@ public class SkilletManager {
                     + ", location=" + formatLocation(location));
         }
 
-        awardUseSkillet(player);
         SoundUtils.play(block.getWorld(), location, getAddFoodSound(location), Sound.BLOCK_LANTERN_PLACE, 0.7f, 1.0f);
         return true;
         }
@@ -352,7 +473,27 @@ public class SkilletManager {
         return skillet.storedItem.clone();
     }
 
-    public com.huidu.farmersdelight.api.block.SkilletSnapshot snapshot(Location location) {
+    // Stored-food fields of one skillet, captured before an interaction mutates them so a failure in the
+    // display or persistence step can be rolled back instead of duplicating the item.
+    private record StoredState(ItemStack item, CookingRecipe<?> recipe, int duration, int progress,
+                               UUID ownerId, String ownerName) {
+    }
+
+    private static StoredState captureStoredState(SkilletData skillet) {
+        return new StoredState(skillet.storedItem, skillet.currentRecipe, skillet.cookingDuration,
+                skillet.cookingProgress, skillet.ownerId, skillet.ownerName);
+    }
+
+    private static void restoreStoredState(SkilletData skillet, StoredState state) {
+        skillet.storedItem = state.item();
+        skillet.currentRecipe = state.recipe();
+        skillet.cookingDuration = state.duration();
+        skillet.cookingProgress = state.progress();
+        skillet.ownerId = state.ownerId();
+        skillet.ownerName = state.ownerName();
+    }
+
+    public SkilletSnapshot snapshot(Location location) {
         Location normalized = ManagerSupport.normalize(location);
         if (normalized == null) {
             return null;
@@ -364,7 +505,7 @@ public class SkilletManager {
         boolean heated = computeHasHeatSource(normalized);
         synchronized (skillet) {
             CookingRecipe<?> recipe = skillet.currentRecipe;
-            return new com.huidu.farmersdelight.api.block.SkilletSnapshot(
+            return new SkilletSnapshot(
                     normalized,
                     skillet.storedItem,
                     skillet.skilletStack,
@@ -384,20 +525,27 @@ public class SkilletManager {
         }
 
         SkilletData skillet = skillets.get(normalized);
-        if (skillet == null || !skillet.hasItem()) {
+        if (skillet == null) {
             return true;
         }
+        // The skillet's data object is the per-block monitor (interactions and breaks lock on it too), so the
+        // emptiness/stack checks read a state no concurrent path can change underneath them.
+        synchronized (skillet) {
+            if (!skillet.hasItem()) {
+                return true;
+            }
 
-        CookingRecipe<?> incomingRecipe = findCampfireRecipe(item);
-        CookingRecipe<?> storedRecipe = skillet.currentRecipe;
-        if (storedRecipe == null) {
-            storedRecipe = findCampfireRecipe(skillet.storedItem);
-        }
-        if (canStackWithStored(skillet.storedItem, item, storedRecipe, incomingRecipe)) {
-            return false;
-        }
+            CookingRecipe<?> incomingRecipe = findCampfireRecipe(item);
+            CookingRecipe<?> storedRecipe = skillet.currentRecipe;
+            if (storedRecipe == null) {
+                storedRecipe = findCampfireRecipe(skillet.storedItem);
+            }
+            if (canStackWithStored(skillet.storedItem, item, storedRecipe, incomingRecipe)) {
+                return false;
+            }
 
-        return skillet.storedItem.getAmount() < skillet.storedItem.getMaxStackSize();
+            return skillet.storedItem.getAmount() < skillet.storedItem.getMaxStackSize();
+        }
     }
 
     public ItemStack insertHopperInput(Location location, ItemStack item) {
@@ -411,54 +559,62 @@ public class SkilletManager {
 
         SkilletData skillet = getOrLoadSkillet(normalized);
         ensurePlacedSkilletState(skillet);
-        CookingRecipe<?> incomingRecipe = findCampfireRecipe(item);
-        ItemStack pending = item.clone();
-
-        if (skillet.hasItem()) {
-            CookingRecipe<?> storedRecipe = skillet.currentRecipe;
-            if (storedRecipe == null) {
-                storedRecipe = findCampfireRecipe(skillet.storedItem);
-                skillet.currentRecipe = storedRecipe;
-            }
-            if (canStackWithStored(skillet.storedItem, pending, storedRecipe, incomingRecipe)) {
+        // Same per-block monitor as the interaction and break paths: a hopper insert runs on the region thread
+        // that owns the hopper, which is not necessarily the one owning the block entity, so without the lock
+        // a concurrent take could hand the same stored stack out twice (or drop an insert).
+        synchronized (skillet) {
+            CookingRecipe<?> incomingRecipe = findCampfireRecipe(item);
+            ItemStack pending = item.clone();
+            if (incomingRecipe == null) {
                 return pending;
             }
 
-            int freeSpace = Math.max(0, skillet.storedItem.getMaxStackSize() - skillet.storedItem.getAmount());
-            int toMove = Math.min(freeSpace, pending.getAmount());
+            if (skillet.hasItem()) {
+                CookingRecipe<?> storedRecipe = skillet.currentRecipe;
+                if (storedRecipe == null) {
+                    storedRecipe = findCampfireRecipe(skillet.storedItem);
+                    skillet.currentRecipe = storedRecipe;
+                }
+                if (canStackWithStored(skillet.storedItem, pending, storedRecipe, incomingRecipe)) {
+                    return pending;
+                }
+
+                int freeSpace = Math.max(0, skillet.storedItem.getMaxStackSize() - skillet.storedItem.getAmount());
+                int toMove = Math.min(freeSpace, pending.getAmount());
+                if (toMove <= 0) {
+                    return pending;
+                }
+
+                debug("hopper input: stacking onto skillet, move=" + toMove + ", storedBefore="
+                        + formatItem(skillet.storedItem) + ", input=" + formatItem(pending)
+                        + ", location=" + formatLocation(normalized));
+                skillet.storedItem.setAmount(skillet.storedItem.getAmount() + toMove);
+                createVisual(normalized, skillet);
+                saveSkillet(normalized, skillet);
+                return remainingAfterMove(pending, toMove);
+            }
+
+            int toMove = Math.min(pending.getAmount(), pending.getMaxStackSize());
             if (toMove <= 0) {
                 return pending;
             }
 
-            debug("hopper input: stacking onto skillet, move=" + toMove + ", storedBefore="
-                    + formatItem(skillet.storedItem) + ", input=" + formatItem(pending)
+            ItemStack toPlace = pending.clone();
+            toPlace.setAmount(toMove);
+            skillet.storedItem = toPlace;
+            skillet.currentRecipe = incomingRecipe;
+            skillet.cookingDuration = getAdjustedCookingTime(incomingRecipe.getCookingTime(), skillet.fireAspectLevel);
+            skillet.cookingProgress = 0;
+            skillet.ownerId = null;
+            skillet.ownerName = null;
+            debug("hopper input: stored=" + formatItem(toPlace) + ", recipe=" + incomingRecipe.getKey()
+                    + ", duration=" + skillet.cookingDuration + ", fireAspect=" + skillet.fireAspectLevel
                     + ", location=" + formatLocation(normalized));
-            skillet.storedItem.setAmount(skillet.storedItem.getAmount() + toMove);
+
             createVisual(normalized, skillet);
             saveSkillet(normalized, skillet);
             return remainingAfterMove(pending, toMove);
         }
-
-        int toMove = Math.min(pending.getAmount(), pending.getMaxStackSize());
-        if (toMove <= 0) {
-            return pending;
-        }
-
-        ItemStack toPlace = pending.clone();
-        toPlace.setAmount(toMove);
-        skillet.storedItem = toPlace;
-        skillet.currentRecipe = incomingRecipe;
-        skillet.cookingDuration = getAdjustedCookingTime(incomingRecipe.getCookingTime(), skillet.fireAspectLevel);
-        skillet.cookingProgress = 0;
-        skillet.ownerId = null;
-        skillet.ownerName = null;
-        debug("hopper input: stored=" + formatItem(toPlace) + ", recipe=" + incomingRecipe.getKey()
-                + ", duration=" + skillet.cookingDuration + ", fireAspect=" + skillet.fireAspectLevel
-                + ", location=" + formatLocation(normalized));
-
-        createVisual(normalized, skillet);
-        saveSkillet(normalized, skillet);
-        return remainingAfterMove(pending, toMove);
     }
 
     public boolean canCook(ItemStack item) {
@@ -511,15 +667,11 @@ public class SkilletManager {
         }
 
         String customItemId = ItemUtils.getCustomItemId(item);
-        if (customItemId == null) {
-            return false;
-        }
-
-        if (customItemId.contains("knife")) {
+        if (customItemId != null && customItemId.contains("knife")) {
             return true;
         }
 
-        return plugin.isKnifeItemId(customItemId);
+        return plugin.isKnife(item);
     }
 
     private boolean isSkilletItem(ItemStack item) {
@@ -544,8 +696,8 @@ public class SkilletManager {
     private void flushControllerPendingData(Location location) {
         if (location == null || location.getWorld() == null) return;
         CustomBlockUtils.notifyControllerChanged(location.getWorld(), new BlockPosKey(location),
-                com.huidu.farmersdelight.block.behavior.SkilletBlockEntityController.class, null,
-                com.huidu.farmersdelight.block.behavior.SkilletBlockEntityController::loadPendingDataIfReady);
+                    SkilletBlockEntityController.class, null,
+                    SkilletBlockEntityController::loadPendingDataIfReady);
     }
 
     public void breakSkillet(Location blockLocation, Location dropLocation, boolean shouldDropItems) {
@@ -599,32 +751,26 @@ public class SkilletManager {
         if (world == null) {
             return;
         }
-        Set<Location> locations = skilletsByWorld.get(world.getUID());
-        if (locations == null || locations.isEmpty()) {
+        List<Location> locations = locationIndex.worldLocations(world.getUID());
+        if (locations.isEmpty()) {
             return;
         }
-        for (Location location : List.copyOf(locations)) {
+        for (Location location : locations) {
             SkilletData skillet = skillets.get(location);
             if (skillet == null) {
                 continue;
             }
-            // Same contract as saveAndUnloadChunk: snapshot into the controller, then drop the live entry.
-            // CE serializes the world's chunks at WorldUnloadEvent HIGHEST (after this NORMAL handler and
-            // its cleanup), so a removed entry without a snapshot would export nothing and wipe the data.
-            // If the unload gets cancelled by another plugin, the first interaction re-hydrates from the
-            // snapshot via the entry-creation flush.
-            if (passivateToController(world, location)) {
-                removeSkillet(location);
-            } else {
-                saveSkillet(location, skillet);
-            }
+            // Unlike the chunk path this runs at NORMAL: CE serializes the world's chunks at
+            // WorldUnloadEvent HIGHEST, after this handler. If the unload is cancelled by another plugin,
+            // the first interaction re-hydrates from the snapshot via the entry-creation flush.
+            passivateOrSave(world, location, skillet);
         }
     }
 
     public void cleanupWorld(UUID worldId) {
-        Set<Location> locations = skilletsByWorld.remove(worldId);
-        skilletsByChunk.remove(worldId);
-        if (locations == null || locations.isEmpty()) {
+        effectManager.cleanupWorld(worldId);
+        List<Location> locations = locationIndex.removeWorld(worldId);
+        if (locations.isEmpty()) {
             return;
         }
 
@@ -643,12 +789,13 @@ public class SkilletManager {
         if (world == null) {
             return;
         }
-        Map<Long, Set<Location>> worldChunks = skilletsByChunk.get(world.getUID());
-        Set<Location> locations = worldChunks == null ? null : worldChunks.get(ManagerSupport.chunkKey(minX, minZ));
-        if (locations == null || locations.isEmpty()) {
+        long chunkKey = ManagerSupport.chunkKey(minX >> 4, minZ >> 4);
+        effectManager.cleanupChunk(world.getUID(), chunkKey);
+        List<Location> locations = locationIndex.chunkLocationsAtBlock(world.getUID(), minX, minZ);
+        if (locations.isEmpty()) {
             return;
         }
-        for (Location location : List.copyOf(locations)) {
+        for (Location location : locations) {
             if (location.getBlockX() >= minX && location.getBlockX() <= maxX
                     && location.getBlockZ() >= minZ && location.getBlockZ() <= maxZ) {
                 SkilletData skillet = skillets.get(location);
@@ -656,29 +803,34 @@ public class SkilletManager {
                     removeSkillet(location);
                     continue;
                 }
-                // Snapshot into the controller BEFORE removing the entry: CE serializes this chunk at
-                // ChunkUnloadEvent HIGHEST by pulling from this manager, which runs after this HIGH
-                // handler — removing first would make it export nothing and wipe the persisted data.
-                if (passivateToController(world, location)) {
-                    removeSkillet(location);
-                } else {
-                    // Controller unreachable: keep the entry so the pull-serialization can still export
-                    // it; the entry is reconciled on the next chunk load.
-                    saveSkillet(location, skillet);
-                }
+                passivateOrSave(world, location, skillet);
             }
+        }
+    }
+
+    /**
+     * Snapshots the skillet into its block-entity controller and drops the live entry, falling back to a
+     * plain save when the controller is unreachable (the entry then stays for the next load to reconcile).
+     * Both unload paths must snapshot BEFORE removing the entry: CE serializes at HIGHEST, after their
+     * handlers, by pulling from this manager — removing first would export nothing and wipe the data.
+     */
+    private void passivateOrSave(World world, Location location, SkilletData skillet) {
+        if (passivateToController(world, location)) {
+            removeSkillet(location);
+        } else {
+            saveSkillet(location, skillet);
         }
     }
 
     private boolean passivateToController(World world, Location location) {
         boolean[] stashed = {false};
         CustomBlockUtils.notifyControllerChanged(world, new BlockPosKey(location),
-                com.huidu.farmersdelight.block.behavior.SkilletBlockEntityController.class, null,
+                    SkilletBlockEntityController.class, null,
                 controller -> stashed[0] = controller.passivate());
         return stashed[0];
     }
 
-    public boolean loadSkillet(World world, net.momirealms.craftengine.core.world.BlockPos pos, Map<String, Object> data) {
+    public boolean loadSkillet(World world, BlockPos pos, Map<String, Object> data) {
         return loadSkillet(world, new BlockPosKey(pos), data);
     }
 
@@ -749,7 +901,27 @@ public class SkilletManager {
         return getOrCreateSkillet(normalized);
     }
 
+    /**
+     * Cancels the placed/handheld tick tasks without dropping any state, for the window between the
+     * shutdown-time save and the in-memory cleanup: a skillet that keeps cooking after its data was written
+     * would drop items the disk copy still lists, and both tasks read the plugin's tick manager, which
+     * shutdown clears first.
+     */
+    public void suspendTickTasks() {
+        handheldCooking.suspendTickTask();
+        synchronized (tickTaskLock) {
+            if (tickTask != null) {
+                tickTask.cancel();
+                tickTask = null;
+            }
+        }
+        synchronized (visualRefreshLock) {
+            stopVisualRefreshTask();
+        }
+    }
+
     public void cleanup() {
+        handheldCooking.shutdown();
         synchronized (visualRefreshLock) {
             pendingVisualRefreshes.clear();
             stopVisualRefreshTask();
@@ -764,8 +936,8 @@ public class SkilletManager {
             cleanupVisual(skillet);
         }
         skillets.clear();
-        skilletsByWorld.clear();
-        skilletsByChunk.clear();
+        effectManager.cleanup();
+        locationIndex.clear();
         scheduledSkilletTicks.clear();
         tickLocationsSnapshot = List.of();
         markTickLocationsDirty();
@@ -776,8 +948,8 @@ public class SkilletManager {
             return List.of();
         }
 
-        Set<Location> indexed = skilletsByWorld.get(world.getUID());
-        if (indexed == null || indexed.isEmpty()) {
+        List<Location> indexed = locationIndex.worldLocations(world.getUID());
+        if (indexed.isEmpty()) {
             return List.of();
         }
 
@@ -814,7 +986,7 @@ public class SkilletManager {
             // entry's item display so it doesn't orphan (the incoming skillet already created its own).
             cleanupVisual(previous);
         }
-        indexSkillet(normalized);
+        locationIndex.add(normalized);
         markTickLocationsDirty();
     }
 
@@ -823,7 +995,7 @@ public class SkilletManager {
         SkilletData removed = skillets.remove(normalized);
         if (removed != null) {
             scheduledSkilletTicks.remove(normalized);
-            deindexSkillet(normalized);
+            locationIndex.remove(normalized);
             markTickLocationsDirty();
         }
         return removed;
@@ -850,51 +1022,6 @@ public class SkilletManager {
         tickLocationsSnapshot = updated;
         tickLocationsSnapshotVersion = version;
         return updated;
-    }
-
-    private void indexSkillet(Location location) {
-        if (location == null || location.getWorld() == null) {
-            return;
-        }
-        skilletsByWorld
-                .computeIfAbsent(location.getWorld().getUID(), ignored -> ConcurrentHashMap.newKeySet())
-                .add(location);
-        skilletsByChunk
-                .computeIfAbsent(location.getWorld().getUID(), ignored -> new ConcurrentHashMap<>())
-                .computeIfAbsent(ManagerSupport.chunkKey(location), ignored -> ConcurrentHashMap.newKeySet())
-                .add(location);
-    }
-
-    private void deindexSkillet(Location location) {
-        if (location == null || location.getWorld() == null) {
-            return;
-        }
-        UUID worldId = location.getWorld().getUID();
-        Set<Location> locations = skilletsByWorld.get(worldId);
-        if (locations == null) {
-            return;
-        }
-        locations.remove(location);
-        if (locations.isEmpty()) {
-            skilletsByWorld.remove(worldId);
-        }
-
-        Map<Long, Set<Location>> worldChunks = skilletsByChunk.get(worldId);
-        if (worldChunks == null) {
-            return;
-        }
-        long chunkKey = ManagerSupport.chunkKey(location);
-        Set<Location> chunkLocations = worldChunks.get(chunkKey);
-        if (chunkLocations == null) {
-            return;
-        }
-        chunkLocations.remove(location);
-        if (chunkLocations.isEmpty()) {
-            worldChunks.remove(chunkKey);
-        }
-        if (worldChunks.isEmpty()) {
-            skilletsByChunk.remove(worldId);
-        }
     }
 
     private void removeSkillet(Location location) {
@@ -992,6 +1119,24 @@ public class SkilletManager {
     }
 
     private void tickSkillet(Location location, SkilletData skillet) {
+        PerformanceMonitor.Timing timing = plugin.getTickManager().featureTiming(PerformanceMonitor.Feature.SKILLET);
+        long started = timing == null ? 0L : System.nanoTime();
+        try {
+            advancePlacedCooking(location, skillet);
+        } catch (Throwable t) {
+            // One bad block must not escape the repeating task: on Paper it would abort the whole pass, and
+            // on Folia the throw would leave this location's in-flight guard set forever. Throttled per world.
+            plugin.getTickManager().warnFeatureFailure("tick-skillet", I18n.formatNamedArgs(
+                    "console.tick.error_ticking",
+                    "type", "skillet",
+                    "pos", new BlockPosKey(location).toString(),
+                    "error", String.valueOf(t.getMessage())), location.getWorld(), t);
+        } finally {
+            if (timing != null) timing.record(System.nanoTime() - started);
+        }
+    }
+
+    private void advancePlacedCooking(Location location, SkilletData skillet) {
         if (skillets.get(location) != skillet) {
             return;
         }
@@ -1004,7 +1149,7 @@ public class SkilletManager {
             // A /ce reload unbinds custom states for its parse window while the injected server block
             // is still in the world; skip the tick instead of tearing the skillet down mid-reload
             // (the teardown below marks the chunk dirty with the entry gone = wipes the saved data).
-            if (net.momirealms.craftengine.bukkit.api.CraftEngineBlocks.isCustomBlock(location.getBlock())) {
+            if (CraftEngineBlocks.isCustomBlock(location.getBlock())) {
                 return;
             }
             debug(() -> "tick remove: skillet carrier block is gone at " + formatLocation(location));
@@ -1028,7 +1173,8 @@ public class SkilletManager {
         // A skillet with no matching recipe can never cook, so just cool down and return, skipping the per-tick heat-source probe
         // (heat detection often does a CraftEngine custom block-state lookup).
         if (skillet.currentRecipe == null) {
-            skillet.cookingProgress = Math.max(0, skillet.cookingProgress - coolingDecrement);
+            skillet.advanceCookingProgress(skillet.elapsedSinceLastCredit(
+                    Bukkit.getCurrentTick(), PLACED_TICK_INTERVAL, MAX_ELAPSED_CREDIT_TICKS), false, coolingDecrement);
             return;
         }
 
@@ -1054,12 +1200,9 @@ public class SkilletManager {
             skillet.lastHeatState = hasHeat;
         }
 
-        if (!hasHeat) {
-            skillet.cookingProgress = Math.max(0, skillet.cookingProgress - coolingDecrement);
-            return;
-        }
-
-        skillet.cookingProgress++;
+        skillet.advanceCookingProgress(skillet.elapsedSinceLastCredit(
+                currentBukkitTick, PLACED_TICK_INTERVAL, MAX_ELAPSED_CREDIT_TICKS), hasHeat, coolingDecrement);
+        if (!hasHeat) return;
 
         effectManager.dispatchTickEffects(world, location, carrierState);
         if (skillet.cookingProgress >= skillet.cookingDuration) {
@@ -1130,7 +1273,7 @@ public class SkilletManager {
 
             Location dropLoc = location.clone().add(0.5, 0.3, 0.5);
             var droppedItem = location.getWorld().dropItem(dropLoc, result.clone());
-            droppedItem.setVelocity(new org.bukkit.util.Vector(
+            droppedItem.setVelocity(new Vector(
                     clockwise.getModX() * 0.08,
                     0.25,
                     clockwise.getModZ() * 0.08
@@ -1251,6 +1394,11 @@ public class SkilletManager {
         }
     }
 
+
+    /**
+     * The placed-skillet side looks campfire recipes up directly; hand-held cooking has its own copy of this
+     * one-liner inside SkilletHandheldCooking because it owns its own lookups.
+     */
     private CookingRecipe<?> findCampfireRecipe(ItemStack item) {
         return campfireRecipes.find(item);
     }
@@ -1321,7 +1469,7 @@ public class SkilletManager {
             return;
         }
 
-        AdvancementManager advancementManager = FarmersDelightPlugin.getInstance().getAdvancementManager();
+        AdvancementManager advancementManager = plugin.getAdvancementManager();
         if (advancementManager != null) {
             advancementManager.award(player, "use_skillet");
         }

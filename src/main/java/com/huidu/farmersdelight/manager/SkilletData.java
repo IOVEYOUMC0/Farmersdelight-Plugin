@@ -35,6 +35,9 @@ public final class SkilletData {
     // lastHeatState this forms a short-TTL cache so hasHeatSource skips its two getBlockAt +
     // HeatSourceConfig queries in the steady state (heat source changes are block-event driven).
     long heatSourceCheckedTick = Long.MIN_VALUE;
+    // Tick stamp of the last cook-progress credit; Long.MIN_VALUE = never credited. A freshly created or
+    // re-loaded entry starts here, so time spent unloaded is never credited.
+    long lastCookingCreditTick = Long.MIN_VALUE;
 
     SkilletData(Location location, int defaultCookingTime) {
         this.location = location;
@@ -43,5 +46,30 @@ public final class SkilletData {
 
     boolean hasItem() {
         return storedItem != null && !storedItem.getType().isAir();
+    }
+
+    void advanceCookingProgress(int elapsedTicks, boolean heated, int coolingDecrement) {
+        // Recipe durations and cooling rates use game ticks, not manager invocations.
+        long change = heated ? elapsedTicks : -(long) elapsedTicks * coolingDecrement;
+        cookingProgress = (int) Math.max(0L, Math.min(cookingDuration, cookingProgress + change));
+    }
+
+    /**
+     * Game ticks elapsed since the previous credit, or the interval on the first one. The placed loop only
+     * revisits a skillet every interval ticks while the tick budget covers every skillet, so crediting a
+     * fixed interval would cook and cool slower than real time once a server holds more skillets than the
+     * budget. Bounded so a long stall cannot credit an implausible batch in one step.
+     */
+    int elapsedSinceLastCredit(long currentTick, int interval, int cap) {
+        long previous = lastCookingCreditTick;
+        lastCookingCreditTick = currentTick;
+        if (previous == Long.MIN_VALUE) {
+            return interval;
+        }
+        long elapsed = currentTick - previous;
+        if (elapsed <= 0L) {
+            return interval;
+        }
+        return (int) Math.min(cap, elapsed);
     }
 }

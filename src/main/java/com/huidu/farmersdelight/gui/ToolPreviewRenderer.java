@@ -92,6 +92,12 @@ final class ToolPreviewRenderer {
         return new ItemStack(Material.IRON_AXE);
     }
 
+    // How many preview items a tool cycles through. The cycle timer only needs the count, and the
+    // cloning resolve above allocates a fresh list plus a copy of every item on each call.
+    int resolveToolPreviewOptionsSize(CuttingBoardRecipe.ToolRequirement tool) {
+        return toolPreviewCache.computeIfAbsent(tool, this::computeToolPreviewOptions).size();
+    }
+
     List<ItemStack> resolveToolPreviewOptions(CuttingBoardRecipe.ToolRequirement tool) {
         List<ItemStack> cached = toolPreviewCache.computeIfAbsent(tool, this::computeToolPreviewOptions);
         List<ItemStack> copy = new ArrayList<>(cached.size());
@@ -142,7 +148,9 @@ final class ToolPreviewRenderer {
     private List<ItemStack> createVanillaToolPreviewItems(String suffix) {
         List<ItemStack> items = new ArrayList<>();
         for (Material material : Material.values()) {
-            if (!material.isItem()) continue;
+            // Skipping legacy materials avoids forcing CraftLegacy into its one-time class init
+            // (resolving a legacy item type routes through CraftLegacy.fromLegacy).
+            if (material.isLegacy() || !material.isItem()) continue;
             String name = material.name();
             if (name.endsWith(suffix.toUpperCase(Locale.ROOT))) {
                 items.add(new ItemStack(material));

@@ -1,0 +1,189 @@
+# Per-item and per-tag display tables for items placed on a cutting board (and on the FD stations that
+# reuse the same board rendering). Kept out of config.yml so the settings there stay readable; the board
+# settings themselves (default offset, spread) remain in config.yml under cutting-board.
+#
+# items: key is the item id stored on the board, which can be minecraft:* or a CraftEngine item id.
+# tags:  batch-override whole item-tag families; the key may omit '#', or use a quoted "#namespace:tag".
+#
+# Per-key options:
+#   display-item: use another item as the display model, good when the original model renders incorrectly in an ItemDisplay.
+#   style: auto detects automatically; item forces a flat item; block forces a block/3D item.
+#   position: extra offset on top of the global default-display-offset, format x,y,z.
+#   translation: internal translation of the ItemDisplay transformation. Usually leave default, adjust only when the model's own pivot is off.
+#   rotation: directly override the display rotation angles, format x,y,z in degrees.
+#   scale: directly override the scale, format x,y,z; can also be a single number such as 0.55.
+#
+# Example:
+#   items:
+#     farmersdelight:tomato:
+#       display-item: farmersdelight:tomato_display
+#       style: item
+#       position: 0,0.02,0
+#       translation: 0,0,0
+#       rotation: 90,180,0
+#       scale: 0.55
+
+items:
+  farmersdelight:stove:
+    style: block
+  farmersdelight:cooking_pot:
+    style: block
+  farmersdelight:cutting_board:
+    style: block
+  farmersdelight:skillet:
+    style: block
+    rotation: -90,90,0
+    position: 0,-0.225,0
+  farmersdelight:basket:
+    style: block
+  farmersdelight:tray:
+    style: block
+  # 3D blocks whose item icon is 2D (item/generated parent in the vanilla model) — placed on the board
+  # they read as flat sprites instead of awkward floating meshes. Unknown ids are ignored silently
+  # (CuttingBoardDisplayConfig validates only the namespace:id format, never material existence), so
+  # cross-version item lists are safe — e.g. pale_oak_sapling on 1.21.1.
+  minecraft:torch:
+    style: item
+  minecraft:soul_torch:
+    style: item
+  minecraft:redstone_torch:
+    style: item
+  minecraft:lantern:
+    style: item
+  minecraft:soul_lantern:
+    style: item
+  minecraft:end_rod:
+    style: item
+  minecraft:lightning_rod:
+    style: item
+  minecraft:chain:
+    style: item
+  minecraft:hopper:
+    style: item
+  minecraft:cauldron:
+    style: item
+  minecraft:brewing_stand:
+    style: item
+  minecraft:campfire:
+    style: item
+  minecraft:soul_campfire:
+    style: item
+  minecraft:cake:
+    style: item
+  minecraft:conduit:
+    style: item
+  minecraft:end_portal_frame:
+    style: item
+  minecraft:flower_pot:
+    style: item
+  minecraft:ladder:
+    style: item
+  minecraft:scaffolding:
+    style: item
+  minecraft:tripwire_hook:
+    style: item
+  minecraft:cobweb:
+    style: item
+  minecraft:lily_pad:
+    style: item
+  minecraft:vine:
+    style: item
+  minecraft:weeping_vines:
+    style: item
+  minecraft:twisting_vines:
+    style: item
+  minecraft:hanging_roots:
+    style: item
+  minecraft:nether_wart:
+    style: item
+  minecraft:nether_sprouts:
+    style: item
+  minecraft:crimson_roots:
+    style: item
+  minecraft:warped_roots:
+    style: item
+  minecraft:crimson_fungus:
+    style: item
+  minecraft:warped_fungus:
+    style: item
+  minecraft:dead_bush:
+    style: item
+  minecraft:short_grass:
+    style: item
+  minecraft:tall_grass:
+    style: item
+  minecraft:fern:
+    style: item
+  minecraft:large_fern:
+    style: item
+  minecraft:sugar_cane:
+    style: item
+  minecraft:kelp:
+    style: item
+  minecraft:sea_pickle:
+    style: item
+  minecraft:azalea:
+    style: item
+  minecraft:flowering_azalea:
+    style: item
+  minecraft:pink_petals:
+    style: item
+  minecraft:glow_lichen:
+    style: item
+  minecraft:sculk_vein:
+    style: item
+  minecraft:oak_sapling:
+    style: item
+  minecraft:spruce_sapling:
+    style: item
+  minecraft:birch_sapling:
+    style: item
+  minecraft:jungle_sapling:
+    style: item
+  minecraft:acacia_sapling:
+    style: item
+  minecraft:dark_oak_sapling:
+    style: item
+  minecraft:cherry_sapling:
+    style: item
+  minecraft:pale_oak_sapling:
+    style: item
+  minecraft:mangrove_propagule:
+    style: item
+  minecraft:bamboo_sapling:
+    style: item
+  minecraft:firefly_bush:
+    style: item
+# Batch-override displays by item tag. key may omit #, or use a quoted "#namespace:tag" in items.
+tags:
+  # Vanilla item tags that cover whole families of 3D-block-with-2D-item entries — saves listing every
+  # wood/colour variant individually. Unknown tags are ignored at lookup, so versions that lack a tag
+  # just won't apply the override.
+  minecraft:doors:
+    style: item
+  minecraft:beds:
+    style: item
+    rotation: -90,-90,0
+    position: 0,0.05,0
+  minecraft:banners:
+    style: item
+  minecraft:signs:
+    style: item
+  minecraft:hanging_signs:
+    style: item
+  minecraft:rails:
+    style: item
+  minecraft:small_flowers:
+    style: item
+  minecraft:tall_flowers:
+    style: item
+# Example:
+# display-tag-overrides:
+#   minecraft:logs:
+#     style: block
+#     scale: 0.55
+
+# Knife detection. Recommended to keep both tags and explicit items: tags for CE resource-side extension, explicit items as a fallback.
+# This is the knife definition for the whole plugin, not only for drops: the cutting board, the skillet,
+# mushroom colony harvesting, rice harvesting, straw drops, the knife icon in the recipe viewer and the
+# knife achievements all read it, as do addon drop rules registered without their own tool list.

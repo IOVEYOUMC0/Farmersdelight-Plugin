@@ -9,6 +9,7 @@ import org.bukkit.inventory.ItemStack;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -191,7 +192,7 @@ public class CookingPotItemDistributor {
         if (customId != null && plugin.getCookingPotRecipes().getValidContainerKeys().contains(customId)) {
             return true;
         }
-        String materialKey = "minecraft:" + item.getType().name().toLowerCase(java.util.Locale.ROOT);
+        String materialKey = "minecraft:" + item.getType().name().toLowerCase(Locale.ROOT);
         return plugin.getCookingPotRecipes().getValidContainerKeys().contains(materialKey);
     }
 }

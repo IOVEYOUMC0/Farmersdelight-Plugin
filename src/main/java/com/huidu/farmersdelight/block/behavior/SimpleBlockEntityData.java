@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.FarmersDelightPlugin;
 import net.momirealms.craftengine.bukkit.util.ItemStackUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.core.plugin.config.Config;
@@ -73,7 +74,7 @@ final class SimpleBlockEntityData {
                     item = ItemStackUtils.parseBukkitItem(value, Config.itemDataFixerUpperFallbackVersion());
                 } catch (RuntimeException e) {
                     // Corrupt/version-skewed item: skip this key rather than aborting the whole load.
-                    com.huidu.farmersdelight.FarmersDelightPlugin.getInstance().getLogger()
+                    FarmersDelightPlugin.getInstance().getLogger()
                             .warning("Skipping unreadable block-entity item '" + key + "': " + e.getMessage());
                     continue;
                 }
@@ -86,9 +87,7 @@ final class SimpleBlockEntityData {
             if (text == null) {
                 continue;
             }
-            // Preserve original type: only convert NumericTag to Integer. Previously, any value whose
-            // text happened to parse as int was forced to Integer, breaking string fields like all-numeric
-            // owner names (consumers use `instanceof String` to detect the value's type).
+            // Preserve tag types: only NumericTag values become Integer; numeric-looking strings remain strings.
             if (value instanceof NumericTag) {
                 Integer integer = parseInteger(text);
                 data.put(key, integer != null ? integer : text);

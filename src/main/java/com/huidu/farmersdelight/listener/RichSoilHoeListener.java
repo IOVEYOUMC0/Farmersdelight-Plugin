@@ -13,6 +13,8 @@ import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.GameMode;
+import org.bukkit.Sound;
 import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
@@ -49,7 +51,10 @@ public final class RichSoilHoeListener implements Listener {
         // Respect WorldGuard build protection (mirrors SkilletPlaceListener). Without this a player
         // with no build permission could till rich_soil into rich_soil_farmland inside a protected
         // region — this listener runs at HIGH and would otherwise place the block unconditionally.
-        if (!ProtectionCompat.canBuild(event.player(), target, ProtectionCompat.Feature.RICH_SOIL)) return;
+        if (!ProtectionCompat.canPlace(event.player(), target, ProtectionCompat.Feature.RICH_SOIL)) {
+            event.setCancelled(true);
+            return;
+        }
 
         BlockDefinition farmland = CraftEngineBlocks.byId(RICH_SOIL_FARMLAND_KEY);
         if (farmland == null) return;
@@ -61,8 +66,8 @@ public final class RichSoilHoeListener implements Listener {
         event.setCancelled(true);
         Player player = event.player();
         target.getWorld().playSound(target.getLocation().add(0.5, 0.5, 0.5),
-                org.bukkit.Sound.ITEM_HOE_TILL, 1.0F, 1.0F);
-        if (player.getGameMode() != org.bukkit.GameMode.CREATIVE && item.getType() != Material.AIR) {
+                Sound.ITEM_HOE_TILL, 1.0F, 1.0F);
+        if (player.getGameMode() != GameMode.CREATIVE && item.getType() != Material.AIR) {
             item.damage(1, player);
         }
         AdvancementManager am = plugin.getAdvancementManager();

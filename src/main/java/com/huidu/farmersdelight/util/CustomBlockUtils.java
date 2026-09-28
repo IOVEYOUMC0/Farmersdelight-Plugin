@@ -8,6 +8,7 @@ import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.block.entity.BlockEntityController;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.item.Item;
+import net.momirealms.craftengine.core.util.Direction;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.CEWorld;
 import net.momirealms.craftengine.core.world.chunk.CEChunk;
@@ -18,7 +19,11 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.Directional;
 
+import java.util.Locale;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 public final class CustomBlockUtils {
@@ -38,6 +43,29 @@ public final class CustomBlockUtils {
             return null;
         }
         return getState(location.getBlock());
+    }
+
+    /**
+     * CE state of a block whose chunk is already resident, null when it is not. The ordinary getState
+     * reads through the level, which loads a missing chunk synchronously and fires that chunk's entity-load
+     * events — never what a background or neighbour scan wants. Callers that may run next to an unloaded chunk
+     * (random ticks, redstone/neighbour hooks, delayed tasks) must use this variant.
+     */
+    public static ImmutableBlockState getStateIfResident(Block block) {
+        if (block == null || block.getWorld() == null) {
+            return null;
+        }
+        if (!block.getWorld().isChunkLoaded(block.getX() >> 4, block.getZ() >> 4)) {
+            return null;
+        }
+        return getState(block);
+    }
+
+    public static ImmutableBlockState getStateIfResident(Location location) {
+        if (location == null || location.getWorld() == null) {
+            return null;
+        }
+        return getStateIfResident(location.getBlock());
     }
 
     public static String getId(Block block) {
@@ -61,6 +89,11 @@ public final class CustomBlockUtils {
 
     public static boolean hasId(Block block, String blockId) {
         return normalizeId(blockId).equals(getId(block));
+    }
+
+    /** Like hasId(Block, String), but false instead of loading the chunk when it is not resident. */
+    public static boolean hasIdIfResident(Block block, String blockId) {
+        return normalizeId(blockId).equals(getId(getStateIfResident(block)));
     }
 
     public static boolean hasId(Location location, String blockId) {
@@ -90,8 +123,7 @@ public final class CustomBlockUtils {
                 : null;
     }
 
-    private static final java.util.concurrent.atomic.AtomicBoolean CE_WORLD_LOAD_FAILURE_LOGGED =
-            new java.util.concurrent.atomic.AtomicBoolean();
+    private static final AtomicBoolean CE_WORLD_LOAD_FAILURE_LOGGED = new AtomicBoolean();
 
     public static CEWorld getCEWorld(World world) {
         if (world == null) {
@@ -116,9 +148,17 @@ public final class CustomBlockUtils {
         }
     }
 
-    private static CEWorld resolveCEWorld(BukkitWorldManager worldManager, java.util.UUID uuid) {
-        net.momirealms.craftengine.bukkit.world.BukkitWorld world = worldManager.getWorld(uuid);
-        return world == null ? null : world.ceWorld();
+    // Some CraftEngine builds hand back the CEWorld directly, others the platform World wrapper.
+    // Accepting both keeps this working across a CE upgrade instead of throwing ClassCastException.
+    private static CEWorld resolveCEWorld(BukkitWorldManager worldManager, UUID uuid) {
+        Object world = worldManager.getWorld(uuid);
+        if (world instanceof CEWorld ceWorld) {
+            return ceWorld;
+        }
+        if (world instanceof net.momirealms.craftengine.core.world.World platformWorld) {
+            return platformWorld.ceWorld();
+        }
+        return null;
     }
 
     public static World getBukkitWorld(BlockEntity blockEntity) {
@@ -274,7 +314,7 @@ public final class CustomBlockUtils {
 
         if (block != null) {
             var blockData = block.getBlockData();
-            if (blockData instanceof org.bukkit.block.data.Directional directional) {
+            if (blockData instanceof Directional directional) {
                 return directional.getFacing();
             }
         }
@@ -293,7 +333,7 @@ public final class CustomBlockUtils {
         }
         // CE's direction-typed properties carry the engine's Direction enum; mapping it directly
         // skips the toString + string switch on per-tick callers.
-        if (value instanceof net.momirealms.craftengine.core.util.Direction direction) {
+        if (value instanceof Direction direction) {
             return switch (direction) {
                 case SOUTH -> BlockFace.SOUTH;
                 case EAST -> BlockFace.EAST;
@@ -325,7 +365,7 @@ public final class CustomBlockUtils {
         if (value == null) {
             return null;
         }
-        if (value instanceof net.momirealms.craftengine.core.util.Direction direction) {
+        if (value instanceof Direction direction) {
             return switch (direction) {
                 case UP -> BlockFace.UP;
                 case DOWN -> BlockFace.DOWN;
@@ -335,7 +375,7 @@ public final class CustomBlockUtils {
                 case EAST -> BlockFace.EAST;
             };
         }
-        return switch (value.toString().toLowerCase(java.util.Locale.ROOT)) {
+        return switch (value.toString().toLowerCase(Locale.ROOT)) {
             case "up" -> BlockFace.UP;
             case "down" -> BlockFace.DOWN;
             case "south" -> BlockFace.SOUTH;
@@ -346,7 +386,7 @@ public final class CustomBlockUtils {
     }
 
     public static BlockFace parseFacing(String facingValue) {
-        return switch (facingValue.toLowerCase(java.util.Locale.ROOT)) {
+        return switch (facingValue.toLowerCase(Locale.ROOT)) {
             case "south" -> BlockFace.SOUTH;
             case "east" -> BlockFace.EAST;
             case "west" -> BlockFace.WEST;

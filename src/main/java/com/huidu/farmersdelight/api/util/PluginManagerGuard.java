@@ -1,7 +1,6 @@
 package com.huidu.farmersdelight.api.util;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.command.CommandSender;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -10,6 +9,7 @@ import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.server.ServerCommandEvent;
 
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 public final class PluginManagerGuard implements Listener {
@@ -64,11 +64,6 @@ public final class PluginManagerGuard implements Listener {
     }
 
     private void sendRefusal(CommandSender sender) {
-        sender.sendMessage(Component.text()
-                .append(Component.text("[" + pluginName + "] ").color(NamedTextColor.YELLOW))
-                .append(Component.text(
-                        "This plugin does not support runtime management. /stop and restart the server to apply changes."
-                ).color(NamedTextColor.RED))
-                .build());
+        sender.sendMessage(I18n.getComponent("command.runtime_management_refused", Map.of("plugin", pluginName)));
     }
 }

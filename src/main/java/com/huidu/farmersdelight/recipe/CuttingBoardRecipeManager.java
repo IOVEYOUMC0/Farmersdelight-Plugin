@@ -1,14 +1,21 @@
 package com.huidu.farmersdelight.recipe;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.recipe.AddonRecipeFiles;
+import com.huidu.farmersdelight.api.recipe.IngredientMatchMemo;
 import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.pack.PackSection;
+import com.huidu.farmersdelight.pack.PackSections;
+import com.huidu.farmersdelight.gui.RecipeViewGui;
+import com.huidu.farmersdelight.util.CommonTagResolver;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.compat.MMOItemsCompat;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
@@ -17,10 +24,13 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public class CuttingBoardRecipeManager {
 
@@ -28,6 +38,9 @@ public class CuttingBoardRecipeManager {
     // Rebuilt as a whole on reload; published as a whole via volatile writes so readers on Folia
     // region/entity threads never observe a half-cleared map. Never mutate in place after publishing.
     private volatile Map<String, CuttingBoardRecipe> recipes = Map.of();
+    // Recipes whose winning definition came from a CraftEngine pack section; published with the maps above
+    // so the startup summary can tell the plugin's own file, pack content and runtime registrations apart.
+    private volatile int packRecipeCount;
     private volatile List<CuttingBoardRecipe> sortedRecipes = List.of();
     // Input index for matchRecipe — narrows the candidate set without changing match order. Splits recipes
     // into two buckets at load time:
@@ -44,7 +57,7 @@ public class CuttingBoardRecipeManager {
     private volatile List<CuttingBoardRecipe.ToolRequirement> toolRequirements = List.of();
     // Recipes registered at runtime by addons via the public API; kept separate so they survive a
     // /fd reload (which rebuilds the file-backed map) and merged into the published map in loadRecipes().
-    private final Map<String, CuttingBoardRecipe> externalRecipes = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<String, CuttingBoardRecipe> externalRecipes = new ConcurrentHashMap<>();
     // External (un)register republishing is coalesced to the next tick (one loadRecipes() per batch).
     private volatile boolean externalRepublishScheduled = false;
     // Caches CraftEngine's vanillaItemIdsByTag result per tag so matchesTaggedItem doesn't re-stream
@@ -59,27 +72,44 @@ public class CuttingBoardRecipeManager {
 
     public void loadRecipes() {
         Map<String, CuttingBoardRecipe> newRecipes = new LinkedHashMap<>();
+        // Ids whose winning definition came from a CraftEngine pack section; see getPackRecipeCount().
+        Set<String> packIds = new HashSet<>();
+        YamlConfiguration mainConfig = RecipeFileLoader.loadRecipeFile(plugin, "recipes/cutting_board_recipes.yml");
+        if (mainConfig == null) {
+            // Unreadable file (the loader already warned): keep the recipes published last rather than
+            // rebuilding from an empty configuration.
+            return;
+        }
+        Set<String> overriddenExternalIds = externalOverrideIds(mainConfig, "cutting_board");
         RecipeFileLoader.loadRecipeSections(plugin,
+                mainConfig, "cutting_board_recipes", "cutting board", "recipes/cutting_board_recipes.yml",
                 (recipeId, section) -> newRecipes.put(recipeId, parseRecipe(recipeId, section)));
 
-        // Recipes an addon ships inside a CraftEngine pack (<pack>/farmersdelight/*.yml). Loaded after the
-        // plugin's own file so a pack can never silently replace a built-in recipe, and before the API merge
-        // below so an explicit runtime registration still wins on an id clash. See PackRecipeSource.
-        for (PackRecipeSource.Loaded loaded : PackRecipeSource.load(plugin)) {
-            RecipeFileLoader.loadRecipeSections(plugin, loaded.config(), "cutting_board_recipes",
-                    "cutting board [" + loaded.source() + "]",
-                    loaded.source(),
+        // Recipes a CraftEngine pack declares under cutting_recipes. Loaded after the plugin's own file so a
+        // pack can never silently replace a built-in recipe, and before the API merge below so an explicit
+        // runtime registration still wins on an id clash. CraftEngine read the files; see PackSections.
+        for (PackSections.Section packSection : plugin.packSectionsOf(PackSection.CUTTING_BOARD)) {
+            RecipeFileLoader.loadRecipeSections(plugin, packSection.yaml(), PackSection.CUTTING_BOARD.rootKey(),
+                    "cutting board [" + packSection.source() + "]",
+                    packSection.source(),
                     (recipeId, section) -> {
                         if (newRecipes.containsKey(recipeId)) {
-                            I18n.logWarning("recipe.pack_duplicate_skipped", "id", recipeId, "source", loaded.source());
+                            I18n.logWarning("recipe.pack_duplicate_skipped", "id", recipeId, "source", packSection.source());
                             return;
                         }
                         newRecipes.put(recipeId, parseRecipe(recipeId, section));
+                        packIds.add(recipeId);
                     });
         }
 
-        // Merge addon-registered recipes last so they survive reloads (and override file ids on clash).
-        newRecipes.putAll(externalRecipes);
+        // Merge addon-registered recipes last so they survive reloads; an editor override is explicit and wins.
+        for (CuttingBoardRecipe recipe : externalRecipes.values()) {
+            if (!overriddenExternalIds.contains(recipe.getId()) || !newRecipes.containsKey(recipe.getId())
+                    || AddonRecipeFiles.ownerOf("cutting_board", recipe.getId()) != null) {
+                newRecipes.put(recipe.getId(), recipe);
+                packIds.remove(recipe.getId());
+            }
+        }
 
         List<CuttingBoardRecipe> newSorted;
         if (newRecipes.isEmpty()) {
@@ -118,10 +148,11 @@ public class CuttingBoardRecipeManager {
         }
 
         this.recipes = newRecipes;
+        this.packRecipeCount = packIds.size();
         this.sortedRecipes = newSorted;
         this.byInputItemId = Map.copyOf(frozenByItemId);
         this.tagInputRecipeIds = Set.copyOf(newTagInputRecipeIds);
-        java.util.LinkedHashSet<CuttingBoardRecipe.ToolRequirement> uniqueTools = new java.util.LinkedHashSet<>();
+        LinkedHashSet<CuttingBoardRecipe.ToolRequirement> uniqueTools = new LinkedHashSet<>();
         for (CuttingBoardRecipe recipe : newSorted) {
             uniqueTools.addAll(recipe.getTools());
         }
@@ -130,7 +161,10 @@ public class CuttingBoardRecipeManager {
         vanillaItemIdsByTagCache.clear();
         // Invalidate the recipe-list GUI display cache: this republish path (incl. addon register/
         // unregister) bypasses RecipeViewGui.clearConfigCache.
-        com.huidu.farmersdelight.gui.RecipeViewGui.clearRecipeDisplayCache();
+        RecipeViewGui.clearRecipeDisplayCache();
+        // Same reason as the cooking pot's publish path: the decoded snapshots are keyed by strings the
+        // replaced recipes owned.
+        RecipeItemCodec.clearDecodeCache();
     }
 
     private CuttingBoardRecipe parseRecipe(String id, ConfigurationSection section) {
@@ -252,7 +286,7 @@ public class CuttingBoardRecipeManager {
             return Constants.SOUND_CUTTING_BOARD_KNIFE;
         }
 
-        String normalized = soundStr.trim().toLowerCase(java.util.Locale.ROOT);
+        String normalized = soundStr.trim().toLowerCase(Locale.ROOT);
         if (normalized.contains(":")) {
             return normalized;
         }
@@ -328,7 +362,7 @@ public class CuttingBoardRecipeManager {
         if (requirement.isTag()) {
             return !plugin.getCraftEngine().itemManager().itemIdsByTag(requirement.key()).isEmpty()
                     || !vanillaItemIdsByTagCache.getIds(requirement.key()).isEmpty()
-                    || !com.huidu.farmersdelight.util.CommonTagResolver.getMembers(requirement.key()).isEmpty();
+                    || !CommonTagResolver.getMembers(requirement.key()).isEmpty();
         }
         ItemStack item = createItem(requirement.key().toString());
         return item != null && !item.getType().isAir();
@@ -414,11 +448,15 @@ public class CuttingBoardRecipeManager {
         }
 
         List<CuttingBoardRecipe> craftable = new ArrayList<>();
+        // One memo for the whole draw, like the cooking-pot filter: every recipe on the page tests its own
+        // input expression against the same stacks, and each test resolves CraftEngine item ids and tags.
+        IngredientMatchMemo<ItemStack, RecipeIngredient> inputMatches = IngredientMatchMemo.of(
+                this::matchesIngredient, RecipeIngredient::stableKey);
         for (CuttingBoardRecipe recipe : candidateRecipes) {
             boolean hasInput = false;
             boolean hasTool = false;
             for (AvailableItem candidate : available) {
-                if (!hasInput && matchesInput(recipe, candidate.item())) {
+                if (!hasInput && inputMatches.test(candidate.item(), recipe.getInput())) {
                     hasInput = true;
                 }
                 if (!hasTool && matchesTool(recipe, candidate.toolContext())) {
@@ -635,6 +673,19 @@ public class CuttingBoardRecipeManager {
         return externalRecipes.size();
     }
 
+    /** Recipes that reached this manager through a CraftEngine pack section, not the plugin's own file. */
+    public int getPackRecipeCount() {
+        return packRecipeCount;
+    }
+
+    public boolean isExternalRecipe(String id) {
+        return id != null && externalRecipes.containsKey(id);
+    }
+
+    private static Set<String> externalOverrideIds(YamlConfiguration config, String station) {
+        return Set.copyOf(config.getStringList("external-overrides." + station));
+    }
+
     public CuttingBoardRecipe getRecipe(String id) {
         return recipes.get(id);
     }
@@ -741,27 +792,19 @@ public class CuttingBoardRecipeManager {
                     : (vanillaId != null ? Key.of(vanillaId) : null);
             Set<Key> customTags = ItemUtils.getItemTagIds(tool).stream()
                     .map(Key::of)
-                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
+                    .collect(Collectors.toUnmodifiableSet());
             return new ToolContext(
                     tool,
                     toolId,
                     vanillaId,
                     itemKey,
                     customTags,
-                    isKnifeTool(plugin, toolId),
+                    plugin.isKnife(tool),
                     isMaterialSuffix(tool, "_AXE"),
                     isMaterialSuffix(tool, "_PICKAXE"),
                     isMaterialSuffix(tool, "_SHOVEL"),
                     tool.getType() == Material.SHEARS
             );
-        }
-
-        private static boolean isKnifeTool(FarmersDelightPlugin plugin, String toolId) {
-            if (toolId == null) {
-                return false;
-            }
-
-            return plugin.isKnifeItemId(toolId);
         }
 
         private static boolean isMaterialSuffix(ItemStack tool, String suffix) {

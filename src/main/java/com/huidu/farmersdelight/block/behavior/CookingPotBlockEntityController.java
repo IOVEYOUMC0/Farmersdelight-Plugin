@@ -43,6 +43,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     private static final String COOKING_DURATION = "cooking_duration";
     private static final String MEAL_CONTAINER = "meal_container";
 
+    private final FarmersDelightPlugin plugin;
     private final CookingPotBlockBehavior behavior;
     private final CookingPotLayout layout;
     private final Item[] items;
@@ -73,8 +74,9 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     // (called per slot during container scans) need not reallocate it on every access.
     private BlockPosKey cachedPosKey;
 
-    public CookingPotBlockEntityController(BlockEntity blockEntity, CookingPotBlockBehavior behavior) {
+    public CookingPotBlockEntityController(FarmersDelightPlugin plugin, BlockEntity blockEntity, CookingPotBlockBehavior behavior) {
         super(blockEntity);
+        this.plugin = plugin;
         this.behavior = behavior;
         this.layout = behavior != null ? behavior.getLayout() : CookingPotLayout.DEFAULT;
         this.items = new Item[this.layout.size()];
@@ -120,6 +122,39 @@ public final class CookingPotBlockEntityController extends BlockEntityController
             data.put(ITEMS, ItemStackUtils.saveBukkitItemsAsListTag(entity.getInventoryInternal()));
         }
         data.putInt(COOKING_PROGRESS, entity.getCookingProgress());
+        data.putInt(COOKING_DURATION, entity.getCookingDuration());
+        ItemStack mealContainer = entity.getMealContainer();
+        if (mealContainer != null && !mealContainer.getType().isAir()) {
+            Tag mealContainerTag = ItemUtils.saveBukkitItemAsTag(mealContainer);
+            if (mealContainerTag != null) {
+                data.put(MEAL_CONTAINER, mealContainerTag);
+            }
+        }
+        return data;
+    }
+
+    /**
+     * The drop's data when only the ready meal is packed: the pending slots' meals plus the serving container
+     * they still owe, every other slot empty and no cooking progress. Used where the pot contents are scattered
+     * instead of packed — a meal in a pending slot has already been paid for with the ingredients and has not
+     * consumed its serving container, so it is packed rather than spilled (dropping it loose would hand out a
+     * free bowl) or deleted. The mod packs that slot on every break path.
+     */
+    public static CompoundTag savePendingMealData(CookingPotBlockEntity entity) {
+        CompoundTag data = new CompoundTag();
+        data.putInt(DATA_VERSION, VersionHelper.WORLD_VERSION);
+        synchronized (entity.getLock()) {
+            ItemStack[] inventory = entity.getInventoryInternal();
+            ItemStack[] packed = new ItemStack[inventory.length];
+            for (int slot : entity.getLayout().pendingOutputSlots()) {
+                if (slot >= 0 && slot < packed.length) {
+                    packed[slot] = inventory[slot];
+                }
+            }
+            data.put(ITEMS, ItemStackUtils.saveBukkitItemsAsListTag(packed));
+        }
+        // The packed meal is finished; any in-flight batch belongs to the ingredients that stay behind.
+        data.putInt(COOKING_PROGRESS, 0);
         data.putInt(COOKING_DURATION, entity.getCookingDuration());
         ItemStack mealContainer = entity.getMealContainer();
         if (mealContainer != null && !mealContainer.getType().isAir()) {
@@ -195,7 +230,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
                     dataVersion);
         } catch (RuntimeException e) {
             // Corrupt/version-skewed inventory: load empty rather than aborting the whole block-entity load.
-            com.huidu.farmersdelight.FarmersDelightPlugin.getInstance().getLogger()
+            FarmersDelightPlugin.getInstance().getLogger()
                     .warning("Skipping unreadable cooking pot inventory: " + e.getMessage());
             items = new ItemStack[entity.getInventorySize()];
         }
@@ -210,7 +245,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
             try {
                 entity.setMealContainer(ItemStackUtils.parseBukkitItem(mealContainerTag, dataVersion));
             } catch (RuntimeException e) {
-                com.huidu.farmersdelight.FarmersDelightPlugin.getInstance().getLogger()
+                FarmersDelightPlugin.getInstance().getLogger()
                         .warning("Skipping unreadable cooking pot meal container: " + e.getMessage());
                 entity.setMealContainer(null);
             }
@@ -236,7 +271,6 @@ public final class CookingPotBlockEntityController extends BlockEntityController
 
         loadDataIntoEntity(entity, data);
         if (entity.hasStoredContents()) {
-            FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
             if (plugin != null && plugin.getTickManager() != null) {
                 plugin.getTickManager().markActive(world, posKey, TickManager.BlockType.COOKING_POT);
             }
@@ -337,9 +371,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
                 // concurrent entity write. The shadow was read from the entity at refreshFromEntity (recorded
                 // in entityBaseline); if the live entity no longer equals that baseline, another region's GUI
                 // viewer wrote this slot under the entity lock — adopt the entity's current value instead of
-                // overwriting it with our stale shadow (which would dupe on extract / lose on insert). This
-                // guard previously covered only the non-dirty branch, letting hopper writes clobber a
-                // cross-region viewer.
+                // overwriting it with a stale shadow, which would duplicate extracts or lose inserts.
                 if (!itemStacksEqual(this.entityBaseline[i], entityNow)) {
                     if (isEmptyBukkitSlot(entityNow)) {
                         this.items[i] = Item.empty();
@@ -359,7 +391,6 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         entity.tryMovePendingToOutput();
         refreshFromEntity(entity);
 
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin != null && plugin.getTickManager() != null && entity.hasStoredContents()) {
             plugin.getTickManager().markActive(world, new BlockPosKey(this.blockEntity.pos), TickManager.BlockType.COOKING_POT);
         }
@@ -414,11 +445,29 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         ItemStack pending = stack.clone();
         int[] slots = getSlotsForFace(direction);
         if (preferEmptySlots) {
-            pending = insertIntoEmptySlots(pending, slots, direction);
-            if (pending == null || pending.getType().isAir()) {
+            // Recipe filling supplies one item at a time; choose the least-filled compatible
+            // slot so repeated inserts stay balanced instead of piling into the first slot.
+            while (pending != null && !pending.getType().isAir() && pending.getAmount() > 0) {
+                int target = findLeastFilledSlot(slots, pending, direction);
+                if (target < 0) {
+                    break;
+                }
+                ItemStack one = pending.clone();
+                one.setAmount(1);
+                ItemStack remainder = insertBukkitStackIntoControllerSlot(target, one);
+                if (remainder != null && !remainder.getType().isAir()) {
+                    break;
+                }
+                pending.setAmount(pending.getAmount() - 1);
+            }
+            if (pending == null || pending.getType().isAir() || pending.getAmount() <= 0) {
                 setChanged();
                 return null;
             }
+            if (pending.getAmount() != stack.getAmount()) {
+                setChanged();
+            }
+            return pending;
         }
         for (int slot : slots) {
             if (pending.getAmount() <= 0) {
@@ -443,24 +492,25 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         return pending;
     }
 
-    private ItemStack insertIntoEmptySlots(ItemStack pending, int[] slots, Direction direction) {
+    private int findLeastFilledSlot(int[] slots, ItemStack stack, Direction direction) {
+        int target = -1;
+        int amount = Integer.MAX_VALUE;
         for (int slot : slots) {
-            if (pending.getAmount() <= 0) {
-                return null;
-            }
-            if (!isValidSlot(slot) || !isEmpty(toBukkitPreserving(slot))) {
+            if (!isValidSlot(slot) || !canPlaceItemThroughFace(slot,
+                    normalize(BukkitItemManager.instance().wrap(stack)), direction)) {
                 continue;
             }
-            Item pendingItem = normalize(BukkitItemManager.instance().wrap(pending));
-            if (pendingItem.isEmpty() || !canPlaceItemThroughFace(slot, pendingItem, direction)) {
+            ItemStack existing = toBukkitPreserving(slot);
+            if (!isEmpty(existing) && !existing.isSimilar(stack)) {
                 continue;
             }
-            pending = insertBukkitStackIntoControllerSlot(slot, pending);
-            if (pending == null || pending.getType().isAir()) {
-                return null;
+            int count = isEmpty(existing) ? 0 : existing.getAmount();
+            if (count < amount) {
+                amount = count;
+                target = slot;
             }
         }
-        return pending;
+        return target;
     }
 
     private static boolean isEmpty(ItemStack item) {

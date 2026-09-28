@@ -57,9 +57,10 @@ public final class RecipeBookGuiConfig {
         private final List<String> layout;
         private final Map<Character, String> legend;
         private final Map<String, GuiConfig.GuiItem> items;
-        // Lazily computed per role; the layout/legend maps are immutable after construction, so a plain
-        // map is safe. Guest roles from recipes (fluid/return/temperature) are computed on first access.
-        private final Map<String, List<Integer>> slotsCache = new HashMap<>();
+        // Role to slots, resolved once from the immutable layout and legend. A lazily filled cache here was
+        // both a shared-mutable-state hazard (this config is shared by every viewer and, on Folia, read from
+        // several region threads) and unnecessary: the whole grid is a few dozen cells.
+        private final Map<String, List<Integer>> legendSlots;
 
         public ViewConfig(String title, int rows, List<String> layout,
                           Map<Character, String> legend, Map<String, GuiConfig.GuiItem> items) {
@@ -68,6 +69,18 @@ public final class RecipeBookGuiConfig {
             this.layout = layout;
             this.legend = legend;
             this.items = items;
+            Map<String, List<Integer>> byRole = new HashMap<>();
+            for (int row = 0; row < layout.size(); row++) {
+                String line = layout.get(row);
+                for (int col = 0; col < line.length(); col++) {
+                    String role = legend.get(line.charAt(col));
+                    if (role != null) {
+                        byRole.computeIfAbsent(role, key -> new ArrayList<>()).add(row * 9 + col);
+                    }
+                }
+            }
+            byRole.replaceAll((role, slots) -> List.copyOf(slots));
+            this.legendSlots = Map.copyOf(byRole);
         }
 
         public String title() {
@@ -82,19 +95,10 @@ public final class RecipeBookGuiConfig {
             return items.get(key);
         }
 
+        /** Slots whose legend role equals the given type; empty when the layout defines no such role. */
         public List<Integer> slotsByType(String type) {
-            return slotsCache.computeIfAbsent(type, t -> {
-                List<Integer> slots = new ArrayList<>();
-                for (int row = 0; row < layout.size(); row++) {
-                    String line = layout.get(row);
-                    for (int col = 0; col < line.length(); col++) {
-                        if (t.equals(legend.get(line.charAt(col)))) {
-                            slots.add(row * 9 + col);
-                        }
-                    }
-                }
-                return slots;
-            });
+            List<Integer> slots = legendSlots.get(type);
+            return slots == null ? List.of() : slots;
         }
 
         public int firstSlotByType(String type) {

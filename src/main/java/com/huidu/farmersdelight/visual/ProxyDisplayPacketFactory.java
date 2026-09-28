@@ -4,8 +4,11 @@ import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.visual.ItemDisplayManager.DisplaySpec;
 import com.huidu.farmersdelight.visual.ItemDisplayManager.TextDisplaySpec;
 import it.unimi.dsi.fastutil.ints.IntList;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.momirealms.craftengine.bukkit.entity.data.BaseEntityData;
 import net.momirealms.craftengine.bukkit.entity.data.DisplayData;
+import net.momirealms.craftengine.proxy.minecraft.network.chat.ComponentProxy;
+import net.momirealms.craftengine.core.entity.display.TextDisplayAlignment;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
 import net.momirealms.craftengine.bukkit.util.EntityUtils;
 import net.momirealms.craftengine.proxy.minecraft.network.protocol.game.ClientboundAddEntityPacketProxy;
@@ -19,6 +22,7 @@ import org.bukkit.entity.ItemDisplay;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 // Builds the raw client packets for proxy display entities from their specs. Stateless apart from the
 // display ViewRange metadata, so ProxyItemDisplayManager keeps the visibility/sync/registry logic.
@@ -34,15 +38,15 @@ class ProxyDisplayPacketFactory {
         this.viewRangeMeta = viewRangeMeta;
     }
 
-    Object createItemSpawnPacket(int entityId, java.util.UUID entityUuid, DisplaySpec spec) {
+    Object createItemSpawnPacket(int entityId, UUID entityUuid, DisplaySpec spec) {
         return buildSpawnPacket(entityId, entityUuid, spec.location(), EntityTypesProxy.ITEM_DISPLAY);
     }
 
-    Object createTextSpawnPacket(int entityId, java.util.UUID entityUuid, TextDisplaySpec spec) {
+    Object createTextSpawnPacket(int entityId, UUID entityUuid, TextDisplaySpec spec) {
         return buildSpawnPacket(entityId, entityUuid, spec.location(), EntityTypesProxy.TEXT_DISPLAY);
     }
 
-    private Object buildSpawnPacket(int entityId, java.util.UUID entityUuid, Location location, Object entityType) {
+    private Object buildSpawnPacket(int entityId, UUID entityUuid, Location location, Object entityType) {
         return ClientboundAddEntityPacketProxy.INSTANCE.newInstance(
                 entityId,
                 entityUuid,
@@ -117,15 +121,15 @@ class ProxyDisplayPacketFactory {
         // round-trip through ComponentProxy.literal avoids the shaded-Adventure bridge in
         // CE's ComponentUtils.adventureToMinecraft (whose Component arg resolves to CE's relocated
         // adventure package, unreachable from addon compile classpath).
-        String plain = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(spec.text());
-        Object componentValue = net.momirealms.craftengine.proxy.minecraft.network.chat.ComponentProxy.INSTANCE.literal(plain);
+        String plain = PlainTextComponentSerializer.plainText().serialize(spec.text());
+        Object componentValue = ComponentProxy.INSTANCE.literal(plain);
         DisplayData.TextDisplayData.Text.addEntityData(componentValue, values);
         DisplayData.TextDisplayData.BackgroundColor.addEntityData(colorToArgb(spec.backgroundColor()), values);
-        byte flags = net.momirealms.craftengine.bukkit.entity.data.DisplayData.TextDisplayData.encodeFlags(
+        byte flags = DisplayData.TextDisplayData.encodeFlags(
                 spec.shadowed(),
                 spec.seeThrough(),
                 false,
-                net.momirealms.craftengine.core.entity.display.TextDisplayAlignment.CENTER);
+                TextDisplayAlignment.CENTER);
         DisplayData.TextDisplayData.Flags.addEntityData(flags, values);
         return createEntityDataPacket(entityId, values);
     }

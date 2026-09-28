@@ -8,13 +8,21 @@ import java.util.Map;
 
 public record AdvancementDef(String id, String parentId, ItemStack icon, String title, String description,
                             String frame, float x, float y, List<String> criteria, String background,
-                            List<String> requiredIds, Map<String, List<String>> criteriaRequirements) {
+                            List<String> requiredIds, Map<String, List<String>> criteriaRequirements,
+                            boolean showToast, boolean announceChat, boolean hidden) {
 
     public AdvancementDef {
         criteria = criteria == null ? List.of() : List.copyOf(criteria);
         icon = icon == null ? null : icon.clone();
         requiredIds = requiredIds == null ? List.of() : List.copyOf(requiredIds);
         criteriaRequirements = copyRequirements(criteriaRequirements);
+    }
+
+    public AdvancementDef(String id, String parentId, ItemStack icon, String title, String description,
+                          String frame, float x, float y, List<String> criteria, String background,
+                          List<String> requiredIds, Map<String, List<String>> criteriaRequirements) {
+        this(id, parentId, icon, title, description, frame, x, y, criteria, background,
+                requiredIds, criteriaRequirements, parentId != null, parentId != null, false);
     }
 
     public AdvancementDef(String id, String parentId, ItemStack icon, String title, String description,

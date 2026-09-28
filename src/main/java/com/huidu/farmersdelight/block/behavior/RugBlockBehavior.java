@@ -10,9 +10,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-// Shared base for the two rug behaviors that replaced the old legacy furniture: ConnectedRugBlockBehavior
-// (draws frayed edges from world-absolute adjacency to same-family ids) and DoubleBlockRugBlockBehavior
-// (a 2-cell mat that spawns head + foot along the player facing and tears its partner down on removal).
+// Shared base for ConnectedRugBlockBehavior, which derives frayed edges from same-family neighbors, and
+// DoubleBlockRugBlockBehavior, which manages a two-cell head/foot pair aligned to player facing.
 // The base only holds path-findability and the small set of text/value helpers both subclasses reuse.
 public abstract class RugBlockBehavior extends FarmersDelightBlockBehavior {
 

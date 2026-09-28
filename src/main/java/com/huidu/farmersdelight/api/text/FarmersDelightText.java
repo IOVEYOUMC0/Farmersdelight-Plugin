@@ -53,6 +53,14 @@ public final class FarmersDelightText {
         return Text.deserialize(PresentationUtils.resolveGlyphTags(raw));
     }
 
+    /**
+     * A GUI title: CE glyph tags resolved, then parsed to a component that is not italic. Titles are the one
+     * place the default italic decoration is unwanted, and addons kept re-deriving this from the two calls.
+     */
+    public static Component deserializeGlyphsTitle(String raw) {
+        return deserializeGlyphs(raw == null ? "" : raw).decoration(TextDecoration.ITALIC, false);
+    }
+
     public static Component glyph(String glyphId) {
         return Text.deserialize(PresentationUtils.imageGlyph(glyphId));
     }

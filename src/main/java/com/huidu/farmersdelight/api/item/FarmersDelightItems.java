@@ -5,6 +5,7 @@ import com.huidu.farmersdelight.util.ItemUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
@@ -30,6 +31,17 @@ public final class FarmersDelightItems {
 
     public static ItemStack create(String itemId) {
         return ItemUtils.createItem(itemId);
+    }
+
+    /**
+     * Creates the custom item, or a plain stack of the fallback material when the id is unknown or resolves
+     * to air. Advancement icons are registered during enable, when CraftEngine items do not exist yet, so the
+     * caller is expected to re-register them after the warmup event; this must NOT memoize, or the fallback
+     * would be frozen for the rest of the session.
+     */
+    public static ItemStack createOrFallback(String itemId, Material fallback) {
+        ItemStack item = itemId == null ? null : create(itemId);
+        return item != null && !item.getType().isAir() ? item : new ItemStack(fallback);
     }
 
     public static boolean matchesId(ItemStack item, String itemId) {

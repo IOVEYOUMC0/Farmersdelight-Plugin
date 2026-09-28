@@ -13,6 +13,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 final class RecipeDetailRenderer {
@@ -156,7 +157,7 @@ final class RecipeDetailRenderer {
         if (Math.rint(experience) == experience) {
             return String.valueOf((int) experience);
         }
-        return String.format(java.util.Locale.ROOT, "%.1f", experience);
+        return String.format(Locale.ROOT, "%.1f", experience);
     }
 
     void drawCuttingBoardDetail(CuttingBoardRecipe recipe, RecipeViewGuiConfig.RecipeDetailConfig detailConfig, Player player) {

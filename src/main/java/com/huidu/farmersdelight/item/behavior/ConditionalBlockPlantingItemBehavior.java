@@ -70,15 +70,14 @@ public final class ConditionalBlockPlantingItemBehavior extends ItemBehavior {
             return InteractionResult.PASS;
         }
 
-        // R-SEC-001: this path intercepts the click and places the block itself via CraftEngineBlocks.place,
-        // so vanilla's own WorldGuard build check never fires — gate on canBuild (master flag) here, or a
-        // player without build rights could plant inside a protected region.
+        // This path places directly through CraftEngineBlocks.place and cancels native interaction.
+        // Check canBuild here because native placement protection will not run.
         Player player = context.getPlayer();
         org.bukkit.entity.Player bukkitPlayer = player != null
                 && player.platformPlayer() instanceof org.bukkit.entity.Player platformPlayer
                 ? platformPlayer : null;
-        if (bukkitPlayer != null && !ProtectionCompat.canBuild(bukkitPlayer, target)) {
-            return InteractionResult.PASS;
+        if (bukkitPlayer != null && !ProtectionCompat.canPlace(bukkitPlayer, target, null)) {
+            return InteractionResult.FAIL;
         }
 
         Location loc = new Location(world, placePos.x() + 0.5, placePos.y(), placePos.z() + 0.5);

@@ -22,8 +22,7 @@ public class LocalizedAdvancementDisplay extends AdvancementDisplay {
         this.frame = frame;
     }
 
-    // No @Override: the patched UAA adds this method, but we compile against the official upstream API jar.
-    // At runtime, the patched UAA calls it to enable per-client Component rendering.
+    // Enables per-client component rendering when the installed UAA supports this extension.
     public boolean usesComponentDisplay() {
         return true;
     }
@@ -42,7 +41,7 @@ public class LocalizedAdvancementDisplay extends AdvancementDisplay {
         return new BaseComponent[]{colored(descriptionKey)};
     }
 
-    // Matches upstream UAA: it colors the title/description with frame.getColor(); an uncolored Component renders white.
+    // Apply the frame color explicitly; an uncolored component would render white.
     @SuppressWarnings("deprecation")
     private TranslatableComponent colored(String key) {
         TranslatableComponent component = new TranslatableComponent(key);

@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.util.compat;
 
 import org.bukkit.Location;
+import org.bukkit.GameMode;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -16,8 +17,7 @@ public final class ProtectionCompat {
         RICH_SOIL("farmersdelight-rich-soil"),
         TOMATO("farmersdelight-tomato"),
         MUSHROOM_COLONY("farmersdelight-mushroom-colony"),
-        COOKING_POT("farmersdelight-cooking-pot"),
-        FOOD_BLOCK("farmersdelight-food-block");
+        COOKING_POT("farmersdelight-cooking-pot");
 
         private final String flagName;
 
@@ -53,9 +53,11 @@ public final class ProtectionCompat {
         try {
             AntiGriefBridge.init(plugin);
             antiGriefReady = AntiGriefBridge.isActive();
-        } catch (Throwable t) {
+        } catch (RuntimeException | LinkageError t) {
             // antigrieflib missing / Flag class absent / build failure: WorldGuard-only, no regression.
             antiGriefReady = false;
+            plugin.getLogger().warning("AntiGriefLib compatibility disabled: " + t.getClass().getSimpleName()
+                    + (t.getMessage() == null ? "" : " - " + t.getMessage()));
         }
     }
 
@@ -66,6 +68,24 @@ public final class ProtectionCompat {
 
     public static boolean canBuild(Player player, Location location) {
         return canBuild(player, location, (String) null);
+    }
+
+    /**
+     * Checks a player-driven custom block placement. Direct CraftEngine writes bypass
+     * Paper's normal placement event, so Adventure and Spectator must be rejected here.
+     */
+    public static boolean canPlace(Player player, Block block, Feature feature) {
+        return player != null
+                && player.getGameMode() != GameMode.ADVENTURE
+                && player.getGameMode() != GameMode.SPECTATOR
+                && canBuild(player, block, feature);
+    }
+
+    public static boolean canPlace(Player player, Location location, Feature feature) {
+        return player != null
+                && player.getGameMode() != GameMode.ADVENTURE
+                && player.getGameMode() != GameMode.SPECTATOR
+                && canBuild(player, location, feature);
     }
 
     // Feature-aware overloads.
@@ -83,6 +103,9 @@ public final class ProtectionCompat {
     }
 
     public static boolean canBuild(Player player, Location location, String flagName) {
+        if (player != null && player.isOp()) {
+            return true;
+        }
         return WorldGuardCompat.canBuild(player, location, flagName)
                 && (!antiGriefReady || AntiGriefBridge.canPlace(player, location));
     }
@@ -101,6 +124,9 @@ public final class ProtectionCompat {
     }
 
     public static boolean canBreak(Player player, Location location, String flagName) {
+        if (player != null && player.isOp()) {
+            return true;
+        }
         return WorldGuardCompat.canBuild(player, location, flagName)
                 && (!antiGriefReady || AntiGriefBridge.canBreak(player, location));
     }
@@ -118,6 +144,9 @@ public final class ProtectionCompat {
     }
 
     public static boolean canUse(Player player, Location location, String flagName) {
+        if (player != null && player.isOp()) {
+            return true;
+        }
         return WorldGuardCompat.canUse(player, location, flagName)
                 && (!antiGriefReady || AntiGriefBridge.canInteract(player, location));
     }

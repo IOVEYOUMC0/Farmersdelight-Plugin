@@ -10,22 +10,25 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class CuttingBoardDisplayConfig {
 
     private static final float DEFAULT_ITEM_SPREAD = 0.15F;
     private static final Vector3f ZERO_OFFSET = new Vector3f(0.0F, 0.0F, 0.0F);
+    private static final String DISPLAY_OVERRIDES_FILE = "display-overrides.yml";
 
-    private final Map<String, DisplayOverride> itemOverrides = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<String, DisplayOverride> itemOverrides = new ConcurrentHashMap<>();
     // tagOverrides keeps LinkedHashMap for definition-order iteration (first-match override semantics);
     // mutations only happen on reload from the main thread, reads from event handlers — wrap with
     // synchronized to make those reload-vs-read transitions atomic without losing ordering.
-    private final Map<String, DisplayOverride> tagOverrides = java.util.Collections.synchronizedMap(new LinkedHashMap<>());
+    private final Map<String, DisplayOverride> tagOverrides = Collections.synchronizedMap(new LinkedHashMap<>());
     private final DisplayOverride fallbackDefaults;
     private final float fallbackItemSpread;
     // Reload writes, event handlers read on Folia region threads — volatile publishes the new values.
@@ -53,9 +56,18 @@ public final class CuttingBoardDisplayConfig {
                 "display-item-spread",
                 section.getDouble("item-spread", fallbackItemSpread)
         ));
+    }
 
-        loadOverrides(section.getConfigurationSection("display-overrides"), false);
-        loadOverrides(section.getConfigurationSection("display-tag-overrides"), true);
+    /**
+     * Loads the item and tag display tables, which live in their own file (display-overrides.yml, sections
+     * items and tags) so config.yml only carries the board's own settings. Call after
+     * loadFromConfig(ConfigurationSection), which resets both tables.
+     */
+    public void loadOverridesFromFile(ConfigurationSection overrides) {
+        loadOverrides(overrides == null ? null : overrides.getConfigurationSection("items"), false,
+                DISPLAY_OVERRIDES_FILE);
+        loadOverrides(overrides == null ? null : overrides.getConfigurationSection("tags"), true,
+                DISPLAY_OVERRIDES_FILE);
     }
 
     private void reset() {
@@ -65,7 +77,7 @@ public final class CuttingBoardDisplayConfig {
         itemSpread = fallbackItemSpread;
     }
 
-    private void loadOverrides(ConfigurationSection displaySection, boolean tagSection) {
+    private void loadOverrides(ConfigurationSection displaySection, boolean tagSection, String sourceFile) {
         if (displaySection == null) {
             return;
         }
@@ -74,18 +86,18 @@ public final class CuttingBoardDisplayConfig {
             String key = configuredKey == null ? "" : configuredKey.trim();
             boolean tagKey = tagSection || key.startsWith("#");
             if (tagKey && !isValidTagId(key)) {
-                I18n.logWarning("plugin.config_invalid_key", "file", "config.yml",
+                I18n.logWarning("plugin.config_invalid_key", "file", sourceFile,
                         "path", displaySection.getCurrentPath() + "." + configuredKey);
                 continue;
             }
             if (!tagKey && !ItemUtils.isValidItemId(key)) {
-                I18n.logWarning("plugin.config_invalid_key", "file", "config.yml",
+                I18n.logWarning("plugin.config_invalid_key", "file", sourceFile,
                         "path", displaySection.getCurrentPath() + "." + configuredKey);
                 continue;
             }
             ConfigurationSection overrideSection = displaySection.getConfigurationSection(configuredKey);
             if (overrideSection == null) {
-                I18n.logWarning("plugin.config_value_invalid", "file", "config.yml",
+                I18n.logWarning("plugin.config_value_invalid", "file", sourceFile,
                         "path", displaySection.getCurrentPath() + "." + configuredKey,
                         "error", "expected a section");
                 continue;

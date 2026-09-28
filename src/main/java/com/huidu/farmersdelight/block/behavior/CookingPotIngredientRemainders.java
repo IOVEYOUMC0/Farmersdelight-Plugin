@@ -85,6 +85,11 @@ public final class CookingPotIngredientRemainders {
         if (plugin == null) {
             return Map.copyOf(table);
         }
+        // NO SHIPPED CONFIG KEY backs this lookup, and that is deliberate rather than an oversight: the
+        // remainders moved into each CraftEngine item's `craft-remainder` setting (see items.yml), so a
+        // section in config.yml would be a second source of truth for the same thing. The built-in DEFAULTS
+        // table below is therefore the behaviour, and this read only honours a hand-added section.
+        // config-path-check: no shipped key, on purpose
         ConfigurationSection section;
         try {
             section = plugin.getFirstConfigSection("cooking-pot.ingredient-remainders", "ingredient-remainders");

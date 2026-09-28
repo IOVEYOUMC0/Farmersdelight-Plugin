@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.api.util.ItemDelivery;
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
@@ -10,13 +11,13 @@ import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
-import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -24,6 +25,8 @@ import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
+import org.bukkit.Particle;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
@@ -76,7 +79,7 @@ public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior imp
         return "activators".equals(key) ? config.activators() : null;
     }
 
-    public static final BlockBehaviorFactory<OrganicCompostBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+    public static final BlockBehaviorFactory<OrganicCompostBlockBehavior> FACTORY = (BlockDefinition block, ConfigSection section) -> {
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         // The composting stage is the whole behavior: every random tick reads it and writes it back one
         // higher until the block turns into rich soil. The property may carry another name, but one of that
@@ -90,13 +93,13 @@ public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior imp
                 BlockBehaviorFactory.getProperty(path, block, compostingPropertyName, Integer.class);
         int maxStage = BehaviorArgParser.getInt(arguments, "max-stage", 7);
         String richSoilId = BehaviorArgParser.getStringStrict(arguments, "rich-soil-block", "farmersdelight:rich_soil");
-        String brownId = BehaviorArgParser.getStringStrict(arguments, "brown-mushroom-colony", "farmersdelight:brown_mushroom_colony");
-        String redId = BehaviorArgParser.getStringStrict(arguments, "red-mushroom-colony", "farmersdelight:red_mushroom_colony");
-        float activatorBonus = BehaviorArgParser.getFloat(arguments, "activator-bonus-per-neighbor", 0.02f);
-        float waterBonus = BehaviorArgParser.getFloat(arguments, "water-bonus", 0.10f);
-        float lightHighBonus = BehaviorArgParser.getFloat(arguments, "light-high-bonus", 0.10f);
-        float lightLowBonus = BehaviorArgParser.getFloat(arguments, "light-low-bonus", 0.05f);
-        int lightThreshold = BehaviorArgParser.getInt(arguments, "light-threshold", 12);
+        String brownId = BehaviorArgParser.getStringStrict(arguments, "mushroom-colony.brown", "brown-mushroom-colony", "farmersdelight:brown_mushroom_colony");
+        String redId = BehaviorArgParser.getStringStrict(arguments, "mushroom-colony.red", "red-mushroom-colony", "farmersdelight:red_mushroom_colony");
+        float activatorBonus = BehaviorArgParser.getFloat(arguments, "activator.bonus-per-neighbor", 0.02f);
+        float waterBonus = BehaviorArgParser.getFloat(arguments, "water.bonus", 0.10f);
+        float lightHighBonus = BehaviorArgParser.getFloat(arguments, "light.high-bonus", 0.10f);
+        float lightLowBonus = BehaviorArgParser.getFloat(arguments, "light.low-bonus", 0.05f);
+        int lightThreshold = BehaviorArgParser.getInt(arguments, "light.threshold", 12);
 
         ConfiguredBlockSet activators = ConfiguredBlockSet.parse(arguments.get("activators"));
 
@@ -151,9 +154,9 @@ public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior imp
         }
 
         if (bukkitPlayer.getGameMode() != GameMode.CREATIVE) {
-            org.bukkit.inventory.EquipmentSlot slot = context.getHand() == InteractionHand.OFF_HAND
-                    ? org.bukkit.inventory.EquipmentSlot.OFF_HAND
-                    : org.bukkit.inventory.EquipmentSlot.HAND;
+            EquipmentSlot slot = context.getHand() == InteractionHand.OFF_HAND
+                    ? EquipmentSlot.OFF_HAND
+                    : EquipmentSlot.HAND;
             if (waterBucket) {
                 // Survival mode: consume water bucket, return empty bucket
                 held.setAmount(held.getAmount() - 1);
@@ -163,10 +166,7 @@ public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior imp
                 } else {
                     bukkitPlayer.getInventory().setItem(slot, held);
                     // If the hand still has stacked water buckets, add the empty bucket separately.
-                    Map<Integer, ItemStack> leftovers = bukkitPlayer.getInventory().addItem(emptyBucket);
-                    for (ItemStack leftover : leftovers.values()) {
-                        world.dropItemNaturally(bukkitPlayer.getLocation(), leftover);
-                    }
+                    ItemDelivery.giveOrDrop(bukkitPlayer, emptyBucket);
                 }
             } else {
                 // A tagged accelerant (e.g. a worm) is simply consumed one at a time
@@ -180,7 +180,7 @@ public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior imp
         }
 
         world.playSound(loc, waterBucket ? Sound.ITEM_BUCKET_EMPTY : Sound.ITEM_BONE_MEAL_USE, 1.0f, 1.0f);
-        world.spawnParticle(org.bukkit.Particle.HAPPY_VILLAGER, loc.clone().add(0, 0.5, 0), 8, 0.3, 0.2, 0.3, 0.0);
+        world.spawnParticle(Particle.HAPPY_VILLAGER, loc.clone().add(0, 0.5, 0), 8, 0.3, 0.2, 0.3, 0.0);
         ItemUtils.swingHand(bukkitPlayer, context.getHand());
         return InteractionResult.SUCCESS_AND_CANCEL;
     }
@@ -207,12 +207,13 @@ public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior imp
                 for (int dz = -1; dz <= 1; dz++) {
                     int nx = pos.x() + dx, ny = pos.y() + dy, nz = pos.z() + dz;
                     if (ny < world.getMinHeight() || ny >= world.getMaxHeight()) continue;
+                    // Neighbours in a chunk that is not loaded are skipped: their activator/light read would
+                    // load the chunk from a random tick.
+                    if (!world.isChunkLoaded(nx >> 4, nz >> 4)) continue;
                     Block neighbor = world.getBlockAt(nx, ny, nz);
                     if (neighbor.getType() == Material.WATER) hasWater = true;
-                    // The reference mod scans the whole 3x3x3 box against its COMPOST_ACTIVATORS
-                    // block tag; the configured activators list below mirrors that tag's members,
-                    // including the composting block itself, so a compost block always contributes
-                    // one activator to its own chance.
+                    // Count configured activators throughout the 3x3x3 box, including the center block.
+                    // Compost contributes to its own chance when listed as an activator.
                     if (config.activators().contains(neighbor)) activatorCount++;
                     Block above = world.getBlockAt(nx, Math.min(ny + 1, world.getMaxHeight() - 1), nz);
                     int sky = above.getLightFromSky();

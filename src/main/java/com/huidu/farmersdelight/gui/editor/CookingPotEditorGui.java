@@ -423,11 +423,21 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
         ItemStack savedResult = result.clone();
         savedResult.setAmount(resultCount);
 
+        // Auto-add the container the result declares (a soup's bowl, a drink's bottle) so a recipe written in
+        // the editor is saved exactly like a hand-written one; the file's "container: none" removes it again.
+        ItemStack savedContainer = container == null || container.getType().isAir() ? null : container;
+        if (savedContainer == null) {
+            ItemStack inferred = ItemUtils.craftingRemainderOf(savedResult, recipeId);
+            if (inferred != null && !inferred.getType().isAir()) {
+                savedContainer = inferred;
+            }
+        }
+
         CookingPotRecipe recipe = new CookingPotRecipe(
-                recipeId, ingredientList, container, container != null, savedResult,
+                recipeId, ingredientList, savedContainer, savedContainer != null, savedResult,
                 experience, cookTime, category, priority);
 
-        if (plugin.getRecipeEditorStore().saveCookingPotRecipe(recipe, customGroupId)) {
+        if (RecipeEditorView.store().saveCookingPotRecipe(recipe, customGroupId)) {
             player.sendMessage(Component.translatable("gui.editor.feedback.saved",
                     Component.text(recipeId).color(NamedTextColor.WHITE))
                     .color(NamedTextColor.GREEN));
@@ -439,7 +449,7 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
     }
 
     private void delete() {
-        RecipeViewGuiConfig.BaseConfig confirmConfig = plugin.getRecipeEditorGuiConfig().getConfirmDeleteConfig();
+        RecipeViewGuiConfig.BaseConfig confirmConfig = RecipeEditorView.guiConfig().getConfirmDeleteConfig();
         if (confirmConfig == null) {
             performDelete();
             return;
@@ -450,7 +460,7 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
     }
 
     private void performDelete() {
-        if (plugin.getRecipeEditorStore().deleteCookingPotRecipe(recipeId, customGroupId)) {
+        if (RecipeEditorView.store().deleteCookingPotRecipe(recipeId, customGroupId)) {
             player.sendMessage(Component.translatable("gui.editor.feedback.deleted",
                     Component.text(recipeId).color(NamedTextColor.WHITE))
                     .color(NamedTextColor.GREEN));
@@ -481,7 +491,7 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
     }
 
     private void openTagPicker(int idx, ItemStack source) {
-        RecipeViewGuiConfig.BaseConfig pickerConfig = plugin.getRecipeEditorGuiConfig().getTagPickerConfig();
+        RecipeViewGuiConfig.BaseConfig pickerConfig = RecipeEditorView.guiConfig().getTagPickerConfig();
         if (pickerConfig == null) {
             player.sendMessage(Component.translatable("gui.editor.feedback.not_configured")
                     .color(NamedTextColor.RED));
@@ -505,7 +515,7 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
     }
 
     private void openChoiceBuilder(int idx) {
-        RecipeViewGuiConfig.BaseConfig choiceConfig = plugin.getRecipeEditorGuiConfig().getChoiceBuilderConfig();
+        RecipeViewGuiConfig.BaseConfig choiceConfig = RecipeEditorView.guiConfig().getChoiceBuilderConfig();
         if (choiceConfig == null) {
             player.sendMessage(Component.translatable("gui.editor.feedback.not_configured")
                     .color(NamedTextColor.RED));

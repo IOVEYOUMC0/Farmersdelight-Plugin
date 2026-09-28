@@ -2,10 +2,12 @@ import com.huidu.farmersdelight.api.recipe.IngredientMatching;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Arrays;
 import java.util.function.BiPredicate;
 import java.util.function.ToIntFunction;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class IngredientMatchingTest {
@@ -138,6 +140,22 @@ class IngredientMatchingTest {
         // Same overlap trap under the lenient pass (extra usable slots allowed).
         assertTrue(IngredientMatching.matchesIngredients(
                 List.of("fish", "cod"), List.of("cod", "salmon", "salmon"), false, FISH, ONE));
+    }
+
+    @Test
+    void assignmentUsesTheSameAugmentingMatchAsValidation() {
+        int[] assignment = IngredientMatching.assignIngredients(
+                List.of("fish", "cod"), List.of("cod", "salmon"), FISH, ONE);
+        assertArrayEquals(new int[] {1, 0}, assignment);
+    }
+
+    @Test
+    void assignmentPreservesEmptySlotIndexesAndUsesEachFilledSlot() {
+        var slots = Arrays.asList(null, "rice", null, "rice", "rice", null);
+        int[] assignment = IngredientMatching.assignIngredients(
+                List.of("rice", "rice", "rice"), slots, EQ, slot -> slot == null ? 0 : 1);
+        Arrays.sort(assignment);
+        assertArrayEquals(new int[] {1, 3, 4}, assignment);
     }
 
     @Test

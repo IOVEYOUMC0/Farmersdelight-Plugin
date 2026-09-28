@@ -8,6 +8,7 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.ApiStatus;
 
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -37,7 +38,7 @@ public class FarmersDelightHarvestEvent extends Event {
         if (drops == null || drops.isEmpty()) {
             return List.of();
         }
-        List<ItemStack> copies = new java.util.ArrayList<>(drops.size());
+        List<ItemStack> copies = new ArrayList<>(drops.size());
         for (ItemStack drop : drops) {
             if (drop != null) {
                 copies.add(drop.clone());

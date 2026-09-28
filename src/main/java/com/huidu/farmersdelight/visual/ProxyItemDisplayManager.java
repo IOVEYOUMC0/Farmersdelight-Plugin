@@ -5,22 +5,16 @@ import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.ManagerSupport;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
+import net.kyori.adventure.text.Component;
 import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
 import net.momirealms.craftengine.bukkit.plugin.network.BukkitNetworkManager;
 import net.momirealms.craftengine.core.plugin.network.NetWorkUser;
 import net.momirealms.craftengine.bukkit.util.EntityUtils;
 import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerChangedWorldEvent;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.event.player.PlayerRespawnEvent;
-import org.bukkit.event.player.PlayerTeleportEvent;
-import org.bukkit.event.world.ChunkUnloadEvent;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
@@ -38,8 +32,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.logging.Level;
 
-public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
+public class ProxyItemDisplayManager implements ItemDisplayManager {
 
     private static final double DEFAULT_VIEW_DISTANCE = 64.0D;
     private static final int DEFAULT_SYNC_INTERVAL_TICKS = 20;
@@ -56,14 +51,11 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
     // Reverse viewer index keeps player-centric Folia sync and quit/world cleanup O(visible displays)
     // instead of scanning every proxy display on the server.
     private final Map<UUID, Set<Integer>> visibleDisplaysByPlayer = new ConcurrentHashMap<>();
-    private final Set<UUID> scheduledPlayerSyncs = ConcurrentHashMap.newKeySet();
     private final AtomicLong displaySnapshotVersion = new AtomicLong();
     private volatile List<ProxyDisplay> displaySnapshot = List.of();
     private volatile long displaySnapshotCachedVersion = -1L;
-    // volatile + lock: ensureSyncTask() is called from Folia region threads (createDisplay/
-    // updateDisplay run in block-entity ticks) while reload()/cleanup() cancel it from the global
-    // thread. Without the lock two threads could both observe a null handle and start two repeating
-    // sync tasks. R-CONC-002.
+    // Region ticks may start the display sync task while reload or cleanup cancels it globally.
+    // Volatile publishes the handle; the lock prevents concurrent callers from starting duplicate tasks.
     private volatile PluginTask syncTask;
     private final Object syncTaskLock = new Object();
     private volatile double viewDistance = DEFAULT_VIEW_DISTANCE;
@@ -76,10 +68,8 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
     private int syncIntervalTicks = DEFAULT_SYNC_INTERVAL_TICKS;
     private int syncBatchSize = DEFAULT_SYNC_BATCH_SIZE;
     private int syncCursor;
-    // Create/update bursts (a stove restoring 4 slots, a cutting board re-stacking) each used to pay an
-    // immediate per-display visibility sync. Queue them instead and drain once next tick so same-chunk
-    // displays share one chunk-player lookup. Existing viewers still get their update packets
-    // synchronously (sendUpdateForAllViewers); only the "player newly in range" sync is deferred <=1t.
+    // Queue create/update bursts until the next tick so displays in one chunk share a player lookup.
+    // Existing viewers receive update packets synchronously; new-in-range synchronization may wait one tick.
     private final Set<ProxyDisplay> pendingSync = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean pendingSyncScheduled = new AtomicBoolean();
 
@@ -109,7 +99,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
             this.networkManager = null;
         }
         if (isAvailable()) {
-            Bukkit.getPluginManager().registerEvents(this, plugin);
+            Bukkit.getPluginManager().registerEvents(new ProxyDisplayPlayerListener(this), plugin);
             for (Player player : Bukkit.getOnlinePlayers()) {
                 onlinePlayers.put(player.getUniqueId(), player);
             }
@@ -143,16 +133,16 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
     public void reload() {
         viewDistance = Math.max(8.0D, ConfigSectionReader.optionalDouble(
                 plugin.getConfig(),
-                "performance.proxy-item-display-view-distance", DEFAULT_VIEW_DISTANCE));
+                "performance.proxy-display.view-distance", DEFAULT_VIEW_DISTANCE));
         viewDistanceSquared = viewDistance * viewDistance;
         viewRangeMeta = (float) (viewDistance / 64.0D);
         packets.reload(viewRangeMeta);
         syncIntervalTicks = Math.max(1, ConfigSectionReader.optionalInt(
                 plugin.getConfig(),
-                "performance.proxy-item-display-sync-interval-ticks", DEFAULT_SYNC_INTERVAL_TICKS));
+                "performance.proxy-display.sync-interval-ticks", DEFAULT_SYNC_INTERVAL_TICKS));
         syncBatchSize = Math.max(1, ConfigSectionReader.optionalInt(
                 plugin.getConfig(),
-                "performance.proxy-item-display-sync-batch-size", DEFAULT_SYNC_BATCH_SIZE));
+                "performance.proxy-display.sync-batch-size", DEFAULT_SYNC_BATCH_SIZE));
         // Restart the sync task so the new interval takes effect.
         synchronized (syncTaskLock) {
             if (syncTask != null) {
@@ -192,7 +182,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
             queueSync(display);
             itemSpawnCount.incrementAndGet();
             return entityId;
-        } catch (Throwable t) {
+        } catch (RuntimeException | LinkageError t) {
             // A cosmetic item display must never abort the gameplay that spawns it. If building the display's
             // packets fails (e.g. wrapping the item for the metadata packet throws), returning no-display keeps
             // the caller's logic intact — otherwise a cutting board would store the item and spawn no display
@@ -233,7 +223,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
     }
 
     @Override
-    public boolean updateText(int entityId, net.kyori.adventure.text.Component text) {
+    public boolean updateText(int entityId, Component text) {
         if (!isAvailable() || text == null) {
             return false;
         }
@@ -243,8 +233,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         }
         TextDisplaySpec current = display.textSpec;
         if (current.text().equals(text)) {
-            // Skip the metadata broadcast when text matches what viewers already see.
-            // Mirrors BuffBossbarManager's setter-diff pattern (R-PERF-004).
+            // Skip metadata broadcasts when the text already matches the displayed value.
             textUpdateDiffHitCount.incrementAndGet();
             return true;
         }
@@ -253,7 +242,9 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
                 current.backgroundColor(), current.shadowed(), current.seeThrough());
         display.textSpec = updated;
         display.metadataPacket = packets.createTextMetadataPacket(entityId, updated);
-        display.spawnPacket = packets.createTextSpawnPacket(entityId, display.entityUuid, updated);
+        // The spawn packet carries only the entity id, uuid, location and type; the text is not one of
+        // its inputs and the location is carried over unchanged, so rebuilding it here would produce the
+        // same bytes. Only the metadata packet and the pair that references it need refreshing.
         display.spawnPackets = List.of(display.spawnPacket, display.metadataPacket);
         sendUpdateForAllViewers(display, null, display.metadataPacket);
         textUpdateCount.incrementAndGet();
@@ -276,14 +267,22 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
 
         DisplaySpec previousSpec = display.itemSpec;
         DisplaySpec normalizedSpec = normalize(spec);
+        // The spawn packet carries only the entity id, uuid, location and type, so it only has to be
+        // rebuilt when the display actually moved. FD's item displays are stationary in a slot, so an
+        // item or count change reuses the packet the display already holds. The same answer decides
+        // whether a position packet is sent, a few lines below.
+        boolean samePosition = previousSpec != null
+                && sameDisplayPosition(previousSpec.location(), normalizedSpec.location());
         Object newSpawnPacket;
         Object newMetadataPacket;
         try {
             // Build the packets before mutating the display so a build failure leaves the old visual intact
             // and cannot propagate into the caller (see createDisplay).
-            newSpawnPacket = packets.createItemSpawnPacket(entityId, display.entityUuid, normalizedSpec);
+            newSpawnPacket = samePosition
+                    ? display.spawnPacket
+                    : packets.createItemSpawnPacket(entityId, display.entityUuid, normalizedSpec);
             newMetadataPacket = packets.createItemMetadataPacket(entityId, normalizedSpec);
-        } catch (Throwable t) {
+        } catch (RuntimeException | LinkageError t) {
             logDisplayBuildFailure("update", spec, t);
             return false;
         }
@@ -291,8 +290,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         // stationary in-slot — a cutting-board carve/count change updates the item + metadata, never
         // x/y/z — so this drops a redundant position packet per update. Mirrors updateText's null-position
         // path; the packet carries only x/y/z (yaw/pitch are always 0, rotation lives in the transform).
-        Object positionPacket = previousSpec != null
-                && sameDisplayPosition(previousSpec.location(), normalizedSpec.location())
+        Object positionPacket = samePosition
                 ? null
                 : packets.createPositionPacket(entityId, normalizedSpec.location());
         synchronized (display) {
@@ -436,7 +434,6 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         displaysByChunk.clear();
         pendingSync.clear();
         visibleDisplaysByPlayer.clear();
-        scheduledPlayerSyncs.clear();
         // Re-seed instead of leaving the map empty: cleanup() is also reachable from the /fd cleanup
         // command while the manager keeps running, and this map only refills on join/teleport/respawn
         // events. An empty map would make viewer eviction paths (stale-viewer destroy, update fan-out)
@@ -449,41 +446,36 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         markDisplaySnapshotDirty();
     }
 
-    @EventHandler
-    public void onPlayerJoin(PlayerJoinEvent event) {
-        schedulePlayerSync(event.getPlayer(), 5L);
+    /** A joining player is synced after a short delay so their client is past the login burst. */
+    void onPlayerJoined(Player player) {
+        schedulePlayerSync(player, 5L);
     }
 
-    @EventHandler
-    public void onPlayerChangedWorld(PlayerChangedWorldEvent event) {
-        clearViewer(event.getPlayer().getUniqueId());
-        schedulePlayerSync(event.getPlayer(), 2L);
+    void onPlayerChangedWorld(Player player) {
+        clearViewer(player.getUniqueId());
+        schedulePlayerSync(player, 2L);
     }
 
-    @EventHandler
-    public void onPlayerTeleport(PlayerTeleportEvent event) {
-        schedulePlayerSync(event.getPlayer(), 2L);
+    void onPlayerTeleported(Player player) {
+        schedulePlayerSync(player, 2L);
     }
 
-    @EventHandler
-    public void onPlayerRespawn(PlayerRespawnEvent event) {
-        clearViewer(event.getPlayer().getUniqueId());
-        schedulePlayerSync(event.getPlayer(), 2L);
+    void onPlayerRespawned(Player player) {
+        clearViewer(player.getUniqueId());
+        schedulePlayerSync(player, 2L);
     }
 
-    @EventHandler
-    public void onPlayerQuit(PlayerQuitEvent event) {
-        onlinePlayers.remove(event.getPlayer().getUniqueId());
-        clearViewer(event.getPlayer().getUniqueId());
+    void onPlayerQuit(Player player) {
+        onlinePlayers.remove(player.getUniqueId());
+        clearViewer(player.getUniqueId());
     }
 
-    @EventHandler
-    public void onChunkUnload(ChunkUnloadEvent event) {
-        Map<Long, Set<Integer>> byChunk = displaysByChunk.get(event.getWorld().getUID());
+    void onChunkUnloaded(World world, Chunk chunk) {
+        Map<Long, Set<Integer>> byChunk = displaysByChunk.get(world.getUID());
         if (byChunk == null) {
             return;
         }
-        long chunkKey = ManagerSupport.chunkKey(event.getChunk().getX(), event.getChunk().getZ());
+        long chunkKey = ManagerSupport.chunkKey(chunk.getX(), chunk.getZ());
         Set<Integer> ids = byChunk.get(chunkKey);
         if (ids == null || ids.isEmpty()) {
             return;
@@ -537,11 +529,6 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
             return;
         }
 
-        if (plugin.scheduler().isFolia()) {
-            scheduleSyncForAllPlayers();
-            return;
-        }
-
         List<ProxyDisplay> snapshot = getDisplaySnapshot();
         int size = snapshot.size();
         if (size == 0) {
@@ -554,8 +541,8 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         int processed = 0;
         // Same-chunk displays (4 stove slots, cutting board + text) share one chunk-player lookup for
         // the whole batch. The batch runs synchronously on the main thread, so chunk player-tracking
-        // cannot change mid-pass and the memo is exactly equivalent to per-display fresh calls. Folia
-        // takes the per-player scheduling branch which never queries chunk tracking — no memo needed.
+        // cannot change mid-pass and the memo is exactly equivalent to per-display fresh calls. On Folia
+        // each display is handed to its own region instead, and carries a memo private to that task.
         Map<ChunkKey, Collection<Player>> memo = plugin.scheduler().isFolia() ? null : new HashMap<>();
         for (int i = 0; i < budget; i++) {
             ProxyDisplay display = snapshot.get((start + i) % size);
@@ -592,8 +579,14 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
             syncDisplay(display, memo);
             return;
         }
-
-        scheduleSyncForAllPlayers();
+        Location loc = display.location();
+        World world = loc.getWorld();
+        if (world == null) {
+            destroyForAllViewers(display);
+            return;
+        }
+        plugin.scheduler().runAt(world, loc.getBlockX() >> 4, loc.getBlockZ() >> 4,
+                () -> syncDisplay(display, new HashMap<>()));
     }
 
     private void queueSync(ProxyDisplay display) {
@@ -614,50 +607,46 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         if (pendingSync.isEmpty()) {
             return;
         }
-        if (plugin.scheduler().isFolia()) {
-            pendingSync.clear();
-            scheduleSyncForAllPlayers();
-            return;
-        }
-        Map<ChunkKey, Collection<Player>> memo = plugin.scheduler().isFolia() ? null : new HashMap<>();
+        boolean folia = plugin.scheduler().isFolia();
+        // syncDisplay reads the chunk's tracked-player list, so run each group on its owning region.
+        // Group by chunk to limit refreshes to changed displays and preserve the round-robin budget.
+        Map<ChunkKey, List<ProxyDisplay>> byChunk = folia ? new HashMap<>() : null;
+        Map<ChunkKey, Collection<Player>> memo = folia ? null : new HashMap<>();
         for (Iterator<ProxyDisplay> it = pendingSync.iterator(); it.hasNext(); ) {
             ProxyDisplay display = it.next();
             it.remove();
-            scheduleSyncDisplay(display, memo);
+            if (!folia) {
+                syncDisplay(display, memo);
+                continue;
+            }
+            Location loc = display.location();
+            World world = loc.getWorld();
+            if (world == null) {
+                destroyForAllViewers(display);
+                continue;
+            }
+            byChunk.computeIfAbsent(
+                    new ChunkKey(world, loc.getBlockX() >> 4, loc.getBlockZ() >> 4),
+                    key -> new ArrayList<>()).add(display);
+        }
+        if (byChunk == null) {
+            return;
+        }
+        for (Map.Entry<ChunkKey, List<ProxyDisplay>> entry : byChunk.entrySet()) {
+            ChunkKey key = entry.getKey();
+            List<ProxyDisplay> group = entry.getValue();
+            // One memo per region task: the chunk lookup is shared by every display in the group, and the
+            // map must not be touched from another region.
+            plugin.scheduler().runAt(key.world(), key.x(), key.z(), () -> {
+                Map<ChunkKey, Collection<Player>> regionMemo = new HashMap<>();
+                for (ProxyDisplay display : group) {
+                    syncDisplay(display, regionMemo);
+                }
+            });
         }
     }
 
     private record ChunkKey(World world, int x, int z) {
-    }
-
-    private void scheduleSyncForAllPlayers() {
-        for (Map.Entry<UUID, Player> entry : onlinePlayers.entrySet()) {
-            UUID playerId = entry.getKey();
-            Player player = entry.getValue();
-            if (player == null) {
-                continue;
-            }
-            if (!scheduledPlayerSyncs.add(playerId)) {
-                continue;
-            }
-            try {
-                plugin.scheduler().runForEntity(player, () -> {
-                    try {
-                        syncPlayer(player);
-                    } finally {
-                        scheduledPlayerSyncs.remove(playerId);
-                    }
-                }, () -> {
-                    scheduledPlayerSyncs.remove(playerId);
-                    onlinePlayers.remove(playerId);
-                    clearViewer(playerId);
-                });
-            } catch (RuntimeException e) {
-                scheduledPlayerSyncs.remove(playerId);
-                onlinePlayers.remove(playerId);
-                clearViewer(playerId);
-            }
-        }
     }
 
     private void syncPlayer(Player player) {
@@ -766,12 +755,8 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         if (world == null || !Objects.equals(player.getWorld(), world)) {
             return false;
         }
-        // On Folia this method runs on the player's entity scheduler. The display's chunk may belong to a
-        // different region, and touching it there
-        // (isChunkLoaded / getChunkAt) trips Folia's region-owner check and throws. shouldViewerSeeDisplay,
-        // called right after this, already bounds visibility by distance without any chunk access and itself
-        // skips its isChunkLoaded probe on Folia — so on Folia skip the chunk-tracking gate and let that
-        // distance check be authoritative (the pre-#042 flat-distance behaviour, region-safe).
+        // Folia invokes this on the player's entity scheduler, which may not own the display's chunk.
+        // Skip chunk access there and let the following distance check determine visibility.
         if (plugin.scheduler().isFolia()) {
             return true;
         }
@@ -824,9 +809,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
             }
 
             desiredViewers.add(player.getUniqueId());
-            if (!display.viewers.contains(player.getUniqueId())) {
-                spawnForViewer(player, display);
-            }
+            spawnForViewer(player, display);
         }
 
         // display.viewers is a ConcurrentHashMap key set: its weakly-consistent iterator tolerates the
@@ -873,17 +856,25 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
     }
 
     private void spawnForViewer(Player player, ProxyDisplay display) {
+        // Claim the viewer slot first: syncPlayer (the player's own scheduler) and syncAll/drainPendingSync
+        // (the owning chunk's region task) can both reach this method for the same player, and sending the
+        // spawn twice leaves a duplicate display entity behind after a single destroy.
+        if (!display.viewers.add(player.getUniqueId())) {
+            return;
+        }
         try {
             NetWorkUser user = networkManager.getOnlineUser(player.getUniqueId());
             if (user == null || !user.isOnline()) {
+                display.viewers.remove(player.getUniqueId());
                 return;
             }
             user.sendPackets(display.spawnPackets, false);
-            display.viewers.add(player.getUniqueId());
             visibleDisplaysByPlayer.computeIfAbsent(player.getUniqueId(), ignored -> ConcurrentHashMap.newKeySet())
                     .add(display.entityId);
             viewerSpawnPacketCount.incrementAndGet();
         } catch (Exception e) {
+            // The packets did not go out, so the viewer is released again and the next sync retries.
+            display.viewers.remove(player.getUniqueId());
             plugin.getLogger().warning(I18n.formatConsole("visual.proxy_spawn_failed",
                     "entity", display.entityId,
                     "player", player.getName(),
@@ -987,7 +978,7 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
 
     private void logDisplayBuildFailure(String op, DisplaySpec spec, Throwable t) {
         String item = spec != null && spec.itemStack() != null ? spec.itemStack().getType().name() : "null";
-        plugin.getLogger().log(java.util.logging.Level.WARNING,
+        plugin.getLogger().log(Level.WARNING,
                 "Skipped item display " + op + " for " + item + " so the interaction is not aborted", t);
     }
 
@@ -1122,4 +1113,3 @@ public class ProxyItemDisplayManager implements Listener, ItemDisplayManager {
         }
     }
 }
-

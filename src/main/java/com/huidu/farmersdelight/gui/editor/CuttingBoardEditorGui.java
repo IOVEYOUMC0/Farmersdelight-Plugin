@@ -13,6 +13,7 @@ import com.huidu.farmersdelight.util.Text;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.momirealms.craftengine.core.util.Key;
+import net.momirealms.craftengine.core.util.UniqueKey;
 import org.bukkit.Material;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
@@ -26,6 +27,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -356,7 +358,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
         }
 
         CuttingBoardRecipe recipe = new CuttingBoardRecipe(recipeId, input, null, toolList, results, sound, priority);
-        if (plugin.getRecipeEditorStore().saveCuttingBoardRecipe(recipe)) {
+        if (RecipeEditorView.store().saveCuttingBoardRecipe(recipe)) {
             player.sendMessage(Component.translatable("gui.editor.feedback.saved",
                     Component.text(recipeId).color(NamedTextColor.WHITE))
                     .color(NamedTextColor.GREEN));
@@ -368,7 +370,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
     }
 
     private void delete() {
-        RecipeViewGuiConfig.BaseConfig confirmConfig = plugin.getRecipeEditorGuiConfig().getConfirmDeleteConfig();
+        RecipeViewGuiConfig.BaseConfig confirmConfig = RecipeEditorView.guiConfig().getConfirmDeleteConfig();
         if (confirmConfig == null) {
             performDelete();
             return;
@@ -379,7 +381,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
     }
 
     private void performDelete() {
-        if (plugin.getRecipeEditorStore().deleteCuttingBoardRecipe(recipeId)) {
+        if (RecipeEditorView.store().deleteCuttingBoardRecipe(recipeId)) {
             player.sendMessage(Component.translatable("gui.editor.feedback.deleted",
                     Component.text(recipeId).color(NamedTextColor.WHITE))
                     .color(NamedTextColor.GREEN));
@@ -391,7 +393,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
     }
 
     private void openTagPicker(ItemStack source) {
-        RecipeViewGuiConfig.BaseConfig pickerConfig = plugin.getRecipeEditorGuiConfig().getTagPickerConfig();
+        RecipeViewGuiConfig.BaseConfig pickerConfig = RecipeEditorView.guiConfig().getTagPickerConfig();
         if (pickerConfig == null) {
             player.sendMessage(Component.translatable("gui.editor.feedback.not_configured")
                     .color(NamedTextColor.RED));
@@ -413,7 +415,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
     }
 
     private void openToolTagPicker(int idx, ItemStack source) {
-        RecipeViewGuiConfig.BaseConfig pickerConfig = plugin.getRecipeEditorGuiConfig().getTagPickerConfig();
+        RecipeViewGuiConfig.BaseConfig pickerConfig = RecipeEditorView.guiConfig().getTagPickerConfig();
         if (pickerConfig == null) {
             player.sendMessage(Component.translatable("gui.editor.feedback.not_configured")
                     .color(NamedTextColor.RED));
@@ -451,7 +453,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
                     .color(NamedTextColor.RED));
             return;
         }
-        RecipeViewGuiConfig.BaseConfig pickerConfig = plugin.getRecipeEditorGuiConfig().getTagPickerConfig();
+        RecipeViewGuiConfig.BaseConfig pickerConfig = RecipeEditorView.guiConfig().getTagPickerConfig();
         if (pickerConfig == null) {
             player.sendMessage(Component.translatable("gui.editor.feedback.not_configured")
                     .color(NamedTextColor.RED));
@@ -472,7 +474,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
     private List<ItemStack> resolveTagMembers(Key tag) {
         Map<String, ItemStack> unique = new LinkedHashMap<>();
         if (plugin.getCraftEngine() != null) {
-            for (net.momirealms.craftengine.core.util.UniqueKey uniqueKey
+            for (UniqueKey uniqueKey
                     : plugin.getCraftEngine().itemManager().itemIdsByTag(tag)) {
                 ItemStack stack = ItemUtils.createItem(uniqueKey.key().toString());
                 if (stack != null && !stack.getType().isAir() && stack.getType() != Material.BARRIER) {
@@ -490,7 +492,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
     }
 
     private void openChoiceBuilder(int displayIndex) {
-        RecipeViewGuiConfig.BaseConfig choiceConfig = plugin.getRecipeEditorGuiConfig().getChoiceBuilderConfig();
+        RecipeViewGuiConfig.BaseConfig choiceConfig = RecipeEditorView.guiConfig().getChoiceBuilderConfig();
         if (choiceConfig == null) {
             return;
         }
@@ -566,7 +568,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
         if (item == null) {
             item = config.getItem("background");
         }
-        return item == null ? new ItemStack(Material.AIR) : item.createItem(new java.util.HashMap<>(placeholders));
+        return item == null ? new ItemStack(Material.AIR) : item.createItem(new HashMap<>(placeholders));
     }
 
     private ItemStack displayForIngredient(RecipeIngredient ingredient) {

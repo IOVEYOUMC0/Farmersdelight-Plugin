@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.util;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
@@ -69,7 +70,7 @@ public final class Text {
     // Splits a MiniMessage string at each language-key tag, deserializing the plain runs and converting
     // the "<lang:...>" tags into translatable components resolved on the client.
     private static Component resolveLangTags(String miniMessage) {
-        net.kyori.adventure.text.TextComponent.Builder builder = Component.text();
+        TextComponent.Builder builder = Component.text();
         Matcher matcher = LANG_TAG.matcher(miniMessage);
         int last = 0;
         while (matcher.find()) {

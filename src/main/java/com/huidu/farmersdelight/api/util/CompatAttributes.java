@@ -23,13 +23,13 @@ public final class CompatAttributes {
                 if (attribute != null) {
                     return attribute;
                 }
-            } catch (Throwable ignored) {
+            } catch (RuntimeException | LinkageError ignored) {
             }
         }
         for (String field : new String[]{modernField, legacyField}) {
             try {
                 return (Attribute) Attribute.class.getField(field).get(null);
-            } catch (Throwable ignored) {
+            } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
             }
         }
         return null;

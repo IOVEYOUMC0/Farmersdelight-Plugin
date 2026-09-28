@@ -4,7 +4,6 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
-import com.huidu.farmersdelight.util.ItemUtils;
 import io.papermc.paper.event.block.BlockPreDispenseEvent;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -43,8 +42,7 @@ public final class CuttingBoardDispenseListener implements Listener {
         // ordinary item the moment it fires. The knife is only ever meant to be used as a tool on a facing
         // cutting board, so gate on the item instead of the block: this also keeps a knife inside the
         // dispenser while CE reloads, when the facing board can briefly fail to resolve as a cutting board.
-        String customId = ItemUtils.getCustomItemId(tool);
-        if (customId == null || !plugin.isKnifeItemId(customId)) {
+        if (!plugin.isKnife(tool)) {
             return;
         }
         event.setCancelled(true);

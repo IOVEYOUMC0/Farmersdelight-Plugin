@@ -1,8 +1,10 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.api.util.ItemDelivery;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.config.HeatSourceConfig;
 import com.huidu.farmersdelight.gui.CookingPotGui;
+import com.huidu.farmersdelight.manager.HandleManager;
 import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.manager.TrayManager;
 import com.huidu.farmersdelight.util.BehaviorArgParser;
@@ -16,6 +18,7 @@ import com.huidu.farmersdelight.util.PermissionChecker;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
+import net.kyori.adventure.text.Component;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
@@ -24,6 +27,7 @@ import net.momirealms.craftengine.core.block.behavior.WorldlyContainerHolder;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.block.entity.BlockEntityController;
 import net.momirealms.craftengine.core.block.property.Property;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.util.Direction;
@@ -31,12 +35,14 @@ import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.CEWorld;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
 import org.bukkit.Bukkit;
+import org.bukkit.Color;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Transformation;
 import org.joml.AxisAngle4f;
@@ -69,7 +75,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
     // Must be maintained in lockstep with structural writes to worldBlockEntities, otherwise on chunk unload
     // missed entities won't be saved, losing pot contents.
     private static final Map<UUID, Map<Long, Set<BlockPosKey>>> chunkIndex = new ConcurrentHashMap<>();
-    // Progress text now rides on ProxyItemDisplayManager (packet-only TextDisplay) — value is the
+    // Progress text uses ProxyItemDisplayManager (packet-only TextDisplay) — value is the
     // proxy entityId. The proxy manager handles chunk-tracked viewer selection, distance filter, and
     // text diff internally, so per-pot visibility / throttle caches are gone.
     private static final Map<UUID, Map<BlockPosKey, Integer>> worldProgressDisplays = new ConcurrentHashMap<>();
@@ -120,17 +126,19 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
             Property<String> supportProperty
     ) {}
 
+    private final FarmersDelightPlugin plugin;
     private final Config config;
     private int controllerId;
 
-    private CookingPotBlockBehavior(BlockDefinition block, Config config) {
+    private CookingPotBlockBehavior(FarmersDelightPlugin plugin, BlockDefinition block, Config config) {
         super(block);
+        this.plugin = plugin;
         this.config = config;
     }
 
     @Override
     public BlockEntityController createBlockEntityController(BlockEntity blockEntity) {
-        return new CookingPotBlockEntityController(blockEntity, this);
+        return new CookingPotBlockEntityController(plugin, blockEntity, this);
     }
 
     @Override
@@ -145,10 +153,8 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
 
     @Override
     public int getAnalogOutputSignal(Object thisBlock, Object[] args) {
-        // args[1] = Level, args[2] = BlockPos. The mod's CookingPotBlock feeds its whole 9-slot handler through
-        // MathUtils.calcRedstoneFromItemHandler, so the signal tracks the pot's overall fill, not just the meal
-        // slot: every occupied slot contributes amount / min(slotLimit, maxStackSize), the sum is divided by the
-        // slot count, and any non-empty slot lifts the floor to 1.
+        // args[1] = Level, args[2] = BlockPos. Comparator strength measures all inventory slots.
+        // Average each slot's amount / min(slotLimit, maxStackSize), then give any non-empty pot a floor of 1.
         World world = CraftEngineAdapter.toWorld(args[1]);
         BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
         if (world == null || pos == null) {
@@ -221,7 +227,10 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
     private static CookingPotBlockEntity createBlockEntity(BlockPosKey key, World world, CookingPotBlockBehavior behavior) {
         CookingPotLayout layout = behavior != null ? behavior.getLayout() : CookingPotLayout.DEFAULT;
         String recipeGroup = behavior != null ? behavior.getCustomRecipeGroupId() : null;
-        return new CookingPotBlockEntity(key, world, layout, recipeGroup);
+        // The behavior carries the plugin; the no-behavior path (a tracked pot whose block state was not
+        // resolved) is the only one that has to look it up.
+        FarmersDelightPlugin owner = behavior != null ? behavior.plugin : FarmersDelightPlugin.getInstance();
+        return new CookingPotBlockEntity(owner, key, world, layout, recipeGroup);
     }
 
     public static CookingPotBlockBehavior getBlockBehavior(Location location) {
@@ -239,6 +248,13 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
             return worldEntities;
         }
         return Map.of();
+    }
+
+    /** Tracked pot count without materialising the per-world map; used for the bounded cleanup sweep. */
+    public static int getBlockEntityCount(World world) {
+        if (world == null) return 0;
+        Map<BlockPosKey, CookingPotBlockEntity> worldEntities = worldBlockEntities.get(world.getUID());
+        return worldEntities == null ? 0 : worldEntities.size();
     }
 
     public static Set<Map.Entry<BlockPosKey, CookingPotBlockEntity>> getBlockEntityEntries(World world) {
@@ -456,7 +472,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         recentPlacements.clear();
     }
 
-    public static void collectLiveDisplayIds(java.util.Set<Integer> out) {
+    public static void collectLiveDisplayIds(Set<Integer> out) {
         for (Map<BlockPosKey, Integer> displays : worldProgressDisplays.values()) {
             out.addAll(displays.values());
         }
@@ -517,7 +533,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
             return;
         }
 
-        net.kyori.adventure.text.Component component = net.kyori.adventure.text.Component.text(text);
+        Component component = Component.text(text);
         Map<BlockPosKey, Integer> worldDisplays = worldProgressDisplays.computeIfAbsent(
                 world.getUID(), ignored -> new ConcurrentHashMap<>());
         Integer existingId = worldDisplays.get(posKey);
@@ -541,7 +557,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
                 displayLoc,
                 component,
                 transformation,
-                org.bukkit.Color.fromARGB(0, 0, 0, 0),
+                Color.fromARGB(0, 0, 0, 0),
                 true,
                 false));
         if (newId >= 0) {
@@ -557,7 +573,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         if (recipeItem != null && !recipeItem.getType().isAir()) {
             // Resolve the display name once here — it doesn't change while this recipe cooks, so the
             // progress-display tick just reads it back instead of re-deriving it every interval.
-            cookingRecipeNames.put(stateKey, com.huidu.farmersdelight.util.ItemUtils.getDisplayName(recipeItem));
+            cookingRecipeNames.put(stateKey, ItemUtils.getDisplayName(recipeItem));
         } else {
             cookingRecipeNames.remove(stateKey);
         }
@@ -677,14 +693,14 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
             return false;
         }
         Block block = world.getBlockAt(posKey.x(), posKey.y(), posKey.z());
-        return com.huidu.farmersdelight.util.CustomBlockUtils.hasBehavior(block, CookingPotBlockBehavior.class);
+        return CustomBlockUtils.hasBehavior(block, CookingPotBlockBehavior.class);
     }
 
     public static ItemStack insertIngredientLikeHopper(Location location, ItemStack item) {
         return insertThroughFace(location, item, Direction.UP, false);
     }
 
-    // Recipe filling prefers an empty input slot before falling back to stacking.
+    // Recipe filling distributes single-item inserts to the least-filled compatible input slot.
     public static ItemStack insertIngredientSpreadLikeHopper(Location location, ItemStack item) {
         return insertThroughFace(location, item, Direction.UP, true);
     }
@@ -753,26 +769,28 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         }
     }
 
-    public static final BlockBehaviorFactory<CookingPotBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+    public static final BlockBehaviorFactory<CookingPotBlockBehavior> FACTORY = (BlockDefinition block, ConfigSection section) -> {
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         String permission = BehaviorArgParser.getString(arguments, "permission", "farmersdelight.use.cooking_pot");
         boolean openWhileSneaking = BehaviorArgParser.getBoolean(arguments, "open-while-sneaking", false);
         boolean placeTrayOnOpen = BehaviorArgParser.getBoolean(arguments, "place-tray-on-open", true);
-        boolean supportDisplayEnabled = BehaviorArgParser.getBoolean(arguments, "display-support", true);
-        boolean requireNonFullSupport = BehaviorArgParser.getBoolean(arguments, "require-non-full-support", true);
-        String boilSound = getNullableString(arguments, "boil-sound");
-        String soupBoilSound = getNullableString(arguments, "soup-boil-sound");
-        Double soundChance = getNullableDouble(arguments, "sound-chance");
-        Double soundVolume = getNullableDouble(arguments, "sound-volume");
-        Double soundPitchMin = getNullableDouble(arguments, "sound-pitch-min");
-        Double soundPitchMax = getNullableDouble(arguments, "sound-pitch-max");
+        boolean supportDisplayEnabled = BehaviorArgParser.getBoolean(arguments, "support.display", "display-support", true);
+        boolean requireNonFullSupport = BehaviorArgParser.getBoolean(arguments, "support.require-non-full", "require-non-full-support", true);
+        // Grouped options read either nested ("sound: {chance, volume, ...}") or as the legacy flat keys
+        // ("sound-chance", ...); see BehaviorArgParser. Two of them do not follow the path spelling: the soup boil
+        // sound was "soup-boil-sound", and the handle sound was written under the section name itself.
+        String boilSound = getNullableString(arguments, "boil.sound");
+        String soupBoilSound = getNullableString(arguments, "boil.soup-sound", "soup-boil-sound");
+        Double soundChance = getNullableDouble(arguments, "sound.chance");
+        Double soundVolume = getNullableDouble(arguments, "sound.volume");
+        Double soundPitchMin = getNullableDouble(arguments, "sound.pitch-min");
+        Double soundPitchMax = getNullableDouble(arguments, "sound.pitch-max");
         String customDataKey = BehaviorArgParser.getString(arguments, "data-key", "farmersdelight:cooking_pot");
-        String handleToggleSound = BehaviorArgParser.getArgumentString(arguments,
-                "handle-toggle-sound", "minecraft:block.lantern.place");
+        String handleToggleSound = handleToggleSoundArgument(arguments);
         float handleToggleSoundVolume = Math.max(0.0F,
-                BehaviorArgParser.getFloat(arguments, "handle-toggle-sound-volume", 0.7F));
+                BehaviorArgParser.getFloat(arguments, "handle-toggle-sound.volume", 0.7F));
         float handleToggleSoundPitch = Math.max(0.0F,
-                BehaviorArgParser.getFloat(arguments, "handle-toggle-sound-pitch", 1.0F));
+                BehaviorArgParser.getFloat(arguments, "handle-toggle-sound.pitch", 1.0F));
         Map<String, Object> custom = getMap(arguments);
         CookingPotLayout layout = CookingPotLayout.DEFAULT;
         String customRecipeGroupId = null;
@@ -793,12 +811,13 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         String recipeGroupResolved = normalizeBlank(customRecipeGroupId);
         String titleResolved = normalizeBlank(titleOverride);
         Property<String> supportProperty = BlockBehaviorFactory.getOptionalProperty(block, SUPPORT_PROPERTY, String.class);
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (supportProperty == null) {
-            FarmersDelightPlugin.getInstance().getLogger()
+            plugin.getLogger()
                     .warning("[FarmersDelight] Block " + block.id() + " is missing the 'support' property"
                             + " — tray and handle entity_renderer switching is disabled for this block.");
         }
-        return new CookingPotBlockBehavior(block, new Config(
+        return new CookingPotBlockBehavior(plugin, block, new Config(
                 permission,
                 openWhileSneaking,
                 placeTrayOnOpen,
@@ -833,8 +852,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         ItemStack heldItem = ItemUtils.getItemInHand(bukkitPlayer, context.getHand());
         if (bukkitPlayer.isSneaking()
                 && (heldItem == null || heldItem.getType().isAir())) {
-            FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-            com.huidu.farmersdelight.manager.HandleManager hm = plugin == null ? null : plugin.getHandleManager();
+            HandleManager hm = plugin == null ? null : plugin.getHandleManager();
             if (hm == null) {
                 return InteractionResult.PASS;
             }
@@ -890,7 +908,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         blockEntity.applyBehavior(this);
         blockEntity.setWorld(world);
         
-        TickManager tickManager = FarmersDelightPlugin.getInstance().getTickManager();
+        TickManager tickManager = plugin.getTickManager();
         if (tickManager != null) {
             tickManager.markActive(world, posKey, TickManager.BlockType.COOKING_POT);
         }
@@ -900,13 +918,13 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
             return InteractionResult.SUCCESS_AND_CANCEL;
         }
 
-        TrayManager trayManager = FarmersDelightPlugin.getInstance().getTrayManager();
+        TrayManager trayManager = plugin.getTrayManager();
         if (config.placeTrayOnOpen() && trayManager != null) {
             trayManager.checkAndPlaceTray(world, pos);
         }
 
         CookingPotGui gui = new CookingPotGui(
-                FarmersDelightPlugin.getInstance(), 
+                plugin, 
                 blockEntity, 
                 this, 
                 world,
@@ -941,17 +959,12 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
             heldItem.setAmount(heldItem.getAmount() - 1);
             if (heldItem.getAmount() <= 0) {
                 player.getInventory().setItem(hand == InteractionHand.OFF_HAND
-                        ? org.bukkit.inventory.EquipmentSlot.OFF_HAND : org.bukkit.inventory.EquipmentSlot.HAND, null);
+                        ? EquipmentSlot.OFF_HAND : EquipmentSlot.HAND, null);
             }
         }
 
-        Map<Integer, ItemStack> leftovers = player.getInventory().addItem(meal);
-        if (!leftovers.isEmpty()) {
-            Location dropLocation = posKey.toLocation(world).add(0.5, 0.7, 0.5);
-            leftovers.values().forEach(item -> world.dropItemNaturally(dropLocation, item));
-        }
+        ItemDelivery.giveOrDrop(player, posKey.toLocation(world).add(0.5, 0.7, 0.5), meal);
 
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         blockEntity.awardUsedRecipes(player);
         plugin.callCookingPotExperienceEvent(player, meal, 0.0D);
 
@@ -962,7 +975,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
     }
 
     public boolean checkHeatSource(BlockPos pos, World world) {
-        HeatSourceConfig config = FarmersDelightPlugin.getInstance().getHeatSourceConfig();
+        HeatSourceConfig config = plugin.getHeatSourceConfig();
         if (config == null) return false;
         
         Location locationBelow = new Location(world, pos.x(), pos.y() - 1, pos.z());
@@ -1011,7 +1024,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         // gating the close on getBlockEntity != null would skip it for the common case and leave a still-open
         // Bukkit Inventory as a free pool of items the viewer can click out (dupe). closeOpenGuisAt only needs
         // the world + coords and is a cheap no-op when no viewer is open at this position.
-        com.huidu.farmersdelight.gui.CookingPotGui.closeOpenGuisAt(world, pos.x(), pos.y(), pos.z());
+        CookingPotGui.closeOpenGuisAt(world, pos.x(), pos.y(), pos.z());
         BlockPosKey posKey = new BlockPosKey(pos);
         if (getBlockEntity(world, posKey) == null) {
             return;
@@ -1022,7 +1035,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
 
     @Override
     public Object getContainer(Object thisBlock, Object[] args) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin == null || !plugin.isCookingPotHopperInteractionsEnabled()) {
             return null;
         }
@@ -1072,6 +1084,33 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         return BehaviorArgParser.getStringStrict(arguments, key, null).trim();
     }
 
+    /** As getNullableString(Map, String), for a grouped option with a legacy key that is spelled differently. */
+    private static String getNullableString(Map<String, Object> arguments, String key, String legacyKey) {
+        if (!BehaviorArgParser.isPresent(arguments, key, legacyKey)) {
+            return null;
+        }
+        Object raw = BehaviorArgParser.getRaw(arguments, key, legacyKey);
+        if (raw instanceof String string && string.isBlank()) {
+            return null;
+        }
+        return BehaviorArgParser.getStringStrict(arguments, key, legacyKey, null).trim();
+    }
+
+    // The oldest flat form of the handle sound was the section name holding the sound itself
+    // ("handle-toggle-sound: <sound id>", with "handle-toggle-sound-volume"/"-pitch" beside it), so a scalar
+    // there is still read as the sound; the grouped form keeps the sound under "sound:". Package-private so the
+    // argument test can cover all three spellings without a live block definition.
+    static String handleToggleSoundArgument(Map<String, Object> arguments) {
+        if (!BehaviorArgParser.isPresent(arguments, "handle-toggle-sound.sound")) {
+            Object scalar = BehaviorArgParser.getRaw(arguments, "handle-toggle-sound");
+            if (scalar instanceof String text && !text.isBlank()) {
+                return text.trim();
+            }
+        }
+        return BehaviorArgParser.getArgumentString(arguments,
+                "handle-toggle-sound.sound", "minecraft:block.lantern.place");
+    }
+
     private static Double getNullableDouble(Map<String, Object> arguments, String key) {
         return BehaviorArgParser.isPresent(arguments, key)
                 ? (double) BehaviorArgParser.getDouble(arguments, key, 0.0D)
@@ -1087,7 +1126,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
 
     private static Map<String, Object> getMap(Map<String, Object> arguments) {
         Object value = getArgument(arguments, "custom");
-        if (value instanceof net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
+        if (value instanceof ConfigSection section) {
             return section.values();
         }
         if (value != null) {
@@ -1097,6 +1136,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
     }
 
     private static String normalizeBlank(String value) {
-        return com.huidu.farmersdelight.util.ItemUtils.normalizeBlank(value);
+        return ItemUtils.normalizeBlank(value);
     }
 }

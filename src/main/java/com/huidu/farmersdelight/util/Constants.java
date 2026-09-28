@@ -53,6 +53,11 @@ public final class Constants {
     public static final String BEHAVIOR_RICH_SOIL = "farmersdelight:rich_soil";
     public static final String BEHAVIOR_RICH_SOIL_FARMLAND = "farmersdelight:rich_soil_farmland";
     public static final String ITEM_BEHAVIOR_CONDITIONAL_PLANTING = "farmersdelight:conditional_block_planting";
+    public static final String ITEM_BEHAVIOR_SKILLET = "farmersdelight:skillet_item";
+    public static final String CONDITION_IS_ADULT = "farmersdelight:is_adult";
+    public static final String CONDITION_IS_BURNING = "farmersdelight:is_burning";
+    public static final String CONDITION_IS_KNIFE = "farmersdelight:is_knife";
+    public static final String LOOT_FUNCTION_AWARD_ADVANCEMENT = "farmersdelight:award_advancement";
     public static final String ITEM_SETTING_PET_FOOD = "farmersdelight:pet_food";
     public static final String BLOCK_RICH_SOIL_FARMLAND = "farmersdelight:rich_soil_farmland";
     public static final String ITEM_ORGANIC_COMPOST = "farmersdelight:organic_compost";
@@ -66,19 +71,22 @@ public final class Constants {
     public static final String SOUND_SKILLET_ATTACK_STRONG = "farmersdelight:item.skillet.attack.strong";
     public static final String SOUND_SKILLET_ATTACK_WEAK = "farmersdelight:item.skillet.attack.weak";
     public static final String SOUND_STOVE_CRACKLE = "farmersdelight:block.stove.crackle";
+    // Stove ignition/extinguishing sounds, the same ones the mod plays from AbstractStoveBlock and the
+    // pack used to play before that logic moved into the stove behavior.
+    public static final String SOUND_STOVE_IGNITE = "minecraft:item.flintandsteel.use";
+    public static final String SOUND_STOVE_IGNITE_FIRE_CHARGE = "minecraft:item.firecharge.use";
+    public static final String SOUND_STOVE_EXTINGUISH = "minecraft:block.fire.extinguish";
+    public static final String SOUND_STOVE_EXTINGUISH_WATER = "minecraft:entity.generic.extinguish_fire";
     public static final int DEFAULT_COOKING_TIME_SKILLET = 600;
     public static final int MINIMUM_COOKING_TIME_SKILLET = 60;
     public static final int DEFAULT_COOKING_TIME_COOKING_POT = 200;
-    public static final int DEFAULT_COOKING_POT_DISPLAY_VISIBILITY_CHECK_INTERVAL_TICKS = 100;
     public static final int DEFAULT_COOKING_POT_PLACE_INTERACTION_COOLDOWN_MS = 1000;
     public static final int DEFAULT_COMFORT_DURATION = 300;
     public static final int DEFAULT_NOURISHMENT_DURATION = 300;
     public static final float SKILLET_COOKING_TIME_REDUCTION = 0.2f;
     public static final float SKILLET_FIRE_ASPECT_BONUS = 0.05f;
-    // Lowered from 0.2 / 0.05 after spark profiling: dense stove scenes (3000+ lit stoves) generate
-    // world.spawnParticle / playSound broadcast packets at rate = stoves × chance × slots. Even with
-    // R-PERF-005 chunk-tracked gating, packet floor is proportional to chance. 0.1 smoke / 0.02
-    // crackle keep visual identity intact while cutting hot-tick packet count roughly in half.
+    // Smoke and crackle probabilities control per-slot effect traffic.
+    // Lower probabilities reduce broadcasts in dense cooking areas without changing cooking progress.
     public static final float STOVE_PARTICLE_CHANCE = 0.1f;
     public static final float STOVE_CRACKLE_CHANCE = 0.02f;
     public static final float SKILLET_PARTICLE_CHANCE = 0.1f;

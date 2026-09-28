@@ -91,14 +91,14 @@ public final class CookingPotExperienceRewardConfig {
 
     private AuraSkillsReward parseRewardEntry(Object entry, String fallbackSkill) {
         if (entry instanceof Map<?, ?> mapEntry) {
-            Object rawSkill = firstPresent(mapEntry, "skill", "id", "name");
+            Object rawSkill = ConfigValues.firstPresent(mapEntry, "skill", "id", "name");
             String skill = normalizeSkillId(rawSkill != null ? String.valueOf(rawSkill) : fallbackSkill);
             if (skill.isEmpty()) {
                 return null;
             }
 
-            Double fixedAmount = getOptionalPositiveDouble(firstPresent(mapEntry, "amount", "xp", "value"));
-            double multiplier = Math.max(0.0D, getDouble(firstPresent(mapEntry,
+            Double fixedAmount = getOptionalPositiveDouble(ConfigValues.firstPresent(mapEntry, "amount", "xp", "value"));
+            double multiplier = Math.max(0.0D, ConfigValues.doubleValue(ConfigValues.firstPresent(mapEntry,
                     "multiplier",
                     "amount-multiplier",
                     "xp-multiplier"), 1.0D));
@@ -106,11 +106,11 @@ public final class CookingPotExperienceRewardConfig {
                 return null;
             }
 
-            boolean raw = getBoolean(firstPresent(mapEntry,
+            boolean raw = ConfigValues.booleanValue(ConfigValues.firstPresent(mapEntry,
                     "raw",
                     "bypass-multipliers",
                     "ignore-multipliers",
-                    "exact"));
+                    "exact"), false);
             return new AuraSkillsReward(skill, fixedAmount, multiplier, raw, getChance(mapEntry));
         }
 
@@ -145,17 +145,8 @@ public final class CookingPotExperienceRewardConfig {
                 || "probability".equalsIgnoreCase(key);
     }
 
-    private Object firstPresent(Map<?, ?> map, String... keys) {
-        for (String key : keys) {
-            if (map.containsKey(key)) {
-                return map.get(key);
-            }
-        }
-        return null;
-    }
-
     private double getChance(Map<?, ?> map) {
-        double chance = getDouble(firstPresent(map, "chance", "probability"), 1.0D);
+        double chance = ConfigValues.doubleValue(ConfigValues.firstPresent(map, "chance", "probability"), 1.0D);
         if (chance > 1.0D) {
             chance /= 100.0D;
         }
@@ -166,31 +157,8 @@ public final class CookingPotExperienceRewardConfig {
         if (value == null) {
             return null;
         }
-        double parsed = getDouble(value, 0.0D);
+        double parsed = ConfigValues.doubleValue(value, 0.0D);
         return parsed > 0.0D ? parsed : null;
-    }
-
-    private double getDouble(Object value, double defaultValue) {
-        if (value instanceof Number number) {
-            return number.doubleValue();
-        }
-        if (value instanceof String stringValue) {
-            try {
-                return Double.parseDouble(stringValue.trim());
-            } catch (NumberFormatException ignored) {
-            }
-        }
-        return defaultValue;
-    }
-
-    private boolean getBoolean(Object value) {
-        if (value instanceof Boolean bool) {
-            return bool;
-        }
-        if (value instanceof String stringValue) {
-            return Boolean.parseBoolean(stringValue);
-        }
-        return false;
     }
 
     private String normalizeSkillId(String skillId) {

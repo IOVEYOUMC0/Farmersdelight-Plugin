@@ -8,6 +8,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Transformation;
 
 import java.util.UUID;
+import java.util.Set;
 
 public interface ItemDisplayManager {
 
@@ -34,7 +35,7 @@ public interface ItemDisplayManager {
 
     void cleanup();
 
-    int cleanupOrphans(java.util.Set<Integer> liveIds);
+    int cleanupOrphans(Set<Integer> liveIds);
 
     record DisplaySpec(
             Location location,

@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.listener;
 
+import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntity;
 import com.huidu.farmersdelight.util.BlockPosKey;
@@ -18,6 +19,13 @@ import org.bukkit.event.Listener;
 import org.bukkit.inventory.ItemStack;
 
 public class CuttingBoardInteractListener implements Listener {
+
+    // Handed in by the registrar instead of looked up: this handler only runs while the plugin is enabled.
+    private final FarmersDelightPlugin plugin;
+
+    public CuttingBoardInteractListener(FarmersDelightPlugin plugin) {
+        this.plugin = plugin;
+    }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onSneakInsertTool(CustomBlockInteractEvent event) {
@@ -47,13 +55,13 @@ public class CuttingBoardInteractListener implements Listener {
             // Apply parked saved data first (deferred startup load, or a chunk served from CraftEngine's
             // chunk cache): creating a blank entity here would let the late apply replace it and destroy
             // the item this handler is about to place. loadBlockEntity flushes pending controller data.
-            CuttingBoardBlockBehavior.loadBlockEntity(block.getWorld(), posKey);
+            CuttingBoardBlockBehavior.loadBlockEntity(plugin, block.getWorld(), posKey);
             blockEntity = CuttingBoardBlockBehavior.getBlockEntity(block.getWorld(), posKey);
         }
         if (blockEntity != null && blockEntity.hasItem()) return;
 
         if (blockEntity == null) {
-            blockEntity = new CuttingBoardBlockEntity(posKey, block.getWorld());
+            blockEntity = new CuttingBoardBlockEntity(plugin, posKey, block.getWorld());
             CuttingBoardBlockBehavior.putBlockEntity(block.getWorld(), posKey, blockEntity);
         }
 

@@ -9,26 +9,20 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Central registry for tag → concrete-item mappings across the whole plugin family. It satisfies two
- * needs that Paper/CraftEngine cannot natively provide:
- *
- * 1. NeoForge/Fabric "common tag" conventions (c:drinks/milk, c:foods/cooked_fish, ...). Recipes
- *    written against those tags resolve their members here so recipe matching, index lookup and the
- *    recipe-book icons agree with the original mod.
- * 2. Per-addon tag registration: every addon ships its own tags config inside ITS data folder and, at
- *    enable time, registers the mapping into this central registry so the whole family resolves the
- *    same tags "under one roof". FD's own default lives in <dataFolder>/common-tags.yml.
- *
- * All sources are merged (union of members per tag). Effective maps are immutable snapshots published
- * whole on any change so region-thread readers never observe a half-built map.
+ * Resolves item tags for recipe matching, result indexes and ingredient icons.
+ * Merge common-tags.yml and addon registrations by taking the union of members per tag.
+ * Publish immutable snapshots so concurrent region readers never observe a partial update.
  */
 public final class CommonTagResolver {
 
@@ -47,6 +41,7 @@ public final class CommonTagResolver {
     private static volatile Map<String, Set<String>> tagToItems = Map.of();
     private static volatile Map<String, Set<String>> itemToTags = Map.of();
     private static volatile boolean loaded = false;
+    private static Set<String> reportedProblems = Set.of();
 
     private CommonTagResolver() {
     }
@@ -115,7 +110,7 @@ public final class CommonTagResolver {
     /** Tags owned by the given concrete item id (matching any id form an item reports). */
     public static Set<String> getTagsForItemId(String itemId) {
         return itemId == null ? Set.of()
-                : itemToTags.getOrDefault(itemId.trim().toLowerCase(java.util.Locale.ROOT), Set.of());
+                : itemToTags.getOrDefault(itemId.trim().toLowerCase(Locale.ROOT), Set.of());
     }
 
     /** Immutable snapshot of every registered tag and its concrete members, for datapack export. */
@@ -134,8 +129,10 @@ public final class CommonTagResolver {
             }
         }
         Map<String, Set<String>> mergedTagToItems = new HashMap<>();
+        Set<String> problems = new HashSet<>();
         for (String tag : rawTags.keySet()) {
-            mergedTagToItems.put(tag, expandTag(tag, rawTags, mergedTagToItems, new HashSet<>()));
+            mergedTagToItems.put(tag, expandTag(tag, rawTags, mergedTagToItems, new HashSet<>(),
+                    new ArrayDeque<>(), problems));
         }
         Map<String, Set<String>> mergedItemToTags = new HashMap<>();
         for (Map.Entry<String, Set<String>> entry : mergedTagToItems.entrySet()) {
@@ -154,6 +151,7 @@ public final class CommonTagResolver {
         tagToItems = Map.copyOf(frozenTagToItems);
         itemToTags = Map.copyOf(frozenItemToTags);
         loaded = true;
+        reportProblems(problems);
     }
 
     private static Map<String, Set<String>> loadFile(JavaPlugin plugin) {
@@ -206,30 +204,69 @@ public final class CommonTagResolver {
             String tag = normalize(normalized.substring(1));
             return tag.isEmpty() ? "" : "#" + tag;
         }
-        return normalized.toLowerCase(java.util.Locale.ROOT);
+        return normalized.toLowerCase(Locale.ROOT);
     }
 
     private static Set<String> expandTag(String tag, Map<String, Set<String>> rawTags,
-                                         Map<String, Set<String>> expanded, Set<String> visiting) {
+                                         Map<String, Set<String>> expanded, Set<String> visiting,
+                                         Deque<String> path, Set<String> problems) {
         Set<String> cached = expanded.get(tag);
         if (cached != null) {
             return cached;
         }
         if (!visiting.add(tag)) {
+            problems.add("cycle:" + formatCycle(path, tag));
             return Set.of();
         }
+        path.addLast(tag);
         Set<String> members = new HashSet<>();
         for (String member : rawTags.getOrDefault(tag, Set.of())) {
             if (member.startsWith("#")) {
-                members.addAll(expandTag(member.substring(1), rawTags, expanded, visiting));
+                String referenced = member.substring(1);
+                if (!rawTags.containsKey(referenced)) {
+                    problems.add("missing:" + tag + " -> " + referenced);
+                    continue;
+                }
+                members.addAll(expandTag(referenced, rawTags, expanded, visiting, path, problems));
             } else {
                 members.add(member);
             }
         }
+        path.removeLast();
         visiting.remove(tag);
         Set<String> frozen = Set.copyOf(members);
         expanded.put(tag, frozen);
         return frozen;
+    }
+
+    private static String formatCycle(Deque<String> path, String repeated) {
+        StringBuilder result = new StringBuilder();
+        boolean include = false;
+        for (String tag : path) {
+            if (tag.equals(repeated)) {
+                include = true;
+            }
+            if (include) {
+                if (result.length() > 0) {
+                    result.append(" -> ");
+                }
+                result.append(tag);
+            }
+        }
+        return result.append(" -> ").append(repeated).toString();
+    }
+
+    private static void reportProblems(Set<String> problems) {
+        Set<String> current = Set.copyOf(problems);
+        for (String problem : current) {
+            if (!reportedProblems.contains(problem)) {
+                int separator = problem.indexOf(':');
+                String type = separator < 0 ? "unknown" : problem.substring(0, separator);
+                String path = separator < 0 ? problem : problem.substring(separator + 1);
+                I18n.logWarning("plugin.common_tag_reference_invalid", "type", type, "path", path);
+            }
+        }
+        reportedProblems = current;
     }
 
     private static String normalize(String tagKey) {
@@ -240,6 +277,6 @@ public final class CommonTagResolver {
         if (normalized.startsWith("#")) {
             normalized = normalized.substring(1).trim();
         }
-        return normalized.toLowerCase(java.util.Locale.ROOT);
+        return normalized.toLowerCase(Locale.ROOT);
     }
 }

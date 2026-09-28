@@ -3,6 +3,8 @@ package com.huidu.farmersdelight.config;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -64,7 +66,7 @@ class EnchantmentSettingsTest {
         assertFalse(settings.table().enabled());
         assertFalse(settings.table().overrideOffers());
         assertEquals(1, settings.table().defaultEnchantability());
-        assertEquals(java.util.List.of("minecraft:sharpness"), settings.table().enchantments());
+        assertEquals(List.of("minecraft:sharpness"), settings.table().enchantments());
         assertFalse(settings.anvilEnabled());
         assertEquals(settings.knives(), settings.skillet());
         assertEquals("farmersdelight:backstabbing", settings.backstabbing().id());
@@ -102,10 +104,10 @@ class EnchantmentSettingsTest {
                 yaml.getConfigurationSection("enchantments"));
 
         assertEquals(9, settings.knives().table().defaultEnchantability());
-        assertEquals(java.util.List.of("minecraft:fortune"), settings.knives().table().enchantments());
+        assertEquals(List.of("minecraft:fortune"), settings.knives().table().enchantments());
         assertFalse(settings.knives().anvilEnabled());
         assertEquals(18, settings.skillet().table().defaultEnchantability());
-        assertEquals(java.util.List.of("minecraft:fire_aspect"), settings.skillet().table().enchantments());
+        assertEquals(List.of("minecraft:fire_aspect"), settings.skillet().table().enchantments());
         assertTrue(settings.skillet().anvilEnabled());
     }
 }

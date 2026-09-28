@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.jar.JarEntry;
@@ -55,11 +56,9 @@ public final class ResourceInstaller {
         try {
             int changedFiles;
             if (Files.exists(targetRoot)) {
-                changedFiles = 0;
-                // The initial release is unconditional; this toggle only controls whether missing files are re-completed on later startups.
-                if (plugin.getConfig().getBoolean("craftengine-resources.auto-completion", true)) {
-                    changedFiles += copyMissingBundledResourceFiles(targetRoot);
-                }
+                changedFiles = plugin.getConfig().getBoolean("craftengine-resources.auto-completion", true)
+                        ? copyBundledResourceFiles(targetRoot)
+                        : 0;
                 changedFiles += migrateKnownResourceFixes(targetRoot);
             } else {
                 changedFiles = copyBundledResourceDirectory(targetRoot);
@@ -77,7 +76,42 @@ public final class ResourceInstaller {
     private int migrateKnownResourceFixes(Path targetRoot) throws IOException {
         int changed = migrateItemsEggTag(targetRoot.resolve("configuration").resolve("items.yml"));
         changed += migrateAnimatedGuiItem(targetRoot.resolve("configuration").resolve("gui.yml"));
+        changed += migrateLegacyPositionArguments(targetRoot);
         return changed;
+    }
+
+    private int migrateLegacyPositionArguments(Path targetRoot) throws IOException {
+        if (!Files.isDirectory(targetRoot)) {
+            return 0;
+        }
+        // The <arg:block.block_*> rewrite is a one-off migration of files this plugin ships. Once it has
+        // run for a pack root there is nothing left to find, so a marker file turns a full walk that reads
+        // every yml, yaml and json under the namespace into a single stat on every later boot.
+        Path migrationMarker = targetRoot.resolve(".position-args-migrated");
+        if (Files.exists(migrationMarker)) {
+            return 0;
+        }
+        int changed = 0;
+        try (Stream<Path> paths = Files.walk(targetRoot)) {
+            for (Path path : paths.filter(Files::isRegularFile).filter(ResourceInstaller::isTextResource).toList()) {
+                String content = Files.readString(path);
+                String migrated = content
+                        .replace("<arg:block.block_x>", "<arg:position.block_x>")
+                        .replace("<arg:block.block_y>", "<arg:position.block_y>")
+                        .replace("<arg:block.block_z>", "<arg:position.block_z>");
+                if (!content.equals(migrated)) {
+                    Files.writeString(path, migrated);
+                    changed++;
+                }
+            }
+        }
+        Files.writeString(migrationMarker, "");
+        return changed;
+    }
+
+    private static boolean isTextResource(Path path) {
+        String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
+        return name.endsWith(".yml") || name.endsWith(".yaml") || name.endsWith(".json");
     }
 
     private int migrateItemsEggTag(Path items) throws IOException {
@@ -134,7 +168,7 @@ public final class ResourceInstaller {
         }
     }
 
-    private int copyMissingBundledResourceFiles(Path targetRoot) throws IOException {
+    private int copyBundledResourceFiles(Path targetRoot) throws IOException {
         List<String> resourcePaths = listBundledResourceFiles(ResourceInstaller.CRAFTENGINE_RESOURCE_ROOT);
         if (resourcePaths.isEmpty()) {
             throw new IOException("No bundled CraftEngine resources found at " + ResourceInstaller.CRAFTENGINE_RESOURCE_ROOT);
@@ -150,13 +184,13 @@ public final class ResourceInstaller {
             if (Files.exists(targetPath)) {
                 skippedFiles++;
                 if (debug) {
-                    I18n.logInfo("resource_debug_skipped", "path", relativePath);
+                    I18n.logInfo("plugin.resource_debug_skipped", "path", relativePath);
                 }
                 continue;
             }
 
             if (debug) {
-                I18n.logInfo("resource_debug_added", "path", relativePath);
+                I18n.logInfo("plugin.resource_debug_added", "path", relativePath);
             }
             Files.createDirectories(Objects.requireNonNull(targetPath.getParent(), "targetPath parent"));
             Path tempFile = Files.createTempFile(targetPath.getParent(), "fd-ce-resource-", ".tmp");
@@ -180,7 +214,7 @@ public final class ResourceInstaller {
             }
         }
         if (debug) {
-            I18n.logInfo("resource_debug_completion", "count", copiedFiles, "skipped", skippedFiles);
+            I18n.logInfo("plugin.resource_debug_completion", "count", copiedFiles, "skipped", skippedFiles);
         }
         return copiedFiles;
     }
@@ -203,7 +237,7 @@ public final class ResourceInstaller {
                 String relativePath = resourcePath.substring(ResourceInstaller.CRAFTENGINE_RESOURCE_ROOT.length() + 1);
                 Path targetPath = resolveSafeChild(tempRoot, relativePath);
                 if (debug) {
-                    I18n.logInfo("resource_debug_added", "path", relativePath);
+                    I18n.logInfo("plugin.resource_debug_added", "path", relativePath);
                 }
                 Files.createDirectories(Objects.requireNonNull(targetPath.getParent(), "targetPath parent"));
                 try (InputStream inputStream = plugin.getResource(resourcePath)) {
@@ -222,7 +256,7 @@ public final class ResourceInstaller {
             }
             moved = true;
             if (debug) {
-                I18n.logInfo("resource_debug_first_install", "count", copiedFiles, "dir", targetRoot.toString());
+                I18n.logInfo("plugin.resource_debug_first_install", "count", copiedFiles, "dir", targetRoot.toString());
             }
             return copiedFiles;
         } finally {

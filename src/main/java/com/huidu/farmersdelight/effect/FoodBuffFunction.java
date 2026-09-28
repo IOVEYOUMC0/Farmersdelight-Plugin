@@ -9,6 +9,7 @@ import net.momirealms.craftengine.core.plugin.context.function.AbstractCondition
 import net.momirealms.craftengine.core.plugin.context.function.FunctionFactory;
 import net.momirealms.craftengine.core.plugin.context.number.NumberProvider;
 import net.momirealms.craftengine.core.plugin.context.parameter.DirectContextParameters;
+import org.bukkit.entity.Player;
 
 import java.util.List;
 import java.util.function.Function;
@@ -31,7 +32,7 @@ public final class FoodBuffFunction<CTX extends Context> extends AbstractConditi
     @Override
     protected void runInternal(CTX ctx) {
         ctx.getOptionalParameter(DirectContextParameters.PLAYER).ifPresent(cePlayer -> {
-            if (!(cePlayer.platformPlayer() instanceof org.bukkit.entity.Player bukkitPlayer)) {
+            if (!(cePlayer.platformPlayer() instanceof Player bukkitPlayer)) {
                 return;
             }
             int seconds = Math.max(1, duration.getInt(ctx));

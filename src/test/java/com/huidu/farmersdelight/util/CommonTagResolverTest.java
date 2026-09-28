@@ -10,6 +10,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -28,12 +29,12 @@ class CommonTagResolverTest {
                     Map.of("c:tools/test", List.of("minecraft:flint")));
 
             assertEquals(
-                    java.util.Set.of("minecraft:stick", "example:tool", "minecraft:flint"),
+                    Set.of("minecraft:stick", "example:tool", "minecraft:flint"),
                     CommonTagResolver.getMembers(Key.of("c:tools/test")));
             assertTrue(CommonTagResolver.getTagsForItemId(" MINECRAFT:STICK ")
                     .contains("c:tools/test"));
             assertEquals(
-                    java.util.Set.of("minecraft:stick", "example:tool", "minecraft:flint"),
+                    Set.of("minecraft:stick", "example:tool", "minecraft:flint"),
                     CommonTagResolver.getMembers("c:tools/all"));
         } finally {
             CommonTagResolver.unregisterSource(secondSource);
@@ -49,6 +50,23 @@ class CommonTagResolverTest {
         assertTrue(tags != null && !tags.getKeys(false).isEmpty());
         for (String key : tags.getKeys(false)) {
             assertTrue(!ConfigSectionReader.optionalStringList(tags, key).isEmpty(), key);
+        }
+    }
+
+    @Test
+    void ignoresMissingAndCyclicReferencesWithoutBreakingOtherMembers() {
+        String source = "test-common-tag-errors";
+        try {
+            CommonTagResolver.registerSource(source, Map.of(
+                    "test:cycle_a", List.of("#test:cycle_b", "minecraft:stick"),
+                    "test:cycle_b", List.of("#test:cycle_a"),
+                    "test:missing", List.of("#test:not_registered")));
+
+            assertEquals(Set.of("minecraft:stick"),
+                    CommonTagResolver.getMembers("test:cycle_a"));
+            assertTrue(CommonTagResolver.getMembers("test:missing").isEmpty());
+        } finally {
+            CommonTagResolver.unregisterSource(source);
         }
     }
 }

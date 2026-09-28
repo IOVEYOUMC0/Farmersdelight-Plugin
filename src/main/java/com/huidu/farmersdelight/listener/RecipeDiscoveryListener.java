@@ -10,6 +10,8 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.UUID;
@@ -22,13 +24,47 @@ public class RecipeDiscoveryListener implements Listener {
         this.plugin = plugin;
     }
 
+    // Unlocks live in memory only while their owner is online. Reading them in on join keeps the first
+    // book open and the first pickup off the disk; dropping them on quit is what stops the table growing
+    // with every player who has ever joined.
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onJoin(PlayerJoinEvent event) {
+        RecipeDiscoveryManager manager = plugin.getRecipeDiscoveryManager();
+        if (manager == null || !manager.isEnabled()) {
+            return;
+        }
+        // Async because reading one player's unlocks means parsing the whole shared file, which grows with
+        // every player the server has ever had. A book opened before this lands reads them in on the spot
+        // instead; the warm-up is what keeps that from being the normal case.
+        UUID playerId = event.getPlayer().getUniqueId();
+        long version = manager.markJoin(playerId);
+        plugin.scheduler().runAsync(() -> manager.ensureLoaded(playerId, version));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onQuit(PlayerQuitEvent event) {
+        RecipeDiscoveryManager manager = plugin.getRecipeDiscoveryManager();
+        if (manager == null) {
+            return;
+        }
+        // Async because the flush that has to happen before the drop writes the whole file, and a quit is
+        // not the place for that. Order is kept inside evict, and a rejoin that beats the task just reads
+        // the player back off the file the task has already written.
+        UUID playerId = event.getPlayer().getUniqueId();
+        long version = manager.markQuit(playerId);
+        plugin.scheduler().runAsync(() -> manager.evict(playerId, version));
+    }
+
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPickup(EntityPickupItemEvent event) {
         if (!(event.getEntity() instanceof Player player)) {
             return;
         }
         RecipeDiscoveryManager manager = plugin.getRecipeDiscoveryManager();
-        if (manager == null || !manager.isEnabled()) {
+        // Both gates before resolving an item id: with the obtain trigger off, onObtain would drop the id
+        // on the floor, and this runs for every item every player picks up.
+        if (manager == null || !manager.isEnabled() || !manager.isUnlockOnObtain()) {
             return;
         }
         ItemStack stack = event.getItem().getItemStack();
@@ -46,7 +82,7 @@ public class RecipeDiscoveryListener implements Listener {
             return;
         }
         RecipeDiscoveryManager manager = plugin.getRecipeDiscoveryManager();
-        if (manager == null || !manager.isEnabled()) {
+        if (manager == null || !manager.isEnabled() || !manager.isUnlockOnObtain()) {
             return;
         }
         Player player = Bukkit.getPlayer(playerId);

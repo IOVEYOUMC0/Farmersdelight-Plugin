@@ -8,6 +8,7 @@ import net.momirealms.craftengine.core.block.property.type.DoubleBlockHalf;
 import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.plugin.config.KnownResourceException;
 import net.momirealms.craftengine.core.util.Key;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -84,6 +86,13 @@ class TallCropBlockBehaviorTest {
         );
     }
 
+    @Test
+    void appliesRiceFlagToRiceOnly() {
+        assertEquals(ProtectionCompat.Feature.RICE,
+                TallCropBlockBehavior.protectionFeature(Key.of("farmersdelight:rice")));
+        assertNull(TallCropBlockBehavior.protectionFeature(Key.of("corndelight:corn_crop")));
+    }
+
     private static TallCropBlockBehavior crop(String blockId, Map<String, Object> config) {
         Map<String, Object> copy = new LinkedHashMap<>(config);
         return TallCropBlockBehavior.FACTORY.create(block(blockId), ConfigSection.ofRoot(copy));
@@ -112,6 +121,43 @@ class TallCropBlockBehaviorTest {
                     default -> throw new UnsupportedOperationException(method.toString());
                 }
         );
+    }
+
+    @Test
+    void riceCycleDefaultsKeepTheUpperHalfOnTheMaturityTick() {
+        TallCropBlockBehavior rice = crop("farmersdelight:rice", Map.of());
+
+        // The stub's age property tops out at 4, so both bounds come from inference rather than config.
+        assertEquals(4, rice.getMaxAgeLower());
+        assertEquals(4, rice.getUpperMinAge());
+        assertFalse(rice.usesVanillaGrowth());
+        assertFalse(rice.carriesBoneMealOverflow());
+    }
+
+    @Test
+    void readsTheVanillaHighCropCycleSwitches() {
+        TallCropBlockBehavior corn = crop("corndelight:corn_crop", Map.of(
+                "max-age-lower", 7,
+                "max-age-upper", 7,
+                "upper-min-age", 4,
+                "vanilla-growth", true,
+                "bone-meal-overflow", true,
+                "reset-on-harvest", false
+        ));
+
+        assertEquals(7, corn.getMaxAgeLower());
+        assertEquals(7, corn.getMaxAgeUpper());
+        assertEquals(4, corn.getUpperMinAge());
+        assertTrue(corn.usesVanillaGrowth());
+        assertTrue(corn.carriesBoneMealOverflow());
+        assertFalse(corn.resetsOnHarvest());
+    }
+
+    @Test
+    void upperMinAgeDefaultsToTheLowerHalfMaturity() {
+        TallCropBlockBehavior crop = crop("corndelight:corn_crop", Map.of("max-age-lower", 7));
+
+        assertEquals(7, crop.getUpperMinAge());
     }
 
     @Test

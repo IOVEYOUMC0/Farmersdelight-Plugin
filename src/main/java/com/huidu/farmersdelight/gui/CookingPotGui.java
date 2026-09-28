@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.event.FarmersDelightProduceEvent;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
 import com.huidu.farmersdelight.block.behavior.CookingPotLayout;
@@ -32,10 +33,12 @@ import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.PlayerInventory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,7 +52,6 @@ import javax.annotation.Nullable;
 public class CookingPotGui extends AbstractInventoryGui {
 
     static final Map<UUID, CookingPotGui> activeGuis = new ConcurrentHashMap<>();
-    private static volatile boolean listenerRegistered = false;
     private static final Pattern SHIFT_TAG_PATTERN = Pattern.compile("<shift:([+-]?\\d+)>");
     private static final Pattern IMAGE_TAG_PATTERN = Pattern.compile("<image:([a-z0-9_./-]+:[a-z0-9_./-]+)>");
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
@@ -340,9 +342,7 @@ public class CookingPotGui extends AbstractInventoryGui {
         if (entitySlot == null) {
             return;
         }
-        // Whether the container hint exists depends only on whether a pending container exists now; whether a rebuild
-        // is needed depends only on whether the item or container changed. Previously one flag served both, so when
-        // "buffer item amount changed but container unchanged" the display was rebuilt but the hint was dropped.
+        // Hint visibility depends on the pending container; rebuilding depends on either item or container changes.
         boolean hasContainerHint = container != null && !container.getType().isAir();
         ItemStack item = blockEntity.getInventorySlot(entitySlot);
         ItemStack cached = cachedDisplayItems.get(guiSlot);
@@ -371,7 +371,7 @@ public class CookingPotGui extends AbstractInventoryGui {
         if (amount <= display.getMaxStackSize()) {
             return;
         }
-        org.bukkit.inventory.meta.ItemMeta meta = display.getItemMeta();
+        ItemMeta meta = display.getItemMeta();
         if (meta == null) {
             return;
         }
@@ -437,14 +437,14 @@ public class CookingPotGui extends AbstractInventoryGui {
             return;
         }
 
-        org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+        ItemMeta meta = item.getItemMeta();
         if (meta == null) {
             return;
         }
 
-        java.util.List<Component> lore = meta.lore();
+        List<Component> lore = meta.lore();
         if (lore == null) {
-            lore = new java.util.ArrayList<>();
+            lore = new ArrayList<>();
         }
 
         Player viewer = null;
@@ -459,6 +459,10 @@ public class CookingPotGui extends AbstractInventoryGui {
 
         lore.add(Component.empty());
         lore.add(hint.decoration(TextDecoration.ITALIC, false));
+        List<Component> containerLore = container.getItemMeta() == null ? null : container.getItemMeta().lore();
+        if (containerLore != null && !containerLore.isEmpty()) {
+            lore.addAll(containerLore);
+        }
         meta.lore(lore);
         item.setItemMeta(meta);
     }
@@ -488,7 +492,9 @@ public class CookingPotGui extends AbstractInventoryGui {
         if (world != null && blockEntity.getPosKey() != null) {
             TickManager tickManager = plugin.getTickManager();
             if (tickManager != null) {
-                if (blockEntity.hasStoredContents()) {
+                // Matching TickManager's tick: a pot with progress still to decay stays active, so closing the
+                // GUI after stripping the ingredients does not freeze the bar where it stopped.
+                if (blockEntity.hasStoredContents() || blockEntity.getCookingProgress() > 0) {
                     tickManager.markActive(world, blockEntity.getPosKey(), TickManager.BlockType.COOKING_POT);
                 } else {
                     tickManager.markInactive(world, blockEntity.getPosKey(), TickManager.BlockType.COOKING_POT);
@@ -594,7 +600,7 @@ public class CookingPotGui extends AbstractInventoryGui {
                 outputTaker.deliverOutputToPlayer(event, player, outputItem);
                 outputTaker.applyOutputExperienceReward(player, outputItem);
                 player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.0f);
-                Bukkit.getPluginManager().callEvent(new com.huidu.farmersdelight.api.event.FarmersDelightProduceEvent(
+                Bukkit.getPluginManager().callEvent(new FarmersDelightProduceEvent(
                         player.getUniqueId(), "cooking_pot", outputItem, cookingPotLocation));
 
                 updateDisplayItems();
@@ -696,60 +702,81 @@ public class CookingPotGui extends AbstractInventoryGui {
             return; // no applicable input slots; cursor unchanged (event already cancelled)
         }
 
-        // Under the inventory lock, compute and apply each share based on the freshly refreshed state, skipping the
-        // intermediate LinkedHashMap allocation. Computing share against the latest existingAmount is more accurate
-        // (computing it from stale pre-lock state could disagree with the refreshed state).
+        // A cancelled InventoryDragEvent has its cursor restored to the pre-drag stack by the server AFTER
+        // this handler returns (unlike a cancelled click, which keeps the handler's cursor), so the shares
+        // cannot be deducted from the cursor here. Both halves — committing the shares to the pot and
+        // deducting them from the cursor — are therefore deferred to the next tick and performed together
+        // against the cursor as it exists then. Committing now and correcting the cursor later would mint
+        // items whenever the player drops or stashes the restored stack inside that window.
+        Map<Integer, Integer> requested = new LinkedHashMap<>();
+        for (Map.Entry<Integer, ItemStack> entry : event.getNewItems().entrySet()) {
+            int rawSlot = entry.getKey();
+            if (rawSlot < 0 || rawSlot >= config.getSize() || !isPlayerInputSlot(rawSlot)) {
+                continue; // only handle writable top input slots
+            }
+            ItemStack newItem = entry.getValue();
+            if (newItem == null || newItem.getType().isAir() || !newItem.isSimilar(oldCursor)) {
+                continue;
+            }
+            requested.put(rawSlot, newItem.getAmount());
+        }
+        if (requested.isEmpty()) {
+            return;
+        }
+        ItemStack expectedCursor = oldCursor.clone();
+        player.getScheduler().run(plugin,
+                t -> commitDragShares(player, expectedCursor, requested, maxStack), null);
+    }
+
+    // Runs one tick after the cancelled drag, on the player's region. Places at most what the cursor still
+    // holds, then removes exactly that much from it, so the pot and the cursor can never disagree.
+    private void commitDragShares(Player player, ItemStack expectedCursor,
+                                  Map<Integer, Integer> requested, int maxStack) {
+        ItemStack cursor = player.getItemOnCursor();
+        if (cursor == null || cursor.getType().isAir() || !cursor.isSimilar(expectedCursor)) {
+            return; // the restored stack is gone or changed: commit nothing
+        }
+        int budget = cursor.getAmount();
         int[] placedTotal = {0};
         blockEntity.withInventoryLock(() -> {
             refreshInputSlotsFromBlockEntity();
-            for (Map.Entry<Integer, ItemStack> entry : event.getNewItems().entrySet()) {
+            for (Map.Entry<Integer, Integer> entry : requested.entrySet()) {
                 int rawSlot = entry.getKey();
-                if (rawSlot < 0 || rawSlot >= config.getSize() || !isPlayerInputSlot(rawSlot)) {
-                    continue; // only handle writable top input slots
-                }
-                ItemStack newItem = entry.getValue();
-                if (newItem == null || newItem.getType().isAir() || !newItem.isSimilar(oldCursor)) {
-                    continue;
-                }
                 ItemStack existing = inventory.getItem(rawSlot);
                 int existingAmount = (existing == null || existing.getType().isAir()) ? 0 : existing.getAmount();
                 // The slot may now hold a different item (another viewer / the cook tick); only stack onto a match.
-                if (existingAmount > 0 && !oldCursor.isSimilar(existing)) {
+                if (existingAmount > 0 && !expectedCursor.isSimilar(existing)) {
                     continue;
                 }
-                int share = Math.min(newItem.getAmount(), maxStack) - existingAmount;
+                int share = Math.min(entry.getValue(), maxStack) - existingAmount;
                 if (share <= 0) {
                     continue;
                 }
-                int place = Math.min(existingAmount + share, maxStack);
-                int actual = place - existingAmount;
+                int actual = Math.min(share, budget - placedTotal[0]);
                 if (actual <= 0) {
-                    continue;
+                    break;
                 }
-                ItemStack placed = oldCursor.clone();
-                placed.setAmount(place);
+                ItemStack placed = expectedCursor.clone();
+                placed.setAmount(existingAmount + actual);
                 writeWritableSlot(rawSlot, placed);
                 placedTotal[0] += actual;
             }
-            syncToBlockEntity();
+            if (placedTotal[0] > 0) {
+                syncToBlockEntity();
+            }
         });
 
-        // Cursor remainder = original cursor amount - total actually placed; shares not applied to read-only slots/inventory stay on the cursor.
-        int remaining = oldCursor.getAmount() - placedTotal[0];
-        final ItemStack cursorAfter;
-        if (remaining > 0) {
-            ItemStack leftover = oldCursor.clone();
-            leftover.setAmount(remaining);
-            cursorAfter = leftover;
-        } else {
-            cursorAfter = null;
+        if (placedTotal[0] <= 0) {
+            return;
         }
-        // A cancelled InventoryDragEvent has its cursor restored to the pre-drag stack by the server AFTER
-        // this handler returns (unlike a cancelled click, which keeps the handler's cursor). Setting it here
-        // would be clobbered, leaving the whole stack in hand while the shares are already committed to the
-        // pot — a duplication. Apply the reduced cursor next tick, after that restore, on the player's region.
-        player.getScheduler().run(plugin, t -> player.setItemOnCursor(cursorAfter), null);
-
+        int remaining = budget - placedTotal[0];
+        if (remaining > 0) {
+            ItemStack leftover = cursor.clone();
+            leftover.setAmount(remaining);
+            player.setItemOnCursor(leftover);
+        } else {
+            player.setItemOnCursor(null);
+        }
         updateDisplayItems();
     }
 
@@ -993,10 +1020,10 @@ public class CookingPotGui extends AbstractInventoryGui {
         }
         activeGuis.clear();
         GuiTickManager.cleanup();
-        // Calling HandlerList.unregisterAll(plugin) on disable removes the EventDispatcher, but this
-        // static flag must also be reset so a fresh dispatcher is re-registered on soft restart;
+        // Calling HandlerList.unregisterAll(plugin) on disable removes the EventDispatcher, but the
+        // registrar entry must also be reset so a fresh dispatcher is re-registered on soft restart;
         // otherwise GUI clicks would no longer be cancelled (dupe/loss).
-        listenerRegistered = false;
+        GuiListenerRegistrar.reset(EventDispatcher.class);
     }
 
     public static void closeAllOpenGuis() {
@@ -1017,7 +1044,7 @@ public class CookingPotGui extends AbstractInventoryGui {
         if (world == null) {
             return;
         }
-        java.util.UUID worldId = world.getUID();
+        UUID worldId = world.getUID();
         for (Map.Entry<UUID, CookingPotGui> entry : new ArrayList<>(activeGuis.entrySet())) {
             CookingPotGui gui = entry.getValue();
             if (gui == null) {
@@ -1040,16 +1067,6 @@ public class CookingPotGui extends AbstractInventoryGui {
         }
     }
 
-    private static void closeViewerInventory(Player player) {
-        try {
-            player.getScheduler().run(FarmersDelightPlugin.getInstance(), t -> player.closeInventory(), null);
-        } catch (Throwable t) {
-            try {
-                player.closeInventory();
-            } catch (Throwable ignored) {
-            }
-        }
-    }
 
     @Override
     protected AbstractInventoryGui findExistingGui(UUID playerId) {
@@ -1072,12 +1089,7 @@ public class CookingPotGui extends AbstractInventoryGui {
     }
 
     public static void warm(FarmersDelightPlugin plugin) {
-        if (listenerRegistered) return;
-        synchronized (CookingPotGui.class) {
-            if (listenerRegistered) return;
-            Bukkit.getPluginManager().registerEvents(new EventDispatcher(), plugin);
-            listenerRegistered = true;
-        }
+        GuiListenerRegistrar.ensureRegistered(EventDispatcher.class, EventDispatcher::new, plugin);
     }
 
     public static class EventDispatcher implements Listener {

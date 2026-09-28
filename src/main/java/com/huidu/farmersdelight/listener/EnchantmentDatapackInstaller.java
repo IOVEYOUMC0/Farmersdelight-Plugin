@@ -5,8 +5,11 @@ import com.huidu.farmersdelight.api.enchant.EnchantmentDefinition;
 import com.huidu.farmersdelight.api.enchant.FarmersDelightEnchantments;
 import com.huidu.farmersdelight.config.EnchantmentSettings;
 import com.huidu.farmersdelight.i18n.I18n;
-import com.huidu.farmersdelight.util.DatapackSupport;
+import com.huidu.farmersdelight.api.util.DatapackSupport;
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
 import org.bukkit.Bukkit;
+import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -20,10 +23,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 
 public final class EnchantmentDatapackInstaller implements Listener {
 
@@ -46,19 +53,25 @@ public final class EnchantmentDatapackInstaller implements Listener {
     );
 
     private final FarmersDelightPlugin plugin;
-    private final boolean installEnabled;
 
     public EnchantmentDatapackInstaller(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
-        this.installEnabled = plugin.getConfig().getBoolean("enchantments.install-datapack", true);
+    }
+
+    /**
+     * Read per install rather than at construction: the switch belongs to the config the operator may have
+     * reloaded since, and keeping it out of the constructor lets the installer be built without a live plugin.
+     */
+    private boolean installEnabled() {
+        return plugin == null || plugin.getConfig().getBoolean("enchantments.install-datapack", true);
     }
 
     // Registry-scoped datapack content (enchantments, enchantment tags) is loaded by the server from
     // the primary world's datapacks folder and shared by every world, so the pack is written once into
-    // the primary world. Copies the old all-world installer may have left in other worlds are removed.
+    // the primary world. Copies in non-primary worlds are removed.
     public void installToPrimaryWorld(World primaryWorld) {
         if (primaryWorld == null) {
-            I18n.logWarning("enchantment_datapack_no_worlds");
+            I18n.logWarning("plugin.enchantment_datapack_no_worlds");
             return;
         }
         EnchantmentSettings settings = plugin.getEnchantmentSettings();
@@ -71,28 +84,37 @@ public final class EnchantmentDatapackInstaller implements Listener {
         }
         int cleaned = cleanupRedundantDatapacks(primaryWorld);
         if (wrote || cleaned > 0) {
-            printRestartBanner();
+            announceInstalled(primaryWorld);
         }
     }
 
-    // Deletes the farmersdelight_enchant datapack from every non-primary world. Those folders were only
-    // ever written by the old per-world installer and are never read by the server (only the primary
-    // world's datapacks/ is scanned), so they are harmless-but-stale files. Skips the primary world.
+    // Deletes the farmersdelight_enchant datapack from every non-primary world. The server scans only
+    // the primary world's datapacks/ folder, so these copies are ignored. Skips the primary world.
     private int cleanupRedundantDatapacks(World primaryWorld) {
+        Path primaryDatapack = DatapackSupport.worldRoot(primaryWorld)
+                .resolve("datapacks")
+                .resolve(DATAPACK_DIRECTORY)
+                .toAbsolutePath()
+                .normalize();
         String primaryName = primaryWorld.getName();
         int removed = 0;
         for (World world : Bukkit.getWorlds()) {
             if (primaryName.equals(world.getName())) {
                 continue;
             }
-            Path redundant = DatapackSupport.worldRoot(world)
+            Path redundant = world.getWorldFolder().toPath()
                     .resolve("datapacks")
                     .resolve(DATAPACK_DIRECTORY);
+            // Modern dimension folders resolve to the same level.dat root as the primary world.
+            // Do not delete the primary pack while iterating those worlds.
+            if (DatapackSupport.sameNormalizedPath(primaryDatapack, redundant)) {
+                continue;
+            }
             try {
                 if (Files.exists(redundant)) {
                     DatapackSupport.deleteRecursively(redundant);
                     removed++;
-                    I18n.logInfo("enchantment_datapack_redundant_removed", "world", world.getName());
+                    I18n.logInfo("plugin.enchantment_datapack_redundant_removed", "world", world.getName());
                 }
             } catch (IOException e) {
                 plugin.getLogger().warning("FarmersDelight enchant datapack: failed to remove redundant folder under "
@@ -111,7 +133,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
     }
 
     private boolean shouldInstall(EnchantmentSettings settings) {
-        if (!installEnabled || !settings.enabled()) {
+        if (!installEnabled() || !settings.enabled()) {
             return false;
         }
         return isBackstabEnabled(settings) || !FarmersDelightEnchantments.managedDefinitions().isEmpty();
@@ -142,14 +164,16 @@ public final class EnchantmentDatapackInstaller implements Listener {
             for (String tag : DISTRIBUTION_TAGS) {
                 distribution.put(tag, new ArrayList<>());
             }
+            // Ids the running server has not loaded yet; see addDistributionEntry.
+            List<String> pendingRestart = new ArrayList<>();
 
             if (isBackstabEnabled(settings)) {
                 generated.add(new GeneratedFile(
                         enchantmentFile(datapackDir, NamespacedId.parse(settings.backstabbing().id())),
                         renderDefinition(settings.backstabbing())));
-                // The built-in backstab enchant keeps its historical membership in all three tags.
+                // The built-in backstab enchant belongs to all three distribution tags.
                 for (String tag : DISTRIBUTION_TAGS) {
-                    distribution.get(tag).add(settings.backstabbing().id());
+                    addDistributionEntry(distribution, tag, settings.backstabbing().id(), pendingRestart);
                 }
             }
             for (EnchantmentDefinition definition : FarmersDelightEnchantments.managedDefinitions()) {
@@ -157,13 +181,13 @@ public final class EnchantmentDatapackInstaller implements Listener {
                         enchantmentFile(datapackDir, NamespacedId.parse(definition.id())),
                         renderDefinition(definition)));
                 if (definition.tradeable()) {
-                    distribution.get("tradeable").add(definition.id());
+                    addDistributionEntry(distribution, "tradeable", definition.id(), pendingRestart);
                 }
                 if (definition.treasure()) {
-                    distribution.get("treasure").add(definition.id());
+                    addDistributionEntry(distribution, "treasure", definition.id(), pendingRestart);
                 }
                 if (definition.onRandomLoot()) {
-                    distribution.get("on_random_loot").add(definition.id());
+                    addDistributionEntry(distribution, "on_random_loot", definition.id(), pendingRestart);
                 }
             }
 
@@ -182,13 +206,18 @@ public final class EnchantmentDatapackInstaller implements Listener {
                 }
             }
             changed += deleteStaleFiles(datapackDir, generated);
+            if (!pendingRestart.isEmpty()) {
+                I18n.logWarning("plugin.datapack_registry_pending_restart",
+                        "ids", String.join(", ", pendingRestart),
+                        "hint", I18n.formatConsole("plugin.datapack_hint_restart"));
+            }
             if (changed > 0) {
                 I18n.logDetail("startup", "plugin.enchantment_datapack_written",
                         "count", changed, "dir", datapackDir);
             }
             return changed > 0;
         } catch (Exception exception) {
-            I18n.logWarning("enchantment_datapack_install_failed",
+            I18n.logWarning("plugin.enchantment_datapack_install_failed",
                     "world", world.getName(), "error", exception.getMessage());
             return false;
         }
@@ -201,11 +230,33 @@ public final class EnchantmentDatapackInstaller implements Listener {
                 .resolve(id.path() + ".json");
     }
 
-    private void printRestartBanner() {
-        plugin.getLogger().warning("==================================================================");
-        plugin.getLogger().warning(" Updated FarmersDelight enchantment datapack (primary world only).");
-        plugin.getLogger().warning(" RESTART the server to apply registry-level enchantment changes.");
-        plugin.getLogger().warning("==================================================================");
+    /**
+     * Lists an enchantment in a vanilla distribution tag, but only when the running server has already loaded
+     * it: an enchantment written by this run is picked up on the next start, and a tag naming an entry the
+     * registry does not know makes the server's tag load fail (which on newer releases also takes every loot
+     * table that reads that tag down with it). Ids skipped here are reported so the operator knows a restart
+     * is what completes the install.
+     */
+    private static void addDistributionEntry(Map<String, List<String>> distribution, String tag,
+                                             String enchantmentId, List<String> pendingRestart) {
+        if (isEnchantmentRegistered(enchantmentId)) {
+            distribution.get(tag).add(enchantmentId);
+        } else if (!pendingRestart.contains(enchantmentId)) {
+            pendingRestart.add(enchantmentId);
+        }
+    }
+
+    private static boolean isEnchantmentRegistered(String enchantmentId) {
+        NamespacedKey key = NamespacedKey.fromString(enchantmentId);
+        return key != null
+                && RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT).get(key) != null;
+    }
+
+    private void announceInstalled(World primaryWorld) {
+        I18n.logInfo("plugin.datapack_installed",
+                "name", DATAPACK_DIRECTORY,
+                "dir", DatapackSupport.worldRoot(primaryWorld).resolve("datapacks").resolve(DATAPACK_DIRECTORY),
+                "hint", I18n.formatConsole("plugin.datapack_hint_restart"));
     }
 
     static String renderPackMetadata() {
@@ -288,7 +339,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
 
     private static boolean writeIfChanged(Path destination, String content) throws IOException {
         byte[] desired = content.getBytes(StandardCharsets.UTF_8);
-        if (Files.isRegularFile(destination) && java.util.Arrays.equals(Files.readAllBytes(destination), desired)) {
+        if (Files.isRegularFile(destination) && Arrays.equals(Files.readAllBytes(destination), desired)) {
             return false;
         }
         Files.createDirectories(destination.getParent());
@@ -349,7 +400,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
     }
 
     private static int deleteStaleFiles(Path root, List<GeneratedFile> generated) throws IOException {
-        java.util.Set<Path> expected = new java.util.HashSet<>();
+        Set<Path> expected = new HashSet<>();
         for (GeneratedFile file : generated) {
             expected.add(file.path().toAbsolutePath().normalize());
         }
@@ -358,7 +409,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
             return 0;
         }
         int removed = 0;
-        try (java.util.stream.Stream<Path> paths = Files.walk(data)) {
+        try (Stream<Path> paths = Files.walk(data)) {
             for (Path path : paths.filter(Files::isRegularFile).filter(p -> p.toString().endsWith(".json")).toList()) {
                 if (!expected.contains(path.toAbsolutePath().normalize())) {
                     Files.deleteIfExists(path);

@@ -24,23 +24,30 @@ public final class HandleManager {
 
     public boolean hasHandle(World world, BlockPos potPos) {
         if (world == null || potPos == null) return false;
-        return "handle".equals(getSupportProperty(world, potPos));
+        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(
+                world.getBlockAt(potPos.x(), potPos.y(), potPos.z()));
+        CookingPotBlockBehavior behavior = behaviorOf(state);
+        return behavior != null && "handle".equals(supportValue(state, behavior));
     }
 
     public void toggleHandle(World world, BlockPos potPos, @Nullable Player player) {
         if (world == null || potPos == null) return;
         Block potBlock = world.getBlockAt(potPos.x(), potPos.y(), potPos.z());
-        CookingPotBlockBehavior behavior = getBehavior(potBlock);
+        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(potBlock);
+        CookingPotBlockBehavior behavior = behaviorOf(state);
         if (behavior == null || behavior.getSupportProperty() == null || !behavior.isSupportDisplayEnabled()) return;
 
-        boolean had = hasHandle(world, potPos);
+        // The state read for the behaviour also answers the current value, so the check does not need a
+        // second CraftEngine lookup of the same block.
+        boolean had = "handle".equals(supportValue(state, behavior));
         if (had) {
-            setSupportProperty(potBlock, "none");
+            setSupportProperty(potBlock, state, behavior, "none");
             TrayManager trayManager = plugin.getTrayManager();
             if (trayManager != null) trayManager.checkAndPlaceTray(world, potPos);
         } else {
             TrayManager trayManager = plugin.getTrayManager();
             if (trayManager != null) trayManager.removeTrayIfAutoPlaced(world, potPos);
+            // The tray pass can rewrite the block, so this write re-reads the state it builds on.
             setSupportProperty(potBlock, "handle");
         }
         if (player != null && behavior.getHandleToggleSoundVolume() > 0) {
@@ -52,37 +59,40 @@ public final class HandleManager {
     public void removeHandle(World world, BlockPos potPos) {
         if (world == null || potPos == null) return;
         Block potBlock = world.getBlockAt(potPos.x(), potPos.y(), potPos.z());
-        if (getBehavior(potBlock) == null) return;
-        if ("handle".equals(getSupportProperty(world, potPos))) {
-            setSupportProperty(potBlock, "none");
+        // Nothing between the read and the write touches the block, so one state serves all three steps.
+        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(potBlock);
+        CookingPotBlockBehavior behavior = behaviorOf(state);
+        if (behavior == null) return;
+        if ("handle".equals(supportValue(state, behavior))) {
+            setSupportProperty(potBlock, state, behavior, "none");
         }
     }
 
     // Internal helpers
 
     @Nullable
-    private String getSupportProperty(World world, BlockPos potPos) {
-        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(
-                world.getBlockAt(potPos.x(), potPos.y(), potPos.z()));
-        if (state == null || state.isEmpty()) return null;
-        CookingPotBlockBehavior behavior = CustomBlockUtils.getBehavior(state, CookingPotBlockBehavior.class);
-        if (behavior == null || behavior.getSupportProperty() == null) return null;
-        return state.getNullable(behavior.getSupportProperty());
-    }
-
-    @Nullable
-    private CookingPotBlockBehavior getBehavior(Block block) {
-        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
+    private static CookingPotBlockBehavior behaviorOf(@Nullable ImmutableBlockState state) {
         if (state == null || state.isEmpty()) return null;
         return CustomBlockUtils.getBehavior(state, CookingPotBlockBehavior.class);
     }
 
-    private void setSupportProperty(Block block, String value) {
+    @Nullable
+    private static String supportValue(ImmutableBlockState state, CookingPotBlockBehavior behavior) {
+        if (behavior.getSupportProperty() == null) return null;
+        return state.getNullable(behavior.getSupportProperty());
+    }
+
+    private static void setSupportProperty(Block block, ImmutableBlockState state,
+                                           CookingPotBlockBehavior behavior, String value) {
+        if (behavior.getSupportProperty() == null) return;
+        CraftEngineBlocks.place(block.getLocation(), state.with(behavior.getSupportProperty(), value), false);
+    }
+
+    /** Write that re-reads the block first, for callers that may have changed it since their own read. */
+    private static void setSupportProperty(Block block, String value) {
         ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
-        if (state == null || state.isEmpty()) return;
-        CookingPotBlockBehavior behavior = CustomBlockUtils.getBehavior(state, CookingPotBlockBehavior.class);
-        if (behavior == null || behavior.getSupportProperty() == null) return;
-        ImmutableBlockState next = state.with(behavior.getSupportProperty(), value);
-        CraftEngineBlocks.place(block.getLocation(), next, false);
+        CookingPotBlockBehavior behavior = behaviorOf(state);
+        if (behavior == null) return;
+        setSupportProperty(block, state, behavior, value);
     }
 }

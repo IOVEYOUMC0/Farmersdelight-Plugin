@@ -5,6 +5,7 @@ import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -111,8 +112,8 @@ public final class WorldDataConfig {
     }
 
     private static void addDefaultTrades(Builder builder) {
-        // Novice and Apprentice farmer pools hold 5 and 3 vanilla listings; the mod adds 2 to each, so a
-        // listing wins one of the two draws for that level with probability 1/7 and 1/5 respectively.
+        // With two added entries, novice and apprentice farmer pools contain 7 and 5 offers.
+        // Each offer therefore has weight 1/7 and 1/5 respectively for a selection.
         builder.villagerTrade(new TradeOffer("farmer", 1, "farmersdelight:onion", 26,
                 "minecraft:emerald", 1, 16, 2, 0.05f, 1.0D / 7.0D));
         builder.villagerTrade(new TradeOffer("farmer", 1, "farmersdelight:tomato", 26,
@@ -122,8 +123,7 @@ public final class WorldDataConfig {
         builder.villagerTrade(new TradeOffer("farmer", 2, "farmersdelight:rice", 20,
                 "minecraft:emerald", 1, 16, 5, 0.05f, 1.0D / 5.0D));
 
-        // The generic wandering trader pool holds 64 vanilla listings and the mod adds 4, so one listing wins
-        // one of the five generic draws with probability 1/68.
+        // The generic trader pool contains 64 base offers plus four additions, giving each weight 1/68.
         double wanderingChance = 1.0D / 68.0D;
         builder.wanderingTrade(new TradeOffer(null, 0, "minecraft:emerald", 1,
                 "farmersdelight:cabbage_seeds", 1, 1, 12, 0.05f, wanderingChance));
@@ -188,8 +188,8 @@ public final class WorldDataConfig {
             I18n.logWarning("worlddata.trades_invalid_entry", "path", path);
             return null;
         }
-        org.bukkit.inventory.ItemStack ingredientItem = ItemUtils.createItem(ingredient);
-        org.bukkit.inventory.ItemStack resultItem = ItemUtils.createItem(result);
+        ItemStack ingredientItem = ItemUtils.createItem(ingredient);
+        ItemStack resultItem = ItemUtils.createItem(result);
         if (ItemUtils.isAnyCustomItemLoaded()
                 && (ingredientItem == null || ingredientItem.getType().isAir()
                 || resultItem == null || resultItem.getType().isAir())) {

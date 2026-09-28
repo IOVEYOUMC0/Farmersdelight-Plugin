@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.api.effect;
 
+import com.huidu.farmersdelight.api.PluginAccess;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.effect.EffectManager;
 import com.huidu.farmersdelight.listener.FoodEatListener;
@@ -79,7 +80,7 @@ public final class FarmersDelightFoodEffects {
     }
 
     private static FoodEatListener listener() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         return plugin == null ? null : plugin.getFoodEatListener();
     }
 }

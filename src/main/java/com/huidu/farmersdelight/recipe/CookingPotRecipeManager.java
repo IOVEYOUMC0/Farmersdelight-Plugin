@@ -4,6 +4,8 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.api.recipe.IngredientMatching;
+import com.huidu.farmersdelight.pack.PackSection;
+import com.huidu.farmersdelight.pack.PackSections;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.compat.MMOItemsCompat;
@@ -20,10 +22,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.ToIntFunction;
+import com.huidu.farmersdelight.api.recipe.AddonRecipeFiles;
+import com.huidu.farmersdelight.gui.RecipeViewGui;
+import com.huidu.farmersdelight.util.CommonTagResolver;
 
 public class CookingPotRecipeManager {
 
@@ -43,22 +49,29 @@ public class CookingPotRecipeManager {
     // (single volatile write). Lets API cross-reference / GUI "which recipes produce X" answer in O(1)
     // instead of scanning every recipe. Keyed the same way as getItemKey (custom id, else vanilla id).
     private volatile Map<String, List<CookingPotRecipe>> resultToRecipes = Map.of();
+    // Recipes whose winning definition came from a CraftEngine pack section; published with the maps above
+    // so the startup summary can tell the plugin's own file, pack content and runtime registrations apart.
+    private volatile int packRecipeCount;
     private final VanillaTagItemIdCache vanillaItemIdsByTagCache;
     // LRU access-order LinkedHashMap mutates internal state on get(), so concurrent reads from
     // multiple region threads (Folia) would corrupt the doubly-linked list. Wrap in synchronizedMap;
     // callers MUST synchronize externally when iterating (currently no iteration happens).
-    private final Map<String, CookingPotRecipe> recipeCache = java.util.Collections.synchronizedMap(
+    private final Map<String, CookingPotRecipe> recipeCache = Collections.synchronizedMap(
             new LinkedHashMap<>(MAX_CACHE_SIZE + 1, 0.75f, true) {
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<String, CookingPotRecipe> eldest) {
                     return size() > MAX_CACHE_SIZE;
                 }
             });
-    private static final int MAX_CACHE_SIZE = 100;
+    // Both caches are server-wide, so 100 entries thrash as soon as a few dozen pots hold distinct
+    // input combinations: every eviction turns the next tick of that pot back into a full recipe
+    // scan, which is exactly what the negative cache exists to avoid. Entries are a string key and
+    // a reference, so a four-figure bound is a few hundred kB at worst.
+    private static final int MAX_CACHE_SIZE = 2048;
     // Negative-result cache: input+container multisets known to match nothing, so an unchanged incomplete
     // pot (mid-fill, hopper-fed, or junk) does not re-scan every recipe each tick. Bounded LRU like
     // recipeCache, only touched under the recipeCache monitor, cleared + generation-bumped alongside it.
-    private final Set<String> recipeMisses = java.util.Collections.newSetFromMap(
+    private final Set<String> recipeMisses = Collections.newSetFromMap(
             new LinkedHashMap<String, Boolean>(MAX_CACHE_SIZE + 1, 0.75f, false) {
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
@@ -70,6 +83,14 @@ public class CookingPotRecipeManager {
     // still current, so a match computed against pre-reload maps can't repopulate the just-cleared cache.
     // volatile so the unsynchronized snapshot read is ordered before the volatile map reads and is visible.
     private volatile long recipeGeneration = 0;
+
+    /**
+     * The publish generation of the currently loaded recipe set, bumped on every republish. A caller that
+     * caches a match result stores this alongside it so the cache is discarded when recipes change.
+     */
+    public long recipeGeneration() {
+        return recipeGeneration;
+    }
     private volatile Set<String> validContainerKeys = Set.of();
     // Recipes registered at runtime by addons via the public API. Kept separate so they survive a
     // /fd reload (which rebuilds the file-backed maps); merged into the published maps in loadRecipes().
@@ -91,8 +112,20 @@ public class CookingPotRecipeManager {
         Map<String, Set<String>> newIngredientToRecipes = new HashMap<>();
         Map<String, Map<String, Set<String>>> newCustomIngredientToRecipes = new HashMap<>();
         Set<String> newValidContainerKeys = new HashSet<>();
+        // Recipes that got their container from their own result instead of the file; reported below so an
+        // operator can see which entries rely on the inference.
+        int[] inferredContainers = {0};
+        // Ids whose winning definition came from a CraftEngine pack section; the registry buckets in the
+        // startup summary read this, so it may only count entries that survived the merges below.
+        Set<String> packIds = new HashSet<>();
 
         YamlConfiguration config = RecipeFileLoader.loadRecipeFile(plugin, "recipes/cooking_pot_recipes.yml");
+        if (config == null) {
+            // Unreadable file (the loader already warned with the parse error): keep the recipes published
+            // last instead of rebuilding from an empty file. Pack and API recipes stay as they are too.
+            return;
+        }
+        Set<String> overriddenExternalIds = externalOverrideIds(config, "cooking_pot");
         RecipeFileLoader.loadRecipeSections(plugin, config, "cooking_pot_recipes", "cooking pot",
                 "recipes/cooking_pot_recipes.yml", (recipeId, section) -> {
                     CookingPotRecipe recipe = parseRecipe(recipeId, section, 6);
@@ -100,37 +133,53 @@ public class CookingPotRecipeManager {
 
                     indexDefaultRecipe(newIngredientToRecipes, recipeId, recipe);
                     indexContainer(newValidContainerKeys, recipe);
+                    if (section.get("container") == null && recipe.getContainer() != null) {
+                        inferredContainers[0]++;
+                    }
                 });
-        loadCustomRecipes(config, newCustomRecipes, newCustomIngredientToRecipes, newValidContainerKeys);
+        loadCustomRecipes(config, newCustomRecipes, newCustomIngredientToRecipes, newValidContainerKeys, inferredContainers);
 
-        // Recipes an addon ships inside a CraftEngine pack (<pack>/farmersdelight/*.yml). Loaded after the
-        // plugin's own file so a pack can never silently replace a built-in recipe, and before the API merge
-        // below so an explicit runtime registration still wins on an id clash. See PackRecipeSource.
-        for (PackRecipeSource.Loaded loaded : PackRecipeSource.load(plugin)) {
-            RecipeFileLoader.loadRecipeSections(plugin, loaded.config(), "cooking_pot_recipes",
-                    "cooking pot [" + loaded.source() + "]",
-                    loaded.source(),
+        // Recipes a CraftEngine pack declares under cooking_recipes. Loaded after the plugin's own file so a
+        // pack can never silently replace a built-in recipe, and before the API merge below so an explicit
+        // runtime registration still wins on an id clash. CraftEngine read the files; see PackSections.
+        for (PackSections.Section packSection : plugin.packSectionsOf(PackSection.COOKING_POT)) {
+            RecipeFileLoader.loadRecipeSections(plugin, packSection.yaml(), PackSection.COOKING_POT.rootKey(),
+                    "cooking pot [" + packSection.source() + "]",
+                    packSection.source(),
                     (recipeId, section) -> {
                         if (newRecipes.containsKey(recipeId)) {
-                            I18n.logWarning("recipe.pack_duplicate_skipped", "id", recipeId, "source", loaded.source());
+                            I18n.logWarning("recipe.pack_duplicate_skipped", "id", recipeId, "source", packSection.source());
                             return;
                         }
                         CookingPotRecipe recipe = parseRecipe(recipeId, section, 6);
                         newRecipes.put(recipeId, recipe);
+                        packIds.add(recipeId);
                         indexDefaultRecipe(newIngredientToRecipes, recipeId, recipe);
                         indexContainer(newValidContainerKeys, recipe);
+                        if (section.get("container") == null && recipe.getContainer() != null) {
+                            inferredContainers[0]++;
+                        }
                     });
-            loadCustomRecipes(loaded.config(), newCustomRecipes, newCustomIngredientToRecipes, newValidContainerKeys);
+            loadCustomRecipes(packSection.yaml(), newCustomRecipes, newCustomIngredientToRecipes, newValidContainerKeys, inferredContainers);
         }
 
-        // Merge addon-registered recipes last so they survive reloads (and override file ids on clash).
+        // Merge addon-registered recipes last so they survive reloads; an editor override is explicit and wins.
         for (CookingPotRecipe recipe : externalRecipes.values()) {
-            newRecipes.put(recipe.getId(), recipe);
-            indexDefaultRecipe(newIngredientToRecipes, recipe.getId(), recipe);
-            indexContainer(newValidContainerKeys, recipe);
+            if (!overriddenExternalIds.contains(recipe.getId()) || !newRecipes.containsKey(recipe.getId())
+                    || AddonRecipeFiles.ownerOf("cooking_pot", recipe.getId()) != null) {
+                newRecipes.put(recipe.getId(), recipe);
+                packIds.remove(recipe.getId());
+                indexDefaultRecipe(newIngredientToRecipes, recipe.getId(), recipe);
+                indexContainer(newValidContainerKeys, recipe);
+            }
         }
+        int newPackRecipeCount = packIds.size();
 
         List<CookingPotRecipe> newSortedRecipes = sortedRecipeList(newRecipes);
+        // Only reported when it actually happens: a pack that declares every container keeps the boot log quiet.
+        if (inferredContainers[0] > 0) {
+            I18n.logDetail("recipe", "recipe.cooking_pot_inferred_containers", "count", inferredContainers[0]);
+        }
         Map<String, List<CookingPotRecipe>> newSortedCustomRecipes = new HashMap<>();
         Map<String, List<CookingPotRecipe>> newSortedCustomOnlyRecipes = new HashMap<>();
         for (Map.Entry<String, Map<String, CookingPotRecipe>> entry : newCustomRecipes.entrySet()) {
@@ -157,6 +206,7 @@ public class CookingPotRecipeManager {
         this.sortedCustomOnlyRecipes = newSortedCustomOnlyRecipes;
         this.resultToRecipes = freezeResultIndex(newResultToRecipes);
         this.validContainerKeys = Collections.unmodifiableSet(newValidContainerKeys);
+        this.packRecipeCount = newPackRecipeCount;
 
         vanillaItemIdsByTagCache.clear();
         synchronized (recipeCache) {
@@ -166,13 +216,17 @@ public class CookingPotRecipeManager {
         }
         // Invalidate the recipe-list GUI display cache: this republish path (incl. addon register/
         // unregister) bypasses RecipeViewGui.clearConfigCache.
-        com.huidu.farmersdelight.gui.RecipeViewGui.clearRecipeDisplayCache();
+        RecipeViewGui.clearRecipeDisplayCache();
+        // The decoded-snapshot cache is keyed by strings owned by the recipes being replaced, so it is
+        // dropped with them rather than being left to hold entries no recipe references any more.
+        RecipeItemCodec.clearDecodeCache();
     }
 
     private void loadCustomRecipes(YamlConfiguration config,
                                    Map<String, Map<String, CookingPotRecipe>> targetCustomRecipes,
                                    Map<String, Map<String, Set<String>>> targetCustomIndex,
-                                   Set<String> targetContainerKeys) {
+                                   Set<String> targetContainerKeys,
+                                   int[] inferredContainers) {
         ConfigurationSection root = config.getConfigurationSection("custom_cooking_pot_recipes");
         if (root == null) {
             return;
@@ -201,6 +255,9 @@ public class CookingPotRecipeManager {
                     groupRecipes.put(recipeId, recipe);
                     indexCustomRecipe(targetCustomIndex, groupId, recipeId, recipe);
                     indexContainer(targetContainerKeys, recipe);
+                    if (section.get("container") == null && recipe.getContainer() != null) {
+                        inferredContainers[0]++;
+                    }
                     loadedCount++;
                 } catch (Exception e) {
                     I18n.logWarning("recipe.custom_cooking_pot_load_failed",
@@ -247,7 +304,7 @@ public class CookingPotRecipeManager {
             if (customId != null) {
                 containerKeys.add(customId);
             }
-            containerKeys.add("minecraft:" + container.getType().name().toLowerCase(java.util.Locale.ROOT));
+            containerKeys.add("minecraft:" + container.getType().name().toLowerCase(Locale.ROOT));
         }
     }
 
@@ -307,11 +364,17 @@ public class CookingPotRecipeManager {
         }
 
         Object containerValue = section.get("container");
-        ItemStack container = containerValue == null ? null : parseItemValue(containerValue);
-        if (containerValue != null && (container == null || container.getType().isAir())) {
-            throw new IllegalArgumentException("Invalid container item: " + containerValue);
+        // "container: none" (also "air" or an empty string) is the explicit opt-out: this recipe needs no
+        // container even though its result declares a remainder. Without the field at all the container is
+        // inferred from the result below, which is what lets a hand-written or addon recipe behave like the
+        // mod's own container-carrying recipes without repeating the container on every entry.
+        ItemStack container = null;
+        if (containerValue != null && !isContainerOptOut(containerValue)) {
+            container = parseItemValue(containerValue);
+            if (container == null || container.getType().isAir()) {
+                throw new IllegalArgumentException("Invalid container item: " + containerValue);
+            }
         }
-        boolean needsContainer = container != null;
 
         Object resultValue = section.get("result");
         if (resultValue == null) {
@@ -325,6 +388,14 @@ public class CookingPotRecipeManager {
             result.setAmount(Math.max(1, ConfigSectionReader.optionalInt(section, "result-count", 1)));
         }
 
+        if (container == null && containerValue == null) {
+            ItemStack inferred = inferContainer(result, id);
+            if (inferred != null) {
+                container = inferred;
+            }
+        }
+        boolean needsContainer = container != null && !container.getType().isAir();
+
         float experience = Math.max(0, (float) ConfigSectionReader.optionalDouble(section, "experience", 0.0));
         int defaultCookTime = Math.max(1, plugin.getConfigInt(Constants.DEFAULT_COOKING_TIME_COOKING_POT,
                 "cooking-pot.cooking.default-cook-time",
@@ -335,13 +406,74 @@ public class CookingPotRecipeManager {
         int maxCookTime = Math.max(minCookTime, plugin.getConfigInt(6000,
                 "cooking-pot.cooking.max-cook-time",
                 "cooking-pot.max-cook-time"));
-        int cookTime = Math.max(minCookTime, Math.min(maxCookTime, getInt(section,
-                defaultCookTime
-        )));
+        int cookTime = Math.max(minCookTime, Math.min(maxCookTime,
+                ConfigSectionReader.optionalInt(section, "cooking_time", defaultCookTime,
+                        "cooking-time", "cook-time")));
         String category = ConfigSectionReader.optionalString(section, "category", "misc");
         int priority = ConfigSectionReader.optionalInt(section, "priority", 0);
 
         return new CookingPotRecipe(id, ingredients, container, needsContainer, result, experience, cookTime, category, priority);
+    }
+
+    /**
+     * Values of the container field that explicitly declare "this recipe needs no container", so a
+     * result whose own remainder would otherwise be inferred (a soup's bowl, a drink's bottle) can still be
+     * cooked without one. Written as a string, because a map value is always a real item snapshot.
+     */
+    static boolean isContainerOptOut(Object containerValue) {
+        if (!(containerValue instanceof String text)) {
+            return false;
+        }
+        String normalized = text.trim().toLowerCase(Locale.ROOT);
+        return normalized.isEmpty() || normalized.equals("none") || normalized.equals("air");
+    }
+
+    /**
+     * The container a recipe needs, taken from its result item's own remainder (a soup's bowl, a drink's
+     * bottle): what a meal leaves behind when eaten is the container it is served in. Null when the inference
+     * is switched off, when the result declares nothing, or when the remainder is a configured tool remainder.
+     */
+    private ItemStack inferContainer(ItemStack result, String recipeId) {
+        if (!plugin.getConfigBoolean(true, "cooking-pot.container-inference.enabled",
+                "container-inference.enabled")) {
+            return null;
+        }
+        Set<String> excluded = excludedContainerRemainders();
+        ItemStack inferred = ItemUtils.craftingRemainderOf(result, recipeId);
+        if (inferred == null || inferred.getType().isAir()) {
+            return null;
+        }
+        String customId = ItemUtils.getCustomItemId(inferred);
+        String vanillaId = ItemUtils.getVanillaMaterialItemId(inferred);
+        return isExcludedRemainder(excluded, customId, vanillaId) ? null : inferred;
+    }
+
+    private Set<String> excludedContainerRemainders() {
+        List<String> configured = plugin.getConfigStringList("cooking-pot.container-inference.excluded-remainders",
+                "container-inference.excluded-remainders");
+        if (configured.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> excluded = new HashSet<>(configured.size());
+        for (String id : configured) {
+            if (id != null && !id.isBlank()) {
+                excluded.add(id.trim().toLowerCase(Locale.ROOT));
+            }
+        }
+        return excluded;
+    }
+
+    /**
+     * True when the inferred container must be dropped because it is a configured tool remainder. Ids are
+     * compared case-insensitively, and either id form matches, so one entry covers a vanilla item and a
+     * CraftEngine item built on it.
+     */
+    static boolean isExcludedRemainder(Set<String> excluded, String customId, String vanillaId) {
+        if (excluded.isEmpty()) {
+            return false;
+        }
+        return (customId != null && excluded.contains(customId.toLowerCase(Locale.ROOT)))
+                || (vanillaId != null && excluded.contains(vanillaId.toLowerCase(Locale.ROOT)));
     }
 
     private boolean ingredientHasMembers(RecipeIngredient ingredient) {
@@ -352,21 +484,12 @@ public class CookingPotRecipeManager {
         if (ingredient instanceof RecipeIngredient.Tag tag) {
             return !plugin.getCraftEngine().itemManager().itemIdsByTag(tag.key()).isEmpty()
                     || !getVanillaItemIdsByTag(tag.key()).isEmpty()
-                    || !com.huidu.farmersdelight.util.CommonTagResolver.getMembers(tag.key()).isEmpty();
+                    || !CommonTagResolver.getMembers(tag.key()).isEmpty();
         }
         if (ingredient instanceof RecipeIngredient.Choice choice) {
             return choice.options().stream().anyMatch(this::ingredientHasMembers);
         }
         return false;
-    }
-
-    private int getInt(ConfigurationSection section, int defaultValue) {
-        for (String key : new String[]{"cooking_time", "cooking-time", "cook-time"}) {
-            if (section.contains(key)) {
-                return ConfigSectionReader.optionalInt(section, key, defaultValue);
-            }
-        }
-        return defaultValue;
     }
 
     private RecipeIngredient parseIngredient(String str) {
@@ -574,8 +697,7 @@ public class CookingPotRecipeManager {
         if (recipeIndex == null || recipeIndex.isEmpty()) {
             return null;
         }
-        // Copy-on-write to avoid the per-call HashSet allocations the old version did even when only
-        // one source set per item / per call needed merging.
+        // Copy-on-write avoids per-call HashSet allocations when only one source set needs merging.
         // candidates / recipesForItem start as shared references to an unmodified index entry; we
         // allocate a real HashSet copy only when a second source forces a union or intersection.
         Set<String> candidates = null;
@@ -651,15 +773,10 @@ public class CookingPotRecipeManager {
     }
 
     private boolean matchRecipePrefiltered(CookingPotRecipe recipe, List<ItemStack> nonEmptyInputs, boolean exactSlots) {
-        // Unit budget per filled slot. The exact pass mirrors the mod's CookingPotRecipe.matches, which pairs
-        // filled input STACKS against ingredients (RecipeMatcher.findMatches over the stack list) and then
-        // shrinks every filled slot by exactly one on cook. Feeding the slot's amount as its unit budget lets
-        // one stacked slot cover several ingredients, so with slotCount == ingredientCount the matcher can
-        // report a match while another filled slot participates in nothing and is never consumed. Capping the
-        // exact pass at one unit per slot forces the perfect matching the mod requires: every filled slot must
-        // carry exactly one ingredient. The lenient pass keeps the amount budget on purpose — that pass exists
-        // for the same ingredient spread over several slots, and it separately requires every filled slot to
-        // hold an item the recipe can use.
+        // Exact matching gives each filled slot a budget of one unit so every slot matches one ingredient.
+        // Using stack amounts here could satisfy several ingredients from one slot and leave another unused.
+        // Lenient matching uses stack amounts to support ingredients spread across slots,
+        // while separately requiring every filled slot to contain a usable ingredient.
         ToIntFunction<ItemStack> unitBudget = exactSlots ? slot -> 1 : ItemStack::getAmount;
         return IngredientMatching.matchesIngredients(
                 recipe.getIngredients(), nonEmptyInputs, exactSlots,
@@ -668,20 +785,6 @@ public class CookingPotRecipeManager {
 
     public boolean canCraft(CookingPotRecipe recipe, List<ItemStack> inputs) {
         return recipe != null && matchRecipe(recipe, inputs);
-    }
-
-    public boolean containsIngredientsFor(CookingPotRecipe recipe, List<ItemStack> available) {
-        if (recipe == null) {
-            return false;
-        }
-        List<ItemStack> nonEmpty = new ArrayList<>();
-        for (ItemStack item : available) {
-            if (item != null && !item.getType().isAir()) {
-                nonEmpty.add(item);
-            }
-        }
-        return IngredientMatching.containsIngredients(
-                recipe.getIngredients(), nonEmpty, this::matchIngredient, ItemStack::getAmount);
     }
 
     public boolean matchesIngredient(ItemStack item, RecipeIngredient ingredient) {
@@ -808,6 +911,19 @@ public class CookingPotRecipeManager {
 
     public int getExternalRecipeCount() {
         return externalRecipes.size();
+    }
+
+    /** Recipes that reached this manager through a CraftEngine pack section, not the plugin's own file. */
+    public int getPackRecipeCount() {
+        return packRecipeCount;
+    }
+
+    public boolean isExternalRecipe(String id) {
+        return id != null && externalRecipes.containsKey(id);
+    }
+
+    private static Set<String> externalOverrideIds(YamlConfiguration config, String station) {
+        return Set.copyOf(config.getStringList("external-overrides." + station));
     }
 
     public int getCustomRecipeCount() {

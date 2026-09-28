@@ -9,6 +9,7 @@ import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
+import com.huidu.farmersdelight.tool.ToolAttackListener;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.block.behavior.AbstractCanSurviveBlockBehavior;
@@ -16,6 +17,7 @@ import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.block.behavior.BonemealableBlock;
 import net.momirealms.craftengine.core.block.behavior.RandomTickBlock;
 import net.momirealms.craftengine.core.block.property.Property;
@@ -40,6 +42,7 @@ import org.bukkit.inventory.meta.Damageable;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -79,10 +82,12 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
     );
     private static volatile Set<String> cachedMushroomSupports = DEFAULT_MUSHROOM_ALWAYS_VALID_SUPPORTS;
 
+    private final FarmersDelightPlugin plugin;
     private final Config config;
 
-    private MushroomColonyBehavior(BlockDefinition block, Config config) {
+    private MushroomColonyBehavior(FarmersDelightPlugin plugin, BlockDefinition block, Config config) {
         super(block, 0);
+        this.plugin = plugin;
         this.config = config;
     }
 
@@ -145,6 +150,7 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
             return true;
         }
 
+        // Static helper: it has no behavior instance to take the plugin from.
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         if (plugin != null && !plugin.getConfigBoolean(true,
                 "mushroom-colonies.placement.allow-solid-supports-below-max-light")) {
@@ -190,14 +196,15 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
                 : Set.copyOf(normalized);
     }
 
-    public static final BlockBehaviorFactory<MushroomColonyBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+    public static final BlockBehaviorFactory<MushroomColonyBehavior> FACTORY = (BlockDefinition block, ConfigSection section) -> {
+        // Runs while CraftEngine parses the pack, which is always after this plugin enabled.
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         // The age is not optional: it carries how many mushrooms the colony holds, so without it the
         // colony reads as empty and can never be harvested, while growth and bone meal fail on every
         // write. A block that declares this behavior without an int age property aborts its own load
         // here, naming the property, instead of loading a colony that silently does nothing. The
-        // property name stays configurable, but an unresolvable configured name is now an error
-        // rather than a silent fall back to the default name.
+        // property name stays configurable; an unresolvable name is an error without a default fallback.
         String path = section != null ? section.path() : Constants.BEHAVIOR_MUSHROOM_COLONY;
         String agePropertyName = BehaviorArgParser.getString(arguments, "age-property", "age");
         Property<Integer> ageProperty =
@@ -207,21 +214,21 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
                 ? BehaviorArgParser.getInt(arguments, "max-age", 3)
                 : BehaviorArgParser.inferMaxIntegerValue(ageProperty, 3);
         float growSpeed = BehaviorArgParser.getFloat(arguments, "grow-speed", 0.25f);
-        int minGrowLight = BehaviorArgParser.getInt(arguments, "light-requirement", 0);
-        int bonemealMinAgeBonus = BehaviorArgParser.getInt(arguments, "bonemeal-min-age-bonus", 1);
-        int bonemealMaxAgeBonus = BehaviorArgParser.getInt(arguments, "bonemeal-max-age-bonus", 2);
+        int minGrowLight = BehaviorArgParser.getInt(arguments, "light.requirement", 0);
+        int bonemealMinAgeBonus = BehaviorArgParser.getInt(arguments, "bone-meal.min-age-bonus", 1);
+        int bonemealMaxAgeBonus = BehaviorArgParser.getInt(arguments, "bone-meal.max-age-bonus", 2);
         if (bonemealMaxAgeBonus < bonemealMinAgeBonus) {
             bonemealMaxAgeBonus = bonemealMinAgeBonus;
         }
-        Set<Key> harvestToolTags = SoilRuleSupport.parseKeys(arguments, "harvest-tool-tags");
+        Set<Key> harvestToolTags = SoilRuleSupport.parseKeys(arguments, "harvest-tool.tags");
         Set<String> harvestToolItems = parseConfiguredItemIds(arguments);
         SoilRuleSupport.SoilRules growSoilRules = parseGrowSoilRules(arguments);
         SoilRuleSupport.SoilRules placementSoilRules = parsePlacementSoilRules(arguments);
         boolean placementOverridesDefault = BehaviorArgParser.getBoolean(arguments,
-                "place-on-overrides-default", false);
+                "place-on.overrides-default", "place-on-overrides-default", false);
         String mushroomItemId = BehaviorArgParser.getString(arguments, "mushroom-type", "");
 
-        MushroomColonyBehavior behavior = new MushroomColonyBehavior(block, new Config(
+        MushroomColonyBehavior behavior = new MushroomColonyBehavior(plugin, block, new Config(
                 ageProperty, maxAge, growSpeed, minGrowLight,
                 bonemealMinAgeBonus, bonemealMaxAgeBonus,
                 harvestToolTags, harvestToolItems, growSoilRules, placementSoilRules,
@@ -312,8 +319,7 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
             if (!CraftEngineBlocks.place(block.getLocation(), resetState, false)) {
                 return InteractionResult.PASS;
             }
-            // Mirrors original MushroomColonyBlock: knife harvest plays the block's break sound
-            // (colony copies vanilla mushroom = SoundType.GRASS) rather than a crop-growth sound.
+            // Knife harvesting plays the colony block's grass break sound.
             world.playSound(loc, Sound.BLOCK_GRASS_BREAK, 1.0f, 1.0f);
             spawnHarvestParticles(world, loc, 10, 0.2, 0.1);
         }
@@ -323,7 +329,7 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
         // Outside any block-entity monitor: this behavior holds none.
         Bukkit.getPluginManager().callEvent(new FarmersDelightHarvestEvent(
                 player, block.getLocation(), CustomBlockUtils.getId(state), heldItem,
-                java.util.List.of(mushroomDrop)));
+                List.of(mushroomDrop)));
 
         world.dropItemNaturally(loc, mushroomDrop);
         ItemUtils.swingHand(player, context.getHand());
@@ -341,8 +347,8 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
         if (player.getGameMode() == GameMode.CREATIVE) {
             return;
         }
-        if (com.huidu.farmersdelight.tool.ToolAttackListener.resolveToolData(item) != null) {
-            com.huidu.farmersdelight.tool.ToolAttackListener.consumeDurability(item, player.getLocation());
+        if (ToolAttackListener.resolveToolData(item) != null) {
+            ToolAttackListener.consumeDurability(item, player.getLocation());
             return;
         }
         if (!(item.getItemMeta() instanceof Damageable damageable) || damageable.isUnbreakable()) {
@@ -420,15 +426,14 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
         if (customId == null) {
             return false;
         }
-        return FarmersDelightPlugin.getInstance().getCraftEngine().itemManager()
+        return plugin.getCraftEngine().itemManager()
                 .itemIdsByTag(harvestToolTag)
                 .stream()
                 .anyMatch(uniqueKey -> uniqueKey.key().toString().equalsIgnoreCase(customId));
     }
 
     private boolean matchesLegacyKnifeItem(ItemStack item) {
-        String customId = ItemUtils.getCustomItemId(item);
-        return FarmersDelightPlugin.getInstance().isKnifeItemId(customId);
+        return plugin.isKnife(item);
     }
 
     @Override
@@ -521,7 +526,7 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
     }
 
     private static Set<String> parseConfiguredItemIds(Map<String, Object> arguments) {
-        Object raw = arguments != null ? arguments.get("harvest-tool-items") : null;
+        Object raw = arguments != null ? BehaviorArgParser.getRaw(arguments, "harvest-tool.items") : null;
         if (!(raw instanceof Iterable<?> iterable)) {
             return Collections.emptySet();
         }
@@ -540,30 +545,30 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
     }
 
     private static SoilRuleSupport.SoilRules parseGrowSoilRules(Map<String, Object> arguments) {
-        if (BehaviorArgParser.hasArgument(arguments, "grow-on-blocks")
-                || BehaviorArgParser.hasArgument(arguments, "grow-on-block-tags")) {
-            Map<String, Object> aliasedArguments = new java.util.HashMap<>();
+        if (BehaviorArgParser.hasArgument(arguments, "grow-on.blocks")
+                || BehaviorArgParser.hasArgument(arguments, "grow-on.block-tags")) {
+            Map<String, Object> aliasedArguments = new HashMap<>();
             if (arguments != null) {
                 aliasedArguments.putAll(arguments);
             }
-            aliasedArguments.put("bottom-blocks", aliasedArguments.get("grow-on-blocks"));
-            aliasedArguments.put("bottom-block-tags", aliasedArguments.get("grow-on-block-tags"));
+            aliasedArguments.put("bottom-blocks", BehaviorArgParser.getRaw(arguments, "grow-on.blocks"));
+            aliasedArguments.put("bottom-block-tags", BehaviorArgParser.getRaw(arguments, "grow-on.block-tags"));
             return SoilRuleSupport.parseSoilRules(aliasedArguments);
         }
         return SoilRuleSupport.parseSoilRules(arguments);
     }
 
     private static SoilRuleSupport.SoilRules parsePlacementSoilRules(Map<String, Object> arguments) {
-        if (!BehaviorArgParser.hasArgument(arguments, "place-on-blocks")
-                && !BehaviorArgParser.hasArgument(arguments, "place-on-block-tags")) {
+        if (!BehaviorArgParser.hasArgument(arguments, "place-on.blocks")
+                && !BehaviorArgParser.hasArgument(arguments, "place-on.block-tags")) {
             return new SoilRuleSupport.SoilRules(Set.of(), Set.of(), Set.of(), List.of(), Set.of());
         }
-        Map<String, Object> aliasedArguments = new java.util.HashMap<>();
+        Map<String, Object> aliasedArguments = new HashMap<>();
         if (arguments != null) {
             aliasedArguments.putAll(arguments);
         }
-        aliasedArguments.put("bottom-blocks", BehaviorArgParser.getRaw(arguments, "place-on-blocks"));
-        aliasedArguments.put("bottom-block-tags", BehaviorArgParser.getRaw(arguments, "place-on-block-tags"));
+        aliasedArguments.put("bottom-blocks", BehaviorArgParser.getRaw(arguments, "place-on.blocks"));
+        aliasedArguments.put("bottom-block-tags", BehaviorArgParser.getRaw(arguments, "place-on.block-tags"));
         return SoilRuleSupport.parseSoilRules(aliasedArguments);
     }
 }

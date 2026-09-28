@@ -16,3 +16,12 @@ out/
 
 local.properties
 .local/
+
+# Python bytecode from the tools/ checkers, which CI runs and developers run locally.
+__pycache__/
+*.pyc
+
+# CraftEngine is resolved from Maven for every build. The paid distribution jars are only ever used locally by
+# the workspace-level tools/check_ce_symbols.py (monorepo parent directory), which takes explicit paths:
+#   python tools/check_ce_symbols.py <jar> --ce 26.9.1=path/core.jar;path/bukkit.jar;path/proxy.jar
+/libs/craft-engine-*.jar

@@ -9,6 +9,7 @@ import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntity;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntityController;
 import com.huidu.farmersdelight.block.behavior.SkilletBlockEntityController;
 import com.huidu.farmersdelight.block.behavior.StoveBlockEntityController;
+import com.huidu.farmersdelight.gui.CookingPotGui;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
@@ -32,9 +33,8 @@ public class ChunkLoadListener implements Listener {
     private static final int DEFAULT_STARTUP_CHUNK_LOADS_PER_TICK = 16;
 
     private final FarmersDelightPlugin plugin;
-    // Written on enable/disable (main thread) and read + self-nulled inside the repeating task body
-    // (global-region thread). volatile gives the needed happens-before so disable's cancel isn't
-    // missed and the body never sees a stale handle. R-CONC-002.
+    // Publish the task handle across enable/disable and global task execution with volatile,
+    // so cancellation sees the active handle.
     private volatile PluginTask startupLoadTask;
 
     public ChunkLoadListener(FarmersDelightPlugin plugin) {
@@ -76,7 +76,7 @@ public class ChunkLoadListener implements Listener {
 
         startupLoadTask = plugin.scheduler().runRepeating(() -> {
             int chunksPerTick = Math.max(1, plugin.getConfigInt(DEFAULT_STARTUP_CHUNK_LOADS_PER_TICK,
-                    "performance.startup-chunk-loads-per-tick"));
+                    "performance.budgets.startup-chunk-loads-per-tick"));
             for (int i = 0; i < chunksPerTick; i++) {
                 StartupChunk chunk = chunksToLoad.pollFirst();
                 if (chunk == null) {
@@ -140,6 +140,8 @@ public class ChunkLoadListener implements Listener {
         // Skillet / stove still handled by coordinate range (outside this scope).
         plugin.getSkilletManager().saveAndUnloadChunk(world, minX, maxX, minZ, maxZ);
         plugin.getStoveManager().saveAndUnloadChunk(world, minX, maxX, minZ, maxZ);
+        // The cooking-pot effect budget and viewer snapshot are per chunk and only dropped here.
+        plugin.getTickManager().cleanupEffectChunk(world, minX, minZ);
     }
 
     private void cleanupBlockEntitiesInChunk(World world, Chunk chunk) {
@@ -157,7 +159,7 @@ public class ChunkLoadListener implements Listener {
             // A viewer can keep a pot GUI open long after walking out of range; close it before the
             // MONITOR cleanup orphans the entity, or its clicks would dupe (take) / lose (insert) items
             // against an entity nothing persists anymore. close() also commits the GUI's final state.
-            com.huidu.farmersdelight.gui.CookingPotGui.closeOpenGuisAt(world, posKey.x(), posKey.y(), posKey.z());
+            CookingPotGui.closeOpenGuisAt(world, posKey.x(), posKey.y(), posKey.z());
             // Snapshot into the controller (not just a plain save): the snapshot survives the MONITOR
             // cleanup and re-hydrates the entity if the chunk reloads out of CraftEngine's chunk cache,
             // where loadCustomData never re-runs.
@@ -176,12 +178,17 @@ public class ChunkLoadListener implements Listener {
     }
 
     private void cleanupCookingPotEntities(World world, int chunkX, int chunkZ) {
+        // Deregister from the tick loop as well as dropping the entities below. This runs before the empty
+        // check on purpose: the tick bookkeeping can hold entries for a chunk whose entity snapshot is already
+        // empty, and those are exactly the ones that would otherwise accumulate for every chunk a player
+        // visits. A chunk reload re-registers through markActive.
+        plugin.getTickManager().markInactiveInChunk(world, chunkX, chunkZ);
         Map<BlockPosKey, CookingPotBlockEntity> entities =
                 CookingPotBlockBehavior.getBlockEntitiesInChunk(world, chunkX, chunkZ);
         if (entities.isEmpty()) return;
         // getBlockEntitiesInChunk already returns a fresh HashMap snapshot (see its impl), and
         // removeBlockEntity mutates the authoritative chunkIndex/worldBlockEntities, not `entities`.
-        // The old outer `new ArrayList<>(entities.keySet())` was a redundant double-snapshot.
+        // The key set can be iterated directly because `entities` is an independent snapshot.
         for (BlockPosKey posKey : entities.keySet()) {
             CookingPotBlockBehavior.removeBlockEntity(world, posKey, false);
         }

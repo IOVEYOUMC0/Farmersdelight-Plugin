@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.util.scheduler;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.util.ShutdownBudget;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -17,6 +18,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 public final class SchedulerAdapter {
 
@@ -159,6 +161,19 @@ public final class SchedulerAdapter {
     }
 
     public void shutdown() {
+        shutdown(null);
+    }
+
+    /**
+     * Drains the async pool. With a budget the wait is whatever the shutdown has left; without one it
+     * falls back to a fixed ten seconds. A ten-second wait per component is exactly how a shutdown ends
+     * up taking a minute, so callers inside a shutdown sequence should pass the shared budget.
+     */
+    public void shutdown(ShutdownBudget budget) {
+        if (budget != null) {
+            budget.awaitTermination("farmersdelight async pool", asyncExecutor);
+            return;
+        }
         asyncExecutor.shutdown();
         try {
             if (!asyncExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
@@ -185,12 +200,22 @@ public final class SchedulerAdapter {
     }
 
     private static boolean isClassPresent() {
-        try {
-            Class.forName("io.papermc.paper.threadedregions.RegionizedServer", false, SchedulerAdapter.class.getClassLoader());
-            return true;
-        } catch (ClassNotFoundException ignored) {
-            return false;
+        String className = "io.papermc.paper.threadedregions.RegionizedServer";
+        ClassLoader[] loaders = {
+                SchedulerAdapter.class.getClassLoader(),
+                Thread.currentThread().getContextClassLoader(),
+                Bukkit.getServer() == null ? null : Bukkit.getServer().getClass().getClassLoader(),
+                ClassLoader.getSystemClassLoader()
+        };
+        for (ClassLoader loader : loaders) {
+            try {
+                Class.forName(className, false, loader);
+                return true;
+            } catch (ClassNotFoundException | LinkageError ignored) {
+                // Try the next loader; plugin and server classes may use different class loaders.
+            }
         }
+        return false;
     }
 
     private static final class NamedThreadFactory implements ThreadFactory {
@@ -209,7 +234,18 @@ public final class SchedulerAdapter {
         private static final Object REGION_SCHEDULER = invokeStatic("getRegionScheduler");
         // The resolved scheduler Method is stable per (class, name, arity) combination; cache it
         // so each schedule on Folia avoids re-walking the class/interface hierarchy.
-        private static final Map<String, Method> METHOD_CACHE = new ConcurrentHashMap<>();
+        // Keyed by the receiver's Class so the lookup needs no string building: this runs on every
+        // scheduler dispatch, several thousand times a second on a busy server. The entry also carries
+        // the already-resolved Consumer positions, because Method.getParameterTypes() hands back a fresh
+        // clone of its array on each call and adaptArgs only ever asks the same question of it.
+        private record SchedulerMethod(Method method, boolean[] wantsConsumer, boolean needsAdapter) {
+        }
+
+        // Nested by method name and then arity: the arity is part of the cache identity because one name can
+        // be overloaded by parameter count, and nesting it keeps the hot path clear of the per-call key string
+        // this lookup used to build. The arity Integer is interned for the small values schedulers use.
+        private static final Map<Class<?>, Map<String, Map<Integer, SchedulerMethod>>> METHOD_CACHE =
+                new ConcurrentHashMap<>();
 
         private FoliaReflect() {
         }
@@ -272,7 +308,13 @@ public final class SchedulerAdapter {
 
         private static void entityRun(FarmersDelightPlugin plugin, Entity entity, Runnable task, Runnable retired) {
             Object scheduler = invoke(entity, "getScheduler");
-            invoke(scheduler, "run", plugin, task, retired);
+            Object scheduled = invoke(scheduler, "run", plugin, task, retired);
+            // EntityScheduler#run returns null when the entity is ALREADY retired, and in that case it
+            // never invokes the retired callback itself. Callers use that callback to release an in-flight
+            // guard, so without this the guard would stay set forever and the entity stop being ticked.
+            if (scheduled == null && retired != null) {
+                retired.run();
+            }
         }
 
         private static boolean isOwnedByCurrentRegion(Location location) {
@@ -323,17 +365,30 @@ public final class SchedulerAdapter {
         private static Object invoke(Object target, String methodName, Object... args) {
             try {
                 Class<?> targetClass = target.getClass();
-                String cacheKey = targetClass.getName() + "#" + methodName + "/" + args.length;
-                Method method = METHOD_CACHE.get(cacheKey);
-                if (method == null) {
-                    method = findMethod(targetClass, methodName, args.length);
-                    METHOD_CACHE.put(cacheKey, method);
+                Map<String, Map<Integer, SchedulerMethod>> perClass =
+                        METHOD_CACHE.computeIfAbsent(targetClass, key -> new ConcurrentHashMap<>());
+                Map<Integer, SchedulerMethod> perArity =
+                        perClass.computeIfAbsent(methodName, key -> new ConcurrentHashMap<>());
+                SchedulerMethod entry = perArity.get(args.length);
+                if (entry == null) {
+                    Method method = findMethod(targetClass, methodName, args.length);
+                    Class<?>[] parameterTypes = method.getParameterTypes();
+                    boolean[] wantsConsumer = new boolean[parameterTypes.length];
+                    boolean needsAdapter = false;
+                    for (int i = 0; i < parameterTypes.length; i++) {
+                        wantsConsumer[i] = isConsumer(parameterTypes[i]);
+                        needsAdapter |= wantsConsumer[i];
+                    }
+                    if (!method.canAccess(target)) {
+                        method.setAccessible(true);
+                    }
+                    entry = new SchedulerMethod(method, wantsConsumer, needsAdapter);
+                    perArity.put(args.length, entry);
                 }
-                Object[] adaptedArgs = adaptArgs(method.getParameterTypes(), args);
-                if (!method.canAccess(target)) {
-                    method.setAccessible(true);
-                }
-                return method.invoke(target, adaptedArgs);
+                // Only a call that hands a Runnable to a Consumer parameter needs the copied array; every
+                // other dispatch passes the varargs array it already has.
+                Object[] callArgs = entry.needsAdapter() ? adaptArgs(entry.wantsConsumer(), args) : args;
+                return entry.method().invoke(target, callArgs);
             } catch (ReflectiveOperationException e) {
                 throw new IllegalStateException("Failed to invoke Folia scheduler method " + methodName, e);
             }
@@ -390,13 +445,12 @@ public final class SchedulerAdapter {
             return Modifier.isPublic(type.getModifiers());
         }
 
-        private static Object[] adaptArgs(Class<?>[] parameterTypes, Object[] args) {
+        private static Object[] adaptArgs(boolean[] wantsConsumer, Object[] args) {
             Object[] adapted = new Object[args.length];
             for (int i = 0; i < args.length; i++) {
                 Object arg = args[i];
-                Class<?> parameterType = parameterTypes[i];
-                if (arg instanceof Runnable runnable && isConsumer(parameterType)) {
-                    adapted[i] = (java.util.function.Consumer<Object>) ignored -> runnable.run();
+                if (arg instanceof Runnable runnable && i < wantsConsumer.length && wantsConsumer[i]) {
+                    adapted[i] = (Consumer<Object>) ignored -> runnable.run();
                 } else {
                     adapted[i] = arg;
                 }
@@ -405,7 +459,7 @@ public final class SchedulerAdapter {
         }
 
         private static boolean isConsumer(Class<?> type) {
-            return java.util.function.Consumer.class.isAssignableFrom(type);
+            return Consumer.class.isAssignableFrom(type);
         }
     }
 }

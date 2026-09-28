@@ -11,9 +11,11 @@ import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.util.PermissionChecker;
+import net.momirealms.craftengine.bukkit.api.BukkitAdaptor;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.block.behavior.EntityBlock;
 import net.momirealms.craftengine.core.block.behavior.WorldlyContainerHolder;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
@@ -34,12 +36,41 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
+import java.util.UUID;
 
 public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements EntityBlock, WorldlyContainerHolder {
 
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
         return false;
+    }
+
+    /**
+     * Creative middle-click ("pick block") hands over the item the block would drop: the stack it was placed
+     * from. CraftEngine's fallback is the block's plain item id, which drops the enchantments and - because a
+     * per-player built item carries components a context-free build does not - does not match the stack the
+     * player still holds, so the pick would add a second skillet next to it instead of selecting that one.
+     * Returning null when nothing is tracked restores CraftEngine's fallback.
+     */
+    @Override
+    public net.momirealms.craftengine.core.item.Item itemToPickup(
+            net.momirealms.craftengine.core.world.World world,
+            BlockPos pos,
+            ImmutableBlockState state,
+            net.momirealms.craftengine.core.entity.player.Player player) {
+        SkilletManager manager = getManager();
+        if (manager == null || world == null || pos == null || !(world.platformWorld() instanceof World bukkitWorld)) {
+            return null;
+        }
+        ItemStack snapshot = manager.pickupSnapshot(new Location(bukkitWorld, pos.x(), pos.y(), pos.z()));
+        if (snapshot == null) {
+            I18n.logDetail("interact", "skillet.pick_block_default", "item", Constants.ITEM_SKILLET);
+            return null;
+        }
+        String itemId = ItemUtils.getCustomItemId(snapshot);
+        I18n.logDetail("interact", "skillet.pick_block_snapshot", "item",
+                itemId != null ? itemId : snapshot.getType().getKey().toString());
+        return BukkitAdaptor.adapt(snapshot);
     }
 
     public static final String SUPPORT_PROPERTY = "support";
@@ -52,27 +83,32 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
     private final Property<Boolean> supportProperty;
     private int controllerId;
 
-    public static final BlockBehaviorFactory<SkilletBlockBehavior> FACTORY = (BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) -> {
+    public static final BlockBehaviorFactory<SkilletBlockBehavior> FACTORY = (BlockDefinition block, ConfigSection section) -> {
+        // Runs while CraftEngine parses the pack, which is always after this plugin enabled.
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         String permission = BehaviorArgParser.getString(arguments, "permission", "farmersdelight.use.skillet");
         String addFoodSound = BehaviorArgParser.getArgumentString(arguments, "add-food-sound", Constants.SOUND_SKILLET_ADD_FOOD);
         String sizzleSound = BehaviorArgParser.getArgumentString(arguments, "sizzle-sound", Constants.SOUND_SKILLET_SIZZLE);
-        boolean supportDisplayEnabled = BehaviorArgParser.getBoolean(arguments, "display-support", true);
-        boolean requireNonFullSupport = BehaviorArgParser.getBoolean(arguments, "require-non-full-support", true);
+        boolean supportDisplayEnabled = BehaviorArgParser.getBoolean(arguments, "support.display", "display-support", true);
+        boolean requireNonFullSupport = BehaviorArgParser.getBoolean(arguments, "support.require-non-full", "require-non-full-support", true);
         Property<Boolean> supportProperty = BlockBehaviorFactory.getOptionalProperty(block, SUPPORT_PROPERTY, Boolean.class);
         if (supportProperty == null) {
-            FarmersDelightPlugin.getInstance().getLogger()
+            plugin.getLogger()
                     .warning("[FarmersDelight] Block " + block.id() + " is missing the 'support' property"
                             + " — tray entity_renderer switching is disabled for this block.");
         }
-        return new SkilletBlockBehavior(block, permission, addFoodSound, sizzleSound, supportDisplayEnabled,
+        return new SkilletBlockBehavior(plugin, block, permission, addFoodSound, sizzleSound, supportDisplayEnabled,
                 requireNonFullSupport, supportProperty);
     };
 
-    private SkilletBlockBehavior(BlockDefinition block, String permission, String addFoodSound, String sizzleSound,
-                                  boolean supportDisplayEnabled, boolean requireNonFullSupport,
-                                  Property<Boolean> supportProperty) {
+    private final FarmersDelightPlugin plugin;
+
+    private SkilletBlockBehavior(FarmersDelightPlugin plugin, BlockDefinition block, String permission,
+                                 String addFoodSound, String sizzleSound, boolean supportDisplayEnabled,
+                                 boolean requireNonFullSupport, Property<Boolean> supportProperty) {
         super(block);
+        this.plugin = plugin;
         this.permission = permission;
         this.addFoodSound = addFoodSound;
         this.sizzleSound = sizzleSound;
@@ -103,7 +139,7 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
 
     @Override
     public BlockEntityController createBlockEntityController(BlockEntity blockEntity) {
-        return new SkilletBlockEntityController(blockEntity);
+        return new SkilletBlockEntityController(plugin, blockEntity);
     }
 
     @Override
@@ -141,7 +177,6 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
                 ? EquipmentSlot.OFF_HAND
                 : EquipmentSlot.HAND;
         ItemStack heldItem = ItemUtils.getItemInHand(player, hand);
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         SkilletManager manager = getManager();
         if (plugin == null || manager == null) {
             return InteractionResult.PASS;
@@ -198,22 +233,19 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
         if (!(worldObj instanceof net.momirealms.craftengine.core.world.World ceWorld) || !(posObj instanceof BlockPos pos)) {
             return;
         }
-        org.bukkit.World world = Bukkit.getWorld(ceWorld.uuid());
-        SkilletManager manager = getManager();
+        World world = Bukkit.getWorld(ceWorld.uuid());
+        SkilletManager manager = getManagerStatic();
         if (world == null || manager == null) {
             return;
         }
         Location location = new Location(world, pos.x(), pos.y(), pos.z());
-        // breakSkillet already persists/dirties exactly the broken location; the previous
-        // saveWorldData(world) re-dirtied every skillet in the world (O(N) block-entity lookups) on
-        // each single break, and on Folia reached chunks owned by other region threads.
+        // breakSkillet persists and dirties only the region-owned location being removed.
         manager.breakSkillet(location, location.clone().add(0.5, 0.5, 0.5), false);
     }
 
     @Override
     public Object getContainer(Object thisBlock, Object[] args) {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (plugin == null || plugin.isSkilletHopperInteractionsEnabled()) {
+        if (plugin == null || !plugin.isSkilletHopperInteractionsEnabled()) {
             return null;
         }
         if (args == null || args.length < 3) {
@@ -242,28 +274,36 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
     }
 
     public static void cleanupAll() {
-        SkilletManager manager = getManager();
+        SkilletManager manager = getManagerStatic();
         if (manager != null) {
             manager.cleanup();
         }
     }
 
     public static void saveAllData() {
-        SkilletManager manager = getManager();
+        SkilletManager manager = getManagerStatic();
         if (manager != null) {
             manager.saveAllData();
         }
     }
 
-    public static void cleanupWorld(java.util.UUID worldId) {
-        SkilletManager manager = getManager();
+    public static void cleanupWorld(UUID worldId) {
+        SkilletManager manager = getManagerStatic();
         if (manager != null) {
             manager.cleanupWorld(worldId);
         }
     }
 
-    private static SkilletManager getManager() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+    private SkilletManager getManager() {
+        return managerOf(plugin);
+    }
+
+    // Static callers (cleanup / save / state removal) have no behaviour instance to take the plugin from.
+    private static SkilletManager getManagerStatic() {
+        return managerOf(FarmersDelightPlugin.getInstance());
+    }
+
+    private static SkilletManager managerOf(FarmersDelightPlugin plugin) {
         if (plugin == null) {
             return null;
         }

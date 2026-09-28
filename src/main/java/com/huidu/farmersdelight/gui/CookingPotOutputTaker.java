@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.gui;
 
+import com.huidu.farmersdelight.api.util.ItemDelivery;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
 import org.bukkit.entity.Player;
@@ -76,10 +77,7 @@ public class CookingPotOutputTaker {
 
     public void deliverOutputToPlayer(InventoryClickEvent event, Player player, ItemStack meal) {
         if (event.isShiftClick()) {
-            var leftover = player.getInventory().addItem(meal);
-            for (var entry : leftover.entrySet()) {
-                player.getWorld().dropItemNaturally(player.getLocation(), entry.getValue());
-            }
+            ItemDelivery.giveOrDrop(player, meal);
             return;
         }
 
@@ -101,9 +99,6 @@ public class CookingPotOutputTaker {
             }
         }
 
-        var leftover = player.getInventory().addItem(meal);
-        for (var entry : leftover.entrySet()) {
-            player.getWorld().dropItemNaturally(player.getLocation(), entry.getValue());
-        }
+        ItemDelivery.giveOrDrop(player, meal);
     }
 }

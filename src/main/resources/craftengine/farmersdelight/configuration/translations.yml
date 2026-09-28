@@ -216,7 +216,8 @@ translations:
     buff.farmersdelight.comfort: "Comfort"
     buff.farmersdelight.comfort.title: "Comfort [%s]"
 
-    farmersdelight.tooltip.cooking_pot.servings: "%s servings"
+    farmersdelight.tooltip.cooking_pot.single_serving: "Holds 1 serving of:"
+    farmersdelight.tooltip.cooking_pot.many_servings: "Holds %s servings of:"
 
   zh_cn:
     block.farmersdelight.basket: "篮子"
@@ -435,7 +436,8 @@ translations:
     buff.farmersdelight.comfort: "舒适"
     buff.farmersdelight.comfort.title: "舒适 [%s]"
 
-    farmersdelight.tooltip.cooking_pot.servings: "%s 份"
+    farmersdelight.tooltip.cooking_pot.single_serving: "装有1份："
+    farmersdelight.tooltip.cooking_pot.many_servings: "装有%s份："
 
   ko_kr:
     block.farmersdelight.basket: "바구니"
@@ -654,5 +656,6 @@ translations:
     buff.farmersdelight.comfort: "편안함"
     buff.farmersdelight.comfort.title: "편안함 [%s]"
 
-    farmersdelight.tooltip.cooking_pot.servings: "%s인분"
+    farmersdelight.tooltip.cooking_pot.single_serving: "1인분의:"
+    farmersdelight.tooltip.cooking_pot.many_servings: "%s인분의:"
 

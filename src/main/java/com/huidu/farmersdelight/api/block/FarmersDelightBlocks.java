@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.api.block;
 
+import com.huidu.farmersdelight.api.PluginAccess;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
@@ -121,10 +122,10 @@ public final class FarmersDelightBlocks {
     }
 
     private static FarmersDelightPlugin plugin() {
-        return available() ? FarmersDelightPlugin.getInstance() : null;
+        return PluginAccess.pluginOrNull();
     }
 
     private static boolean available() {
-        return FarmersDelightPlugin.getInstance() != null && FarmersDelightPlugin.isEnabled0();
+        return PluginAccess.isAvailable();
     }
 }

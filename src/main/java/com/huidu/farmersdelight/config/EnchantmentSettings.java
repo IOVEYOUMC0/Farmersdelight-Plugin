@@ -34,6 +34,9 @@ public record EnchantmentSettings(
         );
     }
 
+    // Applied by anvil but never offered by the enchanting table, matching vanilla's treatment of mending.
+    private static final List<String> DEFAULT_ANVIL_EXTRA_ENCHANTMENTS = List.of("minecraft:mending");
+
     private static final List<String> DEFAULT_TABLE_ENCHANTMENTS = List.of(
             "minecraft:sharpness",
             "minecraft:smite",
@@ -152,7 +155,21 @@ public record EnchantmentSettings(
         DURABLE
     }
 
-    public record Group(Table table, boolean anvilEnabled) {
+    /**
+     * One item group's enchanting rules. The anvil list is ADDITIVE on top of the table list, never a
+     * replacement: an enchant the table offers can always also be applied by anvil, while extraEnchantments
+     * holds the ones that are anvil-only. Mending is the built-in example -- the enchanting table never
+     * offers it in vanilla either -- and putting it in config lets a server add its own without those
+     * enchants leaking into the table's offer rolls.
+     */
+    public record Group(Table table, boolean anvilEnabled, List<String> extraEnchantments) {
+        public Group {
+            extraEnchantments = List.copyOf(extraEnchantments);
+        }
+
+        public Group(Table table, boolean anvilEnabled) {
+            this(table, anvilEnabled, DEFAULT_ANVIL_EXTRA_ENCHANTMENTS);
+        }
     }
 
     public record Table(
@@ -210,7 +227,10 @@ public record EnchantmentSettings(
                 ), 1024),
                 stringList(tableSection, legacyTableSection, defaultEnchantments)
         );
-        return new Group(table, bool(anvilSection, legacyAnvilSection, "enabled"));
+        return new Group(
+                table,
+                bool(anvilSection, legacyAnvilSection, "enabled"),
+                anvilExtras(anvilSection, legacyAnvilSection));
     }
 
     private static boolean bool(ConfigurationSection section, String path, boolean fallback) {
@@ -281,6 +301,15 @@ public record EnchantmentSettings(
             values.add(value);
         }
         return List.copyOf(values);
+    }
+
+    // Anvil-only additions. Absent from config means the built-in default (mending); an explicitly empty
+    // list means the operator wants the anvil to accept exactly what the table offers and nothing more.
+    private static List<String> anvilExtras(ConfigurationSection section, ConfigurationSection legacySection) {
+        if (section != null && section.isList("extra-enchantments")) {
+            return stringList(section, "extra-enchantments", DEFAULT_ANVIL_EXTRA_ENCHANTMENTS, true);
+        }
+        return stringList(legacySection, "extra-enchantments", DEFAULT_ANVIL_EXTRA_ENCHANTMENTS, true);
     }
 
     private static List<String> stringList(

@@ -13,11 +13,15 @@ import com.huidu.farmersdelight.recipe.CookingPotRecipeManager;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipeManager;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.util.BlockPosKey;
+import com.huidu.farmersdelight.util.CommonTagResolver;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.ManagerSupport;
+import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.kyori.adventure.translation.GlobalTranslator;
@@ -34,6 +38,7 @@ import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -42,6 +47,7 @@ import org.bukkit.block.data.type.Campfire;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.CookingRecipe;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
 import java.lang.reflect.Field;
@@ -53,31 +59,39 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class DebugToolsCommand {
 
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
-    private static final int DEFAULT_MAX_PLACE_COUNT = 65536;
-    private static final List<String> ACTIONS = List.of("place", "activate", "undo",
+    private static final int DEFAULT_MAX_PLACE_COUNT = 4096;
+    private static final List<String> TEST_TARGETS = List.of("cooking_pot", "skillet", "stove", "handheld", "all");
+    private static final List<String> ACTIONS = List.of("test", "place", "activate", "undo", "stop",
             "inspect", "item", "recipe", "i18n");
     private static final List<String> TARGETS = List.of("cooking_pot", "skillet", "stove", "stove_blocked",
             "cutting_board", "basket", "all");
     // Basket has no Constants block-id entry (only a behavior constant); its block id equals its behavior id.
     private static final String BLOCK_BASKET = "farmersdelight:basket";
     private static final int UNDO_HISTORY_LIMIT = 8;
-    private static final Deque<List<UndoEntry>> UNDO_HISTORY = new ArrayDeque<>();
+    private final Deque<PlacementBatch> undoHistory = new ArrayDeque<>();
 
     private final FarmersDelightPlugin plugin;
+    private final DebugBatchRunner batches;
     private final Map<String, ItemStack> debugItemCache = new ConcurrentHashMap<>();
+    private final Map<UUID, PluginTask> handheldTests = new ConcurrentHashMap<>();
 
     public DebugToolsCommand(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
+        this.batches = new DebugBatchRunner(plugin);
     }
 
     public void execute(CommandSender sender, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("This command can only be used by players.");
+            sender.sendMessage(I18n.getComponent("command.player_only"));
             return;
         }
         if (args.length < 2) {
@@ -86,9 +100,11 @@ public final class DebugToolsCommand {
         }
 
         switch (normalize(args[1])) {
+            case "test" -> test(player, args);
             case "place" -> place(player, args);
             case "activate" -> activate(player, args);
             case "undo" -> undo(player);
+            case "stop" -> stop(player);
             case "inspect", "look" -> inspect(player, args);
             case "item", "hand", "held" -> dumpHeldItem(player, args);
             case "recipe", "recipes" -> recipeValidate(player);
@@ -103,13 +119,14 @@ public final class DebugToolsCommand {
         }
         if (args.length == 3) {
             String action = normalize(args[1]);
+            if ("test".equals(action)) return complete(TEST_TARGETS, args[2]);
             if ("item".equals(action) || "hand".equals(action) || "held".equals(action)) {
                 return complete(List.of("offhand"), args[2]);
             }
             if ("recipe".equals(action) || "recipes".equals(action)) {
                 return complete(List.of("validate"), args[2]);
             }
-            if ("undo".equals(action) || "inspect".equals(action) || "look".equals(action)
+            if ("undo".equals(action) || "stop".equals(action) || "inspect".equals(action) || "look".equals(action)
                     || "i18n".equals(action) || "lang".equals(action)) {
                 return List.of();
             }
@@ -117,140 +134,242 @@ public final class DebugToolsCommand {
             targets.addAll(DebugToolRegistry.registeredNames());
             return complete(targets, args[2]);
         }
+        if (args.length == 4 && ("test".equals(normalize(args[1])) || "place".equals(normalize(args[1])))) {
+            return complete(List.of("16", "64", "128", "512", "1024"), args[3]);
+        }
+        if (args.length == 5 && "test".equals(normalize(args[1]))) {
+            return complete(List.of("100", "200", "600", "1200"), args[4]);
+        }
         return List.of();
     }
 
+    private void test(Player player, String[] args) {
+        Integer count = parseOptionalInt(args, 3, 64);
+        Integer ticks = parseOptionalInt(args, 4, 200);
+        if (args.length < 3 || args.length > 5 || !TEST_TARGETS.contains(normalize(args[2]))
+                || count == null || count <= 0 || ticks == null || ticks < 20 || ticks > 12000) {
+            player.sendMessage(I18n.getComponent("command.debug_test_usage", player));
+            return;
+        }
+        if (plugin.getTickManager().getPerformanceSnapshot().statsEnabled()) {
+            player.sendMessage(I18n.getComponent("command.stats_profile_busy", player));
+            return;
+        }
+        if ("handheld".equals(normalize(args[2]))) {
+            testHandheld(player, ticks);
+            return;
+        }
+        place(player, new String[]{args[0], "place", normalize(args[2]), count.toString(), "1", "1"}, true,
+                () -> player.performCommand("fd stats profile " + ticks + " " + normalize(args[2])));
+    }
+
+    private void testHandheld(Player player, int ticks) {
+        SkilletManager manager = plugin.getSkilletManager();
+        if (manager == null) {
+            player.sendMessage(I18n.getComponent("command.debug_test_handheld_unavailable", player));
+            return;
+        }
+        boolean started = manager.handleHandheldInteract(player, EquipmentSlot.HAND,
+                NamespacedKey.fromString("farmersdelight:skillet_cooking"),
+                NamespacedKey.fromString("farmersdelight:item/skillet_food"), Map.of());
+        if (!started) {
+            player.sendMessage(I18n.getComponent("command.debug_test_handheld_setup", player));
+            return;
+        }
+        player.performCommand("fd stats profile " + ticks + " handheld");
+        UUID playerId = player.getUniqueId();
+        PluginTask previous = handheldTests.remove(playerId);
+        if (previous != null) previous.cancel();
+        AtomicReference<PluginTask> taskRef = new AtomicReference<>();
+        PluginTask task = plugin.scheduler().runLater(() -> plugin.scheduler().runForEntity(player, () -> {
+            if (handheldTests.get(playerId) != taskRef.get()) return;
+            handheldTests.remove(playerId, taskRef.get());
+            manager.stopHandheldUse(player, null);
+        }), ticks + 1L);
+        taskRef.set(task);
+        handheldTests.put(playerId, task);
+    }
+
+    private void stop(Player player) {
+        boolean stopped = batches.stop(player);
+        PluginTask handheldTask = handheldTests.remove(player.getUniqueId());
+        if (handheldTask != null) {
+            handheldTask.cancel();
+            SkilletManager manager = plugin.getSkilletManager();
+            if (manager != null) manager.stopHandheldUse(player, null);
+            stopped = true;
+        }
+        player.sendMessage(I18n.getComponent(stopped
+                ? "command.debug_batch_stopped" : "command.debug_batch_no_task", player));
+    }
+
     private void place(Player player, String[] args) {
-        if (args.length < 3) {
+        place(player, args, false, () -> { });
+    }
+
+    private void place(Player player, String[] args, boolean activate, Runnable finished) {
+        if (args.length < 3 || args.length > 6) {
             sendUsage(player);
             return;
         }
-
-        beginUndoBatch();
-        String target = normalize(args[2]);
+        if (batches.busy()) {
+            player.sendMessage(I18n.getComponent("command.debug_batch_busy", player));
+            return;
+        }
+        String target = normalizeTarget(args[2]);
         Integer requestedCount = parseOptionalInt(args, 3, 64);
         Integer requestedSpacing = parseOptionalInt(args, 4, 1);
         Integer requestedLayers = parseOptionalInt(args, 5, 1);
-        if (requestedCount == null || requestedSpacing == null || requestedLayers == null) {
-            player.sendMessage(MINI_MESSAGE.deserialize("<red>Count, spacing, and layers must be whole numbers.</red>"));
+        if (requestedCount == null || requestedSpacing == null || requestedLayers == null
+                || requestedCount <= 0 || requestedSpacing <= 0 || requestedLayers <= 0) {
+            player.sendMessage(I18n.getComponent("command.debug_batch_invalid_numbers", player));
             return;
         }
 
         int maxPlaceCount = getMaxPlaceCount();
-        int count = Math.max(1, requestedCount);
+        int count = Math.min(maxPlaceCount, requestedCount);
         int spacing = clamp(requestedSpacing, 1, 16);
-        int layers = Math.max(1, requestedLayers);
-        long requestedTotalLong = (long) count * layers;
+        long requestedTotalLong = (long) count * requestedLayers;
         int total = requestedTotalLong > maxPlaceCount ? maxPlaceCount : (int) requestedTotalLong;
         Location origin = ManagerSupport.normalize(player.getLocation());
-
-        // Unknown built-in target → consult the addon extension registry. Extensions place their own
-        // blocks (e.g. BAC kegs) and join FD's undo batch via the supplied UndoSink so a subsequent
-        // /fd debugtools undo also reverts their placements.
+        PlacementBatch batch = new PlacementBatch(player.getUniqueId());
         if (!isBuiltInTarget(target)) {
             DebugToolExtension extension = DebugToolRegistry.find(target);
-            if (extension != null) {
-                DebugToolExtension.UndoSink sink = loc -> {
-                    UndoEntry entry = captureUndo(loc);
-                    if (entry != null) {
-                        rememberUndo(java.util.List.of(entry));
-                    }
-                };
-                int placed = extension.place(player, origin, count, spacing, layers, sink);
-                player.sendMessage(MINI_MESSAGE.deserialize(
-                        "<green>Debug placed " + placed + "/" + total + " " + extension.name() + " blocks.</green>"
-                                + " <gray>requested=" + requestedCount + ", layers=" + layers + "</gray>"));
+            if (extension == null) {
+                player.sendMessage(I18n.getComponent("command.debug_batch_unknown", player,
+                        Map.of("target", target)));
+                return;
+            }
+            // Extension callbacks may touch nearby cells; they must own those cells themselves.
+            if (plugin.scheduler().isFolia()) {
+                player.sendMessage(I18n.getComponent("command.debug_batch_addon_folia", player));
                 return;
             }
         }
-
         int grid = Math.max(1, (int) Math.ceil(Math.sqrt(count)));
-
-        int placed = 0;
-        int activated = 0;
-        List<PendingActivation> pendingActivations = new ArrayList<>();
-        for (int i = 0; i < total; i++) {
-            int layer = i / count;
-            int layerIndex = i % count;
-            int x = layerIndex % grid;
-            int z = layerIndex / grid;
-            Location location = new Location(
-                    player.getWorld(),
-                    origin.getBlockX() + x * spacing,
-                    origin.getBlockY() + 1 + layer,
-                    origin.getBlockZ() + z * spacing
-            );
-            PlaceResult result = placeOne(player, location, target, i);
-            if (!result.undoEntries().isEmpty()) {
-                rememberUndo(result.undoEntries());
+        boolean started = batches.start(player, total, index -> {
+            int layerIndex = index % count;
+            Location location = origin.clone().add(2 + layerIndex % grid * spacing,
+                    2 + index / count * 3, 2 + layerIndex / grid * spacing);
+            if (!isBuiltInTarget(target)) {
+                placeAddon(player, batch, location, target);
+                return;
             }
-            if (result.placed()) {
-                placed++;
-            }
+            if (!canEdit(player, location)) return;
+            PlaceResult result = placeOne(player, location, target, index);
+            batch.entries.addAll(result.undoEntries());
+            if (result.placed()) batch.placed++;
             if (result.activated()) {
-                pendingActivations.add(new PendingActivation(location.clone(), result.activationTarget()));
-                activated++;
+                batch.activations.add(new PendingActivation(location, result.activationTarget()));
             }
+        }, () -> {
+            player.sendMessage(I18n.getComponent("command.debug_batch_placed", player,
+                    Map.of("count", String.valueOf(batch.placed), "total", String.valueOf(total))));
+            if (activate) {
+                activateBatch(player, batch, "all", () -> {
+                    if (batch.placed > 0) finished.run();
+                });
+            } else {
+                finished.run();
+            }
+        });
+        if (started) {
+            synchronized (undoHistory) {
+                undoHistory.addFirst(batch);
+                while (undoHistory.size() > UNDO_HISTORY_LIMIT) undoHistory.removeLast();
+            }
+            player.sendMessage(I18n.getComponent("command.debug_batch_started", player,
+                    Map.of("count", String.valueOf(total))));
+        } else {
+            player.sendMessage(I18n.getComponent("command.debug_batch_busy", player));
         }
-        scheduleActivationBatch(pendingActivations);
-
-        player.sendMessage(MINI_MESSAGE.deserialize(
-                "<green>Debug placed " + placed + "/" + total + " blocks and activated " + activated
-                        + " states.</green> <gray>requested=" + requestedCount
-                        + ", layers=" + layers + ", max=" + maxPlaceCount + ", spacing=" + spacing + "</gray>"
-        ));
     }
 
     private void activate(Player player, String[] args) {
         String target = args.length >= 3 ? normalizeTarget(args[2]) : "all";
         int activated = 0;
-
-        if (isCookingPotTarget(target)) {
-            activated += activateCookingPots(player.getWorld());
-        }
-        if (isSkilletTarget(target)) {
-            activated += activateSkillets(player.getWorld());
-        }
-        if (isStoveTarget(target)) {
-            activated += activateStoves(player.getWorld());
-        }
-        // Route to extension when target isn't a built-in. "all" also triggers every registered
-        // extension so a single command can activate cross-plugin debug state in one shot.
+        if (isCookingPotTarget(target)) activated += activateCookingPots(player.getWorld());
+        if (isSkilletTarget(target)) activated += activateSkillets(player.getWorld());
+        if (isStoveTarget(target)) activated += activateStoves(player.getWorld());
         if (!isBuiltInTarget(target)) {
             DebugToolExtension extension = DebugToolRegistry.find(target);
-            if (extension != null) {
-                activated += extension.activate(player);
-            }
+            if (extension != null) activated += extension.activate(player);
         } else if ("all".equals(target)) {
-            for (DebugToolExtension extension : DebugToolRegistry.all()) {
-                activated += extension.activate(player);
-            }
+            for (DebugToolExtension extension : DebugToolRegistry.all()) activated += extension.activate(player);
         }
-
         player.sendMessage(MINI_MESSAGE.deserialize("<green>Debug scanned and filled " + activated + " placed blocks.</green>"));
     }
 
     private void undo(Player player) {
-        List<UndoEntry> batch;
-        synchronized (UNDO_HISTORY) {
-            batch = UNDO_HISTORY.pollFirst();
-        }
-        if (batch == null || batch.isEmpty()) {
-            player.sendMessage(MINI_MESSAGE.deserialize("<yellow>No debug placement to undo.</yellow>"));
-            return;
-        }
-
-        int restored = 0;
-        for (int index = batch.size() - 1; index >= 0; index--) {
-            UndoEntry entry = batch.get(index);
-            if (entry == null || entry.location() == null || entry.location().getWorld() == null) {
-                continue;
-            }
+        PlacementBatch batch = lastBatch(player);
+        if (batch == null) return;
+        int[] restored = {0};
+        if (!batches.start(player, batch.entries.size(), index -> {
+            int entryIndex = batch.entries.size() - 1 - index;
+            UndoEntry entry = batch.entries.get(entryIndex);
+            if (entry == null || !canEdit(player, entry.location())) return;
+            if (!hasChangedSinceCapture(entry)) return;
             restoreUndoEntry(entry);
-            restored++;
-        }
+            batch.entries.set(entryIndex, null);
+            restored[0]++;
+        }, () -> {
+            batch.entries.removeIf(Objects::isNull);
+            if (batch.entries.isEmpty()) synchronized (undoHistory) { undoHistory.remove(batch); }
+            player.sendMessage(I18n.getComponent("command.debug_batch_undone", player,
+                    Map.of("count", String.valueOf(restored[0]), "remaining", String.valueOf(batch.entries.size()))));
+        })) player.sendMessage(I18n.getComponent("command.debug_batch_busy", player));
+    }
 
-        player.sendMessage(MINI_MESSAGE.deserialize("<green>Debug undo restored " + restored + " blocks.</green>"));
+    private PlacementBatch lastBatch(Player player) {
+        synchronized (undoHistory) {
+            for (PlacementBatch batch : undoHistory) if (batch.owner.equals(player.getUniqueId())) return batch;
+        }
+        player.sendMessage(I18n.getComponent("command.debug_batch_empty", player));
+        return null;
+    }
+
+    private void activateBatch(Player player, PlacementBatch batch, String target, Runnable finished) {
+        int[] activated = {0};
+        if (!batches.start(player, batch.activations.size(), index -> {
+            PendingActivation activation = batch.activations.get(index);
+            if (!("all".equals(target) || target.equals(activation.target()))
+                    || !canEdit(player, activation.location())) return;
+            boolean stillPresent = batch.entries.stream().filter(Objects::nonNull)
+                    .anyMatch(entry -> entry.location().equals(activation.location()) && hasChangedSinceCapture(entry));
+            if (!stillPresent) return;
+            activateScheduled(activation);
+            activated[0]++;
+        }, () -> {
+            player.sendMessage(I18n.getComponent("command.debug_batch_activated", player,
+                    Map.of("count", String.valueOf(activated[0]))));
+            finished.run();
+        })) player.sendMessage(I18n.getComponent("command.debug_batch_busy", player));
+    }
+
+    private boolean canEdit(Player player, Location location) {
+        if (location == null || location.getWorld() == null || player.getWorld() != location.getWorld()) return false;
+        World world = location.getWorld();
+        return location.getBlockY() >= world.getMinHeight() && location.getBlockY() < world.getMaxHeight()
+                && plugin.scheduler().isOwnedByCurrentRegion(location)
+                && world.isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4)
+                && ProtectionCompat.canBuild(player, location);
+    }
+
+    private void placeAddon(Player player, PlacementBatch batch, Location location, String target) {
+        if (!canEdit(player, location) || !canReplace(location.getBlock())) return;
+        DebugToolExtension extension = DebugToolRegistry.find(target);
+        if (extension == null) return;
+        List<UndoEntry> captured = new ArrayList<>();
+        try {
+            batch.placed += extension.place(player, location.clone().subtract(0, 1, 0), 1, 1, 1, loc -> {
+                if (!canEdit(player, loc) || !canReplace(loc.getBlock())) {
+                    throw new IllegalStateException("Addon debug placement must use an empty, editable cell");
+                }
+                captured.add(captureUndo(loc));
+            });
+        } finally {
+            for (UndoEntry entry : captured) rememberIfChanged(batch.entries, entry);
+        }
     }
 
     // Read-only diagnostics: inspect a block, dump a held item, validate recipes, trace a translation key.
@@ -453,7 +572,7 @@ public final class DebugToolsCommand {
         }
     }
 
-    private void dumpComponent(Player player, ItemStack item, net.momirealms.craftengine.core.util.Key componentKey, String label) {
+    private void dumpComponent(Player player, ItemStack item, Key componentKey, String label) {
         try {
             Item wrapped = BukkitItemManager.instance().wrap(item.clone());
             CompoundTag tag = CustomBlockUtils.getComponentCompound(wrapped, componentKey);
@@ -477,7 +596,7 @@ public final class DebugToolsCommand {
 
         int potCount = 0;
         CookingPotRecipeManager potManager = plugin.getCookingPotRecipes();
-        java.util.Set<String> seenPotIds = new java.util.HashSet<>();
+        Set<String> seenPotIds = new HashSet<>();
         if (potManager != null) {
             for (var recipe : potManager.getAllRecipes()) {
                 if (!seenPotIds.add(recipe.getId())) {
@@ -555,7 +674,7 @@ public final class DebugToolsCommand {
                         && !craftEngine.itemManager().itemIdsByTag(tag.key()).isEmpty();
                 empty = (tagResolver == null || tagResolver.getVanillaItemIdsByTag(tag.key()).isEmpty())
                         && !ceItems
-                        && com.huidu.farmersdelight.util.CommonTagResolver.getMembers(tag.key()).isEmpty();
+                        && CommonTagResolver.getMembers(tag.key()).isEmpty();
             } catch (Throwable cannotResolve) {
                 return;
             }
@@ -577,7 +696,7 @@ public final class DebugToolsCommand {
         }
         String key = args[2];
         String locale = args.length >= 4 ? normalize(args[3]) : "en_us";
-        java.util.Locale loc = java.util.Locale.forLanguageTag(locale.replace('_', '-'));
+        Locale loc = Locale.forLanguageTag(locale.replace('_', '-'));
         player.sendMessage(MINI_MESSAGE.deserialize("<green>i18n</green> <gray>key=" + key + " locale=" + locale + "</gray>"));
 
         String fd = I18n.get(key, locale);
@@ -603,10 +722,9 @@ public final class DebugToolsCommand {
     private void sendLayer(Player player, String layer, String value, boolean absent) {
         Component line = MINI_MESSAGE.deserialize("<gray>" + layer + ":</gray> ")
                 .append(Component.text(value == null ? "null" : value,
-                        absent ? net.kyori.adventure.text.format.NamedTextColor.RED
-                                : net.kyori.adventure.text.format.NamedTextColor.WHITE));
+                        absent ? NamedTextColor.RED : NamedTextColor.WHITE));
         if (absent) {
-            line = line.append(Component.text(" (absent/key)", net.kyori.adventure.text.format.NamedTextColor.DARK_GRAY));
+            line = line.append(Component.text(" (absent/key)", NamedTextColor.DARK_GRAY));
         }
         player.sendMessage(line);
     }
@@ -757,29 +875,6 @@ public final class DebugToolsCommand {
         return new UndoEntry(location.clone(), data, block.getType(), CustomBlockUtils.getId(block));
     }
 
-    private void rememberUndo(List<UndoEntry> entries) {
-        if (entries == null || entries.isEmpty()) {
-            return;
-        }
-        synchronized (UNDO_HISTORY) {
-            List<UndoEntry> batch = UNDO_HISTORY.peekFirst();
-            if (batch == null) {
-                batch = new ArrayList<>();
-                UNDO_HISTORY.addFirst(batch);
-            }
-            batch.addAll(entries);
-        }
-    }
-
-    private void beginUndoBatch() {
-        synchronized (UNDO_HISTORY) {
-            UNDO_HISTORY.addFirst(new ArrayList<>());
-            while (UNDO_HISTORY.size() > UNDO_HISTORY_LIMIT) {
-                UNDO_HISTORY.removeLast();
-            }
-        }
-    }
-
     private void restoreUndoEntry(UndoEntry entry) {
         if (entry == null || entry.location() == null || entry.location().getWorld() == null) {
             return;
@@ -850,23 +945,6 @@ public final class DebugToolsCommand {
             } catch (Throwable ignored) {
             }
         }
-    }
-
-    private void scheduleActivationBatch(List<PendingActivation> activations) {
-        if (activations == null || activations.isEmpty()) {
-            return;
-        }
-        if (plugin.scheduler().isFolia()) {
-            for (PendingActivation activation : activations) {
-                plugin.scheduler().runLaterAt(activation.location(), () -> activateScheduled(activation), 2L);
-            }
-            return;
-        }
-        plugin.scheduler().runLater(() -> {
-            for (PendingActivation activation : activations) {
-                activateScheduled(activation);
-            }
-        }, 2L);
     }
 
     private void activateScheduled(PendingActivation activation) {
@@ -1239,7 +1317,12 @@ public final class DebugToolsCommand {
 
     private void sendUsage(CommandSender sender) {
         sender.sendMessage(MINI_MESSAGE.deserialize(
+                "<yellow>/fd debugtools test <cooking_pot|skillet|stove|handheld|all> [count] [ticks]</yellow>"
+                        + " <gray>- place a bounded local test and start feature sampling</gray>"
+        ));
+        sender.sendMessage(MINI_MESSAGE.deserialize(
                 "<yellow>/fd debugtools place <cooking_pot|skillet|stove|stove_blocked|cutting_board|basket|all> [count] [spacing] [layers]</yellow>"
+                        + " <gray>- place a batch only; use activate to start its workload</gray>"
         ));
         sender.sendMessage(MINI_MESSAGE.deserialize(
                 "<yellow>/fd debugtools activate <cooking_pot|skillet|stove|all></yellow>"
@@ -1265,6 +1348,17 @@ public final class DebugToolsCommand {
     }
 
     private record PendingActivation(Location location, String target) {
+    }
+
+    private static final class PlacementBatch {
+        private final UUID owner;
+        private final List<UndoEntry> entries = new ArrayList<>();
+        private final List<PendingActivation> activations = new ArrayList<>();
+        private int placed;
+
+        private PlacementBatch(UUID owner) {
+            this.owner = owner;
+        }
     }
 
     private Object invoke(Object target, String name, Class<?>[] parameterTypes, Object... args) throws ReflectiveOperationException {

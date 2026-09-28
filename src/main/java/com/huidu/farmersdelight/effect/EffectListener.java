@@ -37,7 +37,7 @@ public class EffectListener implements Listener {
     // durations decrement by each pass, so every consumer reads it back through tickInterval() to stay
     // identical. A changed interval takes effect on the next start (plugin enable / server restart),
     // keeping the running scheduler period and the duration decrement in lockstep.
-    // Config: performance.effect-tick-interval-ticks (default 4, min 1).
+    // Config: performance.budgets.effect-tick-interval-ticks (default 4, min 1).
     private static final long DEFAULT_TICK_INTERVAL = 4L;
     private static volatile long tickInterval = DEFAULT_TICK_INTERVAL;
 
@@ -57,8 +57,7 @@ public class EffectListener implements Listener {
     private final FarmersDelightPlugin plugin;
     private volatile PluginTask effectTask;
     private volatile PluginTask buffSyncTask;
-    // Guards effectTask against the concurrent producers (trackPlayer runs on whichever region thread
-    // applied the buff) and the tick pass's own self-cancel. R-CONC-002.
+    // Protect effectTask against concurrent region-thread starts and tick-thread cancellation.
     private final Object taskLock = new Object();
     private volatile boolean stopped = true;
     // Resolved once per start() so the tick body does not re-probe it per pass.
@@ -73,7 +72,7 @@ public class EffectListener implements Listener {
     }
 
     private static void registerOwnBuffs() {
-        CustomBuffRegistry.register(new com.huidu.farmersdelight.api.buff.CustomBuff() {
+        CustomBuffRegistry.register(new CustomBuff() {
             @Override public String id() { return "farmersdelight:comfort"; }
             @Override public boolean isActive(Player player) { return EffectManager.hasComfort(player); }
             @Override public void remove(Player player) { EffectManager.removeComfort(player); }
@@ -89,7 +88,7 @@ public class EffectListener implements Listener {
                 if (EffectManager.restoreComfortFromPdc(player)) trackPlayer(player);
             }
         });
-        CustomBuffRegistry.register(new com.huidu.farmersdelight.api.buff.CustomBuff() {
+        CustomBuffRegistry.register(new CustomBuff() {
             @Override public String id() { return "farmersdelight:nourishment"; }
             @Override public boolean isActive(Player player) { return EffectManager.hasNourishment(player); }
             @Override public void remove(Player player) { EffectManager.removeNourishment(player); }
@@ -140,7 +139,7 @@ public class EffectListener implements Listener {
             // every later on-demand restart, so a restart mid-session keeps the same cadence.
             if (effectTask == null) {
                 tickInterval = Math.max(1L, plugin.getConfigInt((int) DEFAULT_TICK_INTERVAL,
-                        "performance.effect-tick-interval-ticks"));
+                        "performance.budgets.effect-tick-interval-ticks"));
             }
         }
         active = this;

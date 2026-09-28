@@ -1,3 +1,8 @@
+# Config generation. Bumped by the developer whenever a key is renamed, retired or changes
+# meaning; the plugin stamps it onto your file after updating and refuses to touch a file that
+# declares a NEWER generation than the running build. Do not edit by hand.
+config-version: 1
+
 # FarmersDelight configuration
 # Common options come first. Edit gui.yml for GUI layout, buttons and textures.
 # Item IDs support CraftEngine items and vanilla items, e.g. farmersdelight:flint_knife, minecraft:bowl.
@@ -59,9 +64,14 @@ enchantments:
           - minecraft:fortune
           - minecraft:vanishing_curse
           - $backstabbing
-      # Anvil auto-inherits this group's table list and also allows mending.
+      # The anvil accepts everything the table offers, plus extra-enchantments below. Listing an enchant
+      # here and NOT in the table list makes it anvil-only: applicable from a book, never offered by the
+      # enchanting table. That is how vanilla treats mending. An empty list means the anvil accepts
+      # exactly the table list and nothing more.
       anvil:
         enabled: true
+        extra-enchantments:
+          - minecraft:mending
 
     skillet:
       table:
@@ -77,9 +87,11 @@ enchantments:
           - minecraft:knockback
           - minecraft:looting
           - minecraft:vanishing_curse
-      # Anvil auto-inherits this group's table list and also allows mending.
+      # Anvil-only additions on top of the table list; see the knives group above.
       anvil:
         enabled: true
+        extra-enchantments:
+          - minecraft:mending
 
     # Durability-only custom items (the farmersdelight:durable setting). They are not weapons, so the
     # whitelist defaults to just unbreaking and vanishing_curse; the anvil inherits both and also allows
@@ -92,8 +104,11 @@ enchantments:
         enchantments:
           - minecraft:unbreaking
           - minecraft:vanishing_curse
+      # Anvil-only additions on top of the table list; see the knives group above.
       anvil:
         enabled: true
+        extra-enchantments:
+          - minecraft:mending
 
   backstabbing:
     enabled: true
@@ -121,20 +136,31 @@ enchantments:
 #   gui        - GUI rendering
 #   interact   - Player interaction events
 #   config     - Config file integrity checks
+#   reload     - Per-phase timings for /fd reload, so a stall can be attributed
 #   resource   - Resource auto-completion details (+ added / = skipped)
 # Set to ["all"] or ["*"] to temporarily enable every category.
 debug:
   enabled: false
-  categories: []
-
+  categories:
+    # No entries.
+    []
 # Vanilla damage-type injection (farmersdelight_damage datapack): the custom farmersdelight:stove_burn
 # damage type used by the stove grilling surface, plus its no_knockback tag entry. Installed into
 # the primary world's datapacks/ folder and requires a server restart (or /reload) to take effect.
-# Split from the loot datapack so the two can be toggled and reinstalled independently; old installs
-# that wrote these files under the loot datapack are migrated (legacy files removed) on the next
-# install. Reinstall via /fd reload damage.
+# Damage files under the obsolete loot datapack are migrated and removed during installation.
+# Reinstall via /fd reload damage.
 damage-type:
   install-datapack: true
+
+# /fd reload guards. A full reload runs synchronously on the server thread: FarmersDelight itself takes
+# roughly 200ms, then every installed addon rebuilds on the following tick for another 100-200ms. Running it
+# twice in quick succession therefore stacks two stalls back to back, so a request that arrives while a reload
+# is still running, or within the cooldown below, is refused with a message instead of being queued.
+# Only one reload ever runs at a time; the cooldown additionally covers the addon pass that follows it.
+reload:
+  # Seconds to refuse a second reload after the previous one finished. 0 keeps the one-at-a-time rule but
+  # removes the spacing. Raise this if you drive /fd reload from a script.
+  cooldown-seconds: 2
 
 # Advancement system. When disabled, the built-in advancement datapack is not synced.
 advancements:
@@ -147,14 +173,18 @@ advancements:
   # Always keep these advancements visible, even when their CraftEngine content is missing.
   # Entries are the advancement id (master_chef) or tab-qualified (farmersdelight:master_chef).
   # A bare id applies to every registered tab, so prefer the tab-qualified form when addons add tabs.
-  force-enable: []
+  force-enable:
+    # No entries.
+    []
   # Always hide these advancements. Beats force-enable and automatic detection.
-  force-disable: []
-
-# CraftEngine resource auto-completion.
-# First startup always extracts the full built-in CraftEngine resources to CraftEngine/resources/farmersdelight.
-# When auto-completion=true, every later startup also restores deleted/missing resource files.
-# Set to false if you manually deleted some built-in configs and do not want them re-added (first extraction is unaffected).
+  force-disable:
+    # No entries.
+    []
+# First startup extracts this plugin's bundled CraftEngine resources into CraftEngine/resources/farmersdelight.
+# With auto-completion true, every later startup also restores files that are missing; set it false to leave an
+# existing resource directory exactly as you edited it (the first extraction is unaffected).
+# Same name and meaning as the addons' craftengine-resources setting; each plugin only manages its own namespace,
+# so the settings do not interact.
 craftengine-resources:
   auto-completion: true
 
@@ -167,6 +197,8 @@ recipes:
   # merge-missing-bundled=true adds those ids back to the file. Leave it false if you deleted recipes on
   # purpose to disable them, because the merge would bring every deleted recipe back.
   # An id that already exists on disk is never overwritten under either setting.
+  # The same switch governs the bundled cards in recipes/special_recipes.yml: with it off, a card deleted
+  # from that file stays deleted.
   merge-missing-bundled: false
 
   # Recipe discovery: when enabled, recipes start LOCKED in the recipe books (FarmersDelight's own cooking-pot /
@@ -185,54 +217,61 @@ recipes:
 
 # Global performance budget. Per-block tick budgets live in each block's config; this keeps cross-feature maintenance tasks.
 performance:
+  # Total budget in milliseconds for the best-effort persistence steps of a shutdown (recipe discovery,
+  # player buffs, block data, draining the async pool). ONE deadline shared by all of them, not a wait
+  # each: when it runs out the remaining steps are skipped with a warning so the server can finish
+  # stopping. Structural teardown is never skipped. Minimum 200.
+  shutdown-wait-millis: 5000
+
   # Console performance warnings. Logs only, never blocks blocks from working.
-  warnings-enabled: true
-  warning-cooldown-seconds: 600
+  warnings:
+    enabled: true
+    cooldown-seconds: 600
+    # Warn when the active plugin block count exceeds this value; only affects the warning threshold, not the
+    # actual tick queue capacity.
+    active-block-threshold: 1000
+    cooking-pot-total-threshold: 1000
+    cooking-pot-density-threshold: 64
+    # Warn when CraftEngine server block states remaining drop below this value; 0 warns only when fully exhausted.
+    craftengine-free-state-threshold: 32
 
-  # Warn when active plugin block count exceeds this value; only affects the warning threshold, not the actual tick queue capacity.
-  active-block-warning-threshold: 1000
-  cooking-pot-total-warning-threshold: 1000
-  cooking-pot-density-warning-threshold: 64
+  # Per-tick work budgets. Each one caps how much of a cross-feature maintenance task runs in one tick.
+  budgets:
+    # Max cutting board/skillet display reconstructions scheduled per tick after a CraftEngine or plugin reload.
+    reload-visual-refreshes-per-tick: 32
+    # Max player/entity relationships processed per tick for pet food tempting.
+    pet-tempt-tick-budget: 128
+    # Max plugin block data entries reloaded per tick from already-loaded chunks during plugin startup.
+    # Increase to shorten post-startup recovery time, decrease to ease startup-instant load.
+    startup-chunk-loads-per-tick: 16
+    # Hard cap on particle + sound packets a single chunk's cooking pots / skillets / stoves may emit in one
+    # server tick. Prevents a dense pocket of heat blocks from flooding the packet queue. Lower on a struggling
+    # server; the per-block emission chances (in each block's effects section) still gate individual visuals.
+    chunk-effect-packet-budget: 50
+    # How often (ticks) the Comfort / Nourishment effect task runs per tracked player: drives duration
+    # countdown and the bossbar push. Higher = smoother CPU under many buffed
+    # players at the cost of bar smoothness; durations self-correct since they decrement by this interval.
+    effect-tick-interval-ticks: 4
 
-  # Warn when CraftEngine server block states remaining drop below this value; set to 0 to warn only when fully exhausted.
-  craftengine-free-state-warning-threshold: 32
-
-  # Proxy ItemDisplay visibility sync interval and per-batch count. Affects near/far visibility maintenance of skillet/stove food displays.
-  proxy-item-display-view-distance: 64.0
-  proxy-item-display-sync-interval-ticks: 20
-  proxy-item-display-sync-batch-size: 256
-
-  # Max cutting board/skillet display reconstructions scheduled per tick after a CraftEngine or plugin reload.
-  reload-visual-refreshes-per-tick: 32
-
-  # Max player/entity relationships processed per tick for pet food tempting.
-  pet-tempt-tick-budget: 128
-
-  # Max plugin block data entries reloaded per tick from already-loaded chunks during plugin startup.
-  # Increase to shorten post-startup recovery time, decrease to ease startup-instant load.
-  startup-chunk-loads-per-tick: 16
-
-  # Hard cap on particle + sound packets a single chunk's cooking pots / skillets / stoves may emit in one
-  # server tick. Prevents a dense pocket of heat blocks from flooding the packet queue. Lower on a struggling
-  # server; the per-block emission chances (in each block's effects section) still gate individual visuals.
-  chunk-effect-packet-budget: 50
-
-  # How often (ticks) the Comfort / Nourishment effect task runs per tracked player: drives duration
-  # countdown and the bossbar push. Higher = smoother CPU under many buffed
-  # players at the cost of bar smoothness; durations self-correct since they decrement by this interval.
-  effect-tick-interval-ticks: 4
+  # Proxy ItemDisplay visibility sync for skillet/stove food displays: how far they stay visible and how often
+  # their near/far state is refreshed.
+  proxy-display:
+    view-distance: 64.0
+    sync-interval-ticks: 20
+    sync-batch-size: 256
 
 # Master switch for the vanilla container bridge between hoppers and plugin blocks.
 # When enabled=false, the hopper container bridge for plugin blocks is fully disabled, avoiding hoppers eating items, duplicate container creation or write errors.
 # On by default; if you hit hopper compatibility issues, turn off the master switch first to troubleshoot.
-# Whether each block allows hopper interaction is set in the cooking-pot / cutting-board / skillet sections.
+# Whether each block takes part is set by that block's own allow-hopper option in the cooking-pot /
+# cutting-board / skillet sections.
 hopper-interactions:
   enabled: true
 
 # Cutting board interaction and item display on the board.
 cutting-board:
   # true = when hopper-interactions.enabled is on, the cutting board allows hopper input/output.
-  hopper-interactions: true
+  allow-hopper: true
 
   # Cutting board interaction mode:
   # stacking = enable 64 stacking, disable offhand interaction
@@ -253,6 +292,28 @@ cutting-board:
     retrieve-volume: 0.25
     retrieve-pitch: 0.5
 
+    # Cut sound chosen by the tool in hand, for recipes that do not name a sound of their own.
+    # (A recipe's own sound always wins; this only fills the gap.)
+    # Keys are item IDs (minecraft:shears, farmersdelight:flint_knife) or tags ("#minecraft:axes",
+    # "#farmersdelight:tools/knives"); CraftEngine custom items and tags work as keys too.
+    # First match wins, so list a specific item above the tag it belongs to.
+    # Value is a bare sound key, or a map of {sound, volume, pitch} / {sound, pitch-min, pitch-max}.
+    tool-sounds:
+      minecraft:shears:
+        sound: minecraft:entity.sheep.shear
+        volume: 1.0
+        pitch: 1.0
+      "#farmersdelight:tools/knives":
+        sound: farmersdelight:block.cutting_board.knife_cut
+        volume: 0.8
+        pitch-min: 0.9
+        pitch-max: 1.1
+    # Used when neither the recipe nor tool-sounds matched.
+    fallback:
+      sound: minecraft:block.wood.break
+      volume: 1.0
+      pitch: 0.8
+
   # Global default offset for item display entities on the board, format x,y,z.
   # x/z control horizontal position, y controls height above the board surface.
   # After replacing the board model, adjust this if all items sit too far left/right or sink into the model.
@@ -263,192 +324,11 @@ cutting-board:
   # default-display-rotation: 90,180,0
   # default-display-scale: 0.6
 
-  # Random spread range when multiple items stack on the board.
-  # 0.15 means x/z up to about +/-0.075 block, close to the original mod's look.
-  # Decrease if food looks too scattered, e.g. 0.08; increase to show stacking layers, e.g. 0.20.
+  # Random spread for stacked board items. A value of 0.15 allows X/Z offsets up to +/-0.075 blocks.
+  # Reduce it for a tighter pile or increase it to separate copies.
   display-item-spread: 0.1
 
-  # Override the board display for a specific item.
-  # key is the item ID stored on the board, which can be minecraft:* or a CraftEngine item ID.
-  # display-item: use another item as the display model, good when the original model renders incorrectly in an ItemDisplay.
-  # style: auto detects automatically; item forces a flat item; block forces a block/3D item.
-  # position: extra offset on top of the global default-display-offset, format x,y,z.
-  # translation: internal translation of the ItemDisplay transformation. Usually leave default, adjust only when the model's own pivot is off.
-  # rotation: directly override the display rotation angles, format x,y,z in degrees.
-  # scale: directly override the scale, format x,y,z; can also be a single number such as 0.55.
-  # Example:
-  # display-overrides:
-  #   farmersdelight:tomato:
-  #     display-item: farmersdelight:tomato_display
-  #     style: item
-  #     position: 0,0.02,0
-  #     translation: 0,0,0
-  #     rotation: 90,180,0
-  #     scale: 0.55
-  display-overrides:
-    farmersdelight:stove:
-      style: block
-    farmersdelight:cooking_pot:
-      style: block
-    farmersdelight:cutting_board:
-      style: block
-    farmersdelight:skillet:
-      style: block
-      rotation: -90,90,0
-      position: 0,-0.225,0
-    farmersdelight:basket:
-      style: block
-    farmersdelight:tray:
-      style: block
-    # 3D blocks whose item icon is 2D (item/generated parent in the vanilla model) — placed on the board
-    # they read as flat sprites instead of awkward floating meshes. Unknown ids are ignored silently
-    # (CuttingBoardDisplayConfig validates only the namespace:id format, never material existence), so
-    # listing newer-version items stays safe on older servers — e.g. pale_oak_sapling on 1.21.1.
-    minecraft:torch:
-      style: item
-    minecraft:soul_torch:
-      style: item
-    minecraft:redstone_torch:
-      style: item
-    minecraft:lantern:
-      style: item
-    minecraft:soul_lantern:
-      style: item
-    minecraft:end_rod:
-      style: item
-    minecraft:lightning_rod:
-      style: item
-    minecraft:chain:
-      style: item
-    minecraft:hopper:
-      style: item
-    minecraft:cauldron:
-      style: item
-    minecraft:brewing_stand:
-      style: item
-    minecraft:campfire:
-      style: item
-    minecraft:soul_campfire:
-      style: item
-    minecraft:cake:
-      style: item
-    minecraft:conduit:
-      style: item
-    minecraft:end_portal_frame:
-      style: item
-    minecraft:flower_pot:
-      style: item
-    minecraft:ladder:
-      style: item
-    minecraft:scaffolding:
-      style: item
-    minecraft:tripwire_hook:
-      style: item
-    minecraft:cobweb:
-      style: item
-    minecraft:lily_pad:
-      style: item
-    minecraft:vine:
-      style: item
-    minecraft:weeping_vines:
-      style: item
-    minecraft:twisting_vines:
-      style: item
-    minecraft:hanging_roots:
-      style: item
-    minecraft:nether_wart:
-      style: item
-    minecraft:nether_sprouts:
-      style: item
-    minecraft:crimson_roots:
-      style: item
-    minecraft:warped_roots:
-      style: item
-    minecraft:crimson_fungus:
-      style: item
-    minecraft:warped_fungus:
-      style: item
-    minecraft:dead_bush:
-      style: item
-    minecraft:short_grass:
-      style: item
-    minecraft:tall_grass:
-      style: item
-    minecraft:fern:
-      style: item
-    minecraft:large_fern:
-      style: item
-    minecraft:sugar_cane:
-      style: item
-    minecraft:kelp:
-      style: item
-    minecraft:sea_pickle:
-      style: item
-    minecraft:azalea:
-      style: item
-    minecraft:flowering_azalea:
-      style: item
-    minecraft:pink_petals:
-      style: item
-    minecraft:glow_lichen:
-      style: item
-    minecraft:sculk_vein:
-      style: item
-    minecraft:oak_sapling:
-      style: item
-    minecraft:spruce_sapling:
-      style: item
-    minecraft:birch_sapling:
-      style: item
-    minecraft:jungle_sapling:
-      style: item
-    minecraft:acacia_sapling:
-      style: item
-    minecraft:dark_oak_sapling:
-      style: item
-    minecraft:cherry_sapling:
-      style: item
-    minecraft:pale_oak_sapling:
-      style: item
-    minecraft:mangrove_propagule:
-      style: item
-    minecraft:bamboo_sapling:
-      style: item
-    minecraft:firefly_bush:
-      style: item
-  # Batch-override displays by item tag. key may omit #, or use a quoted "#namespace:tag" in display-overrides.
-  display-tag-overrides:
-    # Vanilla item tags that cover whole families of 3D-block-with-2D-item entries — saves listing every
-    # wood/colour variant individually. Unknown tags are ignored at lookup, so versions that lack a tag
-    # just won't apply the override.
-    minecraft:doors:
-      style: item
-    minecraft:beds:
-      style: item
-      rotation: -90,-90,0
-      position: 0,0.05,0
-    minecraft:banners:
-      style: item
-    minecraft:signs:
-      style: item
-    minecraft:hanging_signs:
-      style: item
-    minecraft:rails:
-      style: item
-    minecraft:small_flowers:
-      style: item
-    minecraft:tall_flowers:
-      style: item
-  # Example:
-  # display-tag-overrides:
-  #   minecraft:logs:
-  #     style: block
-  #     scale: 0.55
-
-# Knife detection. Recommended to keep both tags and explicit items: tags for CE resource-side extension, explicit items as a fallback.
-# This is the knife definition for the whole plugin, not only for drops: the cutting board, the skillet,
-# mushroom colony harvesting, rice harvesting, straw drops, the knife icon in the recipe viewer and the
-# knife achievements all read it, as do addon drop rules registered without their own tool list.
+  # Per-item and per-tag display tables live in display-overrides.yml (items / tags).
 knife-items:
   tags:
     - farmersdelight:tools/knives
@@ -468,11 +348,22 @@ cooking-pot:
     min-cook-time: 20
     max-cook-time: 6000
 
+  # A pot recipe without a "container:" field takes its required container from its result item's own remainder
+  # (a soup's bowl, a drink's bottle) through the same resolution the pot uses for ingredient returns. Set
+  # enabled to false to require an explicit "container:" (or "container: none") on every recipe.
+  container-inference:
+    enabled: true
+    # Remainders that are tools instead of containers, so they are never taken as a recipe's container (a corn
+    # dog's stick, a ham's bone). Ids may be vanilla or CraftEngine custom; letters are matched case-insensitively.
+    excluded-remainders:
+      - minecraft:stick
+      - minecraft:bone
+
   # Max active cooking pots processed every 4 ticks. Increase for faster response, decrease for stability under stress tests.
   tick-budget: 512
 
   # true = when hopper-interactions.enabled is on, the pot allows hopper input/output.
-  hopper-interactions: true
+  allow-hopper: true
 
   # true = pack pot contents into the dropped pot item; false = drop an empty pot and scatter the contents.
   pack-contents-on-break: true
@@ -480,11 +371,6 @@ cooking-pot:
   # Milliseconds a player must wait after placing a pot before the placing click can also open it. Stops the
   # placement click from carrying straight through into the GUI. Set to 0 to allow opening immediately.
   place-interaction-cooldown-ms: 1000
-
-  display:
-    # How often (ticks) the pot re-checks which players should see its displays. Raise it to trade display
-    # responsiveness for fewer visibility checks on servers with very many pots.
-    visibility-check-interval-ticks: 100
 
   # Floating TextDisplay during pot cooking.
   progress-display:
@@ -571,41 +457,65 @@ experience-reward:
     raw: false
 
 # Return table after a station consumes container-type items.
-# Key is the container item ID consumed, value is the item ID returned to the container slot / player inventory after use.
-# For example, milk_bottle returns glass_bottle after being consumed. Set a value to "" to disable that return.
+# Key is the container item ID consumed (a CraftEngine custom id or a vanilla id), value is the item ID returned
+# after use. This table is an override, not the only source: when an item is missing here the plugin resolves its
+# return item from the item itself, in this order:
+#   1. the item's CraftEngine craft-remainder (CE item setting craft-remainder),
+#   2. the item's use-remainder component (what drinking/eating it leaves behind),
+#   3. the vanilla crafting remainder of its material (for a CraftEngine item that is its base material's, so a
+#      custom drink built on minecraft:honey_bottle returns a glass bottle with no entry here),
+#   4. the bucket/bottle fallback for containers vanilla declares no remainder for.
+# Set a value to "" to disable a return, and a key that appears in the item's own configuration to override it.
 # Read by the cooking pot and by the shared remainder helper the API exposes to addon stations.
 container-returns:
   farmersdelight:milk_bottle: minecraft:glass_bottle
 
-# Heat source detection. Used by both the pot and the skillet; the skillet's hopper heat conduction can be disabled separately.
+# Heat source detection. Used by the pot, the skillet (placed and handheld), the tray and the stove; the skillet's
+# hopper heat conduction can be disabled separately.
+# One question is answered from this table: is the block hot RIGHT NOW? A heat source with an on/off state
+# (campfire, stove) therefore only counts while it is lit, for every caller -- including the handheld skillet,
+# which asks about the 3x3x3 around the player instead of the block below.
 heat-sources:
-  # CraftEngine custom block tags. A block with this tag in its CE block config is treated as a heat source.
-  tags:
-    - farmersdelight:heat_sources
-  # Vanilla block IDs.
-  vanilla-blocks:
-    - minecraft:magma_block
-    - minecraft:lava_cauldron
-    - minecraft:lava
-    - minecraft:fire
-    - minecraft:soul_fire
+  # Unified rules, evaluated IN ORDER, first match wins. Each entry says both what to match and what
+  # matching means, so a narrower negative entry can carve a state out of a broader entry below it.
+  #   match with exactly one of: vanilla-block / vanilla-block-tag / custom-block / custom-block-tag
+  #   states:       optional; narrows the match to those block-state values (works for vanilla too)
+  #   heat-source:  default true; set false to declare "matches, but is NOT a heat source"
+  #   conductor:    default false; true = passes a heat source below it up to the pot (e.g. hopper)
+  entries:
+    # An unlit campfire is not a heat source; the lit one is. Order matters: the negative comes first.
+    - vanilla-block: minecraft:campfire
+      states:
+        lit: 'false'
+      heat-source: false
+    - vanilla-block: minecraft:soul_campfire
+      states:
+        lit: 'false'
+      heat-source: false
+    - vanilla-block-tag: minecraft:campfires
+    - vanilla-block: minecraft:magma_block
+    - vanilla-block: minecraft:lava_cauldron
+    - vanilla-block: minecraft:lava
+    - vanilla-block: minecraft:fire
+    - vanilla-block: minecraft:soul_fire
+    # The stove heats only while lit. A CE block tag cannot express this: CraftEngine copies block-level
+    # settings onto every state, so farmersdelight:heat_sources would match the unlit stove as well.
+    - custom-block: farmersdelight:stove
+      states:
+        fire: 'true'
+    - custom-block-tag: farmersdelight:heat_sources
+    - vanilla-block: minecraft:hopper
+      conductor: true
 
-  # Vanilla block tags. minecraft:campfires accepts only lit campfires.
-  vanilla-tags:
-    - minecraft:campfires
-
-  # CraftEngine custom block IDs, with optional state conditions.
-  # Format example: namespace:block or namespace:block[key:value,key2:value2]
-  custom-blocks:
-    - farmersdelight:stove[fire:true]
-
-  # Vanilla heat-conducting blocks. The pot can find a heat source through these blocks.
-  conductors:
-    - minecraft:hopper
-
-  # CraftEngine heat-conducting block tags.
+  # Legacy lists, kept for configurations written before the entries table above existed: they are only
+  # consulted when no entry matches, so an entry always wins. New heat sources belong in entries; an unlit
+  # block that can be switched off needs a custom-block entry with its lit state, not a tag.
+  tags: []
+  vanilla-blocks: []
+  vanilla-tags: []
+  custom-blocks: []
+  conductors: []
   conductor-tags: []
-
 # Mushroom colony block placement rules. Growth speed, age and drops are still configured in CraftEngine mushrooms.yml.
 mushroom-colonies:
   placement:
@@ -629,8 +539,18 @@ rope:
 
 # Skillet configuration.
 skillet:
-  # true = when hopper-interactions.enabled is on, the skillet allows hopper ingredient input; results still pop out directly per the original mod behavior, with no hopper output slot.
-  hopper-interactions: true
+  handheld:
+    # Enables portable cooking by right-clicking a skillet near a configured heat source.
+    # Also gates automatic handheld model generation and merging into the CE resource pack.
+    enabled: true
+    progress-display:
+      # Sends a client-only durability bar every 4 ticks; real item durability is never replaced.
+      # When disabled, unchanged cooking models need no periodic display packets.
+      enabled: true
+
+  # Allow hopper ingredient input when hopper-interactions.enabled is on.
+  # Results pop out above the skillet; there is no hopper output slot.
+  allow-hopper: true
 
   # Max active skillets processed every 4 ticks.
   tick-budget: 512
@@ -648,9 +568,8 @@ skillet:
     cooling-decrement: 2
 
   heat:
-    # true = the skillet also takes heat from a source one block further down, through a conductor listed in
-    # heat-sources.conductors (a hopper). This matches the original mod, whose skillet does not require direct
-    # heat, so it is on by default. Set to false to make the skillet accept only a heat source directly below.
+    # When true, heat can pass through a heat-sources.conductors block such as a hopper
+    # from a source two blocks below the skillet. When false, require heat directly below.
     allow-conductors: true
 
   effects:
@@ -679,12 +598,11 @@ skillet:
     # Supports the same position/translation/rotation/scale/display-overrides/display-tag-overrides as the cutting board.
     # rotation overrides the automatic facing; for per-item or per-tag tweaks, prefer writing them in overrides.
     # rotation: 90,0,0
-    # Base height of the food display entity, about 0.1 in the original mod.
+    # Base height of the food display entity in blocks.
     # If food sinks into the skillet, raise it slightly; if it floats noticeably, lower it slightly.
     y-offset: 0.1
-    # Random spread range of multiple foods on the skillet.
-    # About 0.15 in the original mod, i.e. up to about +/-0.075 block.
-    # If the x/z horizontal spread is too large, lower this value first.
+    # Random spread for multiple skillet items. A value of 0.15 allows offsets up to +/-0.075 blocks.
+    # Reduce it if the pile spreads too far along X/Z.
     item-spread: 0.15
     # display-overrides: {}
     # display-tag-overrides: {}
@@ -700,13 +618,6 @@ stove:
     # How much cooking progress reverts per tick when the stove goes out; set to 0 for no revert.
     cooling-decrement: 2
 
-  # A lit stove burns living entities standing on its central grilling area. Burn damage/type is on the
-  # CraftEngine stove block; this only bounds the always-on poll.
-  burn:
-    # Radius (blocks) around each online player scanned for mobs to burn. Lower on high-population servers
-    # to shrink the per-player entity scan; also limits how far away mobs get grilled.
-    mob-scan-radius: 12.0
-
   effects:
     # How many blocks away a player must be for the stove to broadcast its particles/sounds. 32 = vanilla
     # particle/sound range. Lower it to shrink the broadcast radius for dense stove farms.
@@ -714,9 +625,8 @@ stove:
     smoke:
       enabled: true
       type: SMOKE
-      # Emitted every dispatch (every 4 ticks) per lit stove when a player is near. Now that stoves
-      # emit uniformly (no chunk stagger), these chances are the true per-stove rate — previously a
-      # broken stagger meant only ~1/4 of stoves emitted, so the shipped values were ~4× higher.
+      # Emitted every dispatch (every 4 ticks) per lit stove when a player is near.
+      # The chance is the independent per-stove rate.
       chance: 0.05
       count: 1
       y-offset: 0.0
@@ -799,8 +709,12 @@ buff:
     # hyphen/underscore tolerant. Addons (e.g. BrewinAndChewin) configure their own buff styles in
     # their own config.yml; this section only covers FD's two built-in buffs.
     styles:
-      nourishment: {color: GREEN, overlay: PROGRESS}
-      comfort:     {color: BLUE,  overlay: PROGRESS}
+      nourishment:
+        color: GREEN
+        overlay: PROGRESS
+      comfort:
+        color: BLUE
+        overlay: PROGRESS
 
   # Comfort mechanics. Assign Comfort to a CraftEngine food with an on-consume
   # farmersdelight:comfort function in that item's CE configuration.
@@ -812,3 +726,20 @@ buff:
 
   # Built-in Nourishment food assignments and durations live in the CraftEngine item configuration.
   # Use farmersdelight:nourishment as an on-consume function to add it to another CE food.
+
+# ---------------------------------------------------------------------------
+# Feature switches.
+#
+# Everything below is part of the single open-source build; these keys only let an operator turn a feature
+# off per server.
+# ---------------------------------------------------------------------------
+recipe-editor:
+  # Enable the in-game recipe editor ('/fd recipe edit' and the edit button in the recipe viewer).
+  # When false, the command answers that the editor is disabled; the recipe files stay hand-editable.
+  enabled: true
+
+# Jumping between a recipe and the recipes that produce or use its items (and between a special recipe and
+# the recipes it belongs to), in the recipe viewer and the addon recipe book.
+recipe-navigation:
+  # When false, clicking a linked item does nothing and the jump icons are inert.
+  jumps: true

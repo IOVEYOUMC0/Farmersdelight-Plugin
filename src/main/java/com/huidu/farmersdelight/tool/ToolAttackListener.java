@@ -4,6 +4,8 @@ import com.huidu.farmersdelight.util.SoundUtils;
 import net.momirealms.craftengine.bukkit.api.CraftEngineItems;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Location;
+import org.bukkit.GameMode;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.entity.LivingEntity;
@@ -42,7 +44,7 @@ public final class ToolAttackListener implements Listener {
 
         playAttackSound(player, data);
 
-        if (player.getGameMode() != org.bukkit.GameMode.CREATIVE) {
+        if (player.getGameMode() != GameMode.CREATIVE) {
             consumeDurability(weapon, player.getLocation());
         }
     }
@@ -77,9 +79,9 @@ public final class ToolAttackListener implements Listener {
             return;
         }
 
-        if (damageable.hasEnchant(org.bukkit.enchantments.Enchantment.UNBREAKING)) {
-            int level = damageable.getEnchantLevel(org.bukkit.enchantments.Enchantment.UNBREAKING);
-            if (java.util.concurrent.ThreadLocalRandom.current().nextInt(level + 1) > 0) {
+        if (damageable.hasEnchant(Enchantment.UNBREAKING)) {
+            int level = damageable.getEnchantLevel(Enchantment.UNBREAKING);
+            if (ThreadLocalRandom.current().nextInt(level + 1) > 0) {
                 return;
             }
         }

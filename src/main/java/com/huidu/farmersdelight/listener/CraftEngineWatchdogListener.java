@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -24,13 +25,8 @@ public final class CraftEngineWatchdogListener implements Listener {
         if (plugin.getServer().isStopping() || !plugin.isEnabled()) {
             return; // normal shutdown, or FD is already going down; nothing to do
         }
-        plugin.getLogger().severe(" ");
-        plugin.getLogger().severe("==================================================================");
-        plugin.getLogger().severe(" CraftEngine was disabled while the server is running.");
-        plugin.getLogger().severe(" FarmersDelight cannot function without it, so it is disabling");
-        plugin.getLogger().severe(" itself now. Restart the server (/stop) to bring both back up.");
-        plugin.getLogger().severe("==================================================================");
-        plugin.getLogger().severe(" ");
+        I18n.logSevere("plugin.missing_dependency", "name", "FarmersDelight",
+                "dependency", event.getPlugin().getName());
         plugin.getServer().getPluginManager().disablePlugin(plugin);
     }
 }

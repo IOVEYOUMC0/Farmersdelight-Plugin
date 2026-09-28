@@ -1,6 +1,9 @@
 package com.huidu.farmersdelight.api.recipe;
 
+import com.huidu.farmersdelight.api.PluginAccess;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+// Used only inside this class' own helpers, never in a public signature; the public TYPE_* values above are
+// literals so the facade does not re-export an internal type.
 import com.huidu.farmersdelight.recipe.RecipeDiscoveryManager;
 import org.bukkit.entity.Player;
 
@@ -8,8 +11,11 @@ import java.util.Set;
 
 public final class FarmersDelightRecipeDiscovery {
 
-    public static final String TYPE_COOKING_POT = RecipeDiscoveryManager.TYPE_COOKING_POT;
-    public static final String TYPE_CUTTING_BOARD = RecipeDiscoveryManager.TYPE_CUTTING_BOARD;
+    // Literals on purpose rather than aliases of RecipeDiscoveryManager's constants: these are public api
+    // values, and re-exporting them from an internal class would put that class on the facade's compile-time
+    // surface (the api boundary check flags exactly that). RecipeDiscoveryManager keeps its own copies.
+    public static final String TYPE_COOKING_POT = "farmersdelight:cooking_pot";
+    public static final String TYPE_CUTTING_BOARD = "farmersdelight:cutting_board";
 
     private FarmersDelightRecipeDiscovery() {
     }
@@ -59,7 +65,7 @@ public final class FarmersDelightRecipeDiscovery {
     }
 
     private static RecipeDiscoveryManager manager() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         return plugin == null ? null : plugin.getRecipeDiscoveryManager();
     }
 }

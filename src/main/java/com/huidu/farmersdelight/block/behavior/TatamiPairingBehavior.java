@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
@@ -12,6 +13,7 @@ import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.entity.player.Player;
 import net.momirealms.craftengine.core.plugin.config.KnownResourceException;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.util.Direction;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.BlockPos;
@@ -23,6 +25,7 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 
 import java.util.Map;
+import java.util.Locale;
 import java.util.Optional;
 
 public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
@@ -52,12 +55,12 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
 
     public static final BlockBehaviorFactory<TatamiPairingBehavior> FACTORY = new BlockBehaviorFactory<TatamiPairingBehavior>() {
         @Override
-        public TatamiPairingBehavior create(BlockDefinition block, net.momirealms.craftengine.core.plugin.config.ConfigSection section) {
+        public TatamiPairingBehavior create(BlockDefinition block, ConfigSection section) {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
             tatamiBlockId = BehaviorArgParser.getString(arguments, "block-id", tatamiBlockId);
             facingPropertyName = BehaviorArgParser.getString(arguments, "facing-property", facingPropertyName);
-            pairedPropertyName = BehaviorArgParser.getString(arguments, "paired-property", pairedPropertyName);
-            boolean pairWhileSneaking = BehaviorArgParser.getBoolean(arguments, "pair-while-sneaking", false);
+            pairedPropertyName = BehaviorArgParser.getString(arguments, "pair.property", "paired-property", pairedPropertyName);
+            boolean pairWhileSneaking = BehaviorArgParser.getBoolean(arguments, "pair.while-sneaking", false);
 
             // Both properties carry the pairing, which is everything this behavior does: without either one no
             // mat ever pairs, no weave orientation is written and no partner is ever reset, while the block
@@ -83,7 +86,7 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
     @Override
     public ImmutableBlockState updateStateForPlacement(BlockPlaceContext context, ImmutableBlockState state) {
         Direction facing = context.getClickedFace().opposite();
-        return withPropertyValue(state, facingProperty, facing.name().toLowerCase(java.util.Locale.ROOT));
+        return withPropertyValue(state, facingProperty, facing.name().toLowerCase(Locale.ROOT));
     }
 
     @Override
@@ -170,7 +173,9 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
         Block center = world.getBlockAt(brokenLocation);
         for (BlockFace face : ORTHOGONAL_FACES) {
             Block neighbor = center.getRelative(face);
-            ImmutableBlockState nState = CraftEngineBlocks.getCustomBlockState(neighbor);
+            // A neighbour in an unloaded chunk is left alone: unpairing it would mean loading that chunk (or
+            // writing into another region) from a break handler.
+            ImmutableBlockState nState = CustomBlockUtils.getStateIfResident(neighbor);
             if (!isTatamiState(nState)) {
                 continue;
             }
@@ -230,7 +235,7 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
 
     private ImmutableBlockState withFacingAndPair(ImmutableBlockState state, BlockFace facing) {
         ImmutableBlockState result =
-                withPropertyValue(state, facingProperty, facing.name().toLowerCase(java.util.Locale.ROOT));
+                withPropertyValue(state, facingProperty, facing.name().toLowerCase(Locale.ROOT));
         return result.with(pairedProperty, true);
     }
 
@@ -287,7 +292,7 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
             return BlockFace.NORTH;
         }
 
-        String facingStr = facingValue.toString().toUpperCase(java.util.Locale.ROOT);
+        String facingStr = facingValue.toString().toUpperCase(Locale.ROOT);
         try {
             return BlockFace.valueOf(facingStr);
         } catch (IllegalArgumentException e) {

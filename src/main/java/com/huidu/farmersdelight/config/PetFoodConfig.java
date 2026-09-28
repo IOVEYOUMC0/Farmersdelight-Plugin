@@ -30,7 +30,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 public class PetFoodConfig {
@@ -39,7 +41,7 @@ public class PetFoodConfig {
 
     private static Logger LOGGER;
     private static boolean registered;
-    private final Map<String, PetFoodDefinition> petFoods = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<String, PetFoodDefinition> petFoods = new ConcurrentHashMap<>();
 
     public static void setLogger(Logger logger) {
         LOGGER = logger;
@@ -111,7 +113,7 @@ public class PetFoodConfig {
         List<String> entityList = section.getStringList("entities");
         for (String entityId : entityList) {
             try {
-                EntityType type = EntityType.valueOf(entityId.toUpperCase(java.util.Locale.ROOT));
+                EntityType type = EntityType.valueOf(entityId.toUpperCase(Locale.ROOT));
                 entities.add(type);
             } catch (IllegalArgumentException e) {
                 if (LOGGER != null) {
@@ -146,7 +148,7 @@ public class PetFoodConfig {
         String particleName = section.getString("particle-type", "END_ROD");
         Particle particleType;
         try {
-            particleType = Particle.valueOf(particleName.toUpperCase(java.util.Locale.ROOT));
+            particleType = Particle.valueOf(particleName.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             particleType = Particle.END_ROD;
             if (LOGGER != null) {
@@ -183,7 +185,7 @@ public class PetFoodConfig {
 
         List<EffectDefinition> parsedEffects = section.getSectionList("effects", PetFoodConfig::parseEffectDefinition);
         if (parsedEffects != null) {
-            parsedEffects.stream().filter(java.util.Objects::nonNull).forEach(effects::add);
+            parsedEffects.stream().filter(Objects::nonNull).forEach(effects::add);
         }
 
         Sound sound = resolveSound(section.getString("sound"));
@@ -310,10 +312,10 @@ public class PetFoodConfig {
             return;
         }
 
-        int duration = getInt(effectMap.get("duration"), 6000);
-        int amplifier = getInt(effectMap.get("amplifier"), 0);
-        boolean ambient = getBoolean(effectMap.get("ambient"), false);
-        boolean particles = getBoolean(effectMap.get("particles"), true);
+        int duration = ConfigValues.intValue(effectMap.get("duration"), 6000);
+        int amplifier = ConfigValues.intValue(effectMap.get("amplifier"), 0);
+        boolean ambient = ConfigValues.booleanValue(effectMap.get("ambient"), false);
+        boolean particles = ConfigValues.booleanValue(effectMap.get("particles"), true);
         effects.add(new EffectDefinition(effectType, duration, amplifier, ambient, particles));
     }
 
@@ -376,29 +378,6 @@ public class PetFoodConfig {
             LOGGER.warning(I18n.formatConsole("plugin.config_value_invalid",
                     "file", "CraftEngine item", "path", path, "error", "invalid value " + value));
         }
-    }
-
-    private static int getInt(Object value, int defaultValue) {
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
-        if (value instanceof String stringValue) {
-            try {
-                return Integer.parseInt(stringValue);
-            } catch (NumberFormatException ignored) {
-            }
-        }
-        return defaultValue;
-    }
-
-    private static boolean getBoolean(Object value, boolean defaultValue) {
-        if (value instanceof Boolean bool) {
-            return bool;
-        }
-        if (value instanceof String stringValue) {
-            return Boolean.parseBoolean(stringValue);
-        }
-        return defaultValue;
     }
 
     public PetFoodDefinition getFoodDefinition(String foodId) {
