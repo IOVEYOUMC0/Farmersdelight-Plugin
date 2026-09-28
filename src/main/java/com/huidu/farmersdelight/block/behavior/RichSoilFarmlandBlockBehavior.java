@@ -170,6 +170,11 @@ public class RichSoilFarmlandBlockBehavior extends FarmersDelightBlockBehavior {
         for (int dx = -4; dx <= 4; dx++) {
             for (int dz = -4; dz <= 4; dz++) {
                 for (int dy = 0; dy <= 1; dy++) {
+                    // A neighbour in a chunk that is not loaded cannot hydrate anything: reading it would load
+                    // that chunk (and fire its entity-load events) from a random tick, so it is skipped.
+                    if (!world.isChunkLoaded((pos.x() + dx) >> 4, (pos.z() + dz) >> 4)) {
+                        continue;
+                    }
                     Block neighbor = world.getBlockAt(pos.x() + dx, pos.y() + dy, pos.z() + dz);
                     Material type = neighbor.getType();
                     if (type == Material.WATER || type == Material.BUBBLE_COLUMN) return true;

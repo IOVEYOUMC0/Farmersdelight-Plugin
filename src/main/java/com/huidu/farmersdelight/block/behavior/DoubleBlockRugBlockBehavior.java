@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.block.behavior;
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
@@ -124,8 +125,18 @@ public class DoubleBlockRugBlockBehavior extends RugBlockBehavior {
             return;
         }
         Block partner = partnerOf(self, state);
-        ImmutableBlockState partnerState = partner == null ? null : CraftEngineBlocks.getCustomBlockState(partner);
-        if (partner == null || partnerState == null || partnerState.isEmpty() || !isPartner(partnerState)) {
+        if (partner == null) {
+            teardownSelf(self);
+            return;
+        }
+        if (!partner.getWorld().isChunkLoaded(partner.getX() >> 4, partner.getZ() >> 4)) {
+            // The other half sits in a chunk that is not resident: reading its state would load that chunk, and
+            // treating it as missing would wrongly tear this half down. The pair is re-checked when the
+            // partner's chunk loads again.
+            return;
+        }
+        ImmutableBlockState partnerState = CustomBlockUtils.getStateIfResident(partner);
+        if (partnerState == null || partnerState.isEmpty() || !isPartner(partnerState)) {
             teardownSelf(self);
         }
     }

@@ -66,8 +66,8 @@ public class RichSoilBlockBehavior extends FarmersDelightBlockBehavior {
     public static final BlockBehaviorFactory<RichSoilBlockBehavior> FACTORY = (BlockDefinition block, ConfigSection section) -> {
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         float chance = BehaviorArgParser.getFloat(arguments, "boost-chance", 0.08f);
-        String brownId = BehaviorArgParser.getStringStrict(arguments, "brown-mushroom-colony", "farmersdelight:brown_mushroom_colony");
-        String redId = BehaviorArgParser.getStringStrict(arguments, "red-mushroom-colony", "farmersdelight:red_mushroom_colony");
+        String brownId = BehaviorArgParser.getStringStrict(arguments, "mushroom-colony.brown", "brown-mushroom-colony", "farmersdelight:brown_mushroom_colony");
+        String redId = BehaviorArgParser.getStringStrict(arguments, "mushroom-colony.red", "red-mushroom-colony", "farmersdelight:red_mushroom_colony");
         ConfiguredBlockSet unaffected = ConfiguredBlockSet.parse(arguments.get("unaffected-blocks"));
         ConfiguredBlockSet brownMushrooms = configuredMushrooms(arguments, "brown-mushroom-blocks",
                 "minecraft:brown_mushroom", Constants.BLOCK_BROWN_MUSHROOM);

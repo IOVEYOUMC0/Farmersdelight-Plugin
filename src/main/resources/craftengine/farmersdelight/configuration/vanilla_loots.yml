@@ -165,6 +165,300 @@ vanilla_loots:
             - type: item
               item: farmersdelight:straw
 
+  farmersdelight:ham_from_pig:
+    type: entity
+    target: minecraft:pig
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: farmersdelight:is_adult
+            - type: farmersdelight:is_knife
+            - type: inverted
+              terms:
+                - type: farmersdelight:is_burning
+            - type: table_bonus
+              enchantment: minecraft:looting
+              chances:
+                - 0.5
+                - 0.6
+                - 0.7
+                - 0.8
+          entries:
+            - type: item
+              item: farmersdelight:ham
+              functions:
+                - type: farmersdelight:award_advancement
+                  advancement: get_ham
+
+  farmersdelight:smoked_ham_from_burning_pig:
+    type: entity
+    target: minecraft:pig
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: farmersdelight:is_adult
+            - type: farmersdelight:is_knife
+            - type: farmersdelight:is_burning
+            - type: table_bonus
+              enchantment: minecraft:looting
+              chances:
+                - 0.5
+                - 0.6
+                - 0.7
+                - 0.8
+          entries:
+            - type: item
+              item: farmersdelight:smoked_ham
+              functions:
+                - type: farmersdelight:award_advancement
+                  advancement: get_ham
+
+  farmersdelight:ham_from_hoglin:
+    type: entity
+    target: minecraft:hoglin
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: farmersdelight:is_adult
+            - type: farmersdelight:is_knife
+            - type: inverted
+              terms:
+                - type: farmersdelight:is_burning
+          entries:
+            - type: item
+              item: farmersdelight:ham
+              functions:
+                - type: farmersdelight:award_advancement
+                  advancement: get_ham
+
+  farmersdelight:smoked_ham_from_burning_hoglin:
+    type: entity
+    target: minecraft:hoglin
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: farmersdelight:is_adult
+            - type: farmersdelight:is_knife
+            - type: farmersdelight:is_burning
+          entries:
+            - type: item
+              item: farmersdelight:smoked_ham
+              functions:
+                - type: farmersdelight:award_advancement
+                  advancement: get_ham
+
+  farmersdelight:leather_from_cow:
+    type: entity
+    target: minecraft:cow
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: farmersdelight:is_adult
+            - type: farmersdelight:is_knife
+            - type: inverted
+              terms:
+                - type: farmersdelight:is_burning
+          entries:
+            - type: item
+              item: minecraft:leather
+
+  farmersdelight:leather_from_mooshroom:
+    type: entity
+    target: minecraft:mooshroom
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: farmersdelight:is_adult
+            - type: farmersdelight:is_knife
+            - type: inverted
+              terms:
+                - type: farmersdelight:is_burning
+          entries:
+            - type: item
+              item: minecraft:leather
+
+  farmersdelight:leather_from_donkey:
+    type: entity
+    target: minecraft:donkey
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: farmersdelight:is_adult
+            - type: farmersdelight:is_knife
+            - type: inverted
+              terms:
+                - type: farmersdelight:is_burning
+          entries:
+            - type: item
+              item: minecraft:leather
+
+  farmersdelight:leather_from_horse:
+    type: entity
+    target: minecraft:horse
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: farmersdelight:is_adult
+            - type: farmersdelight:is_knife
+            - type: inverted
+              terms:
+                - type: farmersdelight:is_burning
+          entries:
+            - type: item
+              item: minecraft:leather
+
+  farmersdelight:leather_from_mule:
+    type: entity
+    target: minecraft:mule
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: farmersdelight:is_adult
+            - type: farmersdelight:is_knife
+            - type: inverted
+              terms:
+                - type: farmersdelight:is_burning
+          entries:
+            - type: item
+              item: minecraft:leather
+
+  farmersdelight:leather_from_llama:
+    type: entity
+    target: minecraft:llama
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: farmersdelight:is_adult
+            - type: farmersdelight:is_knife
+            - type: inverted
+              terms:
+                - type: farmersdelight:is_burning
+          entries:
+            - type: item
+              item: minecraft:leather
+
+  farmersdelight:leather_from_trader_llama:
+    type: entity
+    target: minecraft:trader_llama
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: farmersdelight:is_adult
+            - type: farmersdelight:is_knife
+            - type: inverted
+              terms:
+                - type: farmersdelight:is_burning
+          entries:
+            - type: item
+              item: minecraft:leather
+
+  farmersdelight:feather_from_chicken:
+    type: entity
+    target: minecraft:chicken
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: farmersdelight:is_adult
+            - type: farmersdelight:is_knife
+            - type: inverted
+              terms:
+                - type: farmersdelight:is_burning
+          entries:
+            - type: item
+              item: minecraft:feather
+
+  farmersdelight:string_from_spider:
+    type: entity
+    target: minecraft:spider
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: farmersdelight:is_adult
+            - type: farmersdelight:is_knife
+            - type: inverted
+              terms:
+                - type: farmersdelight:is_burning
+          entries:
+            - type: item
+              item: minecraft:string
+
+  farmersdelight:string_from_cave_spider:
+    type: entity
+    target: minecraft:cave_spider
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: farmersdelight:is_adult
+            - type: farmersdelight:is_knife
+            - type: inverted
+              terms:
+                - type: farmersdelight:is_burning
+          entries:
+            - type: item
+              item: minecraft:string
+
+  farmersdelight:rabbit_hide_from_rabbit:
+    type: entity
+    target: minecraft:rabbit
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: farmersdelight:is_adult
+            - type: farmersdelight:is_knife
+            - type: inverted
+              terms:
+                - type: farmersdelight:is_burning
+          entries:
+            - type: item
+              item: minecraft:rabbit_hide
+
+  farmersdelight:shulker_shell_from_shulker:
+    type: entity
+    target: minecraft:shulker
+    loot:
+      pools:
+        - rolls: 1
+          conditions:
+            - type: has_player
+            - type: farmersdelight:is_adult
+            - type: farmersdelight:is_knife
+            - type: inverted
+              terms:
+                - type: farmersdelight:is_burning
+          entries:
+            - type: item
+              item: minecraft:shulker_shell
+
   farmersdelight:chest_simple_dungeon:
     type: container
     target: minecraft:chests/simple_dungeon

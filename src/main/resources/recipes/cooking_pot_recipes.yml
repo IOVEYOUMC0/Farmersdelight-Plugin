@@ -8,8 +8,14 @@
 #       - <item_id_or_tag>   # tags must start with #; MMOItems ids use "mmoitems:<TYPE>:<ID>"
 #                            # tag exclusion: "#namespace:tag,!namespace:item,!#namespace:other_tag"
 #                            # alternatives for the same slot: "item_a|item_b|#namespace:tag"
-#     container: <item_id>   # required when the original output has a craft remainder (bowl/bottle/etc.)
-#                            # the plugin does not infer containers from item use_remainder/craftRemainder
+#     container: <item_id>   # optional when the result declares its own remainder (bowl/bottle/etc.): the plugin
+#                            # infers the required container from the result through the same use_remainder /
+#                            # craft-remainder / vanilla remainder resolution the pot uses for ingredient returns,
+#                            # so the field only has to be written to override the inference; write
+#                            # "container: none" to require no container at all. Tool remainders (a corn dog's
+#                            # stick, a ham's bone) are never taken as a container — see
+#                            # cooking-pot.container-inference in config.yml, including the switch that turns
+#                            # the whole inference off
 #     result: <item_id>      # vanilla, CraftEngine custom, or MMOItems ("mmoitems:<TYPE>:<ID>")
 #     result-count: <count>  # optional, default 1
 #     experience: <number>   # optional, default 0

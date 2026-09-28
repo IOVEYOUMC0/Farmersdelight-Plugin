@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.BlockDefinition;
@@ -139,7 +140,9 @@ public class ConnectedRugBlockBehavior extends RugBlockBehavior {
     private void writeVariant(World world, Block self, ImmutableBlockState state) {
         Set<BlockFace> connected = EnumSet.noneOf(BlockFace.class);
         for (BlockFace face : HORIZONTAL) {
-            if (isConnected(CraftEngineBlocks.getCustomBlockState(self.getRelative(face)))) {
+            // A neighbour in a chunk that is not loaded counts as unconnected: reading its CE state would load
+            // the chunk, and the variant rewrite below would cross into the owning region.
+            if (isConnected(CustomBlockUtils.getStateIfResident(self.getRelative(face)))) {
                 connected.add(face);
             }
         }
@@ -162,7 +165,7 @@ public class ConnectedRugBlockBehavior extends RugBlockBehavior {
     private void refreshNeighbors(World world, Block center) {
         for (BlockFace face : HORIZONTAL) {
             Block neighbor = center.getRelative(face);
-            ImmutableBlockState neighborState = CraftEngineBlocks.getCustomBlockState(neighbor);
+            ImmutableBlockState neighborState = CustomBlockUtils.getStateIfResident(neighbor);
             if (neighborState == null || neighborState.isEmpty() || !isConnected(neighborState)) {
                 continue;
             }

@@ -54,6 +54,10 @@ public final class Constants {
     public static final String BEHAVIOR_RICH_SOIL_FARMLAND = "farmersdelight:rich_soil_farmland";
     public static final String ITEM_BEHAVIOR_CONDITIONAL_PLANTING = "farmersdelight:conditional_block_planting";
     public static final String ITEM_BEHAVIOR_SKILLET = "farmersdelight:skillet_item";
+    public static final String CONDITION_IS_ADULT = "farmersdelight:is_adult";
+    public static final String CONDITION_IS_BURNING = "farmersdelight:is_burning";
+    public static final String CONDITION_IS_KNIFE = "farmersdelight:is_knife";
+    public static final String LOOT_FUNCTION_AWARD_ADVANCEMENT = "farmersdelight:award_advancement";
     public static final String ITEM_SETTING_PET_FOOD = "farmersdelight:pet_food";
     public static final String BLOCK_RICH_SOIL_FARMLAND = "farmersdelight:rich_soil_farmland";
     public static final String ITEM_ORGANIC_COMPOST = "farmersdelight:organic_compost";
@@ -67,10 +71,15 @@ public final class Constants {
     public static final String SOUND_SKILLET_ATTACK_STRONG = "farmersdelight:item.skillet.attack.strong";
     public static final String SOUND_SKILLET_ATTACK_WEAK = "farmersdelight:item.skillet.attack.weak";
     public static final String SOUND_STOVE_CRACKLE = "farmersdelight:block.stove.crackle";
+    // Stove ignition/extinguishing sounds, the same ones the mod plays from AbstractStoveBlock and the
+    // pack used to play before that logic moved into the stove behavior.
+    public static final String SOUND_STOVE_IGNITE = "minecraft:item.flintandsteel.use";
+    public static final String SOUND_STOVE_IGNITE_FIRE_CHARGE = "minecraft:item.firecharge.use";
+    public static final String SOUND_STOVE_EXTINGUISH = "minecraft:block.fire.extinguish";
+    public static final String SOUND_STOVE_EXTINGUISH_WATER = "minecraft:entity.generic.extinguish_fire";
     public static final int DEFAULT_COOKING_TIME_SKILLET = 600;
     public static final int MINIMUM_COOKING_TIME_SKILLET = 60;
     public static final int DEFAULT_COOKING_TIME_COOKING_POT = 200;
-    public static final int DEFAULT_COOKING_POT_DISPLAY_VISIBILITY_CHECK_INTERVAL_TICKS = 100;
     public static final int DEFAULT_COOKING_POT_PLACE_INTERACTION_COOLDOWN_MS = 1000;
     public static final int DEFAULT_COMFORT_DURATION = 300;
     public static final int DEFAULT_NOURISHMENT_DURATION = 300;

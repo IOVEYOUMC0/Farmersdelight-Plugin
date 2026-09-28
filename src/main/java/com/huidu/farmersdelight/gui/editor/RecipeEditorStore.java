@@ -1,10 +1,18 @@
-package com.huidu.farmersdelight.recipe;
+package com.huidu.farmersdelight.gui.editor;
 
+import com.huidu.farmersdelight.api.config.ConfigFileUpdater;
+import com.huidu.farmersdelight.recipe.RecipeFileLoader;
+import com.huidu.farmersdelight.recipe.RecipeIngredient;
+import com.huidu.farmersdelight.recipe.RecipeItemCodec;
+import com.huidu.farmersdelight.recipe.RecipeSerializer;
+import com.huidu.farmersdelight.recipe.CookingPotRecipe;
+import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.recipe.AddonRecipeFiles;
 import com.huidu.farmersdelight.api.recipe.AddonRecipeFiles.RecipeOwner;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
@@ -29,6 +37,8 @@ public final class RecipeEditorStore {
     private static final String CUSTOM_COOKING_POT_ROOT = "custom_cooking_pot_recipes";
     private static final String CUTTING_BOARD_ROOT = "cutting_board_recipes";
     private static final String EXTERNAL_OVERRIDES_ROOT = "external-overrides";
+    /** Written when a recipe must keep no container although its result declares one (see the recipe loader). */
+    static final String CONTAINER_OPT_OUT = "none";
 
     private final FarmersDelightPlugin plugin;
 
@@ -126,6 +136,11 @@ public final class RecipeEditorStore {
         if (container != null && !container.getType().isAir()) {
             Map<String, Object> snapshot = RecipeItemCodec.snapshotIfCustom(container);
             body.put("container", snapshot != null ? snapshot : RecipeSerializer.itemIdString(container));
+        } else if (recipe.getResult() != null && !recipe.getResult().getType().isAir()
+                && ItemUtils.craftingRemainderOf(recipe.getResult(), recipe.getId()) != null) {
+            // Saved without a container while the result declares one: write the explicit opt-out, otherwise
+            // loading the file would infer that container right back.
+            body.put("container", CONTAINER_OPT_OUT);
         }
 
         ItemStack result = recipe.getResult();
@@ -208,6 +223,13 @@ public final class RecipeEditorStore {
             // back, so a merge here would re-add in the same operation the very recipe an admin just deleted
             // in the editor.
             YamlConfiguration yaml = RecipeFileLoader.loadRecipeFile(plugin, relativePath, false);
+            if (yaml == null) {
+                // The file is unreadable: writing the mutation would replace every remaining entry with the
+                // mutated empty configuration, so the edit is refused and the operator keeps the file.
+                I18n.logWarning("plugin.recipe_save_failed", "file", relativePath,
+                        "error", I18n.formatConsole("plugin.recipe_unreadable"));
+                return false;
+            }
             mutation.apply(yaml);
             writeAtomically(new File(plugin.getDataFolder(), relativePath), yaml.saveToString());
             plugin.reloadRecipeFiles();

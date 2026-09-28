@@ -67,19 +67,49 @@ public void unregisterCuttingBoardRecipe(String id);
 
 ## When to register
 
-The result and container are `ItemStack`s, so CraftEngine items must already be loaded. FarmersDelight itself
-defers its recipe load to `CraftEngineReloadEvent`; do the same and re-register on every later CE reload. This
-is BAC's registrar, trimmed:
+**Preferred: declare the recipe in your own CraftEngine pack — no Java at all.** Put it in any YAML under
+`<your pack>/configuration/`, with `cooking_recipes` / `cutting_recipes` / `special_recipes` as the root key;
+CraftEngine hands the whole section to FarmersDelight while loading packs, and FD parses it, resolves the
+items and merges it into its recipe table. The entry fields are exactly the ones FD's own `recipes/*.yml` uses:
+only the root key differs.
+
+```yaml
+# craftengine/myaddon/configuration/farmersdelight/cooking_pot_recipes.yml
+cooking_recipes:
+  myaddon:cheese_soup:
+    ingredients:
+      - "myaddon:cheese"
+      - "farmersdelight:onion"
+    container: "minecraft:bowl"
+    result: "myaddon:cheese_soup"
+    experience: 0.35
+    cook-time: 200
+    category: meals
+```
+
+- The key **is** the recipe id, verbatim (FD does not prefix a namespace for you), so write the full
+  `myaddon:cheese_soup` here.
+- Load order is FarmersDelight's own recipe files, then packs, then runtime API registrations, with the later
+  source winning an id clash. Special recipes work the same way and lose to the plugin file, the bundled
+  defaults and API registrations.
+- Run `/ce reload all` (or restart) after editing: pack content is read once, while CraftEngine loads packs.
+  `/fd reload recipes` only re-reads `plugins/FarmersDelight/recipes/*.yml`.
+- Reach for the Java path below only when a recipe has to be decided at runtime (a database, per-player or
+  time-based content, data another plugin feeds in).
+
+**When you do need runtime registration:** the result and container are `ItemStack`s, so CraftEngine items
+must already be loaded. FarmersDelight itself defers its recipe load to `CraftEngineReloadEvent`; do the same
+and re-register on every later CE reload. This is the shape of a hand-written registrar (BAC's cooking-pot
+recipes used to be read this way; they now live in its pack, so treat this as API usage only):
 
 ```java
-public final class BrewinCookingPotRecipes implements Listener {
+public final class ExampleCookingPotRecipes implements Listener {
 
     private final JavaPlugin plugin;
     private final Set<String> registeredIds = new LinkedHashSet<>();
 
     @EventHandler
     public void onCraftEngineReload(CraftEngineReloadEvent event) {
-        BrewinItems.clearCache();
         register();
     }
 
@@ -102,14 +132,14 @@ public final class BrewinCookingPotRecipes implements Listener {
             if (ingredients.isEmpty() || resultId == null) {
                 continue;
             }
-            ItemStack result = BrewinItems.create(resultId);
+            ItemStack result = ExampleItems.create(resultId);
             if (result == null) {
                 continue; // CraftEngine items not ready yet; a later CraftEngineReloadEvent retries.
             }
             result.setAmount(Math.max(1, section.getInt("result-count", 1)));
             String containerId = section.getString("container");
-            ItemStack container = containerId == null ? null : BrewinItems.create(containerId);
-            String recipeId = "brewinandchewin:" + key;
+            ItemStack container = containerId == null ? null : ExampleItems.create(containerId);
+            String recipeId = "myaddon:" + key;
             api.registerCookingPotRecipe(recipeId, ingredients, container, result,
                     section.getDouble("experience", 0.0), section.getInt("cook-time", 200),
                     section.getString("category", "misc"));
@@ -139,6 +169,39 @@ Three things this pattern gets right and a naive one does not: it is **idempoten
 startup `CraftEngineReloadEvent` may call it), it **skips** entries whose CraftEngine items are not loaded yet
 so a later reload can retry them, and it **unregisters** ids that vanished from the config instead of leaving
 orphans in the pot.
+
+The low-effort runtime route is FD's own `AddonRecipeFiles` helper: hand it the plugin, a source id, a
+`recipes/*.yml` path and a namespace and it does all of the above — read the file, prefix bare keys with the
+namespace, keep the previous set while CraftEngine items are missing and retry, and withdraw deleted ids (each
+addon used to copy this and the copies drifted). Recipes it loads are still written back to that file by the
+recipe editor; recipes that come from a pack are written into FD's own recipe file instead.
+
+## Sections for an addon's own content
+
+FarmersDelight reads its own four sections through this mechanism and exposes it:
+`com.huidu.farmersdelight.api.pack.AddonPackSections` lets an addon claim sections of its own (keg fermenting,
+grilling, skewering — anything FarmersDelight itself does not know about), handed over by CraftEngine while it
+loads packs.
+
+```java
+// onLoad: must run before CraftEngine loads packs, which happens in its own onEnable
+recipeSections = AddonPackSections.claim(this, "myaddon:recipes", "myaddon recipe sections",
+        Map.of("grilling_recipes", "grilling_recipes", "skewering_recipes", "skewering_recipes"));
+
+// in the reader that used to parse recipes/*.yml
+for (AddonPackSections.Entry entry : AddonPackSections.entries(recipeSections, "grilling_recipes",
+        "grilling_recipes", new File(getDataFolder(), "recipes/grilling_recipes.yml"))) {
+    ConfigurationSection body = entry.section();   // entry.id() is the key, entry.source() locates errors
+}
+```
+
+- The claimed id is the file's root key and must not collide with a section CraftEngine or another plugin
+  already owns; a collision logs one warning and leaves the claim empty.
+- Every claim gets its own loading stage: CraftEngine's loading pyramid keys tasks by stage, so sharing one
+  would replace its owner's task.
+- `entries(...)` layers a file from the plugin data folder on top of the pack (same id wins, position kept), so
+  an operator or an in-game editor can still override the shipped defaults; pass `null` for no extra layer.
+- Sections are read-only snapshots; do the item resolution in the reader, never inside the parser.
 
 ## Querying recipes
 

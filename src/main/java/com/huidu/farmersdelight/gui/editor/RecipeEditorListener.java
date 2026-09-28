@@ -12,7 +12,9 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
 import java.util.UUID;
@@ -91,5 +93,71 @@ public final class RecipeEditorListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
         CHAT_PROMPTS.remove(event.getPlayer().getUniqueId());
+    }
+
+    // The addon recipe editor view used to be handled by the core's recipe-book listener; it moved here with
+    // the view itself, so that listener no longer knows about either type.
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onEditorViewClick(InventoryClickEvent event) {
+        if (!(event.getInventory().getHolder() instanceof RecipeEditorView editor)
+                || !(event.getWhoClicked() instanceof Player player)) {
+            return;
+        }
+        event.setCancelled(true);
+        int raw = event.getRawSlot();
+        if (event.getClickedInventory() != event.getInventory()) {
+            // Clicking the player's own inventory: copy item to cursor, or discard a held template.
+            ItemStack cursor = event.getCursor();
+            if (cursor != null && !cursor.getType().isAir()) {
+                player.setItemOnCursor(null);
+            } else {
+                ItemStack current = event.getCurrentItem();
+                if (current != null && !current.getType().isAir()) {
+                    ItemStack copy = current.clone();
+                    copy.setAmount(1);
+                    player.setItemOnCursor(copy);
+                }
+            }
+            return;
+        }
+        if (editor.isEditableSlot(raw)) {
+            ItemStack cursor = event.getCursor();
+            if (cursor == null || cursor.getType().isAir()) {
+                event.getInventory().setItem(raw, null);
+            } else {
+                ItemStack template = cursor.clone();
+                template.setAmount(1);
+                event.getInventory().setItem(raw, template);
+            }
+        } else {
+            editor.handleButton(player, raw, event.isRightClick());
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onEditorViewDrag(InventoryDragEvent event) {
+        if (event.getInventory().getHolder() instanceof RecipeEditorView) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onEditorViewDrop(PlayerDropItemEvent event) {
+        // The view keeps a fabricated template copy on the cursor: pressing Q drops that copy without going
+        // through InventoryClickEvent, so without this guard the template becomes a real item.
+        if (event.getPlayer().getOpenInventory().getTopInventory().getHolder() instanceof RecipeEditorView) {
+            event.setCancelled(true);
+            event.getPlayer().setItemOnCursor(null);
+        }
+    }
+
+    @EventHandler
+    public void onEditorViewClose(InventoryCloseEvent event) {
+        if (event.getInventory().getHolder() instanceof RecipeEditorView
+                && event.getPlayer() instanceof Player player) {
+            // Discard any template copy left on the cursor (it was never a real item).
+            player.setItemOnCursor(null);
+        }
     }
 }

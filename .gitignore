@@ -16,3 +16,8 @@ out/
 
 local.properties
 .local/
+
+# CraftEngine is resolved from Maven for every build. These jars are the paid distribution and are only
+# ever used locally by tools/check_ce_symbols.py, which takes explicit paths:
+#   python tools/check_ce_symbols.py <jar> --ce 26.9.1=path/core.jar;path/bukkit.jar;path/proxy.jar
+/libs/craft-engine-*.jar

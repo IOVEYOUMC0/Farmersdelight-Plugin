@@ -1,12 +1,11 @@
 package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.gui.editor.RecipeEditorView;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
 import com.huidu.farmersdelight.api.recipe.JumpTarget;
 import com.huidu.farmersdelight.api.recipe.SpecialRecipeInfo;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
-import com.huidu.farmersdelight.gui.editor.CookingPotEditorGui;
-import com.huidu.farmersdelight.gui.editor.CuttingBoardEditorGui;
 import com.huidu.farmersdelight.gui.recipebook.RecipeBookGui;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
@@ -42,6 +41,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -86,6 +86,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
     private final CyclicSlot toolCycle = new CyclicSlot(INGREDIENT_SWITCH_CALLBACKS);
     private final CyclicSlot catalystCycle = new CyclicSlot(INGREDIENT_SWITCH_CALLBACKS);
     private final SpecialRecipeRenderer specialRecipeRenderer;
+    // session instead of on every click on an ingredient.
     final RecipeIngredientDisplay ingredientDisplay;
     final ToolPreviewRenderer toolPreviewRenderer;
     // Expanded catalyst options for the currently shown special recipe (tag references expand into
@@ -1023,6 +1024,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
     // separate GUI, so fully backing out of it re-opens this FD recipe view EXACTLY at the page we left
     // (not dropped onto the main menu), preserving the special/pot/board detail the user jumped from.
     private void navigateToAddonRecipe(Player player, ItemStack clickedItem) {
+        if (recipeNavigationBlocked()) {
+            return;
+        }
         RecipeCraftability.LinkedAddonRecipe addon = craftability().findLinkedAddonRecipe(clickedItem);
         if (addon == null) {
             return;
@@ -1036,8 +1040,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         }, 1L);
     }
 
-    int cookTimeSeconds(CookingPotRecipe recipe) {
-        if (recipe == null || recipe.getCookTime() <= 0) {
+    int cookTimeSeconds(CookingPotRecipe recipe) {        if (recipe == null || recipe.getCookTime() <= 0) {
             return 0;
         }
         return Math.max(1, (int) Math.ceil(recipe.getCookTime() / 20.0D));
@@ -1519,6 +1522,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
     }
 
     private boolean navigateToSpecialRecipeList(Player player, String specialId) {
+        if (recipeNavigationBlocked()) {
+            return true;
+        }
         if (specialId == null || plugin.getSpecialRecipeRegistry() == null) {
             return false;
         }
@@ -1573,7 +1579,15 @@ public class RecipeViewGui extends AbstractInventoryGui {
         navigateToState(player, GuiState.RECIPE_DETAIL, false);
     }
 
+    /** Returns true when recipe-navigation.jumps is switched off, so the jump must not happen. */
+    private boolean recipeNavigationBlocked() {
+        return !plugin.getConfigBoolean(true, "recipe-navigation.jumps");
+    }
+
     private boolean navigateToLinkedRecipe(Player player, ItemStack clickedItem, boolean fromSpecial) {
+        if (recipeNavigationBlocked()) {
+            return true;
+        }
         RecipeCraftability.LinkedRecipe linkedRecipe = craftability().findLinkedRecipe(clickedItem, cookingPotMode);
         if (linkedRecipe == null) {
             return false;
@@ -1646,30 +1660,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
     }
 
     private void openEditorForRecipe(Player player, String recipeId, boolean isCookingPot) {
-        plugin.scheduler().runLaterForEntity(player, () -> {
-            if (!player.isOnline()) {
-                return;
-            }
-            if (isCookingPot) {
-                RecipeViewGuiConfig.BaseConfig editorConfig =
-                        plugin.getRecipeEditorGuiConfig().getCookingPotConfig(null);
-                if (editorConfig == null) {
-                    return;
-                }
-                CookingPotRecipe existing = plugin.getCookingPotRecipes().getRecipe(recipeId);
-                new CookingPotEditorGui(
-                        plugin, player, recipeId, null, existing, editorConfig).open();
-            } else {
-                RecipeViewGuiConfig.BaseConfig boardConfig =
-                        plugin.getRecipeEditorGuiConfig().getCuttingBoardConfig();
-                if (boardConfig == null) {
-                    return;
-                }
-                CuttingBoardRecipe existing = plugin.getCuttingBoardRecipes().getRecipe(recipeId);
-                new CuttingBoardEditorGui(
-                        plugin, player, recipeId, existing, boardConfig).open();
-            }
-        }, 1L);
+        RecipeEditorView.openFromViewerLater(plugin, player, recipeId, isCookingPot);
     }
 
     private String getActiveCookingPotRecipeGroup() {

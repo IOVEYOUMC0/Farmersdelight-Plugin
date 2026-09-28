@@ -7,10 +7,12 @@ FarmersDelight's generic editor GUI. FarmersDelight drives the GUI; **your addon
 hands you an `EditableRecipe` draft to persist or delete, and never touches your files itself.
 
 The built-in `/fd recipe edit pot` and `/fd recipe edit board` commands write FarmersDelight's own recipe files
-and can also write addon recipe files loaded through the shared `AddonRecipeFiles` helper. For an addon recipe
-registered only through the API, the editor stores a persistent `external-overrides` entry in FarmersDelight's
-recipe file. Removing that override lets the addon's next registration take effect again, without guessing an addon
-file path.
+and can also write addon recipe files loaded through the shared `AddonRecipeFiles` helper. A recipe that comes
+from a pack section (`cooking_recipes` / `cutting_recipes` / `special_recipes`) has no addon file to write to,
+so the editor stores the edit in FarmersDelight's own file, which wins over the pack for that id. For an addon
+recipe registered only through the API, the editor stores a persistent `external-overrides` entry in
+FarmersDelight's recipe file. Removing that override lets the addon's next registration take effect again,
+without guessing an addon file path.
 
 ## RecipeEditor
 

@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.recipe;
 
+import com.huidu.farmersdelight.api.config.ConfigFileUpdater;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
 import com.huidu.farmersdelight.api.config.ConfigSectionReader;
@@ -627,7 +628,7 @@ public final class RecipeDiscoveryManager {
             yaml.set(entry.getKey().toString(), keys.isEmpty() ? null : new ArrayList<>(keys));
         }
         try {
-            RecipeEditorStore.writeAtomically(file, yaml.saveToString());
+            ConfigFileUpdater.writeStringAtomically(file.toPath(), yaml.saveToString(), false);
         } catch (IOException e) {
             dirty = true; // failed write: keep state dirty so the next flush retries
             I18n.logWarning("recipe-discovery.save_failed", "error", String.valueOf(e.getMessage()));

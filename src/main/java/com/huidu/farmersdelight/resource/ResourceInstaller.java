@@ -56,11 +56,9 @@ public final class ResourceInstaller {
         try {
             int changedFiles;
             if (Files.exists(targetRoot)) {
-                changedFiles = 0;
-                // The initial release is unconditional; this toggle only controls whether missing files are re-completed on later startups.
-                if (plugin.getConfig().getBoolean("craftengine-resources.auto-completion", true)) {
-                    changedFiles += copyMissingBundledResourceFiles(targetRoot);
-                }
+                changedFiles = plugin.getConfig().getBoolean("craftengine-resources.auto-completion", true)
+                        ? copyBundledResourceFiles(targetRoot)
+                        : 0;
                 changedFiles += migrateKnownResourceFixes(targetRoot);
             } else {
                 changedFiles = copyBundledResourceDirectory(targetRoot);
@@ -170,7 +168,7 @@ public final class ResourceInstaller {
         }
     }
 
-    private int copyMissingBundledResourceFiles(Path targetRoot) throws IOException {
+    private int copyBundledResourceFiles(Path targetRoot) throws IOException {
         List<String> resourcePaths = listBundledResourceFiles(ResourceInstaller.CRAFTENGINE_RESOURCE_ROOT);
         if (resourcePaths.isEmpty()) {
             throw new IOException("No bundled CraftEngine resources found at " + ResourceInstaller.CRAFTENGINE_RESOURCE_ROOT);

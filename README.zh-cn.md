@@ -35,10 +35,13 @@ FarmersDelight 是基于 CraftEngine 的 Farmer's Delight Paper/Folia 移植插�
 
 ## 授权
 
-GNU General Public License v3.0 only，全文见 [LICENSE](LICENSE)。
+GNU Affero General Public License v3.0 only，全文见 [LICENSE](LICENSE)。
 
-允许使用、修改、再分发（收费分发也可以），前提是满足 GPL-3.0：保留版权与授权声明、随分发提供
-完整对应源码、修改版同样以 GPL-3.0 授权。第三方内容（搬运的 Farmer's Delight 素材、shade 进来的
-库，均为 MIT）保留各自的声明，见 [NOTICE.md](NOTICE.md)。
+本插件**完整开源**：配方编辑器、配方关联跳转、手持煎锅烹饪都在本仓库里。允许使用、修改、再分发
+（收费分发也可以），前提是满足 AGPL-3.0：保留版权与授权声明、随分发提供完整对应源码、修改版同样以
+AGPL-3.0 授权；**如果把修改版作为网络服务提供给他人使用，还要向该服务的使用者提供源码**。
+
+第三方内容（搬运的 Farmer's Delight 素材、shade 进来的库，均为 MIT）保留各自的声明，见
+[NOTICE.md](NOTICE.md)。
 
 本仓库是本插件唯一的源码来源。其他人发布的构建产物（无论有没有加过代码）都与作者无关。

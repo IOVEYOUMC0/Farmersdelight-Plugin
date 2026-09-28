@@ -64,7 +64,7 @@ public final class CraftEngineStateUsageMonitor {
 
     private static int lowFreeStateWarningThreshold(FarmersDelightPlugin plugin) {
         return Math.max(0, plugin.getConfigInt(DEFAULT_LOW_FREE_STATE_WARNING_THRESHOLD,
-                "performance.craftengine-free-state-warning-threshold"));
+                "performance.warnings.craftengine-free-state-threshold"));
     }
 
     private static Usage inspect(BukkitBlockManager blockManager) {

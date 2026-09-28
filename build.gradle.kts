@@ -15,7 +15,9 @@ repositories {
     maven("https://repo.extendedclip.com/content/repositories/placeholderapi/")
 }
 
-// CraftEngine is pinned to the official Maven 26.9.1 artifacts.
+// CraftEngine is resolved from Maven. Overridable so a compatibility check can build the same sources
+// against another release without editing this file:  gradlew build -PceVersion=26.8.2
+val ceVersion = providers.gradleProperty("ceVersion").getOrElse("26.9.1")
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
@@ -23,11 +25,11 @@ dependencies {
     // Already provided by Paper; only the transport API is needed for per-player display packets.
     compileOnly("io.netty:netty-transport:4.1.135.Final")
 
-    // CraftEngine 26.9.1 from the official Maven repository.
-    compileOnly("net.momirealms:craft-engine-bukkit:26.9.1")
-    compileOnly("net.momirealms:craft-engine-core:26.9.1")
+    // CraftEngine from the official Maven repository.
+    compileOnly("net.momirealms:craft-engine-bukkit:$ceVersion")
+    compileOnly("net.momirealms:craft-engine-core:$ceVersion")
     // CE 26.9.1 keeps proxy classes in its jar-in-jar proxy artifact.
-    compileOnly("net.momirealms:craft-engine-bukkit-proxy:26.9.1")
+    compileOnly("net.momirealms:craft-engine-bukkit-proxy:$ceVersion")
 
     compileOnly("me.clip:placeholderapi:2.11.6")
     // AntiGriefLib: unified protection facade over 24+ land/claim plugins (MIT). Bundled and relocated:
@@ -42,9 +44,9 @@ dependencies {
     // UltimateAdvancementAPI: separate server plugin; vendored only for offline compile against its API.
     compileOnly(files("libs/UltimateAdvancementAPI-Plugin-2.8.0-folia.jar"))
     testImplementation("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
-    testImplementation("net.momirealms:craft-engine-bukkit:26.9.1")
-    testImplementation("net.momirealms:craft-engine-core:26.9.1")
-    testImplementation("net.momirealms:craft-engine-bukkit-proxy:26.9.1")
+    testImplementation("net.momirealms:craft-engine-bukkit:$ceVersion")
+    testImplementation("net.momirealms:craft-engine-core:$ceVersion")
+    testImplementation("net.momirealms:craft-engine-bukkit-proxy:$ceVersion")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testImplementation("io.netty:netty-transport:4.1.135.Final")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -141,9 +143,16 @@ tasks.compileJava {
 
 tasks.shadowJar {
     archiveBaseName.set(pluginArchiveBaseName)
+    // Only the debug build, which never leaves the development machine, carries a classifier.
     archiveClassifier.set(if (debugToolsBuild.get()) "debug" else "")
     if (!debugToolsBuild.get()) {
         exclude("com/huidu/farmersdelight/debug/**")
+    }
+    manifest {
+        attributes(
+            "Implementation-Title" to "FarmersDelight",
+            "Implementation-Version" to project.version
+        )
     }
     relocate("org.bstats", "com.huidu.farmersdelight.libs.bstats")
     relocate("net.momirealms.antigrieflib", "com.huidu.farmersdelight.libs.antigrieflib")

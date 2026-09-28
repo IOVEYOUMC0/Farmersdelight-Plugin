@@ -97,13 +97,16 @@ blocks:
     behaviors:
       - type: farmersdelight:mushroom_colony
         mushroom-type: "minecraft:brown_mushroom"
-        light-requirement: 0
-        grow-on-blocks:
-          - farmersdelight:rich_soil
-          - farmersdelight:organic_compost
-        place-on-block-tags:
-          - minecraft:mushroom_grow_block
-        place-on-overrides-default: false
+        light:
+          requirement: 0
+        grow-on:
+          blocks:
+            - farmersdelight:rich_soil
+            - farmersdelight:organic_compost
+        place-on:
+          block-tags:
+            - minecraft:mushroom_grow_block
+          overrides-default: false
     states:
       properties:
         age:
@@ -189,13 +192,16 @@ blocks:
     behaviors:
       - type: farmersdelight:mushroom_colony
         mushroom-type: "minecraft:red_mushroom"
-        light-requirement: 0
-        grow-on-blocks:
-          - farmersdelight:rich_soil
-          - farmersdelight:organic_compost
-        place-on-block-tags:
-          - minecraft:mushroom_grow_block
-        place-on-overrides-default: false
+        light:
+          requirement: 0
+        grow-on:
+          blocks:
+            - farmersdelight:rich_soil
+            - farmersdelight:organic_compost
+        place-on:
+          block-tags:
+            - minecraft:mushroom_grow_block
+          overrides-default: false
     states:
       properties:
         age:
@@ -296,7 +302,15 @@ placed-features:
     environment:
       - minecraft:overworld
     feature:
-      $$>=26.1:
+      $$>=26.3:
+        type: 'minecraft:simple_block'
+        to_place:
+          type: 'craftengine:simple_state_provider'
+          state:
+            Name: 'farmersdelight:brown_mushroom_colony'
+            Properties:
+              age: '3'
+      $$26.1~26.2:
         type: 'minecraft:simple_block'
         config:
           to_place:
@@ -333,7 +347,42 @@ placed-features:
           xz_spread: 6
           y_spread: 3
     placement:
-      $$>=26.1:
+      $$>=26.3:
+        - type: 'minecraft:rarity_filter'
+          chance: 15
+        - type: 'minecraft:in_square'
+        - type: 'minecraft:heightmap'
+          heightmap: MOTION_BLOCKING
+        - type: 'minecraft:count'
+          count: 64
+        - type: 'minecraft:offset'
+          x:
+            type: 'minecraft:trapezoid'
+            max: 6
+            min: -6
+            plateau: 0
+          y:
+            type: 'minecraft:trapezoid'
+            max: 3
+            min: -3
+            plateau: 0
+          z:
+            type: 'minecraft:trapezoid'
+            max: 6
+            min: -6
+            plateau: 0
+        - type: 'minecraft:block_predicate_filter'
+          predicate:
+            type: 'minecraft:all_of'
+            predicates:
+              - type: 'minecraft:replaceable'
+              - type: 'minecraft:matching_fluids'
+                fluids: 'minecraft:empty'
+              - type: 'minecraft:matching_blocks'
+                blocks: 'minecraft:mycelium'
+                offset: [0, -1, 0]
+        - type: 'minecraft:biome'
+      $$26.1~26.2:
         - type: 'minecraft:rarity_filter'
           chance: 15
         - type: 'minecraft:in_square'
@@ -376,7 +425,15 @@ placed-features:
     environment:
       - minecraft:overworld
     feature:
-      $$>=26.1:
+      $$>=26.3:
+        type: 'minecraft:simple_block'
+        to_place:
+          type: 'craftengine:simple_state_provider'
+          state:
+            Name: 'farmersdelight:red_mushroom_colony'
+            Properties:
+              age: '3'
+      $$26.1~26.2:
         type: 'minecraft:simple_block'
         config:
           to_place:
@@ -413,7 +470,42 @@ placed-features:
           xz_spread: 6
           y_spread: 3
     placement:
-      $$>=26.1:
+      $$>=26.3:
+        - type: 'minecraft:rarity_filter'
+          chance: 15
+        - type: 'minecraft:in_square'
+        - type: 'minecraft:heightmap'
+          heightmap: MOTION_BLOCKING
+        - type: 'minecraft:count'
+          count: 64
+        - type: 'minecraft:offset'
+          x:
+            type: 'minecraft:trapezoid'
+            max: 6
+            min: -6
+            plateau: 0
+          y:
+            type: 'minecraft:trapezoid'
+            max: 3
+            min: -3
+            plateau: 0
+          z:
+            type: 'minecraft:trapezoid'
+            max: 6
+            min: -6
+            plateau: 0
+        - type: 'minecraft:block_predicate_filter'
+          predicate:
+            type: 'minecraft:all_of'
+            predicates:
+              - type: 'minecraft:replaceable'
+              - type: 'minecraft:matching_fluids'
+                fluids: 'minecraft:empty'
+              - type: 'minecraft:matching_blocks'
+                blocks: 'minecraft:mycelium'
+                offset: [0, -1, 0]
+        - type: 'minecraft:biome'
+      $$26.1~26.2:
         - type: 'minecraft:rarity_filter'
           chance: 15
         - type: 'minecraft:in_square'

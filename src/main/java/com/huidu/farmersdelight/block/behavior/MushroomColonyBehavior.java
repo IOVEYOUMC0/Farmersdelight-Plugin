@@ -209,18 +209,18 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
                 ? BehaviorArgParser.getInt(arguments, "max-age", 3)
                 : BehaviorArgParser.inferMaxIntegerValue(ageProperty, 3);
         float growSpeed = BehaviorArgParser.getFloat(arguments, "grow-speed", 0.25f);
-        int minGrowLight = BehaviorArgParser.getInt(arguments, "light-requirement", 0);
-        int bonemealMinAgeBonus = BehaviorArgParser.getInt(arguments, "bonemeal-min-age-bonus", 1);
-        int bonemealMaxAgeBonus = BehaviorArgParser.getInt(arguments, "bonemeal-max-age-bonus", 2);
+        int minGrowLight = BehaviorArgParser.getInt(arguments, "light.requirement", 0);
+        int bonemealMinAgeBonus = BehaviorArgParser.getInt(arguments, "bone-meal.min-age-bonus", 1);
+        int bonemealMaxAgeBonus = BehaviorArgParser.getInt(arguments, "bone-meal.max-age-bonus", 2);
         if (bonemealMaxAgeBonus < bonemealMinAgeBonus) {
             bonemealMaxAgeBonus = bonemealMinAgeBonus;
         }
-        Set<Key> harvestToolTags = SoilRuleSupport.parseKeys(arguments, "harvest-tool-tags");
+        Set<Key> harvestToolTags = SoilRuleSupport.parseKeys(arguments, "harvest-tool.tags");
         Set<String> harvestToolItems = parseConfiguredItemIds(arguments);
         SoilRuleSupport.SoilRules growSoilRules = parseGrowSoilRules(arguments);
         SoilRuleSupport.SoilRules placementSoilRules = parsePlacementSoilRules(arguments);
         boolean placementOverridesDefault = BehaviorArgParser.getBoolean(arguments,
-                "place-on-overrides-default", false);
+                "place-on.overrides-default", "place-on-overrides-default", false);
         String mushroomItemId = BehaviorArgParser.getString(arguments, "mushroom-type", "");
 
         MushroomColonyBehavior behavior = new MushroomColonyBehavior(block, new Config(
@@ -521,7 +521,7 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
     }
 
     private static Set<String> parseConfiguredItemIds(Map<String, Object> arguments) {
-        Object raw = arguments != null ? arguments.get("harvest-tool-items") : null;
+        Object raw = arguments != null ? BehaviorArgParser.getRaw(arguments, "harvest-tool.items") : null;
         if (!(raw instanceof Iterable<?> iterable)) {
             return Collections.emptySet();
         }
@@ -540,30 +540,30 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
     }
 
     private static SoilRuleSupport.SoilRules parseGrowSoilRules(Map<String, Object> arguments) {
-        if (BehaviorArgParser.hasArgument(arguments, "grow-on-blocks")
-                || BehaviorArgParser.hasArgument(arguments, "grow-on-block-tags")) {
+        if (BehaviorArgParser.hasArgument(arguments, "grow-on.blocks")
+                || BehaviorArgParser.hasArgument(arguments, "grow-on.block-tags")) {
             Map<String, Object> aliasedArguments = new HashMap<>();
             if (arguments != null) {
                 aliasedArguments.putAll(arguments);
             }
-            aliasedArguments.put("bottom-blocks", aliasedArguments.get("grow-on-blocks"));
-            aliasedArguments.put("bottom-block-tags", aliasedArguments.get("grow-on-block-tags"));
+            aliasedArguments.put("bottom-blocks", BehaviorArgParser.getRaw(arguments, "grow-on.blocks"));
+            aliasedArguments.put("bottom-block-tags", BehaviorArgParser.getRaw(arguments, "grow-on.block-tags"));
             return SoilRuleSupport.parseSoilRules(aliasedArguments);
         }
         return SoilRuleSupport.parseSoilRules(arguments);
     }
 
     private static SoilRuleSupport.SoilRules parsePlacementSoilRules(Map<String, Object> arguments) {
-        if (!BehaviorArgParser.hasArgument(arguments, "place-on-blocks")
-                && !BehaviorArgParser.hasArgument(arguments, "place-on-block-tags")) {
+        if (!BehaviorArgParser.hasArgument(arguments, "place-on.blocks")
+                && !BehaviorArgParser.hasArgument(arguments, "place-on.block-tags")) {
             return new SoilRuleSupport.SoilRules(Set.of(), Set.of(), Set.of(), List.of(), Set.of());
         }
         Map<String, Object> aliasedArguments = new HashMap<>();
         if (arguments != null) {
             aliasedArguments.putAll(arguments);
         }
-        aliasedArguments.put("bottom-blocks", BehaviorArgParser.getRaw(arguments, "place-on-blocks"));
-        aliasedArguments.put("bottom-block-tags", BehaviorArgParser.getRaw(arguments, "place-on-block-tags"));
+        aliasedArguments.put("bottom-blocks", BehaviorArgParser.getRaw(arguments, "place-on.blocks"));
+        aliasedArguments.put("bottom-block-tags", BehaviorArgParser.getRaw(arguments, "place-on.block-tags"));
         return SoilRuleSupport.parseSoilRules(aliasedArguments);
     }
 }

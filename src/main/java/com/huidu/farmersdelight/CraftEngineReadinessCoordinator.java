@@ -137,6 +137,10 @@ final class CraftEngineReadinessCoordinator {
             warmUpWhenReady("reload");
             indexLoadedChunkContentWhenReady();
             ToolRegistry.refresh();
+            // Report the content counts once the readiness pass has loaded everything. Runtime API
+            // registrations used to trigger this a tick later through their republish; recipes that arrive
+            // as CraftEngine pack content have no republish, so the pass itself has to report.
+            reportContentSummaryWhenReady();
         } catch (Exception e) {
             Bukkit.getLogger().log(Level.SEVERE,
                     "Error during CraftEngine reload processing in " + plugin.getClass().getSimpleName(), e);

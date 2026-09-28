@@ -5,14 +5,10 @@ import com.huidu.farmersdelight.api.event.FarmersDelightRecipeDiscoveryEvent.Sou
 import com.huidu.farmersdelight.api.FarmersDelightApi;
 import com.huidu.farmersdelight.api.recipe.RecipeType;
 import com.huidu.farmersdelight.api.recipe.RecipeStationType;
-import com.huidu.farmersdelight.gui.RecipeViewGuiConfig;
-import com.huidu.farmersdelight.gui.editor.CookingPotEditorGui;
-import com.huidu.farmersdelight.gui.editor.CuttingBoardEditorGui;
-import com.huidu.farmersdelight.gui.recipebook.RecipeBookGui;
-import com.huidu.farmersdelight.recipe.CookingPotRecipe;
-import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
 import com.huidu.farmersdelight.gui.RecipeViewGui;
+import com.huidu.farmersdelight.gui.recipebook.RecipeBookGui;
 import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.gui.editor.RecipeEditorView;
 import com.huidu.farmersdelight.recipe.RecipeDiscoveryManager;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -142,46 +138,13 @@ final class RecipeSubCommand extends SubCommand {
             return;
         }
         String type = normalize(args[2]);
-        if (args.length < 4) {
-            RecipeViewGui gui = new RecipeViewGui(plugin, player);
-            if (RecipeStationType.isCookingPot(type)) {
-                gui.openCookingPotRecipesForEdit(player);
-            } else if (RecipeStationType.isCuttingBoard(type)) {
-                gui.openCuttingBoardRecipesForEdit(player);
-            } else {
-                player.sendMessage(I18n.getComponent("gui.editor.usage", player));
-            }
-            return;
-        }
-        String id = normalize(args[3]);
-        if (!id.matches("[a-z0-9_.-]+(?::[a-z0-9/._-]+)?")) {
+        String id = args.length >= 4 ? normalize(args[3]) : null;
+        if (id != null && !RecipeEditorView.isValidRecipeId(id)) {
             player.sendMessage(I18n.getComponent("gui.editor.feedback.invalid_id", player));
             return;
         }
-        if (RecipeStationType.isCookingPot(type)) {
-            String group = args.length >= 5 ? normalize(args[4]) : null;
-            RecipeViewGuiConfig.BaseConfig editorConfig =
-                    plugin.getRecipeEditorGuiConfig().getCookingPotConfig(group);
-            if (editorConfig == null) {
-                player.sendMessage(I18n.getComponent("gui.editor.feedback.not_configured", player));
-                return;
-            }
-            CookingPotRecipe existing = (group == null || group.isBlank())
-                    ? plugin.getCookingPotRecipes().getRecipe(id)
-                    : plugin.getCookingPotRecipes().getRecipe(group, id);
-            new CookingPotEditorGui(plugin, player, id, group, existing, editorConfig).open();
-        } else if (RecipeStationType.isCuttingBoard(type)) {
-            RecipeViewGuiConfig.BaseConfig boardConfig =
-                    plugin.getRecipeEditorGuiConfig().getCuttingBoardConfig();
-            if (boardConfig == null) {
-                player.sendMessage(I18n.getComponent("gui.editor.feedback.not_configured", player));
-                return;
-            }
-            CuttingBoardRecipe existing = plugin.getCuttingBoardRecipes().getRecipe(id);
-            new CuttingBoardEditorGui(plugin, player, id, existing, boardConfig).open();
-        } else {
-            player.sendMessage(I18n.getComponent("gui.editor.usage", player));
-        }
+        String group = args.length >= 5 ? normalize(args[4]) : null;
+        RecipeEditorView.open(plugin, player, type, id, group);
     }
 
     // /fd recipe discovery unlock|lock <type> <recipeId|all> [player]   — one recipe or a whole type

@@ -27,7 +27,9 @@ import java.util.function.BiConsumer;
 
 public final class RecipeFileLoader {
 
-    private static final String MERGE_MISSING_SETTING = "recipes.merge-missing-bundled";
+    // Read by SpecialRecipeLoader as well: the same switch controls whether bundled entries missing from an
+    // operator file are merged back, for recipes and for special-recipe cards alike.
+    static final String MERGE_MISSING_SETTING = "recipes.merge-missing-bundled";
 
     // CE/Folia readiness can invoke recipe loading twice during startup. Keep identical diagnostics
     // from flooding the console; a changed path/detail still produces a fresh warning.
@@ -52,14 +54,17 @@ public final class RecipeFileLoader {
         return loadRecipeFile(plugin, relativePath, true);
     }
 
-    static YamlConfiguration loadRecipeFile(FarmersDelightPlugin plugin, String relativePath, boolean reconcileWithBundled) {
+    // Returns null when the file could not be obtained or parsed. Callers must then keep the set they
+    // published last: an unreadable file parsed as an empty configuration would drop every bundled recipe
+    // on the next reload, which is exactly what a single indentation mistake used to do.
+    public static YamlConfiguration loadRecipeFile(FarmersDelightPlugin plugin, String relativePath, boolean reconcileWithBundled) {
         File recipesFile = new File(plugin.getDataFolder(), relativePath);
         if (!recipesFile.exists()) {
             try {
                 plugin.saveResource(relativePath, false);
             } catch (IllegalArgumentException e) {
                 I18n.logWarning("plugin.recipe_bundled_save_failed", "file", relativePath, "error", e.getMessage());
-                return new YamlConfiguration();
+                return null;
             }
         }
 
@@ -80,7 +85,7 @@ public final class RecipeFileLoader {
             return yaml;
         } catch (Exception e) {
             I18n.logWarning("plugin.recipe_load_failed", "file", relativePath, "error", e.getMessage());
-            return new YamlConfiguration();
+            return null;
         }
     }
 
@@ -198,6 +203,11 @@ public final class RecipeFileLoader {
                                    String recipeTypeName,
                                    String sourceFile,
                                    BiConsumer<String, ConfigurationSection> sectionConsumer) {
+        // A null config is an unreadable file (see loadRecipeFile): the caller keeps whatever it published
+        // last, so there is nothing to parse here.
+        if (config == null) {
+            return;
+        }
         ConfigurationSection recipesSection = config.getConfigurationSection(rootSectionKey);
         if (recipesSection == null) {
             if (config.isSet(rootSectionKey)) {

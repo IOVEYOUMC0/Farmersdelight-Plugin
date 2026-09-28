@@ -45,7 +45,7 @@ surfaces it without turning debug on.
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| FarmersDelight never enables; log says a dependency is missing | CraftEngine not installed | Install a server-compatible CraftEngine **26.9.1** build; it is a hard `depend`. |
+| FarmersDelight never enables; log says a dependency is missing | CraftEngine not installed | Install a server-compatible CraftEngine **26.8.2 or newer** (26.8.2/26.9/26.9.1 verified); it is a hard `depend`. |
 | Plugin fails to load with an unsupported-version / class error | Server below MC 1.21.4 or Java below 21 | Run **Paper/Folia 1.21.4+** on **Java 21+**. |
 | Custom items/blocks show purple-and-black textures | Client not using the current resource pack | Run **`/ce reload all`** to rebuild the pack (plain `/ce reload` won't); make sure the player accepted the pack. See [Resource pack](resource-pack.md). |
 | Handheld skillet interaction reports `ObfuscatedItemModelProcessor` / `NoClassDefFoundError` | CraftEngine 26.9.1 no longer ships the old client model processor | Install this FarmersDelight build and fully restart; the plugin falls back to the server-side item model and logs one warning, then run **`/ce reload all`** to rebuild the resource pack. |

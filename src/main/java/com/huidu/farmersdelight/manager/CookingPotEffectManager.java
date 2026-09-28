@@ -109,7 +109,7 @@ class CookingPotEffectManager {
         effectViewerDistanceSquared = viewerDistance * viewerDistance;
         cookingPotEffectInterval = Math.max(1, plugin.getConfigInt(1, "cooking-pot.effects.interval"));
         cookingPotChunkEffectBudgetLimit = Math.max(1, plugin.getConfigInt(50,
-                "performance.chunk-effect-packet-budget"));
+                "performance.budgets.chunk-effect-packet-budget"));
     }
 
     void emit(World world, BlockPosKey posKey, CookingPotBlockEntity entity, boolean hasHeat,

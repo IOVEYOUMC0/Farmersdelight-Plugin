@@ -124,7 +124,7 @@ public class HorseFeedTemptListener implements Listener {
 
         enabled = !temptFoods.isEmpty();
         tickInterval = shortestInterval == Long.MAX_VALUE ? DEFAULT_TICK_INTERVAL : shortestInterval;
-        tickBudget = Math.max(1, plugin.getConfig().getInt("performance.pet-tempt-tick-budget", DEFAULT_TICK_BUDGET));
+        tickBudget = Math.max(1, plugin.getConfig().getInt("performance.budgets.pet-tempt-tick-budget", DEFAULT_TICK_BUDGET));
         if (logSummary) {
             I18n.logDetail("startup", "pet_food.tempt_loaded",
                     "enabled", enabled,

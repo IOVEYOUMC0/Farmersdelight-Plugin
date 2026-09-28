@@ -8,7 +8,6 @@ import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
-import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -25,8 +24,11 @@ import java.util.Map;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
 
+/**
+ * Awards the harvest_straw advancement when a knife breaks a configured block. The straw item
+ * itself is produced by the CraftEngine packs, so this listener holds no drop logic.
+ */
 public class StrawDropListener implements Listener {
 
     private final FarmersDelightPlugin plugin;
@@ -73,12 +75,7 @@ public class StrawDropListener implements Listener {
         // checked separately or a creative break mints straw.
         if (!event.isDropItems() || player.getGameMode() == GameMode.CREATIVE) return;
 
-        StrawDropConfig.StrawDropRule rule = getStrawDropRule(block);
-        if (rule != null) {
-            if (!isStrawDroppedByVanillaLootEntry(block)) {
-                dropStraw(block, rule);
-            }
-
+        if (isStrawBlock(block)) {
             AdvancementManager advancementManager = FarmersDelightPlugin.getInstance().getAdvancementManager();
             if (advancementManager != null) {
                 advancementManager.award(player, "harvest_straw");
@@ -86,19 +83,10 @@ public class StrawDropListener implements Listener {
         }
     }
 
-    // Grass and mature wheat already receive straw through vanilla_loots.yml.
-    // Only award their advancement here to avoid a second independent drop.
-    // Custom rice and additional configured blocks retain listener-managed drops.
-    private boolean isStrawDroppedByVanillaLootEntry(Block block) {
-        Material type = block.getType();
-        if (type == Material.SHORT_GRASS || type == Material.TALL_GRASS) {
-            return true;
-        }
-        if (type == Material.WHEAT && block.getBlockData() instanceof Ageable ageable) {
-            return ageable.getAge() >= ageable.getMaximumAge();
-        }
-        return false;
-    }
+    // The straw item itself comes from the CraftEngine packs: grass and mature wheat through
+    // vanilla_loots.yml, mature rice through the break-loot chain on farmersdelight:rice (which the
+    // right-click harvest path runs too, see TallCropBlockBehavior). This listener only decides whether
+    // the break earns the harvest_straw advancement.
 
     private boolean isKnife(ItemStack item) {
         if (item == null || item.getType().isAir()) return false;
@@ -123,37 +111,33 @@ public class StrawDropListener implements Listener {
         return result;
     }
 
-    private StrawDropConfig.StrawDropRule getStrawDropRule(Block block) {
+    private boolean isStrawBlock(Block block) {
         StrawDropConfig config = plugin.getStrawDropConfig();
-        if (config == null) return null;
+        if (config == null) return false;
 
         Material type = block.getType();
 
         if (type == Material.TALL_GRASS) {
-            return config.getRule("tall_grass");
+            return config.hasRule("tall_grass");
         }
 
         if (type == Material.SHORT_GRASS) {
-            StrawDropConfig.StrawDropRule shortGrassRule = config.getRule("short_grass");
-            if (shortGrassRule != null) {
-                return shortGrassRule;
-            }
-            return config.getRule("grass");
+            return config.hasRule("short_grass") || config.hasRule("grass");
         }
 
         if (type == Material.WHEAT) {
             if (block.getBlockData() instanceof Ageable ageable) {
                 if (ageable.getAge() >= ageable.getMaximumAge()) {
-                    return config.getRule("mature_wheat");
+                    return config.hasRule("mature_wheat");
                 }
             }
         }
 
         if (isMatureRicePanicles(block)) {
-            return config.getRule("mature_rice");
+            return config.hasRule("mature_rice");
         }
 
-        return config.getRule(type.name().toLowerCase(Locale.ROOT));
+        return config.hasRule(type.name().toLowerCase(Locale.ROOT));
     }
 
     private boolean isMatureRicePanicles(Block block) {
@@ -190,24 +174,5 @@ public class StrawDropListener implements Listener {
         return CustomBlockUtils.hasBehavior(lowerState, TallCropBlockBehavior.class)
                 && lowerAge != null
                 && lowerAge >= 4;
-    }
-
-    private void dropStraw(Block block, StrawDropConfig.StrawDropRule rule) {
-        if (rule == null || rule.getDropItem() == null) return;
-        
-        Key dropKey = Key.of(rule.getDropItem());
-        
-        ItemStack drop = ItemUtils.createItem(dropKey);
-        if (drop != null) {
-            int minAmount = rule.getMinAmount();
-            int maxAmount = Math.max(minAmount, rule.getMaxAmount());
-            int amount = minAmount + ThreadLocalRandom.current().nextInt(maxAmount - minAmount + 1);
-            if (amount <= 0) {
-                return;
-            }
-            drop.setAmount(amount);
-
-            block.getWorld().dropItemNaturally(block.getLocation().add(0.5, 0.5, 0.5), drop);
-        }
     }
 }

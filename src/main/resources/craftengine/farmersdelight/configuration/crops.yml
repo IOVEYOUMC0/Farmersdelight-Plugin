@@ -97,15 +97,18 @@ blocks:
         extra_planting_items:
           - farmersdelight:rice_panicle
         grow-speed: 0.25
-        light-requirement: 6
-        is-bone-meal-target: true
-        bone_meal_age_bonus:
-          type: uniform
-          min: 1
-          max: 4
+        light:
+          requirement: 6
+        bone-meal:
+          is-target: true
+          age-bonus:
+            type: uniform
+            min: 1
+            max: 4
         requires-water: true
-        harvest-tool-tags:
-          - "#farmersdelight:tools/knives"
+        harvest-tool:
+          tags:
+            - "#farmersdelight:tools/knives"
         bottom-block-tags:
           - "#minecraft:dirt"
         bottom-blocks:
@@ -214,6 +217,24 @@ blocks:
                               regex: true
                         - type: item
                           item: farmersdelight:rice_panicle
+                - rolls: 1
+                  conditions:
+                    - type: match_block_property
+                      properties:
+                        half: upper
+                        age: 3
+                    - type: match_item
+                      item: "farmersdelight:.*_knife"
+                      regex: true
+                  entries:
+                    - type: item
+                      item: farmersdelight:straw
+                      functions:
+                        - type: set_count
+                          count:
+                            type: uniform
+                            min: 1
+                            max: 1
   farmersdelight:cabbages:
     settings:
       template:

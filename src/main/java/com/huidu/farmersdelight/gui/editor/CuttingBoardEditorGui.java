@@ -358,7 +358,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
         }
 
         CuttingBoardRecipe recipe = new CuttingBoardRecipe(recipeId, input, null, toolList, results, sound, priority);
-        if (plugin.getRecipeEditorStore().saveCuttingBoardRecipe(recipe)) {
+        if (RecipeEditorView.store().saveCuttingBoardRecipe(recipe)) {
             player.sendMessage(Component.translatable("gui.editor.feedback.saved",
                     Component.text(recipeId).color(NamedTextColor.WHITE))
                     .color(NamedTextColor.GREEN));
@@ -370,7 +370,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
     }
 
     private void delete() {
-        RecipeViewGuiConfig.BaseConfig confirmConfig = plugin.getRecipeEditorGuiConfig().getConfirmDeleteConfig();
+        RecipeViewGuiConfig.BaseConfig confirmConfig = RecipeEditorView.guiConfig().getConfirmDeleteConfig();
         if (confirmConfig == null) {
             performDelete();
             return;
@@ -381,7 +381,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
     }
 
     private void performDelete() {
-        if (plugin.getRecipeEditorStore().deleteCuttingBoardRecipe(recipeId)) {
+        if (RecipeEditorView.store().deleteCuttingBoardRecipe(recipeId)) {
             player.sendMessage(Component.translatable("gui.editor.feedback.deleted",
                     Component.text(recipeId).color(NamedTextColor.WHITE))
                     .color(NamedTextColor.GREEN));
@@ -393,7 +393,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
     }
 
     private void openTagPicker(ItemStack source) {
-        RecipeViewGuiConfig.BaseConfig pickerConfig = plugin.getRecipeEditorGuiConfig().getTagPickerConfig();
+        RecipeViewGuiConfig.BaseConfig pickerConfig = RecipeEditorView.guiConfig().getTagPickerConfig();
         if (pickerConfig == null) {
             player.sendMessage(Component.translatable("gui.editor.feedback.not_configured")
                     .color(NamedTextColor.RED));
@@ -415,7 +415,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
     }
 
     private void openToolTagPicker(int idx, ItemStack source) {
-        RecipeViewGuiConfig.BaseConfig pickerConfig = plugin.getRecipeEditorGuiConfig().getTagPickerConfig();
+        RecipeViewGuiConfig.BaseConfig pickerConfig = RecipeEditorView.guiConfig().getTagPickerConfig();
         if (pickerConfig == null) {
             player.sendMessage(Component.translatable("gui.editor.feedback.not_configured")
                     .color(NamedTextColor.RED));
@@ -453,7 +453,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
                     .color(NamedTextColor.RED));
             return;
         }
-        RecipeViewGuiConfig.BaseConfig pickerConfig = plugin.getRecipeEditorGuiConfig().getTagPickerConfig();
+        RecipeViewGuiConfig.BaseConfig pickerConfig = RecipeEditorView.guiConfig().getTagPickerConfig();
         if (pickerConfig == null) {
             player.sendMessage(Component.translatable("gui.editor.feedback.not_configured")
                     .color(NamedTextColor.RED));
@@ -492,7 +492,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
     }
 
     private void openChoiceBuilder(int displayIndex) {
-        RecipeViewGuiConfig.BaseConfig choiceConfig = plugin.getRecipeEditorGuiConfig().getChoiceBuilderConfig();
+        RecipeViewGuiConfig.BaseConfig choiceConfig = RecipeEditorView.guiConfig().getChoiceBuilderConfig();
         if (choiceConfig == null) {
             return;
         }

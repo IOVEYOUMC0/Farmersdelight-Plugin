@@ -10,6 +10,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 
@@ -37,38 +38,6 @@ public final class RecipeBookListener implements Listener {
             }
             return;
         }
-        if (holder instanceof RecipeEditorView editor) {
-            event.setCancelled(true);
-            int raw = event.getRawSlot();
-            boolean top = event.getClickedInventory() == event.getInventory();
-            if (top) {
-                if (editor.isEditableSlot(raw)) {
-                    ItemStack cursor = event.getCursor();
-                    if (cursor == null || cursor.getType().isAir()) {
-                        event.getInventory().setItem(raw, null);
-                    } else {
-                        ItemStack template = cursor.clone();
-                        template.setAmount(1);
-                        event.getInventory().setItem(raw, template);
-                    }
-                } else {
-                    editor.handleButton(player, raw, event.isRightClick());
-                }
-            } else {
-                // Clicking the player's own inventory: copy item to cursor, or discard a held template.
-                ItemStack cursor = event.getCursor();
-                if (cursor != null && !cursor.getType().isAir()) {
-                    player.setItemOnCursor(null);
-                } else {
-                    ItemStack current = event.getCurrentItem();
-                    if (current != null && !current.getType().isAir()) {
-                        ItemStack copy = current.clone();
-                        copy.setAmount(1);
-                        player.setItemOnCursor(copy);
-                    }
-                }
-            }
-        }
     }
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -76,7 +45,7 @@ public final class RecipeBookListener implements Listener {
         InventoryHolder holder = event.getInventory().getHolder();
         // Both GUIs operate only on copies. Cancel every drag so fabricated cursor items cannot enter
         // real inventory slots.
-        if (holder instanceof RecipeBookGui || holder instanceof RecipeEditorView) {
+        if (holder instanceof RecipeBookGui) {
             event.setCancelled(true);
         }
     }
@@ -87,10 +56,6 @@ public final class RecipeBookListener implements Listener {
         if (holder instanceof RecipeBookGui book) {
             // Release the progress-bar tick callback (ignored on a navigation close; see RecipeBookGui.onClose).
             book.onClose(event.getInventory());
-        } else if (holder instanceof RecipeEditorView
-                && event.getPlayer() instanceof Player player) {
-            // Discard any template copy left on the cursor (it was never a real item).
-            player.setItemOnCursor(null);
         }
     }
 }

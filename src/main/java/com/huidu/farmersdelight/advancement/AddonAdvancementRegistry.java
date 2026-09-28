@@ -82,7 +82,7 @@ public final class AddonAdvancementRegistry {
         Set<String> loadedPackTabs = new HashSet<>();
         for (AddonAdvancementPackLoader.Config config : configs) {
             List<AdvancementDef> defs = AddonAdvancementPackLoader.parse(
-                    FarmersDelightPlugin.getInstance(), config.namespace(), config.file(), config.yaml());
+                    FarmersDelightPlugin.getInstance(), config.namespace(), config.source(), config.yaml());
             if (!defs.isEmpty()) {
                 String tab = config.namespace();
                 register(tab, defs);

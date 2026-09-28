@@ -88,7 +88,7 @@ public class TickManager {
         cookingPotProgressDisplayDisableAboveActivePots = Math.max(0,
                 plugin.getCookingPotProgressDisplayDisableAboveActivePots());
         activeBlockWarningThreshold = Math.max(1, plugin.getConfigInt(DEFAULT_ACTIVE_BLOCK_WARNING_THRESHOLD,
-                "performance.active-block-warning-threshold",
+                "performance.warnings.active-block-threshold",
                 "performance.max-active-blocks-warning"));
         performanceMonitor.reloadConfig();
     }
@@ -177,7 +177,16 @@ public class TickManager {
         for (World world : Bukkit.getWorlds()) {
             Map<BlockPosKey, CookingPotBlockEntity> entities = CookingPotBlockBehavior.getAllBlockEntities(world);
             for (BlockPosKey posKey : entities.keySet()) {
-                if (cleanupInvalidCookingPotBlockEntity(world, posKey)) {
+                boolean removed;
+                try {
+                    removed = cleanupInvalidCookingPotBlockEntity(world, posKey);
+                } catch (Throwable t) {
+                    // The CE state lookup reads the chunk and can run other plugins' listeners; their
+                    // failure leaves this entry tracked for a later run instead of aborting the sweep.
+                    performanceMonitor.warnCleanupFailure(world, posKey, t);
+                    continue;
+                }
+                if (removed) {
                     count++;
                 }
             }
@@ -186,11 +195,24 @@ public class TickManager {
     }
 
     private void cleanupCookingPotBlockEntity(World world, BlockPosKey posKey) {
-        cleanupInvalidCookingPotBlockEntity(world, posKey);
+        try {
+            cleanupInvalidCookingPotBlockEntity(world, posKey);
+        } catch (Throwable t) {
+            performanceMonitor.warnCleanupFailure(world, posKey, t);
+        }
     }
 
     private boolean cleanupInvalidCookingPotBlockEntity(World world, BlockPosKey posKey) {
         if (world == null || posKey == null) {
+            return false;
+        }
+
+        // hasCookingPotBehavior reads the CraftEngine state through the chunk, and a read of a chunk
+        // that is not resident loads it synchronously: the load fires that chunk's entity-load events,
+        // which is work cleanup has no business starting (a listener that throws there would fail this
+        // task, and the load itself is a stall). Cleanup is a background chore, so a non-resident chunk
+        // is skipped and revisited by a later run.
+        if (!world.isChunkLoaded(posKey.x() >> 4, posKey.z() >> 4)) {
             return false;
         }
 

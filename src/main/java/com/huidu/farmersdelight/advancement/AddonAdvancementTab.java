@@ -385,7 +385,9 @@ public final class AddonAdvancementTab {
         try {
             UltimateAdvancementAPI api = UltimateAdvancementAPI.getInstance(plugin);
             if (api.isAdvancementTabRegistered(tabName)) {
-                api.unregisterAdvancementTab(tabName);
+                // deleteClient=false: the client may still be showing this tab and UAA prefers keeping it,
+                // since the client discards the virtual tree on its own after a datapack reload.
+                api.unregisterAdvancementTab(tabName, false);
             }
         } catch (Exception ignored) {
             // UAA already unloaded / not enabled

@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
 
 // Collects bounded, opt-in timings; world access remains in the calling region/entity task.
 public final class PerformanceMonitor {
@@ -47,13 +48,13 @@ public final class PerformanceMonitor {
     }
 
     void reloadConfig() {
-        warningsEnabled = plugin.getConfigBoolean(true, "performance.warnings-enabled");
+        warningsEnabled = plugin.getConfigBoolean(true, "performance.warnings.enabled");
         densityWarningThreshold = Math.max(1, plugin.getConfigInt(64,
-                "performance.cooking-pot-density-warning-threshold"));
+                "performance.warnings.cooking-pot-density-threshold"));
         totalWarningThreshold = Math.max(1, plugin.getConfigInt(1000,
-                "performance.cooking-pot-total-warning-threshold"));
+                "performance.warnings.cooking-pot-total-threshold"));
         int cooldownSeconds = Math.max(1, plugin.getConfigInt(600,
-                "performance.warning-cooldown-seconds"));
+                "performance.warnings.cooldown-seconds"));
         warningCooldownMillis = cooldownSeconds * 1000L;
     }
 
@@ -265,5 +266,21 @@ public final class PerformanceMonitor {
         }
         warningTimes.put(key, now);
         plugin.getLogger().warning(message);
+    }
+
+    // Reports a failed cooking-pot cleanup that was caused by an exception this plugin did not write
+    // (the CE state lookup reads the chunk and can run other plugins' listeners). Throttled per world:
+    // cleanup walks every tracked pot, so an unthrottled report would print one stack per entry per run.
+    // Keyed on the world id so the cooldown-pruned warningTimes map stays small.
+    void warnCleanupFailure(World world, BlockPosKey posKey, Throwable failure) {
+        String key = "cleanup-failure:" + world.getUID();
+        long now = System.currentTimeMillis();
+        Long previous = warningTimes.get(key);
+        if (previous != null && now - previous < warningCooldownMillis) {
+            return;
+        }
+        warningTimes.put(key, now);
+        plugin.getLogger().log(Level.WARNING, I18n.formatNamedArgs("console.tick.cleanup_failed",
+                "world", world.getName(), "pos", posKey.toString(), "error", String.valueOf(failure)), failure);
     }
 }

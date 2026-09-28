@@ -25,7 +25,7 @@ icon: calendar-check
 
 ## 可用性
 
-CE 内容包也可在包根或命名空间目录提供 `advancements.yml`，由 FD 加载。配置树未填写任何 `x` / `y` 时按 `parent` 关系调用项目 UAA 补丁版的原版布局算法；只要写了坐标就保留手动布局。Java `AdvancementTree` 仍使用调用方提供的坐标。
+CE 内容包可在 `configuration/` 下的任意 YAML 里用 `farmersdelight_advancements` 根键提供进度树，由 CraftEngine 在加载数据包时读出来交给 FD。根键必须带 `farmersdelight_` 前缀：CraftEngine 自己占用了 `advancements` / `advancement`（其解析实现是空的），用那两个名字的段谁都不会读。命名空间默认取数据包 `pack.yml` 里的 `namespace`；要给一个数据包挂多个命名空间的进度树，写 `farmersdelight_advancements#<命名空间>:`。配置树未填写任何 `x` / `y` 时按 `parent` 关系调用项目 UAA 补丁版的原版布局算法；只要写了坐标就保留手动布局。Java `AdvancementTree` 仍使用调用方提供的坐标。
 
 ```java
 public static boolean isAvailable();

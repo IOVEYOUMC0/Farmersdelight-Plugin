@@ -238,7 +238,7 @@ public final class ChoiceBuilderGui extends AbstractInventoryGui implements Edit
 
     private void openTagPicker(int idx, ItemStack source) {
         RecipeViewGuiConfig.BaseConfig pickerConfig =
-                plugin.getRecipeEditorGuiConfig().getTagPickerConfig();
+                RecipeEditorView.guiConfig().getTagPickerConfig();
         if (pickerConfig == null) return;
         List<String> tags = ItemUtils.getAllItemTagIds(source);
         if (tags.isEmpty()) return;

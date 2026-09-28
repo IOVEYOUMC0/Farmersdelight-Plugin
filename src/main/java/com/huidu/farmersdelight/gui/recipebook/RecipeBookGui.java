@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.gui.recipebook;
 
+import com.huidu.farmersdelight.gui.editor.RecipeEditorView;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
 import com.huidu.farmersdelight.api.recipe.FillOutcome;
@@ -39,6 +40,8 @@ public final class RecipeBookGui implements InventoryHolder {
     enum View { MENU, LIST, DETAIL }
 
     private static volatile RecipeBookGuiConfig cachedConfig;
+
+    // book instance instead of on every click on a jump icon.
 
     private View view = View.MENU;
     private RecipeType type;
@@ -488,6 +491,10 @@ public final class RecipeBookGui implements InventoryHolder {
     }
 
     private void tryJump(Player player, RenderSpec cfg, int rawSlot) {
+        // Jump icons come from the recipe layout; the config switch decides whether they act.
+        if (!FarmersDelightPlugin.getInstance().getConfigBoolean(true, "recipe-navigation.jumps")) {
+            return;
+        }
         ViewableRecipe recipe = type.recipe(recipeId);
         if (recipe == null) {
             return;
@@ -680,7 +687,7 @@ public final class RecipeBookGui implements InventoryHolder {
         return new ItemStack(fallback);
     }
 
-    static void rename(ItemStack item, Component name) {
+    public static void rename(ItemStack item, Component name) {
         ItemMeta meta = item.getItemMeta();
         if (meta != null && name != null) {
             meta.displayName(name.colorIfAbsent(NamedTextColor.WHITE)
@@ -711,7 +718,7 @@ public final class RecipeBookGui implements InventoryHolder {
 
     // Appends the supplied lore lines to the item's existing lore instead of replacing it, so an item's own
     // description (original lore) is preserved when we add recipe-derived lines.
-    static void applyLore(ItemStack item, List<Component> lore) {
+    public static void applyLore(ItemStack item, List<Component> lore) {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             List<Component> merged = new ArrayList<>();

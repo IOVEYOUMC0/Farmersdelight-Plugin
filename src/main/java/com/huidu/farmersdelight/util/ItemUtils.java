@@ -3,8 +3,11 @@ package com.huidu.farmersdelight.util;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.BlockBehaviorConfigs;
 import com.huidu.farmersdelight.block.behavior.ConfiguredBlockSet;
+import com.huidu.farmersdelight.config.ContainerReturnConfig;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.compat.MMOItemsCompat;
+import io.papermc.paper.datacomponent.DataComponentTypes;
+import io.papermc.paper.datacomponent.item.UseRemainder;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TranslatableComponent;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
@@ -1049,13 +1052,38 @@ public final class ItemUtils {
     }
 
     public static ItemStack craftingRemainderOf(ItemStack item) {
+        return craftingRemainderOf(item, null);
+    }
+
+    /**
+     * The item a stack leaves behind once it is consumed: a water bucket becomes a bucket, a milk bottle a
+     * glass bottle. Resolution order, most explicit first:
+     * <ol>
+     *   <li>the container-returns map, by CE custom id and then by vanilla item id (operator override),</li>
+     *   <li>the item's own CE craft-remainder (settings.craft-remainder): a fixed remainder always
+     *       answers, a recipe_based one answers through recipeId or through its fallback,</li>
+     *   <li>the item's use-remainder component (what eating/drinking it leaves behind),</li>
+     *   <li>the vanilla crafting remainder of the item's material — for a CE item that is its base material's,
+     *       so a CE drink built on minecraft:honey_bottle returns a glass bottle with no configuration,</li>
+     *   <li>the bucket/bottle fallback for containers vanilla declares no remainder for.</li>
+     * </ol>
+     * Returns null when the stack leaves nothing behind.
+     *
+     * @param recipeId id of the recipe consuming the item, matched by recipe_based CE remainders; null when no
+     *                 recipe is involved (a fixed CE remainder still answers, a recipe_based one uses its
+     *                 fallback).
+     */
+    public static ItemStack craftingRemainderOf(ItemStack item, String recipeId) {
         if (item == null || item.getType().isAir()) {
             return null;
         }
-        String customId = getCustomItemId(item);
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        if (customId != null && plugin != null && plugin.getContainerReturnConfig() != null) {
-            return plugin.getContainerReturnConfig().getReturnItem(customId, 1);
+        ItemStack configured = configuredCraftingRemainder(item);
+        if (configured != null) {
+            return configured;
+        }
+        ItemStack declared = declaredCraftingRemainder(item, recipeId);
+        if (declared != null) {
+            return declared;
         }
         Material remainderType = item.getType().getCraftingRemainingItem();
         if (remainderType != null && !remainderType.isAir()) {
@@ -1066,5 +1094,68 @@ public final class ItemUtils {
             case HONEY_BOTTLE -> new ItemStack(Material.GLASS_BOTTLE, 1);
             default -> null;
         };
+    }
+
+    // container-returns, by custom id first and then by the vanilla id, so one map covers both kinds of item.
+    private static ItemStack configuredCraftingRemainder(ItemStack item) {
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        ContainerReturnConfig config = plugin == null ? null : plugin.getContainerReturnConfig();
+        if (config == null) {
+            return null;
+        }
+        String customId = getCustomItemId(item);
+        if (customId != null) {
+            ItemStack configured = config.getReturnItem(customId, 1);
+            if (configured != null) {
+                return configured;
+            }
+        }
+        String vanillaId = getVanillaMaterialItemId(item);
+        return vanillaId == null ? null : config.getReturnItem(vanillaId, 1);
+    }
+
+    // What the item definition itself declares: craft-remainder first (recipe aware), then the use-remainder
+    // component. The component is read through the Paper API, which resolves it for vanilla items (a stew's
+    // bowl) and for CE items that declare it in their pack data alike; CraftEngine's own wrapper only answers
+    // for items that carry the component as a patch, and vanilla `Material#getCraftingRemainingItem` does not
+    // cover the data-driven remainders (stews, potions) at all.
+    private static ItemStack declaredCraftingRemainder(ItemStack item, String recipeId) {
+        ItemStack craftRemainder = ceCraftRemainder(item, recipeId);
+        return craftRemainder != null ? craftRemainder : useRemainderComponent(item);
+    }
+
+    private static ItemStack ceCraftRemainder(ItemStack item, String recipeId) {
+        try {
+            Item wrapped = BukkitItemManager.instance().wrap(item.clone());
+            if (wrapped == null) {
+                return null;
+            }
+            var definition = wrapped.getDefinition().orElse(null);
+            var craftRemainder = definition == null ? null : definition.settings().craftRemainder();
+            if (craftRemainder == null) {
+                return null;
+            }
+            Item result = craftRemainder.remainder(recipeId == null ? null : Key.of(recipeId), wrapped);
+            if (result == null) {
+                return null;
+            }
+            ItemStack stack = ItemStackUtils.getBukkitStack(result);
+            return stack != null && !stack.getType().isAir() && stack.getAmount() > 0 ? stack : null;
+        } catch (RuntimeException | LinkageError ignored) {
+            return null;
+        }
+    }
+
+    private static ItemStack useRemainderComponent(ItemStack item) {
+        try {
+            UseRemainder useRemainder = item.getData(DataComponentTypes.USE_REMAINDER);
+            if (useRemainder == null) {
+                return null;
+            }
+            ItemStack converted = useRemainder.transformInto();
+            return converted != null && !converted.getType().isAir() ? converted : null;
+        } catch (RuntimeException | LinkageError ignored) {
+            return null;
+        }
     }
 }

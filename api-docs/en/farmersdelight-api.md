@@ -76,7 +76,7 @@ decremented, never reused, and never bumped for internal refactors. Removals and
 made under this scheme at all, so an addon compiled against revision N keeps compiling and linking against
 every revision greater than N.
 
-The current value is **3**. Revision 3 added `api.visual.DisplayGroup` (a group that holds packet displays and declares them live for the cleanup sweep) and `api.block.HeatSources` (per-plugin heat-source declarations, replayed after a reload). Revision 1 was the first to expose `apiVersion()` itself. On a build older than that the
+The current value is **4**. Revision 3 added `api.visual.DisplayGroup` (a group that holds packet displays and declares them live for the cleanup sweep) and `api.block.HeatSources` (per-plugin heat-source declarations, replayed after a reload). Revision 1 was the first to expose `apiVersion()` itself. On a build older than that the
 method does not exist, so the call throws `NoSuchMethodError` — catch it and treat it as revision 0:
 
 ```java
@@ -122,6 +122,10 @@ The complete set answered by the current build:
 | `content-check` | CraftEngine content existence checks (`FarmersDelightContent`) |
 | `common-tags` | Central tag registry: addons register their tag→item mappings so the whole family resolves the same tags (`registerCommonTags` / `unregisterCommonTags`) |
 | `advancement-triggers` | Shared obtain/craft/produce and consume advancement item triggers |
+
+**Single build.** The recipe editor, the recipe-to-recipe jumps and handheld skillet cooking are all part of
+the same source tree. Each of the three still obeys its operator switch (`config.yml: recipe-editor.enabled`,
+`recipe-navigation.jumps`, `skillet.handheld`).
 
 Common-tag registration after content load rebuilds tag-dependent recipes and GUI caches automatically.
 

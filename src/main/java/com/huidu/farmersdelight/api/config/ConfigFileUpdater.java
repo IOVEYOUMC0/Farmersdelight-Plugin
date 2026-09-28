@@ -169,28 +169,32 @@ public final class ConfigFileUpdater {
     public static int copyMissingKeys(ConfigurationSection bundled, ConfigurationSection existing,
                                       List<String> registrySections) {
         int added = 0;
-        List<String> candidateSections = new ArrayList<>();
+        List<String> candidateSections = registrySections.isEmpty() ? null : new ArrayList<>();
         // Snapshot taken before anything is written: suppression has to reflect the file as the operator left
         // it. Testing the live section instead lets the first entry written into an absent registry section
         // make that section exist, which then suppresses every remaining sibling and leaves a half-populated
         // entry behind.
-        Set<String> sectionsOperatorAlreadyHad = new HashSet<>();
-        for (String section : registrySections) {
-            if (existing.contains(section, true)) {
-                sectionsOperatorAlreadyHad.add(section);
+        Set<String> sectionsOperatorAlreadyHad = registrySections.isEmpty() ? null : new HashSet<>();
+        if (sectionsOperatorAlreadyHad != null) {
+            for (String section : registrySections) {
+                if (existing.contains(section, true)) {
+                    sectionsOperatorAlreadyHad.add(section);
+                }
             }
         }
         for (String key : bundled.getKeys(true)) {
             // Registry sections list content rather than settings, and deleting an entry there is how an
             // operator disables it. Adding entries back one by one would silently undo that, so these
             // sections are only filled in when the operator's file does not have them at all.
-            if (isSuppressedRegistryEntry(key, registrySections, sectionsOperatorAlreadyHad)) {
+            if (sectionsOperatorAlreadyHad != null
+                    && isSuppressedRegistryEntry(key, registrySections, sectionsOperatorAlreadyHad)) {
                 continue;
             }
-            // getKeys(true) yields a section before its children, so a section still missing at this point is
-            // one the operator's file does not have at all.
+            // getKeys(true) yields a section before its children. A section still missing here is one the
+            // operator's file does not have at all; creating it also brings its children in, so those children
+            // are then found as "present" and only their comments are copied below.
             if (bundled.isConfigurationSection(key)) {
-                if (!existing.contains(key, true)) {
+                if (candidateSections != null && !existing.contains(key, true)) {
                     candidateSections.add(key);
                 }
                 continue;
@@ -210,10 +214,12 @@ public final class ConfigFileUpdater {
             copyComments(bundled, existing, key);
             added++;
         }
-        for (String sectionKey : candidateSections) {
-            // A section exists now only because one of its values was just added; document those headers too.
-            if (existing.contains(sectionKey, true)) {
-                copyComments(bundled, existing, sectionKey);
+        if (candidateSections != null) {
+            for (String sectionKey : candidateSections) {
+                // A section exists now only because one of its values was just added; document those headers too.
+                if (existing.contains(sectionKey, true)) {
+                    copyComments(bundled, existing, sectionKey);
+                }
             }
         }
         return added;
@@ -222,6 +228,9 @@ public final class ConfigFileUpdater {
     private static boolean isSuppressedRegistryEntry(String key, List<String> registrySections,
                                                      Set<String> sectionsOperatorAlreadyHad) {
         for (String section : registrySections) {
+            // The section name itself is never suppressed, only its entries, and a sibling section whose name
+            // merely starts with the same characters ("items" vs "items-extra") is not an entry of it: the
+            // trailing dot is part of the match.
             if (key.equals(section) || !key.startsWith(section + ".")) {
                 continue;
             }

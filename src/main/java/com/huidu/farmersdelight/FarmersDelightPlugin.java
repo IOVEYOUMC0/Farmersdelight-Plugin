@@ -65,10 +65,8 @@ import com.huidu.farmersdelight.effect.EffectListener;
 import com.huidu.farmersdelight.gui.CookingPotGui;
 import com.huidu.farmersdelight.gui.GuiCacheInvalidator;
 import com.huidu.farmersdelight.gui.GuiConfig;
-import com.huidu.farmersdelight.gui.RecipeEditorGuiConfig;
 import com.huidu.farmersdelight.gui.RecipeIngredientIcons;
 import com.huidu.farmersdelight.gui.RecipeViewGui;
-import com.huidu.farmersdelight.gui.editor.RecipeEditorListener;
 import com.huidu.farmersdelight.gui.recipebook.RecipeBookListener;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.loot.KnifeDropHandler;
@@ -82,7 +80,6 @@ import com.huidu.farmersdelight.manager.TrayManager;
 import com.huidu.farmersdelight.recipe.CookingPotRecipeManager;
 import com.huidu.farmersdelight.recipe.RecipeDiscoveryManager;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipeManager;
-import com.huidu.farmersdelight.recipe.RecipeEditorStore;
 import com.huidu.farmersdelight.recipe.RecipeFileLoader;
 import com.huidu.farmersdelight.recipe.SpecialRecipeLoader;
 import com.huidu.farmersdelight.recipe.SpecialRecipeRegistry;
@@ -100,6 +97,10 @@ import com.huidu.farmersdelight.api.visual.DisplayGroup;
 import com.huidu.farmersdelight.listener.worlddata.VillagerTradeListener;
 import com.huidu.farmersdelight.listener.worlddata.WorldDataConfig;
 import com.huidu.farmersdelight.resource.ResourceInstaller;
+import com.huidu.farmersdelight.pack.PackSection;
+import com.huidu.farmersdelight.gui.editor.RecipeEditorListener;
+import com.huidu.farmersdelight.gui.editor.RecipeEditorView;
+import com.huidu.farmersdelight.pack.PackSections;
 import com.huidu.farmersdelight.registry.BehaviorRegistrar;
 import com.huidu.farmersdelight.tool.ToolRegistry;
 import com.huidu.farmersdelight.compat.PlaceholderApiHook;
@@ -160,6 +161,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private volatile boolean startupSyncCompleted = false;
     private CraftEngineReadinessCoordinator craftEngineReadinessCoordinator;
     private DatapackCoordinator datapackCoordinator;
+    // CraftEngine hands pack sections over once per pack load; null when the section ids were taken by
+    // another plugin or CraftEngine was not ready during onLoad. Read by the recipe and advancement loaders.
+    private volatile PackSections packSections;
 
     private SchedulerAdapter scheduler;
     private TickManager tickManager;
@@ -173,7 +177,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private CookingPotRecipeManager cookingPotRecipeManager;
     private CuttingBoardRecipeManager cuttingBoardRecipeManager;
     private SpecialRecipeRegistry specialRecipeRegistry;
-    private volatile RecipeEditorStore recipeEditorStore;
     private BlockBreakListener blockBreakListener;
     private BlockPlaceListener blockPlaceListener;
     private StrawDropListener strawDropListener;
@@ -200,7 +203,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private volatile HeatSourceConfig heatSourceConfig;
     private GuiConfig cookingPotGuiConfig;
     private Map<String, GuiConfig> customCookingPotGuiConfigs = Map.of();
-    private volatile RecipeEditorGuiConfig recipeEditorGuiConfig;
     private YamlConfiguration guiConfig;
     private volatile YamlConfiguration dropsConfig;
     private volatile StrawDropConfig strawDropConfig;
@@ -376,11 +378,16 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         BehaviorRegistrar.registerBlockBehaviors();
         BehaviorRegistrar.registerItemBehaviors();
         BehaviorRegistrar.registerFunctions();
+        BehaviorRegistrar.registerConditions();
+        BehaviorRegistrar.registerLootFunctions();
         // Register the farmersdelight:sword settings modifier before CraftEngine parses item YAML files.
         ToolRegistry.register();
         // Register the farmersdelight:pet_food settings modifier before CraftEngine parses item YAML files.
         PetFoodConfig.setLogger(getLogger());
         PetFoodConfig.registerCraftEngineSetting();
+        // Claim the pack sections CraftEngine hands to this plugin. Must happen here: CraftEngine dispatches
+        // them to the registered parsers while it loads packs in its own onEnable, which runs after this method.
+        packSections = PackSections.register();
         // Register the WorldGuard custom region flag here (onLoad): WG locks its FlagRegistry once it
         // enables, so this must run during the load phase. No-op if WorldGuard is absent.
         ProtectionCompat.registerFlags();
@@ -409,20 +416,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         if (System.getProperty(RELOAD_GUARD_PROPERTY) != null) {
-            getLogger().severe(" ");
-            getLogger().severe(" ");
-            getLogger().severe("==================================================================");
-            getLogger().severe(" PLEASE DO NOT /reload OR HOT-DISABLE FarmersDelight.");
-            getLogger().severe(" ");
-            getLogger().severe(" This plugin hooks deep into CraftEngine block behaviors, the");
-            getLogger().severe(" scheduler, and per-chunk block-entity state. Re-enabling at");
-            getLogger().severe(" runtime leaves stale tasks/listeners/lambdas bound to the old");
-            getLogger().severe(" classloader, which crash randomly with NoClassDefFoundError.");
-            getLogger().severe(" ");
-            getLogger().severe(" To apply config changes: /stop then start the server again.");
-            getLogger().severe("==================================================================");
-            getLogger().severe(" ");
-            getLogger().severe(" ");
+            I18n.logSevere("plugin.no_hot_reload", "name", "FarmersDelight");
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
@@ -434,7 +428,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             I18n.logWarning("plugin.debug_tools_build");
         }
 
-        configBootstrap.ensureConfigDefaults();
+        // onLoad already ensured the files exist; re-running the install pass here would only repeat its
+        // per-file existence and readability checks before migrateConfigKeys() merges the same files.
         configBootstrap.migrateConfigKeys();
         // Startup detail logging reads these flags during I18n initialization and Folia detection.
         loadDebugFlags();
@@ -458,7 +453,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         logStartupSummary();
 
         knifeDropHandler = new KnifeDropHandler(this);
-        knifeDropHandler.loadConfig(dropsConfig);
+        knifeDropHandler.warnAboutLegacyConfig(dropsConfig);
         getServer().getPluginManager().registerEvents(knifeDropHandler, this);
 
         cookingPotRecipeManager = new CookingPotRecipeManager(this);
@@ -647,15 +642,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // Re-enabling FD in the same JVM is refused by onEnable's reload-guard system property, so
         // the worst case is "FD blocks misbehave until /stop", not double-registration chaos.
         if (enabledSuccessfully && !getServer().isStopping()) {
-            getLogger().severe(" ");
-            getLogger().severe("==================================================================");
-            getLogger().severe(" FarmersDelight was disabled at runtime (e.g. via /reload or a");
-            getLogger().severe(" plugin manager). CraftEngine still holds references to FD block");
-            getLogger().severe(" behaviors and block entities, so further interactions may log");
-            getLogger().severe(" NoClassDefFoundError. Restart the server (/stop) at your earliest");
-            getLogger().severe(" convenience. Re-enabling FD in this JVM is refused.");
-            getLogger().severe("==================================================================");
-            getLogger().severe(" ");
+            I18n.logSevere("plugin.stale_classloader", "name", "FarmersDelight");
         }
 
         // MUST be first: stop event delivery before tearing down listeners' state. Vanilla code
@@ -682,6 +669,18 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             if (tickManager != null) {
                 tickManager.stop();
                 tickManager = null;
+            }
+        });
+
+        // Stop the block managers' own tick tasks before the budgeted saves below: they read the tick manager
+        // that was just cleared (NPE would kill the repeating task) and they must not keep cooking, dropping
+        // items or advancing display state after the data they own has been written to disk.
+        runDisableStep("plugin.disable_step_suspend_block_tick_tasks", () -> {
+            if (stoveManager != null) {
+                stoveManager.suspendTickTask();
+            }
+            if (skilletManager != null) {
+                skilletManager.suspendTickTasks();
             }
         });
 
@@ -715,8 +714,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         runDisableStep("plugin.disable_step_close_cooking_pot_guis", CookingPotGui::cleanupAll);
         runDisableStep("plugin.disable_step_close_recipe_view_guis", () -> {
             RecipeViewGui.cleanupAll();
-            // The editor listener is unregistered below via HandlerList; reset its flag so a soft restart
-            // re-registers a fresh listener.
             RecipeEditorListener.reset();
             // Same for RecipeBookListener: reset its flag, otherwise after a soft restart click/drag events
             // are no longer cancelled and items can be duped.
@@ -1011,6 +1008,19 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         ReloadCacheInvalidator.clear();
         if (specialRecipeRegistry != null) {
             specialRecipeRegistry.invalidateIndex();
+            // Re-apply the special-recipe sources: a CraftEngine pack reload may have changed the cards it
+            // declares, and this is the only pass that sees the fresh pack sections.
+            SpecialRecipeLoader.load(this, specialRecipeRegistry);
+        }
+
+        // Pet food is declared as a CraftEngine item setting, so the scan in loadConfigs() only sees anything
+        // once CraftEngine has registered its items. FarmersDelight usually enables first, which left the scan
+        // empty and the tempt list at zero until an explicit /fd reload; repeat it here, where CraftEngine is
+        // known to be ready. PetFoodListener reads the config per interaction, so only the tempt list needs
+        // refreshing.
+        petFoodConfig = configFiles.loadPetFood(getConfig().getConfigurationSection("pet-foods"));
+        if (horseFeedTemptListener != null) {
+            horseFeedTemptListener.reload();
         }
 
         if (stoveManager != null) {
@@ -1049,7 +1059,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         MushroomColonyBehavior.reloadMushroomSupportCache(this);
 
         if (knifeDropHandler != null) {
-            knifeDropHandler.loadConfig(dropsConfig, false);
+            knifeDropHandler.warnAboutLegacyConfig(dropsConfig);
         }
         if (stoveManager != null) {
             stoveManager.reloadConfig();
@@ -1116,7 +1126,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 ? GuiConfig.fromConfig(cookingPotSection)
                 : GuiConfig.createDefault();
         customCookingPotGuiConfigs = loadCustomCookingPotGuiConfigs(guiConfig);
-        recipeEditorGuiConfig = RecipeEditorGuiConfig.fromConfig(guiConfig);
+        RecipeEditorView.reloadGui(guiConfig);
         GuiCacheInvalidator.clearConfigCachesAndCloseOpenGuis();
         I18n.logInfo("plugin.gui_configuration_reloaded", "file", "gui.yml");
     }
@@ -1253,30 +1263,28 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 ? GuiConfig.fromConfig(cookingPotSection)
                 : GuiConfig.createDefault();
         customCookingPotGuiConfigs = loadCustomCookingPotGuiConfigs(guiConfig);
-        recipeEditorGuiConfig = RecipeEditorGuiConfig.fromConfig(guiConfig);
+        RecipeEditorView.reloadGui(guiConfig);
 
         // Build each immutable configuration before publishing it through its volatile field.
         // Region-thread event handlers can then read a complete snapshot during reload.
         ConfigurationSection strawDropSection = loadedDropsConfig.getConfigurationSection("straw");
         StrawDropConfig newStrawDropConfig = new StrawDropConfig();
-        newStrawDropConfig.loadDefaults();
-        if (strawDropSection != null) {
-            newStrawDropConfig.loadFromConfig(strawDropSection);
-        }
+        // No code-side defaults: the bundled drops.yml carries them and the section is a registry section,
+        // so a rule the operator deleted has to stay deleted.
+        newStrawDropConfig.loadFromConfig(strawDropSection);
         strawDropConfig = newStrawDropConfig;
 
         petFoodConfig = configFiles.loadPetFood(getConfig().getConfigurationSection("pet-foods"));
 
         ConfigurationSection containerReturnSection = getFirstConfigSection("container-returns", "cooking-pot.container-returns");
         ContainerReturnConfig newContainerReturnConfig = new ContainerReturnConfig();
-        newContainerReturnConfig.loadDefaults();
-        if (containerReturnSection != null) {
-            newContainerReturnConfig.loadFromConfig(containerReturnSection);
-        }
+        // Same rule as the straw drops above: bundled defaults only, no code-side re-adding.
+        newContainerReturnConfig.loadFromConfig(containerReturnSection);
         containerReturnConfig = newContainerReturnConfig;
 
         CuttingBoardDisplayConfig newCuttingBoardDisplayConfig = new CuttingBoardDisplayConfig();
         newCuttingBoardDisplayConfig.loadFromConfig(getConfig().getConfigurationSection("cutting-board"));
+        newCuttingBoardDisplayConfig.loadOverridesFromFile(configFiles.loadDisplayOverrides());
         cuttingBoardDisplayConfig = newCuttingBoardDisplayConfig;
         CuttingBoardDisplayConfig newSkilletDisplayConfig = createSkilletDisplayConfig();
         newSkilletDisplayConfig.loadFromConfig(getFirstConfigSection("skillet.display", "display-visuals.skillet"));
@@ -1520,6 +1528,17 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return BukkitCraftEngine.instance();
     }
 
+    /** Pack sections CraftEngine collected, or null when the parser could not be registered. */
+    public PackSections getPackSections() {
+        return packSections;
+    }
+
+    /** Snapshots of one pack section, empty when the parser could not be registered. */
+    public List<PackSections.Section> packSectionsOf(PackSection section) {
+        PackSections parser = packSections;
+        return parser == null ? List.of() : parser.sectionsOf(section);
+    }
+
     public SchedulerAdapter scheduler() {
         if (scheduler == null) {
             throw new IllegalStateException("Scheduler is not available");
@@ -1598,20 +1617,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return Collections.unmodifiableList(cuttingBoardInteractionHandlers);
     }
 
-    public RecipeEditorStore getRecipeEditorStore() {
-        RecipeEditorStore store = this.recipeEditorStore;
-        if (store == null) {
-            synchronized (this) {
-                store = this.recipeEditorStore;
-                if (store == null) {
-                    store = new RecipeEditorStore(this);
-                    this.recipeEditorStore = store;
-                }
-            }
-        }
-        return store;
-    }
-
     private volatile CuttingBoardSounds cuttingBoardSounds = CuttingBoardSounds.defaults();
 
     public CuttingBoardSounds getCuttingBoardSounds() {
@@ -1638,18 +1643,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
         GuiConfig customConfig = customCookingPotGuiConfigs.get(customId);
         return customConfig != null ? customConfig : getCookingPotGuiConfig();
-    }
-
-    public RecipeEditorGuiConfig getRecipeEditorGuiConfig() {
-        RecipeEditorGuiConfig config = recipeEditorGuiConfig;
-        if (config == null) {
-            if (guiConfig == null) {
-                guiConfig = configFiles.loadGui();
-            }
-            config = RecipeEditorGuiConfig.fromConfig(guiConfig);
-            recipeEditorGuiConfig = config;
-        }
-        return config;
     }
 
     public ConfigurationSection getRecipeViewGuiSection() {

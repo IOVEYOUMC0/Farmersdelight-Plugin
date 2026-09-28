@@ -76,7 +76,7 @@ public class ChunkLoadListener implements Listener {
 
         startupLoadTask = plugin.scheduler().runRepeating(() -> {
             int chunksPerTick = Math.max(1, plugin.getConfigInt(DEFAULT_STARTUP_CHUNK_LOADS_PER_TICK,
-                    "performance.startup-chunk-loads-per-tick"));
+                    "performance.budgets.startup-chunk-loads-per-tick"));
             for (int i = 0; i < chunksPerTick; i++) {
                 StartupChunk chunk = chunksToLoad.pollFirst();
                 if (chunk == null) {

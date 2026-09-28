@@ -29,6 +29,10 @@ public final class PluginConfigFiles {
         return bootstrap.loadDropsConfig();
     }
 
+    public YamlConfiguration loadDisplayOverrides() {
+        return bootstrap.loadDisplayOverridesConfig();
+    }
+
     public YamlConfiguration loadGui() {
         Path path = plugin.getDataFolder().toPath().resolve("gui.yml");
         YamlConfiguration yaml = new YamlConfiguration();

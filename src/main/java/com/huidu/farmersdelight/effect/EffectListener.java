@@ -37,7 +37,7 @@ public class EffectListener implements Listener {
     // durations decrement by each pass, so every consumer reads it back through tickInterval() to stay
     // identical. A changed interval takes effect on the next start (plugin enable / server restart),
     // keeping the running scheduler period and the duration decrement in lockstep.
-    // Config: performance.effect-tick-interval-ticks (default 4, min 1).
+    // Config: performance.budgets.effect-tick-interval-ticks (default 4, min 1).
     private static final long DEFAULT_TICK_INTERVAL = 4L;
     private static volatile long tickInterval = DEFAULT_TICK_INTERVAL;
 
@@ -139,7 +139,7 @@ public class EffectListener implements Listener {
             // every later on-demand restart, so a restart mid-session keeps the same cadence.
             if (effectTask == null) {
                 tickInterval = Math.max(1L, plugin.getConfigInt((int) DEFAULT_TICK_INTERVAL,
-                        "performance.effect-tick-interval-ticks"));
+                        "performance.budgets.effect-tick-interval-ticks"));
             }
         }
         active = this;

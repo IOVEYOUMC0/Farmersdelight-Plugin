@@ -63,7 +63,7 @@ hopper-interactions:
 ```
 
 漏斗 ↔ 工作站桥接的总开关（烹饪锅、砧板、煎锅）。如果漏斗和你别的插件打架，**先把这个总开关关掉**隔离问题，再重新开启
-并调各工作站的 `hopper-interactions:` 子开关。细节见管理员 Wiki 的 `cutting-board` 和 `cooking-pot` 说明。
+并调各工作站的 `allow-hopper: true/false`。细节见管理员 Wiki 的 `cutting-board` 和 `cooking-pot` 说明。
 
 ## 配方发现（锁定配方书）
 
@@ -102,7 +102,9 @@ advancements:
 
 ## 更深的开关在哪
 
-性能预算、粒子 / 音效、显示偏移、热源和自定义物品的 `container-returns` 位于 `config.yml`。生物额外掉落和稻草掉落规则位于
+性能预算（`performance.warnings` / `performance.budgets` / `performance.proxy-display`）、粒子 / 音效、显示偏移、热源和
+自定义物品的 `container-returns` 位于 `config.yml`。砧板上每个物品 / 标签的显示覆盖表位于
+`plugins/FarmersDelight/display-overrides.yml`（`items` / `tags`）。生物额外掉落和稻草掉落规则位于
 `plugins/FarmersDelight/drops.yml`。村民 / 流浪商人交易位于 `plugins/FarmersDelight/world-data.yml`，删掉其中一个条目即可禁用该交易。堆肥、熔炉燃料、宠物食物和食物 Buff
 关联位于 CraftEngine 物品配置中。CE 配置有意保持无注释，字段说明见[方块行为配置](block-behaviors.md)。第一天基本用不到。
 

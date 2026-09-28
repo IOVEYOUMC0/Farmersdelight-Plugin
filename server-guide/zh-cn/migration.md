@@ -34,8 +34,11 @@ icon: arrows-rotate
 所以插件更新后你**不需要**手动迁移 `config.yml`——你调过的值都活着，新设置以默认值出现，死键被清掉。（这过程中若备份失败，
 会记录到日志里，而不是中止更新。）
 
-村民与流浪商人交易现已放入 `world-data.yml`，生物额外掉落和稻草掉落规则现已放入 `drops.yml`。只要旧版 `config.yml` 仍含有
-`world-data:` 或 `drops:` 段，对应段就会自动移入对应文件。移动前相关文件都会备份；之后请编辑独立文件。
+村民与流浪商人交易现已放入 `world-data.yml`，生物额外掉落和稻草掉落规则现已放入 `drops.yml`，砧板的逐物品 / 逐标签显示表
+现已放入 `display-overrides.yml`（`items` / `tags`）。只要旧版 `config.yml` 仍含有 `world-data:`、`drops:`、
+`cutting-board.display-overrides` 或 `cutting-board.display-tag-overrides` 段，对应段就会自动移入对应文件。
+`config.yml` 内被改名的设置（各工作站的 `hopper-interactions` 子开关改为 `allow-hopper`；`performance.*` 归入
+`warnings` / `budgets` / `proxy-display` 三组）会就地重写。移动前相关文件都会备份；之后请编辑独立文件。
 
 ## 随包文件只在缺失时安装
 
@@ -65,7 +68,24 @@ recipes:
 
 配方文件**仅当完全缺失时**才写出。更新新增的配方永远不会到达已经有 `recipes/*.yml` 的服务器。启动时，存在于 jar 里但
 不在硬盘上的 id 会在控制台被列出一次。想把这些新 id 拉进来，设 `merge-missing-bundled: true`——但如果你是故意删了配方，
-就保持 **false**，因为合并会把每个被删配方都带回来。任一设置下，硬盘上已有的 id 都不会被覆盖。
+就保持 **false**，因为合并会把每个被删配方都带回来。任一设置下，硬盘上已有的 id 都不会被覆盖。同一个开关也管
+`recipes/special_recipes.yml` 里的随包卡片：开关为 false 时，从文件里删掉一张卡片就是真的删掉（禁用）。
+
+### 附属的厨锅 / 砧板 / 特殊配方搬进了数据包
+
+CrabbersDelight、BrewinAndChewin、BarbequesDelight 与 EndsDelight 的厨锅、砧板与特殊配方不再放在
+`plugins/<附属>/recipes/*.yml`，而是随各自的数据包发布，位于
+`plugins/CraftEngine/resources/<附属>/configuration/farmersdelight/`，根键分别是 `cooking_recipes`、`cutting_recipes`、
+`special_recipes`。配方 id 与内容都没变，只是摆放位置和生效方式变了：
+
+- 旧文件 `plugins/<附属>/recipes/{cooking_pot_recipes,cutting_board_recipes,special_recipes}.yml` **不再被读取**，
+  可以删掉。若你在里面改过配方，先把改动搬到上面那个数据包目录，再 `/ce reload all`（或重启）。
+  升级时新文件会由插件自动释放；已存在的同名文件不会被覆盖。
+- 改这些配方要 `/ce reload all`（或重启），不再是 `/fd reload`：数据包内容由 CraftEngine 在加载数据包时读取。
+- 各附属自己的配方（Brewin' And Chewin 的酒桶发酵与倾倒、BarbequesDelight 的烧烤与串制）同样搬进了数据包，位置是
+  `plugins/CraftEngine/resources/<附属>/configuration/recipes/`。它们多了一层：`plugins/<附属>/recipes/<同名文件>.yml`
+  **仍会被叠加读取**，同 id 以插件文件为准——游戏内的酒桶配方编辑器写的就是这个文件。所以旧文件可以留着当覆盖层
+  （内容与数据包默认值相同，不会改变结果），也可以删掉改用数据包版本；改动数据包里的配方同样要 `/ce reload all`。
 
 ### 战利品注入数据包
 

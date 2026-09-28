@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.item.FarmersDelightItems;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.util.BehaviorArgParser;
@@ -8,18 +9,22 @@ import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CookingDebugLog;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.SoundUtils;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.util.PermissionChecker;
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
+import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.bukkit.util.EntityUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.plugin.config.ConfigConstants;
 import net.momirealms.craftengine.core.plugin.config.ConfigSection;
+import net.momirealms.craftengine.core.plugin.config.KnownResourceException;
 import net.momirealms.craftengine.core.block.behavior.EntityBlock;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.block.entity.BlockEntityController;
@@ -28,9 +33,12 @@ import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Sound;
+import org.bukkit.SoundCategory;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.damage.DamageSource;
@@ -66,35 +74,91 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
     private final String crackleSound;
     private final boolean burnEnabled;
     private final double burnDamage;
+    // Flint & steel / fire charge light the stove and a shovel / water bucket puts it out, the two halves of
+    // the mod's AbstractStoveBlock#useItemOn that every stove block inherits there. Both are switchable so an
+    // addon can keep a stove that only cooks, and the four sounds plus the tool wear are configurable because
+    // they used to live in the pack's right_click events.
+    private final boolean igniteEnabled;
+    private final boolean extinguishEnabled;
+    private final String igniteSound;
+    private final String fireChargeSound;
+    private final String extinguishSound;
+    private final String waterExtinguishSound;
+    private final int stateChangeToolDamage;
     // The custom farmersdelight:stove_burn damage type from FD's datapack (correct death message + mob
     // panic), or HOT_FLOOR when the datapack is not loaded so the burn still works either way. Resolved
     // lazily on the first step; a /ce reload replaces this behavior together with the block definition.
     private volatile DamageType burnDamageType;
 
     private StoveCookingBlockBehavior(BlockDefinition block, Property<Boolean> fireProperty, String crackleSound,
-                                       boolean burnEnabled, double burnDamage) {
+                                       boolean burnEnabled, double burnDamage, boolean igniteEnabled,
+                                       boolean extinguishEnabled, String igniteSound, String fireChargeSound,
+                                       String extinguishSound, String waterExtinguishSound,
+                                       int stateChangeToolDamage) {
         super(block);
         this.fireProperty = fireProperty;
         this.crackleSound = crackleSound;
         this.burnEnabled = burnEnabled;
         this.burnDamage = burnDamage;
+        this.igniteEnabled = igniteEnabled;
+        this.extinguishEnabled = extinguishEnabled;
+        this.igniteSound = igniteSound;
+        this.fireChargeSound = fireChargeSound;
+        this.extinguishSound = extinguishSound;
+        this.waterExtinguishSound = waterExtinguishSound;
+        this.stateChangeToolDamage = stateChangeToolDamage;
     }
 
     public static final BlockBehaviorFactory<StoveCookingBlockBehavior> FACTORY = new BlockBehaviorFactory<>() {
         @Override
         public StoveCookingBlockBehavior create(BlockDefinition block, ConfigSection section) {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
-            // The lit state is not optional: without it the stove has no way to be off, so a block that
-            // declares this behavior without a boolean 'fire' property aborts its own load here with the
-            // config node and property name in the message, instead of behaving as permanently lit.
             String path = section != null ? section.path() : Constants.BEHAVIOR_STOVE;
+            // The lit state is required, not optional, and the property name is fixed to 'fire' the same way
+            // craftengine:crop_block requires 'age': every ignite/extinguish interaction below writes this
+            // property, and a block that declares the behavior without a boolean 'fire' property would load as
+            // a stove that can never be lit or put out. getProperty aborts the block's own load here, naming
+            // the config node and the property, instead of failing later at the first right-click.
             Property<Boolean> fireProperty = BlockBehaviorFactory.getProperty(path, block, FIRE_PROPERTY, Boolean.class);
             String crackleSound = BehaviorArgParser.getArgumentString(arguments, "crackle-sound", Constants.SOUND_STOVE_CRACKLE);
-            boolean burnEnabled = BehaviorArgParser.getBoolean(arguments, "burn-enabled", true);
-            double burnDamage = Math.max(0D, (double) BehaviorArgParser.getFloat(arguments, "burn-damage", 1.0F));
-            return new StoveCookingBlockBehavior(block, fireProperty, crackleSound, burnEnabled, burnDamage);
+            // Grouped options read either as "burn: {enabled, damage}" or as the legacy flat "burn-enabled" /
+            // "burn-damage" (same for ignite/extinguish and the handle-toggle-sound options elsewhere).
+            boolean burnEnabled = BehaviorArgParser.getBoolean(arguments, "burn.enabled", true);
+            double burnDamage = Math.max(0D, (double) BehaviorArgParser.getFloat(arguments, "burn.damage", 1.0F));
+            boolean igniteEnabled = BehaviorArgParser.getBoolean(arguments, "ignite.enabled", true);
+            boolean extinguishEnabled = BehaviorArgParser.getBoolean(arguments, "extinguish.enabled", true);
+            // Sound ids and the tool wear are validated here, so a typo fails the block's load with its config
+            // path instead of silently falling back to the vanilla sound or damaging by the wrong amount.
+            String igniteSound = requireSoundId(path, "ignite.sound",
+                    BehaviorArgParser.getArgumentString(arguments, "ignite.sound", Constants.SOUND_STOVE_IGNITE));
+            String fireChargeSound = requireSoundId(path, "ignite.fire-charge-sound",
+                    BehaviorArgParser.getStringStrict(arguments, "ignite.fire-charge-sound", "fire-charge-sound",
+                            Constants.SOUND_STOVE_IGNITE_FIRE_CHARGE).trim());
+            String extinguishSound = requireSoundId(path, "extinguish.sound",
+                    BehaviorArgParser.getArgumentString(arguments, "extinguish.sound", Constants.SOUND_STOVE_EXTINGUISH));
+            String waterExtinguishSound = requireSoundId(path, "extinguish.water-sound",
+                    BehaviorArgParser.getStringStrict(arguments, "extinguish.water-sound", "water-extinguish-sound",
+                            Constants.SOUND_STOVE_EXTINGUISH_WATER).trim());
+            int stateChangeToolDamage = Math.max(0, BehaviorArgParser.getInt(arguments, "tool-damage", 1));
+            return new StoveCookingBlockBehavior(block, fireProperty, crackleSound, burnEnabled, burnDamage,
+                    igniteEnabled, extinguishEnabled, igniteSound, fireChargeSound, extinguishSound,
+                    waterExtinguishSound, stateChangeToolDamage);
         }
     };
+
+    // Vanilla-style namespaced id: namespace:path, lowercase letters/digits and '_', '-', '.', '/' only.
+    private static final java.util.regex.Pattern SOUND_ID_PATTERN =
+            java.util.regex.Pattern.compile("^[a-z0-9_.-]+:[a-z0-9_./-]+$");
+
+    // Validates one configured sound id. CraftEngine's Key.of does not check anything (it only splits on ':'),
+    // so the pattern above is what makes a typo fail the block's own load with its config path.
+    static String requireSoundId(String path, String argument, String raw) {
+        if (raw == null || !SOUND_ID_PATTERN.matcher(raw).matches()) {
+            throw new KnownResourceException(ConfigConstants.PARSE_IDENTIFIER_FAILED,
+                    path + "." + argument, String.valueOf(raw));
+        }
+        return raw;
+    }
 
     public boolean isLit(ImmutableBlockState state) {
         if (state == null || state.isEmpty()) {
@@ -233,7 +297,7 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
         }
 
         if (isStateChangeItem(heldItem)) {
-            return InteractionResult.PASS;
+            return handleStateChangeItem(context, state, player, block, heldItem);
         }
 
         if (isEquippable(heldItem)) {
@@ -266,6 +330,104 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
     @Override
     public void tick(Object thisBlock, Object[] args) {
         // Managed by StoveManager.
+    }
+
+    /**
+     * The mod's AbstractStoveBlock#useItemOn, split off into ignite/extinguish: a lit stove goes out when hit
+     * with a shovel or doused with a water bucket, an unlit one lights up from flint & steel or a fire charge.
+     * Every stove block inherits this there, so handling it in the behavior is what makes an addon stove (an
+     * addon's own 'fire' property block reusing farmersdelight:stove) behave like the mod's without the pack
+     * having to repeat four right_click handlers. Returns PASS when the held item is not one of the four, so
+     * the interaction falls through unchanged.
+     */
+    private InteractionResult handleStateChangeItem(UseOnContext context, ImmutableBlockState state,
+                                                    Player player, Block block, ItemStack heldItem) {
+        Material type = heldItem.getType();
+        StateChange action = stateChangeAction(isLit(state), type, igniteEnabled, extinguishEnabled);
+        if (action == StateChange.EXTINGUISH) {
+            if (type.name().endsWith("_SHOVEL")) {
+                setLit(block, state, false);
+                SoundUtils.play(block.getWorld(), center(block), extinguishSound,
+                        Sound.BLOCK_FIRE_EXTINGUISH, SoundCategory.BLOCKS, 1.0F, 1.0F);
+                FarmersDelightItems.damage(heldItem, stateChangeToolDamage, center(block));
+                ItemUtils.swingHand(player, context.getHand());
+                return InteractionResult.SUCCESS_AND_CANCEL;
+            }
+            if (type == Material.WATER_BUCKET) {
+                setLit(block, state, false);
+                SoundUtils.play(block.getWorld(), center(block), waterExtinguishSound,
+                        Sound.ENTITY_GENERIC_EXTINGUISH_FIRE, SoundCategory.BLOCKS, 1.0F, 1.0F);
+                // The mod leaves the crafting remainder in the hand (an empty bucket) unless the player is in
+                // creative, where the bucket is kept.
+                if (player.getGameMode() != GameMode.CREATIVE) {
+                    heldItem.setType(Material.BUCKET);
+                }
+                ItemUtils.swingHand(player, context.getHand());
+                return InteractionResult.SUCCESS_AND_CANCEL;
+            }
+            return InteractionResult.PASS;
+        }
+        if (action == StateChange.IGNITE) {
+            if (type == Material.FLINT_AND_STEEL) {
+                setLit(block, state, true);
+                SoundUtils.play(block.getWorld(), center(block), igniteSound,
+                        Sound.ITEM_FLINTANDSTEEL_USE, SoundCategory.BLOCKS, 1.0F, 1.0F);
+                FarmersDelightItems.damage(heldItem, stateChangeToolDamage, center(block));
+                ItemUtils.swingHand(player, context.getHand());
+                return InteractionResult.SUCCESS_AND_CANCEL;
+            }
+            if (type == Material.FIRE_CHARGE) {
+                setLit(block, state, true);
+                SoundUtils.play(block.getWorld(), center(block), fireChargeSound,
+                        Sound.ITEM_FIRECHARGE_USE, SoundCategory.BLOCKS, 1.0F, 1.0F);
+                if (player.getGameMode() != GameMode.CREATIVE) {
+                    heldItem.setAmount(heldItem.getAmount() - 1);
+                }
+                ItemUtils.swingHand(player, context.getHand());
+                return InteractionResult.SUCCESS_AND_CANCEL;
+            }
+        }
+        return InteractionResult.PASS;
+    }
+
+    /** Which state change a right-click performs: a stove is only ever lit or put out, never both. */
+    enum StateChange {
+        NONE,
+        IGNITE,
+        EXTINGUISH
+    }
+
+    /**
+     * The mod's ignite/extinguish split (AbstractStoveBlock#tryToIgnite only runs while unlit and
+     * #tryToExtinguish only while lit), plus the two behavior switches. Pure so the rule is unit-tested
+     * without a server; the caller maps the action onto the item that produced it.
+     */
+    static StateChange stateChangeAction(boolean lit, Material held, boolean igniteEnabled, boolean extinguishEnabled) {
+        if (held == null || held == Material.AIR) {
+            return StateChange.NONE;
+        }
+        if (lit) {
+            return extinguishEnabled && isExtinguishItem(held) ? StateChange.EXTINGUISH : StateChange.NONE;
+        }
+        return igniteEnabled && isIgniteItem(held) ? StateChange.IGNITE : StateChange.NONE;
+    }
+
+    private static boolean isExtinguishItem(Material type) {
+        return type == Material.WATER_BUCKET || type.name().endsWith("_SHOVEL");
+    }
+
+    private static boolean isIgniteItem(Material type) {
+        return type == Material.FLINT_AND_STEEL || type == Material.FIRE_CHARGE;
+    }
+
+    // Writes the block's own fire property. place(..., false) keeps the state swap silent; the interaction
+    // plays its own sound above.
+    private void setLit(Block block, ImmutableBlockState state, boolean lit) {
+        CraftEngineBlocks.place(block.getLocation(), state.with(fireProperty, lit), false);
+    }
+
+    private static Location center(Block block) {
+        return block.getLocation().add(0.5D, 0.5D, 0.5D);
     }
 
     @Override
@@ -340,12 +502,8 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
         if (itemStack == null || itemStack.getType().isAir()) {
             return false;
         }
-
         Material type = itemStack.getType();
-        return type == Material.FLINT_AND_STEEL
-                || type == Material.FIRE_CHARGE
-                || type == Material.WATER_BUCKET
-                || type.name().endsWith("_SHOVEL");
+        return isIgniteItem(type) || isExtinguishItem(type);
     }
 
     @SuppressWarnings("UnstableApiUsage")

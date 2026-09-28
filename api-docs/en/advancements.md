@@ -25,7 +25,7 @@ UAA-bound build later, and rebuilds it across `/fd reload`.
 
 ## Availability
 
-CE packs can supply `advancements.yml` at the pack root or inside a namespace directory. When no node declares `x` / `y`, FD lays out the tree from its `parent` relationships using the patched UAA's vanilla layout algorithm. If coordinates are present, the manual layout is preserved. Java `AdvancementTree` callers retain their supplied coordinates.
+A CE pack declares advancement trees with the `farmersdelight_advancements` root key in any YAML under `configuration/`; CraftEngine reads them while loading packs and hands them to FD. The key has to carry the `farmersdelight_` prefix: CraftEngine claims `advancements` / `advancement` itself (its parser is an empty stub), so nothing would read a section under those names. The namespace is the pack's `namespace` from its `pack.yml`; to attach trees for several namespaces to one pack, write `farmersdelight_advancements#<namespace>:`. When no node declares `x` / `y`, FD lays out the tree from its `parent` relationships using the patched UAA's vanilla layout algorithm. If coordinates are present, the manual layout is preserved. Java `AdvancementTree` callers retain their supplied coordinates.
 
 ```java
 public static boolean isAvailable();

@@ -1,135 +1,99 @@
 package com.huidu.farmersdelight.advancement;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.pack.PackSection;
+import com.huidu.farmersdelight.pack.PackSections;
 import com.huidu.farmersdelight.util.ItemUtils;
-import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
-import net.momirealms.craftengine.core.pack.Pack;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.Locale;
-import java.util.regex.Pattern;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
-/** Loads optional advancement trees shipped inside a CraftEngine pack. */
+/** Reads the optional advancement trees a CraftEngine pack declares under farmersdelight_advancements. */
 final class AddonAdvancementPackLoader {
     private static final Pattern NAMESPACE = Pattern.compile("[a-z0-9_.-]+");
+
     private AddonAdvancementPackLoader() {}
 
-    record Config(String namespace, Path file, YamlConfiguration yaml) {}
+    /** One pack section, already bridged by PackSections; source names the pack file. */
+    record Config(String namespace, String source, YamlConfiguration yaml) {}
 
     static void load(FarmersDelightPlugin plugin, Consumer<List<Config>> callback) {
-        BukkitCraftEngine ce = plugin.getCraftEngine();
-        if (ce == null || ce.packManager() == null) {
-            callback.accept(List.of());
-            return;
-        }
-        // Capture CE objects on the calling thread. Only immutable paths and YAML parsing leave it.
-        // Skip packs turned off with enable: false. Their items are never registered, so an advancement
-        // built from one would carry an unresolvable icon and a trigger nothing can satisfy.
-        List<Path> roots = ce.packManager().loadedPacks().stream()
-                .filter(Pack::enabled)
-                .map(Pack::folder)
-                .toList();
-        plugin.scheduler().runAsync(() -> {
-            List<Config> configs = new ArrayList<>();
-            for (Path root : roots) {
-                scanRoot(plugin, root, configs);
+        // CraftEngine read the files while loading packs; only the definition tree is parsed here, and that
+        // resolves CraftEngine item ids for the icons, so it stays on the calling (main) thread.
+        List<Config> configs = new ArrayList<>();
+        for (PackSections.Section section : plugin.packSectionsOf(PackSection.ADVANCEMENTS)) {
+            // The namespace is the pack's own, or the suffix of a "farmersdelight_advancements#namespace"
+            // key, which keeps the old ability to publish trees for more than one namespace from one pack.
+            String namespace = validateNamespace(plugin, section.namespace(), section.source());
+            if (namespace != null) {
+                configs.add(new Config(namespace, section.source(), section.yaml()));
             }
-            plugin.scheduler().run(() -> callback.accept(List.copyOf(configs)));
-        });
+        }
+        callback.accept(List.copyOf(configs));
     }
 
-    private static void scanRoot(FarmersDelightPlugin plugin, Path root, List<Config> configs) {
-        Path own = root.resolve("advancements.yml");
-        try (var stream = Files.list(root)) {
-            if (Files.isRegularFile(own)) {
-                String namespace = namespace(plugin, root, root.getFileName().toString());
-                if (namespace != null) {
-                    configs.add(new Config(namespace, own, YamlConfiguration.loadConfiguration(own.toFile())));
-                }
-            }
-            stream.filter(Files::isDirectory).forEach(namespace -> {
-                Path file = namespace.resolve("advancements.yml");
-                if (Files.isRegularFile(file)) {
-                    String id = namespace(plugin, namespace, namespace.getFileName().toString());
-                    if (id != null) {
-                        configs.add(new Config(id, file, YamlConfiguration.loadConfiguration(file.toFile())));
-                    }
-                }
-            });
-        } catch (Exception e) {
-            plugin.getLogger().warning("Failed to scan pack advancements from " + root + ": " + e.getMessage());
+    private static String validateNamespace(FarmersDelightPlugin plugin, String value, String source) {
+        if (value == null || value.isBlank()) {
+            return null;
         }
-    }
-
-    private static String namespace(FarmersDelightPlugin plugin, Path packRoot, String fallback) {
-        String value = fallback;
-        boolean configured = false;
-        Path manifest = packRoot.resolve("pack.yml");
-        if (Files.isRegularFile(manifest)) {
-            String configuredValue = YamlConfiguration.loadConfiguration(manifest.toFile()).getString("namespace");
-            if (configuredValue != null && !configuredValue.isBlank()) {
-                value = configuredValue.trim();
-                configured = true;
-            }
-        }
-        String normalized = value.toLowerCase(Locale.ROOT);
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
         if (!NAMESPACE.matcher(normalized).matches()) {
-            plugin.getLogger().warning("Invalid advancement namespace '" + value + "' in " + packRoot
-                    + (configured ? "; pack skipped" : "; pack skipped because its directory name is invalid"));
+            plugin.getLogger().warning("Invalid advancement namespace '" + value + "' in " + source
+                    + "; section skipped");
             return null;
         }
         return normalized;
     }
 
-    static List<AdvancementDef> parse(FarmersDelightPlugin plugin, String namespace, Path file,
+    static List<AdvancementDef> parse(FarmersDelightPlugin plugin, String namespace, String source,
                                       YamlConfiguration yaml) {
-        ConfigurationSection section = yaml.getConfigurationSection("advancements");
+        ConfigurationSection section = yaml.getConfigurationSection(PackSection.ADVANCEMENTS.rootKey());
         if (section == null) {
-            plugin.getLogger().warning("Invalid advancement config at " + file + ": missing 'advancements' section");
+            plugin.getLogger().warning("Invalid advancement config at " + source + ": missing '"
+                    + PackSection.ADVANCEMENTS.rootKey() + "' section");
             return List.of();
         }
         List<AdvancementDef> result = new ArrayList<>();
         for (String id : section.getKeys(false)) {
             ConfigurationSection s = section.getConfigurationSection(id);
-            String path = "advancements." + id;
+            String path = PackSection.ADVANCEMENTS.rootKey() + "." + id;
             if (s == null) {
-                plugin.getLogger().warning("Invalid advancement config at " + file + ": " + path + " must be a section");
+                plugin.getLogger().warning("Invalid advancement config at " + source + ": " + path + " must be a section");
                 continue;
             }
             if (id.isBlank()) {
-                plugin.getLogger().warning("Invalid advancement config at " + file + ": empty advancement id");
+                plugin.getLogger().warning("Invalid advancement config at " + source + ": empty advancement id");
                 continue;
             }
-            warnUnknownKeys(plugin, file, path, s, Set.of("parent", "icon", "title", "description", "frame",
+            warnUnknownKeys(plugin, source, path, s, Set.of("parent", "icon", "title", "description", "frame",
                     "x", "y", "criteria", "required-ids", "criterion-requirements", "background",
                     "show-toast", "announce-chat", "hidden"));
-            warnType(plugin, file, path + ".frame", s, "frame", String.class);
-            warnType(plugin, file, path + ".x", s, "x", Number.class);
-            warnType(plugin, file, path + ".y", s, "y", Number.class);
-            warnListType(plugin, file, path + ".criteria", s, "criteria");
-            warnListType(plugin, file, path + ".required-ids", s, "required-ids");
+            warnType(plugin, source, path + ".frame", s, "frame", String.class);
+            warnType(plugin, source, path + ".x", s, "x", Number.class);
+            warnType(plugin, source, path + ".y", s, "y", Number.class);
+            warnListType(plugin, source, path + ".criteria", s, "criteria");
+            warnListType(plugin, source, path + ".required-ids", s, "required-ids");
             if (s.contains("criterion-requirements")
                     && !(s.get("criterion-requirements") instanceof ConfigurationSection)) {
-                plugin.getLogger().warning("Invalid advancement config at " + file + ": " + path
+                plugin.getLogger().warning("Invalid advancement config at " + source + ": " + path
                         + ".criterion-requirements must be a section");
             }
             for (String key : List.of("show-toast", "announce-chat", "hidden")) {
-                warnType(plugin, file, path + "." + key, s, key, Boolean.class);
+                warnType(plugin, source, path + "." + key, s, key, Boolean.class);
             }
             String frame = s.getString("frame", "task");
             if (frame != null && !Set.of("task", "goal", "challenge").contains(frame.toLowerCase(Locale.ROOT))) {
-                plugin.getLogger().warning("Invalid advancement config at " + file + ": " + path
+                plugin.getLogger().warning("Invalid advancement config at " + source + ": " + path
                         + ".frame has unknown value '" + frame + "'");
             }
             String parent = s.getString("parent");
@@ -144,7 +108,7 @@ final class AddonAdvancementPackLoader {
             ConfigurationSection req = s.getConfigurationSection("criterion-requirements");
             if (req != null) {
                 for (String key : req.getKeys(false)) {
-                    warnListType(plugin, file, path + ".criterion-requirements." + key, req, key);
+                    warnListType(plugin, source, path + ".criterion-requirements." + key, req, key);
                     criterionReq.put(key, req.getStringList(key));
                 }
             }
@@ -157,30 +121,30 @@ final class AddonAdvancementPackLoader {
         return List.copyOf(result);
     }
 
-    private static void warnUnknownKeys(FarmersDelightPlugin plugin, Path file, String path,
+    private static void warnUnknownKeys(FarmersDelightPlugin plugin, String source, String path,
                                         ConfigurationSection section, Set<String> allowed) {
         for (String key : section.getKeys(false)) {
             if (!allowed.contains(key)) {
-                plugin.getLogger().warning("Invalid advancement config at " + file + ": " + path + "." + key
+                plugin.getLogger().warning("Invalid advancement config at " + source + ": " + path + "." + key
                         + " is not a recognized field");
             }
         }
     }
 
-    private static void warnType(FarmersDelightPlugin plugin, Path file, String path,
+    private static void warnType(FarmersDelightPlugin plugin, String source, String path,
                                  ConfigurationSection section, String key, Class<?> expected) {
         if (!section.contains(key)) return;
         Object value = section.get(key);
         if (value != null && !expected.isInstance(value)) {
-            plugin.getLogger().warning("Invalid advancement config at " + file + ": " + path
+            plugin.getLogger().warning("Invalid advancement config at " + source + ": " + path
                     + " must be " + expected.getSimpleName());
         }
     }
 
-    private static void warnListType(FarmersDelightPlugin plugin, Path file, String path,
+    private static void warnListType(FarmersDelightPlugin plugin, String source, String path,
                                      ConfigurationSection section, String key) {
         if (section.contains(key) && !(section.get(key) instanceof List<?>)) {
-            plugin.getLogger().warning("Invalid advancement config at " + file + ": " + path + " must be a list");
+            plugin.getLogger().warning("Invalid advancement config at " + source + ": " + path + " must be a list");
         }
     }
 }

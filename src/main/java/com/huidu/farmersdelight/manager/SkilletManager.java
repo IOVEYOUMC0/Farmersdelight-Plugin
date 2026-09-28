@@ -394,6 +394,13 @@ public class SkilletManager {
         ItemDelivery.giveOrDrop(player, ingredient);
     }
 
+    /**
+     * True when the player is on fire or a heat source sits in the 3x3x3 box around the player's block position.
+     * The box is centred on the player, not on whatever the player right-clicked, which is what the mod does
+     * (SkilletItem#isPlayerNearHeatSource); the clicked block, its face and even right-clicking air are all
+     * irrelevant. An extinguished campfire or stove is cold here, exactly as it is for the pot, the placed
+     * skillet, the tray and the stove: every heat-source question goes through the same state-aware table.
+     */
     private boolean hasNearbyHeatSource(Player player) {
         if (player.getFireTicks() > 0) return true;
         World world = player.getWorld();
@@ -411,7 +418,10 @@ public class SkilletManager {
                 continue;
             }
             Block block = world.getBlockAt(x + dx, y + dy, z + dz);
-            if (plugin.getHeatSourceConfig().isHeatSource(block, CraftEngineBlocks.getCustomBlockState(block))) return true;
+            if (plugin.getHeatSourceConfig().isHeatSource(
+                    block, CraftEngineBlocks.getCustomBlockState(block))) {
+                return true;
+            }
         }
         return false;
     }
@@ -555,7 +565,7 @@ public class SkilletManager {
                 "skillet.cooking.cooling-decrement",
                 "skillet.cooling-decrement"));
         this.reloadVisualRefreshBudget = Math.max(1, plugin.getConfigInt(DEFAULT_RELOAD_VISUAL_REFRESH_BUDGET,
-                "performance.reload-visual-refreshes-per-tick"));
+                "performance.budgets.reload-visual-refreshes-per-tick"));
         this.cookTimeMultiplier = ManagerSupport.clampChance(plugin.getConfigDouble(DEFAULT_COOK_TIME_MULTIPLIER,
                 "skillet.cooking.cook-time-multiplier",
                 "skillet.cooking-time-reduction"));
@@ -647,6 +657,32 @@ public class SkilletManager {
         }
     }
 
+    /**
+     * The item a placed skillet hands over when a player picks the block (creative middle-click): the stack the
+     * block was placed from, i.e. the item it would also drop. Handing over the snapshot keeps the enchantments
+     * and, because it is the very stack the player still holds, lets the pick select that stack instead of
+     * adding a second skillet next to it. Null means the block is not tracked (or its item is unknown), and
+     * CraftEngine falls back to the block's own item id.
+     */
+    public ItemStack pickupSnapshot(Location blockLocation) {
+        if (blockLocation == null || blockLocation.getWorld() == null) {
+            return null;
+        }
+        SkilletData skillet = skillets.get(ManagerSupport.normalize(blockLocation));
+        if (skillet == null) {
+            return null;
+        }
+        // Same monitor the tick and break paths use, so the snapshot cannot be read mid-replacement.
+        synchronized (skillet) {
+            if (skillet.skilletStack == null || skillet.skilletStack.getType().isAir()) {
+                return null;
+            }
+            ItemStack snapshot = skillet.skilletStack.clone();
+            snapshot.setAmount(1);
+            return snapshot;
+        }
+    }
+
     public boolean handleInteract(Player player, Block block, ItemStack itemInHand, EquipmentSlot hand) {
         // Inner defense: never consume equippable items as cooking ingredients, even if the
         // CraftEngine useOnBlock PASSTHROUGH path didn't catch them (armor-swap timing race).
@@ -718,13 +754,25 @@ public class SkilletManager {
             debug("recipe match: stacking onto skillet, recipe=" + recipe.getKey() + ", move=" + toMove
                     + ", storedBefore=" + formatItem(skillet.storedItem) + ", input=" + formatItem(heldItem)
                     + ", location=" + formatLocation(location));
-            skillet.storedItem.setAmount(skillet.storedItem.getAmount() + toMove);
+            int previousAmount = skillet.storedItem.getAmount();
+            skillet.storedItem.setAmount(previousAmount + toMove);
+            UUID previousOwnerId = skillet.ownerId;
+            String previousOwnerName = skillet.ownerName;
             skillet.ownerId = player.getUniqueId();
             skillet.ownerName = player.getName();
             debug("create state: stacked item now=" + formatItem(skillet.storedItem)
                     + ", recipe=" + skillet.currentRecipe.getKey() + ", location=" + formatLocation(location));
-            createVisual(location, skillet);
-            saveSkillet(location, skillet);
+            try {
+                createVisual(location, skillet);
+                saveSkillet(location, skillet);
+            } catch (RuntimeException | LinkageError failure) {
+                // Nothing has been taken from the player yet, so the stored food is put back exactly as it was:
+                // a failing display or save must not leave the same items in the hand and in the skillet.
+                skillet.storedItem.setAmount(previousAmount);
+                skillet.ownerId = previousOwnerId;
+                skillet.ownerName = previousOwnerName;
+                throw failure;
+            }
 
             if (player.getGameMode() != GameMode.CREATIVE) {
                 debug("consume: stacked move=" + toMove + ", before=" + heldItem.getAmount()
@@ -756,6 +804,7 @@ public class SkilletManager {
         ItemStack toPlace = heldItem.clone();
         int placeAmount = heldItem.getAmount();
         toPlace.setAmount(placeAmount);
+        StoredState previousState = captureStoredState(skillet);
         skillet.storedItem = toPlace;
         skillet.currentRecipe = recipe;
         skillet.cookingDuration = getAdjustedCookingTime(recipe.getCookingTime(), skillet.fireAspectLevel);
@@ -766,8 +815,15 @@ public class SkilletManager {
                 + ", duration=" + skillet.cookingDuration + ", fireAspect=" + skillet.fireAspectLevel
                 + ", location=" + formatLocation(location));
 
-        createVisual(location, skillet);
-        saveSkillet(location, skillet);
+        try {
+            createVisual(location, skillet);
+            saveSkillet(location, skillet);
+        } catch (RuntimeException | LinkageError failure) {
+            // The hand stack has not been consumed yet, so restoring the previous stored state keeps the food
+            // in exactly one place when the display or the persistence step fails.
+            restoreStoredState(skillet, previousState);
+            throw failure;
+        }
 
         if (player.getGameMode() != GameMode.CREATIVE) {
             debug("consume: before=" + heldItem.getAmount() + ", after=" + (heldItem.getAmount() - placeAmount)
@@ -793,6 +849,26 @@ public class SkilletManager {
             return null;
         }
         return skillet.storedItem.clone();
+    }
+
+    // Stored-food fields of one skillet, captured before an interaction mutates them so a failure in the
+    // display or persistence step can be rolled back instead of duplicating the item.
+    private record StoredState(ItemStack item, CookingRecipe<?> recipe, int duration, int progress,
+                               UUID ownerId, String ownerName) {
+    }
+
+    private static StoredState captureStoredState(SkilletData skillet) {
+        return new StoredState(skillet.storedItem, skillet.currentRecipe, skillet.cookingDuration,
+                skillet.cookingProgress, skillet.ownerId, skillet.ownerName);
+    }
+
+    private static void restoreStoredState(SkilletData skillet, StoredState state) {
+        skillet.storedItem = state.item();
+        skillet.currentRecipe = state.recipe();
+        skillet.cookingDuration = state.duration();
+        skillet.cookingProgress = state.progress();
+        skillet.ownerId = state.ownerId();
+        skillet.ownerName = state.ownerName();
     }
 
     public SkilletSnapshot snapshot(Location location) {
@@ -827,20 +903,27 @@ public class SkilletManager {
         }
 
         SkilletData skillet = skillets.get(normalized);
-        if (skillet == null || !skillet.hasItem()) {
+        if (skillet == null) {
             return true;
         }
+        // The skillet's data object is the per-block monitor (interactions and breaks lock on it too), so the
+        // emptiness/stack checks read a state no concurrent path can change underneath them.
+        synchronized (skillet) {
+            if (!skillet.hasItem()) {
+                return true;
+            }
 
-        CookingRecipe<?> incomingRecipe = findCampfireRecipe(item);
-        CookingRecipe<?> storedRecipe = skillet.currentRecipe;
-        if (storedRecipe == null) {
-            storedRecipe = findCampfireRecipe(skillet.storedItem);
-        }
-        if (canStackWithStored(skillet.storedItem, item, storedRecipe, incomingRecipe)) {
-            return false;
-        }
+            CookingRecipe<?> incomingRecipe = findCampfireRecipe(item);
+            CookingRecipe<?> storedRecipe = skillet.currentRecipe;
+            if (storedRecipe == null) {
+                storedRecipe = findCampfireRecipe(skillet.storedItem);
+            }
+            if (canStackWithStored(skillet.storedItem, item, storedRecipe, incomingRecipe)) {
+                return false;
+            }
 
-        return skillet.storedItem.getAmount() < skillet.storedItem.getMaxStackSize();
+            return skillet.storedItem.getAmount() < skillet.storedItem.getMaxStackSize();
+        }
     }
 
     public ItemStack insertHopperInput(Location location, ItemStack item) {
@@ -854,54 +937,62 @@ public class SkilletManager {
 
         SkilletData skillet = getOrLoadSkillet(normalized);
         ensurePlacedSkilletState(skillet);
-        CookingRecipe<?> incomingRecipe = findCampfireRecipe(item);
-        ItemStack pending = item.clone();
-
-        if (skillet.hasItem()) {
-            CookingRecipe<?> storedRecipe = skillet.currentRecipe;
-            if (storedRecipe == null) {
-                storedRecipe = findCampfireRecipe(skillet.storedItem);
-                skillet.currentRecipe = storedRecipe;
-            }
-            if (canStackWithStored(skillet.storedItem, pending, storedRecipe, incomingRecipe)) {
+        // Same per-block monitor as the interaction and break paths: a hopper insert runs on the region thread
+        // that owns the hopper, which is not necessarily the one owning the block entity, so without the lock
+        // a concurrent take could hand the same stored stack out twice (or drop an insert).
+        synchronized (skillet) {
+            CookingRecipe<?> incomingRecipe = findCampfireRecipe(item);
+            ItemStack pending = item.clone();
+            if (incomingRecipe == null) {
                 return pending;
             }
 
-            int freeSpace = Math.max(0, skillet.storedItem.getMaxStackSize() - skillet.storedItem.getAmount());
-            int toMove = Math.min(freeSpace, pending.getAmount());
+            if (skillet.hasItem()) {
+                CookingRecipe<?> storedRecipe = skillet.currentRecipe;
+                if (storedRecipe == null) {
+                    storedRecipe = findCampfireRecipe(skillet.storedItem);
+                    skillet.currentRecipe = storedRecipe;
+                }
+                if (canStackWithStored(skillet.storedItem, pending, storedRecipe, incomingRecipe)) {
+                    return pending;
+                }
+
+                int freeSpace = Math.max(0, skillet.storedItem.getMaxStackSize() - skillet.storedItem.getAmount());
+                int toMove = Math.min(freeSpace, pending.getAmount());
+                if (toMove <= 0) {
+                    return pending;
+                }
+
+                debug("hopper input: stacking onto skillet, move=" + toMove + ", storedBefore="
+                        + formatItem(skillet.storedItem) + ", input=" + formatItem(pending)
+                        + ", location=" + formatLocation(normalized));
+                skillet.storedItem.setAmount(skillet.storedItem.getAmount() + toMove);
+                createVisual(normalized, skillet);
+                saveSkillet(normalized, skillet);
+                return remainingAfterMove(pending, toMove);
+            }
+
+            int toMove = Math.min(pending.getAmount(), pending.getMaxStackSize());
             if (toMove <= 0) {
                 return pending;
             }
 
-            debug("hopper input: stacking onto skillet, move=" + toMove + ", storedBefore="
-                    + formatItem(skillet.storedItem) + ", input=" + formatItem(pending)
+            ItemStack toPlace = pending.clone();
+            toPlace.setAmount(toMove);
+            skillet.storedItem = toPlace;
+            skillet.currentRecipe = incomingRecipe;
+            skillet.cookingDuration = getAdjustedCookingTime(incomingRecipe.getCookingTime(), skillet.fireAspectLevel);
+            skillet.cookingProgress = 0;
+            skillet.ownerId = null;
+            skillet.ownerName = null;
+            debug("hopper input: stored=" + formatItem(toPlace) + ", recipe=" + incomingRecipe.getKey()
+                    + ", duration=" + skillet.cookingDuration + ", fireAspect=" + skillet.fireAspectLevel
                     + ", location=" + formatLocation(normalized));
-            skillet.storedItem.setAmount(skillet.storedItem.getAmount() + toMove);
+
             createVisual(normalized, skillet);
             saveSkillet(normalized, skillet);
             return remainingAfterMove(pending, toMove);
         }
-
-        int toMove = Math.min(pending.getAmount(), pending.getMaxStackSize());
-        if (toMove <= 0) {
-            return pending;
-        }
-
-        ItemStack toPlace = pending.clone();
-        toPlace.setAmount(toMove);
-        skillet.storedItem = toPlace;
-        skillet.currentRecipe = incomingRecipe;
-        skillet.cookingDuration = getAdjustedCookingTime(incomingRecipe.getCookingTime(), skillet.fireAspectLevel);
-        skillet.cookingProgress = 0;
-        skillet.ownerId = null;
-        skillet.ownerName = null;
-        debug("hopper input: stored=" + formatItem(toPlace) + ", recipe=" + incomingRecipe.getKey()
-                + ", duration=" + skillet.cookingDuration + ", fireAspect=" + skillet.fireAspectLevel
-                + ", location=" + formatLocation(normalized));
-
-        createVisual(normalized, skillet);
-        saveSkillet(normalized, skillet);
-        return remainingAfterMove(pending, toMove);
     }
 
     public boolean canCook(ItemStack item) {
@@ -1186,6 +1277,30 @@ public class SkilletManager {
         }
 
         return getOrCreateSkillet(normalized);
+    }
+
+    /**
+     * Cancels the placed/handheld tick tasks without dropping any state, for the window between the
+     * shutdown-time save and the in-memory cleanup: a skillet that keeps cooking after its data was written
+     * would drop items the disk copy still lists, and both tasks read the plugin's tick manager, which
+     * shutdown clears first.
+     */
+    public void suspendTickTasks() {
+        synchronized (this) {
+            if (handheldTickTask != null) {
+                handheldTickTask.cancel();
+                handheldTickTask = null;
+            }
+        }
+        synchronized (tickTaskLock) {
+            if (tickTask != null) {
+                tickTask.cancel();
+                tickTask = null;
+            }
+        }
+        synchronized (visualRefreshLock) {
+            stopVisualRefreshTask();
+        }
     }
 
     public void cleanup() {

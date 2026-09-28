@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.Constants;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
@@ -58,8 +59,8 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
             tatamiBlockId = BehaviorArgParser.getString(arguments, "block-id", tatamiBlockId);
             facingPropertyName = BehaviorArgParser.getString(arguments, "facing-property", facingPropertyName);
-            pairedPropertyName = BehaviorArgParser.getString(arguments, "paired-property", pairedPropertyName);
-            boolean pairWhileSneaking = BehaviorArgParser.getBoolean(arguments, "pair-while-sneaking", false);
+            pairedPropertyName = BehaviorArgParser.getString(arguments, "pair.property", "paired-property", pairedPropertyName);
+            boolean pairWhileSneaking = BehaviorArgParser.getBoolean(arguments, "pair.while-sneaking", false);
 
             // Both properties carry the pairing, which is everything this behavior does: without either one no
             // mat ever pairs, no weave orientation is written and no partner is ever reset, while the block
@@ -172,7 +173,9 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
         Block center = world.getBlockAt(brokenLocation);
         for (BlockFace face : ORTHOGONAL_FACES) {
             Block neighbor = center.getRelative(face);
-            ImmutableBlockState nState = CraftEngineBlocks.getCustomBlockState(neighbor);
+            // A neighbour in an unloaded chunk is left alone: unpairing it would mean loading that chunk (or
+            // writing into another region) from a break handler.
+            ImmutableBlockState nState = CustomBlockUtils.getStateIfResident(neighbor);
             if (!isTatamiState(nState)) {
                 continue;
             }

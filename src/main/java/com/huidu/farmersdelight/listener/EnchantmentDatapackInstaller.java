@@ -6,7 +6,10 @@ import com.huidu.farmersdelight.api.enchant.FarmersDelightEnchantments;
 import com.huidu.farmersdelight.config.EnchantmentSettings;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.api.util.DatapackSupport;
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
 import org.bukkit.Bukkit;
+import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -75,7 +78,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
         }
         int cleaned = cleanupRedundantDatapacks(primaryWorld);
         if (wrote || cleaned > 0) {
-            printRestartBanner();
+            announceInstalled(primaryWorld);
         }
     }
 
@@ -155,6 +158,8 @@ public final class EnchantmentDatapackInstaller implements Listener {
             for (String tag : DISTRIBUTION_TAGS) {
                 distribution.put(tag, new ArrayList<>());
             }
+            // Ids the running server has not loaded yet; see addDistributionEntry.
+            List<String> pendingRestart = new ArrayList<>();
 
             if (isBackstabEnabled(settings)) {
                 generated.add(new GeneratedFile(
@@ -162,7 +167,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
                         renderDefinition(settings.backstabbing())));
                 // The built-in backstab enchant belongs to all three distribution tags.
                 for (String tag : DISTRIBUTION_TAGS) {
-                    distribution.get(tag).add(settings.backstabbing().id());
+                    addDistributionEntry(distribution, tag, settings.backstabbing().id(), pendingRestart);
                 }
             }
             for (EnchantmentDefinition definition : FarmersDelightEnchantments.managedDefinitions()) {
@@ -170,13 +175,13 @@ public final class EnchantmentDatapackInstaller implements Listener {
                         enchantmentFile(datapackDir, NamespacedId.parse(definition.id())),
                         renderDefinition(definition)));
                 if (definition.tradeable()) {
-                    distribution.get("tradeable").add(definition.id());
+                    addDistributionEntry(distribution, "tradeable", definition.id(), pendingRestart);
                 }
                 if (definition.treasure()) {
-                    distribution.get("treasure").add(definition.id());
+                    addDistributionEntry(distribution, "treasure", definition.id(), pendingRestart);
                 }
                 if (definition.onRandomLoot()) {
-                    distribution.get("on_random_loot").add(definition.id());
+                    addDistributionEntry(distribution, "on_random_loot", definition.id(), pendingRestart);
                 }
             }
 
@@ -195,6 +200,11 @@ public final class EnchantmentDatapackInstaller implements Listener {
                 }
             }
             changed += deleteStaleFiles(datapackDir, generated);
+            if (!pendingRestart.isEmpty()) {
+                I18n.logWarning("plugin.datapack_registry_pending_restart",
+                        "ids", String.join(", ", pendingRestart),
+                        "hint", I18n.formatConsole("plugin.datapack_hint_restart"));
+            }
             if (changed > 0) {
                 I18n.logDetail("startup", "plugin.enchantment_datapack_written",
                         "count", changed, "dir", datapackDir);
@@ -214,11 +224,33 @@ public final class EnchantmentDatapackInstaller implements Listener {
                 .resolve(id.path() + ".json");
     }
 
-    private void printRestartBanner() {
-        plugin.getLogger().warning("==================================================================");
-        plugin.getLogger().warning(" Updated FarmersDelight enchantment datapack (primary world only).");
-        plugin.getLogger().warning(" RESTART the server to apply registry-level enchantment changes.");
-        plugin.getLogger().warning("==================================================================");
+    /**
+     * Lists an enchantment in a vanilla distribution tag, but only when the running server has already loaded
+     * it: an enchantment written by this run is picked up on the next start, and a tag naming an entry the
+     * registry does not know makes the server's tag load fail (which on newer releases also takes every loot
+     * table that reads that tag down with it). Ids skipped here are reported so the operator knows a restart
+     * is what completes the install.
+     */
+    private static void addDistributionEntry(Map<String, List<String>> distribution, String tag,
+                                             String enchantmentId, List<String> pendingRestart) {
+        if (isEnchantmentRegistered(enchantmentId)) {
+            distribution.get(tag).add(enchantmentId);
+        } else if (!pendingRestart.contains(enchantmentId)) {
+            pendingRestart.add(enchantmentId);
+        }
+    }
+
+    private static boolean isEnchantmentRegistered(String enchantmentId) {
+        NamespacedKey key = NamespacedKey.fromString(enchantmentId);
+        return key != null
+                && RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT).get(key) != null;
+    }
+
+    private void announceInstalled(World primaryWorld) {
+        I18n.logInfo("plugin.datapack_installed",
+                "name", DATAPACK_DIRECTORY,
+                "dir", DatapackSupport.worldRoot(primaryWorld).resolve("datapacks").resolve(DATAPACK_DIRECTORY),
+                "hint", I18n.formatConsole("plugin.datapack_hint_restart"));
     }
 
     static String renderPackMetadata() {

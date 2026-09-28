@@ -55,7 +55,7 @@ import java.util.function.Function;
 @ApiStatus.NonExtendable
 public final class FarmersDelightApi {
 
-    private static final int API_VERSION = 3;
+    private static final int API_VERSION = 4;
 
     private static final Set<String> FEATURES = Set.of(
             // Runtime recipe registration + the generic recipe book / editor (registerRecipeType,

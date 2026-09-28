@@ -45,6 +45,29 @@ public final class CustomBlockUtils {
         return getState(location.getBlock());
     }
 
+    /**
+     * CE state of a block whose chunk is already resident, null when it is not. The ordinary getState
+     * reads through the level, which loads a missing chunk synchronously and fires that chunk's entity-load
+     * events — never what a background or neighbour scan wants. Callers that may run next to an unloaded chunk
+     * (random ticks, redstone/neighbour hooks, delayed tasks) must use this variant.
+     */
+    public static ImmutableBlockState getStateIfResident(Block block) {
+        if (block == null || block.getWorld() == null) {
+            return null;
+        }
+        if (!block.getWorld().isChunkLoaded(block.getX() >> 4, block.getZ() >> 4)) {
+            return null;
+        }
+        return getState(block);
+    }
+
+    public static ImmutableBlockState getStateIfResident(Location location) {
+        if (location == null || location.getWorld() == null) {
+            return null;
+        }
+        return getStateIfResident(location.getBlock());
+    }
+
     public static String getId(Block block) {
         return getId(getState(block));
     }
@@ -66,6 +89,11 @@ public final class CustomBlockUtils {
 
     public static boolean hasId(Block block, String blockId) {
         return normalizeId(blockId).equals(getId(block));
+    }
+
+    /** Like hasId(Block, String), but false instead of loading the chunk when it is not resident. */
+    public static boolean hasIdIfResident(Block block, String blockId) {
+        return normalizeId(blockId).equals(getId(getStateIfResident(block)));
     }
 
     public static boolean hasId(Location location, String blockId) {

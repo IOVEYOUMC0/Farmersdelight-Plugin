@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -33,19 +35,23 @@ public class HeatSourceConfig {
     );
 
     private static Logger LOGGER;
-    private final Set<Material> vanillaBlocks = new HashSet<>();
-    private final Set<Material> vanillaLitBlocks = new HashSet<>();
-    private final Set<String> vanillaTags = new HashSet<>();
-    private final Set<Tag<Material>> resolvedVanillaBlockTags = new HashSet<>();
-    private final Set<Key> customBlockTags = new HashSet<>();
-    private final Set<CustomBlockStateMatcher> customBlockStates = new HashSet<>();
-    private final Set<Material> conductors = new HashSet<>();
-    private final Set<Key> conductorTags = new HashSet<>();
+    // The live lookup tables double as the target of runtime api registrations (an addon may declare heat
+    // sources at any time), while region threads iterate them on the block-interaction hot paths, so the
+    // collections have to tolerate concurrent reads and writes. Entries are added, never removed in place, and
+    // a /fd reload builds a fresh instance, which is why copy-on-write is cheap enough here.
+    private final Set<Material> vanillaBlocks = ConcurrentHashMap.newKeySet();
+    private final Set<Material> vanillaLitBlocks = ConcurrentHashMap.newKeySet();
+    private final Set<String> vanillaTags = ConcurrentHashMap.newKeySet();
+    private final Set<Tag<Material>> resolvedVanillaBlockTags = ConcurrentHashMap.newKeySet();
+    private final Set<Key> customBlockTags = ConcurrentHashMap.newKeySet();
+    private final Set<CustomBlockStateMatcher> customBlockStates = ConcurrentHashMap.newKeySet();
+    private final Set<Material> conductors = ConcurrentHashMap.newKeySet();
+    private final Set<Key> conductorTags = ConcurrentHashMap.newKeySet();
     // Unified entries, evaluated IN ORDER before the legacy lists below; the first entry that matches
     // decides. One entry carries both what to match (vanilla block / vanilla tag / CE block / CE block
     // tag, each optionally narrowed by block state) and what it means (heat source? conductor?), so a
     // negative entry placed earlier can carve a state out of a broader entry that follows it.
-    private final List<HeatEntry> entries = new ArrayList<>();
+    private final List<HeatEntry> entries = new CopyOnWriteArrayList<>();
 
     public static void setLogger(Logger logger) {
         LOGGER = logger;
@@ -381,7 +387,8 @@ public class HeatSourceConfig {
         return states;
     }
 
-    // Returns the first entry matching this block, or null when no entry does.
+    // Returns the first entry matching this block, or null when no entry does. Entries are state-aware, so an
+    // "unlit campfire is not a heat source" rule really means cold: every caller asks the same question.
     private HeatEntry firstMatchingEntry(Block block, ImmutableBlockState preFetchedState) {
         if (entries.isEmpty()) {
             return null;
@@ -457,9 +464,7 @@ public class HeatSourceConfig {
             }
         }
 
-        ImmutableBlockState customState = preFetchedState != null
-                ? preFetchedState
-                : CraftEngineBlocks.getCustomBlockState(block);
+        ImmutableBlockState customState = customStateFor(block, preFetchedState);
         if (customState != null && !customState.isEmpty()) {
             for (CustomBlockStateMatcher stateMatcher : customBlockStates) {
                 if (stateMatcher.matches(customState)) {
@@ -478,6 +483,18 @@ public class HeatSourceConfig {
         return false;
     }
 
+    // Resolves the CraftEngine state only when a custom rule exists: with none configured the answer cannot
+    // change, and the lookup goes through the CE proxy for every queried block.
+    private ImmutableBlockState customStateFor(Block block, ImmutableBlockState preFetchedState) {
+        if (preFetchedState != null) {
+            return preFetchedState;
+        }
+        if (customBlockStates.isEmpty() && customBlockTags.isEmpty()) {
+            return null;
+        }
+        return CraftEngineBlocks.getCustomBlockState(block);
+    }
+
     public boolean isConductor(Block block) {
         return isConductor(block, null);
     }
@@ -492,6 +509,12 @@ public class HeatSourceConfig {
             return true;
         }
 
+        // No conductor tag configured means the answer cannot change, and the CE state read below goes through
+        // the proxy (which reads the chunk) for every queried block. customStateFor applies the same short
+        // circuit; keep both in step.
+        if (conductorTags.isEmpty()) {
+            return false;
+        }
         ImmutableBlockState customState = preFetchedState != null
                 ? preFetchedState
                 : CraftEngineBlocks.getCustomBlockState(block);

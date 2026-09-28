@@ -93,13 +93,13 @@ public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior imp
                 BlockBehaviorFactory.getProperty(path, block, compostingPropertyName, Integer.class);
         int maxStage = BehaviorArgParser.getInt(arguments, "max-stage", 7);
         String richSoilId = BehaviorArgParser.getStringStrict(arguments, "rich-soil-block", "farmersdelight:rich_soil");
-        String brownId = BehaviorArgParser.getStringStrict(arguments, "brown-mushroom-colony", "farmersdelight:brown_mushroom_colony");
-        String redId = BehaviorArgParser.getStringStrict(arguments, "red-mushroom-colony", "farmersdelight:red_mushroom_colony");
-        float activatorBonus = BehaviorArgParser.getFloat(arguments, "activator-bonus-per-neighbor", 0.02f);
-        float waterBonus = BehaviorArgParser.getFloat(arguments, "water-bonus", 0.10f);
-        float lightHighBonus = BehaviorArgParser.getFloat(arguments, "light-high-bonus", 0.10f);
-        float lightLowBonus = BehaviorArgParser.getFloat(arguments, "light-low-bonus", 0.05f);
-        int lightThreshold = BehaviorArgParser.getInt(arguments, "light-threshold", 12);
+        String brownId = BehaviorArgParser.getStringStrict(arguments, "mushroom-colony.brown", "brown-mushroom-colony", "farmersdelight:brown_mushroom_colony");
+        String redId = BehaviorArgParser.getStringStrict(arguments, "mushroom-colony.red", "red-mushroom-colony", "farmersdelight:red_mushroom_colony");
+        float activatorBonus = BehaviorArgParser.getFloat(arguments, "activator.bonus-per-neighbor", 0.02f);
+        float waterBonus = BehaviorArgParser.getFloat(arguments, "water.bonus", 0.10f);
+        float lightHighBonus = BehaviorArgParser.getFloat(arguments, "light.high-bonus", 0.10f);
+        float lightLowBonus = BehaviorArgParser.getFloat(arguments, "light.low-bonus", 0.05f);
+        int lightThreshold = BehaviorArgParser.getInt(arguments, "light.threshold", 12);
 
         ConfiguredBlockSet activators = ConfiguredBlockSet.parse(arguments.get("activators"));
 
@@ -207,6 +207,9 @@ public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior imp
                 for (int dz = -1; dz <= 1; dz++) {
                     int nx = pos.x() + dx, ny = pos.y() + dy, nz = pos.z() + dz;
                     if (ny < world.getMinHeight() || ny >= world.getMaxHeight()) continue;
+                    // Neighbours in a chunk that is not loaded are skipped: their activator/light read would
+                    // load the chunk from a random tick.
+                    if (!world.isChunkLoaded(nx >> 4, nz >> 4)) continue;
                     Block neighbor = world.getBlockAt(nx, ny, nz);
                     if (neighbor.getType() == Material.WATER) hasWater = true;
                     // Count configured activators throughout the 3x3x3 box, including the center block.

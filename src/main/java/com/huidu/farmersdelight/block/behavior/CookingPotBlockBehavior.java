@@ -762,21 +762,23 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         String permission = BehaviorArgParser.getString(arguments, "permission", "farmersdelight.use.cooking_pot");
         boolean openWhileSneaking = BehaviorArgParser.getBoolean(arguments, "open-while-sneaking", false);
         boolean placeTrayOnOpen = BehaviorArgParser.getBoolean(arguments, "place-tray-on-open", true);
-        boolean supportDisplayEnabled = BehaviorArgParser.getBoolean(arguments, "display-support", true);
-        boolean requireNonFullSupport = BehaviorArgParser.getBoolean(arguments, "require-non-full-support", true);
-        String boilSound = getNullableString(arguments, "boil-sound");
-        String soupBoilSound = getNullableString(arguments, "soup-boil-sound");
-        Double soundChance = getNullableDouble(arguments, "sound-chance");
-        Double soundVolume = getNullableDouble(arguments, "sound-volume");
-        Double soundPitchMin = getNullableDouble(arguments, "sound-pitch-min");
-        Double soundPitchMax = getNullableDouble(arguments, "sound-pitch-max");
+        boolean supportDisplayEnabled = BehaviorArgParser.getBoolean(arguments, "support.display", "display-support", true);
+        boolean requireNonFullSupport = BehaviorArgParser.getBoolean(arguments, "support.require-non-full", "require-non-full-support", true);
+        // Grouped options read either nested ("sound: {chance, volume, ...}") or as the legacy flat keys
+        // ("sound-chance", ...); see BehaviorArgParser. Two of them do not follow the path spelling: the soup boil
+        // sound was "soup-boil-sound", and the handle sound was written under the section name itself.
+        String boilSound = getNullableString(arguments, "boil.sound");
+        String soupBoilSound = getNullableString(arguments, "boil.soup-sound", "soup-boil-sound");
+        Double soundChance = getNullableDouble(arguments, "sound.chance");
+        Double soundVolume = getNullableDouble(arguments, "sound.volume");
+        Double soundPitchMin = getNullableDouble(arguments, "sound.pitch-min");
+        Double soundPitchMax = getNullableDouble(arguments, "sound.pitch-max");
         String customDataKey = BehaviorArgParser.getString(arguments, "data-key", "farmersdelight:cooking_pot");
-        String handleToggleSound = BehaviorArgParser.getArgumentString(arguments,
-                "handle-toggle-sound", "minecraft:block.lantern.place");
+        String handleToggleSound = handleToggleSoundArgument(arguments);
         float handleToggleSoundVolume = Math.max(0.0F,
-                BehaviorArgParser.getFloat(arguments, "handle-toggle-sound-volume", 0.7F));
+                BehaviorArgParser.getFloat(arguments, "handle-toggle-sound.volume", 0.7F));
         float handleToggleSoundPitch = Math.max(0.0F,
-                BehaviorArgParser.getFloat(arguments, "handle-toggle-sound-pitch", 1.0F));
+                BehaviorArgParser.getFloat(arguments, "handle-toggle-sound.pitch", 1.0F));
         Map<String, Object> custom = getMap(arguments);
         CookingPotLayout layout = CookingPotLayout.DEFAULT;
         String customRecipeGroupId = null;
@@ -1070,6 +1072,33 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
             return null;
         }
         return BehaviorArgParser.getStringStrict(arguments, key, null).trim();
+    }
+
+    /** As getNullableString(Map, String), for a grouped option with a legacy key that is spelled differently. */
+    private static String getNullableString(Map<String, Object> arguments, String key, String legacyKey) {
+        if (!BehaviorArgParser.isPresent(arguments, key, legacyKey)) {
+            return null;
+        }
+        Object raw = BehaviorArgParser.getRaw(arguments, key, legacyKey);
+        if (raw instanceof String string && string.isBlank()) {
+            return null;
+        }
+        return BehaviorArgParser.getStringStrict(arguments, key, legacyKey, null).trim();
+    }
+
+    // The oldest flat form of the handle sound was the section name holding the sound itself
+    // ("handle-toggle-sound: <sound id>", with "handle-toggle-sound-volume"/"-pitch" beside it), so a scalar
+    // there is still read as the sound; the grouped form keeps the sound under "sound:". Package-private so the
+    // argument test can cover all three spellings without a live block definition.
+    static String handleToggleSoundArgument(Map<String, Object> arguments) {
+        if (!BehaviorArgParser.isPresent(arguments, "handle-toggle-sound.sound")) {
+            Object scalar = BehaviorArgParser.getRaw(arguments, "handle-toggle-sound");
+            if (scalar instanceof String text && !text.isBlank()) {
+                return text.trim();
+            }
+        }
+        return BehaviorArgParser.getArgumentString(arguments,
+                "handle-toggle-sound.sound", "minecraft:block.lantern.place");
     }
 
     private static Double getNullableDouble(Map<String, Object> arguments, String key) {

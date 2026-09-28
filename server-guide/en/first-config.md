@@ -66,8 +66,7 @@ hopper-interactions:
 
 The master switch for the hopper ↔ station bridge (cooking pot, cutting board, skillet). If hoppers misbehave
 with your other plugins, **turn this master switch off first** to isolate the problem, then re-enable and tune
-the per-station `hopper-interactions:` toggles. Details in the Admin Wiki's `cutting-board` and `cooking-pot`
-notes.
+each station's `allow-hopper: true/false`. Details in the Admin Wiki's `cutting-board` and `cooking-pot` notes.
 
 ## Recipe discovery (locked recipe books)
 
@@ -110,8 +109,10 @@ commands/migration notes and the developer *Advancements* page.
 
 ## Where the deeper knobs live
 
-Performance budgets, particle/sound effects, display offsets, heat sources and custom-item `container-returns`
-are in `config.yml`. Mob-extra and straw drop rules are in `plugins/FarmersDelight/drops.yml`. Villager and
+Performance budgets (`performance.warnings` / `performance.budgets` / `performance.proxy-display`),
+particle/sound effects, display offsets, heat sources and custom-item `container-returns` are in `config.yml`.
+The per-item and per-tag board display tables are in `plugins/FarmersDelight/display-overrides.yml`
+(`items` / `tags`). Mob-extra and straw drop rules are in `plugins/FarmersDelight/drops.yml`. Villager and
 wandering-trader offers are in
 `plugins/FarmersDelight/world-data.yml`; deleting an offer there disables it. Composting, furnace-fuel values,
 pet food and food-buff assignments are in the CraftEngine item configuration. CraftEngine files are deliberately

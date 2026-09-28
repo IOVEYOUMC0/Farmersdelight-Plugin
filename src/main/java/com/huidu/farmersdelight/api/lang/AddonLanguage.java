@@ -223,7 +223,7 @@ public final class AddonLanguage {
             yaml.load(reader);
             return yaml;
         } catch (Exception e) {
-            warning("i18n.load_failed", "file", file.getName(), "error", String.valueOf(e.getMessage()));
+            warning("i18n.load_failed_utf8", "file", file.getName(), "error", String.valueOf(e.getMessage()));
             return null;
         }
     }
@@ -338,6 +338,11 @@ public final class AddonLanguage {
 
     private void log(boolean info, String key, Object... args) {
         String message = get(keyPrefix + "." + key, args);
+        if (key.startsWith("i18n.") && message.equals(keyPrefix + "." + key)) {
+            // The language-file messages themselves are shared by every plugin in the family, so they live in
+            // FarmersDelight's own language files; an addon can still override one by defining <prefix>.<key>.
+            message = I18n.formatConsole(key, args);
+        }
         if (info) {
             plugin.getLogger().info(message);
         } else {

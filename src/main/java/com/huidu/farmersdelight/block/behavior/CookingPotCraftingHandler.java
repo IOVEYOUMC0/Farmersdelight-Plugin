@@ -2,12 +2,10 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.recipe.IngredientMatching;
-import com.huidu.farmersdelight.config.ContainerReturnConfig;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Item;
@@ -67,7 +65,7 @@ public class CookingPotCraftingHandler {
 
         for (int idx : assignment) {
             ItemStack slotItem = inventory[slots[idx]];
-            ItemStack remainder = getCraftingRemainder(slotItem);
+            ItemStack remainder = getCraftingRemainder(slotItem, recipe);
             if (remainder != null && !remainder.getType().isAir()) {
                 remainders.add(remainder);
             }
@@ -101,31 +99,19 @@ public class CookingPotCraftingHandler {
         }
     }
 
-    private ItemStack getCraftingRemainder(ItemStack item) {
-        String customId = ItemUtils.getCustomItemId(item);
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        ContainerReturnConfig config = plugin == null ? null : plugin.getContainerReturnConfig();
-        if (customId != null && config != null) {
-            return config.getReturnItem(customId, 1);
+    /**
+     * What the consumed ingredient leaves behind when cooking finishes. The shared resolver (ItemUtils) covers,
+     * in order: the container-returns map, the item's own CE craft-remainder for this recipe, its use-remainder
+     * component, the vanilla crafting remainder of its material and the bucket/bottle fallback; a CE item is no
+     * longer dropped just because it is absent from container-returns. The ingredient table below only adds the
+     * cooking-pot specific entries vanilla declares no remainder for (fish buckets, stews, potions).
+     */
+    private ItemStack getCraftingRemainder(ItemStack item, CookingPotRecipe recipe) {
+        ItemStack remainder = ItemUtils.craftingRemainderOf(item, recipe == null ? null : recipe.getId());
+        if (remainder != null && !remainder.getType().isAir()) {
+            return remainder;
         }
-
-        Material remainderType = item.getType().getCraftingRemainingItem();
-        if (remainderType != null && !remainderType.isAir()) {
-            return new ItemStack(remainderType, 1);
-        }
-
-        // Fallback containers for ingredients without a vanilla crafting remainder, such as fish buckets,
-        // stews and potions. Prefer the ingredient's actual remainder when available.
-        ItemStack override = CookingPotIngredientRemainders.getRemainder(item, 1);
-        if (override != null) {
-            return override;
-        }
-
-        return switch (item.getType()) {
-            case MILK_BUCKET, WATER_BUCKET, LAVA_BUCKET -> new ItemStack(Material.BUCKET, 1);
-            case HONEY_BOTTLE -> new ItemStack(Material.GLASS_BOTTLE, 1);
-            default -> null;
-        };
+        return CookingPotIngredientRemainders.getRemainder(item, 1);
     }
 
     private void ejectRemainders(World world, Location blockLoc, List<ItemStack> remainders) {

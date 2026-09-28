@@ -21,6 +21,12 @@ import java.util.function.Consumer;
 /**
  * Loads an addon's own recipes/*.yml into FarmersDelight and keeps the bookkeeping.
  *
+ * <p>Prefer the pack route for static recipes: declare them under <pack>/configuration/ with the
+ * cooking_recipes / cutting_recipes / special_recipes root keys and CraftEngine hands
+ * them to FarmersDelight with no addon code at all. This helper remains for recipes that must be decided at
+ * runtime (data another plugin feeds in, per-player or time-based content) and for addons that already ship
+ * an editable file.
+ *
  * <p>Reading a YAML file, registering each entry, and withdrawing the ids that disappeared is not addon
  * business — it is the recipe registry's. Before this existed every addon wrote its own copy, and the
  * copies drifted: one of them registered cutting-board results through the chance-less overload, so

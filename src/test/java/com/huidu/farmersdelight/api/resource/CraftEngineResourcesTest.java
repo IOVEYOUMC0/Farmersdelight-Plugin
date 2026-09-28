@@ -13,6 +13,7 @@ import java.util.zip.ZipOutputStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CraftEngineResourcesTest {
 
@@ -51,6 +52,49 @@ class CraftEngineResourcesTest {
         assertEquals(1, CraftEngineResources.release(jar, directory.resolve("plugins"), "demo", false));
         assertEquals("x: <arg:position.block_x>\ny: <arg:position.block_y>\nz: <arg:position.block_z>\n",
                 Files.readString(target));
+    }
+
+    @Test
+    void neverReplacesInstalledFilesEvenWhenTheBundledVersionIsHigher() throws IOException {
+        Path plugins = directory.resolve("plugins");
+        Path installed = plugins.resolve("CraftEngine/resources/demo");
+        Files.createDirectories(installed.resolve("nested"));
+        Files.writeString(installed.resolve("pack.yml"), "version: 0.0.1\n");
+        Files.writeString(installed.resolve("nested/file.txt"), "edited");
+        Files.writeString(installed.resolve("edited.txt"), "operator edit");
+
+        Path jar = createVersionedJar("0.0.2");
+        assertEquals(0, CraftEngineResources.release(jar, plugins, "demo", true));
+        assertEquals("version: 0.0.1\n", Files.readString(installed.resolve("pack.yml")));
+        assertEquals("edited", Files.readString(installed.resolve("nested/file.txt")));
+        assertEquals("operator edit", Files.readString(installed.resolve("edited.txt")));
+    }
+
+    @Test
+    void installsOnlyMissingFilesIntoAnExistingNamespace() throws IOException {
+        Path plugins = directory.resolve("plugins");
+        Path installed = plugins.resolve("CraftEngine/resources/demo");
+        Files.createDirectories(installed.resolve("nested"));
+        Files.writeString(installed.resolve("pack.yml"), "version: 9.9\n");
+        Files.writeString(installed.resolve("nested/file.txt"), "old");
+        Files.writeString(installed.resolve("added.txt"), "operator file");
+
+        Path jar = createVersionedJar("0.0.2");
+        assertEquals(1, CraftEngineResources.release(jar, plugins, "demo", true));
+        assertEquals("old", Files.readString(installed.resolve("nested/file.txt")));
+        assertEquals("operator file", Files.readString(installed.resolve("added.txt")));
+        assertEquals("version: 9.9\n", Files.readString(installed.resolve("pack.yml")));
+        assertEquals("bundled", Files.readString(installed.resolve("edited.txt")));
+    }
+
+    private Path createVersionedJar(String version) throws IOException {
+        Path jar = directory.resolve("addon-" + version + ".jar");
+        try (ZipOutputStream output = new ZipOutputStream(Files.newOutputStream(jar))) {
+            add(output, "craftengine/demo/pack.yml", "author: test\nversion: " + version + "\n");
+            add(output, "craftengine/demo/nested/file.txt", "bundled");
+            add(output, "craftengine/demo/edited.txt", "bundled");
+        }
+        return jar;
     }
 
     private Path createJar() throws IOException {

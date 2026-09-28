@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.config.BehaviorArguments;
 import com.huidu.farmersdelight.api.event.FarmersDelightHarvestEvent;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.BehaviorArgParser;
@@ -181,7 +182,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
             Property<Integer> ageProperty =
                     BlockBehaviorFactory.getProperty(path, block, agePropertyName, Integer.class);
 
-            String halfPropertyName = BehaviorArgParser.getString(arguments, "half-property", "half");
+            String halfPropertyName = BehaviorArgParser.getString(arguments, "half.property", "half");
             Property<DoubleBlockHalf> halfProperty =
                     BlockBehaviorFactory.getProperty(path, block, halfPropertyName, DoubleBlockHalf.class);
 
@@ -194,17 +195,25 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
                     BlockBehaviorFactory.getOptionalProperty(block, supportingPropertyName, Boolean.class);
 
             float growSpeed = BehaviorArgParser.getFloat(arguments, "grow-speed", 0.25f);
-            int minGrowLight = BehaviorArgParser.getInt(arguments, "light-requirement", 9);
-            boolean isBoneMealTarget = BehaviorArgParser.getBoolean(arguments, "is-bone-meal-target", true);
-            NumberProvider boneMealAgeBonus = section != null
-                    ? section.getNumber(new String[]{"bone_meal_age_bonus", "bone-meal-age-bonus"}, DEFAULT_BONE_MEAL_AGE_BONUS)
-                    : DEFAULT_BONE_MEAL_AGE_BONUS;
+            int minGrowLight = BehaviorArgParser.getInt(arguments, "light.requirement", 9);
+            boolean isBoneMealTarget = BehaviorArgParser.getBoolean(arguments, "bone-meal.is-target",
+                    "is-bone-meal-target", true);
+            // The bone meal age bonus is a number provider, so the nested value is parsed through a section view
+            // of the same path; the legacy flat keys (bone-meal-age-bonus / bone_meal_age_bonus) stay readable.
+            Object nestedAgeBonus = BehaviorArguments.rawWithLegacy(arguments, "bone-meal.age-bonus", "bone_meal_age_bonus");
+            NumberProvider boneMealAgeBonus = section == null
+                    ? DEFAULT_BONE_MEAL_AGE_BONUS
+                    : nestedAgeBonus != null
+                            ? section.withSamePath(Map.of("bone-meal.age-bonus", nestedAgeBonus))
+                                    .getNumber("bone-meal.age-bonus", DEFAULT_BONE_MEAL_AGE_BONUS)
+                            : section.getNumber(new String[]{"bone_meal_age_bonus", "bone-meal-age-bonus"},
+                                    DEFAULT_BONE_MEAL_AGE_BONUS);
             
-            int maxAgeLower = BehaviorArgParser.hasArgument(arguments, "max-age-lower")
-                    ? BehaviorArgParser.getInt(arguments, "max-age-lower", 4)
+            int maxAgeLower = BehaviorArgParser.hasArgument(arguments, "max-age.lower")
+                    ? BehaviorArgParser.getInt(arguments, "max-age.lower", 4)
                     : inferMaxIntegerValue(ageProperty);
-            int maxAgeUpper = BehaviorArgParser.hasArgument(arguments, "max-age-upper")
-                    ? BehaviorArgParser.getInt(arguments, "max-age-upper", 3)
+            int maxAgeUpper = BehaviorArgParser.hasArgument(arguments, "max-age.upper")
+                    ? BehaviorArgParser.getInt(arguments, "max-age.upper", 3)
                     : Math.max(0, maxAgeLower - 1);
 
             // Age at which the lower half starts growing an upper half. Defaults to the lower half's own
@@ -212,8 +221,8 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
             // whose original block spawns the top earlier (MMLib's HighCropBlock exposes that as
             // getGrowUpperAge) configure a smaller value and then get the original's two independent
             // rolls per random tick instead of the single mature-tick spawn.
-            int upperMinAge = BehaviorArgParser.hasArgument(arguments, "upper-min-age")
-                    ? Math.max(0, BehaviorArgParser.getInt(arguments, "upper-min-age", maxAgeLower))
+            int upperMinAge = BehaviorArgParser.hasArgument(arguments, "upper.min-age")
+                    ? Math.max(0, BehaviorArgParser.getInt(arguments, "upper.min-age", maxAgeLower))
                     : maxAgeLower;
             // Vanilla crop growth (CropBlock.getGrowthSpeed over the 3x3 below plus the row/diagonal
             // penalty, and a raw-brightness light check that ignores the day/night reduction) instead of
@@ -221,24 +230,24 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
             boolean vanillaGrowth = BehaviorArgParser.getBoolean(arguments, "vanilla-growth", false);
             // Vanilla HighCropBlock carries bone meal growth beyond the lower half's maturity into the
             // upper half's age; without this the excess is dropped and the top always starts at age 0.
-            boolean boneMealOverflow = BehaviorArgParser.getBoolean(arguments, "bone-meal-overflow", false);
+            boolean boneMealOverflow = BehaviorArgParser.getBoolean(arguments, "bone-meal.overflow", false);
             
-            Object halfLowerValue = BehaviorArgParser.hasArgument(arguments, "half-lower-value")
-                    ? getRawPropertyValue(BehaviorArgParser.getRaw(arguments, "half-lower-value"), halfProperty, inferLowerHalfValue(halfProperty))
+            Object halfLowerValue = BehaviorArgParser.hasArgument(arguments, "half.lower-value")
+                    ? getRawPropertyValue(BehaviorArgParser.getRaw(arguments, "half.lower-value"), halfProperty, inferLowerHalfValue(halfProperty))
                     : inferLowerHalfValue(halfProperty);
-            Object halfUpperValue = BehaviorArgParser.hasArgument(arguments, "half-upper-value")
-                    ? getRawPropertyValue(BehaviorArgParser.getRaw(arguments, "half-upper-value"), halfProperty, inferUpperHalfValue(halfProperty))
+            Object halfUpperValue = BehaviorArgParser.hasArgument(arguments, "half.upper-value")
+                    ? getRawPropertyValue(BehaviorArgParser.getRaw(arguments, "half.upper-value"), halfProperty, inferUpperHalfValue(halfProperty))
                     : inferUpperHalfValue(halfProperty);
             
             boolean requiresWater = BehaviorArgParser.getBoolean(arguments, "requires-water", false);
             boolean resetOnHarvest = BehaviorArgParser.getBoolean(arguments, "reset-on-harvest", true);
-            Set<Key> harvestToolTags = SoilRuleSupport.parseKeys(arguments, "harvest-tool-tags");
+            Set<Key> harvestToolTags = SoilRuleSupport.parseKeys(arguments, "harvest-tool.tags");
             Set<String> harvestToolItems = parseConfiguredItemIds(arguments);
             SoilRules soilRules = SoilRuleSupport.parseSoilRules(arguments);
             Set<Key> extraPlantingItems = parseConfiguredKeys(arguments
             );
             
-            String upperBlockStr = BehaviorArgParser.getString(arguments, "upper-block", "");
+            String upperBlockStr = BehaviorArgParser.getString(arguments, "upper.block", "");
             Key upperBlockId = upperBlockStr.isEmpty() ? null : Key.of(upperBlockStr);
 
             TallCropBlockBehavior behavior = new TallCropBlockBehavior(block, new Config(
@@ -395,7 +404,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
                 } else {
                     dropLootTableDrops(state, bukkitBlock, bukkitPlayer, mainHand, wPos);
                 }
-                dropHarvestStraw(bukkitBlock, bukkitPlayer);
+                awardHarvestStraw(bukkitBlock, bukkitPlayer);
 
                 world.playSound(loc, Sound.BLOCK_CROP_BREAK, 1.0f, 1.0f);
                 world.playSound(loc, Sound.ITEM_CROP_PLANT, 1.0f, 0.8f);
@@ -756,7 +765,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
     // Vanilla reads the moisture property with a default of 0, so a supporting block that does not carry
     // it (a custom farmland) contributes the dry factor while still counting as soil.
     private float soilFactor(Block soil) {
-        if (soil == null || !RiceCropRules.isValidSoil(soil, block().id())) {
+        if (soil == null || !isResident(soil) || !RiceCropRules.isValidSoil(soil, block().id())) {
             return 0.0F;
         }
         if (soil.getType() == Material.FARMLAND
@@ -768,10 +777,17 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
     }
 
     private boolean isSameCrop(Block block) {
-        if (block == null) {
+        if (block == null || !isResident(block)) {
             return false;
         }
-        return isSameCropState(CraftEngineBlocks.getCustomBlockState(block));
+        return isSameCropState(CustomBlockUtils.getStateIfResident(block));
+    }
+
+    // Neighbour reads run from a random tick: a block in a chunk that is not loaded must be skipped instead of
+    // loading that chunk (and firing its entity-load events) just to answer a growth-speed question.
+    private static boolean isResident(Block block) {
+        return block.getWorld() != null
+                && block.getWorld().isChunkLoaded(block.getX() >> 4, block.getZ() >> 4);
     }
 
     private void placeMatureLowerHalf(Block bukkitBlock, ImmutableBlockState state) {
@@ -841,25 +857,18 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         return builder;
     }
 
-    private void dropHarvestStraw(Block block, Player player) {
+    // The straw item is part of the pack's break-loot chain (see the drop_loot function in crops.yml),
+    // which the harvest path runs just above through runConfiguredBreakLoot, so only the advancement is
+    // awarded here.
+    private void awardHarvestStraw(Block block, Player player) {
         if (block == null || player == null || protectionFeature(block().id()) != ProtectionCompat.Feature.RICE) {
             return;
         }
 
-        var rule = FarmersDelightPlugin.getInstance().getStrawDropConfig().getRule("mature_rice");
-        if (rule == null || rule.getDropItem() == null) {
+        var strawDropConfig = FarmersDelightPlugin.getInstance().getStrawDropConfig();
+        if (strawDropConfig == null || !strawDropConfig.hasRule("mature_rice")) {
             return;
         }
-
-        ItemStack straw = ItemUtils.createItem(rule.getDropItem());
-        if (straw == null || straw.getType().isAir()) {
-            return;
-        }
-
-        int minAmount = Math.max(1, rule.getMinAmount());
-        int maxAmount = Math.max(minAmount, rule.getMaxAmount());
-        straw.setAmount(minAmount + ThreadLocalRandom.current().nextInt(maxAmount - minAmount + 1));
-        block.getWorld().dropItemNaturally(block.getLocation().add(0.5, 0.5, 0.5), straw);
 
         var advancementManager = FarmersDelightPlugin.getInstance().getAdvancementManager();
         if (advancementManager != null) {
@@ -953,7 +962,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
     }
 
     private static Set<String> parseConfiguredItemIds(Map<String, Object> arguments) {
-        Object raw = arguments != null ? arguments.get("harvest-tool-items") : null;
+        Object raw = arguments != null ? BehaviorArgParser.getRaw(arguments, "harvest-tool.items") : null;
         if (!(raw instanceof Iterable<?> iterable)) {
             return Collections.emptySet();
         }

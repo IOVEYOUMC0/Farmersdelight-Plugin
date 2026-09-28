@@ -493,7 +493,9 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
                     pos.y() + face.getModY(),
                     pos.z() + face.getModZ()
             );
-            ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(neighbor);
+            // Neighbours on a chunk border are read and rewritten only while their chunk is resident: the CE
+            // lookup would otherwise load it and the place below would cross into another region.
+            ImmutableBlockState state = CustomBlockUtils.getStateIfResident(neighbor);
             if (state == null || state.isEmpty() || !CustomBlockUtils.hasBehavior(state, RopeBlockBehavior.class)) {
                 continue;
             }

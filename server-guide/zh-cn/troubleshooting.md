@@ -41,7 +41,7 @@ debug:
 
 | 现象 | 可能原因 | 解决 |
 | --- | --- | --- |
-| FarmersDelight 从不启用，日志说缺依赖 | 没装 CraftEngine | 安装与服务器匹配的 CraftEngine **26.9.1**；它是硬 `depend`。 |
+| FarmersDelight 从不启用，日志说缺依赖 | 没装 CraftEngine | 安装与服务器匹配的 CraftEngine **26.8.2 及以上**（26.8.2/26.9/26.9.1 已核对）；它是硬 `depend`。 |
 | 插件加载失败，报版本不支持 / 类错误 | 服务端低于 MC 1.21.4 或 Java 低于 21 | 用 **Paper/Folia 1.21.4+** 跑在 **Java 21+** 上。 |
 | 自定义物品 / 方块显示紫黑贴图 | 客户端没用上当前资源包 | 执行 **`/ce reload all`** 重建包（单独的 `/ce reload` 不会）；确认玩家接受了包。见 [资源包](resource-pack.md)。 |
 | 手持煎锅交互报 `ObfuscatedItemModelProcessor` / `NoClassDefFoundError` | CraftEngine 26.9.1 不再提供旧的客户端模型处理器 | 更新到本次 FarmersDelight 构建后完整重启；插件会回退服务端物品模型并只记录一次警告，再执行 **`/ce reload all`** 重建资源包。 |

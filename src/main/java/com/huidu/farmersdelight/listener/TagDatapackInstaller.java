@@ -97,11 +97,10 @@ public final class TagDatapackInstaller implements Listener {
             }
             changed += deleteStaleFiles(datapackDir, generated);
             if (changed > 0) {
-                plugin.getLogger().warning("==========================================================");
-                plugin.getLogger().warning(" Updated FarmersDelight common-item tag data pack ("
-                        + changed + " file(s)).");
-                plugin.getLogger().warning(" A server data reload is required before registry tags take effect.");
-                plugin.getLogger().warning("==========================================================");
+                I18n.logInfo("plugin.datapack_installed",
+                        "name", DATAPACK_DIRECTORY,
+                        "dir", datapackDir,
+                        "hint", I18n.formatConsole("plugin.datapack_hint_reload"));
             }
             return changed > 0;
         } catch (Exception exception) {
@@ -139,7 +138,9 @@ public final class TagDatapackInstaller implements Listener {
                 return false;
             }
             DatapackSupport.deleteRecursively(datapackDir);
-            plugin.getLogger().warning("Removed stale FarmersDelight common-item tag data pack; restart the server.");
+            I18n.logWarning("plugin.datapack_removed",
+                    "name", DATAPACK_DIRECTORY,
+                    "hint", I18n.formatConsole("plugin.datapack_hint_restart"));
             return true;
         } catch (IOException exception) {
             plugin.getLogger().warning("Failed to remove tag data pack: " + exception.getMessage());

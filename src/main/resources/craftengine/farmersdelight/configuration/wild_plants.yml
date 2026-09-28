@@ -64,7 +64,8 @@ blocks:
           - minecraft:dirt
           - minecraft:sand
       - type: farmersdelight:wild_plant
-        is-bone-meal-target: true
+        bone-meal:
+          is-target: true
     state:
       auto_state: sugar_cane
       models:
@@ -125,7 +126,8 @@ blocks:
         bottom-blocks:
           - minecraft:grass_block
       - type: farmersdelight:wild_plant
-        is-bone-meal-target: true
+        bone-meal:
+          is-target: true
     state:
       auto_state: sugar_cane
       models:
@@ -174,7 +176,8 @@ blocks:
         bottom-blocks:
           - minecraft:grass_block
       - type: farmersdelight:wild_plant
-        is-bone-meal-target: true
+        bone-meal:
+          is-target: true
     state:
       auto_state: sugar_cane
       models:
@@ -285,7 +288,13 @@ placed-features:
     environment:
       - minecraft:overworld
     feature:
-      $$>=26.1:
+      $$>=26.3:
+        type: 'minecraft:simple_block'
+        to_place:
+          type: 'craftengine:simple_state_provider'
+          state:
+            Name: 'farmersdelight:wild_cabbages'
+      $$26.1~26.2:
         type: 'minecraft:simple_block'
         config:
           to_place:
@@ -323,7 +332,47 @@ placed-features:
           xz_spread: 6
           y_spread: 3
     placement:
-      $$>=26.1:
+      $$>=26.3:
+        - type: 'minecraft:rarity_filter'
+          chance: 30
+        - type: 'minecraft:in_square'
+        - type: 'minecraft:heightmap'
+          heightmap: MOTION_BLOCKING
+        - type: 'minecraft:count'
+          count: 64
+        - type: 'minecraft:offset'
+          x:
+            type: 'minecraft:trapezoid'
+            max: 6
+            min: -6
+            plateau: 0
+          y:
+            type: 'minecraft:trapezoid'
+            max: 3
+            min: -3
+            plateau: 0
+          z:
+            type: 'minecraft:trapezoid'
+            max: 6
+            min: -6
+            plateau: 0
+        - type: 'minecraft:block_predicate_filter'
+          predicate:
+            type: 'minecraft:all_of'
+            predicates:
+              - type: 'minecraft:replaceable'
+              - type: 'minecraft:matching_fluids'
+                fluids: 'minecraft:empty'
+              - type: 'minecraft:matching_blocks'
+                blocks:
+                  - minecraft:sand
+                  - minecraft:red_sand
+                offset:
+                  - 0
+                  - -1
+                  - 0
+        - type: 'minecraft:biome'
+      $$26.1~26.2:
         - type: 'minecraft:rarity_filter'
           chance: 30
         - type: 'minecraft:in_square'
@@ -392,7 +441,13 @@ placed-features:
     environment:
       - minecraft:overworld
     feature:
-      $$>=26.1:
+      $$>=26.3:
+        type: 'minecraft:simple_block'
+        to_place:
+          type: 'craftengine:simple_state_provider'
+          state:
+            Name: 'farmersdelight:wild_onions'
+      $$26.1~26.2:
         type: 'minecraft:simple_block'
         config:
           to_place:
@@ -434,7 +489,51 @@ placed-features:
           xz_spread: 6
           y_spread: 3
     placement:
-      $$>=26.1:
+      $$>=26.3:
+        - type: 'minecraft:rarity_filter'
+          chance: 120
+        - type: 'minecraft:in_square'
+        - type: 'minecraft:heightmap'
+          heightmap: MOTION_BLOCKING
+        - type: 'minecraft:count'
+          count: 64
+        - type: 'minecraft:offset'
+          x:
+            type: 'minecraft:trapezoid'
+            max: 6
+            min: -6
+            plateau: 0
+          y:
+            type: 'minecraft:trapezoid'
+            max: 3
+            min: -3
+            plateau: 0
+          z:
+            type: 'minecraft:trapezoid'
+            max: 6
+            min: -6
+            plateau: 0
+        - type: 'minecraft:block_predicate_filter'
+          predicate:
+            type: 'minecraft:all_of'
+            predicates:
+              - type: 'minecraft:replaceable'
+              - type: 'minecraft:matching_fluids'
+                fluids: 'minecraft:empty'
+              - type: 'minecraft:matching_blocks'
+                blocks:
+                  - minecraft:dirt
+                  - minecraft:grass_block
+                  - minecraft:coarse_dirt
+                  - minecraft:podzol
+                  - minecraft:rooted_dirt
+                  - minecraft:mycelium
+                offset:
+                  - 0
+                  - -1
+                  - 0
+        - type: 'minecraft:biome'
+      $$26.1~26.2:
         - type: 'minecraft:rarity_filter'
           chance: 120
         - type: 'minecraft:in_square'
@@ -499,7 +598,13 @@ placed-features:
     environment:
       - minecraft:overworld
     feature:
-      $$>=26.1:
+      $$>=26.3:
+        type: 'minecraft:simple_block'
+        to_place:
+          type: 'craftengine:simple_state_provider'
+          state:
+            Name: 'farmersdelight:wild_tomatoes'
+      $$26.1~26.2:
         type: 'minecraft:simple_block'
         config:
           to_place:
@@ -540,7 +645,50 @@ placed-features:
           xz_spread: 7
           y_spread: 3
     placement:
-      $$>=26.1:
+      $$>=26.3:
+        - type: 'minecraft:rarity_filter'
+          chance: 100
+        - type: 'minecraft:in_square'
+        - type: 'minecraft:heightmap'
+          heightmap: MOTION_BLOCKING
+        - type: 'minecraft:count'
+          count: 64
+        - type: 'minecraft:offset'
+          x:
+            type: 'minecraft:trapezoid'
+            max: 7
+            min: -7
+            plateau: 0
+          y:
+            type: 'minecraft:trapezoid'
+            max: 3
+            min: -3
+            plateau: 0
+          z:
+            type: 'minecraft:trapezoid'
+            max: 7
+            min: -7
+            plateau: 0
+        - type: 'minecraft:block_predicate_filter'
+          predicate:
+            type: 'minecraft:all_of'
+            predicates:
+              - type: 'minecraft:replaceable'
+              - type: 'minecraft:matching_fluids'
+                fluids: 'minecraft:empty'
+              - type: 'minecraft:matching_blocks'
+                blocks:
+                  - minecraft:dirt
+                  - minecraft:grass_block
+                  - minecraft:coarse_dirt
+                  - minecraft:sand
+                  - minecraft:red_sand
+                offset:
+                  - 0
+                  - -1
+                  - 0
+        - type: 'minecraft:biome'
+      $$26.1~26.2:
         - type: 'minecraft:rarity_filter'
           chance: 100
         - type: 'minecraft:in_square'
@@ -594,7 +742,35 @@ placed-features:
     environment:
       - minecraft:overworld
     feature:
-      $$>=26.1:
+      $$>=26.3:
+        type: 'minecraft:block_column'
+        allowed_placement:
+          type: 'minecraft:matching_blocks'
+          blocks: 'minecraft:air'
+        direction: up
+        layers:
+          - height:
+              type: 'minecraft:uniform'
+              max_inclusive: 1
+              min_inclusive: 1
+            provider:
+              type: 'craftengine:simple_state_provider'
+              state:
+                Name: 'farmersdelight:wild_rice'
+                Properties:
+                  half: 'lower'
+          - height:
+              type: 'minecraft:uniform'
+              max_inclusive: 1
+              min_inclusive: 1
+            provider:
+              type: 'craftengine:simple_state_provider'
+              state:
+                Name: 'farmersdelight:wild_rice'
+                Properties:
+                  half: 'upper'
+        prioritize_tip: false
+      $$26.1~26.2:
         type: 'minecraft:block_column'
         config:
           allowed_placement:
@@ -674,7 +850,45 @@ placed-features:
           xz_spread: 7
           y_spread: 3
     placement:
-      $$>=26.1:
+      $$>=26.3:
+        - type: 'minecraft:rarity_filter'
+          chance: 20
+        - type: 'minecraft:in_square'
+        - type: 'minecraft:heightmap'
+          heightmap: OCEAN_FLOOR
+        - type: 'minecraft:count'
+          count: 96
+        - type: 'minecraft:offset'
+          x:
+            type: 'minecraft:trapezoid'
+            max: 7
+            min: -7
+            plateau: 0
+          y:
+            type: 'minecraft:trapezoid'
+            max: 3
+            min: -3
+            plateau: 0
+          z:
+            type: 'minecraft:trapezoid'
+            max: 7
+            min: -7
+            plateau: 0
+        - type: 'minecraft:block_predicate_filter'
+          predicate:
+            type: 'minecraft:all_of'
+            predicates:
+              - type: 'minecraft:matching_fluids'
+                fluids: '#minecraft:water'
+                offset: [0,0,0]
+              - type: 'minecraft:matching_blocks'
+                blocks:
+                  - minecraft:dirt
+                  - minecraft:grass_block
+                  - minecraft:mud
+                offset: [0,-1,0]
+        - type: 'minecraft:biome'
+      $$26.1~26.2:
         - type: 'minecraft:rarity_filter'
           chance: 20
         - type: 'minecraft:in_square'

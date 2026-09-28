@@ -142,7 +142,11 @@ public class AdvancementManager {
         try {
             UltimateAdvancementAPI api = UltimateAdvancementAPI.getInstance(plugin);
             if (api.isAdvancementTabRegistered(TAB)) {
-                api.unregisterAdvancementTab(TAB);
+                // deleteClient=false on purpose: this is a rebuild, not a shutdown. UAA's own datapack-reload
+                // hook marks the client tree as reset and re-sends every tab it still believes is shown, so a
+                // remove packet here is what makes the tab disappear from online clients until they re-earn an
+                // advancement. dispose() below keeps the default (client-side removal) for real teardown.
+                api.unregisterAdvancementTab(TAB, false);
             }
             tab = api.createAdvancementTab(TAB);
             buildTree();
@@ -152,7 +156,7 @@ public class AdvancementManager {
             try {
                 UltimateAdvancementAPI api = UltimateAdvancementAPI.getInstance(plugin);
                 if (api.isAdvancementTabRegistered(TAB)) {
-                    api.unregisterAdvancementTab(TAB);
+                    api.unregisterAdvancementTab(TAB, false);
                 }
             } catch (Exception ignored) {
                 // best-effort

@@ -92,8 +92,13 @@ public class WildPlantBlockBehavior extends FarmersDelightBlockBehavior {
         for (int dx = -4; dx <= 4; dx++) {
             for (int dy = -1; dy <= 1; dy++) {
                 for (int dz = -4; dz <= 4; dz++) {
+                    // Chunks that are not loaded are skipped: counting them would mean loading them from a
+                    // random tick just to answer a spread-limit question.
+                    if (!world.isChunkLoaded((origin.getX() + dx) >> 4, (origin.getZ() + dz) >> 4)) {
+                        continue;
+                    }
                     Block near = world.getBlockAt(origin.getX() + dx, origin.getY() + dy, origin.getZ() + dz);
-                    if (CustomBlockUtils.hasId(near, selfId) && --remaining <= 0) {
+                    if (CustomBlockUtils.hasIdIfResident(near, selfId) && --remaining <= 0) {
                         return;
                     }
                 }
@@ -137,8 +142,9 @@ public class WildPlantBlockBehavior extends FarmersDelightBlockBehavior {
         @Override
         public WildPlantBlockBehavior create(BlockDefinition block, ConfigSection section) {
             Map<String, Object> arguments = section != null ? section.values() : Map.of();
-            boolean isBoneMealTarget = BehaviorArgParser.getBoolean(arguments, "is-bone-meal-target", true);
-            double successChance = BehaviorArgParser.getDouble(arguments, "bone-meal-success-chance", 0.8);
+            boolean isBoneMealTarget = BehaviorArgParser.getBoolean(arguments, "bone-meal.is-target",
+                    "is-bone-meal-target", true);
+            double successChance = BehaviorArgParser.getDouble(arguments, "bone-meal.success-chance", 0.8);
             int spreadLimit = Math.max(1, BehaviorArgParser.getInt(arguments, "spread-limit", 10));
             SoilRules soilRules = SoilRuleSupport.parseSoilRules(arguments);
             return new WildPlantBlockBehavior(block, isBoneMealTarget, successChance, spreadLimit, soilRules);

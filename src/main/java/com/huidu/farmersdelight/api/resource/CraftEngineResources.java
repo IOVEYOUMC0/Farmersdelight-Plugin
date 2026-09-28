@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.api.resource;
 
+import com.huidu.farmersdelight.api.FarmersDelightApi;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.IOException;
@@ -13,7 +14,13 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-/** Installs bundled CraftEngine files without overwriting server edits and migrates known CE incompatibilities. */
+/**
+ * Installs the bundled CraftEngine namespace, writing only files the installed namespace is missing.
+ *
+ * <p>An installed namespace belongs to the operator: no file under it is ever replaced by an update, so pack
+ * edits made on the server survive every plugin version. A content change that has to reach an existing
+ * server therefore ships as a file the server does not have yet.
+ */
 public final class CraftEngineResources {
 
     private static final Pattern NAMESPACE = Pattern.compile("[a-z0-9_.-]+");
@@ -21,14 +28,14 @@ public final class CraftEngineResources {
     private CraftEngineResources() {
     }
 
-    /** Installs missing files, restores later deletions, and migrates legacy position arguments. */
+    /** Installs missing files and applies the one-off text migrations. */
     public static int release(JavaPlugin plugin, String namespace) {
         return release(plugin, namespace, true);
     }
 
     /**
-     * Installs missing files from the addon's jar. When completeExisting is false, an existing
-     * namespace directory is left untouched.
+     * Installs the addon's bundled pack into the CraftEngine resources directory. When
+     * completeExisting is false, an existing namespace directory is left untouched.
      */
     public static int release(JavaPlugin plugin, String namespace, boolean completeExisting) {
         if (plugin == null) {
@@ -44,7 +51,12 @@ public final class CraftEngineResources {
             if (!Files.isRegularFile(jar)) {
                 return 0;
             }
-            return release(jar, pluginsDirectory, namespace, completeExisting);
+            int changed = release(jar, pluginsDirectory, namespace, completeExisting);
+            if (changed > 0) {
+                plugin.getLogger().info(FarmersDelightApi.consoleMessage("plugin.craftengine_pack_released",
+                        "namespace", namespace, "count", changed));
+            }
+            return changed;
         } catch (Exception e) {
             plugin.getLogger().warning("Failed to release CraftEngine resources for " + namespace + ": "
                     + e.getMessage());
@@ -52,7 +64,8 @@ public final class CraftEngineResources {
         }
     }
 
-    static int release(Path jar, Path pluginsDirectory, String namespace, boolean completeExisting) throws IOException {
+    static int release(Path jar, Path pluginsDirectory, String namespace, boolean completeExisting)
+            throws IOException {
         if (namespace == null || !NAMESPACE.matcher(namespace).matches()) {
             throw new IllegalArgumentException("Invalid CraftEngine namespace: " + namespace);
         }
@@ -67,35 +80,39 @@ public final class CraftEngineResources {
         }
 
         String prefix = "craftengine/" + namespace + "/";
-        int copied = 0;
+        int copied;
         try (ZipFile zip = new ZipFile(jar.toFile())) {
-            var entries = zip.entries();
-            while (entries.hasMoreElements()) {
-                ZipEntry entry = entries.nextElement();
-                if (entry.isDirectory() || !entry.getName().startsWith(prefix)) {
-                    continue;
-                }
-                Path target = targetRoot.resolve(entry.getName().substring(prefix.length())).normalize();
-                if (!target.startsWith(targetRoot) || Files.exists(target)) {
-                    continue;
-                }
-                Files.createDirectories(target.getParent());
-                try (InputStream input = zip.getInputStream(entry)) {
-                    Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING);
-                    copied++;
-                }
-            }
+            copied = copyEntries(zip, prefix, targetRoot, !Files.exists(targetRoot));
         }
         return copied + migrateLegacyPositionArguments(targetRoot);
+    }
+
+    private static int copyEntries(ZipFile zip, String prefix, Path targetRoot, boolean installAll)
+            throws IOException {
+        int copied = 0;
+        var entries = zip.entries();
+        while (entries.hasMoreElements()) {
+            ZipEntry entry = entries.nextElement();
+            if (entry.isDirectory() || !entry.getName().startsWith(prefix)) {
+                continue;
+            }
+            Path target = targetRoot.resolve(entry.getName().substring(prefix.length())).normalize();
+            if (!target.startsWith(targetRoot) || (!installAll && Files.exists(target))) {
+                continue;
+            }
+            Files.createDirectories(target.getParent());
+            try (InputStream input = zip.getInputStream(entry)) {
+                Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING);
+                copied++;
+            }
+        }
+        return copied;
     }
 
     private static int migrateLegacyPositionArguments(Path targetRoot) throws IOException {
         if (!Files.isDirectory(targetRoot)) {
             return 0;
         }
-        // The <arg:block.block_*> rewrite is a one-off migration of files this plugin ships. Once it has
-        // run for a pack root there is nothing left to find, so a marker file turns a full walk that reads
-        // every yml, yaml and json under the namespace into a single stat on every later boot.
         Path migrationMarker = targetRoot.resolve(".position-args-migrated");
         if (Files.exists(migrationMarker)) {
             return 0;

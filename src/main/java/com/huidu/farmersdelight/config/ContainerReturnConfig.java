@@ -14,10 +14,8 @@ public class ContainerReturnConfig {
 
     private final Map<String, ItemStack> containerReturnMap = new ConcurrentHashMap<>();
 
-    public void loadDefaults() {
-        addReturnItem("farmersdelight:milk_bottle", "minecraft:glass_bottle");
-    }
-
+    // The default mapping ships in the bundled config.yml only: this is a registry section, so an entry the
+    // operator deletes must not be re-added from code.
     public void loadFromConfig(ConfigurationSection section) {
         if (section == null) return;
 

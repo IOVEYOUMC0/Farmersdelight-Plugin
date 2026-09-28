@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.util;
 
+import com.huidu.farmersdelight.api.config.BehaviorArguments;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.plugin.config.ConfigConstants;
 import net.momirealms.craftengine.core.plugin.config.KnownResourceException;
@@ -16,27 +17,18 @@ public final class BehaviorArgParser {
     private BehaviorArgParser() {
     }
 
+    /**
+     * Resolves an argument that may be written either as a nested section path (burn.enabled from
+     * burn: {enabled: ...}) or as the legacy flat key (burn-enabled, also burn_enabled),
+     * so a pack written before the nested style keeps working unchanged. The lookup itself lives in the api
+     * facade (BehaviorArguments) because addon behavior factories read through it too.
+     */
     private static Object resolve(Map<String, Object> arguments, String key) {
-        if (arguments == null || key == null) {
-            return null;
-        }
-        Object value = arguments.get(key);
-        if (value != null) {
-            return value;
-        }
-        String alternate = alternateSpelling(key);
-        return alternate != null ? arguments.get(alternate) : null;
+        return BehaviorArguments.raw(arguments, key);
     }
 
     private static boolean present(Map<String, Object> arguments, String key) {
-        if (arguments == null || key == null) {
-            return false;
-        }
-        if (arguments.containsKey(key)) {
-            return true;
-        }
-        String alternate = alternateSpelling(key);
-        return alternate != null && arguments.containsKey(alternate);
+        return BehaviorArguments.present(arguments, key);
     }
 
     private static String valueText(Object value) {
@@ -47,20 +39,18 @@ public final class BehaviorArgParser {
         return resolve(arguments, key);
     }
 
-    private static String alternateSpelling(String key) {
-        boolean changed = false;
-        char[] chars = key.toCharArray();
-        for (int i = 0; i < chars.length; i++) {
-            char c = chars[i];
-            if (c == '-') {
-                chars[i] = '_';
-                changed = true;
-            } else if (c == '_') {
-                chars[i] = '-';
-                changed = true;
-            }
-        }
-        return changed ? new String(chars) : null;
+    /**
+     * The raw value for path, falling back to legacyKey for a grouped option whose old flat key
+     * does not follow the path spelling; used by callers that must inspect the raw value themselves (a section that
+     * must stay a section, or a scalar that has to be told apart from one).
+     */
+    public static Object getRaw(Map<String, Object> arguments, String path, String legacyKey) {
+        return BehaviorArguments.rawWithLegacy(arguments, path, legacyKey);
+    }
+
+    /** The nested section at path (for example burn), or null when there is no such map. */
+    public static Map<String, Object> getNestedSection(Map<String, Object> arguments, String path) {
+        return BehaviorArguments.section(arguments, path);
     }
 
     public static String getString(Map<String, Object> arguments, String key, String defaultValue) {
@@ -189,6 +179,61 @@ public final class BehaviorArgParser {
 
     public static boolean isPresent(Map<String, Object> arguments, String key) {
         return resolve(arguments, key) != null;
+    }
+
+    /**
+     * As getBoolean, but for a grouped option whose legacy flat key does not follow the path spelling
+     * (brown-mushroom-colony for mushroom-colony.brown). The nested path is tried first, then its
+     * own flat spelling, then legacyKey.
+     */
+    public static boolean getBoolean(Map<String, Object> arguments, String path, String legacyKey, boolean defaultValue) {
+        return getBoolean(resolveWithLegacy(arguments, path, legacyKey), path, defaultValue);
+    }
+
+    public static String getStringStrict(Map<String, Object> arguments, String path, String legacyKey, String fallback) {
+        return getStringStrict(resolveWithLegacy(arguments, path, legacyKey), path, fallback);
+    }
+
+    public static String getString(Map<String, Object> arguments, String path, String legacyKey, String defaultValue) {
+        return getString(resolveWithLegacy(arguments, path, legacyKey), path, defaultValue);
+    }
+
+    public static boolean isPresent(Map<String, Object> arguments, String path, String legacyKey) {
+        return present(arguments, path) || present(arguments, legacyKey);
+    }
+
+    // Returns the original map, or a copy that carries the legacy value under the path, so the typed readers keep
+    // their parsing and their error node (the path).
+    private static Map<String, Object> resolveWithLegacy(Map<String, Object> arguments, String path, String legacyKey) {
+        if (arguments == null || path == null || present(arguments, path)) {
+            return arguments;
+        }
+        Object legacy = BehaviorArguments.rawWithLegacy(arguments, path, legacyKey);
+        if (legacy == null) {
+            return arguments;
+        }
+        Map<String, Object> view = new LinkedHashMap<>(arguments);
+        return withPath(view, path, legacy);
+    }
+
+    // The readers look a dotted path up through nested maps, so the copy has to place the legacy value the same
+    // way; a copy carrying the path as one literal key ("bone-meal.is-target") is never found again by that
+    // lookup, which would leave the option silently at its default. An already configured sibling in the same
+    // section is merged in, so adding the legacy value does not hide it.
+    private static Map<String, Object> withPath(Map<String, Object> view, String path, Object value) {
+        int dot = path.lastIndexOf('.');
+        if (dot < 0) {
+            view.put(path, value);
+            return view;
+        }
+        String parentPath = path.substring(0, dot);
+        Map<String, Object> parent = new LinkedHashMap<>();
+        Map<String, Object> configured = BehaviorArguments.section(view, parentPath);
+        if (configured != null) {
+            parent.putAll(configured);
+        }
+        parent.put(path.substring(dot + 1), value);
+        return withPath(view, parentPath, parent);
     }
 
     public static Map<String, Object> getSection(Map<String, Object> arguments, String key) {

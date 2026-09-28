@@ -46,6 +46,8 @@ cook time).
 
 Hold a skillet in one hand and an ingredient with a campfire recipe in the other, stand near a heat source, and hold right-click. Completion consumes one ingredient from the other hand and gives the result, dropping overflow. Releasing right-click, changing items, swapping hands, dropping, using an inventory, dying, or disconnecting interrupts cooking. Unfinished ingredients remain in place and progress is discarded.
 
+"Near a heat source" means any block in the 3x3x3 box around the **player's** block position is a heat source. Which block you right-click, which face you hit, and even right-clicking air make no difference, and being on fire counts too. The heat source itself is judged exactly as it is for a placed skillet, the pot, the tray and the stove: it must be **lit**, so an extinguished campfire or stove nearby is not enough (this differs from the mod's portable check, which reads the heat source block tag without the lit property).
+
 Eating or drinking from the other hand prevents cooking from starting and interrupts an existing cook before progress advances. Vanilla consumption proceeds normally without an additional cooking debit. This applies with either hand holding the skillet.
 
 Handheld and placed skillets share recipe times, the cooking multiplier, and the Fire Aspect bonus. With default settings and no enchantment, a 600-tick campfire recipe takes about 120 ticks (6 seconds at normal TPS). Placed skillets process progress every 4 ticks.

@@ -53,6 +53,13 @@ public class StoveManager {
     private static final int HEARTBEAT_LOG_INTERVAL = 20;
     private static final int DEFAULT_TICK_BUDGET = 512;
     private static final int DEFAULT_COOLING_DECREMENT = 2;
+    // Period of the stove tick task; also the unit recipes and the cooling rate are measured in when a visit
+    // credits time (see StoveData.elapsedSinceLastCredit).
+    private static final int STOVE_TICK_INTERVAL = 4;
+    // Upper bound on the game ticks one visit may credit. A stove starved by the tick budget is revisited
+    // every 4 * (count / budget) ticks rather than every 4, and that real elapsed time is credited so food
+    // cooks in real time; the cap only keeps a long stall from crediting an absurd batch at once.
+    private static final int MAX_ELAPSED_CREDIT_TICKS = 1200;
     private static final double DEFAULT_SMOKE_CHANCE = Constants.STOVE_PARTICLE_CHANCE;
     private static final double DEFAULT_CRACKLE_CHANCE = Constants.STOVE_CRACKLE_CHANCE;
 
@@ -136,7 +143,7 @@ public class StoveManager {
         this.coolingDecrement = Math.max(0, plugin.getConfigInt(DEFAULT_COOLING_DECREMENT,
                 "stove.cooking.cooling-decrement",
                 "stove.cooling-decrement"));
-        this.chunkEffectBudgetLimit = Math.max(1, plugin.getConfigInt(50, "performance.chunk-effect-packet-budget"));
+        this.chunkEffectBudgetLimit = Math.max(1, plugin.getConfigInt(50, "performance.budgets.chunk-effect-packet-budget"));
         loadEffectsConfig();
         visualManager.reloadSlotOffsets();
         visualManager.refreshAll(stoves.values());
@@ -184,7 +191,7 @@ public class StoveManager {
                 return;
             }
             debug("tick task: starting stove tick task");
-            tickTask = plugin.scheduler().runRepeating(this::tick, 1L, 4L);
+            tickTask = plugin.scheduler().runRepeating(this::tick, 1L, STOVE_TICK_INTERVAL);
         }
     }
 
@@ -561,6 +568,21 @@ public class StoveManager {
         return getOrCreateStove(normalized);
     }
 
+    /**
+     * Cancels the tick task without dropping any state, for the window between the shutdown-time save and the
+     * in-memory cleanup: a stove that keeps cooking after its data was written would drop items the disk copy
+     * still lists, and the tick task reads the plugin's tick manager, which shutdown clears first.
+     */
+    public void suspendTickTask() {
+        synchronized (tickTaskLock) {
+            if (tickTask != null) {
+                tickTask.cancel();
+                tickTask = null;
+                heartbeatTicks = 0;
+            }
+        }
+    }
+
     public void cleanup() {
         synchronized (tickTaskLock) {
             if (tickTask != null) {
@@ -751,6 +773,9 @@ public class StoveManager {
         }
 
         long currentBukkitTick = Bukkit.getCurrentTick();
+        // Credited once per visit and applied to every slot below: durations and cooling are in game ticks.
+        int elapsedTicks = stove.elapsedSinceLastCredit(currentBukkitTick, STOVE_TICK_INTERVAL,
+                MAX_ELAPSED_CREDIT_TICKS);
         if (stove.blockedAboveCheckedTick == Long.MIN_VALUE
                 || currentBukkitTick - stove.blockedAboveCheckedTick > BLOCKED_RECHECK_TICKS) {
             stove.blockedAbove = isStoveBlockedAbove(location);
@@ -839,7 +864,13 @@ public class StoveManager {
             chunkBudget.addAndGet(2); // SMOKE + FLAME = 2 packets
         }
         for (int i = 0; i < SLOT_COUNT; i++) {
-            if (stove.items[i] == null || stove.items[i].getType().isAir()) {
+            // Read the slot under the per-stove monitor: a concurrent interaction inserts into it under the
+            // same monitor, so an unsynchronised read could act on a slot that changed since it was checked.
+            boolean occupied;
+            synchronized (stove) {
+                occupied = stove.items[i] != null && !stove.items[i].getType().isAir();
+            }
+            if (!occupied) {
                 continue;
             }
 
@@ -852,7 +883,11 @@ public class StoveManager {
             }
 
             if (isLit) {
-                stove.cookingTime[i]++;
+                boolean finished;
+                synchronized (stove) {
+                    stove.cookingTime[i] = Math.min(stove.maxTime[i], stove.cookingTime[i] + elapsedTicks);
+                    finished = stove.cookingTime[i] >= stove.maxTime[i];
+                }
 
                 boolean canSpawnSlotEffects = canSpawnEffects && chunkBudget.get() < chunkEffectBudgetLimit;
                 if (canSpawnSlotEffects && smokeEnabled && random.nextDouble() < smokeChance) {
@@ -867,7 +902,7 @@ public class StoveManager {
                     SoundUtils.play(nearbyViewers, location, crackleSound, Sound.BLOCK_CAMPFIRE_CRACKLE, crackleVolume, cracklePitch);
                     chunkBudget.incrementAndGet();
                 }
-                if (stove.cookingTime[i] >= stove.maxTime[i]) {
+                if (finished) {
                     int finishedSlot = i;
                     if (debugStove) {
                         debug(() -> "tick finish: slot=" + finishedSlot + ", item=" + formatItem(stove.items[finishedSlot])
@@ -876,11 +911,18 @@ public class StoveManager {
                     finishCooking(location, stove, i);
                 }
             } else {
-                stove.cookingTime[i] = Math.max(0, stove.cookingTime[i] - coolingDecrement);
+                synchronized (stove) {
+                    stove.cookingTime[i] = (int) Math.max(0L,
+                            stove.cookingTime[i] - (long) elapsedTicks * coolingDecrement);
+                }
             }
         }
 
-        if (!hasAnyItem(stove)) {
+        boolean anyItem;
+        synchronized (stove) {
+            anyItem = hasAnyItem(stove);
+        }
+        if (!anyItem) {
             removeStoredData(location);
             removeTrackedStove(location);
         }
@@ -925,33 +967,46 @@ public class StoveManager {
     }
 
     private void finishCooking(Location location, StoveData stove, int slot) {
-        ItemStack input = stove.items[slot];
-        if (input == null) return;
+        ItemStack result;
+        UUID ownerId;
+        String ownerName;
+        float experience;
+        // Slot state is read and cleared under the per-stove monitor: a concurrent interaction claims its slot
+        // under the same monitor, so without it this clear could drop an item a player just inserted.
+        synchronized (stove) {
+            ItemStack input = stove.items[slot];
+            if (input == null) return;
 
-        CookingRecipe<?> recipe = findCampfireRecipe(input);
-        debug(() -> "finish cooking: slot=" + slot + ", input=" + formatItem(input)
-                + ", recipe=" + (recipe != null ? recipe.getKey() : "null")
-                + ", location=" + formatLocation(location));
-        ItemStack result = recipe != null ? recipe.getResult() : input;
+            CookingRecipe<?> recipe = findCampfireRecipe(input);
+            debug(() -> "finish cooking: slot=" + slot + ", input=" + formatItem(input)
+                    + ", recipe=" + (recipe != null ? recipe.getKey() : "null")
+                    + ", location=" + formatLocation(location));
+            result = recipe != null ? recipe.getResult() : input;
+            experience = recipe != null ? recipe.getExperience() : 0.0F;
+            ownerId = stove.ownerIds[slot];
+            ownerName = stove.ownerNames[slot];
+
+            stove.items[slot] = null;
+            stove.cookingTime[slot] = 0;
+            stove.maxTime[slot] = defaultCookTime;
+            stove.ownerIds[slot] = null;
+            stove.ownerNames[slot] = null;
+        }
+
         if (result != null && !result.getType().isAir()) {
-            if (recipe != null && stove.ownerIds[slot] != null) {
+            if (ownerId != null) {
                 Bukkit.getPluginManager().callEvent(new ProfessionCookingExperienceEvent(
-                        stove.ownerIds[slot],
-                        stove.ownerNames[slot],
+                        ownerId,
+                        ownerName,
                         "stove",
                         result,
-                        recipe.getExperience(),
+                        experience,
                         location
                 ));
             }
             location.getWorld().dropItemNaturally(location.clone().add(0.5, 1.0, 0.5), result.clone());
         }
 
-        stove.items[slot] = null;
-        stove.cookingTime[slot] = 0;
-        stove.maxTime[slot] = defaultCookTime;
-        stove.ownerIds[slot] = null;
-        stove.ownerNames[slot] = null;
         visualManager.removeVisual(location, stove, slot);
 
         // Mark unconditionally: with other slots still occupied the disk copy would otherwise keep the
@@ -960,11 +1015,17 @@ public class StoveManager {
     }
 
     private void ejectAllItems(Location location, StoveData stove) {
-        for (int i = 0; i < SLOT_COUNT; i++) {
-            if (stove.items[i] != null && !stove.items[i].getType().isAir()) {
-                location.getWorld().dropItemNaturally(location.clone().add(0.5, 1.0, 0.5), stove.items[i].clone());
-                clearSlot(stove, i);
+        List<ItemStack> ejected = new ArrayList<>(SLOT_COUNT);
+        synchronized (stove) {
+            for (int i = 0; i < SLOT_COUNT; i++) {
+                if (stove.items[i] != null && !stove.items[i].getType().isAir()) {
+                    ejected.add(stove.items[i].clone());
+                    clearSlot(stove, i);
+                }
             }
+        }
+        for (ItemStack item : ejected) {
+            location.getWorld().dropItemNaturally(location.clone().add(0.5, 1.0, 0.5), item);
         }
     }
 
@@ -1001,18 +1062,24 @@ public class StoveManager {
     }
 
     private boolean retrieveItem(Player player, Location location, StoveData stove) {
-        int slot = findBestRetrievalSlot(stove);
-        if (slot < 0) {
-            return false;
-        }
+        ItemStack toReturn;
+        int slot;
+        // Claim the slot under the per-stove monitor: without it a concurrent tick could clear or refill the
+        // very slot this call just cloned, handing out one item twice (or none at all).
+        synchronized (stove) {
+            slot = findBestRetrievalSlot(stove);
+            if (slot < 0) {
+                return false;
+            }
 
-        ItemStack item = stove.items[slot];
-        if (item == null || item.getType().isAir()) {
-            return false;
-        }
+            ItemStack item = stove.items[slot];
+            if (item == null || item.getType().isAir()) {
+                return false;
+            }
 
-        ItemStack toReturn = item.clone();
-        clearSlot(stove, slot);
+            toReturn = item.clone();
+            clearSlot(stove, slot);
+        }
         visualManager.removeVisual(location, stove, slot);
 
         if (player.getInventory().getItemInMainHand().getType().isAir()) {

@@ -11,6 +11,7 @@ import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.util.PermissionChecker;
+import net.momirealms.craftengine.bukkit.api.BukkitAdaptor;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
@@ -44,6 +45,34 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
         return false;
     }
 
+    /**
+     * Creative middle-click ("pick block") hands over the item the block would drop: the stack it was placed
+     * from. CraftEngine's fallback is the block's plain item id, which drops the enchantments and - because a
+     * per-player built item carries components a context-free build does not - does not match the stack the
+     * player still holds, so the pick would add a second skillet next to it instead of selecting that one.
+     * Returning null when nothing is tracked restores CraftEngine's fallback.
+     */
+    @Override
+    public net.momirealms.craftengine.core.item.Item itemToPickup(
+            net.momirealms.craftengine.core.world.World world,
+            BlockPos pos,
+            ImmutableBlockState state,
+            net.momirealms.craftengine.core.entity.player.Player player) {
+        SkilletManager manager = getManager();
+        if (manager == null || world == null || pos == null || !(world.platformWorld() instanceof World bukkitWorld)) {
+            return null;
+        }
+        ItemStack snapshot = manager.pickupSnapshot(new Location(bukkitWorld, pos.x(), pos.y(), pos.z()));
+        if (snapshot == null) {
+            I18n.logDetail("interact", "skillet.pick_block_default", "item", Constants.ITEM_SKILLET);
+            return null;
+        }
+        String itemId = ItemUtils.getCustomItemId(snapshot);
+        I18n.logDetail("interact", "skillet.pick_block_snapshot", "item",
+                itemId != null ? itemId : snapshot.getType().getKey().toString());
+        return BukkitAdaptor.adapt(snapshot);
+    }
+
     public static final String SUPPORT_PROPERTY = "support";
 
     private final String permission;
@@ -59,8 +88,8 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
         String permission = BehaviorArgParser.getString(arguments, "permission", "farmersdelight.use.skillet");
         String addFoodSound = BehaviorArgParser.getArgumentString(arguments, "add-food-sound", Constants.SOUND_SKILLET_ADD_FOOD);
         String sizzleSound = BehaviorArgParser.getArgumentString(arguments, "sizzle-sound", Constants.SOUND_SKILLET_SIZZLE);
-        boolean supportDisplayEnabled = BehaviorArgParser.getBoolean(arguments, "display-support", true);
-        boolean requireNonFullSupport = BehaviorArgParser.getBoolean(arguments, "require-non-full-support", true);
+        boolean supportDisplayEnabled = BehaviorArgParser.getBoolean(arguments, "support.display", "display-support", true);
+        boolean requireNonFullSupport = BehaviorArgParser.getBoolean(arguments, "support.require-non-full", "require-non-full-support", true);
         Property<Boolean> supportProperty = BlockBehaviorFactory.getOptionalProperty(block, SUPPORT_PROPERTY, Boolean.class);
         if (supportProperty == null) {
             FarmersDelightPlugin.getInstance().getLogger()

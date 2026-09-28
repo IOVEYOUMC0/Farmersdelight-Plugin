@@ -241,7 +241,7 @@ public class RecipeViewGuiConfig {
         return slots.getFirst();
         }
 
-        protected static BaseConfig parseConfig(ConfigurationSection section) {
+        public static BaseConfig parseConfig(ConfigurationSection section) {
             if (section == null) {
                 return null;
             }

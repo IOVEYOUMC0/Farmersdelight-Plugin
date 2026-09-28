@@ -602,8 +602,9 @@ block:
     behavior:
     - type: farmersdelight:stove
       crackle-sound: farmersdelight:block.stove.crackle
-      burn-enabled: true
-      burn-damage: 1.0
+      burn:
+        enabled: true
+        damage: 1.0
     loot:
       template: default:loot_table/self
     states:
@@ -680,103 +681,6 @@ block:
           appearance: west_on
           settings:
             luminance: 13
-    events:
-    - on: right_click
-      conditions:
-      - type: hand
-        hand: main_hand
-      - type: match_block_property
-        properties:
-          fire: true
-      - type: match_item
-        item: ".*_shovel"
-        regex: true
-      functions:
-      - type: cancel_event
-      - type: update_interaction_tick
-      - type: update_block_property
-        properties:
-          fire: false
-      - type: play_sound
-        sound: minecraft:block.fire.extinguish
-      - type: damage_item
-        damage: 1
-      - type: swing_hand
-    - on: right_click
-      conditions:
-      - type: hand
-        hand: main_hand
-      - type: match_block_property
-        properties:
-          fire: true
-      - type: match_item
-        id: minecraft:water_bucket
-      functions:
-      - type: cancel_event
-      - type: update_interaction_tick
-      - type: update_block_property
-        properties:
-          fire: false
-      - type: play_sound
-        sound: minecraft:entity.generic.extinguish_fire
-      - type: set_count
-        target: self
-        count: -1
-        add: true
-      - type: swing_hand
-      - type: drop_loot
-        x: <arg:position.block_x>
-        y: <arg:position.block_y> + 2
-        z: <arg:position.block_z>
-        loot:
-          pools:
-          - rolls: 1
-            entries:
-            - type: item
-              item: minecraft:bucket
-              count: 1
-    - on: right_click
-      conditions:
-      - type: hand
-        hand: main_hand
-      - type: match_block_property
-        properties:
-          fire: false
-      - type: match_item
-        id: minecraft:flint_and_steel
-      functions:
-      - type: cancel_event
-      - type: update_interaction_tick
-      - type: update_block_property
-        properties:
-          fire: true
-      - type: play_sound
-        sound: minecraft:item.flintandsteel.use
-      - type: damage_item
-        damage: 1
-      - type: swing_hand
-    - on: right_click
-      conditions:
-      - type: hand
-        hand: main_hand
-      - type: match_block_property
-        properties:
-          fire: false
-      - type: match_item
-        id: minecraft:fire_charge
-      functions:
-      - type: cancel_event
-      - type: update_interaction_tick
-      - type: update_block_property
-        properties:
-          fire: true
-      - type: play_sound
-        sound: minecraft:item.firecharge.use
-      - type: set_count
-        target: self
-        count: -1
-        add: true
-      - type: swing_hand
   farmersdelight:organic_compost:
     settings:
       hardness: 1.2
@@ -797,11 +701,14 @@ block:
     - type: farmersdelight:organic_compost
       rich-soil-block: farmersdelight:rich_soil
       max-stage: 7
-      activator-bonus-per-neighbor: 0.02
-      water-bonus: 0.10
-      light-high-bonus: 0.10
-      light-low-bonus: 0.05
-      light-threshold: 12
+      activator:
+        bonus-per-neighbor: 0.02
+      water:
+        bonus: 0.10
+      light:
+        high-bonus: 0.10
+        low-bonus: 0.05
+        threshold: 12
       activators:
       - minecraft:brown_mushroom
       - minecraft:red_mushroom
@@ -942,8 +849,9 @@ block:
     behavior:
     - type: farmersdelight:rich_soil
       boost-chance: 0.2
-      brown-mushroom-colony: farmersdelight:brown_mushroom_colony
-      red-mushroom-colony: farmersdelight:red_mushroom_colony
+      mushroom-colony:
+        brown: farmersdelight:brown_mushroom_colony
+        red: farmersdelight:red_mushroom_colony
       unaffected-blocks:
       - minecraft:grass_block
       - minecraft:short_grass
@@ -1054,17 +962,21 @@ block:
         step: minecraft:block.lantern.step
     behavior:
     - type: farmersdelight:cooking_pot
-      display-support: true
-      require-non-full-support: true
-      handle-toggle-sound: minecraft:block.lantern.place
-      handle-toggle-sound-volume: 0.7
-      handle-toggle-sound-pitch: 1.0
-      boil-sound: farmersdelight:block.cooking_pot.boil
-      soup-boil-sound: farmersdelight:block.cooking_pot.boil_soup
-      sound-chance: 0.1
-      sound-volume: 0.5
-      sound-pitch-min: 0.9
-      sound-pitch-max: 1.1
+      support:
+        display: true
+        require-non-full: true
+      handle-toggle-sound:
+        sound: minecraft:block.lantern.place
+        volume: 0.7
+        pitch: 1.0
+      boil:
+        sound: farmersdelight:block.cooking_pot.boil
+        soup-sound: farmersdelight:block.cooking_pot.boil_soup
+      sound:
+        chance: 0.1
+        volume: 0.5
+        pitch-min: 0.9
+        pitch-max: 1.1
     loot:
       template: default:loot_table/self
     states:
@@ -1218,8 +1130,9 @@ block:
     behavior:
     - type: farmersdelight:skillet
       permission: farmersdelight.use.skillet
-      display-support: true
-      require-non-full-support: true
+      support:
+        display: true
+        require-non-full: true
       add-food-sound: farmersdelight:block.skillet.add_food
       sizzle-sound: farmersdelight:block.skillet.sizzle
     states:
@@ -1625,8 +1538,9 @@ block:
     - type: farmersdelight:tatami
       block-id: farmersdelight:tatami
       facing-property: facing
-      paired-property: paired
-      pair-while-sneaking: false
+      pair:
+        property: paired
+        while-sneaking: false
     settings:
       hardness: 0.8
       resistance: 0.8

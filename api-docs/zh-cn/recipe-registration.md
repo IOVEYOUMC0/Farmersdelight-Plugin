@@ -63,17 +63,42 @@ public void unregisterCuttingBoardRecipe(String id);
 
 ## 什么时候注册
 
-结果和容器是 `ItemStack`，所以 CraftEngine 物品必须已经加载完。FarmersDelight 自己也是把配方加载推迟到 `CraftEngineReloadEvent` 的，你照做，并在之后每次 CE 重载时重新注册。下面是 BAC 的注册器，做了精简：
+**首选：写进你自己的 CraftEngine 数据包，一行 Java 都不用。** 把配方放进 `<你的数据包>/configuration/` 下的任意 YAML，用
+`cooking_recipes` / `cutting_recipes` / `special_recipes` 作根键，CraftEngine 加载数据包时会把整段交给 FarmersDelight，
+FD 自己解析、解析物品、并进配方表。字段写法和 FD 的 `recipes/*.yml` 完全一致，只有根键不同：
+
+```yaml
+# craftengine/myaddon/configuration/farmersdelight/cooking_pot_recipes.yml
+cooking_recipes:
+  myaddon:cheese_soup:
+    ingredients:
+      - "myaddon:cheese"
+      - "farmersdelight:onion"
+    container: "minecraft:bowl"
+    result: "myaddon:cheese_soup"
+    experience: 0.35
+    cook-time: 200
+    category: meals
+```
+
+- 段里的键**逐字**就是配方 id（FD 不会替你补命名空间），所以这里要写全 `myaddon:cheese_soup`。
+- 加载顺序：FD 自己的配方文件 → 数据包 → 运行时 API 注册，同 id 时后者胜出；特殊配方同理，包层输给插件文件、内置默认与 API 注册。
+- 改完要 `/ce reload all`（或重启）：数据包内容只在 CraftEngine 加载数据包时读一次。`/fd reload recipes` 只重读
+  `plugins/FarmersDelight/recipes/*.yml`。
+- 只有配方需要**运行时**决定时才走下面的 Java 路径（读数据库、按玩家或时间变化、由别的插件在运行时喂数据）。
+
+**需要动态注册时**：结果和容器是 `ItemStack`，所以 CraftEngine 物品必须已经加载完。FarmersDelight 自己也是把配方加载推迟到
+`CraftEngineReloadEvent` 的，你照做，并在之后每次 CE 重载时重新注册。下面是手写注册器的骨架（BAC 的厨锅配方过去就是这么读的，
+现在它们在数据包里，这段仅作 API 用法示例）：
 
 ```java
-public final class BrewinCookingPotRecipes implements Listener {
+public final class ExampleCookingPotRecipes implements Listener {
 
     private final JavaPlugin plugin;
     private final Set<String> registeredIds = new LinkedHashSet<>();
 
     @EventHandler
     public void onCraftEngineReload(CraftEngineReloadEvent event) {
-        BrewinItems.clearCache();
         register();
     }
 
@@ -96,14 +121,14 @@ public final class BrewinCookingPotRecipes implements Listener {
             if (ingredients.isEmpty() || resultId == null) {
                 continue;
             }
-            ItemStack result = BrewinItems.create(resultId);
+            ItemStack result = ExampleItems.create(resultId);
             if (result == null) {
                 continue; // CraftEngine items not ready yet; a later CraftEngineReloadEvent retries.
             }
             result.setAmount(Math.max(1, section.getInt("result-count", 1)));
             String containerId = section.getString("container");
-            ItemStack container = containerId == null ? null : BrewinItems.create(containerId);
-            String recipeId = "brewinandchewin:" + key;
+            ItemStack container = containerId == null ? null : ExampleItems.create(containerId);
+            String recipeId = "myaddon:" + key;
             api.registerCookingPotRecipe(recipeId, ingredients, container, result,
                     section.getDouble("experience", 0.0), section.getInt("cook-time", 200),
                     section.getString("category", "misc"));
@@ -129,7 +154,36 @@ public final class BrewinCookingPotRecipes implements Listener {
 }
 ```
 
-这个写法比朴素写法多做对了三件事：它是**幂等的**（`onEnable` 和启动时的 `CraftEngineReloadEvent` 都可能调到它）； 它会**跳过**那些 CraftEngine 物品还没加载好的条目，留给后续重载重试；它还会**反注册**配置里已经消失的 id，而不是 在锅里留下一堆孤儿配方。
+这个骨架比朴素写法多做对了三件事：它是**幂等的**（`onEnable` 和启动时的 `CraftEngineReloadEvent` 都可能调到它）；它会
+**跳过**那些 CraftEngine 物品还没加载好的条目，留给后续重载重试；它还会**反注册**配置里已经消失的 id，而不是在锅里留下一堆
+孤儿配方。
+
+更省事的一条运行时路径是 FD 提供的 `AddonRecipeFiles`：传给它可以省掉上面全部样板——读文件、给裸键补命名空间、
+CraftEngine 未就绪时保留上一批并重试、撤回已删除的 id 都由它负责（早期每个附属各抄一份，抄出了不一致）。它加载的配方在
+配方编辑器里仍然回写到那个文件；数据包提供的配方则由编辑器写进 FD 自己的配方文件。
+
+## 附属自己的数据包段落
+
+FD 自己也用同一套机制读它的四类段落，并且把它开放出来：`com.huidu.farmersdelight.api.pack.AddonPackSections`
+让附属声明**自己的** CE 段落（酒桶发酵、烧烤、串制这类 FD 不认识的内容），由 CraftEngine 在加载数据包时递进来。
+
+```java
+// onLoad：必须早于 CraftEngine 加载数据包（它在自己的 onEnable 里做）
+recipeSections = AddonPackSections.claim(this, "myaddon:recipes", "myaddon recipe sections",
+        Map.of("grilling_recipes", "grilling_recipes", "skewering_recipes", "skewering_recipes"));
+
+// 读取端（原来读 recipes/*.yml 的地方）
+for (AddonPackSections.Entry entry : AddonPackSections.entries(recipeSections, "grilling_recipes",
+        "grilling_recipes", new File(getDataFolder(), "recipes/grilling_recipes.yml"))) {
+    ConfigurationSection body = entry.section();   // entry.id() 是键，entry.source() 用于报错定位
+}
+```
+
+- 段落名就是数据包文件里的根键，且不能与 CraftEngine 或别的插件已占用的段名冲突；冲突会打印一条警告，该 claim 保持为空。
+- 每个 claim 有自己的加载阶段：CE 的加载金字塔按 stage 建任务，共用会顶掉别人的任务。
+- `entries(...)` 会把插件数据目录里的同名文件叠在数据包之上（同 id 以文件为准，位置保持），这样服主和游戏内编辑器仍能覆盖
+  随包默认值；不需要覆盖层时传 `null` 即可。
+- 段落是只读快照，读取发生在主线程；物品解析放在读取端做，不要在 parser 里碰 CE / Bukkit 注册表。
 
 ## 查询配方
 

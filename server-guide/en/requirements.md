@@ -36,8 +36,17 @@ CraftEngine content. CraftEngine is listed under `depend:` in the plugin's `plug
 - on startup FarmersDelight waits for CraftEngine to finish parsing its items and blocks before it registers
   recipes and content.
 
-Install a CraftEngine 26.9.1 build compatible with your server. FarmersDelight is pinned to the **CraftEngine
-26.9.1** API; do not substitute a 26.8.x build.
+Install a CraftEngine build compatible with your server. This repository compiles against the official Maven
+**CraftEngine 26.9.1** API, and the server-side CraftEngine versions verified against a live server are
+**26.8.2, 26.9 and 26.9.1**:
+
+- 26.8.2 and newer is enough: across those three versions this plugin and every addon resolve the same
+  CraftEngine classes and members (187 classes, 595 members, none missing, no unimplemented interface method),
+  and the recipe, advancement and pack-section counts in the startup log are identical.
+- Scope of that check: linkage (whether the classes and members exist) plus the startup result. Client-side
+  behaviour was not re-verified in game on 26.8.2/26.9, and releases older than 26.8.2 were not checked.
+- Minecraft 26.3 does not work yet: CraftEngine 26.9.1 fails to inject blocks there and shuts the server down,
+  so that has to wait for a CraftEngine release.
 
 ## Optional integrations (soft dependencies)
 

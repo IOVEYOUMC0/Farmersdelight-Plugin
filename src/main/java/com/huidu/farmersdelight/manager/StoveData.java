@@ -26,10 +26,31 @@ public final class StoveData {
     // subtraction against it overflows.
     volatile long blockedAboveCheckedTick = Long.MIN_VALUE;
     volatile boolean blockedAbove;
+    // Game tick of the last cooking credit. Recipe durations and the cooling rate are documented in game
+    // ticks, so progress has to be credited by elapsed time rather than once per tick-loop visit (the loop
+    // only revisits a stove every STOVE_TICK_INTERVAL ticks). MIN_VALUE marks "never credited".
+    volatile long lastCookingCreditTick = Long.MIN_VALUE;
 
     StoveData(Location location, int defaultCookTime) {
         this.location = location;
         Arrays.fill(maxTime, defaultCookTime);
         Arrays.fill(displayEntities, -1);
+    }
+
+    /**
+     * Game ticks elapsed since the previous credit, or the interval on the first one. Bounded so a long stall
+     * (or a chunk that was unloaded) cannot credit an implausible batch in a single step.
+     */
+    int elapsedSinceLastCredit(long currentTick, int interval, int cap) {
+        long previous = lastCookingCreditTick;
+        lastCookingCreditTick = currentTick;
+        if (previous == Long.MIN_VALUE) {
+            return interval;
+        }
+        long elapsed = currentTick - previous;
+        if (elapsed <= 0L) {
+            return interval;
+        }
+        return (int) Math.min(cap, elapsed);
     }
 }

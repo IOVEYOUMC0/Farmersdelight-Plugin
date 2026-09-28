@@ -133,16 +133,16 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
     public void reload() {
         viewDistance = Math.max(8.0D, ConfigSectionReader.optionalDouble(
                 plugin.getConfig(),
-                "performance.proxy-item-display-view-distance", DEFAULT_VIEW_DISTANCE));
+                "performance.proxy-display.view-distance", DEFAULT_VIEW_DISTANCE));
         viewDistanceSquared = viewDistance * viewDistance;
         viewRangeMeta = (float) (viewDistance / 64.0D);
         packets.reload(viewRangeMeta);
         syncIntervalTicks = Math.max(1, ConfigSectionReader.optionalInt(
                 plugin.getConfig(),
-                "performance.proxy-item-display-sync-interval-ticks", DEFAULT_SYNC_INTERVAL_TICKS));
+                "performance.proxy-display.sync-interval-ticks", DEFAULT_SYNC_INTERVAL_TICKS));
         syncBatchSize = Math.max(1, ConfigSectionReader.optionalInt(
                 plugin.getConfig(),
-                "performance.proxy-item-display-sync-batch-size", DEFAULT_SYNC_BATCH_SIZE));
+                "performance.proxy-display.sync-batch-size", DEFAULT_SYNC_BATCH_SIZE));
         // Restart the sync task so the new interval takes effect.
         synchronized (syncTaskLock) {
             if (syncTask != null) {
@@ -809,9 +809,7 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
             }
 
             desiredViewers.add(player.getUniqueId());
-            if (!display.viewers.contains(player.getUniqueId())) {
-                spawnForViewer(player, display);
-            }
+            spawnForViewer(player, display);
         }
 
         // display.viewers is a ConcurrentHashMap key set: its weakly-consistent iterator tolerates the
@@ -858,17 +856,25 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
     }
 
     private void spawnForViewer(Player player, ProxyDisplay display) {
+        // Claim the viewer slot first: syncPlayer (the player's own scheduler) and syncAll/drainPendingSync
+        // (the owning chunk's region task) can both reach this method for the same player, and sending the
+        // spawn twice leaves a duplicate display entity behind after a single destroy.
+        if (!display.viewers.add(player.getUniqueId())) {
+            return;
+        }
         try {
             NetWorkUser user = networkManager.getOnlineUser(player.getUniqueId());
             if (user == null || !user.isOnline()) {
+                display.viewers.remove(player.getUniqueId());
                 return;
             }
             user.sendPackets(display.spawnPackets, false);
-            display.viewers.add(player.getUniqueId());
             visibleDisplaysByPlayer.computeIfAbsent(player.getUniqueId(), ignored -> ConcurrentHashMap.newKeySet())
                     .add(display.entityId);
             viewerSpawnPacketCount.incrementAndGet();
         } catch (Exception e) {
+            // The packets did not go out, so the viewer is released again and the next sync retries.
+            display.viewers.remove(player.getUniqueId());
             plugin.getLogger().warning(I18n.formatConsole("visual.proxy_spawn_failed",
                     "entity", display.entityId,
                     "player", player.getName(),

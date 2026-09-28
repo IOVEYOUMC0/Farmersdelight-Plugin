@@ -364,7 +364,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         }
 
         int budget = Math.max(1, plugin.getConfigInt(DEFAULT_RELOAD_VISUAL_REFRESH_BUDGET,
-                "performance.reload-visual-refreshes-per-tick"));
+                "performance.budgets.reload-visual-refreshes-per-tick"));
         for (int i = 0; i < budget; i++) {
             DisplayRefresh refresh;
             synchronized (displayRefreshLock) {

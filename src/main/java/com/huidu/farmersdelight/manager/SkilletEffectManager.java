@@ -78,7 +78,7 @@ public class SkilletEffectManager {
                 "skillet.effects.viewer-distance"));
         this.effectViewerDistanceSquared = viewerDistance * viewerDistance;
         this.chunkEffectBudgetLimit = Math.max(1, plugin.getConfigInt(50,
-                "performance.chunk-effect-packet-budget"));
+                "performance.budgets.chunk-effect-packet-budget"));
         loadEffectsConfig();
     }
 

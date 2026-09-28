@@ -39,18 +39,32 @@ class ConfigBootstrapEquivalenceTest {
     }
 
     private static final String[][] LEGACY_MIGRATIONS = {
-            {"knife-drops", "mob-extra-drops"},
-            {"entity-extra-drops", "mob-extra-drops"},
-            {"knife-drop-tools", "mob-extra-drop-tools"},
-            {"entity-extra-drop-tools", "mob-extra-drop-tools"},
             {"knife-config", "drops.knife-items"},
-            {"mob-extra-drop-tools", "drops.mob-extra-tools"},
-            {"mob-extra-drops", "drops.mob-extra"},
             {"straw-drops", "drops.straw"},
             {"drops.knife-items", "knife-items"},
             {"cooking-pot.experience-reward", "experience-reward"},
             {"cooking-pot.container-returns", "container-returns"},
             {"recipe-discovery", "recipes.discovery"},
+            {"cutting-board.hopper-interactions", "cutting-board.allow-hopper"},
+            {"cooking-pot.hopper-interactions", "cooking-pot.allow-hopper"},
+            {"skillet.hopper-interactions", "skillet.allow-hopper"},
+            {"performance.warnings-enabled", "performance.warnings.enabled"},
+            {"performance.warning-cooldown-seconds", "performance.warnings.cooldown-seconds"},
+            {"performance.active-block-warning-threshold", "performance.warnings.active-block-threshold"},
+            {"performance.cooking-pot-total-warning-threshold", "performance.warnings.cooking-pot-total-threshold"},
+            {"performance.cooking-pot-density-warning-threshold",
+             "performance.warnings.cooking-pot-density-threshold"},
+            {"performance.craftengine-free-state-warning-threshold",
+             "performance.warnings.craftengine-free-state-threshold"},
+            {"performance.proxy-item-display-view-distance", "performance.proxy-display.view-distance"},
+            {"performance.proxy-item-display-sync-interval-ticks", "performance.proxy-display.sync-interval-ticks"},
+            {"performance.proxy-item-display-sync-batch-size", "performance.proxy-display.sync-batch-size"},
+            {"performance.reload-visual-refreshes-per-tick",
+             "performance.budgets.reload-visual-refreshes-per-tick"},
+            {"performance.pet-tempt-tick-budget", "performance.budgets.pet-tempt-tick-budget"},
+            {"performance.startup-chunk-loads-per-tick", "performance.budgets.startup-chunk-loads-per-tick"},
+            {"performance.chunk-effect-packet-budget", "performance.budgets.chunk-effect-packet-budget"},
+            {"performance.effect-tick-interval-ticks", "performance.budgets.effect-tick-interval-ticks"},
             {"buff-persistence", "buff.persistence"},
             {"bossbar", "buff.display"},
             {"comfort-foods", "buff.comfort"},
@@ -65,7 +79,9 @@ class ConfigBootstrapEquivalenceTest {
             "tray",
             "cooking-pot.tray",
             "handle",
-            "cooking-pot.handle");
+            "cooking-pot.handle",
+            "cooking-pot.display",
+            "cooking-pot.display.visibility-check-interval-ticks");
 
     private static final List<String> LEGACY_REGISTRY_SECTIONS = List.of(
             "heat-sources",
@@ -74,9 +90,7 @@ class ConfigBootstrapEquivalenceTest {
             "buff.nourishment",
             "nourishment-foods",
             "container-returns",
-            "cooking-pot.container-returns",
-            "cutting-board.display-overrides",
-            "cutting-board.display-tag-overrides");
+            "cooking-pot.container-returns");
 
     @Test
     void policyCarriesTheSameTablesTheLegacyCodeHad() throws Exception {
@@ -182,8 +196,9 @@ class ConfigBootstrapEquivalenceTest {
         assertFalse(bundledConfig().contains("drops", true));
         Path path = Path.of("src", "main", "resources", "drops.yml");
         YamlConfiguration drops = YamlConfiguration.loadConfiguration(path.toFile());
-        assertTrue(drops.contains("mob-extra-tools", true));
-        assertTrue(drops.contains("mob-extra", true));
+        // The mob knife drops moved into the CraftEngine pack; only the straw advancement whitelist is left.
+        assertFalse(drops.contains("mob-extra", true));
+        assertFalse(drops.contains("mob-extra-tools", true));
         assertTrue(drops.contains("straw", true));
     }
 
@@ -214,22 +229,19 @@ class ConfigBootstrapEquivalenceTest {
         Path dropsPath = Files.createTempFile("farmersdelight-drops", ".yml");
         try {
             YamlConfiguration bundled = new YamlConfiguration();
-            bundled.set("mob-extra.pig.normal", "farmersdelight:ham");
-            bundled.set("mob-extra.hoglin.normal", "farmersdelight:ham");
-            bundled.set("mob-extra-tools.items", List.of("farmersdelight:iron_knife"));
             bundled.set("straw.mature_rice.drop", "farmersdelight:straw");
+            bundled.set("straw.short_grass.drop", "farmersdelight:straw");
             ConfigFileUpdater.tidy(bundled);
             Files.writeString(dropsPath, bundled.saveToString(), StandardCharsets.UTF_8);
 
             YamlConfiguration legacy = new YamlConfiguration();
-            legacy.set("mob-extra.pig.normal", "minecraft:porkchop");
+            legacy.set("straw.mature_rice.drop", "minecraft:wheat");
             ConfigBootstrap.copyLegacyDrops(legacy, dropsPath);
 
             YamlConfiguration migrated = YamlConfiguration.loadConfiguration(dropsPath.toFile());
-            assertEquals("minecraft:porkchop", migrated.getString("mob-extra.pig.normal"));
-            assertFalse(migrated.contains("mob-extra.hoglin", true));
-            assertFalse(migrated.contains("mob-extra-tools", true));
-            assertFalse(migrated.contains("straw", true));
+            assertEquals("minecraft:wheat", migrated.getString("straw.mature_rice.drop"));
+            // The group is replaced wholesale, so a key the legacy config did not carry is not merged back in.
+            assertFalse(migrated.contains("straw.short_grass", true));
         } finally {
             Files.deleteIfExists(dropsPath);
         }
