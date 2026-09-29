@@ -1,7 +1,7 @@
 """Strip whole-line comments from the CraftEngine pack configuration files.
 
-The wiki states the rule (server-guide/*/block-behaviors.md: "The shipped CE files contain no comments, so use this
-page as the field reference when you edit them") and carries
+The wiki repository states the rule (server-guide/*/block-behaviors.md: "The shipped CE files contain no comments,
+so use this page as the field reference when you edit them") and carries
 the field references instead. This removes the explanatory comments without touching values: only lines whose
 first non-space character is '#' are dropped, and the script refuses to touch a comment that sits inside a YAML
 block scalar (a value introduced by '|' or '>'), which would be data rather than a comment.

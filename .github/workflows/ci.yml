@@ -12,6 +12,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # The addon-facing api documentation lives in the wiki repository, and ApiDocsDriftTest checks it
+      # against the code. Checked out here so the test runs; without it the test fails on principle rather
+      # than skipping, so this step is not allowed to fail quietly either.
+      - name: Checkout the wiki (api documentation)
+        uses: actions/checkout@v4
+        with:
+          repository: IOVEUMC0/FarmersdelightPluginWiKi
+          path: wiki
+
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:

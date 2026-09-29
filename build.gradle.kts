@@ -80,6 +80,17 @@ tasks.withType<JavaCompile>().configureEach {
 
 tasks.test {
     useJUnitPlatform()
+    // ApiDocsDriftTest reads the api pages from the wiki repository (checked out beside this repository's
+    // parent locally, under wiki/ in CI). Declaring them as inputs keeps the task from staying "up to date"
+    // when only a page changed, which is exactly the drift the test exists to catch. Only a checkout that
+    // is actually present can be declared: a directory input has to exist.
+    listOf(
+        file("api-docs"),
+        file("wiki/api-docs"),
+        file("../../FarmersdelightPluginWiKi/api-docs"),
+    ).filter { it.isDirectory }.forEach { docs ->
+        inputs.dir(docs).withPropertyName("apiDocs:${docs.name}")
+    }
     doLast {
         // Incomplete JUnit reports must not turn a test-listener failure into a successful build.
         val skipped = Regex("(?m)^\\s*<skipped(?:\\s|/|>)")
