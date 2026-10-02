@@ -344,13 +344,12 @@ public final class SchedulerAdapter {
         }
 
         private static boolean isOwnedByCurrentRegion(Location location) {
-            try {
-                Method method = Bukkit.class.getMethod("isOwnedByCurrentRegion", Location.class);
-                Object result = method.invoke(null, location);
-                return !(result instanceof Boolean) || (Boolean) result;
-            } catch (ReflectiveOperationException e) {
-                return true;
-            }
+            // Called straight into the API rather than reflectively: it is on the compile classpath, and the
+            // other Folia-aware call sites (the basket vacuum, the buff bossbar) already call it directly.
+            // This is a per-interaction check that the handheld skillet reaches up to 27 times per use, so the
+            // reflective lookup it used to do - a getMethod scan plus a parameter-array clone, every call -
+            // was the hottest reflection in the plugin.
+            return Bukkit.isOwnedByCurrentRegion(location);
         }
 
         private static PluginTask entityRunLater(FarmersDelightPlugin plugin, Entity entity, Runnable task, long delayTicks) {

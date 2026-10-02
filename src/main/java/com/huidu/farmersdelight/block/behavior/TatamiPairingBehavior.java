@@ -190,6 +190,10 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
         }
     }
 
+    // CraftEngine's Player does not expose getBukkitEntity through a type we can call, so this stays
+    // reflective; the lookup itself is cached because it runs once per placement.
+    private static volatile java.lang.reflect.Method getBukkitEntityMethod;
+
     private static boolean isPlacerSneaking(Object playerArg) {
         if (playerArg == null) {
             return false;
@@ -198,7 +202,12 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
             return cePlayer.isSecondaryUseActive();
         }
         try {
-            Object bukkitEntity = playerArg.getClass().getMethod("getBukkitEntity").invoke(playerArg);
+            java.lang.reflect.Method method = getBukkitEntityMethod;
+            if (method == null) {
+                method = playerArg.getClass().getMethod("getBukkitEntity");
+                getBukkitEntityMethod = method;
+            }
+            Object bukkitEntity = method.invoke(playerArg);
             if (bukkitEntity instanceof org.bukkit.entity.Player bukkitPlayer) {
                 return bukkitPlayer.isSneaking();
             }
