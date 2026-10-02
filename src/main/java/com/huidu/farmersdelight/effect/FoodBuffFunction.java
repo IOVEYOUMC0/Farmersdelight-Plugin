@@ -19,14 +19,17 @@ public final class FoodBuffFunction<CTX extends Context> extends AbstractConditi
     public enum Kind {COMFORT, NOURISHMENT}
 
     private final Kind kind;
-    private final NumberProvider duration; // seconds
+    private final NumberProvider duration; // seconds, or ticks when durationInTicks
     private final NumberProvider level;    // 1-based
+    private final boolean durationInTicks;
 
-    private FoodBuffFunction(List<Condition<CTX>> predicates, Kind kind, NumberProvider duration, NumberProvider level) {
+    private FoodBuffFunction(List<Condition<CTX>> predicates, Kind kind, NumberProvider duration, NumberProvider level,
+                             boolean durationInTicks) {
         super(predicates);
         this.kind = kind;
         this.duration = duration;
         this.level = level;
+        this.durationInTicks = durationInTicks;
     }
 
     @Override
@@ -35,7 +38,9 @@ public final class FoodBuffFunction<CTX extends Context> extends AbstractConditi
             if (!(cePlayer.platformPlayer() instanceof Player bukkitPlayer)) {
                 return;
             }
-            int seconds = Math.max(1, duration.getInt(ctx));
+            int seconds = durationInTicks
+                    ? ticksToSeconds(duration.getInt(ctx))
+                    : Math.max(1, duration.getInt(ctx));
             int lvl = Math.max(1, level.getInt(ctx));
             if (kind == Kind.COMFORT) {
                 FarmersDelightFoodEffects.applyComfort(bukkitPlayer, seconds, lvl);
@@ -45,17 +50,36 @@ public final class FoodBuffFunction<CTX extends Context> extends AbstractConditi
         });
     }
 
+    /**
+     * Converts a tick duration to the whole seconds the buff API takes, rounding up so a duration below a
+     * second still grants the effect for one.
+     */
+    static int ticksToSeconds(int ticks) {
+        return Math.max(1, (Math.max(0, ticks) + 19) / 20);
+    }
+
     public static <CTX extends Context> FunctionFactory<CTX, FoodBuffFunction<CTX>> factory(
             Kind kind, Function<ConfigSection, Condition<CTX>> conditionFactory) {
-        return new Factory<>(kind, conditionFactory);
+        return new Factory<>(kind, conditionFactory, false);
+    }
+
+    /**
+     * The same function with duration read in ticks, which is how the PapersDelight packs write it
+     * (their *_effect functions); this plugin's own packs write seconds.
+     */
+    public static <CTX extends Context> FunctionFactory<CTX, FoodBuffFunction<CTX>> ticksFactory(
+            Kind kind, Function<ConfigSection, Condition<CTX>> conditionFactory) {
+        return new Factory<>(kind, conditionFactory, true);
     }
 
     private static final class Factory<CTX extends Context> extends AbstractFactory<CTX, FoodBuffFunction<CTX>> {
         private final Kind kind;
+        private final boolean durationInTicks;
 
-        Factory(Kind kind, Function<ConfigSection, Condition<CTX>> conditionFactory) {
+        Factory(Kind kind, Function<ConfigSection, Condition<CTX>> conditionFactory, boolean durationInTicks) {
             super(conditionFactory);
             this.kind = kind;
+            this.durationInTicks = durationInTicks;
         }
 
         @Override
@@ -64,7 +88,8 @@ public final class FoodBuffFunction<CTX extends Context> extends AbstractConditi
                     getPredicates(section),
                     kind,
                     section.getNumber("duration", ConfigConstants.CONSTANT_NINETY),
-                    section.getNumber("level", ConfigConstants.CONSTANT_ONE)
+                    section.getNumber("level", ConfigConstants.CONSTANT_ONE),
+                    durationInTicks
             );
         }
     }

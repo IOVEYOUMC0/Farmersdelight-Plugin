@@ -207,6 +207,7 @@ console:
     auraskills_skill_missing: "AuraSkills skill was not found: {skill}"
     auraskills_xp_failed: "Failed to add AuraSkills XP for skill {skill} to {player}: {error}"
     registered_block_behaviors: "Registered custom block behaviors"
+    papersdelight_aliases: "Registered the PapersDelight behaviour aliases; identifiers this plugin has no equivalent for: {unsupported}"
     custom_cooking_pot_gui_load_failed: "Failed to load custom cooking pot GUI '{id}': {error}"
     startup_config: "Startup config"
     startup_reason: "startup"
