@@ -2,8 +2,10 @@ package com.huidu.farmersdelight.pack;
 
 import com.huidu.farmersdelight.api.pack.AddonPackSections;
 import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.recipe.AdvancedTagGroups;
 import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
 import net.momirealms.craftengine.core.pack.PackManager;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.util.ArrayList;
@@ -27,13 +29,15 @@ public final class PackSections {
     }
 
     private final AddonPackSections claimed;
+    private final AddonPackSections tagGroups;
 
-    private PackSections(AddonPackSections claimed) {
+    private PackSections(AddonPackSections claimed, AddonPackSections tagGroups) {
         this.claimed = claimed;
+        this.tagGroups = tagGroups;
     }
 
     /**
-     * Registers the parser with CraftEngine. Returns null when CraftEngine has no pack manager yet or when
+     * Registers the parsers with CraftEngine. Returns null when CraftEngine has no pack manager yet or when
      * another plugin already claimed one of the section ids; both cases are reported to the console.
      */
     public static PackSections register() {
@@ -51,14 +55,39 @@ public final class PackSections {
             return null;
         }
         I18n.logDetail("startup", "plugin.pack_sections_registered", "ids", String.join(", ", roots.keySet()));
-        return new PackSections(claimed);
+
+        // The advanced tag groups are claimed separately: one claim's ids are registered as a unit, so putting
+        // this one in the batch above would let a pack or plugin that already owns the id take the recipes down
+        // with it. A failed claim here costs tag groups and nothing else.
+        AddonPackSections tagGroups = AddonPackSections.claim(packManager, "farmersdelight:advanced_tags",
+                "farmersdelight advanced tag groups", separateRoots());
+        if (!tagGroups.registered()) {
+            I18n.logWarning("plugin.pack_sections_conflict", "ids", String.join(", ", separateRoots().keySet()));
+        } else {
+            I18n.logDetail("startup", "plugin.pack_sections_registered",
+                    "ids", String.join(", ", separateRoots().keySet()));
+        }
+        return new PackSections(claimed, tagGroups);
     }
 
     /** The claimed ids mapped to the root key each reader looks up. */
     private static Map<String, String> roots() {
         Map<String, String> roots = new LinkedHashMap<>();
         for (PackSection section : PackSection.values()) {
-            roots.put(section.sectionId(), section.rootKey());
+            if (!section.separateClaim()) {
+                roots.put(section.sectionId(), section.rootKey());
+            }
+        }
+        return roots;
+    }
+
+    /** The ids claimed in their own registration, so one conflict cannot disable the sections above. */
+    private static Map<String, String> separateRoots() {
+        Map<String, String> roots = new LinkedHashMap<>();
+        for (PackSection section : PackSection.values()) {
+            if (section.separateClaim()) {
+                roots.put(section.sectionId(), section.rootKey());
+            }
         }
         return roots;
     }
@@ -77,5 +106,65 @@ public final class PackSections {
             out.add(new Section(section, entry.source(), entry.namespace(), entry.config()));
         }
         return List.copyOf(out);
+    }
+
+    /**
+     * The advanced tag groups the packs declare, resolved into flat member lists.
+     *
+     * <p>Compiled on each call rather than cached: this runs during a reload, next to the recipe readers, and a
+     * cached snapshot would have to be invalidated by every one of them.
+     */
+    public AdvancedTagGroups advancedTagGroups() {
+        if (this.tagGroups == null) {
+            return AdvancedTagGroups.EMPTY;
+        }
+        Map<String, List<String>> declared = new LinkedHashMap<>();
+        for (AddonPackSections.Section entry : this.tagGroups.sections(PackSection.ADVANCED_TAGS.sectionId())) {
+            collectGroups(entry.config(), PackSection.ADVANCED_TAGS.rootKey(), declared);
+        }
+        AdvancedTagGroups groups = AdvancedTagGroups.compile(declared);
+        if (!groups.dropped().isEmpty()) {
+            List<String> ids = new ArrayList<>(groups.dropped().size());
+            for (var id : groups.dropped()) {
+                ids.add(id.toString());
+            }
+            I18n.logWarning("plugin.advanced_tag_groups_dropped", "ids", String.join(", ", ids));
+        }
+        return groups;
+    }
+
+    /**
+     * Reads the group id to member list map out of one pack section.
+     *
+     * <p>A member is an item id or an advtag: reference; both stay as written, because flattening them
+     * is AdvancedTagGroups' job and a value that is neither a list nor a scalar is reported rather than
+     * guessed at. The first declaration of a group id wins, so a pack that sorts earlier cannot be overridden
+     * by one that sorts later.
+     */
+    static void collectGroups(YamlConfiguration yaml, String rootKey, Map<String, List<String>> out) {
+        if (yaml == null) {
+            return;
+        }
+        ConfigurationSection root = yaml.getConfigurationSection(rootKey);
+        if (root == null) {
+            return;
+        }
+        for (String groupId : root.getKeys(false)) {
+            Object value = root.get(groupId);
+            List<String> members = new ArrayList<>();
+            if (value instanceof List<?> list) {
+                for (Object member : list) {
+                    if (member != null) {
+                        members.add(String.valueOf(member));
+                    }
+                }
+            } else if (value instanceof String single) {
+                members.add(single);
+            } else if (value != null) {
+                I18n.logWarning("plugin.advanced_tag_group_invalid", "id", groupId);
+                continue;
+            }
+            out.putIfAbsent(groupId, members);
+        }
     }
 }

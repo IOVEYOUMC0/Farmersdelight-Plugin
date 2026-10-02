@@ -319,6 +319,8 @@ console:
     pack_sections_registered: "已占用 CraftEngine 数据包段：{ids}"
     pack_sections_unavailable: "CraftEngine 的数据包管理器尚未就绪，未能占用数据包段；数据包内的配方、特殊配方与进度都不会被读取。"
     pack_sections_conflict: "CraftEngine 数据包段 {ids} 已被其他插件占用，本插件无法读取；这些段里的数据包配方、特殊配方与进度将被忽略。"
+    advanced_tag_groups_dropped: "以下高级标签组因引用无法解析（成环、引用了不存在的组，或嵌套过深）而被忽略：{ids}"
+    advanced_tag_group_invalid: "已忽略高级标签组 {id}：其成员必须是物品 ID 列表，或单个物品 ID。"
     craftengine_not_ready: "等待 CraftEngine 加载自定义物品超时（约 20 秒）：配方、进度与显示缓存均未预热。请在 CraftEngine 就绪后执行 /fd reload recipes 完成加载。"
   advancement:
     loaded_keys: "已加载 {count} 个进度键"
