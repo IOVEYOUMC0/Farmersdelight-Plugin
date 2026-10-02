@@ -80,7 +80,10 @@ public final class ConfigBootstrap {
                     // Display visibility/throttling now lives in CraftEngine, which diffs the display text itself,
                     // so this interval stopped being read and the key was removed from the bundled file.
                     "cooking-pot.display",
-                    "cooking-pot.display.visibility-check-interval-ticks")
+                    "cooking-pot.display.visibility-check-interval-ticks",
+                    // The pot decides "placement or GUI" from the item in hand now, so the timer that used to
+                    // swallow every interaction for a moment after a placement is no longer read.
+                    "cooking-pot.place-interaction-cooldown-ms")
             .registrySection("heat-sources",
                     // Guarded at the parent, not at the foods child: an admin who disables every food by
                     // deleting the whole foods block leaves no foods path for a narrower guard to match, and

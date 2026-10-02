@@ -368,9 +368,10 @@ cooking-pot:
   # true = pack pot contents into the dropped pot item; false = drop an empty pot and scatter the contents.
   pack-contents-on-break: true
 
-  # Milliseconds a player must wait after placing a pot before the placing click can also open it. Stops the
-  # placement click from carrying straight through into the GUI. Set to 0 to allow opening immediately.
-  place-interaction-cooldown-ms: 1000
+  # A pot in hand makes right-clicking a pot place it (against or on top of the one being clicked) instead of
+  # opening it; holding anything else opens the pot as usual, and so does sneaking where the pot allows that.
+  # There used to be no such rule and a one-second timer instead, which also swallowed the owner's own click
+  # on the pot they had just placed.
 
   # Floating TextDisplay during pot cooking.
   progress-display:
