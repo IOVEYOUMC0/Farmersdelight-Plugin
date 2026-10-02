@@ -58,6 +58,10 @@ public final class RecipeDiscoveryManager {
     private volatile boolean notifyOnUnlock; // chat message when a recipe unlocks
     private volatile Material lockedIcon = Material.BARRIER;
     private volatile boolean dirty;
+    // Players whose cache entry has to go, but only once a flush has actually written them. A failed write
+    // leaves the file stale, and `unlocked` then holds the only copy of everything discovered since the last
+    // successful one, so dropping the entry at quit time would throw those unlocks away for good.
+    private final Set<UUID> pendingEvictions = ConcurrentHashMap.newKeySet();
 
     public RecipeDiscoveryManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -593,7 +597,7 @@ public final class RecipeDiscoveryManager {
             return;
         }
         save();
-        unlocked.remove(playerId);
+        retainUntilWritten(playerId, null);
     }
 
     public void evict(UUID playerId, long version) {
@@ -603,11 +607,28 @@ public final class RecipeDiscoveryManager {
         // Always flush first: a stale quit task must not discard pending unlocks when a rejoin
         // has already advanced the lifecycle version.
         save();
+        retainUntilWritten(playerId, version);
+    }
+
+    /**
+     * Drops a player's cached unlocks, unless the flush that should have persisted them failed.
+     *
+     * <p>When the write failed the entry is the only copy of those unlocks, so it is kept and the eviction is
+     * replayed by the next successful save() instead.
+     *
+     * @param version the lifecycle version the caller evicted for, or null to skip that check
+     */
+    private void retainUntilWritten(UUID playerId, Long version) {
         synchronized (this) {
-            if (isCurrent(playerId, version)) {
-                unlocked.remove(playerId);
-                lifecycleVersions.remove(playerId, version);
+            if (version != null && !isCurrent(playerId, version)) {
+                return;
             }
+            if (dirty) {
+                pendingEvictions.add(playerId);
+                return;
+            }
+            unlocked.remove(playerId);
+            lifecycleVersions.remove(playerId);
         }
     }
 
@@ -632,6 +653,17 @@ public final class RecipeDiscoveryManager {
         } catch (IOException e) {
             dirty = true; // failed write: keep state dirty so the next flush retries
             I18n.logWarning("recipe-discovery.save_failed", "error", String.valueOf(e.getMessage()));
+            return;
+        }
+        // The file carries everyone now, so the evictions that waited for a successful write can run. Only
+        // when nothing was unlocked while the write ran: that newer state lives in `unlocked` alone, and
+        // dropping it here would lose it exactly the way this bookkeeping exists to prevent.
+        if (!dirty && !pendingEvictions.isEmpty()) {
+            for (UUID id : pendingEvictions) {
+                unlocked.remove(id);
+                lifecycleVersions.remove(id);
+            }
+            pendingEvictions.clear();
         }
     }
 }

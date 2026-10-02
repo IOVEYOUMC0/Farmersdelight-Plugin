@@ -45,6 +45,9 @@ public class TickManager {
     private final Map<ActiveBlock, Long> heatSourceLastCheckTicks = new ConcurrentHashMap<>();
     private static final int HEAT_SOURCE_CHECK_INTERVAL_TICKS = 10;
     private final Set<ActiveBlock> scheduledActiveBlocks = ConcurrentHashMap.newKeySet();
+    // Which activation each tracked block is currently on; see ActivationGenerations for why membership alone
+    // is not enough to decide whether an already-submitted work pass may still run.
+    private final ActivationGenerations<ActiveBlock> activeGenerations = new ActivationGenerations<>();
     private volatile List<ActiveBlock> activeBlockSnapshot = List.of();
     private volatile int activeCookingPotCount;
     private boolean activeBlockLimitWarningShown;
@@ -115,6 +118,7 @@ public class TickManager {
         }
         
         activeBlocks.clear();
+        activeGenerations.clear();
         activeBlockSnapshot = List.of();
         activeCookingPotCount = 0;
         pendingChanges.clear();
@@ -377,6 +381,9 @@ public class TickManager {
                 if (change.add()) {
                     if (activeBlocks.add(change.block())) {
                         changed = true;
+                        // A fresh activation gets a fresh generation, so a pass submitted for the previous
+                        // one stops being current the moment it is superseded.
+                        activeGenerations.activate(change.block());
                         if (change.block().type() == BlockType.COOKING_POT) {
                             activeCookingPotCount++;
                         }
@@ -389,6 +396,7 @@ public class TickManager {
                             activeCookingPotCount--;
                         }
                     }
+                    activeGenerations.deactivate(change.block());
                     lastProcessedTicks.remove(change.block());
                     progressDisplayLastUpdateTicks.remove(change.block());
                     heatSourceLastCheckTicks.remove(change.block());
@@ -512,6 +520,11 @@ public class TickManager {
         if (world == null) return;
 
         if (folia) {
+            Long generation = activeGenerations.current(activeBlock);
+            if (generation == null) {
+                // Deactivated between the snapshot being taken and this pass reaching it.
+                return;
+            }
             if (!scheduledActiveBlocks.add(activeBlock)) {
                 return;
             }
@@ -520,7 +533,7 @@ public class TickManager {
             try {
                 plugin.scheduler().runAt(world, chunkX, chunkZ, () -> {
                     try {
-                        processActiveBlockInRegion(activeBlock, world, getCurrentTick(), true);
+                        processActiveBlockInRegion(activeBlock, world, getCurrentTick(), generation);
                     } finally {
                         scheduledActiveBlocks.remove(activeBlock);
                     }
@@ -531,12 +544,18 @@ public class TickManager {
         return;
         }
 
-        processActiveBlockInRegion(activeBlock, world, currentTick, false);
+        processActiveBlockInRegion(activeBlock, world, currentTick, null);
     }
 
-    private void processActiveBlockInRegion(ActiveBlock activeBlock, World world,
-                                            long currentTick, boolean verifyMembership) {
-        if (!running || (verifyMembership && !activeBlocks.contains(activeBlock))) {
+    /**
+     * Work pass for one tracked block.
+     *
+     * @param generation the activation this pass belongs to, or null when the caller already ran on
+     *                   the tick thread with a snapshot taken in the same pass (nothing can have superseded it)
+     */
+    private void processActiveBlockInRegion(ActiveBlock activeBlock, World world, long currentTick,
+                                            Long generation) {
+        if (!running || (generation != null && !activeGenerations.isCurrent(activeBlock, generation))) {
             return;
         }
 

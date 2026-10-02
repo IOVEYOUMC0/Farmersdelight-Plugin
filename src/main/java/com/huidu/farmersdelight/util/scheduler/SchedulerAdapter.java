@@ -13,24 +13,30 @@ import java.lang.reflect.Modifier;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 public final class SchedulerAdapter {
 
+    // Queued async work is per-player file IO (recipe-discovery loads and flushes, datapack removal). A
+    // server with more than this many tasks waiting has a disk problem rather than a burst, and holding the
+    // rest would only delay the work while it keeps growing, so the pool refuses it and the caller decides.
+    private static final int ASYNC_QUEUE_CAPACITY = 256;
+
     private final FarmersDelightPlugin plugin;
     private final boolean folia;
-    private final ExecutorService asyncExecutor;
+    private final ThreadPoolExecutor asyncExecutor;
 
     public SchedulerAdapter(FarmersDelightPlugin plugin) {
         this.plugin = Objects.requireNonNull(plugin, "plugin");
         this.folia = isClassPresent();
-        this.asyncExecutor = Executors.newFixedThreadPool(
+        this.asyncExecutor = BoundedExecutor.create(
                 Math.max(2, Math.min(4, Runtime.getRuntime().availableProcessors())),
+                ASYNC_QUEUE_CAPACITY,
                 new NamedThreadFactory()
         );
     }
@@ -156,8 +162,28 @@ public final class SchedulerAdapter {
         );
     }
 
+    /**
+     * Runs the task on the async pool.
+     *
+     * @throws java.util.concurrent.RejectedExecutionException when the queue is full or the pool is shut
+     *         down; the task did not run, so the caller still owns whatever it was going to flush
+     */
     public void runAsync(Runnable task) {
-        asyncExecutor.execute(task);
+        asyncExecutor.execute(Objects.requireNonNull(task, "task"));
+    }
+
+    /**
+     * Runs the task on the async pool, tolerating a full queue.
+     *
+     * @return false when the task was refused and therefore never ran
+     */
+    public boolean tryRunAsync(Runnable task) {
+        try {
+            asyncExecutor.execute(Objects.requireNonNull(task, "task"));
+            return true;
+        } catch (RejectedExecutionException refused) {
+            return false;
+        }
     }
 
     public void shutdown() {

@@ -343,6 +343,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     // FarmersDelight's bStats plugin id.
     private static final int BSTATS_PLUGIN_ID = 32571;
+    // Held so the disable sequence can stop bStats' own reporting task.
+    private Metrics metrics;
 
     // Required host platform; excluded from enchantment-conflict detection (it hooks the enchant event to manage
     // its own custom items and is always present, so it is not a competing enchantment system).
@@ -413,7 +415,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             // Skip the async hop entirely while the feature is off: there is nothing to flush, and the
             // flag can be turned on by a reload, so the task stays registered rather than being cancelled.
             if (manager != null && manager.isEnabled()) {
-                scheduler().runAsync(() -> {
+                // A refused task is not a lost flush: the state stays dirty and the next round retries.
+                scheduler().tryRunAsync(() -> {
                     RecipeDiscoveryManager current = recipeDiscoveryManager;
                     if (current != null && current.isEnabled()) {
                         current.save();
@@ -473,7 +476,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // copy stays private to this plugin instead of racing other plugins' copies for the shared name.
         if (BSTATS_PLUGIN_ID > 0) {
             try {
-                new Metrics(this, BSTATS_PLUGIN_ID);
+                metrics = new Metrics(this, BSTATS_PLUGIN_ID);
             } catch (Throwable t) {
                 I18n.logWarning("plugin.bstats_failed", "error", t.getMessage());
             }
@@ -515,6 +518,16 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // Order inside ListenerRegistry#stop: event delivery is detached before any listener state is torn
         // down, then the listeners' own tasks stop, then the world/chunk handlers detach.
         runDisableStep("plugin.disable_step_unregister_listeners", listeners::stop);
+
+        // bStats keeps a task of its own; its reports are useless once the plugin is going away, and
+        // shutting it down here is what stops it from holding a reference to a disabled plugin instance.
+        runDisableStep("plugin.disable_step_shutdown_metrics", () -> {
+            Metrics current = metrics;
+            metrics = null;
+            if (current != null) {
+                current.shutdown();
+            }
+        });
 
         runDisableStep("plugin.disable_step_stop_tick_manager", () -> {
             if (tickManager != null) {

@@ -446,7 +446,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (craftableOnly) {
             recipes = craftability().filterCraftableCookingPotRecipes(recipes, player);
         }
-        recipes = applyDiscoveryFilter(recipes, true, player);
+        recipes = listVisibleTo(player, recipes, true);
         drawRecipeList(player, listConfig, recipes, true);
     }
 
@@ -457,8 +457,20 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (craftableOnly) {
             recipes = craftability().filterCraftableCuttingBoardRecipes(recipes, player);
         }
-        recipes = applyDiscoveryFilter(recipes, false, player);
+        recipes = listVisibleTo(player, recipes, false);
         drawRecipeList(player, listConfig, recipes, false);
+    }
+
+    /**
+     * The list the viewer actually sees, in the order the slots are laid out in.
+     *
+     * <p>The discovery filter hides recipes the viewer has not unlocked. The recipe editor reuses this list,
+     * and an admin opening /fd recipe edit has no unlock record of their own, so filtering there hid
+     * exactly the recipes they came to edit. Draw and click both go through here, because a slot is resolved
+     * back to a recipe by rebuilding this list.
+     */
+    private <T> List<T> listVisibleTo(Player player, List<T> recipes, boolean isCookingPot) {
+        return editMode ? recipes : applyDiscoveryFilter(recipes, isCookingPot, player);
     }
 
     private <T> void drawRecipeList(Player player, RecipeViewGuiConfig.RecipeListConfig listConfig, 
@@ -1369,7 +1381,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (craftableOnly) {
             recipes = craftability().filterCraftableCookingPotRecipes(recipes, player);
         }
-        recipes = applyDiscoveryFilter(recipes, true, player);
+        recipes = listVisibleTo(player, recipes, true);
 
         handleRecipeListClick(player, slot, listConfig, recipes, true);
     }
@@ -1380,7 +1392,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (craftableOnly) {
             recipes = craftability().filterCraftableCuttingBoardRecipes(recipes, player);
         }
-        recipes = applyDiscoveryFilter(recipes, false, player);
+        recipes = listVisibleTo(player, recipes, false);
 
         handleRecipeListClick(player, slot, listConfig, recipes, false);
     }
