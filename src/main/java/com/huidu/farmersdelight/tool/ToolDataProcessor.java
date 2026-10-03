@@ -29,13 +29,9 @@ public final class ToolDataProcessor implements ItemProcessor {
         item.maxDamage(maxDurability);
         item.damage(0);
         if (enchantability > 0) {
-            try {
-                // 1.21.5+: enchantable changed from int to {"value": int}
-                item.setJavaComponent(DataComponentKeys.ENCHANTABLE, Map.of("value", enchantability));
-            } catch (RuntimeException e) {
-                // 1.21.4 and earlier: enchantable is a plain int
-                item.setJavaComponent(DataComponentKeys.ENCHANTABLE, enchantability);
-            }
+            // The component form every supported server release expects: enchantable is a struct with a
+            // value field, not a bare int.
+            item.setJavaComponent(DataComponentKeys.ENCHANTABLE, Map.of("value", enchantability));
         }
         return item;
     }

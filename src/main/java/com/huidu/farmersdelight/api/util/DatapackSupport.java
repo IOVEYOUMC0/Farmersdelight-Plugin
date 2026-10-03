@@ -73,7 +73,7 @@ public final class DatapackSupport {
 
     // The datapack pack_format is version-specific: single value up to 1.21.8, a min_format/max_format
     // range from 1.21.9 onward. Generating it from the running server avoids the "incompatible pack"
-    // warning and keeps the installers working across the whole 1.21.4~26.x range.
+    // warning and keeps the installers working across the whole 1.21.5~26.x range.
     public static String renderPackMetadata(String description) {
         return renderPackMetadata(description, Bukkit.getBukkitVersion());
     }
@@ -97,8 +97,9 @@ public final class DatapackSupport {
     // its tag files read, so minecraft:on_random_loot ended up referencing an enchantment that was never
     // registered, and every vanilla loot table using that tag failed to parse.
     //
-    // 1.21.4 exposes getPackVersion(PackType) returning an int; 26.x renamed it to packVersion(PackType)
-    // and returns a PackFormat record. Both are reached reflectively so one jar covers the whole range.
+    // The int-returning getPackVersion(PackType) spelling is the 1.21.5~1.21.8 form; 26.x renamed it to
+    // packVersion(PackType) and returns a PackFormat record. Both are reached reflectively so one jar
+    // covers the whole range.
     private static PackFormat serverDataPackFormat() {
         try {
             Class<?> shared = Class.forName("net.minecraft.SharedConstants");
@@ -130,7 +131,7 @@ public final class DatapackSupport {
                     Object result = worldVersion.getClass()
                             .getMethod(name, packTypeClass).invoke(worldVersion, serverData);
                     if (result instanceof Integer value) {
-                        // 1.21.4-1.21.8: a bare major, written as a single pack_format.
+                        // 1.21.5-1.21.8: a bare major, written as a single pack_format.
                         return new PackFormat(value, false);
                     }
                     // 1.21.9+: a PackFormat record; its major is what pack.mcmeta needs.
@@ -148,17 +149,13 @@ public final class DatapackSupport {
 
     private static final int MAX_RANGE_FORMAT = 150;
 
-    private static final PackFormat PACK_FORMAT_1_21_4 = new PackFormat(61, false);
     private static final PackFormat PACK_FORMAT_1_21_5 = new PackFormat(71, false);
     private static final PackFormat PACK_FORMAT_1_21_6_8 = new PackFormat(80, false);
     private static final PackFormat PACK_FORMAT_RANGE = new PackFormat(88, true);
 
-    // Data pack format history: 1.21.4=61, 1.21.5=71, 1.21.6/7/8=80; 1.21.9 and every 26.x release use
+    // Data pack format history: 1.21.5=71, 1.21.6/7/8=80; 1.21.9 and every 26.x release use
     // the min_format/max_format range form (88 is the 1.21.9 data pack major format).
     private static PackFormat packFormatFor(String version) {
-        if (version.contains("1.21.4")) {
-            return PACK_FORMAT_1_21_4;
-        }
         if (version.contains("1.21.5")) {
             return PACK_FORMAT_1_21_5;
         }
