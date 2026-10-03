@@ -28,10 +28,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * An audit of every call site closed with the counts below. They are a ratchet, not a target: lower a
  * number when a site starts resolving once and caching, never raise one to let a new lookup through. A file
  * that is not listed at all may not reflect.
+ *
+ *
+ * The ratchet covers both Java source roots: src/main/java and the debug source set
+ * src/debugTools/java, which is compiled into the plugin only with -PdebugTools=true but is
+ * still shipped reflection when it is. Each root keeps its own budget map, so a debug-only file can never
+ * hide inside a main-source file's number.
  */
 class ReflectionBudgetTest {
-
-    private static final Path SOURCE_ROOT = Path.of("src", "main", "java");
 
     private static final Pattern REFLECTIVE = Pattern.compile(
             "Class\\.forName|getDeclaredMethod|getDeclaredField|getMethod\\s*\\(|getField\\s*\\(|MethodHandles|VarHandle|ClassValue");
@@ -41,10 +45,18 @@ class ReflectionBudgetTest {
             Pattern.compile("Class\\.forName\\s*\\(\\s*\"(?:org\\.bukkit\\.|java\\.|javax\\.)");
 
     /**
-     * The files that legitimately reflect, each with the number of matches measured when the audit closed.
-     * Paths are relative to src/main/java and use forward slashes.
+     * One audited source root: the directory walked and the per-file budgets measured against it. The debug
+     * source set is compiled only with -PdebugTools=true, so its files are deliberately kept apart
+     * from the main counts rather than merged into one map.
      */
-    private static final Map<String, Integer> PER_FILE_BUDGET = Map.ofEntries(
+    private record SourceSet(Path root, Map<String, Integer> perFileBudget) {
+    }
+
+    /**
+     * The files that legitimately reflect, each with the number of matches measured when the audit closed.
+     * Paths are relative to their source root and use forward slashes.
+     */
+    private static final Map<String, Integer> MAIN_BUDGET = Map.ofEntries(
             // Optional plugins and the WorldEdit/WorldGuard API, none of which is on our compile classpath.
             Map.entry("com/huidu/farmersdelight/util/compat/WorldGuardCompat.java", 21),
             Map.entry("com/huidu/farmersdelight/compat/AuraSkillsHook.java", 14),
@@ -64,20 +76,37 @@ class ReflectionBudgetTest {
             Map.entry("com/huidu/farmersdelight/api/util/CompatAttributes.java", 1),
             Map.entry("com/huidu/farmersdelight/api/util/CompatItemMeta.java", 1));
 
+    /**
+     * The debug source set, which reaches into the plugin's own classes by reflection for fields the main
+     * sources keep private (the stove's item arrays, the skillet's state, the recipe manager's visual manager).
+     * Those lookups are legitimate for a debug-only build, but they are still a cost and still a ratchet:
+     * measured from the sources at the point this budget was extended to cover the debug set.
+     */
+    private static final Map<String, Integer> DEBUG_TOOLS_BUDGET = Map.ofEntries(
+            Map.entry("com/huidu/farmersdelight/debug/DebugToolsCommand.java", 10));
+
+    private static final List<SourceSet> SOURCE_SETS = List.of(
+            new SourceSet(Path.of("src", "main", "java"), MAIN_BUDGET),
+            new SourceSet(Path.of("src", "debugTools", "java"), DEBUG_TOOLS_BUDGET));
+
     @Test
     void reflectionStaysInsideTheAuditedFilesAndCounts() throws IOException {
         List<String> grown = new ArrayList<>();
         List<String> newFiles = new ArrayList<>();
-        for (Path file : javaSources()) {
-            String relative = SOURCE_ROOT.relativize(file).toString().replace('\\', '/');
-            int found = countMatches(file, REFLECTIVE);
-            Integer budget = PER_FILE_BUDGET.get(relative);
-            if (budget == null) {
-                if (found > 0) {
-                    newFiles.add(relative + " (" + found + ")");
+        for (SourceSet sourceSet : SOURCE_SETS) {
+            String rootLabel = sourceSet.root().toString().replace('\\', '/');
+            for (Path file : javaSources(sourceSet.root())) {
+                String relative = sourceSet.root().relativize(file).toString().replace('\\', '/');
+                String key = rootLabel + ":" + relative;
+                int found = countMatches(file, REFLECTIVE);
+                Integer budget = sourceSet.perFileBudget().get(relative);
+                if (budget == null) {
+                    if (found > 0) {
+                        newFiles.add(key + " (" + found + ")");
+                    }
+                } else if (found > budget) {
+                    grown.add(key + ": " + budget + " -> " + found);
                 }
-            } else if (found > budget) {
-                grown.add(relative + ": " + budget + " -> " + found);
             }
         }
 
@@ -100,10 +129,12 @@ class ReflectionBudgetTest {
     @Test
     void compileTimeClassesAreNotLookedUpByName() throws IOException {
         List<String> offenders = new ArrayList<>();
-        for (Path file : javaSources()) {
-            Matcher matcher = COMPILE_TIME_LOOKUP.matcher(read(file));
-            while (matcher.find()) {
-                offenders.add(SOURCE_ROOT.relativize(file) + ": " + matcher.group());
+        for (SourceSet sourceSet : SOURCE_SETS) {
+            for (Path file : javaSources(sourceSet.root())) {
+                Matcher matcher = COMPILE_TIME_LOOKUP.matcher(read(file));
+                while (matcher.find()) {
+                    offenders.add(sourceSet.root().relativize(file) + ": " + matcher.group());
+                }
             }
         }
 
@@ -112,8 +143,11 @@ class ReflectionBudgetTest {
                         + "\n  " + String.join("\n  ", offenders));
     }
 
-    private static List<Path> javaSources() throws IOException {
-        try (Stream<Path> files = Files.walk(SOURCE_ROOT)) {
+    private static List<Path> javaSources(Path sourceRoot) throws IOException {
+        if (!Files.isDirectory(sourceRoot)) {
+            return List.of();
+        }
+        try (Stream<Path> files = Files.walk(sourceRoot)) {
             return files.filter(Files::isRegularFile)
                     .filter(path -> path.toString().endsWith(".java"))
                     .filter(path -> !path.toString().contains("src/main/java/com/huidu/farmersdelight/debug"))

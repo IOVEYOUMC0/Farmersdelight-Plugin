@@ -49,7 +49,8 @@ final class DebugBatchRunner {
             return;
         }
         try {
-            job.cursor = processSlice(job.cursor, job.count, job.action);
+            long cursor = job.cursor;
+            job.cursor = processSlice((int) cursor, job.count, job.action);
             if (job.cursor < job.count) {
                 schedule(player, job);
             } else if (current.compareAndSet(job, null)) {
@@ -79,7 +80,7 @@ final class DebugBatchRunner {
         final int count;
         final IntConsumer action;
         final Runnable finished;
-        int cursor;
+        long cursor;
 
         Job(UUID owner, int count, IntConsumer action, Runnable finished) {
             this.owner = owner;

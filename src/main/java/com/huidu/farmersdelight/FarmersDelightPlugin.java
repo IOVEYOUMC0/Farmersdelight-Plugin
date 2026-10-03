@@ -163,7 +163,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private final PluginConfigFiles configFiles = new PluginConfigFiles(this, configBootstrap);
 
     // Lazy-loaded, may be accessed concurrently by multiple region threads (awarding XP when collecting cooking pot results); uses volatile + double-checked locking,
-    // consistent with recipeEditorStore.
+    // consistent with RecipeEditorView.store.
     private volatile AuraSkillsHook auraSkillsHook;
 
     // volatile: reassigned on reload and read by region threads.

@@ -305,10 +305,10 @@ placed-features:
       $$>=26.3:
         type: 'minecraft:simple_block'
         to_place:
-          type: 'craftengine:simple_state_provider'
+          type: 'minecraft:simple'
           state:
-            Name: 'farmersdelight:brown_mushroom_colony'
-            Properties:
+            id: 'farmersdelight:brown_mushroom_colony'
+            properties:
               age: '3'
       $$26.1~26.2:
         type: 'minecraft:simple_block'
@@ -428,10 +428,10 @@ placed-features:
       $$>=26.3:
         type: 'minecraft:simple_block'
         to_place:
-          type: 'craftengine:simple_state_provider'
+          type: 'minecraft:simple'
           state:
-            Name: 'farmersdelight:red_mushroom_colony'
-            Properties:
+            id: 'farmersdelight:red_mushroom_colony'
+            properties:
               age: '3'
       $$26.1~26.2:
         type: 'minecraft:simple_block'

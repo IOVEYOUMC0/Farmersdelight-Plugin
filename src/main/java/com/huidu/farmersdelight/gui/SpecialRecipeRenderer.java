@@ -19,7 +19,7 @@ import java.util.List;
 // Owns every ItemStack/Component builder used by the special-recipe list and detail pages. These are pure
 // construction helpers: they read the shared gui config / inventory and produce display items, with no
 // navigation or page state of their own. The gui keeps the draw/click flow (which mutates currentPage,
-// catalysCycle and selectedSpecialRecipeId) and delegates the builders here.
+// catalystCycle and selectedSpecialRecipeId) and delegates the builders here.
 final class SpecialRecipeRenderer {
 
     private final RecipeViewGui gui;
