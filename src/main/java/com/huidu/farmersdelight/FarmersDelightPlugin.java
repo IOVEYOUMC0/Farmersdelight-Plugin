@@ -519,8 +519,13 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // worst case their SUM; here the whole tail shares a budget and a spent budget skips the rest
         // instead of hanging the server. Structural teardown (listeners, tasks, caches) is NOT budgeted:
         // it is in-memory, cheap, and skipping it would leave dangling state behind.
+        // The budget reports through the same language keys as runDisableStep, so budgeted and unbudgeted
+        // steps fail with one wording instead of a second hardcoded English sentence.
         disableBudget = ShutdownBudget.ofMillis(
-                getConfigInt(DEFAULT_SHUTDOWN_WAIT_MILLIS, "performance.shutdown-wait-millis"), getLogger());
+                        getConfigInt(DEFAULT_SHUTDOWN_WAIT_MILLIS, "performance.shutdown-wait-millis"), getLogger())
+                .withMessages(
+                        I18n.formatConsole("plugin.disable_step_failed"),
+                        I18n.formatConsole("plugin.disable_budget_exhausted"));
 
         // Order inside ListenerRegistry#stop: event delivery is detached before any listener state is torn
         // down, then the listeners' own tasks stop, then the world/chunk handlers detach.
@@ -673,13 +678,19 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         FarmersDelightCommandRegistrar.register(this);
     }
 
-    private void runDisableStep(String stepKey, Runnable action) {
+    private void runDisableStep(String stepKey, Runnable action, Object... stepArgs) {
         try {
             action.run();
         } catch (Throwable throwable) {
-            getLogger().log(Level.WARNING, I18n.formatConsole("plugin.disable_step_failed",
-                    "step", I18n.formatConsole(stepKey)), throwable);
+            getLogger().log(Level.WARNING, disableStepFailure(stepKey, stepArgs), throwable);
         }
+    }
+
+    // One sentence for every shutdown step failure: the outer text and the step name both come from the
+    // language layer, so the line reads as a sentence in either locale and names the step that failed.
+    private String disableStepFailure(String stepKey, Object... stepArgs) {
+        return I18n.formatConsole("plugin.disable_step_failed",
+                "step", I18n.formatConsole(stepKey, stepArgs));
     }
 
     // For steps that only persist best-effort state: skipped (with one warning) once the shared
@@ -745,16 +756,19 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
     }
 
+    // Every station manager owns its own state, so each flush is isolated: a manager that cannot write (a
+    // missing class, a broken CraftEngine handle) must not skip the managers after it, and the shutdown path
+    // has no retry. Each failure is logged with its own step name; the sequence itself never throws.
     private void saveAllBlockData() {
         if (scheduler != null && scheduler.isFolia()) {
-            CookingPotBlockBehavior.markAllBlockEntitiesDirty();
-            CuttingBoardBlockBehavior.markAllBlockEntitiesDirty();
+            runDisableStep("plugin.disable_step_save_cooking_pot_data", CookingPotBlockBehavior::markAllBlockEntitiesDirty);
+            runDisableStep("plugin.disable_step_save_cutting_board_data", CuttingBoardBlockBehavior::markAllBlockEntitiesDirty);
         } else {
-            CookingPotBlockBehavior.saveAllData();
-            CuttingBoardBlockBehavior.saveAllData();
+            runDisableStep("plugin.disable_step_save_cooking_pot_data", CookingPotBlockBehavior::saveAllData);
+            runDisableStep("plugin.disable_step_save_cutting_board_data", CuttingBoardBlockBehavior::saveAllData);
         }
-        SkilletBlockBehavior.saveAllData();
-        StoveCookingBlockBehavior.saveAllData();
+        runDisableStep("plugin.disable_step_save_skillet_data", SkilletBlockBehavior::saveAllData);
+        runDisableStep("plugin.disable_step_save_stove_data", StoveCookingBlockBehavior::saveAllData);
 
         flushCraftEngineWorldData();
     }
@@ -766,16 +780,13 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
 
         for (World world : getServer().getWorlds()) {
-            try {
+            runDisableStep("plugin.disable_step_flush_craftengine_world", () -> {
                 CEWorld ceWorld = CustomBlockUtils.getCEWorld(world);
                 if (ceWorld != null) {
                     ceWorld.saveChunks();
                     ceWorld.saveSettings();
                 }
-            } catch (Throwable throwable) {
-                getLogger().log(Level.WARNING, I18n.formatConsole("plugin.craftengine_world_flush_failed",
-                        "world", world.getName()), throwable);
-            }
+            }, "world", world.getName());
         }
     }
 
