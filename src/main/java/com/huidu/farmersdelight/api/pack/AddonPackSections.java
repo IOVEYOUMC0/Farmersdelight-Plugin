@@ -9,6 +9,7 @@ import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.plugin.config.lifecycle.LoadingStage;
 import net.momirealms.craftengine.core.plugin.config.lifecycle.LoadingStages;
 import net.momirealms.craftengine.core.util.Key;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -66,7 +67,7 @@ public final class AddonPackSections extends AbstractConfigParser {
      * @param section entry body
      * @param source  pack file or plugin file the entry came from
      */
-    public record Entry(String id, org.bukkit.configuration.ConfigurationSection section, String source) {
+    public record Entry(String id, ConfigurationSection section, String source) {
     }
 
     /**
@@ -85,12 +86,12 @@ public final class AddonPackSections extends AbstractConfigParser {
         Map<String, Entry> merged = new LinkedHashMap<>();
         if (claim != null) {
             for (Section section : claim.sections(sectionId)) {
-                org.bukkit.configuration.ConfigurationSection root = section.config().getConfigurationSection(rootKey);
+                ConfigurationSection root = section.config().getConfigurationSection(rootKey);
                 if (root == null) {
                     continue;
                 }
                 for (String id : root.getKeys(false)) {
-                    org.bukkit.configuration.ConfigurationSection body = root.getConfigurationSection(id);
+                    ConfigurationSection body = root.getConfigurationSection(id);
                     if (body != null) {
                         merged.put(id, new Entry(id, body, section.source()));
                     }
@@ -99,10 +100,10 @@ public final class AddonPackSections extends AbstractConfigParser {
         }
         if (overrideFile != null && overrideFile.isFile()) {
             YamlConfiguration file = YamlConfiguration.loadConfiguration(overrideFile);
-            org.bukkit.configuration.ConfigurationSection root = file.getConfigurationSection(rootKey);
+            ConfigurationSection root = file.getConfigurationSection(rootKey);
             if (root != null) {
                 for (String id : root.getKeys(false)) {
-                    org.bukkit.configuration.ConfigurationSection body = root.getConfigurationSection(id);
+                    ConfigurationSection body = root.getConfigurationSection(id);
                     if (body != null) {
                         merged.put(id, new Entry(id, body, overrideFile.getName()));
                     }

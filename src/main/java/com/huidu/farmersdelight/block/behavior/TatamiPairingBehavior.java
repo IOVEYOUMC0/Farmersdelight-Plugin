@@ -24,6 +24,7 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 
+import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.Locale;
 import java.util.Optional;
@@ -192,7 +193,7 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
 
     // CraftEngine's Player does not expose getBukkitEntity through a type we can call, so this stays
     // reflective; the lookup itself is cached because it runs once per placement.
-    private static volatile java.lang.reflect.Method getBukkitEntityMethod;
+    private static volatile Method getBukkitEntityMethod;
 
     private static boolean isPlacerSneaking(Object playerArg) {
         if (playerArg == null) {
@@ -202,7 +203,7 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
             return cePlayer.isSecondaryUseActive();
         }
         try {
-            java.lang.reflect.Method method = getBukkitEntityMethod;
+            Method method = getBukkitEntityMethod;
             if (method == null) {
                 method = playerArg.getClass().getMethod("getBukkitEntity");
                 getBukkitEntityMethod = method;

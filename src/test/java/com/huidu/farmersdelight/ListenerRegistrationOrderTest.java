@@ -31,7 +31,10 @@ import com.huidu.farmersdelight.tool.ToolAttackListener;
 import org.bukkit.event.Listener;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -119,10 +122,10 @@ class ListenerRegistrationOrderTest {
         List<Listener> registered = new ListenerRegistry(null).interactionHandlersToRegister();
 
         List<Class<?>> classes = registered.stream()
-                .filter(java.util.Objects::nonNull)
+                .filter(Objects::nonNull)
                 .map(Object::getClass)
-                .collect(java.util.stream.Collectors.toList());
-        List<Class<?>> expected = new java.util.ArrayList<>(EXPECTED_INTERACTION_ORDER);
+                .collect(Collectors.toList());
+        List<Class<?>> expected = new ArrayList<>(EXPECTED_INTERACTION_ORDER);
 
         assertEquals(expected, classes,
                 "The registration set must be the built handler list followed by the plugin instance. The"

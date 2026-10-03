@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.manager;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import net.momirealms.craftengine.core.pack.model.definition.ItemModels;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -77,7 +78,7 @@ class SkilletHandheldModelTest {
             var key = HandheldCookingModelPack.generatedKey(cooking, overlay, food);
             assertEquals("addon", key.getNamespace());
             JsonObject composite = HandheldCookingModelPack.composite(base, key.toString());
-            assertDoesNotThrow(() -> net.momirealms.craftengine.core.pack.model.definition.ItemModels
+            assertDoesNotThrow(() -> ItemModels
                     .fromJson(composite.getAsJsonObject("model")));
             assertEquals(base.get("model"), composite.getAsJsonObject("model").getAsJsonArray("models").get(0));
             assertEquals("addon:item/overlay", HandheldCookingModelPack.overlayModel(overlay.toString(), food)

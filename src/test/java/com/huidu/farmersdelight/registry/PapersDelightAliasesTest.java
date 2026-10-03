@@ -4,6 +4,7 @@ import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -21,9 +22,9 @@ class PapersDelightAliasesTest {
     void stoveSoundBecomesTheCrackleSoundThisPluginReads() {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("sound", "farmersdelight:block.stove.crackle");
-        values.put("interval", java.util.List.of(60, 100));
+        values.put("interval", List.of(60, 100));
         values.put("volume", 1.0);
-        values.put("pitch", java.util.List.of(0.9, 1.1));
+        values.put("pitch", List.of(0.9, 1.1));
 
         ConfigSection normalized = PapersDelightAliases.stoveSection(ConfigSection.ofRoot(values));
 

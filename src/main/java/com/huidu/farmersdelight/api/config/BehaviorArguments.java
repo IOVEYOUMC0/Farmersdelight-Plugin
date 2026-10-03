@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.api.config;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -66,7 +67,7 @@ public final class BehaviorArguments {
         if (!(value instanceof Map<?, ?> map)) {
             return null;
         }
-        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        Map<String, Object> result = new LinkedHashMap<>();
         for (Map.Entry<?, ?> entry : map.entrySet()) {
             if (entry.getKey() instanceof String key) {
                 result.put(key, entry.getValue());

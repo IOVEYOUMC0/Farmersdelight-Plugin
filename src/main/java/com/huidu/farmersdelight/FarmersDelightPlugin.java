@@ -109,6 +109,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.joml.Vector3f;
 import org.bstats.bukkit.Metrics;
 
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -119,6 +120,7 @@ import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -206,7 +208,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     /** The plugin jar on disk; JavaPlugin#getFile is protected, so collaborators need this accessor. */
-    java.io.File pluginJarFile() {
+    File pluginJarFile() {
         return getFile();
     }
 
@@ -1061,16 +1063,16 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     /** Phase timings of the last reload, so the command can report them the way CraftEngine does. */
-    private final java.util.concurrent.atomic.AtomicLong reloadConfigNanos =
-            new java.util.concurrent.atomic.AtomicLong();
-    private final java.util.concurrent.atomic.AtomicLong reloadToolsNanos =
-            new java.util.concurrent.atomic.AtomicLong();
-    private final java.util.concurrent.atomic.AtomicLong reloadManagersNanos =
-            new java.util.concurrent.atomic.AtomicLong();
-    private final java.util.concurrent.atomic.AtomicLong reloadListenersNanos =
-            new java.util.concurrent.atomic.AtomicLong();
-    private final java.util.concurrent.atomic.AtomicLong reloadAddonsNanos =
-            new java.util.concurrent.atomic.AtomicLong();
+    private final AtomicLong reloadConfigNanos =
+            new AtomicLong();
+    private final AtomicLong reloadToolsNanos =
+            new AtomicLong();
+    private final AtomicLong reloadManagersNanos =
+            new AtomicLong();
+    private final AtomicLong reloadListenersNanos =
+            new AtomicLong();
+    private final AtomicLong reloadAddonsNanos =
+            new AtomicLong();
 
     private void resetReloadTimings() {
         reloadConfigNanos.set(0L);

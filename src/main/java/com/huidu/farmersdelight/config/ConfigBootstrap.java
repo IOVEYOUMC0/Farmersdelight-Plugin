@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class ConfigBootstrap {
 
@@ -553,7 +554,7 @@ public final class ConfigBootstrap {
      *
      * Left empty outside a reload, so the enable path keeps its existing behaviour exactly.
      */
-    private final Map<Path, YamlConfiguration> reloadReads = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<Path, YamlConfiguration> reloadReads = new ConcurrentHashMap<>();
     private volatile boolean cachingReloadReads;
     /** Problems the last validation pass reported, so the reload command can summarise them. */
     private int validationIssues;

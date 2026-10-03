@@ -2,6 +2,7 @@ package com.huidu.farmersdelight;
 
 import com.huidu.farmersdelight.api.util.PluginManagerGuard;
 import com.huidu.farmersdelight.block.behavior.MushroomColonyBehavior;
+import com.huidu.farmersdelight.config.EnchantmentSettings;
 import com.huidu.farmersdelight.effect.EffectListener;
 import com.huidu.farmersdelight.effect.EffectManager;
 import com.huidu.farmersdelight.i18n.I18n;
@@ -33,6 +34,7 @@ import com.huidu.farmersdelight.listener.TatamiBreakListener;
 import com.huidu.farmersdelight.listener.worlddata.VillagerTradeListener;
 import com.huidu.farmersdelight.manager.BuffBossbarManager;
 import com.huidu.farmersdelight.tool.ToolAttackListener;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.Plugin;
@@ -255,7 +257,7 @@ final class ListenerRegistry {
         }
     }
 
-    private org.bukkit.configuration.ConfigurationSection configuredBuffSection() {
+    private ConfigurationSection configuredBuffSection() {
         return plugin.getFirstConfigSection("buff.display", "bossbar");
     }
 
@@ -345,7 +347,7 @@ final class ListenerRegistry {
         }
     }
 
-    private com.huidu.farmersdelight.config.EnchantmentSettings backstabSettings() {
+    private EnchantmentSettings backstabSettings() {
         return plugin.getEnchantmentSettings();
     }
 
@@ -361,7 +363,7 @@ final class ListenerRegistry {
     }
 
     /** Stands the backstabbing gate down on a detected enchantment-plugin conflict, leaving knife enchanting on. */
-    void disableBackstabOnConflict(com.huidu.farmersdelight.config.EnchantmentSettings settings) {
+    void disableBackstabOnConflict(EnchantmentSettings settings) {
         if (backstabListener != null) {
             backstabListener.reload(settings, false);
         }
