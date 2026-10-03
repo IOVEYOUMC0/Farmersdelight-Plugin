@@ -6,6 +6,7 @@ import com.huidu.farmersdelight.block.behavior.RopeBlockBehavior;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.scheduler.RegionTasks;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockInteractEvent;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockPlaceEvent;
@@ -320,11 +321,8 @@ public class RopeBlockListener implements Listener {
             for (Chunk chunk : world.getLoadedChunks()) {
                 int chunkX = chunk.getX();
                 int chunkZ = chunk.getZ();
-                plugin.scheduler().runAt(world, chunkX, chunkZ, () -> {
-                    if (world.isChunkLoaded(chunkX, chunkZ)) {
-                        indexRopesInChunk(world, chunkX, chunkZ);
-                    }
-                });
+                RegionTasks.runAtLoadedChunk(plugin.scheduler(), world, chunkX, chunkZ,
+                        () -> indexRopesInChunk(world, chunkX, chunkZ));
             }
         }
     }

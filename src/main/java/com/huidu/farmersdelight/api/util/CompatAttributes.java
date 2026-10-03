@@ -5,6 +5,18 @@ import org.bukkit.Registry;
 import org.bukkit.attribute.Attribute;
 import org.jetbrains.annotations.ApiStatus;
 
+/**
+ * Attribute constants that survive the attribute-registry rename between Minecraft versions.
+ *
+ *
+ * Internal, and only safe to name from inside a method body. These are static fields, so referencing one
+ * from an addon's own field initializer, static block or constant makes this class load during that addon's
+ * class initialization; an addon runs under its own class loader, and a failure there (NoClassDefFoundError)
+ * aborts that initializer and silently leaves whatever the addon was wiring up disabled. A method body keeps
+ * the load on a path the addon can handle, and for a lookup this small a self-contained copy in the addon is
+ * the safer answer still.
+ */
+@ApiStatus.Internal
 @ApiStatus.NonExtendable
 public final class CompatAttributes {
 

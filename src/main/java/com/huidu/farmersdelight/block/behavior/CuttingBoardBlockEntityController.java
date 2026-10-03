@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.util.CeItemInterop;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
@@ -94,7 +95,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
         if (this.item == null || this.item.isEmpty()) return null;
 
         CompoundTag data = new CompoundTag();
-        Tag itemTag = ItemUtils.saveBukkitItemAsTag(asBukkitStack(this.item));
+        Tag itemTag = ItemUtils.saveBukkitItemAsTag(CeItemInterop.asBukkitStack(this.item));
         if (itemTag != null) {
             data.put(STORED_ITEM, itemTag);
         }
@@ -210,7 +211,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
     }
 
     void refreshFromEntity(CuttingBoardBlockEntity entity) {
-        this.item = normalize(BukkitItemManager.instance().wrap(entity.getStoredItem()));
+        this.item = CeItemInterop.normalize(BukkitItemManager.instance().wrap(entity.getStoredItem()));
         this.itemCarved = entity.isItemCarved();
     }
 
@@ -232,7 +233,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
             CuttingBoardBlockBehavior.putBlockEntity(world, posKey, entity);
         }
 
-        ItemStack stack = asBukkitStack(this.item);
+        ItemStack stack = CeItemInterop.asBukkitStack(this.item);
         if (stack == null || stack.getType().isAir()) {
             entity.clearItem();
             this.itemCarved = false;
@@ -241,17 +242,6 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
         }
 
         CustomBlockUtils.markBlockEntityDirty(this.blockEntity);
-    }
-
-    private Item normalize(Item item) {
-        if (item == null || item.isEmpty() || item.count() <= 0) {
-            return Item.empty();
-        }
-        return item.copyWithCount(item.count());
-    }
-
-    private ItemStack asBukkitStack(Item item) {
-        return item == null || item.isEmpty() ? null : ItemStackUtils.getBukkitStack(item.minecraftItem());
     }
 
     @Override
@@ -334,7 +324,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
     @Override
     public void setItem(int slot, Item item) {
         if (isValidSlot(slot)) return;
-        this.item = normalize(item);
+        this.item = CeItemInterop.normalize(item);
         if (this.item.isEmpty()) {
             this.itemCarved = false;
         }
@@ -399,7 +389,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
         // Once the board holds an item, allow more only when stacking is enabled,
         // the items match, and the amount is below the stack limit.
         ItemStack stored = entity.getStoredItem();
-        ItemStack incoming = asBukkitStack(item);
+        ItemStack incoming = CeItemInterop.asBukkitStack(item);
         return plugin != null
                 && plugin.isCuttingBoardStackingEnabled()
                 && stored != null

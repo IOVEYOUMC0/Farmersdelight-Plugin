@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.util.CeItemInterop;
 import com.huidu.farmersdelight.manager.SkilletManager;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
@@ -230,12 +231,12 @@ public final class SkilletBlockEntityController extends BlockEntityController im
         if (isValidSlot(slot)) {
             return;
         }
-        this.item = normalize(item);
+        this.item = CeItemInterop.normalize(item);
         writeSnapshotToManager();
     }
 
     private void writeSnapshotToManager() {
-        ItemStack target = asBukkitStack(this.item);
+        ItemStack target = CeItemInterop.asBukkitStack(this.item);
         if (target == null || target.getType().isAir()) {
             refreshFromManager();
             return;
@@ -292,7 +293,7 @@ public final class SkilletBlockEntityController extends BlockEntityController im
         }
         SkilletManager manager = getManager();
         Location location = getLocation();
-        ItemStack stack = asBukkitStack(item);
+        ItemStack stack = CeItemInterop.asBukkitStack(item);
         return manager != null && location != null && manager.canAcceptHopperInput(location, stack);
     }
 
@@ -353,18 +354,7 @@ public final class SkilletBlockEntityController extends BlockEntityController im
     }
 
     private void refreshFromManager(SkilletManager manager, Location location) {
-        this.item = normalize(BukkitItemManager.instance().wrap(manager.getStoredItemSnapshot(location)));
-    }
-
-    private Item normalize(Item item) {
-        if (item == null || item.isEmpty() || item.count() <= 0) {
-            return Item.empty();
-        }
-        return item.copyWithCount(item.count());
-    }
-
-    private ItemStack asBukkitStack(Item item) {
-        return item == null || item.isEmpty() ? null : ItemStackUtils.getBukkitStack(item.minecraftItem());
+        this.item = CeItemInterop.normalize(BukkitItemManager.instance().wrap(manager.getStoredItemSnapshot(location)));
     }
 
     private Location getLocation() {

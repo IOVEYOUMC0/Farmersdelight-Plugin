@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.util.CeItemInterop;
 import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
@@ -301,7 +302,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
                 this.entityBaseline[i] = null;
                 continue;
             }
-            this.items[i] = normalize(BukkitItemManager.instance().wrap(entitySlot));
+            this.items[i] = CeItemInterop.normalize(BukkitItemManager.instance().wrap(entitySlot));
             this.nonCeOriginal[i] = ItemUtils.isCustomItem(entitySlot) ? null : entitySlot.clone();
             // getInventorySlot returns a fresh copy, so this baseline remains stable when setInventorySlot
             // writes later; writeToEntity compares the entity slot against this baseline.
@@ -332,7 +333,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         ItemStack[] bukkitItems = new ItemStack[this.items.length];
         for (int i = 0; i < this.items.length; i++) {
             bukkitItems[i] = nonCeOriginal[i] != null ? adjustCount(nonCeOriginal[i], this.items[i])
-                    : asBukkitStack(this.items[i]);
+                    : CeItemInterop.asBukkitStack(this.items[i]);
         }
         data.put(ITEMS, ItemStackUtils.saveBukkitItemsAsListTag(bukkitItems));
 
@@ -378,7 +379,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
                         this.nonCeOriginal[i] = null;
                         this.entityBaseline[i] = null;
                     } else {
-                        this.items[i] = normalize(BukkitItemManager.instance().wrap(entityNow));
+                        this.items[i] = CeItemInterop.normalize(BukkitItemManager.instance().wrap(entityNow));
                         this.nonCeOriginal[i] = ItemUtils.isCustomItem(entityNow) ? null : entityNow.clone();
                         this.entityBaseline[i] = entityNow;
                     }
@@ -398,22 +399,11 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         CustomBlockUtils.markBlockEntityDirty(this.blockEntity);
     }
 
-    private Item normalize(Item item) {
-        if (item == null || item.isEmpty() || item.count() <= 0) {
-            return Item.empty();
-        }
-        return item.copyWithCount(item.count());
-    }
-
-    private ItemStack asBukkitStack(Item item) {
-        return item == null || item.isEmpty() ? null : ItemStackUtils.getBukkitStack(item.minecraftItem());
-    }
-
     private ItemStack toBukkitPreserving(int slot) {
         if (this.nonCeOriginal[slot] != null) {
             return adjustCount(this.nonCeOriginal[slot], this.items[slot]);
         }
-        return asBukkitStack(this.items[slot]);
+        return CeItemInterop.asBukkitStack(this.items[slot]);
     }
 
     private static ItemStack adjustCount(ItemStack original, Item ceItem) {
@@ -476,7 +466,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
             if (!isValidSlot(slot)) {
                 continue;
             }
-            Item pendingItem = normalize(BukkitItemManager.instance().wrap(pending));
+            Item pendingItem = CeItemInterop.normalize(BukkitItemManager.instance().wrap(pending));
             if (pendingItem.isEmpty() || !canPlaceItemThroughFace(slot, pendingItem, direction)) {
                 continue;
             }
@@ -497,7 +487,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         int amount = Integer.MAX_VALUE;
         for (int slot : slots) {
             if (!isValidSlot(slot) || !canPlaceItemThroughFace(slot,
-                    normalize(BukkitItemManager.instance().wrap(stack)), direction)) {
+                    CeItemInterop.normalize(BukkitItemManager.instance().wrap(stack)), direction)) {
                 continue;
             }
             ItemStack existing = toBukkitPreserving(slot);
@@ -639,7 +629,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         if (!isValidSlot(slot)) {
             return;
         }
-        this.items[slot] = normalize(item);
+        this.items[slot] = CeItemInterop.normalize(item);
         if (this.items[slot].isEmpty()) {
             this.nonCeOriginal[slot] = null;
         }
