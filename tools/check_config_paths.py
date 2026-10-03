@@ -10,6 +10,10 @@ What it checks:
   * resolved against the union of the bundled default files that ships in src/main/resources
     (config.yml, gui.yml, drops.yml, world-data.yml, display-overrides.yml).
 
+Both Java source roots are scanned: src/main/java and the debug source set src/debugTools/java. The debug
+source set is compiled only with -PdebugTools=true, but it reads the same config and is the one place a
+debug-only key (for example debug-tools.max-place-count) was previously invisible to this check.
+
 A call site is satisfied when *at least one* of its path aliases exists — the aliases are deliberate
 fallbacks for migrated keys, so an old name that no longer ships is fine as long as a current one exists.
 Registry sections are exempt: those are registry keys an operator adds, not settings we ship.
@@ -33,6 +37,11 @@ except ImportError:
 
 FD_PACKAGE = "com.huidu.farmersdelight"
 BUNDLED = ["config.yml", "gui.yml", "drops.yml", "world-data.yml", "display-overrides.yml"]
+
+# Java source roots whose literal config reads are checked. src/debugTools/java is the debug source set
+# (compiled only with -PdebugTools=true), which reads the same shipped config; a debug-only key used to be
+# outside this check entirely.
+JAVA_ROOTS = ["src/main/java", "src/debugTools/java"]
 
 # Helpers whose literal arguments are config paths.
 HELPERS = (
@@ -164,18 +173,13 @@ def literal_paths(helper: str, args: str) -> list[str]:
     return [v for v in values if v]
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--quiet", action="store_true")
-    args = parser.parse_args()
-
-    root = module_root()
-    shipped = load_shipped_keys(root)
-
-    java_root = root / "src" / "main" / "java"
+def scan_root(root: Path, java_root: Path, shipped: set[str]) -> tuple[int, list[str]]:
+    """Check one Java source root: return the literal call sites seen and the unreachable ones."""
     call_sites = 0
     unreachable: list[str] = []
-    for path in java_root.rglob("*.java"):
+    if not java_root.is_dir():
+        return call_sites, unreachable
+    for path in sorted(java_root.rglob("*.java")):
         text_path = str(path)
         if any(part in text_path for part in SKIP_PARTS):
             continue
@@ -193,10 +197,28 @@ def main() -> int:
                     continue
                 lineno = text[:match.start()].count("\n") + 1
                 unreachable.append(f"{rel}:{lineno}: {helper}({', '.join(repr(p) for p in paths)})")
+    return call_sites, unreachable
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--quiet", action="store_true")
+    args = parser.parse_args()
+
+    root = module_root()
+    shipped = load_shipped_keys(root)
+
+    call_sites = 0
+    unreachable: list[str] = []
+    for java_root_name in JAVA_ROOTS:
+        root_sites, root_unreachable = scan_root(root, root / java_root_name, shipped)
+        call_sites += root_sites
+        unreachable.extend(root_unreachable)
 
     if not args.quiet:
         print(f"config path check @ {root}")
         print(f"  shipped keys: {len(shipped)} from {', '.join(BUNDLED)}")
+        print(f"  java roots: {', '.join(JAVA_ROOTS)}")
         print(f"  literal call sites checked: {call_sites}")
 
     if unreachable:

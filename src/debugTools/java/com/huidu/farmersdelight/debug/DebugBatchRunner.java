@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
+import java.util.function.LongPredicate;
 import java.util.logging.Level;
 
 final class DebugBatchRunner {
@@ -22,6 +23,21 @@ final class DebugBatchRunner {
 
     boolean start(Player player, int count, IntConsumer action, Runnable finished) {
         Job job = new Job(player.getUniqueId(), count, action, finished);
+        if (!current.compareAndSet(null, job)) return false;
+        schedule(player, job);
+        return true;
+    }
+
+    /**
+     * Runs step until it returns false (done) rather than until a caller-supplied index is exhausted.
+     * The count is only an upper bound on the slices that may be scheduled, so the cost of <em>maintaining</em>
+     * the work set — resolving the next candidate, checking it is still editable — is yielded with the work
+     * itself. That matters for a cursor over tracked blocks instead of a fixed grid: the existing
+     * start(Player, int, IntConsumer, Runnable) would need the whole, possibly large, candidate list
+     * materialised synchronously before its first slice.
+     */
+    boolean start(Player player, int limit, LongPredicate step, Runnable finished) {
+        Job job = new Job(player.getUniqueId(), limit, step, finished);
         if (!current.compareAndSet(null, job)) return false;
         schedule(player, job);
         return true;
@@ -49,7 +65,10 @@ final class DebugBatchRunner {
             return;
         }
         try {
-            job.cursor = processSlice(job.cursor, job.count, job.action);
+            long cursor = job.cursor;
+            job.cursor = job.action != null
+                    ? processSlice((int) cursor, job.count, job.action)
+                    : processSlice(cursor, job.count, job.step);
             if (job.cursor < job.count) {
                 schedule(player, job);
             } else if (current.compareAndSet(job, null)) {
@@ -74,17 +93,38 @@ final class DebugBatchRunner {
         return cursor;
     }
 
+    // The same slice contract for the predicate form: at most 16 steps or 2 ms, whichever comes first.
+    static long processSlice(long cursor, long limit, LongPredicate step) {
+        long started = System.nanoTime();
+        long end = Math.min(limit, cursor + 16);
+        while (cursor < end && step.test(cursor)) {
+            cursor++;
+            if (System.nanoTime() - started >= 2_000_000L) break;
+        }
+        return cursor;
+    }
+
     private static final class Job {
         final UUID owner;
         final int count;
         final IntConsumer action;
+        final LongPredicate step;
         final Runnable finished;
-        int cursor;
+        long cursor;
 
         Job(UUID owner, int count, IntConsumer action, Runnable finished) {
+            this(owner, count, action, null, finished);
+        }
+
+        Job(UUID owner, int count, LongPredicate step, Runnable finished) {
+            this(owner, count, null, step, finished);
+        }
+
+        private Job(UUID owner, int count, IntConsumer action, LongPredicate step, Runnable finished) {
             this.owner = owner;
             this.count = count;
             this.action = action;
+            this.step = step;
             this.finished = finished;
         }
     }

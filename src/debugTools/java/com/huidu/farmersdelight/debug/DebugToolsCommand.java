@@ -5,11 +5,15 @@ import com.huidu.farmersdelight.api.util.DebugToolExtension;
 import com.huidu.farmersdelight.api.util.DebugToolRegistry;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
+import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntity;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.manager.SkilletManager;
 import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.manager.TickManager;
+import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.recipe.CookingPotRecipeManager;
+import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipeManager;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.util.BlockPosKey;
@@ -54,6 +58,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
@@ -64,18 +70,21 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiPredicate;
 
 /**
- * The /fd debugtools command set (place/activate/inspect/recipe/i18n), reached through the
- * reflective command.DebugToolsSubCommand shim. This source set is compiled into the plugin only
- * when the build passes -PdebugTools=true, so a main-side rename or removal that this class calls
- * into is caught by that build alone.
+ * The /fd debugtools command set (test/place/placeRecipe/placeRecipeRandom/activate/undo/stop/
+ * inspect/item/recipe/i18n), reached through the reflective command.DebugToolsSubCommand shim. This
+ * source set is compiled into the plugin only when the build passes -PdebugTools=true, so a main-side
+ * rename or removal that this class calls into is caught by that build alone.
  *
  * <p>It reads one key that no shipped config.yml defines:
- * CONFIG_MAX_PLACE_COUNT caps how many blocks a single place or test run may
- * create, falling back to DEFAULT_MAX_PLACE_COUNT. The debug and release builds package the same
- * src/main/resources/config.yml, so a debug-only entry would ship to every server and is
- * deliberately not added there; set the key by hand in config.yml to raise or lower the bound.
+ * CONFIG_MAX_PLACE_COUNT caps how many blocks a single place, test or recipe-setup
+ * run may create, falling back to DEFAULT_MAX_PLACE_COUNT. The debug and release builds package the
+ * same src/main/resources/config.yml, so a debug-only entry would ship to every server and is
+ * deliberately not added there; set the key by hand in config.yml to raise or lower the bound. The
+ * key is read with getConfig().getInt(key, default), so an absent key always means the default, and
+ * tools/check_config_paths.py scans this source set too.
  */
 public final class DebugToolsCommand {
 
@@ -85,10 +94,15 @@ public final class DebugToolsCommand {
     // class comment). Read with getConfig().getInt(key, default), so an absent key always means the default.
     private static final String CONFIG_MAX_PLACE_COUNT = "debug-tools.max-place-count";
     private static final List<String> TEST_TARGETS = List.of("cooking_pot", "skillet", "stove", "handheld", "all");
-    private static final List<String> ACTIONS = List.of("test", "place", "activate", "undo", "stop",
-            "inspect", "item", "recipe", "i18n");
+    private static final List<String> ACTIONS = List.of("test", "place", "placeRecipe", "placeRecipeRandom",
+            "activate", "undo", "stop", "inspect", "item", "recipe", "i18n");
     private static final List<String> TARGETS = List.of("cooking_pot", "skillet", "stove", "stove_blocked",
             "cutting_board", "basket", "all");
+    // Stations a single recipe can be set up on; a recipe's own type decides which one is placed.
+    private static final List<String> RECIPE_STATIONS = List.of("cooking_pot", "cutting_board");
+    // Recipe setup places the station, a heat source below it (pot/skillet) and the exact ingredients, so the
+    // grid spacing is wider than a bare block placement's to keep neighbouring setups from touching.
+    private static final int RECIPE_GRID_SPACING = 3;
     // Basket has no Constants block-id entry (only a behavior constant); its block id equals its behavior id.
     private static final String BLOCK_BASKET = "farmersdelight:basket";
     private static final int UNDO_HISTORY_LIMIT = 8;
@@ -117,6 +131,8 @@ public final class DebugToolsCommand {
         switch (normalize(args[1])) {
             case "test" -> test(player, args);
             case "place" -> place(player, args);
+            case "placerecipe", "place_recipe", "place-recipe" -> placeRecipe(player, args);
+            case "placereciperandom", "place_random_recipe", "place-recipe-random" -> placeRecipeRandom(player, args);
             case "activate" -> activate(player, args);
             case "undo" -> undo(player);
             case "stop" -> stop(player);
@@ -145,9 +161,19 @@ public final class DebugToolsCommand {
                     || "i18n".equals(action) || "lang".equals(action)) {
                 return List.of();
             }
+            if (isPlaceRecipeAction(action) || isPlaceRecipeRandomAction(action)) {
+                return complete(RECIPE_STATIONS, args[2]);
+            }
             List<String> targets = new ArrayList<>(TARGETS);
             targets.addAll(DebugToolRegistry.registeredNames());
             return complete(targets, args[2]);
+        }
+        if (args.length == 4 && (isPlaceRecipeAction(normalize(args[1])) || isPlaceRecipeRandomAction(normalize(args[1])))) {
+            if (isPlaceRecipeRandomAction(normalize(args[1]))) {
+                return complete(List.of("1", "4", "16", "64"), args[3]);
+            }
+            List<String> ids = new ArrayList<>(recipeIds(normalize(args[2])));
+            return complete(ids, args[3]);
         }
         if (args.length == 4 && ("test".equals(normalize(args[1])) || "place".equals(normalize(args[1])))) {
             return complete(List.of("16", "64", "128", "512", "1024"), args[3]);
@@ -300,19 +326,353 @@ public final class DebugToolsCommand {
         }
     }
 
+    /**
+     * placeRecipe <cooking_pot|cutting_board|all> <recipeId> [count]: place one recipe's station and
+     * fill it with exactly the ingredients that recipe declares, so a tester can watch whether the plugin's own
+     * matcher picks the same recipe. Passed through DebugBatchRunner — first the stations, then the
+     * fills, both bounded — and every block is checked with canEdit() before it is touched. A recipe
+     * that cannot be resolved into concrete item stacks is refused outright, never half-placed.
+     */
+    private void placeRecipe(Player player, String[] args) {
+        if (args.length < 4 || args.length > 5) {
+            sendUsage(player);
+            return;
+        }
+        if (batches.busy()) {
+            player.sendMessage(I18n.getComponent("command.debug_batch_busy", player));
+            return;
+        }
+        String type = normalizeRecipeStation(args[2]);
+        if (type == null) {
+            player.sendMessage(I18n.getComponent("command.debug_batch_unknown", player,
+                    Map.of("target", normalize(args[2]))));
+            return;
+        }
+        String recipeId = args[3];
+        Integer requestedCount = parseOptionalInt(args, 4, 1);
+        if (requestedCount == null || requestedCount <= 0) {
+            player.sendMessage(I18n.getComponent("command.debug_batch_invalid_numbers", player));
+            return;
+        }
+        int count = Math.min(getMaxPlaceCount(), requestedCount);
+
+        List<RecipeChoice> all = new ArrayList<>(recipeChoices(type));
+        RecipeChoice exact = null;
+        for (RecipeChoice choice : all) {
+            if (choice.id().equals(recipeId) || choice.id().equals(normalize(recipeId))) {
+                exact = choice;
+                break;
+            }
+        }
+        if (exact == null) {
+            reportUnknownRecipe(player, type, recipeId, all);
+            return;
+        }
+        // Refuse before placing anything: a setup whose ingredients cannot all be built would leave the
+        // station empty (or half full) and misrepresent what the plugin matched.
+        if (resolveRecipeSetup(exact) == null) {
+            player.sendMessage(MINI_MESSAGE.deserialize("<red>Recipe <yellow>" + exact.id()
+                    + "</yellow> is loaded but its ingredients no longer resolve to concrete items, so no"
+                    + " station was placed.</red>"));
+            return;
+        }
+        // The optional count places the same recipe the requested number of times, so several copies of one
+        // station can be watched side by side; the list is the same shape the random pick feeds in.
+        List<RecipeChoice> selected = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) selected.add(exact);
+        placeRecipeSetups(player, type, all.size(), selected);
+    }
+
+    /**
+     * placeRecipeRandom <cooking_pot|cutting_board|all> [count]: pick count distinct random recipes
+     * uniformly from the loaded set of the chosen type and place one setup each, so a tester can cycle through
+     * recipe matching quickly. The id and station of every placed setup are reported to be compared against the
+     * plugin's own match. The count is clamped by the same max-place-count guard and by the number of loaded
+     * recipes; a request larger than the pool places the pool and says so.
+     */
+    private void placeRecipeRandom(Player player, String[] args) {
+        if (args.length < 3 || args.length > 4) {
+            sendUsage(player);
+            return;
+        }
+        if (batches.busy()) {
+            player.sendMessage(I18n.getComponent("command.debug_batch_busy", player));
+            return;
+        }
+        String type = normalizeRecipeStation(args[2]);
+        if (type == null) {
+            player.sendMessage(I18n.getComponent("command.debug_batch_unknown", player,
+                    Map.of("target", normalize(args[2]))));
+            return;
+        }
+        Integer requestedCount = parseOptionalInt(args, 3, 1);
+        if (requestedCount == null || requestedCount <= 0) {
+            player.sendMessage(I18n.getComponent("command.debug_batch_invalid_numbers", player));
+            return;
+        }
+        int count = Math.min(getMaxPlaceCount(), requestedCount);
+
+        List<RecipeChoice> pool = new ArrayList<>(recipeChoices(type));
+        Collections.shuffle(pool);
+        int available = pool.size();
+        if (count > available) count = available;
+        if (count <= 0) {
+            player.sendMessage(MINI_MESSAGE.deserialize("<red>No " + type + " recipe is loaded, so nothing"
+                    + " can be placed. Run /fd debugtools recipe validate to see load issues.</red>"));
+            return;
+        }
+        List<RecipeChoice> selected = List.copyOf(pool.subList(0, count));
+        // A random recipe that cannot be resolved is dropped from this run instead of aborting it, so the
+        // distinct count actually placed can be lower than requested; the shuffle still keeps the pick uniform
+        // over the recipes that can be set up. Everything is resolved before the first station is placed, so a
+        // partially resolvable draw never leaves an empty station behind.
+        List<RecipeChoice> resolvable = new ArrayList<>();
+        Set<String> dropped = new HashSet<>();
+        for (RecipeChoice choice : selected) {
+            if (resolveRecipeSetup(choice) == null) {
+                dropped.add(choice.id());
+            } else {
+                resolvable.add(choice);
+            }
+        }
+        if (resolvable.isEmpty()) {
+            player.sendMessage(MINI_MESSAGE.deserialize("<red>None of the " + selected.size()
+                    + " randomly drawn recipe(s) resolve to concrete items, so nothing was placed.</red>"));
+            return;
+        }
+        int placed = placeRecipeSetups(player, type, available, resolvable);
+        if (placed == 0) {
+            player.sendMessage(MINI_MESSAGE.deserialize("<red>No random recipe setup could be placed.</red>"));
+            return;
+        }
+        if (placed < requestedCount) {
+            player.sendMessage(MINI_MESSAGE.deserialize("<yellow>Placed " + placed + " random setup(s); "
+                    + requestedCount + " requested, " + available + " recipe(s) for " + type + " loaded, "
+                    + dropped.size() + " drawn recipe(s) could not be resolved.</yellow>"));
+        }
+    }
+
+    /**
+     * Places the stations of the selected recipes and then fills them, both through the batch runner. The
+     * station pass owns the block writes (and their undo entries), the fill pass owns the block-entity writes;
+     * chaining the two keeps each slice inside the runner's 16-operation / 2 ms budget instead of making one
+     * slice place and fill at once. Returns how many setups were resolved and attempted, so the caller can
+     * report a shortfall.
+     *
+     * <p>Each setup's location is computed before the first slice, so the station and fill passes cannot
+     * disagree about where the block went, and a position that turns out to be uneditable only skips itself.
+     */
+    private int placeRecipeSetups(Player player, String type, int loaded, List<RecipeChoice> selected) {
+        // Resolve before any batch starts: a recipe that cannot be resolved must not occupy a grid slot or
+        // leave an empty station behind, so selection is a value computed up front, not a check inside a slice.
+        List<RecipeSetup> preview = new ArrayList<>();
+        List<String> unresolved = new ArrayList<>();
+        for (RecipeChoice choice : selected) {
+            RecipeSetup setup = resolveRecipeSetup(choice);
+            if (setup == null) {
+                unresolved.add(choice.id());
+            } else {
+                preview.add(setup);
+            }
+        }
+        if (preview.isEmpty()) {
+            player.sendMessage(MINI_MESSAGE.deserialize("<red>No recipe setup resolved, so nothing was"
+                    + " placed.</red>"));
+            return 0;
+        }
+        preview.sort(Comparator.comparing(RecipeSetup::recipeId));
+
+        Location origin = ManagerSupport.normalize(player.getLocation());
+        int grid = Math.max(1, (int) Math.ceil(Math.sqrt(preview.size())));
+        List<RecipeSetup> placements = new ArrayList<>(preview.size());
+        for (int slot = 0; slot < preview.size(); slot++) {
+            RecipeSetup setup = preview.get(slot);
+            placements.add(new RecipeSetup(recipeSetupLocation(origin, grid, slot), setup.recipeId(),
+                    setup.target(), setup.ingredients(), setup.container()));
+        }
+
+        int[] skipped = {0};
+        if (!batches.start(player, placements.size(), index -> {
+            RecipeSetup setup = placements.get(index);
+            if (!canEdit(player, setup.location()) || !placeRecipeStationUnbudgeted(player, setup.location(), setup)) {
+                skipped[0]++;
+            }
+        }, () -> {
+            // Only the stations that actually landed are filled; the rest are reported as skipped positions.
+            List<RecipeSetup> live = new ArrayList<>();
+            for (RecipeSetup setup : placements) {
+                if (isRecipeStation(setup.location(), setup)) live.add(setup);
+            }
+            if (live.isEmpty()) {
+                player.sendMessage(MINI_MESSAGE.deserialize("<red>No recipe station could be placed ("
+                        + skipped[0] + " position(s) skipped); nothing to fill.</red>"));
+                reportRecipeSummary(player, type, loaded, List.of(), skipped[0], unresolved);
+                return;
+            }
+            fillRecipeSetups(player, type, loaded, live, skipped[0], unresolved);
+        })) {
+            player.sendMessage(I18n.getComponent("command.debug_batch_busy", player));
+            return 0;
+        }
+        player.sendMessage(MINI_MESSAGE.deserialize("<green>Recipe setup</green> <gray>station=" + type
+                + " loaded=" + loaded + " requested=" + placements.size() + "</gray>"));
+        player.sendMessage(MINI_MESSAGE.deserialize("<gray>Placing " + placements.size() + " station(s) in"
+                + " slices of at most 16, then filling them the same way.</gray>"));
+        return placements.size();
+    }
+
+    /** Second half of a recipe setup: fill each placed station with the recipe's exact ingredients. */
+    private void fillRecipeSetups(Player player, String type, int loaded, List<RecipeSetup> setups,
+                                  int skipped, List<String> unresolved) {
+        if (!batches.start(player, setups.size(), index -> {
+            RecipeSetup setup = setups.get(index);
+            if (canEdit(player, setup.location())) fillRecipeStation(player, setup.location(), setup);
+        }, () -> reportRecipeSummary(player, type, loaded, setups, skipped, unresolved))) {
+            player.sendMessage(I18n.getComponent("command.debug_batch_busy", player));
+        }
+    }
+
+    // The one line that names the recipe id — the point of the whole command — plus the station, the coordinate
+    // to inspect it at and how many ingredients actually landed, so a tester can compare all of that with what
+    // the plugin's own matcher reports for that station.
+    private void reportRecipeSummary(Player player, String type, int loaded, List<RecipeSetup> setups,
+                                     int skipped, List<String> unresolved) {
+        for (RecipeSetup setup : setups) {
+            Location location = setup.location();
+            String coords = location.getBlockX() + "," + location.getBlockY() + "," + location.getBlockZ();
+            player.sendMessage(MINI_MESSAGE.deserialize("<green>Filled</green> <yellow>" + setup.recipeId()
+                    + "</yellow> <gray>station=" + setup.target() + " @ " + coords + " with "
+                    + setup.ingredients().size() + " ingredient(s): " + ingredientSummary(setup) + "</gray>"));
+        }
+        player.sendMessage(MINI_MESSAGE.deserialize("<gray>Recipe setups placed: " + setups.size()
+                + ", skipped positions=" + skipped + ", loaded recipes for " + type + "=" + loaded + "</gray>"));
+        if (!unresolved.isEmpty()) {
+            player.sendMessage(MINI_MESSAGE.deserialize("<yellow>Skipped recipes whose ingredients no longer"
+                    + " resolve:</yellow> <gray>" + String.join(", ", unresolved) + "</gray>"));
+        }
+    }
+
+    // Grid slot -> world position. One recipe per slot, spaced far enough apart that a pot's heat source and a
+    // neighbouring board (or its blocking block) never overlap. Slots come from the deterministic recipe order,
+    // so repeated tests of the same set land on the same coordinates.
+    private static Location recipeSetupLocation(Location origin, int grid, int slot) {
+        if (origin == null) return null;
+        int spacing = RECIPE_GRID_SPACING;
+        int column = slot % grid;
+        int row = slot / grid;
+        return origin.clone().add(2 + column * spacing, 2 + row * spacing, 2 + row * spacing);
+    }
+
     private void activate(Player player, String[] args) {
         String target = args.length >= 3 ? normalizeTarget(args[2]) : "all";
-        int activated = 0;
-        if (isCookingPotTarget(target)) activated += activateCookingPots(player.getWorld());
-        if (isSkilletTarget(target)) activated += activateSkillets(player.getWorld());
-        if (isStoveTarget(target)) activated += activateStoves(player.getWorld());
+        boolean addonTarget = !isBuiltInTarget(target) && DebugToolRegistry.find(target) != null;
+        boolean addonAll = "all".equals(target);
+
+        // Extensions own their own activation work and expose it as a single call, not a per-block cursor, so
+        // it stays a single call; the built-in sweep below is the unbounded part and now runs through the
+        // batch runner. The candidate list is a snapshot of the tracked locations, and each block is checked
+        // with canEdit() before it is touched, exactly like place/undo.
+        List<PendingActivation> candidates = new ArrayList<>();
+        World world = player.getWorld();
+        if (isCookingPotTarget(target)) candidates.addAll(collectCookingPotCandidates(world));
+        if (isSkilletTarget(target)) candidates.addAll(collectSkilletCandidates(world));
+        if (isStoveTarget(target)) candidates.addAll(collectStoveCandidates(world));
+        if ((!isBuiltInTarget(target) && !addonTarget) || candidates.isEmpty()) {
+            if (!addonTarget && !addonAll && !isBuiltInTarget(target)) {
+                player.sendMessage(I18n.getComponent("command.debug_batch_unknown", player, Map.of("target", target)));
+                return;
+            }
+            activateAddons(player, target);
+            return;
+        }
+
+        int[] activated = {0};
+        if (!batches.start(player, candidates.size(), index -> {
+            PendingActivation activation = candidates.get(index);
+            if (!canEdit(player, activation.location())) return;
+            activateScheduled(activation);
+            activated[0]++;
+        }, () -> {
+            player.sendMessage(I18n.getComponent("command.debug_batch_activated", player,
+                    Map.of("count", String.valueOf(activated[0]))));
+            activateAddons(player, target);
+        })) player.sendMessage(I18n.getComponent("command.debug_batch_busy", player));
+    }
+
+    private void activateAddons(Player player, String target) {
         if (!isBuiltInTarget(target)) {
             DebugToolExtension extension = DebugToolRegistry.find(target);
-            if (extension != null) activated += extension.activate(player);
-        } else if ("all".equals(target)) {
-            for (DebugToolExtension extension : DebugToolRegistry.all()) activated += extension.activate(player);
+            if (extension != null) {
+                player.sendMessage(MINI_MESSAGE.deserialize("<green>Debug scanned and filled "
+                        + extension.activate(player) + " placed blocks.</green>"));
+            }
+            return;
         }
-        player.sendMessage(MINI_MESSAGE.deserialize("<green>Debug scanned and filled " + activated + " placed blocks.</green>"));
+        if ("all".equals(target)) {
+            for (DebugToolExtension extension : DebugToolRegistry.all()) {
+                player.sendMessage(MINI_MESSAGE.deserialize("<green>Debug scanned and filled "
+                        + extension.activate(player) + " placed blocks.</green>"));
+            }
+        }
+    }
+
+    private List<PendingActivation> collectCookingPotCandidates(World world) {
+        List<PendingActivation> candidates = new ArrayList<>();
+        int budget = getMaxPlaceCount();
+        for (Map.Entry<BlockPosKey, CookingPotBlockEntity> entry
+                : CookingPotBlockBehavior.getBlockEntityEntries(world)) {
+            if (candidates.size() >= budget) break;
+            Location location = entry.getKey().toLocation(world);
+            if (!isPlacedCustomBlock(location, Constants.BLOCK_COOKING_POT)) continue;
+            if (!hasHeatSourceBelow(location)) continue;
+            if (!entry.getValue().hasStoredContents()) {
+                applyCookingPotDebugState(entry.getValue(), location);
+                saveCookingPotData(location, entry.getValue(), entry.getKey());
+            }
+            syncCookingPotTray(location);
+            candidates.add(new PendingActivation(location, "cooking_pot"));
+        }
+        return candidates;
+    }
+
+    // Pruned to the same bound as a placement run: getMaxPlaceCount() caps how many stations one command may
+    // touch, and checking it here means the batch never holds more than that. The manager returns a live view
+    // of the tracked locations, so copying it is what makes the batch's snapshot safe to iterate later.
+    private List<PendingActivation> collectSkilletCandidates(World world) {
+        SkilletManager manager = plugin.getSkilletManager();
+        if (manager == null) return List.of();
+        List<PendingActivation> candidates = new ArrayList<>();
+        int budget = getMaxPlaceCount();
+        for (Location location : manager.getTrackedLocations(world)) {
+            if (candidates.size() >= budget) break;
+            if (!isPlacedCustomBlock(location, Constants.BLOCK_SKILLET)) continue;
+            if (!hasHeatSourceBelow(location)) continue;
+            candidates.add(new PendingActivation(location, "skillet"));
+        }
+        return candidates;
+    }
+
+    private List<PendingActivation> collectStoveCandidates(World world) {
+        StoveManager manager = plugin.getStoveManager();
+        if (manager == null) return List.of();
+        List<PendingActivation> candidates = new ArrayList<>();
+        int budget = getMaxPlaceCount();
+        for (Location location : manager.getTrackedLocations(world)) {
+            if (candidates.size() >= budget) break;
+            if (!isPlacedCustomBlock(location, Constants.BLOCK_STOVE)) continue;
+            if (!isStoveLit(location)) continue;
+            candidates.add(new PendingActivation(location, "stove"));
+        }
+        return candidates;
+    }
+
+    private boolean isPlaceRecipeAction(String action) {
+        return "placerecipe".equals(action) || "place_recipe".equals(action) || "place-recipe".equals(action);
+    }
+
+    private boolean isPlaceRecipeRandomAction(String action) {
+        return "placereciperandom".equals(action) || "place_random_recipe".equals(action)
+                || "place-recipe-random".equals(action) || "place_random".equals(action);
     }
 
     private void undo(Player player) {
@@ -813,65 +1173,237 @@ public final class DebugToolsCommand {
         return new PlaceResult(placed, activated, activated ? target : null, undoEntries);
     }
 
-    private int activateCookingPots(World world) {
-        int activated = 0;
-        for (Map.Entry<BlockPosKey, CookingPotBlockEntity> entry : CookingPotBlockBehavior.getBlockEntityEntries(world)) {
-            Location location = entry.getKey().toLocation(world);
-            if (!isPlacedCustomBlock(location, Constants.BLOCK_COOKING_POT)) {
-                continue;
+    // Every loaded recipe the chosen station can run, in the manager's own order. "all" reads both managers;
+    // each recipe still carries its own station, so the caller never has to know which one it came from.
+    private List<RecipeChoice> recipeChoices(String type) {
+        List<RecipeChoice> choices = new ArrayList<>();
+        if ("all".equals(type) || isCookingPotTarget(type)) {
+            CookingPotRecipeManager manager = plugin.getCookingPotRecipes();
+            if (manager != null) {
+                for (CookingPotRecipe recipe : manager.getAllRecipes()) {
+                    choices.add(new RecipeChoice(recipe.getId(), "cooking_pot", recipe));
+                }
             }
-            if (!hasHeatSourceBelow(location)) {
-                continue;
-            }
-            CookingPotBlockEntity entity = entry.getValue();
-            if (!entity.hasStoredContents()) {
-                applyCookingPotDebugState(entity, location);
-                saveCookingPotData(location, entity, entry.getKey());
-            }
-            markCookingPotActive(world, entry.getKey());
-            activated++;
         }
-        return activated;
+        if ("all".equals(type) || isCuttingBoardTarget(type)) {
+            CuttingBoardRecipeManager manager = plugin.getCuttingBoardRecipes();
+            if (manager != null) {
+                for (CuttingBoardRecipe recipe : manager.getSortedRecipes()) {
+                    choices.add(new RecipeChoice(recipe.getId(), "cutting_board", recipe));
+                }
+            }
+        }
+        return choices;
     }
 
-    private int activateSkillets(World world) {
-        SkilletManager manager = plugin.getSkilletManager();
-        if (manager == null) {
-            return 0;
-        }
-
-        int activated = 0;
-        for (Location location : manager.getTrackedLocations(world)) {
-            if (!isPlacedCustomBlock(location, Constants.BLOCK_SKILLET)) {
-                continue;
-            }
-            if (!hasHeatSourceBelow(location)) {
-                continue;
-            }
-            activateSkillet(location);
-            activated++;
-        }
-        return activated;
+    /** Canonical station name, or null when the argument is not one of the two recipe stations. */
+    private String normalizeRecipeStation(String value) {
+        String normalized = normalizeTarget(value);
+        if ("all".equals(normalized)) return "all";
+        if (isCookingPotTarget(normalized)) return "cooking_pot";
+        if (isCuttingBoardTarget(normalized)) return "cutting_board";
+        return null;
     }
 
-    private int activateStoves(World world) {
-        StoveManager manager = plugin.getStoveManager();
-        if (manager == null) {
-            return 0;
+    /**
+     * Reports an unknown recipe id with the size of the loaded set and the closest ids as a hint. The set can
+     * be large, so only the first few matches are printed.
+     */
+    private void reportUnknownRecipe(Player player, String type, String requested, List<RecipeChoice> candidates) {
+        player.sendMessage(MINI_MESSAGE.deserialize("<red>Unknown recipe id: <yellow>" + requested + "</yellow></red>"
+                + " <gray>(" + candidates.size() + " " + type + " recipe(s) loaded)</gray>"));
+        if (candidates.isEmpty()) {
+            return;
         }
+        String needle = normalize(requested);
+        List<String> closest = new ArrayList<>();
+        for (RecipeChoice choice : candidates) {
+            if (normalize(choice.id()).contains(needle)) closest.add(choice.id());
+        }
+        if (closest.isEmpty()) {
+            for (RecipeChoice choice : candidates) {
+                for (String part : needle.split("[^a-z0-9]+")) {
+                    if (part.length() >= 3 && normalize(choice.id()).contains(part)) {
+                        closest.add(choice.id());
+                        break;
+                    }
+                }
+            }
+        }
+        if (closest.isEmpty()) {
+            for (int index = 0; index < Math.min(5, candidates.size()); index++) {
+                closest.add(candidates.get(index).id());
+            }
+            player.sendMessage(MINI_MESSAGE.deserialize("<gray>No close match. First loaded ids: "
+                    + String.join(", ", closest) + "</gray>"));
+            return;
+        }
+        List<String> shown = closest.size() > 5 ? closest.subList(0, 5) : closest;
+        player.sendMessage(MINI_MESSAGE.deserialize("<gray>Closest matches: " + String.join(", ", shown)
+                + (closest.size() > shown.size() ? " (+" + (closest.size() - shown.size()) + " more)" : "")
+                + "</gray>"));
+    }
 
-        int activated = 0;
-        for (Location location : manager.getTrackedLocations(world)) {
-            if (!isPlacedCustomBlock(location, Constants.BLOCK_STOVE)) {
-                continue;
-            }
-            if (!isStoveLit(location)) {
-                continue;
-            }
-            activateStove(location);
-            activated++;
+    private List<String> recipeIds(String type) {
+        List<String> ids = new ArrayList<>();
+        for (RecipeChoice choice : recipeChoices(type)) ids.add(choice.id());
+        return ids;
+    }
+
+    /**
+     * Reads one recipe into everything a placement needs, or null when it cannot be read. This never touches
+     * the world: the caller resolves the whole selection first, so a recipe that cannot be set up refuses the
+     * command instead of half-placing a station. Each station's own manager decides whether a candidate item
+     * satisfies an ingredient, so the stack placed here is one that station's matcher accepts.
+     */
+    private RecipeSetup resolveRecipeSetup(RecipeChoice choice) {
+        if (choice.recipe() instanceof CuttingBoardRecipe recipe) {
+            ItemStack input = recipe.getInputDisplay();
+            if (input == null || input.getType().isAir()) return null;
+            return new RecipeSetup(null, recipe.getId(), "cutting_board", List.of(), input);
         }
-        return activated;
+        if (choice.recipe() instanceof CookingPotRecipe recipe) {
+            CookingPotRecipeManager manager = plugin.getCookingPotRecipes();
+            List<ItemStack> ingredients = new ArrayList<>(recipe.getIngredients().size());
+            for (RecipeIngredient ingredient : recipe.getIngredients()) {
+                ItemStack resolved = resolveIngredient(ingredient,
+                        manager == null ? null : manager::matchesIngredient);
+                if (resolved == null) return null;
+                ingredients.add(resolved);
+            }
+            if (ingredients.isEmpty()) return null;
+            // needsContainer with an unresolvable container is exactly the case that would place a pot that can
+            // never finish the recipe, so it refuses the setup rather than dropping the container silently.
+            ItemStack container = recipe.getNeedsContainer() ? recipe.getContainer() : null;
+            if (recipe.getNeedsContainer() && (container == null || container.getType().isAir())) return null;
+            return new RecipeSetup(null, recipe.getId(), "cooking_pot", List.copyOf(ingredients), container);
+        }
+        return null;
+    }
+
+    /**
+     * The concrete stack one ingredient accepts: the ingredient's own item, else a CraftEngine tag member that
+     * the station's manager confirms matches, else a vanilla tag member, else a common-tag member. Null when
+     * nothing resolves.
+     */
+    private ItemStack resolveIngredient(RecipeIngredient ingredient, BiPredicate<ItemStack, RecipeIngredient> matcher) {
+        if (ingredient instanceof RecipeIngredient.Item item) {
+            ItemStack stack = item.createStack();
+            return stack == null || stack.getType().isAir() ? null : stack;
+        }
+        if (ingredient instanceof RecipeIngredient.Choice choice) {
+            for (RecipeIngredient option : choice.options()) {
+                ItemStack resolved = resolveIngredient(option, matcher);
+                if (resolved != null) return resolved;
+            }
+            return null;
+        }
+        if (!(ingredient instanceof RecipeIngredient.Tag tag)) return null;
+
+        try {
+            var craftEngine = plugin.getCraftEngine();
+            if (craftEngine != null && craftEngine.itemManager() != null) {
+                for (var member : craftEngine.itemManager().itemIdsByTag(tag.key())) {
+                    ItemStack stack = ItemUtils.createItem(member.toString());
+                    if (accepted(stack, ingredient, matcher)) return stack;
+                }
+            }
+            CookingPotRecipeManager potManager = plugin.getCookingPotRecipes();
+            if (potManager != null) {
+                for (String vanillaId : potManager.getVanillaItemIdsByTag(tag.key())) {
+                    ItemStack stack = ItemUtils.createItem(vanillaId);
+                    if (accepted(stack, ingredient, matcher)) return stack;
+                }
+            }
+            for (String memberId : CommonTagResolver.getMembers(tag.key())) {
+                ItemStack stack = ItemUtils.createItem(memberId);
+                if (accepted(stack, ingredient, matcher)) return stack;
+            }
+        } catch (RuntimeException | LinkageError notResolvable) {
+            return null;
+        }
+        return null;
+    }
+
+    private boolean accepted(ItemStack stack, RecipeIngredient ingredient,
+                             BiPredicate<ItemStack, RecipeIngredient> matcher) {
+        return stack != null && !stack.getType().isAir() && matcher != null && matcher.test(stack, ingredient);
+    }
+
+    /**
+     * The per-block half of place: the same station write place/activate makes, without
+     * the batch-busy guard, so the recipe flows can chain station placement and filling through the runner. The
+     * caller has already checked canEdit for this location.
+     */
+    private boolean placeRecipeStationUnbudgeted(Player player, Location location, RecipeSetup setup) {
+        // The target is a bare station name; placeOne picks the heat source and block for it. The index only
+        // matters for placeOne's "all" rotation, which a recipe setup never asks for.
+        PlaceResult result = placeOne(player, location, setup.target(), 0);
+        return result.placed();
+    }
+
+    /** True when this location now holds the station the setup asked for, so the fill pass can skip failures. */
+    private boolean isRecipeStation(Location location, RecipeSetup setup) {
+        return "cutting_board".equals(setup.target())
+                ? isPlacedCustomBlock(location, Constants.BLOCK_CUTTING_BOARD)
+                : isPlacedCustomBlock(location, Constants.BLOCK_COOKING_POT);
+    }
+
+    /**
+     * The fill half: insert the recipe's exact ingredient stacks, and its required container for a pot. Reads
+     * the ingredient list the setup resolved before placement, so the stacks are fixed and cannot half-fill in
+     * a way that differs from what was announced.
+     */
+    private boolean fillRecipeStation(Player player, Location location, RecipeSetup setup) {
+        if ("cutting_board".equals(setup.target())) {
+            CuttingBoardBlockEntity entity = CuttingBoardBlockBehavior.getBlockEntity(
+                    location.getWorld(), new BlockPosKey(location));
+            if (entity == null || setup.container() == null) return false;
+            entity.setItem(setup.container().clone(), location.getWorld(), new BlockPosKey(location),
+                    CustomBlockUtils.getFacing(location.getBlock()), false);
+            CuttingBoardBlockBehavior.saveBlockEntityData(location.getWorld(), new BlockPosKey(location));
+            return true;
+        }
+        CookingPotBlockEntity entity = CookingPotBlockBehavior.getOrCreateBlockEntity(location);
+        if (entity == null) return false;
+        for (ItemStack ingredient : setup.ingredients()) {
+            if (ingredient == null || ingredient.getType().isAir()) continue;
+            ItemStack stack = ingredient.clone();
+            stack.setAmount(Math.max(1, stack.getAmount()));
+            entity.insertIngredientStack(stack);
+        }
+        if (setup.container() != null && !setup.container().getType().isAir()) {
+            ItemStack container = setup.container().clone();
+            container.setAmount(1);
+            entity.insertContainerStack(container);
+            entity.setMealContainer(container.clone());
+        }
+        BlockPosKey posKey = new BlockPosKey(location);
+        saveCookingPotData(location, entity, posKey);
+        markCookingPotActive(location.getWorld(), posKey);
+        syncCookingPotTray(location);
+        return true;
+    }
+
+    /** The item names a setup was filled with, in recipe-ingredient order, for the report line. */
+    private String ingredientSummary(RecipeSetup setup) {
+        List<ItemStack> stacks = new ArrayList<>();
+        if ("cutting_board".equals(setup.target())) {
+            if (setup.container() != null) stacks.add(setup.container());
+        } else {
+            stacks.addAll(setup.ingredients());
+            if (setup.container() != null) stacks.add(setup.container());
+        }
+        if (stacks.isEmpty()) {
+            return "(none)";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (ItemStack stack : stacks) {
+            String id = ItemUtils.resolveItemId(stack);
+            if (builder.length() > 0) builder.append(", ");
+            builder.append(id == null ? stack.getType().name() : id);
+        }
+        return builder.toString();
     }
 
     private void placeStoveBlockingBlock(Location location) {
@@ -973,8 +1505,7 @@ public final class DebugToolsCommand {
         }
 
         if ("cooking_pot".equals(target) && isPlacedCustomBlock(location, Constants.BLOCK_COOKING_POT)) {
-            activateCookingPot(location);
-            verifyCookingPotFilled(location);
+            activateCookingPot(location, true);
         } else if ("skillet".equals(target) && isPlacedCustomBlock(location, Constants.BLOCK_SKILLET)) {
             activateSkillet(location);
         } else if ("stove".equals(target) && isPlacedCustomBlock(location, Constants.BLOCK_STOVE)) {
@@ -986,13 +1517,18 @@ public final class DebugToolsCommand {
         }
     }
 
-    private void activateCookingPot(Location location) {
+    // verify=false is the bulk 'activate' sweep: it fills every tracked pot, so a per-pot verification warning
+    // for a pot the same sweep already filled would be pure noise. A single pot placement still verifies.
+    private void activateCookingPot(Location location, boolean verify) {
         CookingPotBlockEntity entity = CookingPotBlockBehavior.getOrCreateBlockEntity(location);
         applyCookingPotDebugState(entity, location);
         BlockPosKey posKey = new BlockPosKey(location);
         saveCookingPotData(location, entity, posKey);
         markCookingPotActive(location.getWorld(), posKey);
         syncCookingPotTray(location);
+        if (verify) {
+            verifyCookingPotFilled(location);
+        }
     }
 
     private void syncCookingPotTray(Location location) {
@@ -1339,6 +1875,14 @@ public final class DebugToolsCommand {
                         + " <gray>- place a batch only; use activate to start its workload</gray>"
         ));
         sender.sendMessage(MINI_MESSAGE.deserialize(
+                "<yellow>/fd debugtools placeRecipe <cooking_pot|cutting_board|all> <recipeId> [count]</yellow>"
+                        + " <gray>- place that recipe's station and fill it with exactly its ingredients</gray>"
+        ));
+        sender.sendMessage(MINI_MESSAGE.deserialize(
+                "<yellow>/fd debugtools placeRecipeRandom <cooking_pot|cutting_board|all> [count]</yellow>"
+                        + " <gray>- place count distinct random recipe setups and report which ids they are</gray>"
+        ));
+        sender.sendMessage(MINI_MESSAGE.deserialize(
                 "<yellow>/fd debugtools activate <cooking_pot|skillet|stove|all></yellow>"
         ));
         sender.sendMessage(MINI_MESSAGE.deserialize(
@@ -1362,6 +1906,23 @@ public final class DebugToolsCommand {
     }
 
     private record PendingActivation(Location location, String target) {
+    }
+
+    /**
+     * One loaded recipe, kept with the station it belongs to so a random draw across both managers still knows
+     * which block to place.
+     */
+    private record RecipeChoice(String id, String station, Object recipe) {
+    }
+
+    /**
+     * A recipe read into placement form: the station to place and the exact stack(s) to load into it. The
+     * location is filled in when the setup is given a grid slot; ingredients is the pot's ingredient
+     * list (empty for a board) and container is the pot's required container — the board's input item
+     * is carried in container too, since a board stores exactly one item.
+     */
+    private record RecipeSetup(Location location, String recipeId, String target, List<ItemStack> ingredients,
+                               ItemStack container) {
     }
 
     private static final class PlacementBatch {
