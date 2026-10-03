@@ -71,6 +71,10 @@ public class CuttingBoardRecipeManager {
     }
 
     public void loadRecipes() {
+        // Recompile the packs' advanced tag groups up front: recipe parsing resolves an advtag: ingredient
+        // against this snapshot, and every load path (startup, /fd reload, external republish) runs through
+        // here, so a recipe can never be read against the groups of an earlier load.
+        RecipeParsingSupport.setAdvancedTagGroups(plugin.advancedTagGroups());
         Map<String, CuttingBoardRecipe> newRecipes = new LinkedHashMap<>();
         // Ids whose winning definition came from a CraftEngine pack section; see getPackRecipeCount().
         Set<String> packIds = new HashSet<>();

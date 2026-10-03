@@ -11,14 +11,13 @@ import org.bukkit.entity.Player;
  * addon's own registered flag (or the FD built-in feature flags), and every AntiGriefLib-backed land
  * plugin.
  *
- * <p>An addon that owns custom blocks should:
- * <ol>
- *   <li>call registerCustomFlag(String) from its onLoad with its own flag name (e.g.
- *       "myaddon-station");</li>
- *   <li>pass that same name to canBuild/canUse when placing / breaking / interacting
+ *
+ * An addon that owns custom blocks should:
+ * - call registerCustomFlag(String) from its onLoad with its own flag name (e.g.
+ *       "myaddon-station");
+ * - pass that same name to canBuild/canUse when placing / breaking / interacting
  *       with its blocks (CraftEngine fake blocks bypass the vanilla events land plugins listen to, so the
- *       addon must gate them itself, exactly like FarmersDelight does for its own blocks).</li>
- * </ol>
+ *       addon must gate them itself, exactly like FarmersDelight does for its own blocks).
  * A null flagName queries only the master flag.
  */
 public final class ProtectionCompat {

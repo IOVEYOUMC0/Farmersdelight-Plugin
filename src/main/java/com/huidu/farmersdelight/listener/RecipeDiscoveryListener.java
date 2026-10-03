@@ -36,10 +36,11 @@ public class RecipeDiscoveryListener implements Listener {
         }
         // Async because reading one player's unlocks means parsing the whole shared file, which grows with
         // every player the server has ever had. A book opened before this lands reads them in on the spot
-        // instead; the warm-up is what keeps that from being the normal case.
+        // instead; the warm-up is what keeps that from being the normal case, so a refused task is only a
+        // lost warm-up and needs no fallback here.
         UUID playerId = event.getPlayer().getUniqueId();
         long version = manager.markJoin(playerId);
-        plugin.scheduler().runAsync(() -> manager.ensureLoaded(playerId, version));
+        plugin.scheduler().tryRunAsync(() -> manager.ensureLoaded(playerId, version));
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -50,10 +51,11 @@ public class RecipeDiscoveryListener implements Listener {
         }
         // Async because the flush that has to happen before the drop writes the whole file, and a quit is
         // not the place for that. Order is kept inside evict, and a rejoin that beats the task just reads
-        // the player back off the file the task has already written.
+        // the player back off the file the task has already written. A refused task leaves the entry cached
+        // and dirty, which the next periodic flush writes; nothing is lost by skipping this one.
         UUID playerId = event.getPlayer().getUniqueId();
         long version = manager.markQuit(playerId);
-        plugin.scheduler().runAsync(() -> manager.evict(playerId, version));
+        plugin.scheduler().tryRunAsync(() -> manager.evict(playerId, version));
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)

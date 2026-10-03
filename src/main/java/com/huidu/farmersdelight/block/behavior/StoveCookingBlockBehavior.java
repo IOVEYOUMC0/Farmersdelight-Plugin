@@ -50,6 +50,7 @@ import org.bukkit.util.BoundingBox;
 
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior implements EntityBlock {
 
@@ -151,8 +152,8 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
     };
 
     // Vanilla-style namespaced id: namespace:path, lowercase letters/digits and '_', '-', '.', '/' only.
-    private static final java.util.regex.Pattern SOUND_ID_PATTERN =
-            java.util.regex.Pattern.compile("^[a-z0-9_.-]+:[a-z0-9_./-]+$");
+    private static final Pattern SOUND_ID_PATTERN =
+            Pattern.compile("^[a-z0-9_.-]+:[a-z0-9_./-]+$");
 
     // Validates one configured sound id. CraftEngine's Key.of does not check anything (it only splits on ':'),
     // so the pattern above is what makes a typo fail the block's own load with its config path.

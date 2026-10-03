@@ -126,14 +126,12 @@ public class SkilletEffectManager {
                 entry.count.set(0);
             }
             AtomicInteger chunkBudget = entry.count;
-            if (smoke && chunkBudget.get() < chunkEffectBudgetLimit) {
+            if (smoke && EffectPacketBudget.tryReserve(chunkBudget, chunkEffectBudgetLimit, 1)) {
                 spawnCookingParticles(nearbyViewers, location);
-                chunkBudget.incrementAndGet();
             }
-            if (sizzle && chunkBudget.get() < chunkEffectBudgetLimit) {
+            if (sizzle && EffectPacketBudget.tryReserve(chunkBudget, chunkEffectBudgetLimit, 1)) {
                 SoundUtils.play(nearbyViewers, location, getSizzleSound(carrierState),
                         Sound.BLOCK_CAMPFIRE_CRACKLE, sizzleVolume, sizzlePitch);
-                chunkBudget.incrementAndGet();
             }
         } finally {
             nearbyViewers.clear();

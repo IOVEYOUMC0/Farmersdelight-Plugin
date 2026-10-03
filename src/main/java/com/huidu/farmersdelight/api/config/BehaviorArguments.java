@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.api.config;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -9,7 +10,8 @@ import java.util.Map;
  * segments (burn-enabled, also burn_enabled), so packs written before the nested style keep
  * working. Callers decide their own default and validation; this class only answers "which raw value applies".
  *
- * <p>It exists in the api package because addons write their own behavior factories and compile against the api
+ *
+ * It exists in the api package because addons write their own behavior factories and compile against the api
  * jar only. FarmersDelight's own behaviors read through
  * com.huidu.farmersdelight.util.BehaviorArgParser, which adds typed parsing and loud validation on top of
  * the same lookup.
@@ -65,7 +67,7 @@ public final class BehaviorArguments {
         if (!(value instanceof Map<?, ?> map)) {
             return null;
         }
-        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        Map<String, Object> result = new LinkedHashMap<>();
         for (Map.Entry<?, ?> entry : map.entrySet()) {
             if (entry.getKey() instanceof String key) {
                 result.put(key, entry.getValue());

@@ -15,6 +15,7 @@ import net.momirealms.craftengine.bukkit.api.BukkitAdaptor;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.block.behavior.EntityBlock;
 import net.momirealms.craftengine.core.block.behavior.WorldlyContainerHolder;
@@ -53,7 +54,7 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
      * Returning null when nothing is tracked restores CraftEngine's fallback.
      */
     @Override
-    public net.momirealms.craftengine.core.item.Item itemToPickup(
+    public Item itemToPickup(
             net.momirealms.craftengine.core.world.World world,
             BlockPos pos,
             ImmutableBlockState state,

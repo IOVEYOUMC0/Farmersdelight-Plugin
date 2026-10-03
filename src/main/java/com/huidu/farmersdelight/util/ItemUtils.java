@@ -1058,15 +1058,13 @@ public final class ItemUtils {
     /**
      * The item a stack leaves behind once it is consumed: a water bucket becomes a bucket, a milk bottle a
      * glass bottle. Resolution order, most explicit first:
-     * <ol>
-     *   <li>the container-returns map, by CE custom id and then by vanilla item id (operator override),</li>
-     *   <li>the item's own CE craft-remainder (settings.craft-remainder): a fixed remainder always
-     *       answers, a recipe_based one answers through recipeId or through its fallback,</li>
-     *   <li>the item's use-remainder component (what eating/drinking it leaves behind),</li>
-     *   <li>the vanilla crafting remainder of the item's material — for a CE item that is its base material's,
-     *       so a CE drink built on minecraft:honey_bottle returns a glass bottle with no configuration,</li>
-     *   <li>the bucket/bottle fallback for containers vanilla declares no remainder for.</li>
-     * </ol>
+     * - the container-returns map, by CE custom id and then by vanilla item id (operator override),
+     * - the item's own CE craft-remainder (settings.craft-remainder): a fixed remainder always
+     *       answers, a recipe_based one answers through recipeId or through its fallback,
+     * - the item's use-remainder component (what eating/drinking it leaves behind),
+     * - the vanilla crafting remainder of the item's material — for a CE item that is its base material's,
+     *       so a CE drink built on minecraft:honey_bottle returns a glass bottle with no configuration,
+     * - the bucket/bottle fallback for containers vanilla declares no remainder for.
      * Returns null when the stack leaves nothing behind.
      *
      * @param recipeId id of the recipe consuming the item, matched by recipe_based CE remainders; null when no

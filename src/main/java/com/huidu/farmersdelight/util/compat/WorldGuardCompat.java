@@ -38,6 +38,11 @@ public final class WorldGuardCompat {
     private static volatile Method wrapPlayerMethod;
     private static volatile Method testStateMethod;
     private static volatile Method testBuildMethod;
+    // The flag array type the query methods take. Method.getParameterTypes() hands back a fresh clone of
+    // its array on every call, and this lookup happens once per protection query, so it is read once.
+    private static volatile Class<?> flagArrayType;
+    private static volatile Method instMethod;
+    private static volatile boolean wrapHandlesResolved;
     private static volatile Object interactFlag;
     // A failed WorldGuard query falls back to "allowed"; without this flag that fallback is
     // indistinguishable from "no region here", so a broken reflection path would silently disable
@@ -245,13 +250,20 @@ public final class WorldGuardCompat {
                     reportQueryFailure(methodName + " not found on " + query.getClass().getName());
                     return true;
                 }
+                // Resolving this here rather than reading it per query: the array type cannot change for a
+                // given method, and getParameterTypes() clones its array on every call.
+                flagArrayType = method.getParameterTypes()[2].getComponentType();
                 if (build) {
                     testBuildMethod = method;
                 } else {
                     testStateMethod = method;
                 }
             }
-            Class<?> flagType = method.getParameterTypes()[2].getComponentType();
+            Class<?> flagType = flagArrayType;
+            if (flagType == null) {
+                flagType = method.getParameterTypes()[2].getComponentType();
+                flagArrayType = flagType;
+            }
             Object flagArray = Array.newInstance(flagType, countNonNull(flags));
             int index = 0;
             for (Object flag : flags) {
@@ -323,15 +335,23 @@ public final class WorldGuardCompat {
     // WorldEdit's BukkitAdapter.adapt(Player) returns a WorldEdit BukkitPlayer, which is neither
     // LocalPlayer nor RegionAssociable, so RegionQuery rejects it during argument validation. The
     // WorldGuard-side wrapper returns com.sk89q.worldguard.LocalPlayer, which both overloads accept.
+    //
+    // Both the wrapper and the singleton accessor are resolved once like the handles above: this runs on
+    // every protection query, i.e. every right-click and every block break, and looking the class and the
+    // `inst` method up each time meant a class-loader lookup plus a method scan per interaction.
     private static Object wrapPlayer(Player player) throws ReflectiveOperationException {
-        Class<?> pluginClass = Class.forName("com.sk89q.worldguard.bukkit.WorldGuardPlugin");
-        Method method = wrapPlayerMethod;
-        if (method == null) {
-            method = pluginClass.getMethod("wrapPlayer", Player.class);
-            wrapPlayerMethod = method;
+        if (!wrapHandlesResolved) {
+            synchronized (WorldGuardCompat.class) {
+                if (!wrapHandlesResolved) {
+                    Class<?> pluginClass = Class.forName("com.sk89q.worldguard.bukkit.WorldGuardPlugin");
+                    instMethod = pluginClass.getMethod("inst");
+                    wrapPlayerMethod = pluginClass.getMethod("wrapPlayer", Player.class);
+                    wrapHandlesResolved = true;
+                }
+            }
         }
-        Object instance = pluginClass.getMethod("inst").invoke(null);
-        return instance == null ? null : method.invoke(instance, player);
+        Object instance = instMethod.invoke(null);
+        return instance == null ? null : wrapPlayerMethod.invoke(instance, player);
     }
 
     private static Object flag(String name) throws ReflectiveOperationException {

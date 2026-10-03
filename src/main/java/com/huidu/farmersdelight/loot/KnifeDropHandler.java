@@ -26,7 +26,8 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * Extra knife drops for rules an addon registers at runtime through FarmersDelightKnifeDrops.
  *
- * <p>The rules that ship with FarmersDelight are not here: they live in the bundled CraftEngine pack
+ *
+ * The rules that ship with FarmersDelight are not here: they live in the bundled CraftEngine pack
  * (vanilla_loots.yml), so an operator can read and tune them next to every other drop of the pack
  * instead of in a plugin config the pack cannot see. Dropping the item there is also what puts it in front
  * of loot and quest plugins that edit the death event, because the pack contributes to event.getDrops().
