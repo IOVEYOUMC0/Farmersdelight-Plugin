@@ -84,6 +84,7 @@ gui:
       save_failed: "<red>Failed to save the recipe (see console)."
       delete_failed: "<red>Failed to delete the recipe (see console)."
       no_tags: "<red>This item does not belong to any tag."
+      no_tag_items: "<red>This tag has no matching items."
     tag:
       select_hint: "<gray>Left: use this tag <dark_gray>| <gray>Right: edit exclusions"
       member_included: "<gray>Click: exclude this item from the tag"

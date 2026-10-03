@@ -84,6 +84,7 @@ gui:
       save_failed: "<red>保存配方失败(详见控制台)。"
       delete_failed: "<red>删除配方失败(详见控制台)。"
       no_tags: "<red>该物品不属于任何标签。"
+      no_tag_items: "<red>该标签没有匹配的物品。"
     tag:
       select_hint: "<gray>左键: 使用此标签 <dark_gray>| <gray>右键: 编辑排除项"
       member_included: "<gray>点击: 从该标签中排除此物品"
