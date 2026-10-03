@@ -64,6 +64,7 @@ import com.huidu.farmersdelight.recipe.CuttingBoardRecipeManager;
 import com.huidu.farmersdelight.recipe.RecipeFileLoader;
 import com.huidu.farmersdelight.recipe.SpecialRecipeLoader;
 import com.huidu.farmersdelight.recipe.SpecialRecipeRegistry;
+import com.huidu.farmersdelight.registry.BehaviorRegistrar;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CommonTagResolver;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
@@ -877,6 +878,11 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     void refreshAfterCraftEngineReload() {
+        // Re-apply the registrations other plugins made through ContentRegistration before anything below
+        // reads the fresh pack content. CraftEngine keeps its built-in type registries for the whole
+        // class-loader lifetime, so this is defence in depth; it is idempotent either way, because ids
+        // CraftEngine already reports are skipped.
+        BehaviorRegistrar.replayContentRegistrations();
         ReloadCacheInvalidator.clear();
         if (specialRecipeRegistry != null) {
             specialRecipeRegistry.invalidateIndex();
@@ -908,6 +914,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     private void reloadCommon(boolean reloadLanguages) {
+        // Registration is idempotent and skips ids CraftEngine already reports, so re-applying it here keeps
+        // another plugin's registrations alive across /fd reload without re-registering our own content.
+        BehaviorRegistrar.replayContentRegistrations();
         long reloadStart = System.nanoTime();
         // One parse per user file for this whole pass: validation and the load pass read the same four files,
         // and a reload could not see two different contents anyway. Cleared at the start of every reload.

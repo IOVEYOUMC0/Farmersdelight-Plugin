@@ -3,6 +3,8 @@ package com.huidu.farmersdelight.manager;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.scheduler.RegionDispatcher;
+import com.huidu.farmersdelight.util.scheduler.RegionTasks;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.ChunkSnapshot;
@@ -66,6 +68,8 @@ public final class CarrierRestorer {
     private static final int DEFAULT_SCAN_COLUMN_HEIGHT = 96;
 
     private final FarmersDelightPlugin plugin;
+    /** The region dispatcher every chunk and entity task goes through; the plugin's scheduler by default. */
+    private final RegionDispatcher dispatcher;
     /** world -> chunkKey -> (packed position -> display entity). Guarded by {@link #stateLock}. */
     private final Map<UUID, Map<Long, Map<Long, Entity>>> tracked = new HashMap<>();
     /** world -> chunk keys already scanned this session. Guarded by {@link #stateLock}. */
@@ -93,7 +97,13 @@ public final class CarrierRestorer {
     private int createdThisTick;
 
     public CarrierRestorer(FarmersDelightPlugin plugin) {
+        this(plugin, plugin.scheduler());
+    }
+
+    /** Test seam: the dispatcher is this class's only scheduler entry point, so a test can replace it. */
+    CarrierRestorer(FarmersDelightPlugin plugin, RegionDispatcher dispatcher) {
         this.plugin = plugin;
+        this.dispatcher = dispatcher;
         reload();
     }
 
@@ -228,7 +238,7 @@ public final class CarrierRestorer {
             return;
         }
         // Only the wrapper's coordinates are read here; the block itself is touched inside the region task.
-        plugin.scheduler().runAt(world, block.getX() >> 4, block.getZ() >> 4, () -> update(block));
+        dispatcher.runAt(world, block.getX() >> 4, block.getZ() >> 4, () -> update(block));
     }
 
     /**
@@ -496,23 +506,33 @@ public final class CarrierRestorer {
             Entity entity = tracked.entity();
             // Validity is entity data, so it is read on the entity's own region. The retired callback covers
             // an entity that is gone before the task can run, so its entry never survives it.
-            plugin.scheduler().runForEntity(entity, () -> verifyDisplay(tracked), () -> dropTrackedEntry(tracked));
+            dispatcher.runForEntity(entity, () -> verifyDisplay(tracked), () -> dropTrackedEntry(tracked));
         }
     }
 
-    /** Hands each queued chunk of this slice to its own region; the scan itself never runs on this thread. */
+    /**
+     * Hands each queued chunk of this slice to its own region; the scan itself never runs on this thread.
+     */
     private void dispatchQueuedScans() {
-        for (ChunkTarget target : pending.drain(scanChunksPerTick)) {
-            World world = target.world();
-            int chunkX = target.chunkX();
-            int chunkZ = target.chunkZ();
-            plugin.scheduler().runAt(world, chunkX, chunkZ, () -> {
-                if (!world.isChunkLoaded(chunkX, chunkZ)) {
-                    return;
-                }
-                scanChunk(world, chunkX, chunkZ);
-            });
+        dispatchQueuedScans(pending, scanChunksPerTick, dispatcher, this::scanChunk);
+    }
+
+    /**
+     * Takes at most {@code budget} queued chunks, in insertion order, and hands each to the region that owns
+     * it. The chunk is re-checked inside the dispatched task, so one that unloaded while it waited is skipped
+     * rather than scanned from stale state.
+     */
+    static void dispatchQueuedScans(PendingChunkScanQueue<ChunkTarget> pending, int budget,
+                                    RegionDispatcher dispatcher, ChunkScanTask scanTask) {
+        for (ChunkTarget target : pending.drain(budget)) {
+            RegionTasks.runAtLoadedChunk(dispatcher, target.world(), target.chunkX(), target.chunkZ(),
+                    () -> scanTask.scan(target.world(), target.chunkX(), target.chunkZ()));
         }
+    }
+
+    /** The body a queued chunk scan runs on the region that owns the chunk. */
+    interface ChunkScanTask {
+        void scan(World world, int chunkX, int chunkZ);
     }
 
     /** Drops the record of a display that no longer exists; runs on the entity's own region. */
@@ -665,7 +685,7 @@ public final class CarrierRestorer {
             removeDisplayNow(entity);
             return;
         }
-        plugin.scheduler().runForEntity(entity, () -> removeDisplayNow(entity));
+        dispatcher.runForEntity(entity, () -> removeDisplayNow(entity));
     }
 
     private static void removeDisplayNow(Entity entity) {
@@ -737,7 +757,7 @@ public final class CarrierRestorer {
     }
 
     /** One chunk waiting for a scan: a world handle plus coordinates, never a Chunk across threads. */
-    private record ChunkTarget(World world, int chunkX, int chunkZ) {
+    record ChunkTarget(World world, int chunkX, int chunkZ) {
     }
 
     private record Tracked(Map<Long, Entity> owner, long position, Entity entity) {

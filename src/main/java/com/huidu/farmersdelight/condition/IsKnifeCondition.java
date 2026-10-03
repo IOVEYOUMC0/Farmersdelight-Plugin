@@ -1,7 +1,7 @@
 package com.huidu.farmersdelight.condition;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
-import net.momirealms.craftengine.bukkit.util.ItemStackUtils;
+import com.huidu.farmersdelight.api.util.CeItemInterop;
 import net.momirealms.craftengine.core.plugin.context.Condition;
 import net.momirealms.craftengine.core.plugin.context.Context;
 import net.momirealms.craftengine.core.plugin.context.condition.ConditionFactory;
@@ -28,7 +28,7 @@ public final class IsKnifeCondition implements Condition<Context> {
         }
         return context.getOptionalParameter(DirectContextParameters.ITEM_IN_HAND)
                 .filter(item -> !item.isEmpty())
-                .map(ItemStackUtils::getBukkitStack)
+                .map(CeItemInterop::toBukkitStack)
                 .map(plugin::isKnife)
                 .orElse(false);
     }

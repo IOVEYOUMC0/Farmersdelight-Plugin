@@ -4,6 +4,7 @@ import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
+import net.momirealms.craftengine.core.block.entity.BlockEntityController;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.CEWorld;
 import org.bukkit.World;
@@ -79,5 +80,24 @@ public final class CraftEngineBlockAccess {
     /** A state property as a string, or null when the state has no such property. */
     public static String property(ImmutableBlockState state, String propertyName) {
         return CustomBlockUtils.getPropertyString(state, propertyName);
+    }
+
+    /**
+     * The block-entity controller at a world position, or null when it cannot be read.
+     *
+     *
+     * Null when the world is unknown to CraftEngine (see {@link #getCEWorld(World)}), when the chunk is not
+     * loaded, or when the position holds no block entity. Only an already loaded chunk is consulted, so this
+     * never loads one and never returns data a region would have to be scheduled for.
+     *
+     * @return the controller, or null when there is none to read
+     */
+    public static BlockEntityController blockEntityController(World world, int x, int y, int z) {
+        CEWorld ceWorld = getCEWorld(world);
+        if (ceWorld == null) {
+            return null;
+        }
+        BlockEntity blockEntity = ceWorld.getBlockEntityAtIfLoaded(new BlockPos(x, y, z));
+        return blockEntity == null ? null : blockEntity.controller;
     }
 }
