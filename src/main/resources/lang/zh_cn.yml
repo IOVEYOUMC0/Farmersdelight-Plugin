@@ -18,52 +18,24 @@ recipe-discovery:
   unlocked-multi: "<green>已解锁 <white>{count} <green>个新配方。"
   locked-name: "<red>??? <gray>（未解锁）"
   locked-lore: "<gray>发现此配方后即可解锁。"
-  locked-click: "<red>你还没有解锁这个配方。"
 gui:
   recipe:
-    title: "<dark_gray>配方查看"
-    cooking_pot: "<gold>烹饪锅配方"
-    cooking_pot_lore: "<gray>点击查看烹饪锅配方"
-    cutting_board: "<yellow>砧板配方"
-    cutting_board_lore: "<gray>点击查看砧板配方"
-    close: "<red>关闭"
-    back: "<gray>返回"
-    prev_page: "<green>上一页"
-    next_page: "<green>下一页"
-    page: "页数：{page}/{total}"
-    result: "成品"
     input: "输入"
     condition: "条件"
-    ingredient: "材料"
     ingredients: "配料"
-    container: "容器"
-    tool: "工具"
     results: "产物"
     experience: "经验"
-    cook_time: "烹饪时间"
     seconds_suffix: "秒"
     chance: "<gray>概率：<yellow>{value}%"
-    special_recipes: "特殊配方"
-    click_to_view: "点击查看详情"
-    click_to_view_materials: "点击详情页查看可用材料"
-    click_to_toggle: "点击切换"
-    filter_craftable_on: "仅显示可合成配方"
-    filter_craftable_off: "显示全部配方"
     missing_ingredients: "<red>背包内缺少该配方所需材料。"
     inventory_full: "<red>背包空间不足，无法安全移动锅内物品。"
     ingredients_filled: "<green>已把配方材料填入厨锅。"
     fill_ready: "<yellow>从背包移动匹配的材料。"
-    detail_title: "<dark_gray>配方详情"
-    auto_cycle: "<gray>当前 {current}/{total}，自动切换中"
     any_of: "以下任意一种"
     tag: "标签"
     matches: "可用材料"
-    more_ingredients: "<gray>以及另外 {count} 个配料"
-    more_items: "<gray>以及另外 {count} 个"
-    no_matching_items: "没有找到匹配物品"
     unknown: "未知"
   cooking_pot:
-    pending_container_hint: "<gray>容器: <white>{container}"
     # 用 %s 而不是 {name} 占位符: 服务端回退文案由 String.format 生成(I18n.translatableWithFallback),
     # 资源包里的客户端文案同样用 %s。
     single_serving: "<gray>装有1份："
@@ -73,18 +45,6 @@ gui:
     disabled: "<red>配方编辑器已在 config.yml 中停用（recipe-editor.enabled）。"
     feedback:
       invalid_id: "<red>配方 id 包含无效字符。"
-      not_configured: "<red>gui.yml 中未配置配方编辑器界面。"
-      no_ingredients: "<red>配方至少需要一个原料。"
-      no_input: "<red>配方需要一个输入物。"
-      no_result: "<red>配方需要一个成品。"
-      too_many_ingredients: "<yellow>该配方有 {total} 个原料,但只显示 {shown} 个槽位;多余原料无法在此编辑。"
-      too_many_results: "<yellow>该配方有 {total} 个产物,但只显示 {shown} 个槽位;多余产物无法在此编辑。"
-      saved: "<green>已保存配方 <white>{recipe_id}<green> 并重载。"
-      deleted: "<green>已删除配方 <white>{recipe_id}<green> 并重载。"
-      save_failed: "<red>保存配方失败(详见控制台)。"
-      delete_failed: "<red>删除配方失败(详见控制台)。"
-      no_tags: "<red>该物品不属于任何标签。"
-      no_tag_items: "<red>该标签没有匹配的物品。"
     tag:
       select_hint: "<gray>左键: 使用此标签 <dark_gray>| <gray>右键: 编辑排除项"
       member_included: "<gray>点击: 从该标签中排除此物品"
@@ -94,59 +54,12 @@ gui:
       manual_prompt: "<gray>在聊天框输入标签 ID（<red>cancel</red> 取消）"
       manual_invalid: "<red>无效的标签 ID"
       manual_cancelled: "<gray>已取消手动输入"
-  condition:
-    sunlight: "日照"
-    sunlight_lore: "需要充足日照条件"
-    water: "水源"
-    water_lore: "需要周围有水源"
-    catalyst_info: "催化物"
-    catalyst_info_lore: "周围有催化物可加快进程"
   special_recipe:
     organic_compost:
-      title: "有机堆肥"
-      desc:
-        "1": "有机堆肥会随时间自然分解，最终转化为沃土。"
-        "2": "日照和附近水源可加速分解。"
-        "3": "附近的菌类、菌丝、灰化土和堆肥块等催化物可加速分解。"
-        "4": "使用水桶右击可立即推进一个分解阶段。"
       input:
         compost: "有机堆肥"
       output:
         rich_soil: "沃土"
-        rich_soil_lore: "堆肥完全分解后形成"
-    wild_cabbages:
-      title: "野生卷心菜"
-      desc:
-        "1": "野生卷心菜常见于海滩沿岸。"
-    wild_onions:
-      title: "野生洋葱"
-      desc:
-        "1": "野生洋葱常见于平原、森林等温带地区。"
-    wild_tomatoes:
-      title: "番茄灌木"
-      desc:
-        "1": "野生西红柿常见于热带草原、沙漠等干旱地区。"
-    wild_rice:
-      title: "野生稻米"
-      desc:
-        "1": "野生稻米常见于沼泽、丛林等湿润地区的池塘中。"
-    wheat_dough:
-      title: "面团"
-      desc:
-        "1": "3 个小麦与 1 个鸡蛋可合成 3 个面团。"
-        "2": "小麦与水桶可合成面团，水桶会返还。"
-    straw:
-      title: "稻草"
-      desc:
-        "1": "干燥的植物纤维，用于合成。用小刀收割草丛和植物可获得。"
-    ham:
-      title: "火腿"
-      desc:
-        "1": "从猪或猪灵的腿上切下的大块肉。需要用比剑更轻的工具来切割……"
-    knife:
-      title: "小刀"
-      desc:
-        "1": "轻量近战武器，挥砍快、伤害温和。可以用小刀从草丛收割稻草，并保证动物的额外掉落。"
 console:
   prefix: "[FarmersDelight]"
   recipe-discovery:
@@ -521,22 +434,3 @@ command:
   buff_not_grantable: "<red>buff「<white>{buff}</white>」无法通过命令发放。"
   buff_player_not_found: "<red>玩家「<white>{player}</white>」不在线。"
   cleanup_done_displays: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <white>清理完成 <gray>—</gray> <white>共 {count}</white> <gray>个展示实体：</gray> <white>{displays}</white> <gray>个代理展示、</gray> <white>{addon}</white> <gray>个附属实体</gray></white>"
-item:
-  farmersdelight:
-    raw_pasta: "生意面"
-    cabbage: "卷心菜"
-    cabbage_leaf: "卷心菜叶"
-    onion: "洋葱"
-    tomato: "番茄"
-    tomato_sauce: "番茄酱"
-    cooked_rice: "米饭"
-    mixed_salad: "混合沙拉"
-    vegetable_soup: "蔬菜汤"
-    fish_stew: "鱼肉炖菜"
-    fried_rice: "炒饭"
-    noodle_soup: "面条汤"
-    vegetable_noodles: "蔬菜面"
-    pasta_with_meatballs: "肉丸意面"
-    pasta_with_mutton_chop: "羊排意面"
-    dumplings: "饺子"
-    cabbage_rolls: "卷心菜卷"

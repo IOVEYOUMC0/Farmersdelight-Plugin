@@ -18,52 +18,24 @@ recipe-discovery:
   unlocked-multi: "<green>Unlocked <white>{count}<green> new recipes."
   locked-name: "<red>??? <gray>(Locked)"
   locked-lore: "<gray>Discover this recipe to unlock it."
-  locked-click: "<red>You haven't unlocked this recipe yet."
 gui:
   recipe:
-    title: "<dark_gray>Recipe Viewer"
-    cooking_pot: "<gold>Cooking Pot Recipes"
-    cooking_pot_lore: "<gray>Click to view cooking pot recipes"
-    cutting_board: "<yellow>Cutting Board Recipes"
-    cutting_board_lore: "<gray>Click to view cutting board recipes"
-    close: "<red>Close"
-    back: "<gray>Back"
-    prev_page: "<green>Previous Page"
-    next_page: "<green>Next Page"
-    page: "Page: {page}/{total}"
-    result: "Result"
     input: "Input"
     condition: "Condition"
-    ingredient: "Ingredient"
     ingredients: "Ingredients"
-    container: "Container"
-    tool: "Tool"
     results: "Results"
     experience: "Experience"
-    cook_time: "Cook Time"
     seconds_suffix: "s"
     chance: "<gray>Chance: <yellow>{value}%"
-    special_recipes: "Special Recipes"
-    click_to_view: "Click to view details"
-    click_to_view_materials: "Open details to view usable materials"
-    click_to_toggle: "Click to toggle"
-    filter_craftable_on: "Showing craftable recipes"
-    filter_craftable_off: "Showing all recipes"
     missing_ingredients: "<red>You do not have the required ingredients."
     inventory_full: "<red>Not enough inventory space to move pot contents safely."
     ingredients_filled: "<green>Moved recipe ingredients into the cooking pot."
     fill_ready: "<yellow>Move matching ingredients from your inventory."
-    detail_title: "<dark_gray>Recipe Details"
-    auto_cycle: "<gray>Showing {current}/{total}, auto cycling"
     any_of: "Any of"
     tag: "Tag"
     matches: "Matching Items"
-    more_ingredients: "<gray>and {count} more ingredients"
-    more_items: "<gray>and {count} more"
-    no_matching_items: "No matching items found"
     unknown: "Unknown"
   cooking_pot:
-    pending_container_hint: "<gray>Container: <white>{container}"
     # %s rather than a {name} placeholder: the server-side fallback is built with String.format
     # (I18n.translatableWithFallback), while the client-side value in the resource pack uses %s too.
     single_serving: "<gray>Holds 1 serving of:"
@@ -73,18 +45,6 @@ gui:
     disabled: "<red>The recipe editor is disabled in config.yml (recipe-editor.enabled)."
     feedback:
       invalid_id: "<red>Recipe id contains invalid characters."
-      not_configured: "<red>The recipe editor GUI is not configured in gui.yml."
-      no_ingredients: "<red>The recipe needs at least one ingredient."
-      no_input: "<red>The recipe needs an input item."
-      no_result: "<red>The recipe needs a result item."
-      too_many_ingredients: "<yellow>This recipe has {total} ingredients but only {shown} slots are shown; extra ingredients are not editable here."
-      too_many_results: "<yellow>This recipe has {total} results but only {shown} slots are shown; extra results are not editable here."
-      saved: "<green>Saved recipe <white>{recipe_id}<green> and reloaded."
-      deleted: "<green>Deleted recipe <white>{recipe_id}<green> and reloaded."
-      save_failed: "<red>Failed to save the recipe (see console)."
-      delete_failed: "<red>Failed to delete the recipe (see console)."
-      no_tags: "<red>This item does not belong to any tag."
-      no_tag_items: "<red>This tag has no matching items."
     tag:
       select_hint: "<gray>Left: use this tag <dark_gray>| <gray>Right: edit exclusions"
       member_included: "<gray>Click: exclude this item from the tag"
@@ -94,59 +54,12 @@ gui:
       manual_prompt: "<gray>Type a tag id in chat (<red>cancel</red> to abort)"
       manual_invalid: "<red>Invalid tag id"
       manual_cancelled: "<gray>Manual input cancelled"
-  condition:
-    sunlight: "Sunlight"
-    sunlight_lore: "Requires sufficient sunlight"
-    water: "Water"
-    water_lore: "Requires nearby water source"
-    catalyst_info: "Catalyst"
-    catalyst_info_lore: "Nearby catalysts speed up the process"
   special_recipe:
     organic_compost:
-      title: "Organic Compost"
-      desc:
-        "1": "Organic Compost decomposes naturally over time, eventually turning into Rich Soil."
-        "2": "Sunlight and adjacent water speed up decomposition."
-        "3": "Nearby activators (mushrooms, mycelium, podzol, compost...) accelerate decomposition."
-        "4": "Right-click with a water bucket to advance one stage immediately."
       input:
         compost: "Organic Compost"
       output:
         rich_soil: "Rich Soil"
-        rich_soil_lore: "Forms when compost fully decomposes"
-    wild_cabbages:
-      title: "Wild Cabbages"
-      desc:
-        "1": "Cabbages can be commonly found as a wild plant in beach coasts."
-    wild_onions:
-      title: "Wild Onions"
-      desc:
-        "1": "Onions can be commonly found as a wild plant in temperate lands, such as plains and forests."
-    wild_tomatoes:
-      title: "Tomato Shrub"
-      desc:
-        "1": "Tomatoes can be commonly found as a wild plant in arid lands, such as savannas and deserts."
-    wild_rice:
-      title: "Wild Rice"
-      desc:
-        "1": "Rice can be commonly found as a wild plant in the ponds of wet lands, such as swamps and jungles."
-    wheat_dough:
-      title: "Wheat Dough"
-      desc:
-        "1": "Craft 3 wheat with 1 egg to make 3 wheat dough."
-        "2": "Mix wheat with a water bucket to make wheat dough; the bucket is returned."
-    straw:
-      title: "Straw"
-      desc:
-        "1": "A dry plant fiber used in crafting. Obtained by cutting grassy crops and plants with a Knife."
-    ham:
-      title: "Ham"
-      desc:
-        "1": "A large cut of meat from a Pig or Hoglin's leg.\n\nYou will need something lighter than a Sword to cut one..."
-    knife:
-      title: "Knife"
-      desc:
-        "1": "A lightweight melee weapon, with fast swings and gentle damage.\n\nThey can harvest Straw from grasses, and guarantee secondary drops from animals."
 console:
   prefix: "[FarmersDelight]"
   recipe-discovery:
@@ -521,22 +434,3 @@ command:
   buff_not_grantable: "<red>Buff '<white>{buff}</white>' cannot be granted by command."
   buff_player_not_found: "<red>Player '<white>{player}</white>' is not online."
   cleanup_done_displays: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <white>Cleanup complete <gray>—</gray> <white>{count}</white> <gray>display entity(ies) cleared:</gray> <white>{displays}</white> <gray>proxy display(s),</gray> <white>{addon}</white> <gray>addon entity(ies)</gray></white>"
-item:
-  farmersdelight:
-    raw_pasta: "Raw Pasta"
-    cabbage: "Cabbage"
-    cabbage_leaf: "Cabbage Leaf"
-    onion: "Onion"
-    tomato: "Tomato"
-    tomato_sauce: "Tomato Sauce"
-    cooked_rice: "Cooked Rice"
-    mixed_salad: "Mixed Salad"
-    vegetable_soup: "Vegetable Soup"
-    fish_stew: "Fish Stew"
-    fried_rice: "Fried Rice"
-    noodle_soup: "Noodle Soup"
-    vegetable_noodles: "Vegetable Noodles"
-    pasta_with_meatballs: "Pasta with Meatballs"
-    pasta_with_mutton_chop: "Pasta with Mutton Chop"
-    dumplings: "Dumplings"
-    cabbage_rolls: "Cabbage Rolls"
