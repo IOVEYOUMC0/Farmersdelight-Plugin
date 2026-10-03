@@ -398,6 +398,14 @@ public class CookingPotGui extends AbstractInventoryGui {
             int guiSlot = entry.getKey();
             int entitySlot = entry.getValue();
 
+            // A slot still waiting for write-back is authoritative on the GUI mirror side: syncToBlockEntity
+            // has not published the value the player just put there, so the entity still holds the older one
+            // and must not overwrite it. The slot stays in the dirty set until that write succeeds, which is
+            // also what keeps a failed write retryable instead of silently dropping the mirror's value.
+            if (dirtyWritableSlots.contains(guiSlot)) {
+                continue;
+            }
+
             ItemStack entityItem = blockEntity.getInventorySlot(entitySlot);
             ItemStack guiItem = inventory.getItem(guiSlot);
 
@@ -475,18 +483,36 @@ public class CookingPotGui extends AbstractInventoryGui {
         }
     }
 
+    // Whether a click this handler deliberately leaves to vanilla can change a writable GUI slot and so has
+    // to be marked dirty for the deferred sync. Guarded by cursorHasItem rather than unconditional: with an
+    // empty cursor vanilla leaves the slot at the value the cook tick last published, and marking it dirty
+    // would let the GUI mirror's older stack overwrite that tick's consumption.
+    static boolean marksSlotDirtyForVanillaPlacement(InventoryAction action, ClickType click,
+                                                     boolean clickedTop, boolean cursorHasItem) {
+        return action == InventoryAction.NOTHING && click == ClickType.DOUBLE_CLICK
+                && clickedTop && cursorHasItem;
+    }
+
     private void syncToBlockEntity() {
         // Only write the slots the player actively mutated since the last sync. Skipping clean slots
         // is what prevents the GUI's pre-modification snapshot from clobbering cook-tick mutations
         // (e.g. ingredients consumed / result deposited) that happened during the click handler.
         if (!dirtyWritableSlots.isEmpty()) {
-            for (int guiSlot : dirtyWritableSlots) {
-                Integer entitySlot = writableSlotMapping.get(guiSlot);
-                if (entitySlot == null) continue;
-                ItemStack item = inventory.getItem(guiSlot);
-                blockEntity.setInventorySlot(entitySlot, cloneOrNull(item));
-            }
-            dirtyWritableSlots.clear();
+            // Mutual exclusion boundary between the GUI mirror and the cook tick. The mirror belongs to the
+            // viewer's region while the tick runs on the pot's region, so the read of the mirror and the write
+            // to the entity are taken under the entity's inventory lock, and the mirror is re-read inside it:
+            // a slot the tick consumes before the lock is granted can then no longer be handed back through a
+            // value read before it. setInventorySlot acquires the same reentrant monitor, so nesting is safe.
+            // tryMovePendingToOutput and the tick-manager bookkeeping below stay outside the lock.
+            blockEntity.withInventoryLock(() -> {
+                for (int guiSlot : dirtyWritableSlots) {
+                    Integer entitySlot = writableSlotMapping.get(guiSlot);
+                    if (entitySlot == null) continue;
+                    ItemStack item = inventory.getItem(guiSlot);
+                    blockEntity.setInventorySlot(entitySlot, cloneOrNull(item));
+                }
+                dirtyWritableSlots.clear();
+            });
         }
         blockEntity.tryMovePendingToOutput();
         if (world != null && blockEntity.getPosKey() != null) {
@@ -560,6 +586,15 @@ public class CookingPotGui extends AbstractInventoryGui {
         if (action == InventoryAction.NOTHING && click == ClickType.DOUBLE_CLICK
                 && clickedTop && isPlayerInputSlot(rawSlot)
                 && !ItemUtils.isContainerNestingHazard(event.getCursor())) {
+            // Vanilla performs the placement, so this handler never passes through writeWritableSlot and the
+            // slot has to be marked dirty here instead: syncToBlockEntity and close() write dirty slots only,
+            // and a slot vanilla filled without being marked would be discarded with the GUI mirror when the
+            // view closes.
+            ItemStack doubleClickCursor = event.getCursor();
+            if (marksSlotDirtyForVanillaPlacement(action, click, clickedTop,
+                    doubleClickCursor != null && !doubleClickCursor.getType().isAir())) {
+                dirtyWritableSlots.add(rawSlot);
+            }
             scheduleGuiSync(event.getWhoClicked() instanceof Player p ? p : null);
             return;
         }

@@ -100,12 +100,26 @@ public final class HandheldCookingModels implements Listener {
             }
         }
         Set<String> sources = HandheldCookingModelPack.sourceCandidates(clientItem.vanillaId().asString(),
-                clientItem.itemModel().orElse(null), CraftEngineModelMappings.get());
+                clientItem.itemModel().orElse(null), customItemId(ingredient), CraftEngineModelMappings.get());
         for (String source : sources) {
             NamespacedKey result = HandheldCookingModelPack.generatedKey(cooking, overlay, source);
             if (available.contains(result.toString())) return result;
         }
         return cooking;
+    }
+
+    /**
+     * The CraftEngine item id of a stack, read from its server-side identity. This is the one model
+     * source that survives {@code item.client-bound-model: true}, which strips the item-model
+     * component from the stack before the server ever sees it, and it is also the key CraftEngine's
+     * generated item definitions are stored under.
+     */
+    private static String customItemId(ItemStack item) {
+        try {
+            return ItemUtils.getCustomItemId(item);
+        } catch (RuntimeException | LinkageError ignored) {
+            return null;
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
@@ -132,8 +146,12 @@ public final class HandheldCookingModels implements Listener {
             }
             var manager = BukkitItemManager.instance();
             manager.modelsToGenerate().forEach((key, value) -> models.putIfAbsent(key.asString(), value.get()));
+            // CraftEngine's own definitions win over the vanilla presets they may replace: a vanilla
+            // item whose model CraftEngine overrides must cook with the override, because that is the
+            // model the client renders for it. The preset stays as the fallback for every id the
+            // server does not define itself, so this only changes ids CraftEngine actually overrode.
             manager.modernItemModels1_21_4().forEach((key, value) ->
-                    items.putIfAbsent(key.asString(), value.toJson(MinecraftVersion.V1_21_4)));
+                    items.put(key.asString(), value.toJson(MinecraftVersion.V1_21_4)));
             Set<String> generated = new HashSet<>();
             Set<String> wantedSources = wantedSources();
             for (var definition : manager.loadedItems().values()) {
@@ -176,9 +194,13 @@ public final class HandheldCookingModels implements Listener {
     /**
      * The item-model ids the generated composites are named after, derived exactly the way
      * resolve derives its lookup candidates: for every ingredient the cooking recipes accept, its own
-     * item model, that model without the item/ prefix, its vanilla material id, and any authored id an
-     * obfuscation mapping points at. Sources no ingredient needs are never written, so the pack only carries
-     * the foods that can actually be cooked in hand instead of every item the server knows.
+     * item model, its CraftEngine item id, that model without the item/ prefix, its vanilla material id,
+     * and any authored id an obfuscation mapping points at. The CraftEngine item id is what keeps a
+     * client-bound model reachable here: with {@code item.client-bound-model: true} the stack itself
+     * carries no item model, so without that id a custom food would only offer its base material, which
+     * is exactly the vanilla texture the CE model was supposed to replace. Sources no ingredient needs
+     * are never written, so the pack only carries the foods that can actually be cooked in hand instead
+     * of every item the server knows.
      */
     private Set<String> wantedSources() {
         List<ItemStack> ingredients = cookingIngredients.get();
@@ -196,7 +218,8 @@ public final class HandheldCookingModels implements Listener {
                 // A stack whose item model cannot be read falls back to its vanilla id below.
             }
             sources.addAll(HandheldCookingModelPack.sourceCandidates(
-                    ItemUtils.getVanillaMaterialItemId(ingredient), itemModel, mappings));
+                    ItemUtils.getVanillaMaterialItemId(ingredient), itemModel,
+                    customItemId(ingredient), mappings));
         }
         return sources;
     }

@@ -116,10 +116,10 @@ public final class TagDatapackInstaller implements Listener {
         }
     }
 
-    // Collects every registered tag but keeps only plain vanilla members. Members resolve to no item
-    // on the current server version (e.g. brown/blue egg on 1.21.4) are dropped so the exported tag
-    // never references an unknown id that could fail the pack load. Tags whose surviving members are
-    // all outside the "minecraft:" namespace produce no file and stay declared in the CE item configs.
+    // Collects every registered tag but keeps only plain vanilla members. A member that resolves to no
+    // item on the current server version is dropped, so the exported tag never references an unknown id
+    // that could fail the pack load. Tags whose surviving members are all outside the "minecraft:"
+    // namespace produce no file and stay declared in the CE item configs.
     private static Map<String, Set<String>> vanillaTagSnapshot() {
         Map<String, Set<String>> result = new LinkedHashMap<>();
         for (Map.Entry<String, Set<String>> entry : CommonTagResolver.tagSnapshot().entrySet()) {

@@ -15,7 +15,7 @@ FarmersDelight is a Paper/Folia plugin port of **Farmer's Delight**, powered by 
 
 ## Requirements
 
-- Paper or Folia 1.21.4 or newer
+- Paper or Folia 1.21.5 or newer
 - Java 21
 - CraftEngine 26.8.2 or newer (compiled against 26.9.1; 26.8.2, 26.9 and 26.9.1 verified on a live server)
 
@@ -31,7 +31,12 @@ The complete player, server, addon and API documentation is maintained in the [F
 ./gradlew build
 ```
 
-The build resolves CraftEngine 26.9.1 from its official Maven repository; pass `-PceVersion=<version>` to compile against another release. Addons compile against the generated API-only FarmersDelight jar and must be checked out beside this repository.
+The build resolves CraftEngine 26.9.1 from its official Maven repository; pass `-PceVersion=<version>` to compile against another release.
+
+`build` produces two artifacts in `build/libs/`: the runnable plugin (`farmersdelight-<version>.jar`, the shadow jar) and the addon-facing api-only jar (`farmersdelight-plugin-<version>-api.jar`, and the same content as the module's plain `farmersdelight-plugin-<version>.jar`), which contains only `com.huidu.farmersdelight.api.**`. The api is also published under the coordinates `com.huidu.farmersdelight:farmersdelight-plugin:<version>`, which addons consume through one of two channels:
+
+* **Local checkout (preferred).** With this repository checked out beside the addon (`../FarmersDelight`) the addon build is a Gradle composite build: it builds `:apiJar` here and substitutes the coordinate, so nothing is fetched and builds work offline.
+* **No checkout.** Otherwise the addon resolves the coordinate through a Gradle source dependency on this git repository at a pinned version, which is checked out and built in place — that channel needs network access.
 
 ## License
 

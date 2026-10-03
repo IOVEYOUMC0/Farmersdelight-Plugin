@@ -67,7 +67,7 @@ class ReflectionBudgetTest {
             Map.entry("com/huidu/farmersdelight/util/compat/CraftEngineModelMappings.java", 2),
             // A class the release build omits unless the debug-tools flag is on.
             Map.entry("com/huidu/farmersdelight/command/DebugToolsSubCommand.java", 3),
-            // Folia and Paper API that the 1.21.4 compile target does not carry, plus CraftEngine's own player
+            // Folia and Paper API that the 1.21.5 compile target does not carry, plus CraftEngine's own player
             // type, whose getBukkitEntity is not reachable through a type we can call.
             Map.entry("com/huidu/farmersdelight/util/scheduler/SchedulerAdapter.java", 2),
             Map.entry("com/huidu/farmersdelight/block/behavior/TatamiPairingBehavior.java", 1),

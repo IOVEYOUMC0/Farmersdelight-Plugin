@@ -4,8 +4,6 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
-import net.momirealms.craftengine.core.util.VersionHelper;
-import net.momirealms.craftengine.proxy.minecraft.core.NonNullListProxy;
 import net.momirealms.craftengine.proxy.minecraft.network.protocol.BundlePacketProxy;
 import net.momirealms.craftengine.proxy.minecraft.network.protocol.game.ClientboundBundlePacketProxy;
 import net.momirealms.craftengine.proxy.minecraft.network.protocol.game.ClientboundContainerSetContentPacketProxy;
@@ -75,14 +73,9 @@ final class HandheldCookingDisplay extends ChannelOutboundHandlerAdapter {
             int index = containerSlot(proxy.getContainerId(packet), slot);
             List<Object> items = proxy.getItems(packet);
             if (index >= 0 && index < items.size() && matches(items.get(index))) {
-                @SuppressWarnings("unchecked")
-                List<Object> copy = VersionHelper.isOrAbove1_21_5 ? new ArrayList<>(items)
-                        : (List<Object>) NonNullListProxy.INSTANCE.createWithCapacity(items.size());
-                if (!VersionHelper.isOrAbove1_21_5) copy.addAll(items);
+                List<Object> copy = new ArrayList<>(items);
                 copy.set(index, copyDisplay());
-                return VersionHelper.isOrAbove1_21_5
-                        ? proxy.newInstance(proxy.getContainerId(packet), proxy.getStateId(packet), copy, proxy.getCarriedItem(packet))
-                        : proxy.newInstance$legacy(proxy.getContainerId(packet), proxy.getStateId(packet), copy, proxy.getCarriedItem(packet));
+                return proxy.newInstance(proxy.getContainerId(packet), proxy.getStateId(packet), copy, proxy.getCarriedItem(packet));
             }
         } else if (packet.getClass() == ClientboundBundlePacketProxy.CLASS) {
             Iterable<Object> children = BundlePacketProxy.INSTANCE.getPackets(packet);

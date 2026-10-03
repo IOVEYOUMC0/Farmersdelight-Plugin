@@ -66,21 +66,14 @@ public final class BehaviorRegistrar {
         registerBehavior(Constants.BEHAVIOR_RICH_SOIL, RichSoilBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_RICH_SOIL_FARMLAND, RichSoilFarmlandBlockBehavior.FACTORY);
 
-        PapersDelightAliases.registerBlockBehaviors();
-
         // Census line, not news on a healthy boot: routed through the startup detail channel so it is
         // recorded at FINE normally and raised to INFO only for an operator debugging the load phase.
         I18n.logDetail("startup", "plugin.registered_block_behaviors");
-        // Only interesting to an operator migrating from that pack, so it stays on the detail channel: a pack
-        // that uses one of these identifiers would otherwise have a block that silently does nothing.
-        I18n.logDetail("startup", "plugin.papersdelight_aliases",
-                "unsupported", String.join(", ", PapersDelightAliases.unsupported()));
     }
 
     public static void registerItemBehaviors() {
         registerItemBehavior();
         registerItemBehavior(Constants.ITEM_BEHAVIOR_SKILLET, SkilletItemBehavior.FACTORY);
-        PapersDelightAliases.registerItemBehaviors();
     }
 
     public static void registerFunctions() {
@@ -88,7 +81,6 @@ public final class BehaviorRegistrar {
                 FoodBuffFunction.factory(FoodBuffFunction.Kind.COMFORT, CommonConditions::fromConfig));
         registerFunction("farmersdelight:nourishment",
                 FoodBuffFunction.factory(FoodBuffFunction.Kind.NOURISHMENT, CommonConditions::fromConfig));
-        PapersDelightAliases.registerFunctions();
     }
 
     // Conditions and loot functions the bundled drop packs use, so a rule that needs plugin knowledge (what

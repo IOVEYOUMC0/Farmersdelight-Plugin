@@ -124,29 +124,61 @@ final class HandheldCookingModelPack {
      */
     static Set<String> sourceCandidates(String vanillaId, String itemModel,
                                         Map<Key, Key> obfuscationMappings) {
+        return sourceCandidates(vanillaId, itemModel, null, obfuscationMappings);
+    }
+
+    /**
+     * Candidate texture sources for an ingredient, most specific first, including the CraftEngine
+     * item id the stack carries on the server side.
+     *
+     *
+     * With {@code item.client-bound-model: true} CraftEngine keeps the item-model component off the
+     * server-side stack, so {@code itemModel} is empty there even though the client is told to render
+     * the CE model. The CE item id survives in the stack's persistent data and identifies the item's
+     * generated definition, which is what the item/model lookup is keyed by. Without it the only
+     * candidate left is the base material, and every custom food would cook with the vanilla texture
+     * of whatever material it was built on.
+     */
+    static Set<String> sourceCandidates(String vanillaId, String itemModel, String customItemId,
+                                        Map<Key, Key> obfuscationMappings) {
         Set<String> sources = new LinkedHashSet<>();
-        if (itemModel == null || itemModel.isEmpty()) {
+        boolean hasModel = itemModel != null && !itemModel.isEmpty();
+        boolean hasCustomId = customItemId != null && !customItemId.isEmpty();
+        if (!hasModel && !hasCustomId) {
             if (vanillaId != null && !vanillaId.isEmpty()) sources.add(vanillaId);
             return sources;
         }
         // Obfuscation maps an authored id to the id the client is sent, so reading it backwards
         // recovers the name the generated models were written under.
-        if (obfuscationMappings != null) {
-            for (var mapping : obfuscationMappings.entrySet()) {
-                if (mapping.getValue().asString().equals(itemModel)) {
-                    sources.add(mapping.getKey().asString());
-                }
-            }
+        if (hasModel) {
+            addAuthoredNamesFor(sources, itemModel, obfuscationMappings);
+            sources.add(itemModel);
         }
-        sources.add(itemModel);
-        int separator = itemModel.indexOf(':');
-        String namespace = separator < 0 ? "minecraft" : itemModel.substring(0, separator);
-        String path = separator < 0 ? itemModel : itemModel.substring(separator + 1);
-        if (path.startsWith("item/") && path.length() > 5) {
-            sources.add(namespace + ":" + path.substring(5));
+        if (hasCustomId) {
+            addAuthoredNamesFor(sources, customItemId, obfuscationMappings);
+            sources.add(customItemId);
+        }
+        if (hasModel) {
+            int separator = itemModel.indexOf(':');
+            String namespace = separator < 0 ? "minecraft" : itemModel.substring(0, separator);
+            String path = separator < 0 ? itemModel : itemModel.substring(separator + 1);
+            if (path.startsWith("item/") && path.length() > 5) {
+                sources.add(namespace + ":" + path.substring(5));
+            }
         }
         if (vanillaId != null && !vanillaId.isEmpty()) sources.add(vanillaId);
         return sources;
+    }
+
+    /** Every authored id the obfuscation mapping sends to {@code clientId}, also an available source. */
+    private static void addAuthoredNamesFor(Set<String> sources, String clientId,
+                                            Map<Key, Key> obfuscationMappings) {
+        if (obfuscationMappings == null) return;
+        for (var mapping : obfuscationMappings.entrySet()) {
+            if (mapping.getValue().asString().equals(clientId)) {
+                sources.add(mapping.getKey().asString());
+            }
+        }
     }
 
     private static String qualified(String id) {

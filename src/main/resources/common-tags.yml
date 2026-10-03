@@ -108,10 +108,13 @@ tags:
     - "minecraft:pumpkin_pie"
     - "minecraft:cake"
     - "minecraft:honey_bottle"
-  # c:eggs is the standard common tag for eggs; minecraft:eggs only exists on 1.21.5+ while plain egg
-  # is the only member on 1.21.4, so exporting this keeps egg-recipes working across the whole range.
+  # c:eggs is the standard common tag for eggs: every vanilla egg the server may carry. The tag export
+  # keeps only the members the running server actually has, so an egg this build does not know is
+  # dropped rather than referenced by the generated pack.
   "c:eggs":
     - "minecraft:egg"
+    - "minecraft:blue_egg"
+    - "minecraft:brown_egg"
   # Vanilla members of FarmersDelight's registry tags. CraftEngine supplies the custom-item members
   # from items.yml; these entries keep the same tags usable for vanilla ingredients as well.
   "farmersdelight:serving_containers":

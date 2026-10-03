@@ -24,14 +24,26 @@ import java.util.logging.Logger;
  * budget.step("write back backpacks", this::flushBackpacks);
  * budget.awaitTermination("worker pool", executor);
  * </pre>
+ *
+ * Failures are reported as one warning that names the step, so every plugin in this family logs the same
+ * sentence: pass the wording in with {@link #withMessages} from the caller's language layer instead of
+ * relying on the built-in English default.
  */
 public final class ShutdownBudget {
 
     /** Floor so a misconfigured value cannot turn every step into an immediate skip. */
     public static final long MIN_TOTAL_MILLIS = 200L;
 
+    /** Built-in wording, kept for callers that inject no language-layer text. */
+    private static final String DEFAULT_STEP_FAILURE = "Shutdown step '{step}' failed";
+    private static final String DEFAULT_EXHAUSTED = "Shutdown budget exhausted at step '{step}';"
+            + " remaining steps are skipped so the server can finish stopping."
+            + " Unsaved best-effort state may be lost.";
+
     private final long deadlineNanos;
     private final Logger logger;
+    private String stepFailureMessage = DEFAULT_STEP_FAILURE;
+    private String exhaustedMessage = DEFAULT_EXHAUSTED;
     private boolean exhaustedReported;
 
     private ShutdownBudget(long totalMillis, Logger logger) {
@@ -41,6 +53,22 @@ public final class ShutdownBudget {
 
     public static ShutdownBudget ofMillis(long totalMillis, Logger logger) {
         return new ShutdownBudget(Math.max(MIN_TOTAL_MILLIS, totalMillis), logger);
+    }
+
+    /**
+     * Replaces the built-in wording with the caller's own sentences. Both templates may contain {step};
+     * an unresolved or blank template keeps the built-in text. The caller is expected to read them from the
+     * language layer (FarmersDelight's I18n, or FarmersDelightApi.consoleMessage from an addon) so a failed
+     * step reads the same in every plugin and in both locales.
+     */
+    public ShutdownBudget withMessages(String stepFailure, String budgetExhausted) {
+        if (stepFailure != null && !stepFailure.isBlank()) {
+            this.stepFailureMessage = stepFailure;
+        }
+        if (budgetExhausted != null && !budgetExhausted.isBlank()) {
+            this.exhaustedMessage = budgetExhausted;
+        }
+        return this;
     }
 
     public long remainingMillis() {
@@ -71,7 +99,7 @@ public final class ShutdownBudget {
             return true;
         } catch (Throwable t) {
             if (logger != null) {
-                logger.log(Level.WARNING, "Shutdown step '" + name + "' failed", t);
+                logger.log(Level.WARNING, render(stepFailureMessage, name), t);
             }
             return false;
         }
@@ -108,8 +136,10 @@ public final class ShutdownBudget {
             return;
         }
         exhaustedReported = true;
-        logger.warning("Shutdown budget exhausted at step '" + name
-                + "'; remaining steps are skipped so the server can finish stopping."
-                + " Unsaved best-effort state may be lost.");
+        logger.warning(render(exhaustedMessage, name));
+    }
+
+    private static String render(String template, String step) {
+        return template.replace("{step}", step == null ? "" : step);
     }
 }

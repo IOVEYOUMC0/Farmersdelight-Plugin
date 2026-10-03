@@ -30,6 +30,51 @@ items:
       fuel_time: 200
       tags:
       - c:fence_gates
+  farmersdelight:rope_fence_post_elements:
+    data:
+      hidden: true
+      item-name: <!i><lang:block.farmersdelight.rope_fence>
+    model: farmersdelight:block/rope_fence_post
+  farmersdelight:rope_fence_side_north_elements:
+    data:
+      hidden: true
+      item-name: <!i><lang:block.farmersdelight.rope_fence>
+    model: farmersdelight:block/rope_fence_side
+  farmersdelight:rope_fence_side_south_elements:
+    data:
+      hidden: true
+      item-name: <!i><lang:block.farmersdelight.rope_fence>
+    model: farmersdelight:block/rope_fence_side_alt
+  farmersdelight:rope_fence_side_east_elements:
+    data:
+      hidden: true
+      item-name: <!i><lang:block.farmersdelight.rope_fence>
+    model: farmersdelight:block/rope_fence_side
+  farmersdelight:rope_fence_side_west_elements:
+    data:
+      hidden: true
+      item-name: <!i><lang:block.farmersdelight.rope_fence>
+    model: farmersdelight:block/rope_fence_side_alt
+  farmersdelight:rope_fence_gate_elements:
+    data:
+      hidden: true
+      item-name: <!i><lang:block.farmersdelight.rope_fence_gate>
+    model: farmersdelight:block/rope_fence_gate
+  farmersdelight:rope_fence_gate_open_elements:
+    data:
+      hidden: true
+      item-name: <!i><lang:block.farmersdelight.rope_fence_gate>
+    model: farmersdelight:block/rope_fence_gate_open
+  farmersdelight:rope_fence_gate_wall_elements:
+    data:
+      hidden: true
+      item-name: <!i><lang:block.farmersdelight.rope_fence_gate>
+    model: farmersdelight:block/rope_fence_gate_wall
+  farmersdelight:rope_fence_gate_wall_open_elements:
+    data:
+      hidden: true
+      item-name: <!i><lang:block.farmersdelight.rope_fence_gate>
+    model: farmersdelight:block/rope_fence_gate_wall_open
 blocks:
   farmersdelight:rope:
     settings:
@@ -211,117 +256,165 @@ blocks:
           default: false
       appearances:
         north=false,east=false,south=false,west=false:
-          state: oak_fence[east=false,north=false,south=false,waterlogged=true,west=false]
-          model:
-          - path: farmersdelight:block/rope_fence_post
+          state: crimson_fence[east=false,north=false,south=false,waterlogged=true,west=false]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
         north=false,east=false,south=false,west=true:
-          state: oak_fence[east=false,north=false,south=false,waterlogged=true,west=true]
-          model:
-          - path: farmersdelight:block/rope_fence_post
-          - path: farmersdelight:block/rope_fence_side_alt
-            y: 90
+          state: crimson_fence[east=false,north=false,south=false,waterlogged=true,west=true]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_west_elements
+            rotation: 90
         north=false,east=false,south=true,west=false:
-          state: oak_fence[east=false,north=false,south=true,waterlogged=true,west=false]
-          model:
-          - path: farmersdelight:block/rope_fence_post
-          - path: farmersdelight:block/rope_fence_side_alt
+          state: crimson_fence[east=false,north=false,south=true,waterlogged=true,west=false]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_south_elements
         north=false,east=false,south=true,west=true:
-          state: oak_fence[east=false,north=false,south=true,waterlogged=true,west=true]
-          model:
-          - path: farmersdelight:block/rope_fence_post
-          - path: farmersdelight:block/rope_fence_side_alt
-          - path: farmersdelight:block/rope_fence_side_alt
-            y: 90
+          state: crimson_fence[east=false,north=false,south=true,waterlogged=true,west=true]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_south_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_west_elements
+            rotation: 90
         north=false,east=true,south=false,west=false:
-          state: oak_fence[east=true,north=false,south=false,waterlogged=true,west=false]
-          model:
-          - path: farmersdelight:block/rope_fence_post
-          - path: farmersdelight:block/rope_fence_side
-            y: 90
+          state: crimson_fence[east=true,north=false,south=false,waterlogged=true,west=false]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_east_elements
+            rotation: 90
         north=false,east=true,south=false,west=true:
-          state: oak_fence[east=true,north=false,south=false,waterlogged=true,west=true]
-          model:
-          - path: farmersdelight:block/rope_fence_post
-          - path: farmersdelight:block/rope_fence_side
-            y: 90
-          - path: farmersdelight:block/rope_fence_side_alt
-            y: 90
+          state: crimson_fence[east=true,north=false,south=false,waterlogged=true,west=true]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_east_elements
+            rotation: 90
+          - type: item_display
+            item: farmersdelight:rope_fence_side_west_elements
+            rotation: 90
         north=false,east=true,south=true,west=false:
-          state: oak_fence[east=true,north=false,south=true,waterlogged=true,west=false]
-          model:
-          - path: farmersdelight:block/rope_fence_post
-          - path: farmersdelight:block/rope_fence_side
-            y: 90
-          - path: farmersdelight:block/rope_fence_side_alt
+          state: crimson_fence[east=true,north=false,south=true,waterlogged=true,west=false]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_east_elements
+            rotation: 90
+          - type: item_display
+            item: farmersdelight:rope_fence_side_south_elements
         north=false,east=true,south=true,west=true:
-          state: oak_fence[east=true,north=false,south=true,waterlogged=true,west=true]
-          model:
-          - path: farmersdelight:block/rope_fence_post
-          - path: farmersdelight:block/rope_fence_side
-            y: 90
-          - path: farmersdelight:block/rope_fence_side_alt
-          - path: farmersdelight:block/rope_fence_side_alt
-            y: 90
+          state: crimson_fence[east=true,north=false,south=true,waterlogged=true,west=true]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_east_elements
+            rotation: 90
+          - type: item_display
+            item: farmersdelight:rope_fence_side_south_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_west_elements
+            rotation: 90
         north=true,east=false,south=false,west=false:
-          state: oak_fence[east=false,north=true,south=false,waterlogged=true,west=false]
-          model:
-          - path: farmersdelight:block/rope_fence_post
-          - path: farmersdelight:block/rope_fence_side
+          state: crimson_fence[east=false,north=true,south=false,waterlogged=true,west=false]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_north_elements
         north=true,east=false,south=false,west=true:
-          state: oak_fence[east=false,north=true,south=false,waterlogged=true,west=true]
-          model:
-          - path: farmersdelight:block/rope_fence_post
-          - path: farmersdelight:block/rope_fence_side
-          - path: farmersdelight:block/rope_fence_side_alt
-            y: 90
+          state: crimson_fence[east=false,north=true,south=false,waterlogged=true,west=true]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_north_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_west_elements
+            rotation: 90
         north=true,east=false,south=true,west=false:
-          state: oak_fence[east=false,north=true,south=true,waterlogged=true,west=false]
-          model:
-          - path: farmersdelight:block/rope_fence_post
-          - path: farmersdelight:block/rope_fence_side
-          - path: farmersdelight:block/rope_fence_side_alt
+          state: crimson_fence[east=false,north=true,south=true,waterlogged=true,west=false]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_north_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_south_elements
         north=true,east=false,south=true,west=true:
-          state: oak_fence[east=false,north=true,south=true,waterlogged=true,west=true]
-          model:
-          - path: farmersdelight:block/rope_fence_post
-          - path: farmersdelight:block/rope_fence_side
-          - path: farmersdelight:block/rope_fence_side_alt
-          - path: farmersdelight:block/rope_fence_side_alt
-            y: 90
+          state: crimson_fence[east=false,north=true,south=true,waterlogged=true,west=true]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_north_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_south_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_west_elements
+            rotation: 90
         north=true,east=true,south=false,west=false:
-          state: oak_fence[east=true,north=true,south=false,waterlogged=true,west=false]
-          model:
-          - path: farmersdelight:block/rope_fence_post
-          - path: farmersdelight:block/rope_fence_side
-          - path: farmersdelight:block/rope_fence_side
-            y: 90
+          state: crimson_fence[east=true,north=true,south=false,waterlogged=true,west=false]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_north_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_east_elements
+            rotation: 90
         north=true,east=true,south=false,west=true:
-          state: oak_fence[east=true,north=true,south=false,waterlogged=true,west=true]
-          model:
-          - path: farmersdelight:block/rope_fence_post
-          - path: farmersdelight:block/rope_fence_side
-          - path: farmersdelight:block/rope_fence_side
-            y: 90
-          - path: farmersdelight:block/rope_fence_side_alt
-            y: 90
+          state: crimson_fence[east=true,north=true,south=false,waterlogged=true,west=true]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_north_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_east_elements
+            rotation: 90
+          - type: item_display
+            item: farmersdelight:rope_fence_side_west_elements
+            rotation: 90
         north=true,east=true,south=true,west=false:
-          state: oak_fence[east=true,north=true,south=true,waterlogged=true,west=false]
-          model:
-          - path: farmersdelight:block/rope_fence_post
-          - path: farmersdelight:block/rope_fence_side
-          - path: farmersdelight:block/rope_fence_side
-            y: 90
-          - path: farmersdelight:block/rope_fence_side_alt
+          state: crimson_fence[east=true,north=true,south=true,waterlogged=true,west=false]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_north_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_east_elements
+            rotation: 90
+          - type: item_display
+            item: farmersdelight:rope_fence_side_south_elements
         north=true,east=true,south=true,west=true:
-          state: oak_fence[east=true,north=true,south=true,waterlogged=true,west=true]
-          model:
-          - path: farmersdelight:block/rope_fence_post
-          - path: farmersdelight:block/rope_fence_side
-          - path: farmersdelight:block/rope_fence_side
-            y: 90
-          - path: farmersdelight:block/rope_fence_side_alt
-          - path: farmersdelight:block/rope_fence_side_alt
-            y: 90
+          state: crimson_fence[east=true,north=true,south=true,waterlogged=true,west=true]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_north_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_east_elements
+            rotation: 90
+          - type: item_display
+            item: farmersdelight:rope_fence_side_south_elements
+          - type: item_display
+            item: farmersdelight:rope_fence_side_west_elements
+            rotation: 90
       variants:
         north=false,east=false,south=false,west=false:
           appearance: north=false,east=false,south=false,west=false
@@ -368,6 +461,7 @@ blocks:
       tags:
       - minecraft:fence_gates
       - minecraft:mineable/axe
+      - minecraft:wooden_fence_gates
       - c:fence_gates
       sounds:
         break: minecraft:block.wood.break
@@ -398,81 +492,97 @@ blocks:
           default: false
       appearances:
         facing=east,in_wall=false,open=false:
-          state: oak_fence_gate[facing=east,in_wall=false,open=false,powered=true]
-          model:
-            path: farmersdelight:block/rope_fence_gate
-            y: 270
+          state: warped_fence_gate[facing=east,in_wall=false,open=false,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:rope_fence_gate_elements
+            rotation: 90
         facing=east,in_wall=false,open=true:
-          state: oak_fence_gate[facing=east,in_wall=false,open=true,powered=true]
-          model:
-            path: farmersdelight:block/rope_fence_gate_open
-            y: 270
+          state: warped_fence_gate[facing=east,in_wall=false,open=true,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:rope_fence_gate_open_elements
+            rotation: 90
         facing=east,in_wall=true,open=false:
-          state: oak_fence_gate[facing=east,in_wall=true,open=false,powered=true]
-          model:
-            path: farmersdelight:block/rope_fence_gate_wall
-            y: 270
+          state: warped_fence_gate[facing=east,in_wall=true,open=false,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:rope_fence_gate_wall_elements
+            rotation: 90
         facing=east,in_wall=true,open=true:
-          state: oak_fence_gate[facing=east,in_wall=true,open=true,powered=true]
-          model:
-            path: farmersdelight:block/rope_fence_gate_wall_open
-            y: 270
+          state: warped_fence_gate[facing=east,in_wall=true,open=true,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:rope_fence_gate_wall_open_elements
+            rotation: 90
         facing=north,in_wall=false,open=false:
-          state: oak_fence_gate[facing=north,in_wall=false,open=false,powered=true]
-          model:
-            path: farmersdelight:block/rope_fence_gate
-            y: 180
+          state: warped_fence_gate[facing=north,in_wall=false,open=false,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:rope_fence_gate_elements
+            rotation: 180
         facing=north,in_wall=false,open=true:
-          state: oak_fence_gate[facing=north,in_wall=false,open=true,powered=true]
-          model:
-            path: farmersdelight:block/rope_fence_gate_open
-            y: 180
+          state: warped_fence_gate[facing=north,in_wall=false,open=true,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:rope_fence_gate_open_elements
+            rotation: 180
         facing=north,in_wall=true,open=false:
-          state: oak_fence_gate[facing=north,in_wall=true,open=false,powered=true]
-          model:
-            path: farmersdelight:block/rope_fence_gate_wall
-            y: 180
+          state: warped_fence_gate[facing=north,in_wall=true,open=false,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:rope_fence_gate_wall_elements
+            rotation: 180
         facing=north,in_wall=true,open=true:
-          state: oak_fence_gate[facing=north,in_wall=true,open=true,powered=true]
-          model:
-            path: farmersdelight:block/rope_fence_gate_wall_open
-            y: 180
+          state: warped_fence_gate[facing=north,in_wall=true,open=true,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:rope_fence_gate_wall_open_elements
+            rotation: 180
         facing=south,in_wall=false,open=false:
-          state: oak_fence_gate[facing=south,in_wall=false,open=false,powered=true]
-          model:
-            path: farmersdelight:block/rope_fence_gate
+          state: warped_fence_gate[facing=south,in_wall=false,open=false,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:rope_fence_gate_elements
         facing=south,in_wall=false,open=true:
-          state: oak_fence_gate[facing=south,in_wall=false,open=true,powered=true]
-          model:
-            path: farmersdelight:block/rope_fence_gate_open
+          state: warped_fence_gate[facing=south,in_wall=false,open=true,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:rope_fence_gate_open_elements
         facing=south,in_wall=true,open=false:
-          state: oak_fence_gate[facing=south,in_wall=true,open=false,powered=true]
-          model:
-            path: farmersdelight:block/rope_fence_gate_wall
+          state: warped_fence_gate[facing=south,in_wall=true,open=false,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:rope_fence_gate_wall_elements
         facing=south,in_wall=true,open=true:
-          state: oak_fence_gate[facing=south,in_wall=true,open=true,powered=true]
-          model:
-            path: farmersdelight:block/rope_fence_gate_wall_open
+          state: warped_fence_gate[facing=south,in_wall=true,open=true,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:rope_fence_gate_wall_open_elements
         facing=west,in_wall=false,open=false:
-          state: oak_fence_gate[facing=west,in_wall=false,open=false,powered=true]
-          model:
-            path: farmersdelight:block/rope_fence_gate
-            y: 90
+          state: warped_fence_gate[facing=west,in_wall=false,open=false,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:rope_fence_gate_elements
+            rotation: 270
         facing=west,in_wall=false,open=true:
-          state: oak_fence_gate[facing=west,in_wall=false,open=true,powered=true]
-          model:
-            path: farmersdelight:block/rope_fence_gate_open
-            y: 90
+          state: warped_fence_gate[facing=west,in_wall=false,open=true,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:rope_fence_gate_open_elements
+            rotation: 270
         facing=west,in_wall=true,open=false:
-          state: oak_fence_gate[facing=west,in_wall=true,open=false,powered=true]
-          model:
-            path: farmersdelight:block/rope_fence_gate_wall
-            y: 90
+          state: warped_fence_gate[facing=west,in_wall=true,open=false,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:rope_fence_gate_wall_elements
+            rotation: 270
         facing=west,in_wall=true,open=true:
-          state: oak_fence_gate[facing=west,in_wall=true,open=true,powered=true]
-          model:
-            path: farmersdelight:block/rope_fence_gate_wall_open
-            y: 90
+          state: warped_fence_gate[facing=west,in_wall=true,open=true,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:rope_fence_gate_wall_open_elements
+            rotation: 270
       variants:
         facing=east,in_wall=false,open=false:
           appearance: facing=east,in_wall=false,open=false
@@ -506,6 +616,7 @@ blocks:
           appearance: facing=west,in_wall=true,open=false
         facing=west,in_wall=true,open=true:
           appearance: facing=west,in_wall=true,open=true
+
 recipes:
   farmersdelight:rope:
     type: shaped

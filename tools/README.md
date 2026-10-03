@@ -1,6 +1,6 @@
 # Repository contract checks
 
-Three checks that enforce the machine-checkable half of this project's maintenance contracts. They run in CI
+Five checks that enforce the machine-checkable half of this project's maintenance contracts. They run in CI
 (the `lint` job in `.github/workflows/ci.yml`) on every push and pull request.
 
 | Check | Guards |
@@ -8,14 +8,18 @@ Three checks that enforce the machine-checkable half of this project's maintenan
 | `strip_ce_comments.py --check` | Shipped CraftEngine configuration under `src/main/resources/craftengine/**/configuration/` carries no comments. Field references live in the wiki, not in the data files. |
 | `meal_icons.py --check` | Every `configuration/meal_icons.yml` entry still corresponds to a cooking pot result that exists, and every such result has an entry with a resolvable 16x16 texture. |
 | `check_lang_keys.py` | Every language key the Java sources reference is defined in both `lang/en_us.yml` and `lang/zh_cn.yml`, the two locales stay symmetric, and no value is blank. |
+| `check_api_boundary.py --quiet` | Addons compile against `api.**` only, and no public api signature exposes an internal type without the `@ApiStatus.Internal` marker. |
+| `check_config_paths.py --quiet` | Every literal config path the code reads exists in a shipped file (an intentional exception marks itself with `config-path-check: no shipped key, on purpose`). |
 
-All three are read-only with `--check` / `--quiet` and exit non-zero on a real problem, so no separate assertion
+All five are read-only with `--check` / `--quiet` and exit non-zero on a real problem, so no separate assertion
 is needed. They need PyYAML (`python -m pip install pyyaml`).
 
 ```bash
 python tools/strip_ce_comments.py --check
 python tools/meal_icons.py --check
 python tools/check_lang_keys.py --quiet
+python tools/check_api_boundary.py --quiet
+python tools/check_config_paths.py --quiet
 ```
 
 Without `--check`, `strip_ce_comments.py` and `meal_icons.py` rewrite the files instead of reporting. That is
