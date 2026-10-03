@@ -52,6 +52,11 @@ public class CookingPotRecipeManager {
     // Recipes whose winning definition came from a CraftEngine pack section; published with the maps above
     // so the startup summary can tell the plugin's own file, pack content and runtime registrations apart.
     private volatile int packRecipeCount;
+    // Published with the maps above: true when at least one loaded recipe matches on an ingredient's item data
+    // (a RecipeIngredient.Item carrying an nbt snapshot). Matching then depends on more than the item id, so
+    // buildCacheKey has to carry the inputs' own data projection; while no loaded recipe constrains it, the key
+    // stays the id + clamped amount it has always been.
+    private volatile boolean anyIngredientConstrainsNbt;
     private final VanillaTagItemIdCache vanillaItemIdsByTagCache;
     // LRU access-order LinkedHashMap mutates internal state on get(), so concurrent reads from
     // multiple region threads (Folia) would corrupt the doubly-linked list. Wrap in synchronizedMap;
@@ -178,6 +183,8 @@ public class CookingPotRecipeManager {
             }
         }
         int newPackRecipeCount = packIds.size();
+        // Derived from the set being published, so a republish is the only thing that can change it.
+        boolean newAnyIngredientConstrainsNbt = anyRecipeConstrainsNbt(newRecipes, newCustomRecipes);
 
         List<CookingPotRecipe> newSortedRecipes = sortedRecipeList(newRecipes);
         // Only reported when it actually happens: a pack that declares every container keeps the boot log quiet.
@@ -211,6 +218,7 @@ public class CookingPotRecipeManager {
         this.resultToRecipes = freezeResultIndex(newResultToRecipes);
         this.validContainerKeys = Collections.unmodifiableSet(newValidContainerKeys);
         this.packRecipeCount = newPackRecipeCount;
+        this.anyIngredientConstrainsNbt = newAnyIngredientConstrainsNbt;
 
         vanillaItemIdsByTagCache.clear();
         synchronized (recipeCache) {
@@ -569,7 +577,23 @@ public class CookingPotRecipeManager {
         }
 
         String normalizedGroupId = normalizeRecipeGroupId(customRecipeGroupId);
-        String cacheKey = buildCacheKey(nonEmptyInputs, container, normalizedGroupId);
+        return matchWithCaches(buildCacheKey(nonEmptyInputs, container, normalizedGroupId),
+                nonEmptyInputs, container, normalizedGroupId);
+    }
+
+    /**
+     * Matches one input combination around the two caches.
+     *
+     * A null key means the combination must not be cached (see buildCacheKey): the answer still comes from a
+     * live match, but neither cache is read or written for it, because the key could not tell it apart from a
+     * different combination.
+     */
+    CookingPotRecipe matchWithCaches(String cacheKey, List<ItemStack> nonEmptyInputs, ItemStack container,
+                                     String normalizedGroupId) {
+        if (cacheKey == null) {
+            return matchUncached(nonEmptyInputs, container, normalizedGroupId);
+        }
+
         // Snapshot the publish generation BEFORE reading the volatile maps below. Two volatile reads keep
         // program order, so this pairs the match we are about to compute with the map version it saw.
         long generationAtStart = recipeGeneration;
@@ -586,14 +610,7 @@ public class CookingPotRecipeManager {
             return cached;
         }
 
-        CookingPotRecipe result = null;
-        if (normalizedGroupId != null) {
-            result = matchCustomRecipe(nonEmptyInputs, container, normalizedGroupId);
-        }
-
-        if (result == null) {
-            result = matchDefaultRecipe(nonEmptyInputs, container);
-        }
+        CookingPotRecipe result = matchUncached(nonEmptyInputs, container, normalizedGroupId);
 
         synchronized (recipeCache) {
             // Skip caching if a (re)publish cleared the cache and bumped the generation while we were
@@ -606,6 +623,20 @@ public class CookingPotRecipeManager {
                     recipeMisses.add(cacheKey);
                 }
             }
+        }
+
+        return result;
+    }
+
+    private CookingPotRecipe matchUncached(List<ItemStack> nonEmptyInputs, ItemStack container,
+                                           String normalizedGroupId) {
+        CookingPotRecipe result = null;
+        if (normalizedGroupId != null) {
+            result = matchCustomRecipe(nonEmptyInputs, container, normalizedGroupId);
+        }
+
+        if (result == null) {
+            result = matchDefaultRecipe(nonEmptyInputs, container);
         }
 
         return result;
@@ -673,7 +704,16 @@ public class CookingPotRecipeManager {
         return null;
     }
 
+    /**
+     * The key for one input combination, or null when it must not be cached.
+     *
+     * Null is returned when a loaded recipe constrains item data but an input's data cannot be projected: the
+     * remaining id-only part could not separate that stack from a different stack of the same id, so caching the
+     * answer would answer one of them with the other's recipe.
+     */
     private String buildCacheKey(List<ItemStack> inputs, ItemStack container, String customRecipeGroupId) {
+        // Read once: one key must not mix the formats of two published recipe sets.
+        boolean withComponentFingerprint = anyIngredientConstrainsNbt;
         List<String> keys = new ArrayList<>();
         // Clamp the per-slot amount that goes into the key. IngredientMatching caps each slot at
         // min(amount, ingredientCount) interchangeable units, and only recipes with
@@ -682,19 +722,113 @@ public class CookingPotRecipeManager {
         // whose stacks keep growing on one cache entry instead of evicting the whole LRU each tick.
         int amountCap = inputs.size();
         for (ItemStack item : inputs) {
-            keys.add(getItemKey(item) + ":" + Math.min(item.getAmount(), amountCap));
+            String fingerprint = null;
+            if (withComponentFingerprint) {
+                fingerprint = componentFingerprint(item);
+                if (fingerprint == null) {
+                    return null;
+                }
+            }
+            keys.add(slotKey(getItemKey(item), item.getAmount(), amountCap, fingerprint));
         }
-        Collections.sort(keys);
+        return assembleCacheKey(keys, getItemKey(container), customRecipeGroupId);
+    }
+
+    /**
+     * One input's part of the cache key. A null fingerprint (no loaded recipe constrains item data) yields the
+     * id + clamped amount this key has always been made of.
+     */
+    static String slotKey(String itemKey, int amount, int amountCap, String fingerprint) {
+        String key = itemKey + ":" + Math.min(amount, amountCap);
+        return fingerprint == null ? key : key + '#' + fingerprint;
+    }
+
+    /** The full key: the sorted per-input parts (see slotKey) plus the container and recipe-group suffixes. */
+    static String assembleCacheKey(List<String> slotKeys, String containerKey, String customRecipeGroupId) {
+        List<String> sorted = new ArrayList<>(slotKeys);
+        Collections.sort(sorted);
 
         StringBuilder sb = new StringBuilder();
-        for (String key : keys) {
-            sb.append(key).append(";");
+        for (String key : sorted) {
+            sb.append(key).append(';');
         }
-        sb.append("|container=").append(getItemKey(container));
+        sb.append("|container=").append(containerKey);
         if (customRecipeGroupId != null) {
             sb.append("|group=").append(customRecipeGroupId);
         }
         return sb.toString();
+    }
+
+    /**
+     * The item's data projection, reached only while a loaded recipe constrains item data. It is the same full
+     * byte snapshot recipes store their constraint in and is finer than the matcher's comparison, so two inputs
+     * share a key only when they share data too. The amount is normalized away: slotKey already carries the
+     * clamped amount, which is the amount policy the matcher is documented to see.
+     *
+     * @return null when a non-air item's data cannot be projected, which the caller turns into "not cacheable";
+     *         air is equivalent in every slot and is projected as a constant
+     */
+    private static String componentFingerprint(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return "none";
+        }
+        if (item.getAmount() == 1) {
+            return RecipeItemCodec.itemToBase64(item);
+        }
+        ItemStack unit = item.clone();
+        unit.setAmount(1);
+        return RecipeItemCodec.itemToBase64(unit);
+    }
+
+    /**
+     * Whether any recipe in the two published buckets matches on an ingredient's item data. Custom groups are
+     * scanned as well because a pot cooking from one uses the same two caches.
+     */
+    static boolean anyRecipeConstrainsNbt(Map<String, CookingPotRecipe> defaultRecipes,
+                                          Map<String, Map<String, CookingPotRecipe>> customRecipes) {
+        for (CookingPotRecipe recipe : defaultRecipes.values()) {
+            if (recipeConstrainsNbt(recipe)) {
+                return true;
+            }
+        }
+        for (Map<String, CookingPotRecipe> groupRecipes : customRecipes.values()) {
+            for (CookingPotRecipe recipe : groupRecipes.values()) {
+                if (recipeConstrainsNbt(recipe)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean recipeConstrainsNbt(CookingPotRecipe recipe) {
+        if (recipe == null || recipe.getIngredients() == null) {
+            return false;
+        }
+        for (RecipeIngredient ingredient : recipe.getIngredients()) {
+            if (ingredientConstrainsNbt(ingredient)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * An Item ingredient with an nbt snapshot matches on the item's data; a Choice counts when any option does.
+     * Tag and plain Item ingredients match on ids and tags only.
+     */
+    static boolean ingredientConstrainsNbt(RecipeIngredient ingredient) {
+        if (ingredient instanceof RecipeIngredient.Item item) {
+            return item.nbt() != null;
+        }
+        if (ingredient instanceof RecipeIngredient.Choice choice) {
+            for (RecipeIngredient option : choice.options()) {
+                if (ingredientConstrainsNbt(option)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private Set<String> findCandidateRecipes(List<ItemStack> inputs, Map<String, Set<String>> recipeIndex) {

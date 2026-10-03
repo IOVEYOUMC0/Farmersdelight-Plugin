@@ -143,6 +143,138 @@ class SkilletHandheldModelTest {
                 "The material must never be reached before the item's own model");
     }
 
+    @Test
+    void clientBoundIngredientsResolveThroughTheCraftEngineItemId() {
+        // item.client-bound-model: true keeps the item-model component off the server-side stack, so a
+        // client-bound food offers no item model at all and the item's server-side CraftEngine id is the
+        // only thing identifying it. Without it the material would be the sole source and every custom
+        // food would cook with the vanilla texture of whatever item it was built on.
+        assertEquals(List.of("farmersdelight:bacon", "minecraft:dried_kelp"),
+                List.copyOf(HandheldCookingModelPack.sourceCandidates(
+                        "minecraft:dried_kelp", null, "farmersdelight:bacon", Map.of())));
+        // A stack whose model is still readable keeps that model first: it is the more specific id.
+        assertEquals(List.of("farmersdelight:item/bacon", "farmersdelight:bacon", "minecraft:dried_kelp"),
+                List.copyOf(HandheldCookingModelPack.sourceCandidates(
+                        "minecraft:dried_kelp", "farmersdelight:item/bacon", "farmersdelight:bacon", Map.of())));
+        // The CraftEngine item definition and the model it names, exactly as the generated pack ships them.
+        JsonObject bacon = json("{\"oversized_in_gui\":true,\"model\":{\"type\":\"model\",\"model\":\"farmersdelight:item/bacon\"}}");
+        var models = Map.of("farmersdelight:item/bacon",
+                json("{\"parent\":\"minecraft:item/generated\",\"textures\":{\"layer0\":\"farmersdelight:item/bacon\"}}"));
+        String texture = HandheldCookingModelPack.flatTexture(bacon, models);
+        assertEquals("farmersdelight:item/bacon", texture);
+        // The generated overlay must therefore name the CraftEngine model, never the vanilla one.
+        assertEquals("farmersdelight:item/bacon", HandheldCookingModelPack
+                .overlayModel("farmersdelight:item/skillet_food", texture)
+                .getAsJsonObject("textures").get("food").getAsString());
+    }
+
+    @Test
+    void ingredientWithoutACraftEngineModelKeepsTheVanillaTexture() {
+        // The fallback lives in sourceCandidates, which appends the ingredient's own material last:
+        // an id CraftEngine does not define keeps the preset model, so genuine vanilla foods still cook.
+        assertEquals(List.of("minecraft:beef"),
+                List.copyOf(HandheldCookingModelPack.sourceCandidates("minecraft:beef", null, null, Map.of())));
+        assertEquals(List.of("minecraft:item/beef", "minecraft:beef"),
+                List.copyOf(HandheldCookingModelPack.sourceCandidates(
+                        "minecraft:beef", "minecraft:item/beef", null, Map.of())));
+        var models = Map.of("minecraft:item/beef",
+                json("{\"parent\":\"minecraft:item/generated\",\"textures\":{\"layer0\":\"minecraft:item/beef\"}}"));
+        assertEquals("minecraft:item/beef", HandheldCookingModelPack.flatTexture(
+                json("{\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/beef\"}}"), models));
+    }
+
+    @Test
+    void craftEngineIngredientResolvesToItsOwnOverlayNotTheMaterialItWasBuiltOn() throws Exception {
+        // Deployed data: farmersdelight:bacon is a CraftEngine item built on minecraft:dried_kelp
+        // (configuration/items.yml -> farmersdelight:food_cut_template), and CraftEngine generates the
+        // item definition below from the item's model. The model chain ends in our own texture.
+        var items = new HashMap<String, JsonObject>();
+        items.put("farmersdelight:bacon", json(
+                "{\"oversized_in_gui\":true,\"model\":{\"type\":\"model\",\"model\":\"farmersdelight:item/bacon\"}}"));
+        items.put("minecraft:dried_kelp", json(
+                "{\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/dried_kelp\"}}"));
+        var models = new HashMap<String, JsonObject>();
+        models.put("minecraft:item/dried_kelp", json(
+                "{\"parent\":\"minecraft:item/generated\",\"textures\":{\"layer0\":\"minecraft:item/dried_kelp\"}}"));
+        HandheldCookingModelPack.readAssets(PACK.resolve("resourcepack"), items, models);
+        var cooking = NamespacedKey.fromString("farmersdelight:skillet_cooking");
+        var overlay = NamespacedKey.fromString("farmersdelight:item/skillet_food");
+
+        // Generation is driven by sourceCandidates on the server-side stack, where
+        // item.client-bound-model: true has left no item model, so the CraftEngine id is the only
+        // identity and the material is the last resort.
+        var generated = generatedOverlays(
+                HandheldCookingModelPack.sourceCandidates("minecraft:dried_kelp", null, "farmersdelight:bacon", Map.of()),
+                items, models, cooking, overlay);
+        assertEquals("farmersdelight:item/bacon",
+                generated.get("farmersdelight:generated/handheld/farmersdelight_skillet_cooking/farmersdelight/bacon"));
+        assertEquals("minecraft:item/dried_kelp",
+                generated.get("farmersdelight:generated/handheld/farmersdelight_skillet_cooking/minecraft/dried_kelp"));
+
+        // resolve() runs on the client-bound copy, which still knows the model, and takes the first
+        // candidate that exists. The CraftEngine overlay therefore wins over the material's vanilla one.
+        var resolved = resolveSource(
+                HandheldCookingModelPack.sourceCandidates(
+                        "minecraft:dried_kelp", "farmersdelight:item/bacon", "farmersdelight:bacon", Map.of()),
+                generated, cooking, overlay);
+        assertEquals("farmersdelight:bacon", resolved);
+        assertEquals("farmersdelight:item/bacon", generated.get(resolvedKey(resolved, cooking, overlay)));
+        assertNotEquals("minecraft:dried_kelp", resolved);
+        // Both call sites must derive the same candidate list, or generation writes a name resolve
+        // never looks for: everything the server-side stack offers must also be offered by the
+        // client-bound copy resolve() reads.
+        assertTrue(HandheldCookingModelPack.sourceCandidates(
+                        "minecraft:dried_kelp", "farmersdelight:item/bacon", "farmersdelight:bacon", Map.of())
+                .containsAll(HandheldCookingModelPack.sourceCandidates(
+                        "minecraft:dried_kelp", null, "farmersdelight:bacon", Map.of())));
+    }
+
+    @Test
+    void vanillaOnlyIngredientKeepsThePresetOverlay() {
+        var items = new HashMap<String, JsonObject>();
+        items.put("minecraft:beef", json("{\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/beef\"}}"));
+        var models = new HashMap<String, JsonObject>();
+        models.put("minecraft:item/beef", json(
+                "{\"parent\":\"minecraft:item/generated\",\"textures\":{\"layer0\":\"minecraft:item/beef\"}}"));
+        var cooking = NamespacedKey.fromString("farmersdelight:skillet_cooking");
+        var overlay = NamespacedKey.fromString("farmersdelight:item/skillet_food");
+        // A genuine vanilla food carries no CraftEngine id and, on the server-side stack, no item model.
+        var candidates = HandheldCookingModelPack.sourceCandidates("minecraft:beef", null, null, Map.of());
+        assertEquals(List.of("minecraft:beef"), List.copyOf(candidates));
+        var generated = generatedOverlays(candidates, items, models, cooking, overlay);
+        assertEquals("minecraft:item/beef", generated.get(
+                "farmersdelight:generated/handheld/farmersdelight_skillet_cooking/minecraft/beef"));
+        assertEquals("minecraft:beef", resolveSource(candidates, generated, cooking, overlay));
+    }
+
+    /** The composites onPackCache would write for the given sources: name -> the food texture it names. */
+    private static Map<String, String> generatedOverlays(Iterable<String> sources, Map<String, JsonObject> items,
+                                                         Map<String, JsonObject> models,
+                                                         NamespacedKey cooking, NamespacedKey overlay) {
+        var generated = new LinkedHashMap<String, String>();
+        for (String source : sources) {
+            JsonObject item = items.get(source);
+            if (item == null) continue;
+            String texture = HandheldCookingModelPack.flatTexture(item, models);
+            if (texture == null) continue;
+            generated.put(resolvedKey(source, cooking, overlay), texture);
+        }
+        return generated;
+    }
+
+    /** The first candidate resolve() finds an available overlay for, or null when it falls back to the pan. */
+    private static String resolveSource(Iterable<String> sources, Map<String, String> generated,
+                                       NamespacedKey cooking, NamespacedKey overlay) {
+        for (String source : sources) {
+            if (generated.containsKey(resolvedKey(source, cooking, overlay))) return source;
+        }
+        return null;
+    }
+
+    private static String resolvedKey(String source, NamespacedKey cooking, NamespacedKey overlay) {
+        return HandheldCookingModelPack.generatedKey(cooking, overlay, source).toString();
+    }
+
     private static JsonObject json(String text) {
         return JsonParser.parseString(text).getAsJsonObject();
     }

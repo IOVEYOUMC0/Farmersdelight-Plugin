@@ -15,7 +15,7 @@ FarmersDelight 是基于 CraftEngine 的 Farmer's Delight Paper/Folia 移植插�
 
 ## 运行要求
 
-- Paper 或 Folia 1.21.4 及以上
+- Paper 或 Folia 1.21.5 及以上
 - Java 21
 - CraftEngine 26.8.2 及以上（用 26.9.1 编译；26.8.2 / 26.9 / 26.9.1 已实机核对）
 
@@ -31,7 +31,12 @@ FarmersDelight 是基于 CraftEngine 的 Farmer's Delight Paper/Folia 移植插�
 ./gradlew build
 ```
 
-构建使用官方 Maven 的 CraftEngine 26.9.1 API，加 `-PceVersion=<版本>` 可改为对着别的版本编译。附属通过生成的 FarmersDelight API-only JAR 编译，并要求与本仓库处于同级目录。
+构建使用官方 Maven 的 CraftEngine 26.9.1 API，加 `-PceVersion=<版本>` 可改为对着别的版本编译。
+
+`build` 会在 `build/libs/` 下生成两个产物：可运行的插件本体（`farmersdelight-<版本>.jar`，即 shadow jar）和给附属用的 API-only jar（`farmersdelight-plugin-<版本>-api.jar`，其内容与模块的默认 `farmersdelight-plugin-<版本>.jar` 一致），后者只含 `com.huidu.farmersdelight.api.**`。该 API 以坐标 `com.huidu.farmersdelight:farmersdelight-plugin:<版本>` 发布，附属通过两条通道之一消费：
+
+* **本地检出（首选）**：把本仓库检出在附属旁边（`../FarmersDelight`）时，附属构建是 Gradle 复合构建，会构建本仓库的 `:apiJar` 并替换该坐标，无需拉取、可离线构建。
+* **无本地检出**：否则附属通过 Gradle source dependency 从本 git 仓库按固定版本拉取并就地构建——该通道需要网络。
 
 ## 授权
 
