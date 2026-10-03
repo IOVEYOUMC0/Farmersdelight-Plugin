@@ -157,14 +157,14 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
 
     private static void indexAdd(UUID worldId, BlockPosKey posKey) {
         chunkIndex.computeIfAbsent(worldId, k -> new ConcurrentHashMap<>())
-                .computeIfAbsent(ManagerSupport.chunkKey(posKey.x(), posKey.z()), k -> ConcurrentHashMap.newKeySet())
+                .computeIfAbsent(ManagerSupport.chunkKey(posKey.x() >> 4, posKey.z() >> 4), k -> ConcurrentHashMap.newKeySet())
                 .add(posKey);
     }
 
     private static void indexRemove(UUID worldId, BlockPosKey posKey) {
         Map<Long, Set<BlockPosKey>> worldChunks = chunkIndex.get(worldId);
         if (worldChunks == null) return;
-        long ck = ManagerSupport.chunkKey(posKey.x(), posKey.z());
+        long ck = ManagerSupport.chunkKey(posKey.x() >> 4, posKey.z() >> 4);
         Set<BlockPosKey> set = worldChunks.get(ck);
         if (set == null) return;
         set.remove(posKey);
