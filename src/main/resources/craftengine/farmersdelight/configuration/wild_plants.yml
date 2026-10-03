@@ -291,9 +291,9 @@ placed-features:
       $$>=26.3:
         type: 'minecraft:simple_block'
         to_place:
-          type: 'craftengine:simple_state_provider'
+          type: 'minecraft:simple'
           state:
-            Name: 'farmersdelight:wild_cabbages'
+            id: 'farmersdelight:wild_cabbages'
       $$26.1~26.2:
         type: 'minecraft:simple_block'
         config:
@@ -444,9 +444,9 @@ placed-features:
       $$>=26.3:
         type: 'minecraft:simple_block'
         to_place:
-          type: 'craftengine:simple_state_provider'
+          type: 'minecraft:simple'
           state:
-            Name: 'farmersdelight:wild_onions'
+            id: 'farmersdelight:wild_onions'
       $$26.1~26.2:
         type: 'minecraft:simple_block'
         config:
@@ -601,9 +601,9 @@ placed-features:
       $$>=26.3:
         type: 'minecraft:simple_block'
         to_place:
-          type: 'craftengine:simple_state_provider'
+          type: 'minecraft:simple'
           state:
-            Name: 'farmersdelight:wild_tomatoes'
+            id: 'farmersdelight:wild_tomatoes'
       $$26.1~26.2:
         type: 'minecraft:simple_block'
         config:
@@ -754,20 +754,20 @@ placed-features:
               max_inclusive: 1
               min_inclusive: 1
             provider:
-              type: 'craftengine:simple_state_provider'
+              type: 'minecraft:simple'
               state:
-                Name: 'farmersdelight:wild_rice'
-                Properties:
+                id: 'farmersdelight:wild_rice'
+                properties:
                   half: 'lower'
           - height:
               type: 'minecraft:uniform'
               max_inclusive: 1
               min_inclusive: 1
             provider:
-              type: 'craftengine:simple_state_provider'
+              type: 'minecraft:simple'
               state:
-                Name: 'farmersdelight:wild_rice'
-                Properties:
+                id: 'farmersdelight:wild_rice'
+                properties:
                   half: 'upper'
         prioritize_tip: false
       $$26.1~26.2:

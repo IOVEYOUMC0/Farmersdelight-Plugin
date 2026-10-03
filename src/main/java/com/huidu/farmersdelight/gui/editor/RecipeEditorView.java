@@ -127,7 +127,8 @@ public final class RecipeEditorView implements InventoryHolder {
             }
             RecipeViewGuiConfig.BaseConfig editorConfig = guiConfig().getCookingPotConfig(group);
             if (editorConfig == null) {
-                player.sendMessage(I18n.getComponent("gui.editor.feedback.not_configured", player));
+                // Same text as the editor GUIs' own message: resolve it on the client from the pack.
+                player.sendMessage(Component.translatable("gui.editor.feedback.not_configured"));
                 return;
             }
             CookingPotRecipe existing = (group == null || group.isBlank())
@@ -143,7 +144,7 @@ public final class RecipeEditorView implements InventoryHolder {
             }
             RecipeViewGuiConfig.BaseConfig boardConfig = guiConfig().getCuttingBoardConfig();
             if (boardConfig == null) {
-                player.sendMessage(I18n.getComponent("gui.editor.feedback.not_configured", player));
+                player.sendMessage(Component.translatable("gui.editor.feedback.not_configured"));
                 return;
             }
             CuttingBoardRecipe existing = plugin.getCuttingBoardRecipes().getRecipe(recipeId);

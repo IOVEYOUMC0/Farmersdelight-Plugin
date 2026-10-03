@@ -618,7 +618,9 @@ public final class RecipeBookGui implements InventoryHolder {
                         if (index < recipes.size()) {
                             ViewableRecipe clicked = recipes.get(index);
                             if (isLocked(discovery(), type, clicked)) {
-                                player.sendMessage(I18n.getComponent("recipe-discovery.locked-click", player));
+                                // Resolve on the client from the pack, like the recipe viewer's own message.
+                                player.sendMessage(Component.translatable("recipe-discovery.locked-click")
+                                        .color(NamedTextColor.RED));
                             } else {
                                 history.push(snapshot());
                                 drawDetail(type, clicked.id(), player);

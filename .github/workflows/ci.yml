@@ -38,6 +38,13 @@ jobs:
       - name: Build the api jar addons compile against
         run: ./gradlew apiJar --no-daemon --stacktrace
 
+      # src/debugTools/java is only added to the main source set with -PdebugTools=true (build.gradle.kts),
+      # so nothing else in this workflow compiles it: a main-side rename or removal that the debug command
+      # calls into used to fail only on a developer's machine, with the flag on. Deliberately the last build
+      # step so the test and api-jar steps above keep producing the release configuration's output.
+      - name: Compile the debug-tools source set
+        run: ./gradlew compileJava -PdebugTools=true --no-daemon --offline --stacktrace
+
       - name: Upload test report
         if: always()
         uses: actions/upload-artifact@v4
