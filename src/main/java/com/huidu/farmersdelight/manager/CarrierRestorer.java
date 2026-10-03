@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.manager;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.ItemUtils;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -141,6 +142,12 @@ public final class CarrierRestorer {
             if (disabled != null && disabled.containsKey(position)) {
                 drop(disabled, position, disabled.get(position));
             }
+            return;
+        }
+        // Before CraftEngine has bound its blocks, every custom block still reads as a plain vanilla one,
+        // so a rope fence placed during startup would be mistaken for a real crimson fence and get a second
+        // copy of its model drawn over it. The chunk is scanned again once CraftEngine is up.
+        if (!ItemUtils.isAnyCustomItemLoaded()) {
             return;
         }
         boolean wanted = isHijacked(block.getBlockData()) && !isCustomBlock(block);
