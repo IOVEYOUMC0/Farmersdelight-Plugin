@@ -11,14 +11,61 @@ import java.util.function.Function;
 
 final class RecipeParsingSupport {
 
+    /** Written in front of a group name, e.g. advtag:meats. */
+    private static final String GROUP_PREFIX = "advtag:";
+
+    /**
+     * The groups the loaded packs declare, replaced on every reload. Starts empty so that a recipe naming
+     * a group refuses to load rather than matching nothing before the packs have been read.
+     */
+    private static volatile AdvancedTagGroups advancedTagGroups = AdvancedTagGroups.EMPTY;
+
     private RecipeParsingSupport() {
     }
 
+    static void setAdvancedTagGroups(AdvancedTagGroups groups) {
+        advancedTagGroups = groups == null ? AdvancedTagGroups.EMPTY : groups;
+    }
+
     static RecipeIngredient parseSimpleItemOrTag(String str) {
+        if (isGroupReference(str)) {
+            return groupIngredient(str.substring(GROUP_PREFIX.length()).trim());
+        }
         if (!str.startsWith("#")) {
             return new RecipeIngredient.Item(Key.of(str));
         }
         return new RecipeIngredient.Tag(Key.of(str.substring(1)));
+    }
+
+    private static boolean isGroupReference(String str) {
+        return str.regionMatches(true, 0, GROUP_PREFIX, 0, GROUP_PREFIX.length());
+    }
+
+    /**
+     * Expands a group into the choice of the items it lists.
+     *
+     * <p>A group that is unknown, was dropped while resolving, or lists nothing is refused rather than turned
+     * into an ingredient that can never match: a recipe that quietly stops being craftable is worse than one
+     * that fails to load, where the operator can see which definition was wrong.
+     */
+    private static RecipeIngredient groupIngredient(String name) {
+        if (name.isEmpty()) {
+            throw new IllegalArgumentException("Advanced tag reference needs a group name");
+        }
+        Key group = Key.of(name);
+        AdvancedTagGroups groups = advancedTagGroups;
+        if (groups.dropped().contains(group)) {
+            throw new IllegalArgumentException("Advanced tag group " + group + " could not be resolved");
+        }
+        List<Key> members = groups.members(group);
+        if (members.isEmpty()) {
+            throw new IllegalArgumentException("Advanced tag group " + group + " is not declared or lists nothing");
+        }
+        List<RecipeIngredient> options = new ArrayList<>(members.size());
+        for (Key member : members) {
+            options.add(new RecipeIngredient.Item(member));
+        }
+        return options.size() == 1 ? options.getFirst() : new RecipeIngredient.Choice(options);
     }
 
     // Splits a choice ingredient on '|', trims each option, drops empties, and collapses a single-option
@@ -73,8 +120,12 @@ final class RecipeParsingSupport {
             }
             Object item = raw.get("item");
             if (item != null) {
+                String itemId = item.toString();
+                if (isGroupReference(itemId.trim())) {
+                    return groupIngredient(itemId.trim().substring(GROUP_PREFIX.length()).trim());
+                }
                 Object nbt = raw.get("nbt");
-                return new RecipeIngredient.Item(Key.of(item.toString()),
+                return new RecipeIngredient.Item(Key.of(itemId),
                         nbt == null || nbt.toString().isBlank() ? null : nbt.toString());
             }
             throw new IllegalArgumentException("Ingredient map must contain item or choice");
