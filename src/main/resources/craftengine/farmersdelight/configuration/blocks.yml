@@ -2365,7 +2365,7 @@ recipes:
       S: farmersdelight:straw
     result:
       id: farmersdelight:tatami
-      count: 1
+      count: 2
   farmersdelight:tatami_2:
     type: shaped
     category: building
@@ -2378,7 +2378,7 @@ recipes:
       S: farmersdelight:straw
     result:
       id: farmersdelight:tatami
-      count: 1
+      count: 2
   farmersdelight:tatami_mat:
     type: shaped
     category: building
