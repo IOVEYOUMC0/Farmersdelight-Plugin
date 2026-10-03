@@ -119,29 +119,36 @@ sourceSets {
     }
 }
 
-val writeBuildFlags = tasks.register("writeBuildFlags") {
-    val outputDir = layout.buildDirectory.dir("generated/sources/buildFlags/com/huidu/farmersdelight")
-    inputs.property("debugTools", debugToolsBuild)
-    outputs.dir(outputDir)
-    doLast {
-        val file = outputDir.get().file("BuildFlags.java").asFile
-        file.parentFile.mkdirs()
-        file.writeText(
-            """
-            package com.huidu.farmersdelight;
+val buildFlagsSource = """
+    package com.huidu.farmersdelight;
 
-            public final class BuildFlags {
+    public final class BuildFlags {
 
-                public static final boolean DEBUG_TOOLS = ${debugToolsBuild.get()};
+        public static final boolean DEBUG_TOOLS = ${debugToolsBuild.get()};
 
-                private BuildFlags() {
-                }
-            }
-            """.trimIndent(),
-            Charsets.UTF_8
-        )
+        private BuildFlags() {
+        }
     }
-}
+""".trimIndent()
+
+// Generates BuildFlags.java. The main and api compilations each get their own generated directory so
+// that the two compilations share no writable path at all (see the api compilation below).
+fun registerBuildFlagsTask(taskName: String, generatedRoot: Provider<Directory>): TaskProvider<Task> =
+    tasks.register(taskName) {
+        val outputDir = generatedRoot.map { it.dir("com/huidu/farmersdelight") }
+        inputs.property("debugTools", debugToolsBuild)
+        outputs.dir(outputDir)
+        doLast {
+            val file = outputDir.get().file("BuildFlags.java").asFile
+            file.parentFile.mkdirs()
+            file.writeText(buildFlagsSource, Charsets.UTF_8)
+        }
+    }
+
+val writeBuildFlags = registerBuildFlagsTask(
+    "writeBuildFlags",
+    layout.buildDirectory.dir("generated/sources/buildFlags")
+)
 
 tasks.compileJava {
     dependsOn(writeBuildFlags)
@@ -176,16 +183,60 @@ tasks.jar {
 // api-only jar: just com.huidu.farmersdelight.api.** — for addons to compile against (compileOnly) without
 // exposing internal packages. Addons reference only api.**, so this is all they need; the real
 // FD plugin provides the implementation at runtime. Output: build/libs/<base>-<version>-api.jar.
+//
+// The addons produce this artifact through a Gradle composite build
+// (includeBuild("../FarmersDelight") -> :apiJar). That used to run the *main* compilation: :apiJar
+// depended on :classes, so an addon build recompiled the main classes into build/classes/java/main and
+// Gradle deleted their stale output, while a concurrent FarmersDelight clean/test compile was reading
+// them -- which surfaced as a false "100 errors in :compileTestJava". The api compilation below is
+// therefore a separate compilation with its own output directory and its own generated BuildFlags
+// source, :apiJar depends on it alone, and nothing an addon build runs writes build/classes/java/main.
+// The api sources reference internal (non-api) FarmersDelight classes from method bodies, so the api
+// compilation compiles the same sources as the main compilation; only its output directory differs.
+val apiClassesDir = layout.buildDirectory.dir("classes/java/api")
+val writeApiBuildFlags = registerBuildFlagsTask(
+    "writeApiBuildFlags",
+    layout.buildDirectory.dir("generated/sources/apiBuildFlags")
+)
+
+val compileApiJava = tasks.register<JavaCompile>("compileApiJava") {
+    group = "build"
+    description = "Compiles the api sources into their own output directory, separate from the main compilation."
+    // tasks.withType<JavaCompile>().configureEach already covers the source sets' own tasks, but this is
+    // a hand-registered compilation, so it has to restate everything those tasks inherit. The toolchain
+    // matters most: without it javac runs on whatever JDK the Gradle daemon happens to use, and an older
+    // daemon JDK rejects the compilation outright ("invalid target release: 21").
+    options.encoding = "UTF-8"
+    options.release.set(21)
+    options.compilerArgs.add("-Xlint:deprecation")
+    val javaToolchains = project.extensions.getByType<JavaToolchainService>()
+    javaCompiler.set(javaToolchains.compilerFor {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    })
+    val sourceRoots = mutableListOf<Any>("src/main/java")
+    if (debugToolsBuild.get()) {
+        sourceRoots += "src/debugTools/java"
+    }
+    sourceRoots += layout.buildDirectory.dir("generated/sources/apiBuildFlags")
+    source = files(*sourceRoots.toTypedArray()).asFileTree.matching { include("**/*.java") }
+    classpath = sourceSets["main"].compileClasspath
+    destinationDirectory.set(apiClassesDir)
+    dependsOn(writeApiBuildFlags)
+}
+
 tasks.register<Jar>("apiJar") {
     group = "build"
     description = "Builds an api-only jar (com.huidu.farmersdelight.api.**) for addon development."
-    dependsOn(tasks.classes)
+    dependsOn(compileApiJava)
     archiveClassifier.set("api")
-    from(sourceSets.main.get().output) {
+    from(apiClassesDir) {
         include("com/huidu/farmersdelight/api/**")
     }
 }
 
+// `build` deliberately does not depend on :apiJar: the addons' composite build requests :apiJar
+// explicitly, so making every ordinary build compile the sources a second time would only slow the main
+// repository down.
 tasks.build {
     dependsOn(tasks.shadowJar)
 }
