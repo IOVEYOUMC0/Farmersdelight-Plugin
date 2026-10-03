@@ -17,13 +17,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Keeps the plugin's reflection from growing, and keeps it pointed at what it is for.
  *
- * <p>Reflection here is legitimate for exactly three reasons: a class that is not on the compile classpath
+ *
+ * Reflection here is legitimate for exactly three reasons: a class that is not on the compile classpath
  * (NMS, or a CraftEngine type only some builds ship), an optional plugin, and a class the release build
  * leaves out. Anything that <em>is</em> on the compile classpath can be referenced directly, so looking it up
  * is a mistake: it costs a class-loader query and a method scan, and where it sits on a tick, an interaction
  * or a placement that cost lands on every one of them.
  *
- * <p>An audit of every call site closed with the counts below. They are a ratchet, not a target: lower a
+ *
+ * An audit of every call site closed with the counts below. They are a ratchet, not a target: lower a
  * number when a site starts resolving once and caching, never raise one to let a new lookup through. A file
  * that is not listed at all may not reflect.
  */

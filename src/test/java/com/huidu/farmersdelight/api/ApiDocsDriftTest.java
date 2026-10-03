@@ -21,7 +21,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * and it had: the capability table listed 12 of 17 feature ids and the documented apiVersion was a release
  * behind. This test fails the build the moment they disagree again.
  *
- * <p>The pages live in the wiki repository, which during normal work sits beside this repository's parent
+ *
+ * The pages live in the wiki repository, which during normal work sits beside this repository's parent
  * directory and which CI checks out under wiki/. A copy under api-docs/ is honoured too, for a
  * checkout that still keeps one. None of them being present is a failure, not a skip: this build treats a
  * skipped test as a broken report, and a drift check that quietly stops checking is worse than a red build.

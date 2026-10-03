@@ -9,14 +9,16 @@ import java.util.Map;
  * Reads CraftEngine's item model obfuscation mappings, which map an authored model id to the
  * obfuscated id the client is sent.
  *
- * <p>CraftEngine keeps these mappings in a different class depending on the build:
+ *
+ * CraftEngine keeps these mappings in a different class depending on the build:
  * core.item.network.ItemModelMappings from 26.9.1, and
  * core.item.processor.ObfuscatedItemModelProcessor before that. Both hold the same
  * cache/item_model_obfuscation.json content behind a static getMappings(), so the
  * lookup is resolved reflectively and the first class present wins. A build that exposes neither
  * yields an empty map, which leaves the callers on the un-obfuscated names they already fall back to.
  *
- * <p>The resolved method is cached: one caller runs on every handheld display refresh.
+ *
+ * The resolved method is cached: one caller runs on every handheld display refresh.
  */
 public final class CraftEngineModelMappings {
 

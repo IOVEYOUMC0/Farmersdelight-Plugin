@@ -23,12 +23,14 @@ import java.util.function.UnaryOperator;
 /**
  * PapersDelight's behaviour identifiers, pointed at this plugin's mechanics.
  *
- * <p>That content pack names the station behaviours under its own namespace, so on a server that keeps the
+ *
+ * That content pack names the station behaviours under its own namespace, so on a server that keeps the
  * pack and swaps the plugin its cooking pot, cutting board, skillet and stove load as blocks with no
  * behaviour at all. The aliases below reuse the factory this plugin already registered under its own name,
  * optionally rewriting the few arguments the two sides spell differently.
  *
- * <p>Nothing here replaces a registration that already exists: a pack or another plugin defining the same
+ *
+ * Nothing here replaces a registration that already exists: a pack or another plugin defining the same
  * identifier keeps its own version, and the aliases are only added when this plugin's own behaviour is
  * present.
  */
@@ -141,7 +143,8 @@ public final class PapersDelightAliases {
     /**
      * Maps the pack's stove arguments onto this plugin's names.
      *
-     * <p>The pack names its crackling sound sound; everything else it passes there (interval, volume,
+     *
+     * The pack names its crackling sound sound; everything else it passes there (interval, volume,
      * pitch) belongs to its own sound loop and has no counterpart. Its damage lives in a separate
      * papersdelight:high_temperature behaviour that this plugin does not implement, so the stove's own
      * burn, ignite and extinguish stay at their defaults: disabling them would leave the station harmless.

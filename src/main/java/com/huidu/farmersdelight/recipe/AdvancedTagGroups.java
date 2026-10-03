@@ -16,11 +16,13 @@ import java.util.Set;
 /**
  * The advanced tag groups a content pack declares, resolved once into flat member lists.
  *
- * <p>A group lists item ids, and an entry written advtag:<group> pulls in another group's members.
+ *
+ * A group lists item ids, and an entry written advtag:<group> pulls in another group's members.
  * Resolution happens at load time, so a lookup during recipe matching is a map read instead of a walk over
  * nested references: callers get the flattened list and a lower-cased index of the same members.
  *
- * <p>A group whose references cannot be resolved is dropped whole rather than partially - a cycle, a
+ *
+ * A group whose references cannot be resolved is dropped whole rather than partially - a cycle, a
  * reference to a group that was never declared, or nesting past MAX_DEPTH. A partially resolved
  * group would silently match a subset of what it was written to mean, which is worse than not matching at
  * all; the dropped ids are kept so an operator can be told which definition was ignored.

@@ -11,7 +11,8 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * An ordered "which tool made this sound" table.
  *
- * <p>Keys are item ids (minecraft:shears, farmersdelight:flint_knife) or tags
+ *
+ * Keys are item ids (minecraft:shears, farmersdelight:flint_knife) or tags
  * ("#minecraft:axes", "#farmersdelight:tools/knives"). The first key that matches the
  * stack wins, so listing a specific item above the tag it belongs to overrides that tag. Values are
  * either a bare sound key or a map:
@@ -26,7 +27,8 @@ import java.util.concurrent.ThreadLocalRandom;
  *     pitch-max: 1.1
  * </pre>
  *
- * <p>Addon stations can build one of these for their own tools instead of hardcoding a sound per tool.
+ *
+ * Addon stations can build one of these for their own tools instead of hardcoding a sound per tool.
  * Matching uses the shared item/tag resolution, so CraftEngine custom items and tags work as keys.
  */
 public final class ToolSoundTable {

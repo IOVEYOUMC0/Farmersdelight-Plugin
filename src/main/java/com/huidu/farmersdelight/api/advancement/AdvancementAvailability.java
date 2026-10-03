@@ -5,7 +5,8 @@ import java.util.Locale;
 /**
  * Why the advancement system is or is not running, as evaluated by FarmersDelight.
  *
- * <p>Addons report this instead of repeating the individual checks, so a tab that was never registered
+ *
+ * Addons report this instead of repeating the individual checks, so a tab that was never registered
  * names its actual cause. The conditions are ordered: the first one that fails decides the result.
  */
 public enum AdvancementAvailability {

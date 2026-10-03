@@ -1,6 +1,4 @@
-# Config generation. Bumped by the developer whenever a key is renamed, retired or changes
-# meaning; the plugin stamps it onto your file after updating and refuses to touch a file that
-# declares a NEWER generation than the running build. Do not edit by hand.
+# Do not edit; this value is maintained by the plugin.
 config-version: 1
 
 # FarmersDelight configuration
@@ -21,7 +19,7 @@ datapacks:
   # folder. Only vanilla members are written; CraftEngine items keep their tags in the CE configs.
   # Registry tags are server-global (shared by every world), so the pack is written once into the
   # primary world only - a per-world inject would be redundant. Bukkit/Paper reload it automatically;
-  # Folia/Luminol requires a server restart because it does not support registry data reloads.
+  # Changes here take effect after a server restart: registry data is not reloaded.
   tags-enabled: true
 
 # Enchantments added by FarmersDelight. Knife and skillet enchantments are configured separately.
@@ -37,7 +35,7 @@ enchantments:
   install-datapack: true
   compatibility:
     # When another enchantment plugin is detected, stand down only FarmersDelight's custom backstab enchant so
-    # we don't stack a second special enchant onto its system; the knife/skillet enchant filter itself stays on
+    # that plugin's own handling of special enchants is not stacked onto; the knife/skillet enchant filter stays on
     # (the CraftEngine knives are otherwise un-enchantable). Detection is automatic and needs no plugin list:
     # any plugin (other than CraftEngine, the required host) that hooks the enchanting table, or any enchantment
     # registered outside the minecraft:, farmersdelight: and craftengine: namespaces, counts. Set this to false
@@ -95,7 +93,7 @@ enchantments:
 
     # Durability-only custom items (the farmersdelight:durable setting). They are not weapons, so the
     # whitelist defaults to just unbreaking and vanishing_curse; the anvil inherits both and also allows
-    # mending. Leave it as-is to keep that minimal default instead of letting every enchant be applied.
+    # mending. Enchantments that are not listed here cannot be applied to these items.
     durable:
       table:
         enabled: true
@@ -123,7 +121,7 @@ enchantments:
       multiplier-base: 1.4
       multiplier-per-level: 0.2
 
-# Debug logging. Off by default, not needed on a normal server.
+# Debug logging.
 # enabled=true is the master switch; an empty categories list outputs no per-category logs.
 # Available categories and their purpose:
 #   startup    - Boot sequence details (i18n, behaviors, tick manager, PAPI, advancements, datapack writes, etc.)
@@ -194,8 +192,7 @@ recipes:
   # A recipe file is only written when it is missing entirely, so recipes added by a plugin update never
   # reach a server that already has recipes/*.yml. On startup the ids that exist in the jar but not on
   # disk are listed once in the console.
-  # merge-missing-bundled=true adds those ids back to the file. Leave it false if you deleted recipes on
-  # purpose to disable them, because the merge would bring every deleted recipe back.
+  # merge-missing-bundled=true adds those ids back to the file, including ids deleted from it on purpose.
   # An id that already exists on disk is never overwritten under either setting.
   # The same switch governs the bundled cards in recipes/special_recipes.yml: with it off, a card deleted
   # from that file stays deleted.
@@ -262,7 +259,7 @@ performance:
 
 # Master switch for the vanilla container bridge between hoppers and plugin blocks.
 # When enabled=false, the hopper container bridge for plugin blocks is fully disabled, avoiding hoppers eating items, duplicate container creation or write errors.
-# On by default; if you hit hopper compatibility issues, turn off the master switch first to troubleshoot.
+# enabled=false disables the bridge for every plugin block at once.
 # Whether each block takes part is set by that block's own allow-hopper option in the cooking-pot /
 # cutting-board / skillet sections.
 hopper-interactions:

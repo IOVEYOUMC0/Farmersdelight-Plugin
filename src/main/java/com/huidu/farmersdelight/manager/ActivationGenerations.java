@@ -8,7 +8,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * Numbers the activations of tracked blocks, so a work pass that was already submitted can tell whether the
  * activation it belongs to is still the current one.
  *
- * <p>ActiveBlock is a value type, and both markActive and markInactive build a fresh
+ *
+ * ActiveBlock is a value type, and both markActive and markInactive build a fresh
  * instance. A block that is deactivated and then re-activated therefore compares equal to the instance an
  * in-flight region task holds, and the re-activation submits its own task: membership alone cannot tell the
  * two apart, so both run and the block is worked twice in one pass. Comparing generations instead makes the

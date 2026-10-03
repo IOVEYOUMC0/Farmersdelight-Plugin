@@ -17,7 +17,8 @@ import java.util.zip.ZipFile;
 /**
  * Installs the bundled CraftEngine namespace, writing only files the installed namespace is missing.
  *
- * <p>An installed namespace belongs to the operator: no file under it is ever replaced by an update, so pack
+ *
+ * An installed namespace belongs to the operator: no file under it is ever replaced by an update, so pack
  * edits made on the server survive every plugin version. A content change that has to reach an existing
  * server therefore ships as a file the server does not have yet.
  */

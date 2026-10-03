@@ -17,7 +17,8 @@ import java.util.Map;
  * FarmersDelight's own view of the CraftEngine pack sections it claims: the cooking-pot, cutting-board,
  * special-recipe and addon-advancement sections named by PackSection.
  *
- * <p>Claiming and bridging live in AddonPackSections (the api class addons use for their own
+ *
+ * Claiming and bridging live in AddonPackSections (the api class addons use for their own
  * sections); this class only maps this plugin's fixed section set onto it and reports the outcome with this
  * plugin's own console keys. Registration has to happen during FarmersDelight's onLoad: CraftEngine
  * dispatches sections while it loads packs in its own onEnable, and this plugin loads after it.
@@ -111,7 +112,8 @@ public final class PackSections {
     /**
      * The advanced tag groups the packs declare, resolved into flat member lists.
      *
-     * <p>Compiled on each call rather than cached: this runs during a reload, next to the recipe readers, and a
+     *
+     * Compiled on each call rather than cached: this runs during a reload, next to the recipe readers, and a
      * cached snapshot would have to be invalidated by every one of them.
      */
     public AdvancedTagGroups advancedTagGroups() {
@@ -136,7 +138,8 @@ public final class PackSections {
     /**
      * Reads the group id to member list map out of one pack section.
      *
-     * <p>A member is an item id or an advtag: reference; both stay as written, because flattening them
+     *
+     * A member is an item id or an advtag: reference; both stay as written, because flattening them
      * is AdvancedTagGroups' job and a value that is neither a list nor a scalar is reported rather than
      * guessed at. The first declaration of a group id wins, so a pack that sorts earlier cannot be overridden
      * by one that sorts later.

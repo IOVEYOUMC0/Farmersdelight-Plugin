@@ -19,7 +19,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * provide heat. Conductors pass heat from below; custom tags match groups of CE blocks.
  * Query the effective table through FarmersDelightApi.isHeatSource and isConductor.
  *
- * <p>A state filter only narrows the strict question ("is this block hot right now") that the pot, the placed
+ *
+ * A state filter only narrows the strict question ("is this block hot right now") that the pot, the placed
  * skillet, the tray and the stove ask. The portable (handheld) skillet asks whether a heat source is nearby at
  * all, so a registered block still starts handheld cooking while its filtered state is off — the same split the
  * mod has between HeatableBlockEntity#isHeated and SkilletItem#isPlayerNearHeatSource.

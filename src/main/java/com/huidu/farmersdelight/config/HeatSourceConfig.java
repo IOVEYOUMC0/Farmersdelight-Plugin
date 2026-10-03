@@ -188,7 +188,8 @@ public class HeatSourceConfig {
      * Registers a CraftEngine block as a heat source, optionally only in certain states
      * ("namespace:block" or "namespace:block[fire:true]").
      *
-     * <p>Blocks that can be switched off MUST be registered this way rather than by tag: CraftEngine
+     *
+     * Blocks that can be switched off MUST be registered this way rather than by tag: CraftEngine
      * copies the block-level settings (and therefore the tag list) onto every state, so a tag matches
      * the unlit state just as well as the lit one.
      *

@@ -56,6 +56,7 @@ import com.huidu.farmersdelight.manager.SkilletManager;
 import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.manager.TrayManager;
+import com.huidu.farmersdelight.recipe.AdvancedTagGroups;
 import com.huidu.farmersdelight.recipe.CookingPotRecipeManager;
 import com.huidu.farmersdelight.recipe.RecipeDiscoveryManager;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipeManager;
@@ -1016,13 +1017,15 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     /**
      * Notifies addons that content changed, on the <em>next</em> tick rather than inside the command tick.
      *
-     * <p>Four addons listen to this and rebuild their own content synchronously, so calling it inline made
+     *
+     * Four addons listen to this and rebuild their own content synchronously, so calling it inline made
      * /fd reload all block the server for FarmersDelight's own work <em>plus</em> every addon's. The
      * event is a notification hook — nothing in FarmersDelight reads a result back from it — so moving it one
      * tick later keeps the observable behaviour ("the reload happened") while halving the worst-case stall of
      * a single tick. This is the same treatment reloadRecipeFiles already gave it.
      *
-     * <p>Uses runLater(..., 1) and not run(...): run executes immediately when it is
+     *
+     * Uses runLater(..., 1) and not run(...): run executes immediately when it is
      * already called from the primary thread, which is exactly the case here, so it would not defer at all.
      */
     public void notifyAddonsOfReload(String reason) {
@@ -1049,7 +1052,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
      * Minimum spacing between two accepted /fd reload runs, in milliseconds; 0 disables the spacing but
      * still refuses a reload while one is running.
      *
-     * <p>Read per call rather than cached so an edited config.yml takes effect without a reload of its own. The
+     *
+     * Read per call rather than cached so an edited config.yml takes effect without a reload of its own. The
      * default covers a full pass plus the addon cascade that follows it on the next tick.
      */
     public long reloadCooldownMillis() {
@@ -1508,6 +1512,16 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     public List<PackSections.Section> packSectionsOf(PackSection section) {
         PackSections parser = packSections;
         return parser == null ? List.of() : parser.sectionsOf(section);
+    }
+
+    /**
+     * The advanced tag groups the packs declare, resolved into flat member lists, empty when the parser
+     * could not be registered. Recipe readers publish this snapshot before they parse any ingredient, so an
+     * advtag: reference resolves against the packs that are current rather than the previous load.
+     */
+    public AdvancedTagGroups advancedTagGroups() {
+        PackSections parser = packSections;
+        return parser == null ? AdvancedTagGroups.EMPTY : parser.advancedTagGroups();
     }
 
     public SchedulerAdapter scheduler() {

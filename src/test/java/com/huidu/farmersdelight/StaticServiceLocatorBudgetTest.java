@@ -15,7 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Freezes the plugin's static service-locator surface so it can only shrink.
  *
- * <p>FarmersDelightPlugin.getInstance() makes the whole plugin reachable from anywhere, which is why a
+ *
+ * FarmersDelightPlugin.getInstance() makes the whole plugin reachable from anywhere, which is why a
  * component can be impossible to test without booting a server. The migration away from it is incremental, so
  * this test does not demand zero: it pins the current count and fails when a change adds a site. When a batch
  * is migrated, lower MAX_STATIC_LOOKUPS to the new count — the number is a ratchet, not a target.

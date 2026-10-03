@@ -544,12 +544,14 @@ public final class ConfigBootstrap {
     /**
      * The user-file reads within one reload, so a file is opened and parsed once instead of once per pass.
      *
-     * <p>A reload reads the same four files twice: validateConfigTypes() parses them to compare against
+     *
+     * A reload reads the same four files twice: validateConfigTypes() parses them to compare against
      * the bundled types, and loadConfigs() parses them again to build runtime settings. The content
      * cannot change between the two passes of one reload, so both share the parse. Only reads that merely
      * inspect the values are memoised; a read whose result is about to be mutated and written back stays fresh.
      *
-     * <p>Left empty outside a reload, so the enable path keeps its existing behaviour exactly.
+     *
+     * Left empty outside a reload, so the enable path keeps its existing behaviour exactly.
      */
     private final Map<Path, YamlConfiguration> reloadReads = new java.util.concurrent.ConcurrentHashMap<>();
     private volatile boolean cachingReloadReads;

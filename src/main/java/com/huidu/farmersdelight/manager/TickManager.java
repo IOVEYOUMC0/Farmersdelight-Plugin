@@ -179,7 +179,8 @@ public class TickManager {
     /**
      * Bounded sweep of the tracked cooking pots for the single-threaded (Paper) path.
      *
-     * <p>Every entry costs a chunk-residency check plus a CraftEngine block-state read, so sweeping the whole
+     *
+     * Every entry costs a chunk-residency check plus a CraftEngine block-state read, so sweeping the whole
      * tracked set in one pass put "worlds x tracked pots" of work on the main thread in a single tick — the
      * same spike the Folia path already avoids by dispatching a bounded batch. Below the budget the sweep is
      * the whole set, as before. Above it, a snapshot is rotated through so that every entry is still reached
@@ -307,7 +308,8 @@ public class TickManager {
     /**
      * Queues removal of every tracked block in one unloading chunk.
      *
-     * <p>The chunk-unload cleanup drops the block entities and CraftEngine's per-chunk index, but nothing
+     *
+     * The chunk-unload cleanup drops the block entities and CraftEngine's per-chunk index, but nothing
      * told this manager, so the entries stayed in activeBlocks plus its three per-block maps. That is
      * the same defect cleanupWorld(UUID) documents one level up: the tick loop's chunk guard
      * (!world.isChunkLoaded) returns early, so nothing ever unregistered them, and the entries
@@ -316,7 +318,8 @@ public class TickManager {
      * markActive when the entity is (re)hydrated, and the controller's cached-chunk path
      * (getChunkAtIfLoaded) marks active without waiting for loadCustomData.
      *
-     * <p>Only the tick bookkeeping is dropped; the cooked progress lives in the block entity, which the
+     *
+     * Only the tick bookkeeping is dropped; the cooked progress lives in the block entity, which the
      * chunk-unload save pass has already snapshotted into the controller.
      */
     public void markInactiveInChunk(World world, int chunkX, int chunkZ) {

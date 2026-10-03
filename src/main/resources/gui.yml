@@ -73,7 +73,7 @@ cooking-pot-gui:
 cooking-pot-guis:
   # No entries.
   {}
-# Example: GUI for the `large_pot` test variant (paired with
+# Example: GUI for the large_pot test variant (paired with
 # craftengine/farmersdelight/configuration/cooking_pot_test.yml — uncomment all 4 sections together).
 # cooking-pot-guis:
 #   large_pot:
@@ -311,7 +311,7 @@ recipe-view-gui:
   recipe-detail-cooking-pot-guis:
     # No entries.
     {}
-  # Example: recipe-detail GUI for the `large_pot` test variant (paired with
+  # Example: recipe-detail GUI for the large_pot test variant (paired with
   # craftengine/farmersdelight/configuration/cooking_pot_test.yml — uncomment all 4 sections together).
   # recipe-detail-cooking-pot-guis:
   #   large_pot:
@@ -502,7 +502,7 @@ recipe-view-gui:
 
 # Addon recipe book: the generic book that shows recipes registered by addons (e.g. Brewin' And Chewin'
 # kegs), opened via /fd recipe book or the recipe-menu button. When only one addon type is registered it
-# opens straight to that type's list. The list page size follows the number of `recipe` slots.
+# opens straight to that type's list. The list page size follows the number of recipe slots.
 # Layout slot types: category (menu, one per addon type), recipe (list), ingredient + result (detail),
 # prev_page, next_page, fill, back, background. List/detail titles come from the recipe type itself.
 recipe-book-gui:

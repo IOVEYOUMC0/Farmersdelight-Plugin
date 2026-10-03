@@ -1,3 +1,37 @@
+# ========================================
+# Cutting board recipe configuration
+# ========================================
+#
+# Format:
+#   <recipe_id>:
+#     input: <item_id_or_tag>  # required; tags must start with #; MMOItems ids use "mmoitems:<TYPE>:<ID>"
+#                              # tag exclusion: "#namespace:tag,!namespace:item,!#namespace:other_tag"
+#                              # alternatives for the same slot: "item_a|item_b|#namespace:tag"
+#                              # a pack-declared group may be named as "advtag:<group>"
+#     tool: <item_id_or_tag>   # required unless "tools" is given; accepts the same "#" tags and "!"
+#                              # exclusions as the input (a plain item id may carry exclusions here),
+#                              # but not "|" alternatives. May also be a selector under
+#                              # "farmersdelight:": axe_dig, axe_strip, pickaxe_dig, shovel_dig
+#     tools:                   # optional list of the same tool entries; when both are present "tools" wins
+#       - <item_id_or_tag>     # and "tool" is the fallback
+#     results:                 # required unless "result" is given; a list of entries, each one:
+#       - item: <item_id>      # vanilla, CraftEngine custom, or MMOItems ("mmoitems:<TYPE>:<ID>")
+#         count: <count>       # optional, default 1; values below 1 are raised to 1
+#         chance: <chance>     # optional, default 1.0; clamped to 0.0-1.0 and rolled per entry
+#         nbt: <base64>        # optional full-item snapshot written by the in-game recipe editor
+#         components: <map>    # optional component values applied to the result item
+#     result: <item_id>        # optional singular form, read only when "results" is absent or empty
+#     amount: <count>          # with it, "amount" (then "count") and "chance" set count and chance;
+#     chance: <chance>         # defaults 1 and 1.0, and chance is clamped to 0.0-1.0
+#     sound: <sound_id>        # optional; default farmersdelight:block.cutting_board.knife. A name without
+#                              # ":" is read as a minecraft: sound id
+#     priority: <number>       # optional, default 0; when recipes overlap, the higher priority wins
+#
+# Item id formats:
+#   minecraft:oak_planks            vanilla item
+#   farmersdelight:rice_panicle     CraftEngine custom item
+#   mmoitems:AXE:TEST               MMOItems item (TYPE:ID); MMOItems must be installed
+#
 cutting_board_recipes:
   rice_panicle:
     input: farmersdelight:rice_panicle

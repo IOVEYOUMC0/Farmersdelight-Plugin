@@ -43,13 +43,15 @@ import java.util.List;
 /**
  * Owns every event listener the plugin registers, and the reload/stop hooks their state needs.
  *
- * <p>The plugin previously held one field per listener and registered them inline in its enable path, which
+ *
+ * The plugin previously held one field per listener and registered them inline in its enable path, which
  * made that path the place every new listener had to be threaded through. Listeners that nothing outside the
  * registration block referenced are private here and have no accessor at all; the four that other components
  * read (strawDropListener(), foodEatListener(), horseFeedTemptListener(),
  * ropeBlockListener()) are exposed explicitly.
  *
- * <p>Registration order is part of the behaviour: event priority decides who runs first, and CraftEngine's
+ *
+ * Registration order is part of the behaviour: event priority decides who runs first, and CraftEngine's
  * pack parsers and the command registrar are claimed elsewhere in the enable path. The three
  * register* methods keep the original grouping and relative position against the manager
  * construction that used to sit between them.
@@ -89,7 +91,8 @@ final class ListenerRegistry {
      * Builds the block and interaction handlers, in registration order, up to and including the ones that
      * start their own tasks.
      *
-     * <p>Construction is kept apart from registration so the order below can be asserted by a test without a
+     *
+     * Construction is kept apart from registration so the order below can be asserted by a test without a
      * running server: registerInteractionHandlers() registers this exact list. Bukkit orders delivery
      * within a priority by registration sequence, so this order is behaviour, not style — do not reorder it
      * without checking every handler that shares an event.
@@ -119,7 +122,8 @@ final class ListenerRegistry {
     /**
      * The instances registerInteractionHandlers() puts in front of the event system, in order.
      *
-     * <p>Separate from the built list because the last entry is the plugin instance itself, which carries the
+     *
+     * Separate from the built list because the last entry is the plugin instance itself, which carries the
      * world load/unload persistence and the CraftEngine reload hook. An @EventHandler method only
      * fires for an instance that was passed to registerEvents, so the plugin has to be part of the
      * registered set rather than merely declaring the handlers. This was silently dropped once during the
@@ -171,7 +175,8 @@ final class ListenerRegistry {
     /**
      * Builds the remaining handlers apart from the bossbar renderer the plugin owns, in registration order.
      *
-     * <p>Same contract as buildInteractionHandlers(): construction is pure, so the order can be
+     *
+     * Same contract as buildInteractionHandlers(): construction is pure, so the order can be
      * asserted without a server, and registerVisualAndWorldHandlers installs and registers exactly
      * this list. Called after the tick and display managers exist, because the rope tracker and the chunk
      * loader are used by those code paths.
@@ -406,7 +411,8 @@ final class ListenerRegistry {
     /**
      * Detaches event delivery before any listener state is torn down, then stops the owned tasks.
      *
-     * <p>Unregistering first is what makes the rest of the shutdown order independent of vanilla event
+     *
+     * Unregistering first is what makes the rest of the shutdown order independent of vanilla event
      * timing: during onDisable, piston ticks, neighbour updates and scheduled chunk tasks keep firing, and
      * late-bound lambda metafactory calls from listener code would hit NoClassDefFoundError once the plugin
      * classloader starts draining.

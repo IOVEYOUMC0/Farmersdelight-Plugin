@@ -11,7 +11,8 @@ import java.util.function.LongSupplier;
  * (ResourceOperationCoordinator: one operation at a time, a second request is refused rather than
  * queued).
  *
- * <p>A full reload is not free: FarmersDelight's own pass is roughly 200 ms of server-thread work, its addons
+ *
+ * A full reload is not free: FarmersDelight's own pass is roughly 200 ms of server-thread work, its addons
  * rebuild on the following tick for roughly another 140 ms, and both land on the tick thread. Queueing a
  * second request would therefore stack two stalls back to back, so the later one is refused outright. The
  * cooldown covers the addon cascade, which runs after the command has already returned.
@@ -47,7 +48,8 @@ final class ReloadBusyGuard {
     /**
      * Remaining cooldown in whole seconds, or null when the guard is open.
      *
-     * <p>Split out from begin() so the rounding is testable on its own. Returns null while a
+     *
+     * Split out from begin() so the rounding is testable on its own. Returns null while a
      * reload is still in flight: its cooldown has not started yet.
      */
     static Integer remainingSeconds(long cooldownMillis, long elapsedMillis, boolean running) {

@@ -25,7 +25,8 @@ import java.util.Map;
  * Claims CraftEngine pack sections for one addon, so its own content can ship inside its pack instead of a
  * file in the plugin data folder.
  *
- * <p>CraftEngine reads every <pack>/configuration/**.yml (and the same path inside
+ *
+ * CraftEngine reads every <pack>/configuration/**.yml (and the same path inside
  * subpacks/&lt;name&gt;/), splits a file by root key and hands each root whose value is a mapping to the
  * parser registered for that key. Claim the keys your addon owns:
  *
@@ -40,12 +41,14 @@ import java.util.Map;
  * }
  * </pre>
  *
- * <p>The claimed id must be the file's root key, and it must not collide with a section CraftEngine or
+ *
+ * The claimed id must be the file's root key, and it must not collide with a section CraftEngine or
  * another plugin already owns; a collision is reported once and leaves this claim empty (the addon should
  * then fall back to whatever else it reads). Each claim gets its own LoadingStage: CraftEngine's
  * loading pyramid keys its tasks by stage, so sharing one would replace its owner's task.
  *
- * <p>Sections are published as immutable snapshots, and clearConfigs() - which CraftEngine calls at
+ *
+ * Sections are published as immutable snapshots, and clearConfigs() - which CraftEngine calls at
  * the end of every load pass - only drops the raw storage. Parsing runs on CraftEngine's loading thread, so
  * this class never touches CraftEngine or Bukkit registries; resolving item ids belongs in the reader, on the
  * main thread.

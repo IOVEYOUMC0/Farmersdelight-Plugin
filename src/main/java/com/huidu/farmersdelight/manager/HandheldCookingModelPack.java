@@ -115,7 +115,8 @@ final class HandheldCookingModelPack {
     /**
      * Candidate texture sources for an ingredient, most specific first.
      *
-     * <p>A custom item is a vanilla material carrying a model component, so its vanillaId is
+     *
+     * A custom item is a vanilla material carrying a model component, so its vanillaId is
      * only the material it was built on: a CraftEngine bacon is literally minecraft:dried_kelp.
      * The item model is the item's own identity and must therefore be tried before that material,
      * otherwise every custom food cooks with the texture of whatever base material it was built on.
