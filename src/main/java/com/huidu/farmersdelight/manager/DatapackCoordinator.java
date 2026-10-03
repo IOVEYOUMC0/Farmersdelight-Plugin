@@ -62,7 +62,9 @@ public final class DatapackCoordinator {
         }
         removalQueued = true;
         Path datapackRoot = primaryWorld.getWorldFolder().toPath().resolve("datapacks").resolve("advancements");
-        plugin.scheduler().runAsync(() -> {
+        // A refused task never runs, so its own cleanup would never fire either. Release the guard here and
+        // leave the removal to the next reason that asks for it, rather than wedging it for the session.
+        if (!plugin.scheduler().tryRunAsync(() -> {
             boolean removed = false;
             try {
                 removed = new AdvancementDatapackInstaller().remove(datapackRoot);
@@ -72,7 +74,10 @@ public final class DatapackCoordinator {
             if (removed) {
                 queueReload(reason);
             }
-        });
+        })) {
+            removalQueued = false;
+            I18n.logWarning("plugin.datapack_removal_deferred");
+        }
     }
 
     public synchronized void cancelPendingTasks() {

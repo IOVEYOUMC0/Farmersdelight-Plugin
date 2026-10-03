@@ -13,12 +13,14 @@ import org.bukkit.block.BlockFace;
  * The CraftEngine block plumbing FarmersDelight uses internally, published so addons do not each
  * rewrite it.
  *
- * <p>None of this is exotic — resolving a CE world, turning a block entity back into a Bukkit world,
+ *
+ * None of this is exotic — resolving a CE world, turning a block entity back into a Bukkit world,
  * reading a state's id or facing, marking a chunk dirty — but every copy of it in this plugin family
  * had drifted, and none of the copies carried the guards FD added after a production crash (see
  * getCEWorld). One owner, one set of guards.
  *
- * <p>All methods are null-tolerant and return null / false rather than throwing: the callers are
+ *
+ * All methods are null-tolerant and return null / false rather than throwing: the callers are
  * block behaviours and chunk listeners, where an exception aborts something much larger.
  */
 public final class CraftEngineBlockAccess {
@@ -30,7 +32,8 @@ public final class CraftEngineBlockAccess {
      * The CE storage world for a Bukkit world, or null when CraftEngine is not ready or the world's
      * data cannot be loaded.
      *
-     * <p>Do not call BukkitWorldManager.instance().getWorld(uuid).ceWorld() yourself. Before
+     *
+     * Do not call BukkitWorldManager.instance().getWorld(uuid).ceWorld() yourself. Before
      * CraftEngine binds its blocks, resolving a world deserializes saved chunk data against an unbound
      * registry; a block left over from an uninstalled pack then throws, and because chunk-load handlers
      * are a common caller it throws for every chunk. This applies the readiness gate, tolerates both CE

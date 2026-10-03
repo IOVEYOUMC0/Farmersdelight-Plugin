@@ -12,8 +12,10 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
@@ -77,7 +79,10 @@ public final class RecipeEditorListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onChat(AsyncChatEvent event) {
         UUID id = event.getPlayer().getUniqueId();
-        Consumer<String> prompt = CHAT_PROMPTS.remove(id);
+        // Read, do not remove: the prompt is consumed on the player's owning thread, and removing it here
+        // would let a chat message that never reaches the entity task (player retired mid-flight) silently
+        // eat the prompt while the queued task still has no idea it was taken.
+        Consumer<String> prompt = CHAT_PROMPTS.get(id);
         if (prompt == null) {
             return;
         }
@@ -86,8 +91,19 @@ public final class RecipeEditorListener implements Listener {
         FarmersDelightPlugin plugin = registeredPlugin;
         if (plugin != null) {
             // Folia has no global main thread; run on the player's region (the prompt reopens their GUI).
-            plugin.scheduler().runForEntity(event.getPlayer(), () -> prompt.accept(message));
+            plugin.scheduler().runForEntity(event.getPlayer(), () -> {
+                // remove(key, value) so a prompt queued after this one is not thrown away by the older input.
+                if (CHAT_PROMPTS.remove(id, prompt) && event.getPlayer().isOnline()) {
+                    prompt.accept(message);
+                }
+            });
         }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onOpen(InventoryOpenEvent event) {
+        // Opening anything means the player moved on; a queued chat prompt must not fire into that screen.
+        cancelPrompt(event.getPlayer().getUniqueId());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -144,9 +160,12 @@ public final class RecipeEditorListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onEditorViewDrop(PlayerDropItemEvent event) {
-        // The view keeps a fabricated template copy on the cursor: pressing Q drops that copy without going
-        // through InventoryClickEvent, so without this guard the template becomes a real item.
-        if (event.getPlayer().getOpenInventory().getTopInventory().getHolder() instanceof RecipeEditorView) {
+        // Every editor screen keeps a fabricated template copy on the cursor: pressing Q drops that copy
+        // without going through InventoryClickEvent, so without this guard the template becomes a real item.
+        InventoryHolder holder = event.getPlayer().getOpenInventory().getTopInventory().getHolder();
+        if (holder instanceof RecipeEditorView || holder instanceof CookingPotEditorGui
+                || holder instanceof CuttingBoardEditorGui || holder instanceof ChoiceBuilderGui
+                || holder instanceof TagPickerGui) {
             event.setCancelled(true);
             event.getPlayer().setItemOnCursor(null);
         }

@@ -49,11 +49,13 @@ import java.util.function.Consumer;
  * Cooking a skillet held in a player's hand: the per-player session, its tick task and the display
  * swap, split out of SkilletManager.
  *
- * <p>This block owns every piece of hand-held state, which is why it could move as one unit: the
+ *
+ * This block owns every piece of hand-held state, which is why it could move as one unit: the
  * placed-skillet side of SkilletManager never reads a session, and only three lifecycle hooks
  * (config reload, cleanup, tick-task suspension) reach in — those call the public methods below.
  *
- * <p>The display-model plumbing stays behind HandheldCookingModels and the recipe lookups
+ *
+ * The display-model plumbing stays behind HandheldCookingModels and the recipe lookups
  * behind the shared CampfireRecipeCache; this class only sequences them.
  */
 final class SkilletHandheldCooking {

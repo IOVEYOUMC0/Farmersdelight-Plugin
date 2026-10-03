@@ -17,17 +17,20 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * A keyed set of packet displays owned by one plugin, covering both item and text displays.
  *
- * <p>The raw api hands back a bare int handle and leaves the rest to the caller: storing the handle,
+ *
+ * The raw api hands back a bare int handle and leaves the rest to the caller: storing the handle,
  * replacing it when what is shown changes, destroying it on teardown, and declaring it live so the
  * /fd cleanup orphan sweep does not remove it. Every addon that shows something wrote that same
  * bookkeeping again, and the liveness half is easy to get subtly wrong -- a display nothing declares is
  * swept on every cleanup and rebuilt right after, so it appears to flicker back.
  *
- * <p>A group does that once. Handles are declared live for as long as the group holds them, so an addon
+ *
+ * A group does that once. Handles are declared live for as long as the group holds them, so an addon
  * using a group needs no FarmersDelightCollectLiveDisplaysEvent listener of its own. Item and text
  * displays share one handle space and one key space here, because they share one manager underneath.
  *
- * <p>Threading is unchanged: every call must run on the region that owns the location, exactly as with
+ *
+ * Threading is unchanged: every call must run on the region that owns the location, exactly as with
  * the raw api. Use FarmersDelightApi.get().runAtLocation(location, runnable) when off-region.
  */
 public final class DisplayGroup {
@@ -56,7 +59,8 @@ public final class DisplayGroup {
      * Shows an item at a location under the given key, replacing whatever that key showed before.
      * Returns the handle, or -1 when FarmersDelight is unavailable or the display could not be created.
      *
-     * <p>The key is the caller's own anchor -- a block position, a slot index, a record. Anything with
+     *
+     * The key is the caller's own anchor -- a block position, a slot index, a record. Anything with
      * sane equals and hashCode works.
      */
     public int showItem(Object key, Location location, ItemStack item,

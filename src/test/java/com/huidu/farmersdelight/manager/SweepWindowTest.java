@@ -10,7 +10,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Covers the rotating-sweep arithmetic used by the cooking-pot cleanup.
  *
- * <p>The important property is not the individual numbers but coverage: successive runs must visit every
+ *
+ * The important property is not the individual numbers but coverage: successive runs must visit every
  * tracked entry, and no entry may be skipped because the set shrank under a stale cursor. That was the risk
  * when the Paper cleanup gained a budget.
  */

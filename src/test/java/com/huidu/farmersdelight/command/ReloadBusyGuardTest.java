@@ -15,7 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Locks the reload busy-guard: one reload at a time, plus a short cooldown so a burst of commands cannot stack
  * the work of FD and its addons into consecutive ticks.
  *
- * <p>Refusals are collected as the remaining-seconds value the guard reports (null while a reload is
+ *
+ * Refusals are collected as the remaining-seconds value the guard reports (null while a reload is
  * still running), which is the part the player-visible message is built from.
  */
 class ReloadBusyGuardTest {

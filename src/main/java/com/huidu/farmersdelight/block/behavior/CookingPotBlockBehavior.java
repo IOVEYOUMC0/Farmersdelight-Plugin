@@ -84,18 +84,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
     // name every interval. Per-world-keyed (via DisplayStateKey) so two pots at the same x,y,z in different
     // worlds don't share state; the text is viewer-independent, so one cached string serves all viewers.
     private static final Map<DisplayStateKey, String> cookingRecipeNames = new ConcurrentHashMap<>();
-    // World-scoped (via DisplayStateKey) so a pot placed at some x,y,z does not suppress the first interaction
-    // with a different pot at the identical x,y,z in another world. BlockPosKey omits the world by design.
-    private static final Map<DisplayStateKey, Long> recentPlacements = new ConcurrentHashMap<>();
-
-    private static long placeInteractionCooldownMs() {
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-        return plugin == null
-                ? Constants.DEFAULT_COOKING_POT_PLACE_INTERACTION_COOLDOWN_MS
-                : Math.max(0, plugin.getConfigInt(
-                        Constants.DEFAULT_COOKING_POT_PLACE_INTERACTION_COOLDOWN_MS,
-                        "cooking-pot.place-interaction-cooldown-ms"));
-    }
 
     private record DisplayStateKey(UUID worldId, BlockPosKey pos) {
     }
@@ -469,7 +457,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         }
         worldProgressDisplays.clear();
         cookingRecipeNames.clear();
-        recentPlacements.clear();
     }
 
     public static void collectLiveDisplayIds(Set<Integer> out) {
@@ -478,33 +465,10 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         }
     }
 
-    public static void markRecentlyPlaced(Location location) {
-        if (location == null || location.getWorld() == null) {
-            return;
-        }
-        long now = System.currentTimeMillis();
-        // Also evict expired entries here: isRecentlyPlaced() only cleans up on query, so a pot that is placed
-        // but never interacted with would otherwise leak its entry until cleanup.
-        recentPlacements.entrySet().removeIf(entry -> now - entry.getValue() > placeInteractionCooldownMs());
-        recentPlacements.put(new DisplayStateKey(location.getWorld().getUID(), new BlockPosKey(location)), now);
-    }
-
-    private static boolean isRecentlyPlaced(World world, BlockPosKey posKey) {
-        if (world == null) {
-            return false;
-        }
-        DisplayStateKey key = stateKey(world, posKey);
-        Long placedAt = recentPlacements.get(key);
-        if (placedAt == null) {
-            return false;
-        }
-
-        long now = System.currentTimeMillis();
-        if (now - placedAt > placeInteractionCooldownMs()) {
-            recentPlacements.remove(key, placedAt);
-            return false;
-        }
-        return true;
+    /** Whether the held item is the pot block item, i.e. the click means "place a pot" rather than "open this one". */
+    private static boolean placesCookingPot(ItemStack heldItem) {
+        return heldItem != null && !heldItem.getType().isAir()
+                && Constants.BLOCK_COOKING_POT.equals(ItemUtils.getCustomItemId(heldItem));
     }
 
     public static void updateProgressDisplay(World world, BlockPosKey posKey, int progressPercent) {
@@ -873,6 +837,14 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
             return InteractionResult.PASS;
         }
 
+        // A pot in hand means this click is a placement, not a request to open this pot. CraftEngine asks the
+        // block before vanilla gets to place the item, so consuming the click here (the success results below
+        // all cancel it) would cancel the placement: without this, a pot could never be placed against another
+        // pot. Sneaking keeps the old "open anyway" gesture for operators who enable open-while-sneaking.
+        if (placesCookingPot(heldItem) && !bukkitPlayer.isSneaking()) {
+            return InteractionResult.PASS;
+        }
+
         if (!PermissionChecker.check(bukkitPlayer, config.permission())) {
             return InteractionResult.PASS;
         }
@@ -883,9 +855,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
             return InteractionResult.PASS;
         }
 
-        if (isRecentlyPlaced(bukkitPlayer.getWorld(), posKey)) {
-            return InteractionResult.PASS;
-        }
         Map<BlockPosKey, CookingPotBlockEntity> worldEntities = worldBlockEntities.computeIfAbsent(
                 world.getUID(), k -> new ConcurrentHashMap<>());
 

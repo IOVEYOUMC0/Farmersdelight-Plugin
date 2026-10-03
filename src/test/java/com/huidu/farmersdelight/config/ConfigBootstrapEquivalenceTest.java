@@ -81,7 +81,8 @@ class ConfigBootstrapEquivalenceTest {
             "handle",
             "cooking-pot.handle",
             "cooking-pot.display",
-            "cooking-pot.display.visibility-check-interval-ticks");
+            "cooking-pot.display.visibility-check-interval-ticks",
+            "cooking-pot.place-interaction-cooldown-ms");
 
     private static final List<String> LEGACY_REGISTRY_SECTIONS = List.of(
             "heat-sources",

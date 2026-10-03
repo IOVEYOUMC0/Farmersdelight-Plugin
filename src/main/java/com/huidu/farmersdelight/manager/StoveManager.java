@@ -866,10 +866,9 @@ public class StoveManager {
             }
         }
         AtomicInteger chunkBudget = nearbyViewers.isEmpty() ? null : fx.budget;
-        boolean canSpawnEffects = chunkBudget != null && chunkBudget.get() < chunkEffectBudgetLimit;
-        if (isLit && canSpawnEffects && fireParticlesEnabled && random.nextDouble() < fireParticleChance) {
+        if (isLit && fireParticlesEnabled && random.nextDouble() < fireParticleChance
+                && EffectPacketBudget.tryReserve(chunkBudget, chunkEffectBudgetLimit, 2)) { // SMOKE + FLAME
             spawnAmbientFireParticles(nearbyViewers, location, front, random);
-            chunkBudget.addAndGet(2); // SMOKE + FLAME = 2 packets
         }
         for (int i = 0; i < SLOT_COUNT; i++) {
             // Read the slot under the per-stove monitor: a concurrent interaction inserts into it under the
@@ -897,18 +896,17 @@ public class StoveManager {
                     finished = stove.cookingTime[i] >= stove.maxTime[i];
                 }
 
-                boolean canSpawnSlotEffects = canSpawnEffects && chunkBudget.get() < chunkEffectBudgetLimit;
-                if (canSpawnSlotEffects && smokeEnabled && random.nextDouble() < smokeChance) {
+                if (smokeEnabled && random.nextDouble() < smokeChance
+                        && EffectPacketBudget.tryReserve(chunkBudget, chunkEffectBudgetLimit, 1)) {
                     spawnCookingParticles(nearbyViewers, location, i, facing);
-                    chunkBudget.incrementAndGet();
                 }
-                if (canSpawnSlotEffects && crackleEnabled && random.nextDouble() < crackleChance) {
+                if (crackleEnabled && random.nextDouble() < crackleChance
+                        && EffectPacketBudget.tryReserve(chunkBudget, chunkEffectBudgetLimit, 1)) {
                     if (!crackleResolved) {
                         crackleSound = getCrackleSound(state);
                         crackleResolved = true;
                     }
                     SoundUtils.play(nearbyViewers, location, crackleSound, Sound.BLOCK_CAMPFIRE_CRACKLE, crackleVolume, cracklePitch);
-                    chunkBudget.incrementAndGet();
                 }
                 if (finished) {
                     int finishedSlot = i;

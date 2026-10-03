@@ -56,6 +56,7 @@ import com.huidu.farmersdelight.manager.SkilletManager;
 import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.manager.TrayManager;
+import com.huidu.farmersdelight.recipe.AdvancedTagGroups;
 import com.huidu.farmersdelight.recipe.CookingPotRecipeManager;
 import com.huidu.farmersdelight.recipe.RecipeDiscoveryManager;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipeManager;
@@ -108,6 +109,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.joml.Vector3f;
 import org.bstats.bukkit.Metrics;
 
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -118,6 +120,7 @@ import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -205,7 +208,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     /** The plugin jar on disk; JavaPlugin#getFile is protected, so collaborators need this accessor. */
-    java.io.File pluginJarFile() {
+    File pluginJarFile() {
         return getFile();
     }
 
@@ -343,6 +346,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     // FarmersDelight's bStats plugin id.
     private static final int BSTATS_PLUGIN_ID = 32571;
+    // Held so the disable sequence can stop bStats' own reporting task.
+    private Metrics metrics;
 
     // Required host platform; excluded from enchantment-conflict detection (it hooks the enchant event to manage
     // its own custom items and is always present, so it is not a competing enchantment system).
@@ -413,7 +418,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             // Skip the async hop entirely while the feature is off: there is nothing to flush, and the
             // flag can be turned on by a reload, so the task stays registered rather than being cancelled.
             if (manager != null && manager.isEnabled()) {
-                scheduler().runAsync(() -> {
+                // A refused task is not a lost flush: the state stays dirty and the next round retries.
+                scheduler().tryRunAsync(() -> {
                     RecipeDiscoveryManager current = recipeDiscoveryManager;
                     if (current != null && current.isEnabled()) {
                         current.save();
@@ -473,7 +479,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // copy stays private to this plugin instead of racing other plugins' copies for the shared name.
         if (BSTATS_PLUGIN_ID > 0) {
             try {
-                new Metrics(this, BSTATS_PLUGIN_ID);
+                metrics = new Metrics(this, BSTATS_PLUGIN_ID);
             } catch (Throwable t) {
                 I18n.logWarning("plugin.bstats_failed", "error", t.getMessage());
             }
@@ -515,6 +521,16 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // Order inside ListenerRegistry#stop: event delivery is detached before any listener state is torn
         // down, then the listeners' own tasks stop, then the world/chunk handlers detach.
         runDisableStep("plugin.disable_step_unregister_listeners", listeners::stop);
+
+        // bStats keeps a task of its own; its reports are useless once the plugin is going away, and
+        // shutting it down here is what stops it from holding a reference to a disabled plugin instance.
+        runDisableStep("plugin.disable_step_shutdown_metrics", () -> {
+            Metrics current = metrics;
+            metrics = null;
+            if (current != null) {
+                current.shutdown();
+            }
+        });
 
         runDisableStep("plugin.disable_step_stop_tick_manager", () -> {
             if (tickManager != null) {
@@ -1003,13 +1019,15 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     /**
      * Notifies addons that content changed, on the <em>next</em> tick rather than inside the command tick.
      *
-     * <p>Four addons listen to this and rebuild their own content synchronously, so calling it inline made
+     *
+     * Four addons listen to this and rebuild their own content synchronously, so calling it inline made
      * /fd reload all block the server for FarmersDelight's own work <em>plus</em> every addon's. The
      * event is a notification hook — nothing in FarmersDelight reads a result back from it — so moving it one
      * tick later keeps the observable behaviour ("the reload happened") while halving the worst-case stall of
      * a single tick. This is the same treatment reloadRecipeFiles already gave it.
      *
-     * <p>Uses runLater(..., 1) and not run(...): run executes immediately when it is
+     *
+     * Uses runLater(..., 1) and not run(...): run executes immediately when it is
      * already called from the primary thread, which is exactly the case here, so it would not defer at all.
      */
     public void notifyAddonsOfReload(String reason) {
@@ -1036,7 +1054,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
      * Minimum spacing between two accepted /fd reload runs, in milliseconds; 0 disables the spacing but
      * still refuses a reload while one is running.
      *
-     * <p>Read per call rather than cached so an edited config.yml takes effect without a reload of its own. The
+     *
+     * Read per call rather than cached so an edited config.yml takes effect without a reload of its own. The
      * default covers a full pass plus the addon cascade that follows it on the next tick.
      */
     public long reloadCooldownMillis() {
@@ -1044,16 +1063,16 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     /** Phase timings of the last reload, so the command can report them the way CraftEngine does. */
-    private final java.util.concurrent.atomic.AtomicLong reloadConfigNanos =
-            new java.util.concurrent.atomic.AtomicLong();
-    private final java.util.concurrent.atomic.AtomicLong reloadToolsNanos =
-            new java.util.concurrent.atomic.AtomicLong();
-    private final java.util.concurrent.atomic.AtomicLong reloadManagersNanos =
-            new java.util.concurrent.atomic.AtomicLong();
-    private final java.util.concurrent.atomic.AtomicLong reloadListenersNanos =
-            new java.util.concurrent.atomic.AtomicLong();
-    private final java.util.concurrent.atomic.AtomicLong reloadAddonsNanos =
-            new java.util.concurrent.atomic.AtomicLong();
+    private final AtomicLong reloadConfigNanos =
+            new AtomicLong();
+    private final AtomicLong reloadToolsNanos =
+            new AtomicLong();
+    private final AtomicLong reloadManagersNanos =
+            new AtomicLong();
+    private final AtomicLong reloadListenersNanos =
+            new AtomicLong();
+    private final AtomicLong reloadAddonsNanos =
+            new AtomicLong();
 
     private void resetReloadTimings() {
         reloadConfigNanos.set(0L);
@@ -1495,6 +1514,16 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     public List<PackSections.Section> packSectionsOf(PackSection section) {
         PackSections parser = packSections;
         return parser == null ? List.of() : parser.sectionsOf(section);
+    }
+
+    /**
+     * The advanced tag groups the packs declare, resolved into flat member lists, empty when the parser
+     * could not be registered. Recipe readers publish this snapshot before they parse any ingredient, so an
+     * advtag: reference resolves against the packs that are current rather than the previous load.
+     */
+    public AdvancedTagGroups advancedTagGroups() {
+        PackSections parser = packSections;
+        return parser == null ? AdvancedTagGroups.EMPTY : parser.advancedTagGroups();
     }
 
     public SchedulerAdapter scheduler() {

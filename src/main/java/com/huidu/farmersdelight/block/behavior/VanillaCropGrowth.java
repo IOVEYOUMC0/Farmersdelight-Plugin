@@ -5,7 +5,8 @@ package com.huidu.farmersdelight.block.behavior;
  * behaviour can run it without touching the world more than once per neighbour and so the
  * numbers stay verifiable by a unit test.
  *
- * <p>Growth speed starts at 1, adds the 3x3 block area below the crop (the centre counts fully,
+ *
+ * Growth speed starts at 1, adds the 3x3 block area below the crop (the centre counts fully,
  * the eight surrounding positions at a quarter each; a moist farmland contributes 3, any other
  * crop-supporting block 1) and is halved when the crop stands in a row or diagonal of the same
  * crop. The per-random-tick chance is 1 / (floor(25 / speed) + 1).

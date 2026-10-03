@@ -9,6 +9,7 @@ import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.plugin.config.lifecycle.LoadingStage;
 import net.momirealms.craftengine.core.plugin.config.lifecycle.LoadingStages;
 import net.momirealms.craftengine.core.util.Key;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -25,7 +26,8 @@ import java.util.Map;
  * Claims CraftEngine pack sections for one addon, so its own content can ship inside its pack instead of a
  * file in the plugin data folder.
  *
- * <p>CraftEngine reads every <pack>/configuration/**.yml (and the same path inside
+ *
+ * CraftEngine reads every <pack>/configuration/**.yml (and the same path inside
  * subpacks/&lt;name&gt;/), splits a file by root key and hands each root whose value is a mapping to the
  * parser registered for that key. Claim the keys your addon owns:
  *
@@ -40,12 +42,14 @@ import java.util.Map;
  * }
  * </pre>
  *
- * <p>The claimed id must be the file's root key, and it must not collide with a section CraftEngine or
+ *
+ * The claimed id must be the file's root key, and it must not collide with a section CraftEngine or
  * another plugin already owns; a collision is reported once and leaves this claim empty (the addon should
  * then fall back to whatever else it reads). Each claim gets its own LoadingStage: CraftEngine's
  * loading pyramid keys its tasks by stage, so sharing one would replace its owner's task.
  *
- * <p>Sections are published as immutable snapshots, and clearConfigs() - which CraftEngine calls at
+ *
+ * Sections are published as immutable snapshots, and clearConfigs() - which CraftEngine calls at
  * the end of every load pass - only drops the raw storage. Parsing runs on CraftEngine's loading thread, so
  * this class never touches CraftEngine or Bukkit registries; resolving item ids belongs in the reader, on the
  * main thread.
@@ -63,7 +67,7 @@ public final class AddonPackSections extends AbstractConfigParser {
      * @param section entry body
      * @param source  pack file or plugin file the entry came from
      */
-    public record Entry(String id, org.bukkit.configuration.ConfigurationSection section, String source) {
+    public record Entry(String id, ConfigurationSection section, String source) {
     }
 
     /**
@@ -82,12 +86,12 @@ public final class AddonPackSections extends AbstractConfigParser {
         Map<String, Entry> merged = new LinkedHashMap<>();
         if (claim != null) {
             for (Section section : claim.sections(sectionId)) {
-                org.bukkit.configuration.ConfigurationSection root = section.config().getConfigurationSection(rootKey);
+                ConfigurationSection root = section.config().getConfigurationSection(rootKey);
                 if (root == null) {
                     continue;
                 }
                 for (String id : root.getKeys(false)) {
-                    org.bukkit.configuration.ConfigurationSection body = root.getConfigurationSection(id);
+                    ConfigurationSection body = root.getConfigurationSection(id);
                     if (body != null) {
                         merged.put(id, new Entry(id, body, section.source()));
                     }
@@ -96,10 +100,10 @@ public final class AddonPackSections extends AbstractConfigParser {
         }
         if (overrideFile != null && overrideFile.isFile()) {
             YamlConfiguration file = YamlConfiguration.loadConfiguration(overrideFile);
-            org.bukkit.configuration.ConfigurationSection root = file.getConfigurationSection(rootKey);
+            ConfigurationSection root = file.getConfigurationSection(rootKey);
             if (root != null) {
                 for (String id : root.getKeys(false)) {
-                    org.bukkit.configuration.ConfigurationSection body = root.getConfigurationSection(id);
+                    ConfigurationSection body = root.getConfigurationSection(id);
                     if (body != null) {
                         merged.put(id, new Entry(id, body, overrideFile.getName()));
                     }

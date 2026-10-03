@@ -20,13 +20,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Guards the UAA unregister contract.
  *
- * <p>UltimateAdvancementAPI.unregisterAdvancementTab(name) defaults to deleteClient=true,
+ *
+ * UltimateAdvancementAPI.unregisterAdvancementTab(name) defaults to deleteClient=true,
  * which sends a client-side removal packet and drops the tab from every online player. Rebuilding a tab
  * (reload, addon repack, half-built cleanup) must pass false: UAA marks the client tree as reset on a
  * datapack reload and re-sends the tree of every tab it still considers shown, so the remove packet is what
  * makes the tab vanish until the player re-earns an advancement.
  *
- * <p>Only a real teardown (plugin disable) may delete the client-side tree, and the test pins exactly which
+ *
+ * Only a real teardown (plugin disable) may delete the client-side tree, and the test pins exactly which
  * call site that is so a new rebuild path cannot silently regress.
  */
 class AdvancementUnregisterContractTest {

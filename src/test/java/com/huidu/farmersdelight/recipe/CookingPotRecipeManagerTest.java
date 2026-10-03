@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.recipe;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -32,7 +33,7 @@ class CookingPotRecipeManagerTest {
     // form matches and the comparison ignores case, while bowls/bottles/buckets stay usable.
     @Test
     void toolRemaindersAreNeverUsedAsAContainer() {
-        var excluded = java.util.Set.of("minecraft:stick", "minecraft:bone");
+        var excluded = Set.of("minecraft:stick", "minecraft:bone");
 
         assertTrue(CookingPotRecipeManager.isExcludedRemainder(excluded, null, "minecraft:stick"));
         assertTrue(CookingPotRecipeManager.isExcludedRemainder(excluded, "corndelight:corn_dog", "minecraft:stick"));
@@ -40,7 +41,7 @@ class CookingPotRecipeManagerTest {
 
         assertFalse(CookingPotRecipeManager.isExcludedRemainder(excluded, null, "minecraft:bowl"));
         assertFalse(CookingPotRecipeManager.isExcludedRemainder(excluded, "farmersdelight:milk_bottle", "minecraft:honey_bottle"));
-        assertFalse(CookingPotRecipeManager.isExcludedRemainder(java.util.Set.of(), null, "minecraft:stick"));
+        assertFalse(CookingPotRecipeManager.isExcludedRemainder(Set.of(), null, "minecraft:stick"));
         assertFalse(CookingPotRecipeManager.isExcludedRemainder(excluded, null, null));
     }
 }

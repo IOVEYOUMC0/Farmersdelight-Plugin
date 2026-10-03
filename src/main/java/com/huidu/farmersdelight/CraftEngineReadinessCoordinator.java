@@ -41,7 +41,8 @@ final class CraftEngineReadinessCoordinator {
     /**
      * Attempts allowed, covering about 20 seconds (20+20+40+40+60+60+80+80 ticks).
      *
-     * <p>CraftEngine fires the reload event one tick after its own enable completes
+     *
+     * CraftEngine fires the reload event one tick after its own enable completes
      * (CraftEngine.callReloadEvent() is scheduled right after isEnabling is cleared) while its
      * pack contents finish loading asynchronously afterwards. Waiting a fixed handful of ticks therefore
      * probes readiness before any custom item exists, and without a re-check the warm-up and the content
@@ -125,14 +126,16 @@ final class CraftEngineReadinessCoordinator {
     /**
      * Runs the readiness-gated start-up work, or defers it until CraftEngine has content.
      *
-     * <p>FarmersDelight normally enables before CraftEngine has finished loading its packs, so every
+     *
+     * FarmersDelight normally enables before CraftEngine has finished loading its packs, so every
      * readiness-gated call made from onEnable is a no-op there. The CraftEngine reload event is the
      * intended follow-up pass, but it is not something the start-up path can require: CraftEngine fires it
      * from a delayed task rather than after its packs finish, and a listener that never reaches this
      * coordinator would otherwise leave the recipe managers empty until an explicit /fd reload.
      * Scheduling the retry here makes the warm-up independent of that event.
      *
-     * <p>Safe to call after the work already ran: runStartupReadinessWork() reports the summary
+     *
+     * Safe to call after the work already ran: runStartupReadinessWork() reports the summary
      * rather than accumulating it. Unlike the reload event, this pass is not a config reload, so it leaves
      * the language files and the config-backed caches alone.
      */
@@ -218,7 +221,8 @@ final class CraftEngineReadinessCoordinator {
     /**
      * Re-checks readiness on a widening delay, then runs the pending readiness work once it is true.
      *
-     * <p>Used when CraftEngine's reload event arrives before its pack contents finished loading; see
+     *
+     * Used when CraftEngine's reload event arrives before its pack contents finished loading; see
      * READINESS_RETRY_ATTEMPTS. Gives up with a visible line rather than retrying forever, so a
      * CraftEngine that never finishes loading does not leave a task spinning behind it.
      */
@@ -325,7 +329,8 @@ final class CraftEngineReadinessCoordinator {
      * Rebuilds the resolved ingredient-option caches after a change that invalidated them (common-tag
      * membership) so the next player to open the recipe book does not pay for the whole resolution.
      *
-     * <p>Warming is normally part of warmUp(String), which only runs once per enable; this is the
+     *
+     * Warming is normally part of warmUp(String), which only runs once per enable; this is the
      * targeted entry point for a tag change at runtime.
      */
     void rewarmRecipeIngredientIcons() {

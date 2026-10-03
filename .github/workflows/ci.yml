@@ -18,7 +18,7 @@ jobs:
       - name: Checkout the wiki (api documentation)
         uses: actions/checkout@v4
         with:
-          repository: IOVEUMC0/FarmersdelightPluginWiKi
+          repository: IOVEYOUMC0/FarmersdelightPluginWiKi
           path: wiki
 
       - name: Set up JDK 21

@@ -11,7 +11,8 @@ import org.bukkit.inventory.ItemStack;
 /**
  * Matches when the item the loot is evaluated with is one of the configured knives.
  *
- * <p>Delegates to FarmersDelightPlugin#isKnife(ItemStack) so a pack rule recognizes exactly the
+ *
+ * Delegates to FarmersDelightPlugin#isKnife(ItemStack) so a pack rule recognizes exactly the
  * same items as the cutting board, the skillet and the mushroom colony: the configured item list, the
  * configured tag list and any CraftEngine tag an item declares itself.
  */

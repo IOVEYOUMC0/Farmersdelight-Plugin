@@ -45,6 +45,9 @@ public class TickManager {
     private final Map<ActiveBlock, Long> heatSourceLastCheckTicks = new ConcurrentHashMap<>();
     private static final int HEAT_SOURCE_CHECK_INTERVAL_TICKS = 10;
     private final Set<ActiveBlock> scheduledActiveBlocks = ConcurrentHashMap.newKeySet();
+    // Which activation each tracked block is currently on; see ActivationGenerations for why membership alone
+    // is not enough to decide whether an already-submitted work pass may still run.
+    private final ActivationGenerations<ActiveBlock> activeGenerations = new ActivationGenerations<>();
     private volatile List<ActiveBlock> activeBlockSnapshot = List.of();
     private volatile int activeCookingPotCount;
     private boolean activeBlockLimitWarningShown;
@@ -115,6 +118,7 @@ public class TickManager {
         }
         
         activeBlocks.clear();
+        activeGenerations.clear();
         activeBlockSnapshot = List.of();
         activeCookingPotCount = 0;
         pendingChanges.clear();
@@ -175,7 +179,8 @@ public class TickManager {
     /**
      * Bounded sweep of the tracked cooking pots for the single-threaded (Paper) path.
      *
-     * <p>Every entry costs a chunk-residency check plus a CraftEngine block-state read, so sweeping the whole
+     *
+     * Every entry costs a chunk-residency check plus a CraftEngine block-state read, so sweeping the whole
      * tracked set in one pass put "worlds x tracked pots" of work on the main thread in a single tick — the
      * same spike the Folia path already avoids by dispatching a bounded batch. Below the budget the sweep is
      * the whole set, as before. Above it, a snapshot is rotated through so that every entry is still reached
@@ -303,7 +308,8 @@ public class TickManager {
     /**
      * Queues removal of every tracked block in one unloading chunk.
      *
-     * <p>The chunk-unload cleanup drops the block entities and CraftEngine's per-chunk index, but nothing
+     *
+     * The chunk-unload cleanup drops the block entities and CraftEngine's per-chunk index, but nothing
      * told this manager, so the entries stayed in activeBlocks plus its three per-block maps. That is
      * the same defect cleanupWorld(UUID) documents one level up: the tick loop's chunk guard
      * (!world.isChunkLoaded) returns early, so nothing ever unregistered them, and the entries
@@ -312,7 +318,8 @@ public class TickManager {
      * markActive when the entity is (re)hydrated, and the controller's cached-chunk path
      * (getChunkAtIfLoaded) marks active without waiting for loadCustomData.
      *
-     * <p>Only the tick bookkeeping is dropped; the cooked progress lives in the block entity, which the
+     *
+     * Only the tick bookkeeping is dropped; the cooked progress lives in the block entity, which the
      * chunk-unload save pass has already snapshotted into the controller.
      */
     public void markInactiveInChunk(World world, int chunkX, int chunkZ) {
@@ -377,6 +384,9 @@ public class TickManager {
                 if (change.add()) {
                     if (activeBlocks.add(change.block())) {
                         changed = true;
+                        // A fresh activation gets a fresh generation, so a pass submitted for the previous
+                        // one stops being current the moment it is superseded.
+                        activeGenerations.activate(change.block());
                         if (change.block().type() == BlockType.COOKING_POT) {
                             activeCookingPotCount++;
                         }
@@ -389,6 +399,7 @@ public class TickManager {
                             activeCookingPotCount--;
                         }
                     }
+                    activeGenerations.deactivate(change.block());
                     lastProcessedTicks.remove(change.block());
                     progressDisplayLastUpdateTicks.remove(change.block());
                     heatSourceLastCheckTicks.remove(change.block());
@@ -512,6 +523,11 @@ public class TickManager {
         if (world == null) return;
 
         if (folia) {
+            Long generation = activeGenerations.current(activeBlock);
+            if (generation == null) {
+                // Deactivated between the snapshot being taken and this pass reaching it.
+                return;
+            }
             if (!scheduledActiveBlocks.add(activeBlock)) {
                 return;
             }
@@ -520,7 +536,7 @@ public class TickManager {
             try {
                 plugin.scheduler().runAt(world, chunkX, chunkZ, () -> {
                     try {
-                        processActiveBlockInRegion(activeBlock, world, getCurrentTick(), true);
+                        processActiveBlockInRegion(activeBlock, world, getCurrentTick(), generation);
                     } finally {
                         scheduledActiveBlocks.remove(activeBlock);
                     }
@@ -531,12 +547,18 @@ public class TickManager {
         return;
         }
 
-        processActiveBlockInRegion(activeBlock, world, currentTick, false);
+        processActiveBlockInRegion(activeBlock, world, currentTick, null);
     }
 
-    private void processActiveBlockInRegion(ActiveBlock activeBlock, World world,
-                                            long currentTick, boolean verifyMembership) {
-        if (!running || (verifyMembership && !activeBlocks.contains(activeBlock))) {
+    /**
+     * Work pass for one tracked block.
+     *
+     * @param generation the activation this pass belongs to, or null when the caller already ran on
+     *                   the tick thread with a snapshot taken in the same pass (nothing can have superseded it)
+     */
+    private void processActiveBlockInRegion(ActiveBlock activeBlock, World world, long currentTick,
+                                            Long generation) {
+        if (!running || (generation != null && !activeGenerations.isCurrent(activeBlock, generation))) {
             return;
         }
 

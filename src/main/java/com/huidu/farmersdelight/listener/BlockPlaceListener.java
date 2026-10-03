@@ -180,7 +180,6 @@ public class BlockPlaceListener implements Listener {
         AdvancementManager am = plugin.getAdvancementManager();
 
         if (isCookingPotPlacement(blockLocation)) {
-            CookingPotBlockBehavior.markRecentlyPlaced(blockLocation);
             CookingPotBlockEntity entity = CookingPotBlockBehavior.getOrCreateBlockEntity(blockLocation);
             restoreCookingPotDataFromPlacedItem(entity, blockLocation.getWorld(), placedItem);
             if (plugin.getTrayManager() != null) {

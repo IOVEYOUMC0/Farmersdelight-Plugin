@@ -183,8 +183,8 @@ class CookingPotEffectManager {
         }
 
         EffectSpec bubble = bubbleEffect;
-        if (bubble.enabled() && random.nextFloat() < bubble.chance() && chunkBudget.get() < cookingPotChunkEffectBudgetLimit) {
-            chunkBudget.incrementAndGet();
+        if (bubble.enabled() && random.nextFloat() < bubble.chance()
+                && EffectPacketBudget.tryReserve(chunkBudget, cookingPotChunkEffectBudgetLimit, 1)) {
             double x = center.getX() + (random.nextDouble() * 0.6D - 0.3D);
             double y = center.getY() + bubble.yOffset();
             double z = center.getZ() + (random.nextDouble() * 0.6D - 0.3D);
@@ -200,8 +200,8 @@ class CookingPotEffectManager {
         }
 
         EffectSpec steam = steamEffect;
-        if (steam.enabled() && random.nextFloat() < steam.chance() && chunkBudget.get() < cookingPotChunkEffectBudgetLimit) {
-            chunkBudget.incrementAndGet();
+        if (steam.enabled() && random.nextFloat() < steam.chance()
+                && EffectPacketBudget.tryReserve(chunkBudget, cookingPotChunkEffectBudgetLimit, 1)) {
             double x = center.getX() + (random.nextDouble() * 0.4D - 0.2D);
             double y = center.getY() + steam.yOffset();
             double z = center.getZ() + (random.nextDouble() * 0.4D - 0.2D);
@@ -216,8 +216,8 @@ class CookingPotEffectManager {
             );
 
             EffectSpec secondary = secondarySteamEffect;
-            if (secondary.enabled() && chunkBudget.get() < cookingPotChunkEffectBudgetLimit) {
-                chunkBudget.incrementAndGet();
+            if (secondary.enabled()
+                    && EffectPacketBudget.tryReserve(chunkBudget, cookingPotChunkEffectBudgetLimit, 1)) {
                 ManagerSupport.spawnParticleFor(
                         nearbyViewers, secondary.particle(),
                         x,
@@ -233,8 +233,8 @@ class CookingPotEffectManager {
         }
 
         float soundChance = soundFloat(behavior, CookingPotBlockBehavior::getSoundChance, 0.10f);
-        if (random.nextFloat() < soundChance && chunkBudget.get() < cookingPotChunkEffectBudgetLimit) {
-            chunkBudget.incrementAndGet();
+        if (random.nextFloat() < soundChance
+                && EffectPacketBudget.tryReserve(chunkBudget, cookingPotChunkEffectBudgetLimit, 1)) {
             boolean soupReady = entity.hasPendingOutput() || entity.hasMealDisplayItem();
             String configuredSound;
             if (soupReady) {

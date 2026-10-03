@@ -105,6 +105,10 @@ public class CookingPotRecipeManager {
     }
 
     public void loadRecipes() {
+        // Recompile the packs' advanced tag groups up front: recipe parsing resolves an advtag: ingredient
+        // against this snapshot, and every load path (startup, /fd reload, external republish) runs through
+        // here, so a recipe can never be read against the groups of an earlier load.
+        RecipeParsingSupport.setAdvancedTagGroups(plugin.advancedTagGroups());
         // Build everything into fresh local collections first, then publish atomically (below), so readers
         // never see a half-cleared map. Do not clear()/refill the live fields in place.
         Map<String, CookingPotRecipe> newRecipes = new LinkedHashMap<>();

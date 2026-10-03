@@ -9,7 +9,8 @@ import java.util.UUID;
  * the format is written once: it used to be spelled out in each manager and copied verbatim into the addon
  * template, where changing one copy would silently split a registry in two.
  *
- * <p>The value is only ever an in-memory map key, never persisted, so the format is not a stored contract.
+ *
+ * The value is only ever an in-memory map key, never persisted, so the format is not a stored contract.
  */
 public final class WorldBlockKey {
 

@@ -161,7 +161,8 @@ public final class FarmersDelightApi {
      * are merged across sources, so multiple addons may contribute to the same tag. Call this at addon
      * enable with a mapping read from the addon's own config, and unregister on disable / reload.
      *
-     * <p>Members in the minecraft: namespace are also exported as a server-side tag data pack.
+     *
+     * Members in the minecraft: namespace are also exported as a server-side tag data pack.
      * That export runs again once the whole server has loaded, so registering during addon enable is in
      * time; CraftEngine absorbs the written tags on the next server start. Members in other namespaces
      * take effect immediately through FD's own matching and need no restart.
