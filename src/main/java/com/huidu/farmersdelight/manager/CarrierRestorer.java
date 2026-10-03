@@ -3,7 +3,9 @@ package com.huidu.farmersdelight.manager;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
+import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
+import org.bukkit.ChunkSnapshot;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -17,9 +19,7 @@ import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -66,20 +66,30 @@ public final class CarrierRestorer {
     private static final int DEFAULT_SCAN_COLUMN_HEIGHT = 96;
 
     private final FarmersDelightPlugin plugin;
-    /** world -> chunkKey -> (packed position -> display entity). */
+    /** world -> chunkKey -> (packed position -> display entity). Guarded by {@link #stateLock}. */
     private final Map<UUID, Map<Long, Map<Long, Entity>>> tracked = new HashMap<>();
-    /** world -> chunk keys already scanned this session. */
+    /** world -> chunk keys already scanned this session. Guarded by {@link #stateLock}. */
     private final Map<UUID, Set<Long>> scanned = new HashMap<>();
-    /** Chunks still to scan; filled at startup and by chunk load, drained by the maintenance task. */
-    private final Deque<Chunk> pending = new ArrayDeque<>();
+    /** Chunks still to scan, keyed by world and coordinates; drained by the maintenance task. */
+    private final PendingChunkScanQueue<ChunkTarget> pending = new PendingChunkScanQueue<>();
+    /**
+     * Guards the tracking maps and the counters below.
+     *
+     * <p>World events arrive on the region thread that owns the affected chunk, while the maintenance task
+     * and the enable/disable path run on the global thread, so every read and write of this state goes
+     * through one lock. Nothing is dispatched and no entity is created while it is held: callers take what
+     * they need under it and act outside it.
+     */
+    private final Object stateLock = new Object();
 
     private int liveCount;
-    private int entitiesPerTick;
-    private int verifyPerTick;
-    private int scanChunksPerTick;
-    private int scanColumnHeight;
-    private int maxEntities = DEFAULT_MAX_ENTITIES;
-    private long verifyCursor;
+    // Written by reload() on the global thread and read by region threads, so these stay volatile.
+    private volatile int entitiesPerTick;
+    private volatile int verifyPerTick;
+    private volatile int scanChunksPerTick;
+    private volatile int scanColumnHeight;
+    private volatile int maxEntities = DEFAULT_MAX_ENTITIES;
+    private int verifyCursor;
     private int createdThisTick;
 
     public CarrierRestorer(FarmersDelightPlugin plugin) {
@@ -106,11 +116,17 @@ public final class CarrierRestorer {
 
     /** Display entities this class currently keeps alive; exposed for diagnostics and tests. */
     public int liveDisplays() {
-        return liveCount;
+        synchronized (stateLock) {
+            return liveCount;
+        }
     }
 
     /**
      * Registers one block, creating or dropping its display as the block data requires.
+     *
+     * <p>Region-bound: it reads the block and may spawn a display entity, so it must run on the thread that
+     * owns the block's chunk. A neighbour handed over from a block event across a chunk border is left to
+     * the region that owns it.
      *
      * <p>Called for every placed or state-changed block of a carrier material, which is the only way a
      * real vanilla block appears once a chunk is already resident.
@@ -123,6 +139,9 @@ public final class CarrierRestorer {
         if (world == null) {
             return;
         }
+        if (plugin.scheduler().isFolia() && !Bukkit.isOwnedByCurrentRegion(block)) {
+            return;
+        }
         // Physics events reach this with every neighbour of every moved block, so the material test runs
         // first: only the two carriers can be hijacked, and it avoids copying block data for the rest.
         Material material = block.getType();
@@ -133,15 +152,11 @@ public final class CarrierRestorer {
         int y = block.getY();
         int z = block.getZ();
         long position = key(x, y, z);
-        // With the feature off no display is ever created, so the tracked maps are not even touched: a
-        // crimson forest would otherwise allocate an entry per fence block for nothing.
+        UUID worldId = world.getUID();
+        // With the feature off no display is ever created, so the tracked maps are only consulted for a
+        // block that already has one.
         if (!enabled()) {
-            Map<Long, Entity> disabled = tracked.containsKey(world.getUID())
-                    ? chunkMap(world, x >> 4, z >> 4)
-                    : null;
-            if (disabled != null && disabled.containsKey(position)) {
-                drop(disabled, position, disabled.get(position));
-            }
+            dropAt(worldId, x >> 4, z >> 4, position);
             return;
         }
         // Before CraftEngine has bound its blocks, every custom block still reads as a plain vanilla one,
@@ -150,50 +165,86 @@ public final class CarrierRestorer {
         if (!ItemUtils.isAnyCustomItemLoaded()) {
             return;
         }
-        boolean wanted = isHijacked(block.getBlockData()) && !isCustomBlock(block);
-        if (!wanted) {
-            Map<Long, Entity> existingChunk = tracked.containsKey(world.getUID())
-                    ? chunkMap(world, x >> 4, z >> 4)
-                    : null;
-            if (existingChunk != null && existingChunk.containsKey(position)) {
-                drop(existingChunk, position, existingChunk.get(position));
-            }
+        BlockData data = block.getBlockData();
+        if (!isHijacked(data) || isCustomBlock(block)) {
+            dropAt(worldId, x >> 4, z >> 4, position);
             return;
         }
-        Map<Long, Entity> inChunk = chunkMap(world, x >> 4, z >> 4);
-        Entity existing = inChunk.get(position);
-        if (existing != null) {
-            if (existing.isValid()) {
+        Map<Long, Entity> inChunk;
+        synchronized (stateLock) {
+            inChunk = chunkMap(world, x >> 4, z >> 4);
+            Entity existing = inChunk.get(position);
+            if (existing != null) {
+                if (existing.isValid()) {
+                    return;
+                }
+                // The chunk-unload sweep, a /fd cleanup or an external plugin removed it; rebuild below and
+                // hand its place in the live count back, or the entity budget would drift upward.
+                inChunk.remove(position);
+                liveCount = Math.max(0, liveCount - 1);
+            }
+            if (liveCount >= maxEntities || createdThisTick >= entitiesPerTick) {
                 return;
             }
-            // The chunk-unload sweep, a /fd cleanup or an external plugin removed it; rebuild below.
-            inChunk.remove(position);
-        }
-        if (liveCount >= maxEntities || createdThisTick >= entitiesPerTick) {
-            return;
-        }
-        Entity created = create(world, x, y, z, block.getBlockData());
-        if (created != null) {
-            inChunk.put(position, created);
+            // Reserve the slot before creating, so the budget cannot be read stale by a second pass.
             liveCount++;
             createdThisTick++;
         }
+        Entity created = create(world, x, y, z, data);
+        boolean kept = false;
+        if (created != null) {
+            synchronized (stateLock) {
+                // The chunk may have been dropped while the entity was being created; an untracked display
+                // would never be cleaned up, so it is removed instead of being recorded.
+                if (chunkAt(worldId, x >> 4, z >> 4) == inChunk) {
+                    inChunk.put(position, created);
+                    kept = true;
+                }
+            }
+        }
+        if (!kept) {
+            synchronized (stateLock) {
+                liveCount = Math.max(0, liveCount - 1);
+                createdThisTick = Math.max(0, createdThisTick - 1);
+            }
+            removeDisplay(created);
+        }
     }
 
-    /** Drops the display at a position when its block changed or disappeared. */
+    /**
+     * Registers one block, handing the call to the region that owns it when this thread does not: a block
+     * event reaches its neighbours across chunk borders, and a neighbour can belong to another region.
+     */
+    public void updateAcrossRegions(Block block) {
+        if (block == null) {
+            return;
+        }
+        World world = block.getWorld();
+        if (world == null) {
+            return;
+        }
+        if (!plugin.scheduler().isFolia() || Bukkit.isOwnedByCurrentRegion(block)) {
+            update(block);
+            return;
+        }
+        // Only the wrapper's coordinates are read here; the block itself is touched inside the region task.
+        plugin.scheduler().runAt(world, block.getX() >> 4, block.getZ() >> 4, () -> update(block));
+    }
+
+    /**
+     * Drops the display at a position when its block changed or disappeared. Region-bound for the same
+     * reason as {@link #update(Block)}: the display it removes is an entity in that chunk.
+     */
     public void forget(Block block) {
         if (block == null || block.getWorld() == null) {
             return;
         }
-        World world = block.getWorld();
-        Map<Long, Map<Long, Entity>> chunks = tracked.get(world.getUID());
-        Map<Long, Entity> inChunk = chunks == null
-                ? null
-                : chunks.get(chunkKey(block.getX() >> 4, block.getZ() >> 4));
-        if (inChunk != null) {
-            long position = key(block.getX(), block.getY(), block.getZ());
-            drop(inChunk, position, inChunk.get(position));
+        if (plugin.scheduler().isFolia() && !Bukkit.isOwnedByCurrentRegion(block)) {
+            return;
         }
+        World world = block.getWorld();
+        dropAt(world.getUID(), block.getX() >> 4, block.getZ() >> 4,
+                key(block.getX(), block.getY(), block.getZ()));
     }
 
     /**
@@ -201,35 +252,60 @@ public final class CarrierRestorer {
      * the world's minimum build height: that is where fences and gates in the borrowed states occur, and
      * a full column scan is far more expensive.
      *
+     * <p>The positions are read from one snapshot of the chunk's block storage instead of a world lookup
+     * per position: the copy costs one allocation for the whole chunk, while every world lookup allocates
+     * a block and resolves the position through the chunk system again.
+     *
+     * <p>Region-bound: it reads the chunk and calls {@link #update(Block)}, which may spawn a display. Its
+     * only caller is the region task the maintenance pass dispatches, and that task has already checked that
+     * the chunk is loaded.
+     *
      * <p>Each chunk is scanned once between loads; the events that create or change a carrier block keep
      * the result current afterwards, so a repeat scan buys nothing.
      */
-    public void scanChunk(Chunk chunk, boolean force) {
-        if (chunk == null) {
+    public void scanChunk(World world, int chunkX, int chunkZ) {
+        if (world == null || !enabled()) {
             return;
         }
-        World world = chunk.getWorld();
-        long position = chunkKey(chunk.getX(), chunk.getZ());
-        if (!force && !scanned.computeIfAbsent(world.getUID(), key -> new HashSet<>()).add(position)) {
-            return;
+        long position = chunkKey(chunkX, chunkZ);
+        synchronized (stateLock) {
+            if (!scanned.computeIfAbsent(world.getUID(), key -> new HashSet<>()).add(position)) {
+                return;
+            }
         }
-        if (!enabled()) {
-            return;
-        }
-        int minX = chunk.getX() << 4;
-        int minZ = chunk.getZ() << 4;
         int minY = world.getMinHeight();
-        int maxY = Math.min(world.getMaxHeight(), minY + scanColumnHeight);
-        for (int y = minY; y < maxY; y++) {
-            for (int x = minX; x < minX + 16; x++) {
-                for (int z = minZ; z < minZ + 16; z++) {
-                    if (liveCount >= maxEntities) {
-                        return;
-                    }
-                    Block block = world.getBlockAt(x, y, z);
-                    Material type = block.getType();
+        int yLength = scanYLength(scanColumnHeight, minY, world.getMaxHeight());
+        if (yLength <= 0) {
+            return;
+        }
+        ChunkSnapshot snapshot;
+        try {
+            snapshot = world.getChunkAt(chunkX, chunkZ).getChunkSnapshot(false, false, false, false);
+        } catch (RuntimeException failure) {
+            // Leave the chunk unmarked so its next load queues it again. Letting this escape would cancel
+            // the maintenance task that drives every scan, which is worse than one unscanned chunk.
+            unmarkScanned(world, position);
+            return;
+        }
+        int baseX = chunkX << 4;
+        int baseZ = chunkZ << 4;
+        for (int yOffset = 0; yOffset < yLength; yOffset++) {
+            // The budget is checked once per section rather than per position: update() enforces it again
+            // for every block it would create a display for, so this only ends the walk early.
+            if (isBudgetExhausted()) {
+                return;
+            }
+            int y = minY + yOffset;
+            // A section that holds only air holds neither carrier material, so skipping it cannot change
+            // which blocks this scan reports.
+            if (snapshot.isSectionEmpty(yOffset >> 4)) {
+                continue;
+            }
+            for (int x = 0; x < 16; x++) {
+                for (int z = 0; z < 16; z++) {
+                    Material type = snapshot.getBlockType(x, y, z);
                     if (type == Material.CRIMSON_FENCE || type == Material.WARPED_FENCE_GATE) {
-                        update(block);
+                        update(world.getBlockAt(baseX + x, y, baseZ + z));
                     }
                 }
             }
@@ -237,25 +313,67 @@ public final class CarrierRestorer {
     }
 
     /**
+     * Height of the scanned band: the configured column height, clamped to the world's own build range so
+     * a world shorter than the band never walks past its ceiling.
+     */
+    static int scanYLength(int scanColumnHeight, int worldMinHeight, int worldMaxHeight) {
+        int maxY = Math.min(worldMaxHeight, worldMinHeight + scanColumnHeight);
+        return Math.max(0, maxY - worldMinHeight);
+    }
+
+    /**
+     * Block positions one full chunk scan visits: the 16x16 column of the scanned band. Kept next to the
+     * band calculation so the per-chunk cost is a checked number rather than a comment.
+     */
+    static int positionsPerChunk(int scanColumnHeight, int worldMinHeight, int worldMaxHeight) {
+        return 16 * 16 * scanYLength(scanColumnHeight, worldMinHeight, worldMaxHeight);
+    }
+
+    /**
      * Queues a chunk for a background scan. Scanning on the chunk-load event itself would put a full
      * column walk on the chunk's critical path; the maintenance task drains the queue in small slices.
+     *
+     * <p>Only the world handle and the coordinates are kept: a Chunk belongs to the region that owns it and
+     * is not handed to another thread. A chunk that is already queued keeps its place and only has its entry
+     * replaced, so a burst of events naming the same chunk leaves one scan of it.
      */
-    public void queueChunkScan(Chunk chunk) {
-        if (chunk != null && enabled()) {
-            pending.add(chunk);
+    public void queueChunkScan(World world, int chunkX, int chunkZ) {
+        if (world != null && enabled()) {
+            pending.add(world.getUID(), chunkX, chunkZ, new ChunkTarget(world, chunkX, chunkZ));
         }
     }
 
     /**
      * Fills the scan queue with the chunks that are already resident, so a plugin enable (or a reload)
      * still reaches blocks that no place or physics event will ever report.
+     *
+     * <p>Only a platform whose loaded chunks may be enumerated from this thread does this; elsewhere the
+     * queue is filled by chunk load events alone. See {@link #mayEnumerateLoadedChunks(boolean)}.
      */
     public void prepareStartup() {
+        if (!mayEnumerateLoadedChunks(plugin.scheduler().isFolia())) {
+            return;
+        }
         for (World world : plugin.getServer().getWorlds()) {
+            UUID worldId = world.getUID();
             for (Chunk chunk : world.getLoadedChunks()) {
-                pending.add(chunk);
+                pending.add(worldId, chunk.getX(), chunk.getZ(),
+                        new ChunkTarget(world, chunk.getX(), chunk.getZ()));
             }
         }
+    }
+
+    /**
+     * Whether the loaded chunks of every world may be enumerated from the thread this runs on.
+     *
+     * <p>On Folia they may not: the enumeration is a world-wide read that no single region owns, and the
+     * chunks it returns belong to regions this thread does not hold, so they must not be touched. There is
+     * no region-scoped replacement for "every loaded chunk", so there the queue is filled by the chunk load
+     * event instead, and a chunk that was already resident when the plugin enabled is covered once it
+     * reloads.
+     */
+    static boolean mayEnumerateLoadedChunks(boolean folia) {
+        return !folia;
     }
 
     /** Drops every display of an unloading chunk; the displays are non-persistent, so none survives it. */
@@ -263,19 +381,24 @@ public final class CarrierRestorer {
         if (chunk == null) {
             return;
         }
-        long position = chunkKey(chunk.getX(), chunk.getZ());
-        Map<Long, Map<Long, Entity>> chunks = tracked.get(chunk.getWorld().getUID());
-        if (chunks != null) {
-            dropAll(chunks.remove(position));
+        World world = chunk.getWorld();
+        int chunkX = chunk.getX();
+        int chunkZ = chunk.getZ();
+        UUID worldId = world.getUID();
+        long position = chunkKey(chunkX, chunkZ);
+        Map<Long, Entity> inChunk;
+        synchronized (stateLock) {
+            Map<Long, Map<Long, Entity>> chunks = tracked.get(worldId);
+            inChunk = chunks == null ? null : chunks.remove(position);
+            // The chunk is scanned again after it reloads; a stale "already scanned" mark would leave any
+            // carrier block that a later load introduces unhandled.
+            Set<Long> scannedInWorld = scanned.get(worldId);
+            if (scannedInWorld != null) {
+                scannedInWorld.remove(position);
+            }
         }
-        // The chunk is scanned again after it reloads; a stale "already scanned" mark would leave any
-        // carrier block that a later load introduces unhandled.
-        Set<Long> scannedInWorld = scanned.get(chunk.getWorld().getUID());
-        if (scannedInWorld != null) {
-            scannedInWorld.remove(position);
-        }
-        pending.removeIf(queued -> queued.getWorld().getUID().equals(chunk.getWorld().getUID())
-                && queued.getX() == chunk.getX() && queued.getZ() == chunk.getZ());
+        dropAll(inChunk);
+        pending.remove(worldId, chunkX, chunkZ);
     }
 
     /** Drops every display of a world that is going away. */
@@ -284,98 +407,167 @@ public final class CarrierRestorer {
             return;
         }
         UUID worldId = world.getUID();
-        Map<Long, Map<Long, Entity>> chunks = tracked.remove(worldId);
+        Map<Long, Map<Long, Entity>> chunks;
+        synchronized (stateLock) {
+            chunks = tracked.remove(worldId);
+            scanned.remove(worldId);
+        }
         if (chunks != null) {
             for (Map<Long, Entity> inChunk : chunks.values()) {
                 dropAll(inChunk);
             }
         }
-        scanned.remove(worldId);
-        pending.removeIf(chunk -> chunk.getWorld().getUID().equals(worldId));
+        pending.removeWorld(worldId);
     }
 
     /**
      * Removes displays left behind by a previous session. They are spawned non-persistent, so a clean
      * shutdown leaves none; a crash or a force-stop can, and this is the only path that finds them.
+     *
+     * <p>Paper only: the scan asks the world for every display it holds, which is a world-wide read that no
+     * single region owns on Folia. There the displays are in any case non-persistent, so they never survive
+     * a restart, and the ones this session created are dropped by the per-chunk paths.
      */
     public void sweepOrphans(World world) {
-        if (world == null) {
+        if (world == null || plugin.scheduler().isFolia()) {
             return;
         }
         for (BlockDisplay display : world.getEntitiesByClass(BlockDisplay.class)) {
             Byte marker = display.getPersistentDataContainer().get(KIND, PersistentDataType.BYTE);
             if (marker != null) {
-                display.remove();
+                removeDisplay(display);
             }
         }
     }
 
     /**
-     * Throttled maintenance: scans a slice of the queued chunks and verifies a slice of the tracked
-     * positions. Both slices stay small so a large world is covered without a burst of work.
+     * Throttled maintenance: hands a slice of the queued chunk scans to the region that owns each chunk,
+     * then a slice of the tracked displays to the region that owns each entity.
+     *
+     * <p>It runs on the global thread and reads neither block nor entity data itself, which is what makes it
+     * legal there; the work always happens on the owning region.
      */
     public void tick() {
-        createdThisTick = 0;
+        synchronized (stateLock) {
+            createdThisTick = 0;
+        }
         if (!enabled()) {
             return;
         }
-        scanSlice();
-        verifySlice();
+        dispatchQueuedScans();
+        dispatchVerification();
     }
 
+    /** Drops every tracked display and forgets the session state; each removal goes to its entity's region. */
     public void shutdown() {
-        for (Map<Long, Map<Long, Entity>> chunks : tracked.values()) {
-            for (Map<Long, Entity> inChunk : chunks.values()) {
-                dropAll(inChunk);
+        List<Entity> displays = new ArrayList<>();
+        synchronized (stateLock) {
+            for (Map<Long, Map<Long, Entity>> byChunk : tracked.values()) {
+                for (Map<Long, Entity> inChunk : byChunk.values()) {
+                    displays.addAll(inChunk.values());
+                }
             }
+            tracked.clear();
+            scanned.clear();
+            liveCount = 0;
+            verifyCursor = 0;
+            createdThisTick = 0;
         }
-        tracked.clear();
-        scanned.clear();
         pending.clear();
-        liveCount = 0;
+        // Displays are non-persistent, so one whose removal cannot be dispatched this late costs an entity
+        // only until its world unloads; blocking the disable path on it would not pay for itself.
+        for (Entity display : displays) {
+            removeDisplay(display);
+        }
     }
 
     /**
-     * Verifies a slice of the tracked positions: a position whose display died (chunk sweep, plugin
-     * cleanup, external removal) or whose block no longer needs a display is dropped or rebuilt.
+     * Hands a rotating slice of the tracked displays to the region that owns each one, which drops the ones
+     * that are gone (chunk sweep, plugin cleanup, external removal).
      */
-    private void verifySlice() {
-        List<Tracked> snapshot = new ArrayList<>();
-        for (Map<Long, Map<Long, Entity>> chunks : tracked.values()) {
-            for (Map<Long, Entity> inChunk : chunks.values()) {
+    private void dispatchVerification() {
+        List<Tracked> slice;
+        synchronized (stateLock) {
+            SweepWindow window = verificationWindow(trackedCount(), verifyCursor, verifyPerTick);
+            verifyCursor = window.nextCursor();
+            slice = takeVerificationEntries(window.start(), window.count());
+        }
+        for (Tracked tracked : slice) {
+            Entity entity = tracked.entity();
+            // Validity is entity data, so it is read on the entity's own region. The retired callback covers
+            // an entity that is gone before the task can run, so its entry never survives it.
+            plugin.scheduler().runForEntity(entity, () -> verifyDisplay(tracked), () -> dropTrackedEntry(tracked));
+        }
+    }
+
+    /** Hands each queued chunk of this slice to its own region; the scan itself never runs on this thread. */
+    private void dispatchQueuedScans() {
+        for (ChunkTarget target : pending.drain(scanChunksPerTick)) {
+            World world = target.world();
+            int chunkX = target.chunkX();
+            int chunkZ = target.chunkZ();
+            plugin.scheduler().runAt(world, chunkX, chunkZ, () -> {
+                if (!world.isChunkLoaded(chunkX, chunkZ)) {
+                    return;
+                }
+                scanChunk(world, chunkX, chunkZ);
+            });
+        }
+    }
+
+    /** Drops the record of a display that no longer exists; runs on the entity's own region. */
+    private void verifyDisplay(Tracked tracked) {
+        if (!tracked.entity().isValid()) {
+            dropTrackedEntry(tracked);
+        }
+    }
+
+    /**
+     * The rotating window of tracked entries one verification pass covers: {@code start} is the first entry
+     * index and {@code count} how many it visits. The cursor is reduced modulo the tracked count so it
+     * survives a set that shrank, and an over-large cursor restarts at the beginning.
+     */
+    static SweepWindow verificationWindow(int total, int cursor, int perTick) {
+        int bounded = total <= 0 ? 0 : Math.floorMod(cursor, total);
+        return SweepWindow.of(total, bounded, perTick);
+    }
+
+    /** Number of displays currently recorded, across all worlds and chunks. Caller holds {@link #stateLock}. */
+    private int trackedCount() {
+        int total = 0;
+        for (Map<Long, Map<Long, Entity>> byChunk : tracked.values()) {
+            for (Map<Long, Entity> inChunk : byChunk.values()) {
+                total += inChunk.size();
+            }
+        }
+        return total;
+    }
+
+    /**
+     * Copies up to {@code count} tracked entries starting at {@code start} in iteration order. Only the
+     * entries this pass verifies are materialised, so a large tracked set does not allocate a full snapshot
+     * on every pass. Caller holds {@link #stateLock}.
+     */
+    private List<Tracked> takeVerificationEntries(int start, int count) {
+        if (count <= 0) {
+            return List.of();
+        }
+        List<Tracked> slice = new ArrayList<>(count);
+        int index = 0;
+        for (Map<Long, Map<Long, Entity>> byChunk : tracked.values()) {
+            for (Map<Long, Entity> inChunk : byChunk.values()) {
                 for (Map.Entry<Long, Entity> entry : inChunk.entrySet()) {
-                    snapshot.add(new Tracked(inChunk, entry.getKey(), entry.getValue()));
+                    if (index++ < start) {
+                        continue;
+                    }
+                    slice.add(new Tracked(inChunk, entry.getKey(), entry.getValue()));
+                    if (slice.size() >= count) {
+                        return slice;
+                    }
                 }
             }
         }
-        if (snapshot.isEmpty()) {
-            return;
-        }
-        int limit = Math.min(verifyPerTick, snapshot.size());
-        for (int i = 0; i < limit; i++) {
-            Tracked entry = snapshot.get((int) Math.floorMod(verifyCursor + i, snapshot.size()));
-            if (entry.entity().isValid()) {
-                continue;
-            }
-            if (entry.owner().remove(entry.position()) != null) {
-                liveCount = Math.max(0, liveCount - 1);
-            }
-        }
-        verifyCursor += limit;
-    }
-
-    /** Scans the queued chunks, a slice per tick, then verifies a slice of the tracked positions. */
-    private void scanSlice() {
-        for (int i = 0; i < scanChunksPerTick; i++) {
-            Chunk chunk = pending.poll();
-            if (chunk == null) {
-                return;
-            }
-            if (!chunk.isLoaded()) {
-                continue;
-            }
-            scanChunk(chunk, false);
-        }
+        return slice;
     }
 
     private Entity create(World world, int x, int y, int z, BlockData data) {
@@ -402,39 +594,100 @@ public final class CarrierRestorer {
         }
     }
 
+    /** The display map of one chunk, created on demand. Caller holds {@link #stateLock}. */
     private Map<Long, Entity> chunkMap(World world, int chunkX, int chunkZ) {
         return tracked.computeIfAbsent(world.getUID(), key -> new HashMap<>())
                 .computeIfAbsent(chunkKey(chunkX, chunkZ), key -> new HashMap<>());
     }
 
-    private void drop(Map<Long, Entity> inChunk, long position, Entity entity) {
-        if (inChunk == null) {
-            return;
-        }
-        if (entity == null) {
-            inChunk.remove(position);
-            return;
-        }
-        if (inChunk.remove(position) != null) {
-            removeEntity(entity);
-            liveCount = Math.max(0, liveCount - 1);
-        }
+    /** The display map of one chunk, or null when that chunk has none. Caller holds {@link #stateLock}. */
+    private Map<Long, Entity> chunkAt(UUID worldId, int chunkX, int chunkZ) {
+        Map<Long, Map<Long, Entity>> chunks = tracked.get(worldId);
+        return chunks == null ? null : chunks.get(chunkKey(chunkX, chunkZ));
     }
 
+    /** Drops one tracked display by chunk and packed position; a no-op when that chunk holds none. */
+    private void dropAt(UUID worldId, int chunkX, int chunkZ, long position) {
+        Entity display;
+        synchronized (stateLock) {
+            Map<Long, Entity> inChunk = chunkAt(worldId, chunkX, chunkZ);
+            if (inChunk == null) {
+                return;
+            }
+            display = inChunk.remove(position);
+            if (display != null) {
+                liveCount = Math.max(0, liveCount - 1);
+            }
+        }
+        removeDisplay(display);
+    }
+
+    /**
+     * Drops every recorded display of one chunk: the accounting happens under the state lock, the removals
+     * happen outside it and go to the region that owns each entity.
+     */
     private void dropAll(Map<Long, Entity> inChunk) {
         if (inChunk == null) {
             return;
         }
-        for (Entity entity : inChunk.values()) {
-            removeEntity(entity);
+        List<Entity> displays;
+        synchronized (stateLock) {
+            if (inChunk.isEmpty()) {
+                return;
+            }
+            displays = new ArrayList<>(inChunk.values());
+            inChunk.clear();
+            liveCount = Math.max(0, liveCount - displays.size());
         }
-        liveCount = Math.max(0, liveCount - inChunk.size());
-        inChunk.clear();
+        for (Entity display : displays) {
+            removeDisplay(display);
+        }
     }
 
-    private static void removeEntity(Entity entity) {
+    /** Removes one tracked entry and its share of the live count. */
+    private void dropTrackedEntry(Tracked tracked) {
+        synchronized (stateLock) {
+            if (tracked.owner().remove(tracked.position()) != null) {
+                liveCount = Math.max(0, liveCount - 1);
+            }
+        }
+    }
+
+    /**
+     * Removes one display on the region that owns it, inline when this thread already owns it. A display is
+     * non-persistent, so one whose removal cannot be dispatched is covered by its world unloading.
+     */
+    private void removeDisplay(Entity entity) {
+        if (entity == null) {
+            return;
+        }
+        if (!plugin.scheduler().isFolia() || Bukkit.isOwnedByCurrentRegion(entity)) {
+            removeDisplayNow(entity);
+            return;
+        }
+        plugin.scheduler().runForEntity(entity, () -> removeDisplayNow(entity));
+    }
+
+    private static void removeDisplayNow(Entity entity) {
         if (entity != null && entity.isValid()) {
             entity.remove();
+        }
+    }
+
+    /** True when no further display may be created this session. */
+    private boolean isBudgetExhausted() {
+        synchronized (stateLock) {
+            return liveCount >= maxEntities;
+        }
+    }
+
+    /** Clears the scanned mark of one chunk, so its next load queues it again. */
+    private void unmarkScanned(World world, long position) {
+        synchronized (stateLock) {
+            Set<Long> marks = scanned.get(world.getUID());
+            if (marks != null) {
+                marks.remove(position);
+            }
         }
     }
 
@@ -481,6 +734,10 @@ public final class CarrierRestorer {
 
     static long chunkKey(int chunkX, int chunkZ) {
         return ((long) chunkX << 32) | (chunkZ & 0xFFFFFFFFL);
+    }
+
+    /** One chunk waiting for a scan: a world handle plus coordinates, never a Chunk across threads. */
+    private record ChunkTarget(World world, int chunkX, int chunkZ) {
     }
 
     private record Tracked(Map<Long, Entity> owner, long position, Entity entity) {

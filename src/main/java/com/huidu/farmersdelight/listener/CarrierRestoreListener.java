@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.manager.CarrierRestorer;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
+import org.bukkit.Chunk;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -66,7 +67,7 @@ public final class CarrierRestoreListener implements Listener {
     public void onBlockBreak(BlockBreakEvent event) {
         restorer.forget(event.getBlock());
         for (BlockFace face : NEIGHBOURS) {
-            restorer.update(event.getBlock().getRelative(face));
+            restorer.updateAcrossRegions(event.getBlock().getRelative(face));
         }
     }
 
@@ -79,7 +80,10 @@ public final class CarrierRestoreListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onChunkLoad(ChunkLoadEvent event) {
-        restorer.queueChunkScan(event.getChunk());
+        Chunk chunk = event.getChunk();
+        // Only the coordinates are queued: the chunk itself belongs to the region that owns it and must not
+        // be handed to the global thread that drives the maintenance task.
+        restorer.queueChunkScan(chunk.getWorld(), chunk.getX(), chunk.getZ());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -92,18 +96,23 @@ public final class CarrierRestoreListener implements Listener {
         restorer.unloadWorld(event.getWorld());
     }
 
-    /** Removes displays a previous session left behind, and rescans what is already resident. */
+    /** Removes displays a previous session left behind. */
     public void onWorldLoad(World world) {
         restorer.sweepOrphans(world);
     }
 
+    /**
+     * Re-reads the changed block and its neighbours. A neighbour across a region border is handed to the
+     * region that owns it instead of being dropped, so a fence whose state another region changes is still
+     * redrawn immediately.
+     */
     private void refreshWithNeighbours(Block block) {
         if (block == null) {
             return;
         }
-        restorer.update(block);
+        restorer.updateAcrossRegions(block);
         for (BlockFace face : NEIGHBOURS) {
-            restorer.update(block.getRelative(face));
+            restorer.updateAcrossRegions(block.getRelative(face));
         }
     }
 }
