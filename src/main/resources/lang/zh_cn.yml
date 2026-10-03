@@ -121,7 +121,6 @@ console:
     auraskills_skill_missing: "AuraSkills 找不到技能：{skill}"
     auraskills_xp_failed: "给玩家 {player} 添加 AuraSkills 技能 {skill} 经验失败：{error}"
     registered_block_behaviors: "已注册自定义方块行为"
-    papersdelight_aliases: "已注册 PapersDelight 行为别名；本插件没有对应实现的标识符：{unsupported}"
     custom_cooking_pot_gui_load_failed: "加载自定义厨锅 GUI '{id}' 失败：{error}"
     startup_config: "启动配置"
     startup_reason: "启动"
