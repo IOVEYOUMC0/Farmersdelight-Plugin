@@ -65,10 +65,25 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * The /fd debugtools command set (place/activate/inspect/recipe/i18n), reached through the
+ * reflective command.DebugToolsSubCommand shim. This source set is compiled into the plugin only
+ * when the build passes -PdebugTools=true, so a main-side rename or removal that this class calls
+ * into is caught by that build alone.
+ *
+ * <p>It reads one key that no shipped config.yml defines:
+ * CONFIG_MAX_PLACE_COUNT caps how many blocks a single place or test run may
+ * create, falling back to DEFAULT_MAX_PLACE_COUNT. The debug and release builds package the same
+ * src/main/resources/config.yml, so a debug-only entry would ship to every server and is
+ * deliberately not added there; set the key by hand in config.yml to raise or lower the bound.
+ */
 public final class DebugToolsCommand {
 
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
     private static final int DEFAULT_MAX_PLACE_COUNT = 4096;
+    // Optional operator knob for the debug build only; absent from the shipped config on purpose (see the
+    // class comment). Read with getConfig().getInt(key, default), so an absent key always means the default.
+    private static final String CONFIG_MAX_PLACE_COUNT = "debug-tools.max-place-count";
     private static final List<String> TEST_TARGETS = List.of("cooking_pot", "skillet", "stove", "handheld", "all");
     private static final List<String> ACTIONS = List.of("test", "place", "activate", "undo", "stop",
             "inspect", "item", "recipe", "i18n");
@@ -972,7 +987,6 @@ public final class DebugToolsCommand {
     }
 
     private void activateCookingPot(Location location) {
-        CookingPotBlockBehavior.markRecentlyPlaced(location);
         CookingPotBlockEntity entity = CookingPotBlockBehavior.getOrCreateBlockEntity(location);
         applyCookingPotDebugState(entity, location);
         BlockPosKey posKey = new BlockPosKey(location);
@@ -1299,7 +1313,7 @@ public final class DebugToolsCommand {
     }
 
     private int getMaxPlaceCount() {
-        return Math.max(1, plugin.getConfig().getInt("debug-tools.max-place-count", DEFAULT_MAX_PLACE_COUNT));
+        return Math.max(1, plugin.getConfig().getInt(CONFIG_MAX_PLACE_COUNT, DEFAULT_MAX_PLACE_COUNT));
     }
 
     private int clamp(int value, int min, int max) {
