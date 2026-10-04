@@ -22,6 +22,10 @@ import java.util.List;
 // catalystCycle and selectedSpecialRecipeId) and delegates the builders here.
 final class SpecialRecipeRenderer {
 
+    // A slot that carries only hover text is drawn with the transparent "air" item model, so its carrier
+    // item stays invisible while still offering the name/lore underneath the cursor.
+    private static final NamespacedKey AIR_ITEM_MODEL = NamespacedKey.minecraft("air");
+
     private final RecipeViewGui gui;
     private final FarmersDelightPlugin plugin;
 
@@ -126,7 +130,7 @@ final class SpecialRecipeRenderer {
         ItemMeta meta = item.getItemMeta();
         // Hide the carrier: the description is text shown on hover, so render the slot with the
         // transparent "air" item model instead of a visible paper icon.
-        meta.setItemModel(new NamespacedKey("minecraft", "air"));
+        meta.setItemModel(AIR_ITEM_MODEL);
         if (translationKeys.isEmpty()) {
             meta.displayName(Component.text(""));
             meta.lore(List.of());
@@ -197,7 +201,7 @@ final class SpecialRecipeRenderer {
     private ItemStack createLoreCarrierItem(String nameKey, String loreKey, NamedTextColor nameColor) {
         ItemStack item = new ItemStack(Material.LIGHT_GRAY_STAINED_GLASS_PANE);
         ItemMeta meta = item.getItemMeta();
-        meta.setItemModel(new NamespacedKey("minecraft", "air"));
+        meta.setItemModel(AIR_ITEM_MODEL);
         meta.displayName(translatable(nameKey, nameColor));
         meta.lore(translatableLore(loreKey, NamedTextColor.GRAY));
         item.setItemMeta(meta);

@@ -6,6 +6,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
 
 /**
@@ -238,10 +239,112 @@ public final class ContainerGuiKernel {
         return true;
     }
 
+    /**
+     * Commits every configured cell the guard allows, without repainting anything, and returns the raw slots
+     * it refused, in the order the groups declare their slots (the caller repaints them per slot, so the order
+     * does not matter to it). Marks the station dirty once, like {@link #syncAll(Inventory)}.
+     *
+     *
+     * Region contract: this method writes only the store and the station's dirty flag, and never writes the
+     * viewer's inventory. A caller may therefore run it on the region that owns the store and hand the refused
+     * slots to the viewer's own region for the repaint ({@link #repaintFrom}), which is what the
+     * cross-region container paths do. A caller already on the viewer's region keeps using
+     * {@link #syncAll(Inventory)}, which is this plus the repaint.
+     */
+    public int[] commitOnly(Inventory view) {
+        Objects.requireNonNull(view, "view");
+        GuiLayout layout = controller.layout();
+        if (layout == null) {
+            return new int[0];
+        }
+        synchronized (controller.storeLock()) {
+            ensurePainted(layout.size());
+            int[] refused = new int[countConfiguredCells(layout)];
+            int count = 0;
+            for (GuiSlotGroup group : groups) {
+                int[] cells = layout.slotsOf(group.type());
+                for (int offset = 0; offset < cells.length && offset < group.count(); offset++) {
+                    if (!commitCell(view, cells[offset], group.storeIndex(offset), group.iconType())) {
+                        refused[count++] = cells[offset];
+                    }
+                }
+            }
+            controller.markDirty();
+            return Arrays.copyOf(refused, count);
+        }
+    }
+
+    /**
+     * Commits one configured cell, without repainting it. True when the station's store was written, false
+     * when the guard refused; a slot that is not a configured cell returns true and changes nothing, exactly
+     * like {@link #syncSlot(Inventory, int)}.
+     *
+     *
+     * Region contract as {@link #commitOnly(Inventory)}: store writes only, never the viewer's inventory.
+     */
+    public boolean commitOnly(Inventory view, int rawSlot) {
+        Objects.requireNonNull(view, "view");
+        GuiLayout layout = controller.layout();
+        if (layout == null) {
+            return false;
+        }
+        int storeIndex = storeIndex(layout, rawSlot);
+        if (storeIndex < 0) {
+            return true;
+        }
+        synchronized (controller.storeLock()) {
+            ensurePainted(layout.size());
+            if (!commitCell(view, rawSlot, storeIndex, iconTypeAt(storeIndex))) {
+                return false;
+            }
+            controller.markDirty();
+            return true;
+        }
+    }
+
+    /**
+     * Repaints the given cells from store values the caller read on the region that owns the store, recording
+     * each value as that cell's write-back baseline.
+     *
+     *
+     * Region contract: this method writes the viewer's inventory and the paint record only, and never reads or
+     * writes the store, so it must be called on the region that owns the viewer — the half of a cross-region
+     * commit that must not happen on the store's region. {@code storedByIndex} answers with the snapshot value
+     * for a store index.
+     */
+    public void repaintFrom(Inventory view, int[] rawSlots, IntFunction<ItemStack> storedByIndex) {
+        Objects.requireNonNull(view, "view");
+        Objects.requireNonNull(rawSlots, "rawSlots");
+        Objects.requireNonNull(storedByIndex, "storedByIndex");
+        GuiLayout layout = controller.layout();
+        if (layout == null) {
+            return;
+        }
+        synchronized (controller.storeLock()) {
+            ensurePainted(layout.size());
+            for (int rawSlot : rawSlots) {
+                int storeIndex = storeIndex(layout, rawSlot);
+                if (storeIndex < 0) {
+                    continue;
+                }
+                paint(view, rawSlot, storedByIndex.apply(storeIndex), iconTypeAt(storeIndex));
+            }
+        }
+    }
+
     /** The store index behind a configured cell, or -1 when the slot holds no contents. */
     public int storeIndex(int rawSlot) {
         GuiLayout layout = controller.layout();
         return layout == null ? -1 : storeIndex(layout, rawSlot);
+    }
+
+    /** The number of configured cells, i.e. the upper bound of {@link #commitOnly(Inventory)}'s result. */
+    private int countConfiguredCells(GuiLayout layout) {
+        int total = 0;
+        for (GuiSlotGroup group : groups) {
+            total += Math.min(layout.slotsOf(group.type()).length, group.count());
+        }
+        return total;
     }
 
     /**
@@ -255,10 +358,30 @@ public final class ContainerGuiKernel {
             paint(view, rawSlot, stored, iconType);
             return false;
         }
+        storeFromView(view, rawSlot, storeIndex, iconType);
+        return true;
+    }
+
+    /**
+     * The write half of {@link #commit(Inventory, int, int, String)}: commits when the guard allows and owns
+     * no repaint. The baseline of a refused cell is left alone on purpose — the viewer still sees the old
+     * value until the caller repaints it, and recording the store's newer value here would let a click in that
+     * window commit the stale on-screen value.
+     */
+    private boolean commitCell(Inventory view, int rawSlot, int storeIndex, @Nullable String iconType) {
+        ItemStack stored = controller.stored(storeIndex);
+        if (!controller.mayCommit(stored, painted[rawSlot])) {
+            return false;
+        }
+        storeFromView(view, rawSlot, storeIndex, iconType);
+        return true;
+    }
+
+    /** Writes the cell's current value into the store, dropping placeholder icons. */
+    private void storeFromView(Inventory view, int rawSlot, int storeIndex, @Nullable String iconType) {
         ItemStack item = view.getItem(rawSlot);
         boolean placeholder = item != null && !item.getType().isAir() && controller.isPlaceholder(item, iconType);
         controller.store(storeIndex, placeholder ? null : item);
-        return true;
     }
 
     /** Paints one cell from a store value and records that value as the cell's write-back baseline. */

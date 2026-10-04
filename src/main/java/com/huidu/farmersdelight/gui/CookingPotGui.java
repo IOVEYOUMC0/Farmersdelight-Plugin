@@ -44,6 +44,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
+import java.util.function.IntFunction;
+import java.util.function.Predicate;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -57,6 +62,22 @@ public class CookingPotGui extends AbstractInventoryGui {
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
 
     private final CookingPotBlockEntity blockEntity;
+    // Injectable region seam for the pot's store writes; built from the plugin on first use.
+    private volatile PotRegionDispatch potRegion;
+
+    PotRegionDispatch potRegion() {
+        PotRegionDispatch current = potRegion;
+        if (current == null) {
+            current = PotRegionDispatch.production(plugin);
+            potRegion = current;
+        }
+        return current;
+    }
+
+    /** Test seam: replaces the region dispatch used by the store writes. */
+    void setPotRegion(PotRegionDispatch dispatch) {
+        this.potRegion = dispatch;
+    }
     private final CookingPotBlockBehavior blockBehavior;
     private final GuiConfig config;
     private final CookingPotItemDistributor itemDistributor;
@@ -241,15 +262,40 @@ public class CookingPotGui extends AbstractInventoryGui {
     }
 
     private String replaceShiftTags(String text) {
+        return replaceShiftTags(text, plugin.getCraftEngine().fontManager()::createMiniMessageOffsets);
+    }
+
+    // Package-private so the offline test can drive the real loop with a stub offset renderer. A tag whose
+    // digits do not fit an int keeps its place in the output while its neighbours are still replaced.
+    static String replaceShiftTags(String text, IntFunction<String> offsetRenderer) {
         Matcher matcher = SHIFT_TAG_PATTERN.matcher(text);
         StringBuilder buffer = new StringBuilder();
         while (matcher.find()) {
-            int offset = Integer.parseInt(matcher.group(1));
-            String replacement = plugin.getCraftEngine().fontManager().createMiniMessageOffsets(offset);
+            Integer offset = parseShiftOffset(matcher.group(1));
+            if (offset == null) {
+                // Digits that do not fit an int: leave the matched token untouched. Skipping the match
+                // without calling appendReplacement is what keeps it in the output — the matcher only
+                // copies text up to the position the last replacement consumed.
+                continue;
+            }
+            String replacement = offsetRenderer.apply(offset);
             matcher.appendReplacement(buffer, Matcher.quoteReplacement(replacement));
         }
         matcher.appendTail(buffer);
         return buffer.toString();
+    }
+
+    // The pixel offset a <shift:N> tag asks for, or null when the digits do not fit an int.
+    // A null result leaves the tag verbatim in the title instead of aborting it: the pattern accepts any
+    // number of digits, this runs while a GUI title is built (including from the constructor), and an
+    // oversized value in gui.yml must not make the pot GUI fail to open. Every value that does fit keeps
+    // its sign and magnitude untouched, so legal tags behave exactly as before.
+    static Integer parseShiftOffset(String digits) {
+        try {
+            return Integer.parseInt(digits);
+        } catch (NumberFormatException outOfIntRange) {
+            return null;
+        }
     }
 
     private String replaceImageTags(String text) {
@@ -494,6 +540,19 @@ public class CookingPotGui extends AbstractInventoryGui {
     }
 
     private void syncToBlockEntity() {
+        // The store write happens on the region that owns the pot: the mirror belongs to the viewer's region
+        // while the cook tick runs on the pot's region, so writing the entity from here would be a cross-region
+        // write that Folia only lets land silently. Same region keeps this inline with no extra task, and a
+        // dispatch that cannot be queued (the plugin is disabling) falls back to inline inside runAt, so a
+        // close() flush is never dropped.
+        potRegion().runAt(potLocation(), this::syncToBlockEntityNow);
+    }
+
+    /**
+     * The store half of the sync: the slots the player mutated, written under the entity's inventory lock, the
+     * pending meal flushed, and the ticker bookkeeping. Runs on the region that owns the pot.
+     */
+    private void syncToBlockEntityNow() {
         // Only write the slots the player actively mutated since the last sync. Skipping clean slots
         // is what prevents the GUI's pre-modification snapshot from clobbering cook-tick mutations
         // (e.g. ingredients consumed / result deposited) that happened during the click handler.
@@ -530,6 +589,15 @@ public class CookingPotGui extends AbstractInventoryGui {
             // refreshHeatStateOnRegion() (called from the sync/tick path) rather than read here,
             // because here we may be on the viewer's thread.
         }
+    }
+
+    /** The pot's location, or null when its world or position can no longer be resolved. */
+    private Location potLocation() {
+        if (world == null || blockEntity.getPosKey() == null) {
+            return null;
+        }
+        var position = blockEntity.getPos();
+        return new Location(world, position.x(), position.y(), position.z());
     }
 
     @Override
@@ -1160,4 +1228,105 @@ public class CookingPotGui extends AbstractInventoryGui {
         }
     }
 
+}
+
+/**
+ * The region seam for the cooking pot GUI's store writes.
+ *
+ *
+ * The GUI and its clicks run on the viewer's region while the pot and its cook ticker belong to the region
+ * that owns the block, and Folia does not throw on that mismatch: it silently lets the write land on the
+ * wrong thread. Every store write therefore goes through here — inline when the pot's region is the current
+ * one, dispatched otherwise — and a dispatch that cannot be queued (the plugin is disabling) or a location
+ * whose world is already gone falls back to running the write inline, so a close() flush is never dropped.
+ * Injectable so the decision can be asserted offline.
+ */
+final class PotRegionDispatch {
+
+    private final Logger logger;
+    private final Predicate<Location> ownedByCurrentRegion;
+    private final BiConsumer<Location, Runnable> dispatch;
+
+    /** Production seam: the plugin supplies the ownership query, the dispatch and the logger. */
+    static PotRegionDispatch production(FarmersDelightPlugin plugin) {
+        return new PotRegionDispatch(plugin.getLogger(),
+                location -> {
+                    World world = worldOrNull(location);
+                    return world != null && plugin.scheduler().isOwnedByCurrentRegion(location);
+                },
+                (location, task) -> plugin.scheduler().runAt(location, task));
+    }
+
+    PotRegionDispatch(Logger logger, Predicate<Location> ownedByCurrentRegion,
+                      BiConsumer<Location, Runnable> dispatch) {
+        this.logger = logger;
+        this.ownedByCurrentRegion = ownedByCurrentRegion;
+        this.dispatch = dispatch;
+    }
+
+    /**
+     * True when the location has a usable world and that world's region is the current one. A location whose
+     * world is missing or already unloaded is NOT owned: claiming otherwise would write the pot's store from
+     * whichever region happened to run the code.
+     */
+    boolean isOwned(Location location) {
+        return worldOrNull(location) != null && ownedByCurrentRegion.test(location);
+    }
+
+    /**
+     * Runs the store write on the region owning the location, in this order:
+     *
+     *
+     * 1. no usable world — nothing can be dispatched anywhere, so the write runs inline and the fallback is
+     *    logged rather than silent;
+     * 2. the world's region is the current one — inline, with no extra task;
+     * 3. otherwise dispatched to that region, and if the dispatch itself fails (the plugin is disabling, the
+     *    region rejects the task) the write still runs inline, with a warning naming the failure.
+     */
+    void runAt(Location location, Runnable task) {
+        if (worldOrNull(location) == null) {
+            log(Level.FINE, "pot store write has no usable world; writing inline", null);
+            task.run();
+            return;
+        }
+        if (ownedByCurrentRegion.test(location)) {
+            task.run();
+            return;
+        }
+        try {
+            dispatch.accept(location, task);
+        } catch (RuntimeException failure) {
+            log(Level.WARNING, "pot store write dispatch failed; writing inline", failure);
+            task.run();
+        }
+    }
+
+    /** The location's world, or null when it is missing or has already been unloaded. */
+    private static World worldOrNull(Location location) {
+        if (location == null) {
+            return null;
+        }
+        try {
+            return location.getWorld();
+        } catch (RuntimeException unloaded) {
+            // Bukkit throws "World unloaded" once the location's weakly held world has been collected.
+            return null;
+        }
+    }
+
+    /** Logging must never be the reason a store write is skipped, hence the contained failure. */
+    private void log(Level level, String message, Throwable failure) {
+        if (logger == null) {
+            return;
+        }
+        try {
+            if (failure == null) {
+                logger.log(level, message);
+            } else {
+                logger.log(level, message, failure);
+            }
+        } catch (RuntimeException | LinkageError ignored) {
+            // No logger available; the fallback itself has already happened.
+        }
+    }
 }
