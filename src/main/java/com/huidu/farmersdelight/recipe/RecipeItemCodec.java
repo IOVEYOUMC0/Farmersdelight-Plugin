@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.recipe;
 
 import com.google.gson.JsonElement;
+import com.huidu.farmersdelight.api.util.CeItemInterop;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.compat.MMOItemsCompat;
 import net.momirealms.craftengine.bukkit.item.BukkitItem;
@@ -191,7 +192,7 @@ public final class RecipeItemCodec {
                 wrapped.setComponent(type, value);
             }
         }
-        ItemStack result = ItemStackUtils.getBukkitStack(wrapped.minecraftItem());
+        ItemStack result = CeItemInterop.toBukkitStack(wrapped);
         return result != null ? result : base;
     }
 

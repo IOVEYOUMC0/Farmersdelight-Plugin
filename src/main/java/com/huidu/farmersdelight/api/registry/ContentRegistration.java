@@ -178,8 +178,9 @@ public final class ContentRegistration {
 
     /**
      * Re-applies every remembered registration of one kind that CraftEngine no longer reports. Called by
-     * the plugin's own registration pass, so an entry survives a CraftEngine reload that rebuilt its
-     * registries. Returns how many were (re-)applied.
+     * the plugin's own registration pass. The CraftEngine versions this plugin targets keep their built-in
+     * type registries for the whole class-loader lifetime, so this is defence in depth rather than a step a
+     * reload depends on. Returns how many were (re-)applied.
      */
     @ApiStatus.Internal
     public static int apply(Kind kind) {

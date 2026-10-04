@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.util;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.util.CeItemInterop;
 import com.huidu.farmersdelight.block.behavior.BlockBehaviorConfigs;
 import com.huidu.farmersdelight.block.behavior.ConfiguredBlockSet;
 import com.huidu.farmersdelight.config.ContainerReturnConfig;
@@ -1137,7 +1138,7 @@ public final class ItemUtils {
             if (result == null) {
                 return null;
             }
-            ItemStack stack = ItemStackUtils.getBukkitStack(result);
+            ItemStack stack = CeItemInterop.toBukkitStack(result);
             return stack != null && !stack.getType().isAir() && stack.getAmount() > 0 ? stack : null;
         } catch (RuntimeException | LinkageError ignored) {
             return null;
