@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -164,6 +165,73 @@ class ContainerGuiKernelTest {
         assertTrue(kernel.syncSlot(view.inventory, 0), "a backdrop cell is a no-op, not a failure");
         assertEquals(List.of(), controller.committed);
         assertEquals(List.of(), view.painted());
+        assertEquals(List.of(), view.calls);
+    }
+
+    @Test
+    void commitOnlyWritesTheStoreWithoutRepaintingAndReportsTheRefusedCells() {
+        FakeController controller = new FakeController(layout());
+        controller.refusedStoreIndices.add(1);
+        ContainerGuiKernel kernel = new ContainerGuiKernel(controller, GROUPS);
+        FakeView view = new FakeView(18);
+
+        int[] refused = kernel.commitOnly(view.inventory);
+
+        assertArrayEquals(new int[]{9}, refused, "the refused cell is reported by raw slot");
+        assertFalse(controller.committed.contains(1), "the refused cell is not committed");
+        assertEquals(List.of(0, 2, 3, 4, 5, 6, 7, 8, 9), controller.committed);
+        assertEquals(List.of(), view.calls, "commitOnly must never write the viewer's inventory");
+        assertEquals(1, controller.markDirtyCalls);
+    }
+
+    @Test
+    void commitOnlyReportsEveryRefusedCellInSlotOrder() {
+        FakeController controller = new FakeController(layout());
+        controller.refuseAll = true;
+        ContainerGuiKernel kernel = new ContainerGuiKernel(controller, GROUPS);
+        FakeView view = new FakeView(18);
+
+        int[] refused = kernel.commitOnly(view.inventory);
+
+        assertArrayEquals(new int[]{3, 9, 10, 11, 12, 13, 14, 15, 16, 17}, refused);
+        assertEquals(List.of(), controller.committed);
+        assertEquals(List.of(), view.calls, "a refusal is not repainted by commitOnly");
+    }
+
+    @Test
+    void commitOnlyOfOneCellReportsTheRefusalWithoutWritingAnything() {
+        FakeController controller = new FakeController(layout());
+        controller.refuseAll = true;
+        ContainerGuiKernel kernel = new ContainerGuiKernel(controller, GROUPS);
+        FakeView view = new FakeView(18);
+
+        assertFalse(kernel.commitOnly(view.inventory, 3));
+        assertEquals(List.of(), controller.committed);
+        assertEquals(List.of(), view.calls);
+        assertEquals(0, controller.markDirtyCalls, "a refusal changes nothing to save");
+    }
+
+    @Test
+    void repaintFromPaintsExactlyTheGivenCellsFromTheSuppliedValues() {
+        FakeController controller = new FakeController(layout());
+        ContainerGuiKernel kernel = new ContainerGuiKernel(controller, GROUPS);
+        FakeView view = new FakeView(18);
+
+        kernel.repaintFrom(view.inventory, new int[]{3, 9}, index -> null);
+
+        assertEquals(List.of(3, 9), view.painted(), "only the listed cells are painted");
+        assertEquals(List.of(), controller.storedReads, "the store is not read: the values came from the caller");
+        assertEquals(List.of(), controller.committed, "the store is not written either");
+        assertEquals(0, controller.markDirtyCalls);
+    }
+
+    @Test
+    void theCommitOnlyEntryPointsReportNothingWithoutALayout() {
+        ContainerGuiKernel kernel = new ContainerGuiKernel(new FakeController(null), GROUPS);
+        FakeView view = new FakeView(18);
+
+        assertArrayEquals(new int[0], kernel.commitOnly(view.inventory));
+        assertFalse(kernel.commitOnly(view.inventory, 3));
         assertEquals(List.of(), view.calls);
     }
 
