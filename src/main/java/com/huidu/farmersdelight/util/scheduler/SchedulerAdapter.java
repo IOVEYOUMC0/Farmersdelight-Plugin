@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
-public final class SchedulerAdapter {
+public final class SchedulerAdapter implements RegionDispatcher {
 
     // Queued async work is per-player file IO (recipe-discovery loads and flushes, datapack removal). A
     // server with more than this many tasks waiting has a disk problem rather than a burst, and holding the
@@ -72,6 +72,7 @@ public final class SchedulerAdapter {
         runAt(location.getWorld(), location.getBlockX() >> 4, location.getBlockZ() >> 4, task);
     }
 
+    @Override
     public void runAt(World world, int chunkX, int chunkZ, Runnable task) {
         if (!folia || world == null) {
             run(task);
@@ -80,6 +81,7 @@ public final class SchedulerAdapter {
         FoliaReflect.regionExecute(plugin, world, chunkX, chunkZ, task);
     }
 
+    @Override
     public void runForEntity(Entity entity, Runnable task) {
         if (!folia || entity == null) {
             run(task);
@@ -88,6 +90,7 @@ public final class SchedulerAdapter {
         FoliaReflect.entityRun(plugin, entity, task);
     }
 
+    @Override
     public void runForEntity(Entity entity, Runnable task, Runnable retired) {
         if (!folia || entity == null) {
             run(task);
