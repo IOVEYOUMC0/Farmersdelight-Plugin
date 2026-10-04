@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.api.config.ConfigSectionReader;
+import com.huidu.farmersdelight.api.gui.GuiLayout;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.CompatItemMeta;
@@ -17,13 +18,14 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Locale;
 
-public class GuiConfig {
+public class GuiConfig implements GuiLayout {
 
     private final String title;
     private final String titleLayoutOffset;
@@ -235,6 +237,63 @@ public class GuiConfig {
 
     public int getSize() {
         return rows * 9;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public int rows() {
+        return rows;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public int size() {
+        return getSize();
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     *
+     * A cell is functional when the grid draws it and its legend type is not
+     * {@link GuiLayout#BACKGROUND}. This is deliberately wider than
+     * {@link #isInteractiveSlot(int)}, which answers whether a click may put contents there; display-only
+     * cells (progress, output, meal) are functional here and still must not be written back.
+     *
+     *
+     * A slot outside the inventory is not functional: the per-slot lookup below would read a negative column,
+     * and a click handler asking about a slot it did not own must get false rather than an exception.
+     */
+    @Override
+    public boolean isFunctional(int slot) {
+        if (!contains(slot)) {
+            return false;
+        }
+        String type = getSlotType(slot);
+        return type != null && !GuiLayout.BACKGROUND.equals(type);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     *
+     * Answered from the grid, so a type no legend character maps to returns an empty array, and cells the
+     * legend maps to it are returned in ascending slot order.
+     */
+    @Override
+    public int[] slotsOf(String type) {
+        if (type == null) {
+            return new int[0];
+        }
+        int size = getSize();
+        int[] found = new int[size];
+        int count = 0;
+        for (int slot = 0; slot < size; slot++) {
+            if (type.equals(getSlotType(slot))) {
+                found[count++] = slot;
+            }
+        }
+        return Arrays.copyOf(found, count);
     }
 
     public List<String> getLayout() {
