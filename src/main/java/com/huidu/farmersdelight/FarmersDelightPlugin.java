@@ -878,9 +878,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     void refreshAfterCraftEngineReload() {
-        // CraftEngine can rebuild the registries the content packs bind to, which would drop every
-        // registration another plugin made through ContentRegistration. Re-apply them (idempotent: ids
-        // CraftEngine already reports are skipped) before anything below reads the fresh pack content.
+        // Re-apply the registrations other plugins made through ContentRegistration before anything below
+        // reads the fresh pack content. CraftEngine keeps its built-in type registries for the whole
+        // class-loader lifetime, so this is defence in depth; it is idempotent either way, because ids
+        // CraftEngine already reports are skipped.
         BehaviorRegistrar.replayContentRegistrations();
         ReloadCacheInvalidator.clear();
         if (specialRecipeRegistry != null) {
