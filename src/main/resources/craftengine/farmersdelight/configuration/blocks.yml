@@ -275,6 +275,46 @@ items:
     template: farmersdelight:block_item_template
     data:
       item-name: <!i><lang:block.farmersdelight.rice_bag>
+  farmersdelight:apple_crate:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><lang:block.farmersdelight.apple_crate>
+  farmersdelight:golden_apple_crate:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><lang:block.farmersdelight.golden_apple_crate>
+  farmersdelight:golden_carrot_crate:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><lang:block.farmersdelight.golden_carrot_crate>
+  farmersdelight:chorus_fruit_crate:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><lang:block.farmersdelight.chorus_fruit_crate>
+  farmersdelight:brown_mushroom_crate:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><lang:block.farmersdelight.brown_mushroom_crate>
+  farmersdelight:red_mushroom_crate:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><lang:block.farmersdelight.red_mushroom_crate>
+  farmersdelight:egg_carton:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><lang:block.farmersdelight.egg_carton>
+  farmersdelight:sweet_berries_bag:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><lang:block.farmersdelight.sweet_berries_bag>
+  farmersdelight:glow_berries_bag:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><lang:block.farmersdelight.glow_berries_bag>
+  farmersdelight:cocoa_beans_bag:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><lang:block.farmersdelight.cocoa_beans_bag>
   farmersdelight:straw_bale:
     template: farmersdelight:block_item_template
     data:
@@ -1384,6 +1424,58 @@ block:
     template:
     - farmersdelight:block_crate_template
     - farmersdelight:block_loot_template
+  farmersdelight:apple_crate:
+    template:
+    - farmersdelight:block_crate_template
+    - farmersdelight:block_loot_template
+  farmersdelight:golden_apple_crate:
+    template:
+    - farmersdelight:block_crate_template
+    - farmersdelight:block_loot_template
+  farmersdelight:golden_carrot_crate:
+    template:
+    - farmersdelight:block_crate_template
+    - farmersdelight:block_loot_template
+  farmersdelight:chorus_fruit_crate:
+    template:
+    - farmersdelight:block_crate_template
+    - farmersdelight:block_loot_template
+  farmersdelight:brown_mushroom_crate:
+    template:
+    - farmersdelight:block_crate_template
+    - farmersdelight:block_loot_template
+  farmersdelight:red_mushroom_crate:
+    template:
+    - farmersdelight:block_crate_template
+    - farmersdelight:block_loot_template
+  farmersdelight:egg_carton:
+    behavior:
+      type: slab_block
+    template:
+    - farmersdelight:block_loot_template
+    settings:
+      hardness: 2
+      resistance: 3
+      tags:
+      - minecraft:mineable/axe
+      sounds:
+        break: minecraft:block.wood.break
+        fall: minecraft:block.wood.fall
+        hit: minecraft:block.wood.hit
+        place: minecraft:block.wood.place
+        step: minecraft:block.wood.step
+    loot:
+      template: default:loot_table/slab
+    states:
+      template: default:block_state/slab
+      arguments:
+        slab_base_block: minecraft:oak_slab
+        slab_texture: farmersdelight:block/egg_carton_side
+        slab_texture_bottom: farmersdelight:block/egg_carton_bottom
+        slab_texture_side: farmersdelight:block/egg_carton_side
+        slab_texture_top: farmersdelight:block/egg_carton_top
+        slab_model: farmersdelight:block/egg_carton
+        planks_model: farmersdelight:block/egg_carton_double
   farmersdelight:rice_bale:
     behavior:
     - type: bouncing_block
@@ -1464,6 +1556,61 @@ block:
     settings:
       hardness: 0.8
       resistance: 0.8
+      sounds:
+        break: minecraft:block.wool.break
+        fall: minecraft:block.wool.fall
+        hit: minecraft:block.wool.hit
+        place: minecraft:block.wool.place
+        step: minecraft:block.wool.step
+    states:
+      auto_state: mushroom
+      model:
+        path: ${__NAMESPACE__}:block/${__ID__}
+  farmersdelight:sweet_berries_bag:
+    template:
+    - farmersdelight:block_loot_template
+    settings:
+      hardness: 0.8
+      resistance: 0.8
+      tags:
+      - farmersdelight:mineable/knife
+      sounds:
+        break: minecraft:block.wool.break
+        fall: minecraft:block.wool.fall
+        hit: minecraft:block.wool.hit
+        place: minecraft:block.wool.place
+        step: minecraft:block.wool.step
+    states:
+      auto_state: mushroom
+      model:
+        path: ${__NAMESPACE__}:block/${__ID__}
+  farmersdelight:glow_berries_bag:
+    template:
+    - farmersdelight:block_loot_template
+    settings:
+      light_block: 10
+      hardness: 0.8
+      resistance: 0.8
+      tags:
+      - farmersdelight:mineable/knife
+      sounds:
+        break: minecraft:block.wool.break
+        fall: minecraft:block.wool.fall
+        hit: minecraft:block.wool.hit
+        place: minecraft:block.wool.place
+        step: minecraft:block.wool.step
+    states:
+      auto_state: mushroom
+      model:
+        path: ${__NAMESPACE__}:block/${__ID__}
+  farmersdelight:cocoa_beans_bag:
+    template:
+    - farmersdelight:block_loot_template
+    settings:
+      hardness: 0.8
+      resistance: 0.8
+      tags:
+      - farmersdelight:mineable/knife
       sounds:
         break: minecraft:block.wool.break
         fall: minecraft:block.wool.fall

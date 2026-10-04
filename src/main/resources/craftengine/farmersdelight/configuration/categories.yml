@@ -37,6 +37,16 @@ categories:
       - farmersdelight:onion_crate
       - farmersdelight:rice_bale
       - farmersdelight:rice_bag
+      - farmersdelight:apple_crate
+      - farmersdelight:golden_apple_crate
+      - farmersdelight:golden_carrot_crate
+      - farmersdelight:chorus_fruit_crate
+      - farmersdelight:brown_mushroom_crate
+      - farmersdelight:red_mushroom_crate
+      - farmersdelight:egg_carton
+      - farmersdelight:sweet_berries_bag
+      - farmersdelight:glow_berries_bag
+      - farmersdelight:cocoa_beans_bag
       - farmersdelight:tatami
       - farmersdelight:full_tatami_mat
       - farmersdelight:half_tatami_mat

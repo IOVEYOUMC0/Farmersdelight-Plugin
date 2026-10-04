@@ -251,6 +251,26 @@ tags:
     - "farmersdelight:rice_bale"
   "c:storage_blocks/straw":
     - "farmersdelight:straw_bale"
+  "c:storage_blocks/apple":
+    - "farmersdelight:apple_crate"
+  "c:storage_blocks/golden_apple":
+    - "farmersdelight:golden_apple_crate"
+  "c:storage_blocks/golden_carrot":
+    - "farmersdelight:golden_carrot_crate"
+  "c:storage_blocks/chorus_fruit":
+    - "farmersdelight:chorus_fruit_crate"
+  "c:storage_blocks/brown_mushroom":
+    - "farmersdelight:brown_mushroom_crate"
+  "c:storage_blocks/red_mushroom":
+    - "farmersdelight:red_mushroom_crate"
+  "c:storage_blocks/egg":
+    - "farmersdelight:egg_carton"
+  "c:storage_blocks/sweet_berries":
+    - "farmersdelight:sweet_berries_bag"
+  "c:storage_blocks/glow_berries":
+    - "farmersdelight:glow_berries_bag"
+  "c:storage_blocks/cocoa_beans":
+    - "farmersdelight:cocoa_beans_bag"
   "c:bones":
     - "minecraft:bone"
   "c:mushrooms":
