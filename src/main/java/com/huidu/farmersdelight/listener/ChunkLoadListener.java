@@ -13,6 +13,7 @@ import com.huidu.farmersdelight.gui.CookingPotGui;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
+import com.huidu.farmersdelight.util.scheduler.RegionTasks;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.world.CEWorld;
 import net.momirealms.craftengine.core.world.chunk.CEChunk;
@@ -87,11 +88,8 @@ public class ChunkLoadListener implements Listener {
                     }
                     return;
                 }
-                plugin.scheduler().runAt(chunk.world(), chunk.chunkX(), chunk.chunkZ(), () -> {
-                    if (chunk.world().isChunkLoaded(chunk.chunkX(), chunk.chunkZ())) {
-                        loadBlockEntitiesInChunk(chunk.world(), chunk.chunkX(), chunk.chunkZ());
-                    }
-                });
+                RegionTasks.runAtLoadedChunk(plugin.scheduler(), chunk.world(), chunk.chunkX(), chunk.chunkZ(),
+                        () -> loadBlockEntitiesInChunk(chunk.world(), chunk.chunkX(), chunk.chunkZ()));
             }
         }, 1L, 1L);
     }
