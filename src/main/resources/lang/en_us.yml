@@ -121,6 +121,8 @@ console:
     auraskills_skill_missing: "AuraSkills skill was not found: {skill}"
     auraskills_xp_failed: "Failed to add AuraSkills XP for skill {skill} to {player}: {error}"
     registered_block_behaviors: "Registered custom block behaviors"
+    content_registration_late: "Registered {id} ({kind}) after CraftEngine loaded its content; CraftEngine must reload for existing content to use it"
+    replayed_content_registrations: "Re-applied external content registrations ({count} registered)"
     custom_cooking_pot_gui_load_failed: "Failed to load custom cooking pot GUI '{id}': {error}"
     startup_config: "Startup config"
     startup_reason: "startup"
