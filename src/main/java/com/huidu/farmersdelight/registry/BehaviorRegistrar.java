@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.registry;
 
+import com.huidu.farmersdelight.api.registry.ContentRegistration;
 import com.huidu.farmersdelight.block.behavior.BasketBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.ConnectedRugBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
@@ -65,6 +66,8 @@ public final class BehaviorRegistrar {
         registerBehavior(Constants.BEHAVIOR_ORGANIC_COMPOST, OrganicCompostBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_RICH_SOIL, RichSoilBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_RICH_SOIL_FARMLAND, RichSoilFarmlandBlockBehavior.FACTORY);
+        // Other plugins' block behaviors: re-applied on every pass, skipped when CraftEngine already has them.
+        ContentRegistration.apply(ContentRegistration.Kind.BLOCK_BEHAVIOR);
 
         // Census line, not news on a healthy boot: routed through the startup detail channel so it is
         // recorded at FINE normally and raised to INFO only for an operator debugging the load phase.
@@ -74,6 +77,7 @@ public final class BehaviorRegistrar {
     public static void registerItemBehaviors() {
         registerItemBehavior();
         registerItemBehavior(Constants.ITEM_BEHAVIOR_SKILLET, SkilletItemBehavior.FACTORY);
+        ContentRegistration.apply(ContentRegistration.Kind.ITEM_BEHAVIOR);
     }
 
     public static void registerFunctions() {
@@ -81,6 +85,7 @@ public final class BehaviorRegistrar {
                 FoodBuffFunction.factory(FoodBuffFunction.Kind.COMFORT, CommonConditions::fromConfig));
         registerFunction("farmersdelight:nourishment",
                 FoodBuffFunction.factory(FoodBuffFunction.Kind.NOURISHMENT, CommonConditions::fromConfig));
+        ContentRegistration.apply(ContentRegistration.Kind.FUNCTION);
     }
 
     // Conditions and loot functions the bundled drop packs use, so a rule that needs plugin knowledge (what
@@ -90,10 +95,31 @@ public final class BehaviorRegistrar {
         registerCondition(Constants.CONDITION_IS_ADULT, IsAdultCondition.FACTORY);
         registerCondition(Constants.CONDITION_IS_BURNING, IsBurningCondition.FACTORY);
         registerCondition(Constants.CONDITION_IS_KNIFE, IsKnifeCondition.FACTORY);
+        ContentRegistration.apply(ContentRegistration.Kind.CONDITION);
     }
 
     public static void registerLootFunctions() {
         registerLootFunction(Constants.LOOT_FUNCTION_AWARD_ADVANCEMENT, AwardAdvancementFunction.FACTORY);
+        ContentRegistration.apply(ContentRegistration.Kind.LOOT_FUNCTION);
+    }
+
+    /**
+     * Re-applies this plugin's own CraftEngine registrations and every external registration another plugin
+     * made through {@code ContentRegistration}. Idempotent: ids CraftEngine already reports are skipped, so
+     * this is safe to call on every reload pass and is exactly what keeps external registrations alive when
+     * CraftEngine rebuilds its registries.
+     *
+     * <p>Called by the plugin's reload path; the load phase reaches the same five methods through
+     * {@code LoadPhaseRegistrar}.
+     */
+    public static void replayContentRegistrations() {
+        registerBlockBehaviors();
+        registerItemBehaviors();
+        registerFunctions();
+        registerConditions();
+        registerLootFunctions();
+        I18n.logDetail("startup", "plugin.replayed_content_registrations",
+                "count", ContentRegistration.registeredIds().size());
     }
 
     private static void registerBehavior(String key, BlockBehaviorFactory<?> factory) {
