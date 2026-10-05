@@ -91,7 +91,8 @@ dependencies {
     } else {
         compileOnly("net.momirealms:craft-engine-bukkit:$ceVersion")
         compileOnly("net.momirealms:craft-engine-core:$ceVersion")
-        // CE 26.9.2 keeps proxy classes in its jar-in-jar proxy artifact.
+        // The proxy classes ship as a separate artifact for every supported version, so it follows ceVersion
+        // rather than being pinned: see the version policy in "If you are AI, read me.txt".
         compileOnly("net.momirealms:craft-engine-bukkit-proxy:$ceVersion")
     }
 

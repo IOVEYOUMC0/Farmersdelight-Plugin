@@ -1,0 +1,142 @@
+package com.huidu.farmersdelight.migration;
+
+import com.huidu.farmersdelight.api.migration.LegacyIdMigration;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Locks the 1.4 skewer rename on the side the pack owns: the plugin registers
+ * {@code farmersdelight:barbecue_stick -> farmersdelight:cooked_meat_skewer}, the legacy definition stays in the
+ * pack as the migration carrier, no recipe produces the removed item any more, and the {@code snacks} tag is
+ * back to upstream's list.
+ *
+ *
+ * Everything here is data plus the mapping table, so it runs without a server: no ItemStack is constructed
+ * (a bare stack cannot be built offline), and the pack files are read through the classpath.
+ */
+class FarmersDelightLegacyIdsTest {
+
+    private static final String LEGACY = "farmersdelight:barbecue_stick";
+    private static final String CURRENT = "farmersdelight:cooked_meat_skewer";
+
+    @AfterEach
+    void reset() {
+        LegacyIdMigration.clear();
+        LegacyIdMigration.setConflictReporter(null);
+    }
+
+    @Test
+    void theRegistrationMapsTheOldStickOntoTheCookedMeatSkewer() {
+        FarmersDelightLegacyIds.register();
+
+        assertEquals(CURRENT, LegacyIdMigration.resolveId(LEGACY), "1.4 renamed the stick to the cooked skewer");
+        assertEquals(1, LegacyIdMigration.size());
+        assertFalse(LegacyIdMigration.isEmpty(), "the automatic hooks only run while the table is not empty");
+        assertEquals(0, LegacyIdMigration.conflictCount());
+        assertNull(LegacyIdMigration.resolveId("farmersdelight:meat_skewer"),
+                "the raw skewer is a new id, not a migration target");
+    }
+
+    @Test
+    void registeringTwiceKeepsOneMappingAndReportsNothing() {
+        List<String> reports = new ArrayList<>();
+        LegacyIdMigration.setConflictReporter(reports::add);
+
+        FarmersDelightLegacyIds.register();
+        FarmersDelightLegacyIds.register();
+
+        assertEquals(1, LegacyIdMigration.size(), "the service may start twice; the table must not grow");
+        assertEquals(0, LegacyIdMigration.conflictCount(), "an identical re-registration is not a conflict");
+        assertEquals(List.of(), reports);
+        assertEquals(CURRENT, LegacyIdMigration.resolveId(LEGACY));
+    }
+
+    @Test
+    void theLegacyDefinitionAndTheTargetBothStayInThePack() {
+        ConfigurationSection items = items();
+
+        assertTrue(items.isConfigurationSection(LEGACY),
+                "the legacy id must keep its definition, otherwise CraftEngine drops the old stacks before"
+                        + " the migration can see them");
+        assertTrue(items.isConfigurationSection(CURRENT), "the replacement has to exist in the same pack");
+    }
+
+    @Test
+    void noRecipeProducesTheRemovedItemAnyMore() {
+        ConfigurationSection recipes = pack("craftengine/farmersdelight/configuration/items.yml")
+                .getConfigurationSection("recipes");
+        assertNotNull(recipes, "items.yml has to keep its recipes section");
+
+        List<String> producers = new ArrayList<>();
+        List<String> retargeted = new ArrayList<>();
+        for (String key : recipes.getKeys(false)) {
+            ConfigurationSection result = recipes.getConfigurationSection(key + ".result");
+            if (result == null) {
+                continue;
+            }
+            String id = result.getString("id");
+            if (LEGACY.equals(id)) {
+                producers.add(key);
+            } else if (CURRENT.equals(id) && key.startsWith("farmersdelight:barbecue_stick_")) {
+                retargeted.add(key);
+            }
+        }
+
+        assertEquals(List.of(), producers, "1.4 no longer lets the barbecue stick be crafted");
+        assertEquals(9, retargeted.size(),
+                "the nine barbecue_stick_* variants have to craft the 1.4 target instead: " + retargeted);
+
+        ConfigurationSection skewers = pack("craftengine/farmersdelight/configuration/skewer_recipes.yml");
+        assertTrue(skewers.isConfigurationSection("recipes"), "the new skewer recipes live in their own file");
+    }
+
+    @Test
+    void theSnacksTagMatchesUpstreamsSixteenItems() {
+        ConfigurationSection items = items();
+
+        List<String> snacks = new ArrayList<>();
+        for (String key : items.getKeys(false)) {
+            ConfigurationSection definition = items.getConfigurationSection(key);
+            if (definition == null) {
+                continue;
+            }
+            if (definition.getStringList("settings.tags").contains("farmersdelight:snacks")) {
+                snacks.add(key);
+            }
+        }
+
+        assertEquals(16, snacks.size(), "upstream 1.4 snacks has sixteen members: " + snacks);
+        assertFalse(snacks.contains(LEGACY), "the removed item is no longer a snack: " + snacks);
+        assertTrue(snacks.contains("farmersdelight:meat_skewer"), snacks.toString());
+        assertTrue(snacks.contains("farmersdelight:cooked_vegetable_skewer"), snacks.toString());
+    }
+
+    /** The pack's items.yml, parsed from the classpath so the test needs no running server. */
+    private static ConfigurationSection items() {
+        return pack("craftengine/farmersdelight/configuration/items.yml").getConfigurationSection("items");
+    }
+
+    private static ConfigurationSection pack(String resource) {
+        try (InputStream stream = FarmersDelightLegacyIdsTest.class.getClassLoader().getResourceAsStream(resource)) {
+            assertNotNull(stream, "missing pack resource: " + resource);
+            YamlConfiguration configuration = new YamlConfiguration();
+            configuration.loadFromString(new String(stream.readAllBytes(), StandardCharsets.UTF_8));
+            return configuration;
+        } catch (Exception error) {
+            throw new AssertionError("cannot read " + resource, error);
+        }
+    }
+}

@@ -903,9 +903,6 @@ items:
         minecraft:use_remainder:
           id: minecraft:stick
           count: 1
-    settings:
-      tags:
-        - farmersdelight:snacks
   farmersdelight:egg_sandwich:
     template: farmersdelight:food_template
     data:
@@ -2348,7 +2345,7 @@ recipes:
       - "minecraft:cooked_beef"
       - "minecraft:stick"
     result:
-      id: farmersdelight:barbecue_stick
+      id: farmersdelight:cooked_meat_skewer
       count: 1
   farmersdelight:barbecue_stick_porkchop:
     type: shapeless
@@ -2360,7 +2357,7 @@ recipes:
       - "minecraft:cooked_porkchop"
       - "minecraft:stick"
     result:
-      id: farmersdelight:barbecue_stick
+      id: farmersdelight:cooked_meat_skewer
       count: 1
   farmersdelight:barbecue_stick_mutton:
     type: shapeless
@@ -2372,7 +2369,7 @@ recipes:
       - "minecraft:cooked_mutton"
       - "minecraft:stick"
     result:
-      id: farmersdelight:barbecue_stick
+      id: farmersdelight:cooked_meat_skewer
       count: 1
   farmersdelight:barbecue_stick_chicken:
     type: shapeless
@@ -2384,7 +2381,7 @@ recipes:
       - "minecraft:cooked_chicken"
       - "minecraft:stick"
     result:
-      id: farmersdelight:barbecue_stick
+      id: farmersdelight:cooked_meat_skewer
       count: 1
   farmersdelight:barbecue_stick_rabbit:
     type: shapeless
@@ -2396,7 +2393,7 @@ recipes:
       - "minecraft:cooked_rabbit"
       - "minecraft:stick"
     result:
-      id: farmersdelight:barbecue_stick
+      id: farmersdelight:cooked_meat_skewer
       count: 1
   farmersdelight:barbecue_stick_beef_patty:
     type: shapeless
@@ -2408,7 +2405,7 @@ recipes:
       - "farmersdelight:beef_patty"
       - "minecraft:stick"
     result:
-      id: farmersdelight:barbecue_stick
+      id: farmersdelight:cooked_meat_skewer
       count: 1
   farmersdelight:barbecue_stick_chicken_cuts:
     type: shapeless
@@ -2420,7 +2417,7 @@ recipes:
       - "farmersdelight:cooked_chicken_cuts"
       - "minecraft:stick"
     result:
-      id: farmersdelight:barbecue_stick
+      id: farmersdelight:cooked_meat_skewer
       count: 1
   farmersdelight:barbecue_stick_cooked_bacon:
     type: shapeless
@@ -2432,7 +2429,7 @@ recipes:
       - "farmersdelight:cooked_bacon"
       - "minecraft:stick"
     result:
-      id: farmersdelight:barbecue_stick
+      id: farmersdelight:cooked_meat_skewer
       count: 1
   farmersdelight:barbecue_stick_mutton_chops:
     type: shapeless
@@ -2444,7 +2441,7 @@ recipes:
       - "farmersdelight:cooked_mutton_chops"
       - "minecraft:stick"
     result:
-      id: farmersdelight:barbecue_stick
+      id: farmersdelight:cooked_meat_skewer
       count: 1
   farmersdelight:egg_sandwich:
     type: shapeless
