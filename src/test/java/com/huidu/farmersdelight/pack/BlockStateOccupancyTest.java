@@ -37,20 +37,19 @@ class BlockStateOccupancyTest {
         String foodText = packText("food_block.yml");
         assertEquals(0, occurrences(foodText, "state: tripwire"),
                 "no face may pin the shared tripwire state; every one of them reserves its own");
-        assertEquals(148, occurrences(foodText, "type: solid"),
-                "all 148 faces moved to the solid auto state (16 template + 132 direct)");
-        assertEquals(0, occurrences(foodText, "higher_tripwire"),
-                "the tripwire pool is far too small for this family (64 candidates, ~196 requests)");
+        assertEquals(0, occurrences(foodText, "auto_state"),
+                "the family pins explicit campfire states, like the other add-ons do");
+        assertEquals(148, occurrences(foodText, "state: campfire[") + occurrences(foodText, "state: soul_campfire["),
+                "all 148 faces pin one of the family's campfire states");
 
         ConfigurationSection food = pack("food_block.yml");
         ConfigurationSection template = food.getConfigurationSection(
                 "templates.farmersdelight:sliceable_pie_states.states.appearances");
         assertNotNull(template, "the pie template has to keep its appearances");
         for (String face : template.getKeys(false)) {
-            assertEquals("solid", template.getConfigurationSection(face).getString("auto_state.type"),
-                    "template face " + face + " reserves a solid state");
-            assertEquals("${__ID__}", template.getConfigurationSection(face).getString("auto_state.id"),
-                    "template face " + face + " shares one allocation per block via its own id");
+            assertEquals("soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]",
+                    template.getConfigurationSection(face).getString("state"),
+                    "template face " + face + " uses the shared soul campfire state");
         }
 
         ConfigurationSection blocks = food.getConfigurationSection("blocks");
@@ -59,10 +58,9 @@ class BlockStateOccupancyTest {
             ConfigurationSection appearances = blocks.getConfigurationSection(block + ".states.appearances");
             assertNotNull(appearances, block + " has to keep its appearances");
             assertEquals(appearances.getKeys(false).size(), appearances.getKeys(false).stream()
-                            .filter(face -> "solid"
-                                    .equals(appearances.getConfigurationSection(face).getString("auto_state.type")))
+                            .filter(face -> appearances.getConfigurationSection(face).getString("state") != null)
                             .count(),
-                    block + " must reserve a solid state on every face");
+                    block + " must pin a campfire state on every face");
         }
     }
 
