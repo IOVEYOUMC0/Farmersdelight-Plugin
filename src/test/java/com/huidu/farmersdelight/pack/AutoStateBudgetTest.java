@@ -7,6 +7,9 @@ import org.junit.jupiter.api.Test;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.AbstractMap;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -63,19 +66,34 @@ class AutoStateBudgetTest {
     /** The mushroom half of solid: staying inside it keeps the blocks off note_block behaviour. */
     private static final int INERT_SOLID = 189;
 
-    /** The ten owners of the food family plus the shared template they inherit from. */
-    private static final List<String> FAMILY = List.of(
-            "farmersdelight:sliceable_pie_states",
-            "farmersdelight:apple_pie",
-            "farmersdelight:sweet_berry_cheesecake",
-            "farmersdelight:chocolate_pie",
-            "farmersdelight:pumpkin_pie",
+    /** Campfire-family pool (CE mappings.yml) and what the other packs already pin there. */
+    private static final int CAMPFIRE_EFFECTIVE = 16;
+    private static final int SOUL_CAMPFIRE_EFFECTIVE = 16;
+
+    /** Every campfire-family state the other packs (and FD's safety_net) already pin. */
+    private static final List<String> OTHER_PACK_PINS = List.of(
+            "campfire[facing=north,lit=false,signal_fire=true,waterlogged=false]",
+            "campfire[facing=north,lit=false,signal_fire=true,waterlogged=true]",
+            "soul_campfire[facing=north,lit=false,signal_fire=false,waterlogged=false]",
+            "soul_campfire[facing=north,lit=false,signal_fire=false,waterlogged=true]",
+            "soul_campfire[facing=east,lit=false,signal_fire=true,waterlogged=false]");
+
+    /** The food family's own pins, keyed by owner. */
+    private static final Map<String, String> FAMILY_STATES = Map.of(
             "farmersdelight:gleaming_salad_block",
+            "campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]",
             "farmersdelight:honey_glazed_ham_block",
+            "campfire[facing=south,lit=false,signal_fire=false,waterlogged=true]",
             "farmersdelight:rice_roll_medley_block",
+            "campfire[facing=east,lit=false,signal_fire=false,waterlogged=false]",
             "farmersdelight:roast_chicken_block",
+            "campfire[facing=east,lit=false,signal_fire=false,waterlogged=true]",
             "farmersdelight:shepherds_pie_block",
-            "farmersdelight:stuffed_pumpkin_block");
+            "campfire[facing=west,lit=false,signal_fire=false,waterlogged=false]",
+            "farmersdelight:stuffed_pumpkin_block",
+            "campfire[facing=west,lit=false,signal_fire=false,waterlogged=true]",
+            "farmersdelight:sliceable_pie_states",
+            "soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]");
 
     @Test
     void everyAutoStateGroupIsAskedForNoMoreStatesThanItHas() {
@@ -91,29 +109,43 @@ class AutoStateBudgetTest {
     }
 
     @Test
-    void theFoodFamilySharesOneSolidStatePerBlock() {
-        List<String> solid = allocationKeys(false).getOrDefault("solid", List.of());
-        assertEquals(11, solid.size(), "one shared allocation per owner plus the template: " + solid);
-        for (String key : solid) {
-            assertTrue(key.startsWith("solid[id=farmersdelight:"), "every key is the advanced shared form: " + key);
-            String owner = key.substring("solid[id=".length(), key.length() - 1);
-            assertTrue(FAMILY.contains(owner), "the id is the owner's own id: " + key);
+    void theFoodFamilyPinsCampfireStatesThatNothingElseUses() {
+        ConfigurationSection food = pack("food_block.yml");
+        List<String> pinned = new ArrayList<>();
+        for (String owner : FAMILY_STATES.keySet()) {
+            ConfigurationSection ownerSection = food.getConfigurationSection("blocks." + owner);
+            if (ownerSection == null) {
+                ownerSection = food.getConfigurationSection("templates." + owner);
+            }
+            assertNotNull(ownerSection, owner + " has to exist");
+            Collection<String> states = new HashSet<>(ownerSection.getStringList("states.appearances.state"));
+            if (states.isEmpty()) {
+                ConfigurationSection appearances = ownerSection.getConfigurationSection("states.appearances");
+                for (String face : appearances.getKeys(false)) {
+                    states.add(appearances.getConfigurationSection(face).getString("state"));
+                }
+            }
+            assertEquals(Set.of(FAMILY_STATES.get(owner)), states,
+                    owner + " pins exactly its own campfire state");
+            pinned.add(FAMILY_STATES.get(owner));
         }
-        assertTrue(solid.size() <= INERT_SOLID, "and it stays inside the inert mushroom states: " + solid);
+        assertEquals(FAMILY_STATES.size(), new HashSet<>(pinned).size(), "every owner has its own pin: " + pinned);
+
+        List<String> normalisedMine = pinned.stream().map(AutoStateBudgetTest::normalise).toList();
+        List<String> normalisedTheirs = OTHER_PACK_PINS.stream().map(AutoStateBudgetTest::normalise).toList();
+        for (String state : normalisedMine) {
+            assertTrue(!normalisedTheirs.contains(state),
+                    "another pack already pins the same effective state: " + state);
+        }
+        long campfire = normalisedMine.stream().filter(state -> state.startsWith("campfire[")).count();
+        long soul = normalisedMine.stream().filter(state -> state.startsWith("soul_campfire[")).count();
+        assertTrue(campfire <= CAMPFIRE_EFFECTIVE - 2, "campfire has room left: " + campfire);
+        assertTrue(soul <= SOUL_CAMPFIRE_EFFECTIVE - 3, "soul_campfire has room left: " + soul);
     }
 
-    /**
-     * Proves the shared form is what keeps the family viable: with a plain {@code auto_state: solid} the ten
-     * blocks alone ask for 196 allocations (132 own appearances + 4 x the template's 16) and the template entry
-     * another 16, which overflows the inert mushroom half of the pool. Dropping the {@code id} therefore fails
-     * this suite.
-     */
-    @Test
-    void droppingTheSharedIdWouldAskForFarMoreStates() {
-        List<String> plain = allocationKeys(true).getOrDefault("solid", List.of());
-        assertTrue(plain.size() >= 196, "plain auto_state is keyed per appearance: " + plain.size());
-        assertTrue(plain.size() > INERT_SOLID,
-                "which overflows the inert half of the pool (" + INERT_SOLID + "): " + plain.size());
+    /** Applies this pack's own remap so effective states can be compared (signal_fire is collapsed). */
+    private static String normalise(String state) {
+        return state.replace("signal_fire=true", "signal_fire=false");
     }
 
     /**
