@@ -14,19 +14,17 @@ import java.util.function.IntSupplier;
  * counts down 120 ticks (6 seconds, the upstream constant), and the skewer is consumed one at a time when it
  * finishes.
  *
- * <p>Everything that touches the world is injected, so the timing rules are testable offline:
- * <ul>
- *   <li>{@link #tryStart(UUID)} starts a session; it refuses when disabled or when the player already has
+ * Everything that touches the world is injected, so the timing rules are testable offline:
+ *   - tryStart(UUID) starts a session; it refuses when disabled or when the player already has
  *       one (a player cooks one item at a time — that is also the mutual exclusion against every other
- *       handheld cooking path, the skillet included);</li>
- *   <li>{@link #tick(UUID)} counts one tick down; the tick that reaches zero consumes <b>one</b> skewer and
- *       clears the session. A tick without a session does nothing at all (no conversion, no state);</li>
- *   <li>{@link #cancel(UUID)} drops the session with zero progress — releasing the use key, switching slots
- *       or hands, dropping the item, quitting, dying or being hit all call it.</li>
- * </ul>
+ *       handheld cooking path, the skillet included);
+ *   - tick(UUID) counts one tick down; the tick that reaches zero consumes one skewer and
+ *       clears the session. A tick without a session does nothing at all (no conversion, no state);
+ *   - cancel(UUID) drops the session with zero progress — releasing the use key, switching slots
+ *       or hands, dropping the item, quitting, dying or being hit all call it.
  *
- * <p>The conversion itself ({@code onCooked}) is injected by the caller. The product comes from this
- * mechanism's own {@link SkewerResultTable} mapping (config {@code handheld-skewer.results}), not from the
+ * The conversion itself (onCooked) is injected by the caller. The product comes from this
+ * mechanism's own SkewerResultTable mapping (config handheld-skewer.results), not from the
  * pack's campfire recipe: CraftEngine only exposes its recipe queries through NMS-typed bindings, so handheld
  * cooking keeps its own table and the campfire/furnace/smoker paths stay untouched. The service never copies an
  * ItemStack: the caller consumes the held stack in place.

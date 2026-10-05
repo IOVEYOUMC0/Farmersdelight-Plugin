@@ -383,7 +383,7 @@ final class SkilletHandheldCooking {
         var user = BukkitAdaptor.adapt(player);
         if (user == null) return;
         // Equipment packets do not reliably refresh the local hotbar. This packet uses inventory
-        // slots (0-8 for the hotbar, 40 for offhand) and exists throughout our 1.21.5+ baseline.
+        // slots (0-8 for the hotbar, 40 for offhand) and exists throughout the 1.21.5+ baseline.
         ItemStack display = item == null ? new ItemStack(Material.AIR) : item.clone();
         user.sendPacket(ClientboundSetPlayerInventoryPacketProxy.INSTANCE.newInstance(
                 slot, BukkitAdaptor.adapt(display).minecraftItem()), false);
