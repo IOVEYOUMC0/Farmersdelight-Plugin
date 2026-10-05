@@ -29,8 +29,9 @@ MIT 与 AGPL-3.0 兼容，第三方内容的 MIT 声明随 jar 分发，完整�
 以下依赖不打进 jar，只在运行时调用，因此不随本仓库分发其授权文本：
 
 - CraftEngine（GPL-3.0），内容平台与配方数据来源
-- UltimateAdvancementAPI，成就系统；本仓库带了一份 fork，见 `libs/` 与
-  [UltimateAdvancementAPI](https://github.com/IOVEYOUMC0/UltimateAdvancementAPI)
+- UltimateAdvancementAPI（LGPL-3.0-or-later），成就系统；本仓库带了一份 fork，见 `libs/` 与
+  [UltimateAdvancementAPI](https://github.com/IOVEYOUMC0/UltimateAdvancementAPI)。
+  该 fork 的 `LICENSE` 是 GPL-3.0 全文、`COPYING.LESSER` 是 LGPL 附加许可，`LGPL` 是同文短名文件。
 
 ## 关于盗版分发
 

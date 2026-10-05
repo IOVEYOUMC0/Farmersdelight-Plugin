@@ -1,6 +1,22 @@
-# FarmersDelight Plugin
+<h1 align="center">FarmersDelight Plugin</h1>
 
-**English** | [中文](README.zh-cn.md)
+<p align="center">
+  <img src="https://img.shields.io/badge/Minecraft-1.21.5%2B-3fb950" alt="Minecraft 1.21.5+">
+  <img src="https://img.shields.io/badge/CraftEngine-26.8.2%2B-5865F2" alt="CraftEngine 26.8.2+">
+  <img src="https://img.shields.io/badge/Java-21-orange" alt="Java 21">
+  <img src="https://img.shields.io/badge/Folia-supported-blueviolet" alt="Folia supported">
+  <img src="https://img.shields.io/badge/API-com.huidu.farmersdelight.api-blue" alt="Addon API">
+</p>
+
+<p align="center">
+  <b>English</b> | <a href="README.zh-cn.md">简体中文</a>
+</p>
+
+<p align="center"><i>A CraftEngine-powered Paper/Folia port of the Farmer's Delight mod.</i></p>
+
+---
+
+## About
 
 FarmersDelight is a Paper/Folia plugin port of **Farmer's Delight**, powered by CraftEngine. It adds crops, rich soil, cooking stations, knives, food, recipe discovery, advancements and a public API for addons.
 
@@ -37,6 +53,20 @@ The build resolves CraftEngine 26.9.1 from its official Maven repository; pass `
 
 * **Local checkout (preferred).** With this repository checked out beside the addon (`../FarmersDelight`) the addon build is a Gradle composite build: it builds `:apiJar` here and substitutes the coordinate, so nothing is fetched and builds work offline.
 * **No checkout.** Otherwise the addon resolves the coordinate through a Gradle source dependency on this git repository at a pinned version, which is checked out and built in place — that channel needs network access.
+
+## Credits
+
+The mod this plugin ports is **Farmer's Delight**, by **vectorwing**, distributed under the **MIT** licence:
+
+- Modrinth: https://modrinth.com/mod/farmers-delight
+- Source: https://github.com/vectorwing/FarmersDelight
+
+Ported textures, recipes, values and gameplay behaviour keep the upstream author's copyright and their MIT
+licence; the MIT notice that ships inside the jar is `src/main/resources/NOTICE.txt`, and this repository's
+own attribution table is [NOTICE.md](NOTICE.md).
+
+This plugin is an independent Paper/Folia port of that mod. It is not affiliated with, endorsed by or
+maintained by the upstream author.
 
 ## License
 

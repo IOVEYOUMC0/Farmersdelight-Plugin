@@ -23,6 +23,7 @@ public final class CuttingBoardDisplayConfig {
     private static final float DEFAULT_ITEM_SPREAD = 0.15F;
     private static final Vector3f ZERO_OFFSET = new Vector3f(0.0F, 0.0F, 0.0F);
     private static final String DISPLAY_OVERRIDES_FILE = "display-overrides.yml";
+    private static final String CONFIG_FILE = "config.yml";
 
     private final Map<String, DisplayOverride> itemOverrides = new ConcurrentHashMap<>();
     // tagOverrides keeps LinkedHashMap for definition-order iteration (first-match override semantics);
@@ -34,6 +35,9 @@ public final class CuttingBoardDisplayConfig {
     // Reload writes, event handlers read on Folia region threads — volatile publishes the new values.
     private volatile DisplayOverride defaultOverride;
     private volatile float itemSpread;
+    // One report per distinct tag that cannot be matched, so a broken tag override announces itself without
+    // printing a line every time a display is rebuilt. reset() clears it, so a reload re-reports.
+    private final Set<String> reportedTagFailures = ConcurrentHashMap.newKeySet();
 
     public CuttingBoardDisplayConfig() {
         this(DisplayOverride.empty(), DEFAULT_ITEM_SPREAD);
@@ -73,6 +77,7 @@ public final class CuttingBoardDisplayConfig {
     private void reset() {
         itemOverrides.clear();
         tagOverrides.clear();
+        reportedTagFailures.clear();
         defaultOverride = fallbackDefaults.copy();
         itemSpread = fallbackItemSpread;
     }
@@ -102,7 +107,7 @@ public final class CuttingBoardDisplayConfig {
                         "error", "expected a section");
                 continue;
             }
-            DisplayOverride override = DisplayOverride.fromConfig(overrideSection);
+            DisplayOverride override = DisplayOverride.fromConfig(overrideSection, sourceFile);
             if (tagKey) {
                 tagOverrides.put(normalizeTag(key), override);
             } else {
@@ -124,7 +129,14 @@ public final class CuttingBoardDisplayConfig {
                     if (ItemUtils.matchesCustomOrVanillaTag(storedItem, entry.getKey())) {
                         resolved = resolved.merge(entry.getValue());
                     }
-                } catch (Exception ignored) {
+                } catch (Exception failure) {
+                    // A tag that cannot be matched would silently drop its override, so report it instead of
+                    // discarding the failure. Reported once per tag: this runs every time a display is
+                    // rebuilt, and the remaining overrides are still applied.
+                    if (reportedTagFailures.add(entry.getKey())) {
+                        I18n.logWarning("plugin.config_value_invalid", "file", DISPLAY_OVERRIDES_FILE,
+                                "path", "tags." + entry.getKey(), "error", failure.toString());
+                    }
                 }
             }
         }
@@ -261,7 +273,7 @@ public final class CuttingBoardDisplayConfig {
             return style == null ? DisplayStyle.AUTO : style;
         }
 
-        private static DisplayOverride fromConfig(ConfigurationSection section) {
+        private static DisplayOverride fromConfig(ConfigurationSection section, String sourceFile) {
             String displayItemId = section.getString("display-item");
             if (!ItemUtils.isValidItemId(displayItemId)) {
                 if (section.contains("display-item")) {
@@ -274,10 +286,10 @@ public final class CuttingBoardDisplayConfig {
             return new DisplayOverride(
                     displayItemId,
                     DisplayStyle.fromConfig(section.getString("style")),
-                    readVector(section, "position", "offset"),
-                    readVector(section, "translation"),
-                    readVector(section, "rotation"),
-                    readVector(section, "scale")
+                    readVector(section, sourceFile, "position", "offset"),
+                    readVector(section, sourceFile, "translation"),
+                    readVector(section, sourceFile, "rotation"),
+                    readVector(section, sourceFile, "scale")
             );
         }
 
@@ -293,6 +305,7 @@ public final class CuttingBoardDisplayConfig {
 
             Vector3f defaultOffset = readVector(
                     section,
+                    CONFIG_FILE,
                     "default-display-position",
                     "default-display-offset",
                     "default-position",
@@ -311,9 +324,9 @@ public final class CuttingBoardDisplayConfig {
                     displayItemId,
                     DisplayStyle.fromConfig(firstString(section)),
                     defaultOffset,
-                    readVector(section, "default-display-translation", "default-translation", "translation"),
-                    readVector(section, "default-display-rotation", "default-rotation", "rotation"),
-                    readVector(section, "default-display-scale", "default-scale", "scale")
+                    readVector(section, CONFIG_FILE, "default-display-translation", "default-translation", "translation"),
+                    readVector(section, CONFIG_FILE, "default-display-rotation", "default-rotation", "rotation"),
+                    readVector(section, CONFIG_FILE, "default-display-scale", "default-scale", "scale")
             );
         }
 
@@ -346,13 +359,13 @@ public final class CuttingBoardDisplayConfig {
         }
 
         @Nullable
-        static Vector3f readVector(ConfigurationSection section, String... keys) {
+        static Vector3f readVector(ConfigurationSection section, String sourceFile, String... keys) {
             for (String key : keys) {
                 if (!section.contains(key)) {
                     continue;
                 }
                 Object value = section.get(key);
-                Vector3f vector = parseVector(value);
+                Vector3f vector = parseVector(value, sourceFile, section.getCurrentPath() + "." + key);
                 if (vector != null) {
                     return vector;
                 }
@@ -361,7 +374,7 @@ public final class CuttingBoardDisplayConfig {
         }
 
         @Nullable
-        private static Vector3f parseVector(Object value) {
+        private static Vector3f parseVector(Object value, String sourceFile, String path) {
             try {
                 if (value instanceof Number number) {
                     float v = number.floatValue();
@@ -401,7 +414,13 @@ public final class CuttingBoardDisplayConfig {
                             (float) ConfigSectionReader.optionalDouble(vectorSection, "z", 0.0D)
                     );
                 }
-            } catch (Exception ignored) {
+            } catch (Exception failure) {
+                // A malformed offset/translation/rotation/scale would silently drop the override it belongs
+                // to, so report the value and the exception together with the key they came from. This runs
+                // while the config file is read, never while an item is displayed, so it cannot flood a hot
+                // path; the caller falls back to the remaining keys.
+                I18n.logWarning("plugin.config_value_invalid", "file", sourceFile,
+                        "path", path, "error", "unparseable vector '" + value + "': " + failure);
             }
             return null;
         }

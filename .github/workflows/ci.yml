@@ -63,8 +63,10 @@ jobs:
       # The machine-enforceable half of the maintenance contracts written down in the project notes: shipped
       # CraftEngine configuration carries no comments, meal icons match the recipes that actually produce
       # them, no language key is referenced without a definition in both locales, addons only compile against
-      # the api facade, and every config path the code reads exists in a file we ship. They used to be manual
-      # (or unenforced) steps, which meant a contract held only when someone remembered to check it.
+      # the api facade, every config path the code reads exists in a file we ship, and no shipped YAML file
+      # repeats a mapping key (a duplicate is not a load error: the reader keeps the last one and the earlier
+      # block disappears). They used to be manual (or unenforced) steps, which meant a contract held only when
+      # someone remembered to check it.
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -95,3 +97,10 @@ jobs:
       # itself in the source with "config-path-check: no shipped key, on purpose".
       - name: Every config path read exists in a shipped file
         run: python tools/check_config_paths.py --quiet
+
+      # A repeated mapping key is not a YAML error: yaml.safe_load (and CraftEngine's own loader) keep the
+      # last value and report nothing, so the earlier block silently disappears. The 1.4 migration shipped
+      # exactly that in blocks.yml -- two `states:` blocks under one block id, the second one also stealing
+      # the block above it. This walks the node tree with yaml.compose, where both keys are still visible.
+      - name: No shipped YAML file repeats a mapping key
+        run: python tools/check_duplicate_yaml_keys.py --quiet

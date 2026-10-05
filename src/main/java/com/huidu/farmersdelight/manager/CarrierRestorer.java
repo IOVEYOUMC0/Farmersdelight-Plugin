@@ -54,7 +54,7 @@ import java.util.UUID;
 public final class CarrierRestorer {
 
     /** Marker key: only entities carrying it are ever touched by this class. */
-    public static final NamespacedKey KIND = new NamespacedKey("farmersdelight", "rope_carrier_restore");
+    public static final NamespacedKey KIND = NamespacedKey.fromString("farmersdelight:rope_carrier_restore");
 
     private static final boolean[] BOOLEANS = {false, true};
 

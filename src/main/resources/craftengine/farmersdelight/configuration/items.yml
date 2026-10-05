@@ -34,8 +34,8 @@ templates:
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
       food:
-        nutrition: 3
-        saturation: 1.8
+        nutrition: 5
+        saturation: 5
         can-always-eat: false
     events:
       - on: consume
@@ -201,8 +201,8 @@ items:
     data:
       item-name: <!i><lang:item.farmersdelight.cabbage>
       food:
-        nutrition: 2
-        saturation: 1.6
+        nutrition: 4
+        saturation: 2
         can-always-eat: false
     behavior:
       type: compostable_item
@@ -220,7 +220,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.tomato>
       food:
         nutrition: 1
-        saturation: 0.6
+        saturation: 1
         can-always-eat: false
     behavior:
       type: compostable_item
@@ -239,7 +239,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.onion>
       food:
         nutrition: 2
-        saturation: 1.6
+        saturation: 1
         can-always-eat: false
     behaviors:
       - type: compostable_item
@@ -349,7 +349,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.fried_egg>
       food:
         nutrition: 4
-        saturation: 3.2
+        saturation: 3.5
         can-always-eat: false
     settings:
       tags:
@@ -360,7 +360,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.tomato_sauce>
       food:
         nutrition: 4
-        saturation: 3.2
+        saturation: 3.5
         can-always-eat: false
     settings:
       tags:
@@ -372,7 +372,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.wheat_dough>
       food:
         nutrition: 2
-        saturation: 1.2
+        saturation: 1.5
         can-always-eat: false
     events:
       - on: consume
@@ -395,7 +395,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.raw_pasta>
       food:
         nutrition: 2
-        saturation: 1.2
+        saturation: 1.5
         can-always-eat: false
     behavior:
       type: compostable_item
@@ -422,7 +422,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.pumpkin_slice>
       food:
         nutrition: 3
-        saturation: 1.8
+        saturation: 2
         can-always-eat: false
     behavior:
       type: compostable_item
@@ -437,8 +437,8 @@ items:
     data:
       item-name: <!i><lang:item.farmersdelight.cabbage_leaf>
       food:
-        nutrition: 1
-        saturation: 0.8
+        nutrition: 2
+        saturation: 1
         can-always-eat: false
     settings:
       tags:
@@ -474,7 +474,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.chicken_cuts>
       food:
         nutrition: 1
-        saturation: 0.6
+        saturation: 0.3
         can-always-eat: false
     settings:
       tags:
@@ -638,7 +638,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.pie_crust>
       food:
         nutrition: 2
-        saturation: 0.8
+        saturation: 1
         can-always-eat: false
     behavior:
       type: compostable_item
@@ -698,8 +698,8 @@ items:
     data:
       item-name: <!i><lang:item.farmersdelight.cake_slice>
       food:
-        nutrition: 2
-        saturation: 0.4
+        nutrition: 3
+        saturation: 3
         can-always-eat: false
     behavior:
       type: compostable_item
@@ -769,6 +769,19 @@ items:
     template: farmersdelight:pie_slice_template
     data:
       item-name: <!i><lang:block.farmersdelight.pumpkin_pie_slice>
+      lore: '<!i><blue><lang:effect.minecraft.speed> (00:30)</blue>'
+      food:
+        nutrition: 3
+        saturation: 2
+        can-always-eat: true
+    events:
+      - on: consume
+        functions:
+          - type: potion_effect
+            potion-effect: minecraft:speed
+            duration: 600
+            amplifier: 0
+            particles: false
     settings:
       tags:
         - c:foods/pie
@@ -805,7 +818,7 @@ items:
       item-name: <!i><lang:item.farmersdelight.melon_popsicle>
       food:
         nutrition: 3
-        saturation: 1.2
+        saturation: 1.5
         can-always-eat: true
       components:
         minecraft:use_remainder:
@@ -820,8 +833,8 @@ items:
       item-name: <!i><lang:item.farmersdelight.glow_berry_custard>
       lore: '<!i><blue><lang:effect.minecraft.glowing> (00:05)</blue>'
       food:
-        nutrition: 7
-        saturation: 8.4
+        nutrition: 8
+        saturation: 9
         can-always-eat: true
     events:
       - on: consume
@@ -838,19 +851,10 @@ items:
     template: farmersdelight:soup_template
     data:
       item-name: <!i><lang:item.farmersdelight.fruit_salad>
-      lore: '<!i><blue><lang:effect.minecraft.regeneration> (00:05)</blue>'
       food:
-        nutrition: 6
-        saturation: 7.2
+        nutrition: 8
+        saturation: 10
         can-always-eat: false
-    events:
-      - on: consume
-        functions:
-          - type: potion_effect
-            potion-effect: minecraft:regeneration
-            duration: 100
-            amplifier: 0
-            particles: true
     settings:
       tags:
         - farmersdelight:sweets
@@ -858,19 +862,10 @@ items:
     template: farmersdelight:soup_template
     data:
       item-name: <!i><lang:item.farmersdelight.mixed_salad>
-      lore: '<!i><blue><lang:effect.minecraft.regeneration> (00:05)</blue>'
       food:
-        nutrition: 6
-        saturation: 7.2
+        nutrition: 8
+        saturation: 10
         can-always-eat: false
-    events:
-      - on: consume
-        functions:
-          - type: potion_effect
-            potion-effect: minecraft:regeneration
-            duration: 100
-            amplifier: 0
-            particles: true
     settings:
       tags:
         - farmersdelight:meals
@@ -1061,7 +1056,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (00:30)</blue>'
       food:
         nutrition: 6
-        saturation: 4.8
+        saturation: 5
         can-always-eat: false
     settings:
       tags:
@@ -1086,7 +1081,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (01:00)</blue>'
       food:
         nutrition: 8
-        saturation: 11.2
+        saturation: 10
         can-always-eat: false
     settings:
       tags:
@@ -1101,7 +1096,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
-        saturation: 19.2
+        saturation: 16
         can-always-eat: false
     settings:
       tags:
@@ -1116,7 +1111,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
-        saturation: 19.2
+        saturation: 16
         can-always-eat: false
     settings:
       tags:
@@ -1131,7 +1126,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
-        saturation: 19.2
+        saturation: 16
         can-always-eat: false
     settings:
       tags:
@@ -1146,7 +1141,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
-        saturation: 19.2
+        saturation: 16
         can-always-eat: false
     settings:
       tags:
@@ -1160,7 +1155,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
-        saturation: 19.2
+        saturation: 16
         can-always-eat: false
     settings:
       tags:
@@ -1175,7 +1170,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
-        saturation: 19.2
+        saturation: 16
         can-always-eat: false
     settings:
       tags:
@@ -1189,7 +1184,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 21
+        saturation: 20
         can-always-eat: false
     settings:
       tags:
@@ -1204,7 +1199,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 21
+        saturation: 20
         can-always-eat: false
     settings:
       tags:
@@ -1219,7 +1214,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 21
+        saturation: 20
         can-always-eat: false
     settings:
       tags:
@@ -1250,7 +1245,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
-        saturation: 19.2
+        saturation: 16
         can-always-eat: false
     settings:
       tags:
@@ -1264,7 +1259,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
-        saturation: 19.2
+        saturation: 16
         can-always-eat: false
     settings:
       tags:
@@ -1278,7 +1273,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
-        saturation: 19.2
+        saturation: 16
         can-always-eat: false
     settings:
       tags:
@@ -1292,7 +1287,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 21
+        saturation: 20
         can-always-eat: false
     settings:
       tags:
@@ -1306,7 +1301,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 21
+        saturation: 20
         can-always-eat: false
     settings:
       tags:
@@ -1320,7 +1315,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
         nutrition: 12
-        saturation: 19.2
+        saturation: 16
         can-always-eat: false
     settings:
       tags:
@@ -1348,7 +1343,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 21
+        saturation: 20
         can-always-eat: false
     settings:
       tags:
@@ -1361,8 +1356,8 @@ items:
       item-name: <!i><lang:item.farmersdelight.grilled_salmon>
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (03:00)</blue>'
       food:
-        nutrition: 14
-        saturation: 21
+        nutrition: 12
+        saturation: 16
         can-always-eat: false
     settings:
       tags:
@@ -1386,7 +1381,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 21
+        saturation: 20
         can-always-eat: false
     settings:
       tags:
@@ -1416,7 +1411,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 21
+        saturation: 20
         can-always-eat: false
     settings:
       tags:
@@ -1440,7 +1435,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 21
+        saturation: 20
         can-always-eat: false
     settings:
       tags:
@@ -1464,7 +1459,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 21
+        saturation: 20
         can-always-eat: false
     settings:
       tags:
@@ -1488,7 +1483,7 @@ items:
       lore: '<!i><blue><lang:effect.farmersdelight.nourishment> (05:00)</blue>'
       food:
         nutrition: 14
-        saturation: 21
+        saturation: 20
         can-always-eat: false
     settings:
       tags:
@@ -1515,7 +1510,7 @@ items:
         - '<!i><blue>  <lang:effect.minecraft.resistance> (05:00)</blue>'
       food:
         nutrition: 4
-        saturation: 1.6
+        saturation: 2
         can-always-eat: false
     settings:
       tags:

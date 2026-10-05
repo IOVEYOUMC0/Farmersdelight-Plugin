@@ -1,6 +1,6 @@
 # Repository contract checks
 
-Five checks that enforce the machine-checkable half of this project's maintenance contracts. They run in CI
+Six checks that enforce the machine-checkable half of this project's maintenance contracts. They run in CI
 (the `lint` job in `.github/workflows/ci.yml`) on every push and pull request.
 
 | Check | Guards |
@@ -10,8 +10,9 @@ Five checks that enforce the machine-checkable half of this project's maintenanc
 | `check_lang_keys.py` | Every language key the Java sources reference is defined in both `lang/en_us.yml` and `lang/zh_cn.yml`, the two locales stay symmetric, and no value is blank. |
 | `check_api_boundary.py --quiet` | Addons compile against `api.**` only, and no public api signature exposes an internal type without the `@ApiStatus.Internal` marker. |
 | `check_config_paths.py --quiet` | Every literal config path the code reads exists in a shipped file (an intentional exception marks itself with `config-path-check: no shipped key, on purpose`). |
+| `check_duplicate_yaml_keys.py --quiet` | No shipped YAML file under `src/main/resources/**` repeats a key inside one mapping. It walks `yaml.compose` node trees, because `yaml.safe_load` silently keeps the last value (a duplicate block, not a load error) and CraftEngine's loader is duplicate-tolerant too. Files that are not single-document strict YAML are skipped and named, never reported as duplicates. |
 
-All five are read-only with `--check` / `--quiet` and exit non-zero on a real problem, so no separate assertion
+All six are read-only with `--check` / `--quiet` and exit non-zero on a real problem, so no separate assertion
 is needed. They need PyYAML (`python -m pip install pyyaml`).
 
 ```bash
@@ -20,6 +21,7 @@ python tools/meal_icons.py --check
 python tools/check_lang_keys.py --quiet
 python tools/check_api_boundary.py --quiet
 python tools/check_config_paths.py --quiet
+python tools/check_duplicate_yaml_keys.py --quiet
 ```
 
 Without `--check`, `strip_ce_comments.py` and `meal_icons.py` rewrite the files instead of reporting. That is
@@ -27,8 +29,8 @@ the intended way to fix what they find; both keep existing order and only add, p
 
 ## Scope
 
-These copies are scoped to this repository. The monorepo parent directory holds workspace-level copies of the
-same three tools that check every module in one pass:
+These copies are scoped to this repository. The monorepo parent directory holds workspace-level copies of three
+of them — `strip_ce_comments.py`, `meal_icons.py` and `check_lang_keys.py` — which check every module in one pass:
 
 * `strip_ce_comments.py` there also walks the addons' craftengine packs and the standalone packs under `packs/`;
 * `meal_icons.py` there also covers the `crabbersdelight`, `brewinandchewin`, `endsdelight`, `corndelight` and
