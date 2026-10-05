@@ -7,15 +7,15 @@ import org.jetbrains.annotations.Nullable;
  * Reads whether a player is standing next to a heat source, without ever reading a block from a thread that
  * does not own its region.
  *
- * <p><b>Semantics (upstream parity).</b> Farmer's Delight 1.4 checks this once, when the player starts using
- * the skewer ({@code HandCookedItem#use}), and looks at the 3x3x3 block cube around the player (plus "the
+ * Semantics (upstream parity). Farmer's Delight 1.4 checks this once, when the player starts using
+ * the skewer (HandCookedItem#use), and looks at the 3x3x3 block cube around the player (plus "the
  * player is on fire"). It is not re-checked while the skewer cooks, which is what keeps this cheap and
  * region-safe: one dispatch at most per use attempt, and none at all in the common case.
  *
- * <p><b>Region contract.</b> The caller supplies a {@link RegionAccess}; for every candidate position the
- * probe either reads it inline — only when {@link RegionAccess#owns(int, int, int)} says this thread owns
+ * Region contract. The caller supplies a RegionAccess; for every candidate position the
+ * probe either reads it inline — only when RegionAccess#owns(int, int, int) says this thread owns
  * that block — or hands exactly one task to the owning region. A player who is more than one block away from
- * a region boundary is fully inside one region, so every candidate is owned and <b>no</b> dispatch happens;
+ * a region boundary is fully inside one region, so every candidate is owned and no dispatch happens;
  * only a player at the very edge of a region (or standing across a boundary) causes dispatches, one per
  * foreign column (all three heights of a column share one dispatch, because the seam is
  * column-granular). A foreign position is never read inline.
