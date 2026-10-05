@@ -12,7 +12,7 @@ recipes:
     result:
       id: farmersdelight:apple_crate
       count: 1
-  farmersdelight:apple_from_crate:
+  farmersdelight:apple_crate_unpack:
     type: shapeless
     category: misc
     group: unpack_crate
@@ -34,7 +34,7 @@ recipes:
     result:
       id: farmersdelight:golden_apple_crate
       count: 1
-  farmersdelight:golden_apple_from_crate:
+  farmersdelight:golden_apple_crate_unpack:
     type: shapeless
     category: misc
     group: unpack_crate
@@ -56,7 +56,7 @@ recipes:
     result:
       id: farmersdelight:golden_carrot_crate
       count: 1
-  farmersdelight:golden_carrot_from_crate:
+  farmersdelight:golden_carrot_crate_unpack:
     type: shapeless
     category: misc
     group: unpack_crate
@@ -78,7 +78,7 @@ recipes:
     result:
       id: farmersdelight:chorus_fruit_crate
       count: 1
-  farmersdelight:chorus_fruit_from_crate:
+  farmersdelight:chorus_fruit_crate_unpack:
     type: shapeless
     category: misc
     group: unpack_crate
@@ -100,7 +100,7 @@ recipes:
     result:
       id: farmersdelight:brown_mushroom_crate
       count: 1
-  farmersdelight:brown_mushroom_from_crate:
+  farmersdelight:brown_mushroom_crate_unpack:
     type: shapeless
     category: misc
     group: unpack_crate
@@ -122,7 +122,7 @@ recipes:
     result:
       id: farmersdelight:red_mushroom_crate
       count: 1
-  farmersdelight:red_mushroom_from_crate:
+  farmersdelight:red_mushroom_crate_unpack:
     type: shapeless
     category: misc
     group: unpack_crate
@@ -144,7 +144,7 @@ recipes:
     result:
       id: farmersdelight:egg_carton
       count: 1
-  farmersdelight:egg_from_carton:
+  farmersdelight:egg_carton_unpack:
     type: shapeless
     category: misc
     group: unpack_crate
@@ -166,7 +166,7 @@ recipes:
     result:
       id: farmersdelight:sweet_berries_bag
       count: 1
-  farmersdelight:sweet_berries_from_bag:
+  farmersdelight:sweet_berries_bag_unpack:
     type: shapeless
     category: misc
     group: unpack_crate
@@ -188,7 +188,7 @@ recipes:
     result:
       id: farmersdelight:glow_berries_bag
       count: 1
-  farmersdelight:glow_berries_from_bag:
+  farmersdelight:glow_berries_bag_unpack:
     type: shapeless
     category: misc
     group: unpack_crate
@@ -210,7 +210,7 @@ recipes:
     result:
       id: farmersdelight:cocoa_beans_bag
       count: 1
-  farmersdelight:cocoa_beans_from_bag:
+  farmersdelight:cocoa_beans_bag_unpack:
     type: shapeless
     category: misc
     group: unpack_crate
