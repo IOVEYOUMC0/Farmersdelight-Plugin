@@ -195,6 +195,61 @@ class HandCookedSkewerHooksTest {
         assertTrue(arm.lastCancelled(), "and stays cancelled with nothing to advance");
     }
 
+    /** The live defect: a right click on a heat source block starts cooking and cancels the vanilla use. */
+    @Test
+    void aRightClickOnAHeatSourceBlockStartsCookingAndCancelsTheVanillaUse() {
+        HandCookedSkewerHooks hooks = armed(new CountingArm(), new AtomicInteger(), new FakeLoopSeam());
+        UUID player = UUID.randomUUID();
+        AtomicInteger cancels = new AtomicInteger();
+
+        assertTrue(hooks.handleUse(player, EquipmentSlot.HAND, true, false, false,
+                        true, true, false, cancels::incrementAndGet),
+                "a heat source block under the cursor starts a session even with no heat around the player");
+        assertEquals(1, cancels.get(), "and the vanilla use is cancelled so the fire cannot take the skewer");
+        assertTrue(hooks.service().isCooking(player), "the session really runs");
+    }
+
+    @Test
+    void aRightClickOnAPlainBlockStartsNothingAndLeavesTheUseAlone() {
+        HandCookedSkewerHooks hooks = armed(new CountingArm(), new AtomicInteger(), new FakeLoopSeam());
+        AtomicInteger cancels = new AtomicInteger();
+
+        assertFalse(hooks.handleUse(UUID.randomUUID(), EquipmentSlot.HAND, true, false, false,
+                true, false, false, cancels::incrementAndGet));
+        assertEquals(0, cancels.get(), "a block that is not a heat source keeps its own interaction");
+    }
+
+    @Test
+    void aBlockClickThatIsOnlyNearHeatStartsWithoutCancellingTheUse() {
+        HandCookedSkewerHooks hooks = armed(new CountingArm(), new AtomicInteger(), new FakeLoopSeam());
+        AtomicInteger cancels = new AtomicInteger();
+
+        assertTrue(hooks.handleUse(UUID.randomUUID(), EquipmentSlot.HAND, true, false, false,
+                true, false, true, cancels::incrementAndGet));
+        assertEquals(0, cancels.get(), "the cube probe is upstream parity; a plain block is still not cancelled");
+    }
+
+    @Test
+    void holdingSomethingElseNeverStartsOrCancels() {
+        HandCookedSkewerHooks hooks = armed(new CountingArm(), new AtomicInteger(), new FakeLoopSeam());
+        AtomicInteger cancels = new AtomicInteger();
+
+        assertFalse(hooks.handleUse(UUID.randomUUID(), EquipmentSlot.HAND, false, false, false,
+                true, true, true, cancels::incrementAndGet));
+        assertEquals(0, cancels.get(), "a player who is not holding a raw skewer sees no change at all");
+    }
+
+    @Test
+    void aRightClickInAirStillUsesTheNearbyProbe() {
+        HandCookedSkewerHooks hooks = armed(new CountingArm(), new AtomicInteger(), new FakeLoopSeam());
+        UUID player = UUID.randomUUID();
+        AtomicInteger cancels = new AtomicInteger();
+
+        assertTrue(hooks.handleUse(player, EquipmentSlot.HAND, true, false, false,
+                false, false, true, cancels::incrementAndGet));
+        assertEquals(0, cancels.get(), "right clicking air never cancels anything");
+    }
+
     private static HandCookedSkewerHooks armed(CountingArm arm, AtomicInteger cooked, FakeLoopSeam seam) {
         HandCookedSkewerHooks hooks = new HandCookedSkewerHooks(null);
         hooks.setLoopSeam(seam);

@@ -6,6 +6,7 @@ import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import io.papermc.paper.event.player.PlayerStopUsingItemEvent;
 import org.bukkit.Location;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -211,7 +212,13 @@ public final class HandCookedSkewerHooks implements Listener {
         return !requireSneak || sneaking;
     }
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    /**
+     * Right click with a raw skewer in hand. Runs at HIGH and without {@code ignoreCancelled} on purpose: the
+     * campfire recipe path cancels this event to put the skewer into a campfire slot, and a MONITOR handler
+     * with {@code ignoreCancelled = true} would never see it (that was the live defect: no session started,
+     * and the skewer ended up on the fire). Cancelling here, before that handler, keeps the skewer in the hand.
+     */
+    @EventHandler(priority = EventPriority.HIGH)
     public void onInteract(PlayerInteractEvent event) {
         Action action = event.getAction();
         if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) {
@@ -232,12 +239,52 @@ public final class HandCookedSkewerHooks implements Listener {
         if (!mayStart(true, hasResult, skilletCooking, player.isSneaking(), requireSneak)) {
             return;
         }
-        if (!hasHeat(player)) {
-            // The heat check happens once, when the use starts (upstream parity). Not near a heat source means
-            // no session at all, so nothing is consumed and no tick runs.
-            return;
+        boolean blockClick = action == Action.RIGHT_CLICK_BLOCK;
+        boolean clickedHeat = blockClick && isHeatSourceHere(event.getClickedBlock());
+        // The cube probe is only worth its dispatches when the clicked block is not itself a heat source.
+        boolean nearbyHeat = clickedHeat ? false : hasHeat(player);
+        handleUse(player.getUniqueId(), hand, true, false, false, blockClick, clickedHeat, nearbyHeat,
+                () -> event.setCancelled(true));
+    }
+
+    /**
+     * The start decision, on plain inputs so the tests can drive a block click without a server.
+     *
+     * <p>Heat comes from either the clicked block or the 3x3x3 cube around the player (upstream parity keeps
+     * the cube). Only a right click on an actual heat source block cancels the vanilla use — that is the case
+     * where the campfire would swallow the skewer — so a plain block or a right click in air keeps its own
+     * interaction, and holding something else changes nothing at all.
+     */
+    @ApiStatus.Internal
+    boolean handleUse(UUID player, EquipmentSlot hand, boolean rawSkewer, boolean skilletCooking, boolean sneaking,
+                      boolean blockClick, boolean clickedBlockHeat, boolean nearbyHeat, Runnable cancelVanilla) {
+        if (!mayStart(service != null, rawSkewer, skilletCooking, sneaking, requireSneak)) {
+            return false;
         }
-        beginSession(player.getUniqueId(), hand);
+        if (!clickedBlockHeat && !nearbyHeat) {
+            // No heat means no session at all, so nothing is consumed and no tick runs.
+            return false;
+        }
+        if (blockClick && clickedBlockHeat) {
+            cancelVanilla.run();
+        }
+        return beginSession(player, hand);
+    }
+
+    /**
+     * Whether the clicked block is a heat source, read only when this thread owns its region: a foreign block
+     * read would throw under Folia's threading, and the click of a boundary block is left to vanilla rather
+     * than guessed at.
+     */
+    private boolean isHeatSourceHere(@Nullable Block block) {
+        FarmersDelightPlugin owner = plugin;
+        if (owner == null || block == null) {
+            return false;
+        }
+        if (!owner.scheduler().isOwnedByCurrentRegion(block.getLocation())) {
+            return false;
+        }
+        return FarmersDelightApi.get().isHeatSource(block);
     }
 
     /**
