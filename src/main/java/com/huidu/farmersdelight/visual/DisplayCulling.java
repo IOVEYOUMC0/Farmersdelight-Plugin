@@ -1,6 +1,8 @@
 package com.huidu.farmersdelight.visual;
 
+import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * The visibility policy shared by both display paths, kept free of Bukkit types so it can be unit tested.
@@ -36,6 +38,16 @@ public final class DisplayCulling {
     public static boolean isVisible(double distanceSquared, double viewDistance, double extra) {
         double limit = Math.max(0.0D, viewDistance) + Math.max(0.0D, extra);
         return distanceSquared <= limit * limit;
+    }
+
+    /**
+     * Whether the culler's repeating task has to be (re)created. A task that was cancelled — a scheduler
+     * shutdown, a plugin disable followed by an enable that handed back a cached culler — must not be mistaken
+     * for a live one: that is the silent failure this guards against (no exception, no log, culling just
+     * stops). Keep this rule here so it can be unit tested without a server.
+     */
+    public static boolean needsFreshTask(@Nullable PluginTask task) {
+        return task == null || task.isCancelled();
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.manager;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.visual.RealDisplayCuller;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
@@ -119,6 +120,11 @@ public final class CarrierRestorer {
                 "performance.budgets.carrier-restore-scan-height"));
         this.maxEntities = Math.max(0, plugin.getConfigInt(DEFAULT_MAX_ENTITIES,
                 "performance.carrier-restore-max-entities"));
+        // Both display paths cull at one distance: the culler reads the same existing key the proxy manager
+        // reads (no new setting), so a raised view-distance moves both. This reload() runs from the plugin's
+        // reload chain and from this manager's own constructor, so startup is covered too.
+        RealDisplayCuller.of(plugin).reload(ConfigSectionReader.optionalDouble(
+                plugin.getConfig(), "performance.proxy-display.view-distance", 64.0D));
     }
 
     public boolean enabled() {
@@ -485,6 +491,9 @@ public final class CarrierRestorer {
             createdThisTick = 0;
         }
         pending.clear();
+        // Disable path: without this a disable/enable in the same JVM would hand back the cached culler whose
+        // task is already cancelled, and culling would silently stop (no exception, no log).
+        RealDisplayCuller.of(plugin).shutdown();
         // Displays are non-persistent, so one whose removal cannot be dispatched this late costs an entity
         // only until its world unloads; blocking the disable path on it would not pay for itself.
         for (Entity display : displays) {
