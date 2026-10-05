@@ -8,6 +8,7 @@ import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ManagerSupport;
+import com.huidu.farmersdelight.util.PeriodicStagger;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -101,7 +102,8 @@ public class TickManager {
         running = true;
         
         tickTask = plugin.scheduler().runRepeating(this::tick, 1L, TICK_INTERVAL);
-        cleanupTask = plugin.scheduler().runRepeating(this::performCleanup, CLEANUP_INTERVAL, CLEANUP_INTERVAL);
+        cleanupTask = plugin.scheduler().runRepeating(this::performCleanup,
+                PeriodicStagger.initialDelay("tick-cleanup", CLEANUP_INTERVAL), CLEANUP_INTERVAL);
         I18n.logDetail("startup", "tick.started", "interval", TICK_INTERVAL);
     }
 

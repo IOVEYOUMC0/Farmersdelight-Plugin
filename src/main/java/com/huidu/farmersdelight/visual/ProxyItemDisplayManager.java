@@ -4,6 +4,7 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.ManagerSupport;
+import com.huidu.farmersdelight.util.PeriodicStagger;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.kyori.adventure.text.Component;
 import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
@@ -495,7 +496,8 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
     }
 
     private void startSyncTask() {
-        syncTask = plugin.scheduler().runRepeating(this::syncAll, syncIntervalTicks, syncIntervalTicks);
+        syncTask = plugin.scheduler().runRepeating(this::syncAll,
+                PeriodicStagger.initialDelay("display-sync", syncIntervalTicks), syncIntervalTicks);
     }
 
     private void ensureSyncTask() {

@@ -9,6 +9,13 @@ categories:
       - '#farmersdelight:weapon'
       - '#farmersdelight:gui'
       - '#farmersdelight:item_display'
+  farmersdelight:deprecated:
+    name: <!i><red><lang:farmersdelight.category.deprecated></red>
+    hidden: true
+    icon: farmersdelight:barbecue_stick
+    list:
+      - farmersdelight:barbecue_stick
+      - farmersdelight:basket
   farmersdelight:block:
     name: <!i><lang:farmersdelight.category.block>
     hidden: true
@@ -18,7 +25,6 @@ categories:
       - farmersdelight:cooking_pot
       - farmersdelight:skillet
       - farmersdelight:cutting_board
-      - farmersdelight:basket
       - farmersdelight:bamboo_basket
       - farmersdelight:wooden_basket
       - farmersdelight:tray
@@ -131,7 +137,6 @@ categories:
       - farmersdelight:fruit_salad
       - farmersdelight:mixed_salad
       - farmersdelight:nether_salad
-      - farmersdelight:barbecue_stick
       - farmersdelight:meat_skewer
       - farmersdelight:vegetable_skewer
       - farmersdelight:cooked_meat_skewer

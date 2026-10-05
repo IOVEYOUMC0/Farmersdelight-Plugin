@@ -106,7 +106,9 @@ public final class ToolRegistry {
 
         cache = Collections.unmodifiableMap(newCache);
         durableIds = Collections.unmodifiableSet(newDurableIds);
-        I18n.logInfo("plugin.tool.loaded", "count", newCache.size());
+        // The count is carried by the startup summary line; this stays startup detail so one boot never prints
+        // the same figure twice with two different values (an empty pass and the filled one).
+        I18n.logDetail("startup", "plugin.tool.loaded", "count", newCache.size());
     }
 
     public static Optional<ToolData> get(Key id) {

@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * creates its own bogus bucket - block x=50 lands under key chunk 50 instead of chunk 3 - so the entry is
  * invisible to the chunk lookup: a chunk unload never finds it, and the bucket for the real chunk stays empty.
  *
- * <p>These tests drive the production write paths (the cutting board's public putBlockEntity/
+ * These tests drive the production write paths (the cutting board's public putBlockEntity/
  * removeBlockEntity and the pot's private indexAdd/indexRemove) and read the index back through
  * the public chunk lookup, with a proxy World supplying getUID() only - no server, no live chunk.
  */

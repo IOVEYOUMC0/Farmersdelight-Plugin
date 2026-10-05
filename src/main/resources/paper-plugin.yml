@@ -21,7 +21,11 @@ website: https://github.com/IOVEYOUMC0/Farmersdelight
 dependencies:
   server:
     CraftEngine:
-      load: BEFORE
+      # AFTER, not BEFORE: CraftEngine dispatches the claimed pack sections while it loads packs in
+      # its own onEnable, so a plugin enabled before CraftEngine reads an empty claim and reports
+      # "0 recipes" until a reload. Loading after CraftEngine still runs before that onEnable, so the
+      # pack release and the claims made in onLoad are complete by the time CraftEngine scans for them.
+      load: AFTER
       required: true
       join-classpath: true
     AuraSkills:

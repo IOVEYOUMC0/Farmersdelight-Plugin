@@ -303,13 +303,13 @@ public final class HandCookedSkewerHooks implements Listener {
     }
 
     /**
-     * Right click with a raw skewer in hand. Upstream parity: HandCookedItem#use is the trigger and useOn is not
-     * overridden, so NeoForge falls back to use() when the clicked block has no interaction of its own — which
-     * makes a heat source that would not consume the click (fire, soul_fire, lava, magma_block) ours, while a
-     * campfire that takes the skewer as food keeps its own interaction. Which click is ours is decided only in
-     * {@link SkewerBlockClickPolicy}; this method resolves the hand, reports, and starts the session.
+     * Right click with a raw skewer in hand. HandCookedItem#use is the trigger and useOn is not overridden, so
+     * a click the item can take falls through to it: an air click always does, and a block click does when the
+     * block has no interaction of its own (fire, soul fire, lava, magma block, plain terrain) or when the
+     * player sneaks. Which click is ours is decided only in SkewerBlockClickPolicy; this method
+     * resolves the hand, reports, and starts the session.
      *
-     * <p>Runs at MONITOR and never cancels: this path does not touch the vanilla interaction at all.
+     * Runs at MONITOR and never cancels: this path does not touch the vanilla interaction at all.
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent event) {
@@ -323,14 +323,13 @@ public final class HandCookedSkewerHooks implements Listener {
         String entryId = logEntryPoint(player, action, reportedHand, event.isCancelled(), clickedBlock);
 
         boolean rightClickBlock = action == Action.RIGHT_CLICK_BLOCK;
-        boolean blockIsHeat = rightClickBlock && clickedBlock != null && isHeatSourceBlock(clickedBlock);
         boolean blockHasInteraction = rightClickBlock && clickedBlock != null
                 && clickedBlock.getType().isInteractable();
-        SkewerBlockClickPolicy.Decision decision = decideClick(action, blockIsHeat, blockHasInteraction);
+        SkewerBlockClickPolicy.Decision decision = decideClick(action, blockHasInteraction, player.isSneaking());
         if (!SkewerBlockClickPolicy.accepted(decision)) {
             if (decision != SkewerBlockClickPolicy.Decision.DECLINE_NOT_A_RIGHT_CLICK) {
-                // A left click or a physical interaction is never ours and needs no second line; the two block
-                // verdicts are what the operator has to see (campfire keeps its click, plain block is not hot).
+                // A left click or a physical interaction is never ours and needs no second line; the block
+                // verdict is what the operator has to see (the block keeps its click).
                 // reportBlocked writes its first line per player and reason even with debug off, so it needs the
                 // real held id — the entry line above already resolved it whenever the category is on.
                 reportBlocked(player, entryId != null ? entryId : rawHeldId(player, reportedHand), decision.name());
@@ -360,12 +359,12 @@ public final class HandCookedSkewerHooks implements Listener {
 
     /**
      * Observation only, and the reason it exists: the handler above is never called for an event another plugin
-     * already cancelled ({@code ignoreCancelled = true}), so "the click did nothing" cannot be told apart from
+     * already cancelled (ignoreCancelled = true), so "the click did nothing" cannot be told apart from
      * "the event never arrived". This one is called for cancelled events as well and writes the same entry line
      * into the same bounded set — it reads, writes that one line, and returns. It never cancels the event, never
      * starts a session and never touches the inventory.
      *
-     * <p>At MONITOR on purpose: at the earliest priority no other listener has run yet, so {@code cancelled} would
+     * At MONITOR on purpose: at the earliest priority no other listener has run yet, so cancelled would
      * read false for exactly the events this is meant to expose; by MONITOR the field carries the outcome of every
      * other plugin, which is the answer the field test needs. Sharing the dedupe with the handler above is what
      * keeps this at one line per action instead of two.
@@ -381,7 +380,7 @@ public final class HandCookedSkewerHooks implements Listener {
 
     /**
      * The first gate that stops this use, or null when it may start. Pure so the wiring tests can pin every
-     * silent failure (no raw id, no result, skillet busy, sneaking required, no heat). {@code blockClick} is the
+     * silent failure (no raw id, no result, skillet busy, sneaking required, no heat). blockClick is the
      * caller's verdict that the clicked block keeps the interaction, not "a block was clicked": a block click the
      * policy accepted is passed as false.
      */
@@ -425,7 +424,7 @@ public final class HandCookedSkewerHooks implements Listener {
     }
 
     /**
-     * The hand and held item this click is judged on, in the order {@link SkewerBlockClickPolicy#handsToCheck}
+     * The hand and held item this click is judged on, in the order SkewerBlockClickPolicy.handsToCheck
      * gives. A reported hand is the only candidate; an unknown one means main hand then off hand, so a skewer in
      * the off hand still cooks when Paper reports no hand for an air interaction. The first candidate holding an
      * item this source can cook wins; otherwise the first candidate is kept so the diagnostics can still name it.
@@ -448,7 +447,7 @@ public final class HandCookedSkewerHooks implements Listener {
     }
 
     /**
-     * The hand behind one index of {@link SkewerBlockClickPolicy#handsToCheck(boolean)}: index 0 is the hand
+     * The hand behind one index of SkewerBlockClickPolicy.handsToCheck(boolean): index 0 is the hand
      * Paper reported — or the main hand when it reported none — and index 1 is the off hand.
      */
     @ApiStatus.Internal
@@ -464,21 +463,15 @@ public final class HandCookedSkewerHooks implements Listener {
      * so a left click can never be accepted by accident.
      */
     @ApiStatus.Internal
-    static SkewerBlockClickPolicy.Decision decideClick(Action action, boolean blockIsHeat,
-                                                       boolean blockHasInteraction) {
+    static SkewerBlockClickPolicy.Decision decideClick(Action action, boolean blockHasInteraction,
+                                                       boolean sneaking) {
         return SkewerBlockClickPolicy.decide(action == Action.RIGHT_CLICK_AIR,
-                action == Action.RIGHT_CLICK_BLOCK, blockIsHeat, blockHasInteraction);
-    }
-
-    /** Whether the clicked block itself is a heat source; the 3x3x3 cube probe stays the start gate. */
-    private static boolean isHeatSourceBlock(Block block) {
-        FarmersDelightApi api = FarmersDelightApi.get();
-        return api != null && api.isHeatSource(block);
+                action == Action.RIGHT_CLICK_BLOCK, blockHasInteraction, sneaking);
     }
 
     /**
      * One entry line per player and action signature, before any other return, under the handheld debug category.
-     * The set is bounded ({@link #ENTRY_LOG_CAPACITY}), so a long uptime cannot grow it; a changed action, hand,
+     * The set is bounded (ENTRY_LOG_CAPACITY), so a long uptime cannot grow it; a changed action, hand,
      * cancellation state, held item or clicked block is logged again.
      *
      * @return the item id the line carried, or null when no line was written
@@ -501,7 +494,7 @@ public final class HandCookedSkewerHooks implements Listener {
     }
 
     /**
-     * Remembers one entry signature; true when it is new. Bounded by {@link #ENTRY_LOG_CAPACITY}, so the oldest
+     * Remembers one entry signature; true when it is new. Bounded by ENTRY_LOG_CAPACITY, so the oldest
      * signature is dropped instead of growing the set without limit.
      */
     @ApiStatus.Internal
@@ -551,8 +544,8 @@ public final class HandCookedSkewerHooks implements Listener {
      *
      * Upstream parity: the heat check is the 3x3x3 cube around the player (or the player being on fire) and the
      * use has to be held for the full cooking time; useOn is not overridden, so a block click only starts this
-     * when the block has no interaction of its own — {@link SkewerBlockClickPolicy} decides that and passes the
-     * outcome in as {@code blockClick} (true meaning "the block keeps the click"). Nothing here can cancel the
+     * when the block has no interaction of its own — SkewerBlockClickPolicy decides that and passes the
+     * outcome in as blockClick (true meaning "the block keeps the click"). Nothing here can cancel the
      * interaction: there is no cancel parameter to run.
      */
     @ApiStatus.Internal

@@ -711,7 +711,7 @@ public class SkilletManager {
         if (skillet != null) {
             cleanupVisual(skillet);
             // Lock on the same SkilletData monitor as handleInteract so a racing empty-hand take can't
-            // observe storedItem mid-clear and pocket a clone that we then also drop here (dup).
+            // observe storedItem mid-clear and pocket a clone that is then also dropped here (dup).
             synchronized (skillet) {
                 if (shouldDropItems && skillet.storedItem != null && !skillet.storedItem.getType().isAir()) {
                     normalized.getWorld().dropItemNaturally(dropLocation, skillet.storedItem.clone());
@@ -976,6 +976,14 @@ public class SkilletManager {
 
     public void reloadRecipeCache() {
         campfireRecipes.rebuild();
+    }
+
+    /**
+     * The shared campfire recipe cache (one instance, one rebuild lifecycle). The handheld skewer path queries
+     * the same cache instead of scanning the recipe table a second time.
+     */
+    public CampfireRecipeCache campfireRecipes() {
+        return campfireRecipes;
     }
 
     private void putSkillet(Location location, SkilletData skillet) {

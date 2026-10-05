@@ -17,11 +17,9 @@ import org.bukkit.entity.Player;
  * Exists because a drop rule that lives in a CraftEngine pack has no other way to reach the
  * advancement system: the pack can grant the item, only the plugin can grant the advancement.
  *
- * <pre>
  * functions:
  *   - type: farmersdelight:award_advancement
  *     advancement: get_ham
- * </pre>
  *
  *
  * Awarding is skipped when the loot context carries no player, which is the case for every non-player

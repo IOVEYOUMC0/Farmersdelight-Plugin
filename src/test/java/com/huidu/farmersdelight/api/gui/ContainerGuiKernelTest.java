@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * Item stacks cannot be built without a running server, so the fake store holds empty cells: what is asserted
  * is the decision and the call sequence, which is where the duplication and loss bugs live. The value
- * comparison itself is covered by {@link GuiWriteBackTest}, and so is the item-level half of the engine
+ * comparison itself is covered by GuiWriteBackTest, and so is the item-level half of the engine
  * (cloning a stored value, painting a placeholder icon) — that needs a server.
  */
 class ContainerGuiKernelTest {

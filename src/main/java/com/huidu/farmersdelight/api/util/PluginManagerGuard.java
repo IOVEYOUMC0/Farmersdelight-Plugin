@@ -51,7 +51,7 @@ public final class PluginManagerGuard implements Listener {
         String trimmed = message.startsWith("/") ? message.substring(1) : message;
         String[] parts = trimmed.trim().toLowerCase(Locale.ROOT).split("\\s+");
         if (parts.length < 3) return false;
-        // Strip an optional `namespace:` prefix (e.g. `plugman:plm`) so we match what's after the colon.
+        // Strip an optional `namespace:` prefix (e.g. `plugman:plm`) so the match is what is after the colon.
         String cmd = parts[0];
         int colon = cmd.indexOf(':');
         if (colon >= 0) cmd = cmd.substring(colon + 1);

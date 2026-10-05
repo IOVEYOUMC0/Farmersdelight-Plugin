@@ -42,13 +42,14 @@ public final class CraftEngineStateUsageMonitor {
                     "fd_states", usage.farmersDelightStates(),
                     "addon_states", usage.addonStates());
 
-            // Report the figures once per lifecycle, and again only when they actually move. Startup and the
-            // CraftEngine reload pass both reach this point, but only the reload pass sees the final numbers.
+            // Report the figures once per lifecycle, and again only when they actually move. Occupancy is a
+            // diagnostic figure rather than an operator fact, so it stays under the startup debug category;
+            // only exhaustion and a low free count are warnings.
             if (usage.equals(lastReportedUsage)) {
                 plugin.getLogger().fine(message);
             } else {
                 lastReportedUsage = usage;
-                plugin.getLogger().info(message);
+                I18n.logDetailMessage("startup", message);
             }
 
             if (usage.free() == 0) {

@@ -262,17 +262,34 @@ performance:
     carrier-restore-scan-chunks-per-tick: 4
     carrier-restore-scan-height: 96
     carrier-restore-tick-interval: 10
+    # Max displays one player's culling pass examines: the displays that player already shows plus the
+    # first sightings inside the pass's window. The refresh walks a rotating cursor, so a budget below the
+    # number of displays a player sees delays an update to a later pass instead of dropping it. Raise it
+    # for quicker reactions, lower it to cap the per-pass cost tighter.
+    display-cull-checks-per-player: 64
 
-  # Proxy ItemDisplay visibility sync for skillet/stove food displays: how far they stay visible and how often
-  # their near/far state is refreshed.
+  # Display visibility: how far proxy item displays and the restored carrier displays stay visible, how
+  # often their near/far state is refreshed, and the culling rule of each restored carrier type.
   proxy-display:
     view-distance: 64.0
     sync-interval-ticks: 20
     sync-batch-size: 256
+    # Per-display-type culling for the BlockDisplays that restore a vanilla carrier block. The key is the
+    # block id of the carrier whose model the display draws. entity-culling: false turns culling off for
+    # that type: no pass ever hides it, and a viewer that was hidden before the rule changed is given its
+    # range back once. A type that has no entry here, and a type whose entry leaves view-distance out,
+    # use view-distance above.
+    display-culling:
+      minecraft:mangrove_fence:
+        entity-culling: true
+        view-distance: 64.0
+      minecraft:mangrove_fence_gate:
+        entity-culling: true
+        view-distance: 64.0
 
   # The rope fence and its gate are drawn by CraftEngine block entity renderers, but their carrier states are
-  # real vanilla crimson/warped fence states whose models CraftEngine leaves empty. A genuinely vanilla
-  # crimson fence (or warped fence gate) standing in one of those states would therefore render as nothing;
+  # real vanilla mangrove fence states whose models CraftEngine leaves empty. A genuinely vanilla mangrove
+  # fence (or mangrove fence gate) standing in one of those states would therefore render as nothing;
   # with this on, a BlockDisplay carrying the same block data is placed there so the vanilla model still
   # shows. It costs one entity per affected vanilla block, so it is capped and duty-cycled.
   # Turn it off to keep the entity count at zero and accept that those vanilla blocks look like the rope

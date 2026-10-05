@@ -120,10 +120,7 @@ vanilla_loots:
       pools:
         - rolls: 1
           conditions:
-            - type: match_item
-              regex: true
-              items:
-                - ".*_knife"
+            - type: farmersdelight:is_knife
             - type: random
               value: 0.2
           entries:
@@ -137,10 +134,7 @@ vanilla_loots:
       pools:
         - rolls: 1
           conditions:
-            - type: match_item
-              regex: true
-              items:
-                - ".*_knife"
+            - type: farmersdelight:is_knife
             - type: random
               value: 0.2
           entries:
@@ -154,10 +148,7 @@ vanilla_loots:
       pools:
         - rolls: 1
           conditions:
-            - type: match_item
-              regex: true
-              items:
-                - ".*_knife"
+            - type: farmersdelight:is_knife
             - type: match_block_property
               properties:
                 age: "7"
@@ -1000,3 +991,83 @@ vanilla_loots:
               functions:
                 []
               weight: 2
+
+  farmersdelight:pumpkin_slices_from_knife:
+    type: block
+    target: minecraft:pumpkin
+    overwrite: items
+    conditions:
+      - type: farmersdelight:is_knife
+      - type: inverted
+        terms:
+          - type: enchantment
+            predicate: "minecraft:silk_touch>=1"
+    loot:
+      pools:
+        - rolls: 1
+          entries:
+            - type: item
+              item: farmersdelight:pumpkin_slice
+              count: 4
+
+  farmersdelight:cake_slices_from_knife:
+    type: block
+    target: minecraft:cake
+    overwrite: items
+    conditions:
+      - type: farmersdelight:is_knife
+    loot:
+      pools:
+        - rolls: 1
+          entries:
+            - type: alternatives
+              children:
+                - type: item
+                  item: farmersdelight:cake_slice
+                  count: 7
+                  conditions:
+                    - type: match_block_property
+                      properties:
+                        bites: "0"
+                - type: item
+                  item: farmersdelight:cake_slice
+                  count: 6
+                  conditions:
+                    - type: match_block_property
+                      properties:
+                        bites: "1"
+                - type: item
+                  item: farmersdelight:cake_slice
+                  count: 5
+                  conditions:
+                    - type: match_block_property
+                      properties:
+                        bites: "2"
+                - type: item
+                  item: farmersdelight:cake_slice
+                  count: 4
+                  conditions:
+                    - type: match_block_property
+                      properties:
+                        bites: "3"
+                - type: item
+                  item: farmersdelight:cake_slice
+                  count: 3
+                  conditions:
+                    - type: match_block_property
+                      properties:
+                        bites: "4"
+                - type: item
+                  item: farmersdelight:cake_slice
+                  count: 2
+                  conditions:
+                    - type: match_block_property
+                      properties:
+                        bites: "5"
+                - type: item
+                  item: farmersdelight:cake_slice
+                  count: 1
+                  conditions:
+                    - type: match_block_property
+                      properties:
+                        bites: "6"

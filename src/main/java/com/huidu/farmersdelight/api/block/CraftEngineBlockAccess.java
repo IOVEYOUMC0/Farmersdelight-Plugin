@@ -86,7 +86,7 @@ public final class CraftEngineBlockAccess {
      * The block-entity controller at a world position, or null when it cannot be read.
      *
      *
-     * Null when the world is unknown to CraftEngine (see {@link #getCEWorld(World)}), when the chunk is not
+     * Null when the world is unknown to CraftEngine (see getCEWorld(World)), when the chunk is not
      * loaded, or when the position holds no block entity. Only an already loaded chunk is consulted, so this
      * never loads one and never returns data a region would have to be scheduled for.
      *

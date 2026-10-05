@@ -6,6 +6,8 @@ import com.huidu.farmersdelight.listener.HorseFeedTemptListener;
 import com.huidu.farmersdelight.loot.KnifeDropHandler;
 import com.huidu.farmersdelight.recipe.CookingPotRecipeManager;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipeManager;
+import com.huidu.farmersdelight.startup.StartupVersionBanner;
+import com.huidu.farmersdelight.tool.ToolRegistry;
 
 final class StartupSummary {
 
@@ -80,7 +82,11 @@ final class StartupSummary {
                 "drop_rules", dropRules,
                 "pet_foods", petFoodCount,
                 "advancements", advancementCount,
-                "addon_advancements", addonAdvancementCount
+                "addon_advancements", addonAdvancementCount,
+                // The versions and the tool count are carried by the summary line as well, so a normal boot needs
+                // no second line for either of them.
+                "banner", versionBanner(),
+                "tools", ToolRegistry.all().size()
         };
         // The split the summary line cannot show without changing an existing language string: how much of
         // the addon figure arrived as CraftEngine pack content. Detail level, so a normal boot stays quiet.
@@ -96,7 +102,8 @@ final class StartupSummary {
                 ? concat(args, "warm_items", items, "warm_ms", warmupMillis)
                 : args;
 
-        if (counts.equals(lastReportedCounts)) {
+        boolean firstReport = lastReportedCounts == null;
+        if (!firstReport && counts.equals(lastReportedCounts)) {
             I18n.logDetail("startup", key, full);
             return;
         }
@@ -104,7 +111,22 @@ final class StartupSummary {
         if (key.endsWith("_warmed")) {
             warmupReported = true;
         }
-        I18n.logInfo(key, full);
+        if (firstReport) {
+            // The one line a normal boot prints: versions, the counts that matter, the tool count and the enabled
+            // marker. A later report (a reload, an addon republish) keeps its numbers under startup detail.
+            I18n.logInfo(key, full);
+        } else {
+            I18n.logDetail("startup", key, full);
+        }
+    }
+
+    /**
+     * The four version fields for the summary line. CraftEngine's version can be unreadable, which the banner
+     * writes as unknown, and the warning that goes with it is emitted by the plugin's enable path.
+     */
+    private String versionBanner() {
+        return StartupVersionBanner.format(plugin.getPluginMeta().getVersion(), plugin.resolveCraftEngineVersion(),
+                plugin.getServer().getVersion(), plugin.getPluginMeta().getAPIVersion());
     }
 
     private static Object[] concat(Object[] base, Object... extra) {

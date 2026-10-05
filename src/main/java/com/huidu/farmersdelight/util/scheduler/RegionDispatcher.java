@@ -10,7 +10,7 @@ import org.bukkit.entity.Entity;
  *
  * Dispatchers are written against this interface rather than against the concrete adapter, so a test can
  * drive a recording implementation and assert which chunks and entities a maintenance pass hands out.
- * Production resolves to {@link SchedulerAdapter}, which keeps the behaviour these methods had before the
+ * Production resolves to SchedulerAdapter, which keeps the behaviour these methods had before the
  * interface existed.
  */
 public interface RegionDispatcher {
@@ -35,7 +35,7 @@ public interface RegionDispatcher {
     }
 
     /**
-     * Runs the task on the thread that owns the entity. {@code retired} runs instead when the entity is
+     * Runs the task on the thread that owns the entity. retired runs instead when the entity is
      * already gone, so a caller's bookkeeping is released even though the task never ran.
      */
     void runForEntity(Entity entity, Runnable task, Runnable retired);

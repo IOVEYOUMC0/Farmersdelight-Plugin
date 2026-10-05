@@ -213,9 +213,7 @@ templates:
         conditions:
           - type: test_flag
             flag: interact
-          - type: match_item
-            item: "farmersdelight:.*_knife"
-            regex: true
+          - type: farmersdelight:is_knife
           - type: match_block_property
             properties:
               bites: 0
@@ -243,9 +241,7 @@ templates:
         conditions:
           - type: test_flag
             flag: interact
-          - type: match_item
-            item: "farmersdelight:.*_knife"
-            regex: true
+          - type: farmersdelight:is_knife
           - type: match_block_property
             properties:
               bites: 1
@@ -273,9 +269,7 @@ templates:
         conditions:
           - type: test_flag
             flag: interact
-          - type: match_item
-            item: "farmersdelight:.*_knife"
-            regex: true
+          - type: farmersdelight:is_knife
           - type: match_block_property
             properties:
               bites: 2
@@ -303,9 +297,7 @@ templates:
         conditions:
           - type: test_flag
             flag: interact
-          - type: match_item
-            item: "farmersdelight:.*_knife"
-            regex: true
+          - type: farmersdelight:is_knife
           - type: match_block_property
             properties:
               bites: 3
@@ -338,9 +330,7 @@ templates:
             expression: "<arg:player.food> < 20"
           - type: inverted
             term:
-              type: match_item
-              item: "farmersdelight:.*_knife"
-              regex: true
+              type: farmersdelight:is_knife
           - type: match_block_property
             properties:
               bites: 0
@@ -374,9 +364,7 @@ templates:
             expression: "<arg:player.food> < 20"
           - type: inverted
             term:
-              type: match_item
-              item: "farmersdelight:.*_knife"
-              regex: true
+              type: farmersdelight:is_knife
           - type: match_block_property
             properties:
               bites: 1
@@ -410,9 +398,7 @@ templates:
             expression: "<arg:player.food> < 20"
           - type: inverted
             term:
-              type: match_item
-              item: "farmersdelight:.*_knife"
-              regex: true
+              type: farmersdelight:is_knife
           - type: match_block_property
             properties:
               bites: 2
@@ -446,9 +432,7 @@ templates:
             expression: "<arg:player.food> < 20"
           - type: inverted
             term:
-              type: match_item
-              item: "farmersdelight:.*_knife"
-              regex: true
+              type: farmersdelight:is_knife
           - type: match_block_property
             properties:
               bites: 3

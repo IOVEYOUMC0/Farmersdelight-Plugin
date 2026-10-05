@@ -153,7 +153,17 @@ blocks:
                       formula:
                         type: binomial_with_bonus_count
                         extra: 0
-                        probability: 1.0
+                        probability: 0.5
+        - rolls: 1
+          conditions:
+            - type: inverted
+              term:
+                type: match_item
+                item: minecraft:shears
+          entries:
+            - type: item
+              item: minecraft:allium
+              count: 1
   farmersdelight:wild_tomatoes:
     settings:
       template:
@@ -928,3 +938,4 @@ placed-features:
         - type: 'minecraft:heightmap'
           heightmap: OCEAN_FLOOR
         - type: 'minecraft:biome'
+

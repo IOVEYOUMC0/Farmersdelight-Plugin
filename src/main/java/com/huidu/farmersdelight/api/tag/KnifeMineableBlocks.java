@@ -16,39 +16,37 @@ import java.util.function.Consumer;
 /**
  * Reads the "mineable with a knife" declaration of a CraftEngine block definition.
  *
- * <p><b>The tag is data; the behaviour is CraftEngine's.</b> A pack declares
- * {@code farmersdelight:mineable/knife} (or the common {@code c:mineable/knife}) in a block's
- * {@code settings.tags}; CraftEngine writes those tags onto the block's holder, and the drop behaviour
- * itself comes from the pack's {@code match_item} rules. This query only answers what a definition
+ * The tag is data; the behaviour is CraftEngine's. A pack declares
+ * farmersdelight:mineable/knife (or the common c:mineable/knife) in a block's
+ * settings.tags; CraftEngine writes those tags onto the block's holder, and the drop behaviour
+ * itself comes from the pack's match_item rules. This query only answers what a definition
  * declares — wiring a drop to it in Java would double the drops on every block whose pack already has such
  * a rule.
  *
- * <p><b>It does not change mining speed.</b> Vanilla break speed comes from {@code minecraft:mineable/*}
+ * It does not change mining speed. Vanilla break speed comes from minecraft:mineable/*
  * plus the carrier item's digger rules, and CraftEngine's own tool check uses
- * {@code settings.requireCorrectTool()} / {@code requiredBreakPower()} / {@code settings.isCorrectTool(..)}
- * — none of them read {@code settings.tags()} (see {@code BlockStateUtils} in CraftEngine). Use
- * {@code require_correct_tool} in the pack if a tool requirement has to gate drops.
+ * settings.requireCorrectTool() / requiredBreakPower() / settings.isCorrectTool(..)
+ * — none of them read settings.tags() (see BlockStateUtils in CraftEngine). Use
+ * require_correct_tool in the pack if a tool requirement has to gate drops.
  *
- * <p><b>Version path.</b> The lookup goes {@code BlockDefinition.defaultState().settings().tags()}. That
- * path exists in CraftEngine 26.8.2, 26.9.1 and 26.9.2 alike, while {@code BlockDefinition#settings()} does
+ * Version path. The lookup goes BlockDefinition.defaultState().settings().tags(). That
+ * path exists in CraftEngine 26.8.2, 26.9.1 and 26.9.2 alike, while BlockDefinition#settings() does
  * not exist in any of them: the settings live on the block state. This plugin is compiled against the
  * newest CraftEngine artifact published to Maven (26.9.1 at the time of writing — 26.9.2 and 26.10 are
  * source/snapshot only), and the supported runtime floor is 26.8.2.
  *
- * <p><b>Failures are classified</b>, so a server on an unsupported CraftEngine is told once and then left
+ * Failures are classified, so a server on an unsupported CraftEngine is told once and then left
  * alone:
- * <ul>
- *   <li>a {@link LinkageError} ({@code NoSuchMethodError}, {@code NoClassDefFoundError}, ...) means the API
+ *   - a LinkageError (NoSuchMethodError, NoClassDefFoundError, ...) means the API
  *       is structurally unavailable: this query warns once and disables itself for the rest of the run —
- *       later calls answer false without touching CraftEngine again and without logging again;</li>
- *   <li>a {@link RuntimeException} (not ready yet, definition reload in progress) answers false for that
- *       call only and is retried on the next one, with at most one log line per distinct reason.</li>
- * </ul>
+ *       later calls answer false without touching CraftEngine again and without logging again;
+ *   - a RuntimeException (not ready yet, definition reload in progress) answers false for that
+ *       call only and is retried on the next one, with at most one log line per distinct reason.
  *
- * <p><b>Threading:</b> this is a pure definition lookup — it reads CraftEngine's in-memory registries and
+ * Threading: this is a pure definition lookup — it reads CraftEngine's in-memory registries and
  * never touches a world, chunk, block entity or block state, so it may be called from any thread and any
- * region. That is also why the entry point takes a block id rather than a {@code Block}: resolving a
- * {@code Block} to its CraftEngine id needs the world's custom state, which is a region-bound read.
+ * region. That is also why the entry point takes a block id rather than a Block: resolving a
+ * Block to its CraftEngine id needs the world's custom state, which is a region-bound read.
  */
 @ApiStatus.NonExtendable
 public final class KnifeMineableBlocks {

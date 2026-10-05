@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
  *
  *
  * The item is a dynamic proxy, so the paths that return before CraftEngine is asked are asserted without a
- * server. The transfer itself — {@code ItemStackUtils.getBukkitStack(item.minecraftItem())} — resolves the
+ * server. The transfer itself — ItemStackUtils.getBukkitStack(item.minecraftItem()) — resolves the
  * running CraftEngine instance and can only be exercised on a server; the tests below assert that a null or
  * empty item never reaches it.
  */

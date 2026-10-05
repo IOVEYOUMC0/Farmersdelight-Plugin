@@ -276,7 +276,7 @@ public final class FarmersDelightApi {
 
     // Shared rule for the runtime-mutating register/unregister methods below: get the plugin and let it pass
     // through only if it is available. Returning null makes the caller's null-guard double as the
-    // availability check, so we avoid repeating the availability test in every method.
+    // availability check, so the availability test is not repeated in every method.
     private static FarmersDelightPlugin availablePlugin() {
         return PluginAccess.pluginOrNull();
     }

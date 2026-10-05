@@ -87,15 +87,10 @@ public class I18n {
         state = new LocaleState(Map.copyOf(loaded), resolvedCurrent, resolvedDefault);
 
         // The locale set is resolved on plugin load, again on enable, and once more on every CraftEngine
-        // reload. Only the first resolution, and any later one that actually changes the file count or the
-        // selected locale, is worth a console line; the rest go to the startup detail channel.
-        String signature = loaded.size() + "/" + resolvedDefault;
-        if (signature.equals(lastLoggedLocaleSignature)) {
-            logDetail("startup", "i18n.loaded", "count", loaded.size(), "locale", resolvedDefault);
-        } else {
-            lastLoggedLocaleSignature = signature;
-            logInfo("i18n.loaded", "count", loaded.size(), "locale", resolvedDefault);
-        }
+        // reload. Which locale is active is startup detail: the one line a boot prints already names the
+        // versions and the content counts, so this stays one turn of the startup debug category away.
+        lastLoggedLocaleSignature = loaded.size() + "/" + resolvedDefault;
+        logDetail("startup", "i18n.loaded", "count", loaded.size(), "locale", resolvedDefault);
     }
 
     // Locale count + selected locale last reported at INFO, so a repeated resolution with an unchanged
@@ -481,18 +476,22 @@ public class I18n {
     }
 
     public static void logDetail(String category, String key, Object... args) {
+        logDetailMessage(category, formatConsole(key, args));
+    }
+
+    /**
+     * Detail-level line for a message that is already formatted: INFO while the category's debug switch is on,
+     * and invisible otherwise. Used by the callers that build their own message before deciding to report it.
+     */
+    public static void logDetailMessage(String category, String message) {
         FarmersDelightPlugin pluginInstance = plugin;
-        if (pluginInstance == null) {
-            return;
-        }
-        Logger logger = pluginInstance.getLogger();
-        if (logger == null) {
+        if (pluginInstance == null || pluginInstance.getLogger() == null || message == null) {
             return;
         }
         if (category != null && pluginInstance.isDebugEnabled(category)) {
-            logger.info(formatConsole(key, args));
+            pluginInstance.getLogger().info(message);
         } else {
-            logger.fine(formatConsole(key, args));
+            pluginInstance.getLogger().fine(message);
         }
     }
 

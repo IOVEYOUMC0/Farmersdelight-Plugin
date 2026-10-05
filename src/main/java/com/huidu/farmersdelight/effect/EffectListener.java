@@ -128,7 +128,7 @@ public class EffectListener implements Listener {
     }
 
     public void start() {
-        // Resolve Folia once: on Paper/Spigot the repeating task already runs on the main thread, so we
+        // Resolve Folia once: on Paper/Spigot the repeating task already runs on the main thread, so 
         // can call EffectManager.tick directly and skip one BukkitTask allocation per tracked player per
         // tick pass (100 buffed players × 5 passes/sec = 500 task allocations/sec saved).
         folia = plugin.scheduler().isFolia();

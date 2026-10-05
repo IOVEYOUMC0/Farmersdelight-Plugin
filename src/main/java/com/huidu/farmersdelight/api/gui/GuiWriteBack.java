@@ -38,7 +38,7 @@ public final class GuiWriteBack {
     }
 
     /**
-     * The comparison behind {@link #mayCommit(ItemStack, ItemStack)}, as plain values so the rule can be
+     * The comparison behind mayCommit(ItemStack, ItemStack), as plain values so the rule can be
      * asserted without a running server: both empty, or similar with equal amounts.
      */
     public static boolean mayCommit(boolean storedEmpty, boolean paintedEmpty, boolean similar,

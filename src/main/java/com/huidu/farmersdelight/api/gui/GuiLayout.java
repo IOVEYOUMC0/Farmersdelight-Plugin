@@ -9,7 +9,7 @@ import java.util.Arrays;
  *
  *
  * The grid decides which cells belong to the GUI and which are decoration: a cell whose legend type is
- * {@link #BACKGROUND} (or a cell outside the grid) is decoration, every other cell holds contents. Nothing
+ * BACKGROUND (or a cell outside the grid) is decoration, every other cell holds contents. Nothing
  * here can change the layout, and no implementation hands out its own arrays, so a caller may keep or sort
  * what it gets back.
  *
@@ -27,7 +27,7 @@ public interface GuiLayout {
     /** The configured row count. Shipped GUIs use 1-6 rows. */
     int rows();
 
-    /** The inventory size this layout describes: {@code rows * 9}. */
+    /** The inventory size this layout describes: rows * 9. */
     default int size() {
         return rows() * 9;
     }
