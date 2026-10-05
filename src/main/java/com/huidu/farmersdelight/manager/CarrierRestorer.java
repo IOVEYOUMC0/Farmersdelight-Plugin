@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.manager;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.visual.RealDisplayCuller;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.scheduler.RegionDispatcher;
@@ -593,7 +594,7 @@ public final class CarrierRestorer {
     private Entity create(World world, int x, int y, int z, BlockData data) {
         Location location = new Location(world, x, y, z);
         try {
-            return world.spawn(location, BlockDisplay.class, entity -> {
+            Entity spawned = world.spawn(location, BlockDisplay.class, entity -> {
                 entity.setPersistent(false);
                 entity.setSilent(true);
                 entity.setGravity(false);
@@ -609,6 +610,8 @@ public final class CarrierRestorer {
                 entity.setBlock(data.clone());
                 entity.getPersistentDataContainer().set(KIND, PersistentDataType.BYTE, (byte) 1);
             });
+            RealDisplayCuller.of(plugin).track(spawned);
+            return spawned;
         } catch (RuntimeException | LinkageError ignored) {
             return null;
         }

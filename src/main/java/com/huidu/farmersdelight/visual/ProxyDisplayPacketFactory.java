@@ -138,6 +138,13 @@ class ProxyDisplayPacketFactory {
         return ClientboundSetEntityDataPacketProxy.INSTANCE.newInstance(entityId, values);
     }
 
+    /** A per-viewer ViewRange update, mirroring CE's setCulled: range 0 culls, the base range restores. */
+    Object createViewRangePacket(int entityId, float range) {
+        List<Object> values = new ArrayList<>(1);
+        DisplayData.ViewRange.addEntityData(range, values, true);
+        return createEntityDataPacket(entityId, values);
+    }
+
     Object createDestroyPacket(int entityId) {
         return ClientboundRemoveEntitiesPacketProxy.INSTANCE.newInstance(IntList.of(entityId));
     }
