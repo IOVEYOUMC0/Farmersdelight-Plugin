@@ -1,31 +1,34 @@
 package com.huidu.farmersdelight.handheld;
 
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.EquipmentSlot;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Proxy;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The wiring layer of handheld skewer cooking, asserted without a server.
  *
  *
- * The session lifecycle is the part this suite exists for: the tick loop is armed by the session that needs it
- * and cancels itself when that session ends, so the second and every later skewer has to arm a fresh loop. A
- * loop armed once at config time would look correct in every test that only ever cooks one skewer, which is
- * exactly how the first version of this code went wrong.
+ * The lifecycle is what this suite locks down: the tick loop is armed by the session that needs it, cancels
+ * itself once the last session ends, and the next session arms a fresh loop. Two of the cases drive the
+ * production {@link HandCookedSkewerHooks#tick()} through the recorded {@code Runnable} and the loop seam, so
+ * the self-cancellation itself is covered, not simulated.
  *
  *
- * Everything needing a real {@code Player}, a heat source or the region scheduler is on the real-server
- * checklist instead: no fake-green test here pretends otherwise.
+ * What a single-threaded test cannot show is a real interleaving of two Folia regions (both arming at the
+ * instant the loop cancels); that is covered by code review of the one lock around the whole lifecycle — the
+ * tests below assert the sequential compositions that the lock has to preserve.
  */
 class HandCookedSkewerHooksTest {
 
@@ -76,11 +79,8 @@ class HandCookedSkewerHooksTest {
 
     @Test
     void theSkilletKeepsTheRightClickAndSneakingIsOptional() {
-        // Order: the skillet check is evaluated first, so an already-cooking skillet wins even when everything
-        // else about the skewer is ready.
         assertFalse(HandCookedSkewerHooks.mayStart(true, true, true, true, false),
                 "a player whose skillet is cooking must not start a skewer session");
-        // require-sneak: false (the 1.4 default) starts without sneaking, true requires it.
         assertTrue(HandCookedSkewerHooks.mayStart(true, true, false, false, false));
         assertFalse(HandCookedSkewerHooks.mayStart(true, true, false, false, true));
         assertTrue(HandCookedSkewerHooks.mayStart(true, true, false, true, true));
@@ -103,31 +103,30 @@ class HandCookedSkewerHooksTest {
         assertEquals(1, arm.armed, "and must not arm a second loop");
 
         assertTrue(hooks.applyConfig(true, false, 20, ONE_RESULT, arm, null), "a reload keeps the path armed");
-        assertNotSame(hooks.service(), null);
         assertEquals(1, arm.armed, "a reload cancels the old loop and leaves arming to the next session");
+        assertEquals(-1, hooks.service().remainingTicks(player),
+                "and drops the sessions it can no longer advance");
     }
 
-    /** The regression this suite was missing: the loop cancels itself, so the next skewer must arm a new one. */
+    /** The regression: the production loop cancels itself, so the next skewer must arm a fresh one. */
     @Test
-    void aSessionAfterTheLoopCancelledIsArmedAgainAndCooks() {
+    void theRealLoopCancelsItselfAndTheNextSessionArmsAFreshOne() {
         AtomicInteger cooked = new AtomicInteger();
         CountingArm arm = new CountingArm();
-        HandCookedSkewerHooks hooks = new HandCookedSkewerHooks(null);
-        assertTrue(hooks.applyConfig(true, false, 120, ONE_RESULT, arm, player -> cooked.incrementAndGet()));
+        HandCookedSkewerHooks hooks = armed(arm, cooked);
         UUID player = UUID.randomUUID();
 
         assertTrue(hooks.beginSession(player, EquipmentSlot.HAND));
-        assertEquals(1, arm.armed);
-        assertTrue(cookOne(hooks, player), "the first skewer finishes");
+        assertEquals(1, arm.live, "one loop is running");
+        assertTrue(arm.runLoopFor(hooks, player), "120 real loop ticks finish the first skewer");
         assertEquals(1, cooked.get());
-        // What the loop itself does once the last session ends: cancel. Nothing else can happen, so the next
-        // session has to arm a fresh loop or it never advances (the P0 this test locks down).
-        arm.cancelLast();
-        assertEquals(0, arm.armed);
+        assertTrue(arm.lastCancelled(), "the loop cancels itself once the last session ended");
+        assertEquals(0, arm.live, "no loop is left behind");
 
-        assertTrue(hooks.beginSession(player, EquipmentSlot.HAND), "the loop has to be armable again");
-        assertEquals(1, arm.armed, "the second session arms a new loop");
-        assertTrue(cookOne(hooks, player), "and the second skewer actually finishes");
+        assertTrue(hooks.beginSession(player, EquipmentSlot.HAND), "the next session has to be startable");
+        assertEquals(2, arm.armed, "each session arms one loop");
+        assertEquals(1, arm.live, "and never more than one at a time");
+        assertTrue(arm.runLoopFor(hooks, player), "the second skewer actually finishes");
         assertEquals(2, cooked.get());
     }
 
@@ -135,55 +134,130 @@ class HandCookedSkewerHooksTest {
     void threeSessionsInARowEachCookOneSkewer() {
         AtomicInteger cooked = new AtomicInteger();
         CountingArm arm = new CountingArm();
-        HandCookedSkewerHooks hooks = new HandCookedSkewerHooks(null);
-        assertTrue(hooks.applyConfig(true, false, 120, ONE_RESULT, arm, player -> cooked.incrementAndGet()));
+        HandCookedSkewerHooks hooks = armed(arm, cooked);
         UUID player = UUID.randomUUID();
 
         for (int session = 1; session <= 3; session++) {
             assertTrue(hooks.beginSession(player, EquipmentSlot.HAND), "session " + session);
-            assertEquals(1, arm.armed, "session " + session + " has exactly one loop");
-            assertTrue(cookOne(hooks, player), "session " + session + " cooks");
+            assertEquals(session, arm.armed, "each session arms one loop");
+            assertEquals(1, arm.live, "session " + session + " runs exactly one loop");
+            assertTrue(arm.runLoopFor(hooks, player), "session " + session + " cooks");
             assertEquals(session, cooked.get(), "one skewer per session");
-            arm.cancelLast();
         }
     }
 
-    /** Advances one session through its full cooking time; true when that finished the skewer. */
-    private static boolean cookOne(HandCookedSkewerHooks hooks, UUID player) {
-        HandCookedSkewerService active = hooks.service();
-        boolean finished = false;
-        for (int tick = 0; tick < HandCookedSkewerService.COOKING_TICKS; tick++) {
-            finished = active.tick(player);
-        }
-        return finished;
+    /** A reload must not leave hand entries behind: they would keep the loop awake with nothing to advance. */
+    @Test
+    void aReloadDropsSessionsSoTheLoopCanGoIdle() {
+        CountingArm arm = new CountingArm();
+        HandCookedSkewerHooks hooks = armed(arm, new AtomicInteger());
+        UUID player = UUID.randomUUID();
+        assertTrue(hooks.beginSession(player, EquipmentSlot.HAND));
+        assertEquals(1, arm.armed);
+
+        assertTrue(hooks.applyConfig(true, false, 120, ONE_RESULT, arm, null));
+        assertEquals(0, arm.live, "a reload cancels the loop and drops the sessions it was advancing");
+        arm.runTick(hooks, player);
+        assertEquals(1, arm.armed, "the idle loop must not arm itself again");
+        assertTrue(arm.lastCancelled(), "and stays cancelled with nothing to advance");
     }
 
-    /** Counts arming and lets a test cancel the loop the way the loop cancels itself when idle. */
+    private static HandCookedSkewerHooks armed(CountingArm arm, AtomicInteger cooked) {
+        HandCookedSkewerHooks hooks = new HandCookedSkewerHooks(null);
+        hooks.setLoopSeam(new FakeLoopSeam());
+        assertTrue(hooks.applyConfig(true, false, 120, ONE_RESULT, arm, player -> cooked.incrementAndGet()));
+        return hooks;
+    }
+
+    /** Stands in for the server + entity scheduler so the production tick() loop can run offline. */
+    private static final class FakeLoopSeam implements HandCookedSkewerHooks.LoopSeam {
+
+        private final Player player = (Player) Proxy.newProxyInstance(Player.class.getClassLoader(),
+                new Class<?>[]{Player.class}, (proxy, method, args) -> switch (method.getName()) {
+                    case "toString" -> "fake player";
+                    case "hashCode" -> System.identityHashCode(proxy);
+                    case "equals" -> proxy == args[0];
+                    default -> throw new AssertionError("unexpected Player call: " + method.getName());
+                });
+
+        @Override
+        public Player player(UUID id) {
+            return player;
+        }
+
+        @Override
+        public void dispatch(Player target, Runnable task) {
+            // Same thread on purpose: the production path runs the task inline off Folia, and running it here
+            // is what makes the loop's own cancellation observable.
+            assertSame(player, target);
+            task.run();
+        }
+    }
+
+    /** Records the loop Runnable so a test can drive the production tick(), and counts arming. */
     private static final class CountingArm implements HandCookedSkewerHooks.TaskArm {
 
         private int armed;
+        private int live;
         private CountingTask last;
 
         @Override
         public PluginTask arm(Runnable tick) {
             armed++;
-            last = new CountingTask();
+            live++;
+            last = new CountingTask(this, tick);
             return last;
         }
 
-        private void cancelLast() {
-            last.cancel();
-            armed--;
+        private void runTick(HandCookedSkewerHooks hooks, UUID player) {
+            last.run();
+        }
+
+        /**
+         * Drives the production loop until the session finishes, then one more iteration so the loop can
+         * notice that nothing is left and cancel itself — exactly what the scheduler would do.
+         */
+        private boolean runLoopFor(HandCookedSkewerHooks hooks, UUID player) {
+            CountingTask task = last;
+            for (int tick = 0; tick < HandCookedSkewerService.COOKING_TICKS; tick++) {
+                if (task.cancelled) {
+                    return false;
+                }
+                task.run();
+            }
+            boolean finished = hooks.service() == null || !hooks.service().isCooking(player);
+            if (finished && !task.cancelled) {
+                task.run();
+            }
+            return finished;
+        }
+
+        private boolean lastCancelled() {
+            return last.cancelled;
         }
     }
 
     private static final class CountingTask implements PluginTask {
 
+        private final CountingArm owner;
+        private final Runnable tick;
         private volatile boolean cancelled;
+
+        private CountingTask(CountingArm owner, Runnable tick) {
+            this.owner = owner;
+            this.tick = tick;
+        }
+
+        private void run() {
+            tick.run();
+        }
 
         @Override
         public void cancel() {
-            cancelled = true;
+            if (!cancelled) {
+                cancelled = true;
+                owner.live--;
+            }
         }
 
         @Override
