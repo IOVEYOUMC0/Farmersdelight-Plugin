@@ -2212,7 +2212,7 @@ block:
         place: minecraft:block.wool.place
         step: minecraft:block.wool.step
     state:
-      state: gray_carpet
+      state: brown_carpet
       entity_renderer:
         item: ${__NAMESPACE__}:half_tatami_mat_elements
         scale: 1.003

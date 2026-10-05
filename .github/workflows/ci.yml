@@ -104,3 +104,12 @@ jobs:
       # the block above it. This walks the node tree with yaml.compose, where both keys are still visible.
       - name: No shipped YAML file repeats a mapping key
         run: python tools/check_duplicate_yaml_keys.py --quiet
+
+      # Every custom block pins a vanilla block state. Two DIFFERENT blocks pinning the same state collide:
+      # the game sees one vanilla block, so the second one placed is indistinguishable from the first (the
+      # defect the owner found by eye: three baskets on one state). The known list is dispositioned now --
+      # the baskets and the two tatami mats reserve their own state, the food blocks use auto_state -- so this
+      # step blocks: a new collision fails the build. One block reusing a state across its own faces is normal
+      # and is only listed in the log.
+      - name: No two custom blocks pin the same vanilla block state
+        run: python tools/check_block_state_occupancy.py
