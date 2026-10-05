@@ -110,4 +110,77 @@ class CraftEngineFoodConfigurationTest {
         assertEquals("snowball", yaml.getString(itemPath + ".material"));
         assertFalse(yaml.isSet(itemPath + ".settings.projectile"));
     }
+
+    /**
+     * Pins the Farmer's Delight 1.4 food values, which are absolute values in that release (the old
+     * nutrition x modifier x 2 numbers are gone). Read from the shipped YAML rather than from CraftEngine's
+     * parsed food component, because building an ItemStack needs a running server: the numbers below are
+     * exactly the fields CraftEngine feeds into the food component.
+     */
+    @Test
+    void foodValuesMatchTheFourteenAbsoluteValues() {
+        Path path = Path.of("src", "main", "resources", "craftengine", "farmersdelight",
+                "configuration", "items.yml");
+        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(path.toFile());
+
+        Map<String, List<Number>> expected = Map.ofEntries(
+                Map.entry("cabbage", List.of(4, 2)),
+                Map.entry("tomato", List.of(1, 1)),
+                Map.entry("onion", List.of(2, 1)),
+                Map.entry("cabbage_leaf", List.of(2, 1)),
+                Map.entry("fried_egg", List.of(4, 3.5)),
+                Map.entry("tomato_sauce", List.of(4, 3.5)),
+                Map.entry("wheat_dough", List.of(2, 1.5)),
+                Map.entry("raw_pasta", List.of(2, 1.5)),
+                Map.entry("pie_crust", List.of(2, 1)),
+                Map.entry("pumpkin_slice", List.of(3, 2)),
+                // 1.4 gave this cut a smaller modifier than the other cuts (FoodValues:unsafeFood, 0.15).
+                Map.entry("chicken_cuts", List.of(1, 0.3)),
+                Map.entry("cake_slice", List.of(3, 3)),
+                Map.entry("melon_popsicle", List.of(3, 1.5)),
+                Map.entry("glow_berry_custard", List.of(8, 9)),
+                Map.entry("fruit_salad", List.of(8, 10)),
+                Map.entry("mixed_salad", List.of(8, 10)),
+                Map.entry("dog_food", List.of(4, 2)),
+                Map.entry("cooked_rice", List.of(6, 5)),
+                Map.entry("bone_broth", List.of(8, 10)),
+                // Crude meals (tier 1) were already at the 1.4 values; the tiers below moved.
+                Map.entry("bacon_and_eggs", List.of(10, 12)),
+                Map.entry("beef_stew", List.of(12, 16)),
+                Map.entry("fried_rice", List.of(12, 16)),
+                Map.entry("steak_and_potatoes", List.of(12, 16)),
+                // Grilled Salmon was demoted from the fancy tier to the hearty tier.
+                Map.entry("grilled_salmon", List.of(12, 16)),
+                Map.entry("pumpkin_soup", List.of(14, 20)),
+                Map.entry("roasted_mutton_chops", List.of(14, 20)),
+                Map.entry("squid_ink_pasta", List.of(14, 20)),
+                Map.entry("roast_chicken", List.of(14, 20)),
+                Map.entry("gleaming_salad", List.of(14, 20)),
+                // Slices are 5/5 with the pumpkin one excepted; the pack has no pumpkin_pie_slice item yet.
+                Map.entry("pie_slice_template.peach", List.of(5, 5)),
+                // Already at their 1.4 values before this change: kept as a regression anchor.
+                Map.entry("salmon_slice", List.of(1, 0.2)),
+                Map.entry("cod_slice", List.of(1, 0.2)),
+                Map.entry("cooked_mutton_chops", List.of(3, 4.8)),
+                Map.entry("smoked_ham", List.of(10, 16)));
+
+        for (Map.Entry<String, List<Number>> entry : expected.entrySet()) {
+            String id = entry.getKey();
+            String foodPath = id.equals("pie_slice_template.peach")
+                    ? "templates.farmersdelight:pie_slice_template.data.food"
+                    : "items.farmersdelight:" + id + ".data.food";
+            if (id.equals("pie_slice_template.peach")) {
+                // The template is not an item; only its two numbers are pinned.
+                assertEquals(5.0, yaml.getDouble(foodPath + ".nutrition"), 0.0, id + " nutrition");
+                assertEquals(5.0, yaml.getDouble(foodPath + ".saturation"), 0.0, id + " saturation");
+                continue;
+            }
+            double nutrition = yaml.getDouble(foodPath + ".nutrition", -1.0);
+            double saturation = yaml.getDouble(foodPath + ".saturation", -1.0);
+            assertEquals(entry.getValue().get(0).doubleValue(), nutrition, 0.0,
+                    id + " nutrition (1.4 absolute)");
+            assertEquals(entry.getValue().get(1).doubleValue(), saturation, 0.0,
+                    id + " saturation (1.4 absolute)");
+        }
+    }
 }

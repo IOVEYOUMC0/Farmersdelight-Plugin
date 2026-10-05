@@ -1,0 +1,221 @@
+recipes:
+  farmersdelight:apple_crate:
+    type: shaped
+    category: building
+    group: crate
+    pattern:
+    - AAA
+    - AAA
+    - AAA
+    ingredients:
+      A: minecraft:apple
+    result:
+      id: farmersdelight:apple_crate
+      count: 1
+  farmersdelight:apple_from_crate:
+    type: shapeless
+    category: misc
+    group: unpack_crate
+    ingredients:
+    - farmersdelight:apple_crate
+    result:
+      id: minecraft:apple
+      count: 9
+  farmersdelight:golden_apple_crate:
+    type: shaped
+    category: building
+    group: crate
+    pattern:
+    - GGG
+    - GGG
+    - GGG
+    ingredients:
+      G: minecraft:golden_apple
+    result:
+      id: farmersdelight:golden_apple_crate
+      count: 1
+  farmersdelight:golden_apple_from_crate:
+    type: shapeless
+    category: misc
+    group: unpack_crate
+    ingredients:
+    - farmersdelight:golden_apple_crate
+    result:
+      id: minecraft:golden_apple
+      count: 9
+  farmersdelight:golden_carrot_crate:
+    type: shaped
+    category: building
+    group: crate
+    pattern:
+    - KKK
+    - KKK
+    - KKK
+    ingredients:
+      K: minecraft:golden_carrot
+    result:
+      id: farmersdelight:golden_carrot_crate
+      count: 1
+  farmersdelight:golden_carrot_from_crate:
+    type: shapeless
+    category: misc
+    group: unpack_crate
+    ingredients:
+    - farmersdelight:golden_carrot_crate
+    result:
+      id: minecraft:golden_carrot
+      count: 9
+  farmersdelight:chorus_fruit_crate:
+    type: shaped
+    category: building
+    group: crate
+    pattern:
+    - HHH
+    - HHH
+    - HHH
+    ingredients:
+      H: minecraft:chorus_fruit
+    result:
+      id: farmersdelight:chorus_fruit_crate
+      count: 1
+  farmersdelight:chorus_fruit_from_crate:
+    type: shapeless
+    category: misc
+    group: unpack_crate
+    ingredients:
+    - farmersdelight:chorus_fruit_crate
+    result:
+      id: minecraft:chorus_fruit
+      count: 9
+  farmersdelight:brown_mushroom_crate:
+    type: shaped
+    category: building
+    group: crate
+    pattern:
+    - MMM
+    - MMM
+    - MMM
+    ingredients:
+      M: minecraft:brown_mushroom
+    result:
+      id: farmersdelight:brown_mushroom_crate
+      count: 1
+  farmersdelight:brown_mushroom_from_crate:
+    type: shapeless
+    category: misc
+    group: unpack_crate
+    ingredients:
+    - farmersdelight:brown_mushroom_crate
+    result:
+      id: minecraft:brown_mushroom
+      count: 9
+  farmersdelight:red_mushroom_crate:
+    type: shaped
+    category: building
+    group: crate
+    pattern:
+    - RRR
+    - RRR
+    - RRR
+    ingredients:
+      R: minecraft:red_mushroom
+    result:
+      id: farmersdelight:red_mushroom_crate
+      count: 1
+  farmersdelight:red_mushroom_from_crate:
+    type: shapeless
+    category: misc
+    group: unpack_crate
+    ingredients:
+    - farmersdelight:red_mushroom_crate
+    result:
+      id: minecraft:red_mushroom
+      count: 9
+  farmersdelight:egg_carton:
+    type: shaped
+    category: building
+    group: crate
+    pattern:
+    - EEE
+    - EEE
+    - EEE
+    ingredients:
+      E: minecraft:egg
+    result:
+      id: farmersdelight:egg_carton
+      count: 1
+  farmersdelight:egg_from_carton:
+    type: shapeless
+    category: misc
+    group: unpack_crate
+    ingredients:
+    - farmersdelight:egg_carton
+    result:
+      id: minecraft:egg
+      count: 9
+  farmersdelight:sweet_berries_bag:
+    type: shaped
+    category: building
+    group: crate
+    pattern:
+    - SSS
+    - SSS
+    - SSS
+    ingredients:
+      S: minecraft:sweet_berries
+    result:
+      id: farmersdelight:sweet_berries_bag
+      count: 1
+  farmersdelight:sweet_berries_from_bag:
+    type: shapeless
+    category: misc
+    group: unpack_crate
+    ingredients:
+    - farmersdelight:sweet_berries_bag
+    result:
+      id: minecraft:sweet_berries
+      count: 9
+  farmersdelight:glow_berries_bag:
+    type: shaped
+    category: building
+    group: crate
+    pattern:
+    - LLL
+    - LLL
+    - LLL
+    ingredients:
+      L: minecraft:glow_berries
+    result:
+      id: farmersdelight:glow_berries_bag
+      count: 1
+  farmersdelight:glow_berries_from_bag:
+    type: shapeless
+    category: misc
+    group: unpack_crate
+    ingredients:
+    - farmersdelight:glow_berries_bag
+    result:
+      id: minecraft:glow_berries
+      count: 9
+  farmersdelight:cocoa_beans_bag:
+    type: shaped
+    category: building
+    group: crate
+    pattern:
+    - OOO
+    - OOO
+    - OOO
+    ingredients:
+      O: minecraft:cocoa_beans
+    result:
+      id: farmersdelight:cocoa_beans_bag
+      count: 1
+  farmersdelight:cocoa_beans_from_bag:
+    type: shapeless
+    category: misc
+    group: unpack_crate
+    ingredients:
+    - farmersdelight:cocoa_beans_bag
+    result:
+      id: minecraft:cocoa_beans
+      count: 9
