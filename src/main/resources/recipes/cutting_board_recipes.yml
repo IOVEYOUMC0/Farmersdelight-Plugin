@@ -57,6 +57,12 @@ cutting_board_recipes:
     results:
     - item: farmersdelight:canvas
     - item: minecraft:bamboo
+  wooden_basket:
+    input: farmersdelight:wooden_basket
+    tool: farmersdelight:axe_dig
+    results:
+    - item: farmersdelight:canvas
+    - item: minecraft:stick
   wild_tomatoes:
     input: farmersdelight:wild_tomatoes
     tool: '#farmersdelight:tools/knives'
