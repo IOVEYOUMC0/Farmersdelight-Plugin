@@ -32,22 +32,22 @@ import java.util.concurrent.ConcurrentHashMap;
  * common functions, common conditions and loot functions — under its own namespace, so its content pack
  * can reference them from YAML the same way FarmersDelight's own pack does.
  *
- * <p>Registrations are remembered here and applied through the same CraftEngine registries
- * FarmersDelight's own content uses ({@code BehaviorRegistrar}); they are re-applied on every
+ * Registrations are remembered here and applied through the same CraftEngine registries
+ * FarmersDelight's own content uses (BehaviorRegistrar); they are re-applied on every
  * registration pass, so a CraftEngine reload that rebuilds its registries does not lose them.
  *
- * <p>An id must be namespaced ({@code myplugin:my_function}) and must <em>not</em> use the
- * {@code minecraft} or {@code farmersdelight} namespaces: those are reserved, and a content pack that
+ * An id must be namespaced (myplugin:my_function) and must not use the
+ * minecraft or farmersdelight namespaces: those are reserved, and a content pack that
  * overrides FarmersDelight's own type ids would change behaviour for every other pack on the server.
  * Registering an id that is already taken — by FarmersDelight itself or by another plugin — is
  * rejected rather than silently replacing it.
  *
- * <p>Registering after CraftEngine has finished loading its content still succeeds, but content that
+ * Registering after CraftEngine has finished loading its content still succeeds, but content that
  * already exists only picks the type up after CraftEngine re-reads it; that case is reported through
- * the {@code plugin.content_registration_late} console key so the operator can reload CraftEngine
+ * the plugin.content_registration_late console key so the operator can reload CraftEngine
  * instead of guessing why the type appears to be ignored.
  *
- * <p>CraftEngine has no API to remove a registered type. {@link #unregister(Key)} therefore stops this
+ * CraftEngine has no API to remove a registered type. unregister(Key) therefore stops this
  * registry from re-applying the entry and forgets it, but the type stays registered inside CraftEngine
  * for the rest of the JVM run: content that already uses the id keeps working, and the id cannot be
  * registered again (a replacement factory would never be consulted). Use a new id instead.
@@ -102,7 +102,7 @@ public final class ContentRegistration {
     private ContentRegistration() {
     }
 
-    /** Registers a block behavior type other packs can use as {@code myplugin:my_behavior}. */
+    /** Registers a block behavior type other packs can use as myplugin:my_behavior. */
     public static void registerBlockBehavior(Key id, BlockBehaviorFactory<?> factory) {
         add(Kind.BLOCK_BEHAVIOR, id, factory);
     }
@@ -260,6 +260,8 @@ public final class ContentRegistration {
 
         @Override
         public boolean isRegistered(Kind kind, Key id) {
+            // Deliberately NOT deferred: CraftEngine parses the pack during the plugin's onLoad and has to see these
+            // types (deferring made addon block-behaviour/function types "unknown" in the 26.9.2 log).
             return registryOf(kind).getValue(id) != null;
         }
 

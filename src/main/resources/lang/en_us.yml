@@ -359,7 +359,7 @@ command:
   reload_usage: "<yellow>/fd reload <{targets}></yellow>"
   reload_busy: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <red>A reload is still running, please wait."
   reload_cooldown: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <red>Reloading too often; try again in <white>{seconds}</white>s."
-  reload_report: "{prefix}<white>Reload finished</white> <gray>(</gray><yellow>{total}ms</yellow><gray>: </gray><gray>{split}</gray><gray>)</gray>"
+  reload_report: "{prefix}<white>Reload finished</white> <gray>(</gray><yellow>{total}ms</yellow><gray>{split}</gray><gray>)</gray>"
   reload_report_issues: "{prefix}<red>⚠ Found </red><bold><red>{issues}</red></bold><red> issue(s) - see the console for details.</red>"
   runtime_management_refused: "<yellow>[{plugin}]</yellow> <red>This plugin does not support runtime management. /stop and restart the server to apply changes."
   recipe_discovery_usage: "<yellow>/fd recipe discovery unlock|lock <type> <recipeId|all> [player]</yellow> <gray>|</gray> <yellow>/fd recipe discovery unlock|lock all [player]</yellow> <gray>|</gray> <yellow>/fd recipe discovery list [type] [player]</yellow> <gray>|</gray> <yellow>/fd recipe discovery status [player]</yellow>"

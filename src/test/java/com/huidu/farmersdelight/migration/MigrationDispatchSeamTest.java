@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  *
  * The dispatch is injected, so the decision is assertable without a region scheduler: the fake counts the
- * hand-offs and records whether the task body ran where it was called. {@code owner} is an opaque token here
+ * hand-offs and records whether the task body ran where it was called. owner is an opaque token here
  * because the production owner is a Location or an Entity, neither of which can be built offline.
  */
 class MigrationDispatchSeamTest {
@@ -93,7 +93,7 @@ class MigrationDispatchSeamTest {
 
     @Test
     void anUnknownNonNullHolderIsSkippedInsteadOfFallingBackToTheViewer() {
-        // A holder type this hook does not know: not a BlockState, not a DoubleChest, not our GUI, not a
+        // A holder type this hook does not know: not a BlockState, not a DoubleChest, not the plugin's GUI, not a
         // player. It must not be migrated through some fallback owner.
         InventoryHolder unknown = new InventoryHolder() {
             @Override
@@ -146,12 +146,21 @@ class MigrationDispatchSeamTest {
         OpenDedupe dedupe = new OpenDedupe();
         int threads = 8;
         int perThread = 250;
+        // The keys are held strongly on purpose. OpenDedupe is a weak map by design (a closed inventory has to
+        // stay collectable), so a key only the map can reach may be collected mid-run and then look like a fresh
+        // open again — which is what made this test fail with more "firsts" than containers. Real keys are
+        // Inventory instances, which the server holds for the whole open; the test holds its keys the same way,
+        // otherwise it measures the garbage collector instead of the dedupe.
+        List<String> keys = new ArrayList<>();
+        for (int i = 0; i < perThread; i++) {
+            keys.add("container-" + i);
+        }
         List<Thread> workers = new ArrayList<>();
         AtomicInteger firsts = new AtomicInteger();
         for (int t = 0; t < threads; t++) {
             Thread worker = new Thread(() -> {
                 for (int i = 0; i < perThread; i++) {
-                    if (dedupe.firstOpen("container-" + i)) {
+                    if (dedupe.firstOpen(keys.get(i))) {
                         firsts.incrementAndGet();
                     }
                 }

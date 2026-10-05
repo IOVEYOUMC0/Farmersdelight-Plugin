@@ -109,7 +109,7 @@ public final class SkilletLifecycleListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         SkilletManager manager = manager();
         if (manager != null && manager.isHandheldCooking(player)) {
-            // Creative packets carry a client stack; do not persist our display-only damage/model.
+            // Creative packets carry a client stack; do not persist the display-only damage/model.
             event.setCancelled(true);
             manager.stopHandheldUse(player, null);
         }

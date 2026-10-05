@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * Those four properties are what keep the carrier scan from re-walking a chunk that is already waiting
  * and from walking every waiting chunk on each unload. The payload is a plain string, which is the whole
- * reason the queue does not name {@code Chunk} and can be exercised without a server.
+ * reason the queue does not name Chunk and can be exercised without a server.
  */
 class PendingChunkScanQueueTest {
 

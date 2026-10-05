@@ -236,6 +236,10 @@ performance:
   budgets:
     # Max cutting board/skillet display reconstructions scheduled per tick after a CraftEngine or plugin reload.
     reload-visual-refreshes-per-tick: 32
+    # Max recipe entries a reload rebuilds/registers per tick. The pass resumes on the next tick, so a big
+    # recipe file no longer registers everything in one tick and no longer dips the TPS. Higher finishes
+    # sooner with a bigger per-tick cost; 1 is smoothest, 0 is treated as 1.
+    reload-recipe-registrations-per-tick: 32
     # Max player/entity relationships processed per tick for pet food tempting.
     pet-tempt-tick-budget: 128
     # Max plugin block data entries reloaded per tick from already-loaded chunks during plugin startup.
@@ -773,3 +777,27 @@ legacy-id-migration:
   # true = log one line per run with how many stacks were rewritten. The line is only written when the
   # total grew since the last one, so a busy server does not get a line per inventory.
   log-summary: true
+
+# Handheld skewers: hold a raw Meat Skewer / Vegetable Skewer near a heat source and it cooks one skewer
+# after 6 seconds (120 ticks), exactly like Farmer's Delight 1.4. Both hands work, sneaking is not required,
+# and the heat source is only checked when the cooking starts.
+# Turning this off disables ONLY the handheld path: the campfire, furnace and smoker recipes are separate
+# and keep working.
+handheld-skewer:
+  enabled: true
+  # Set to true to require sneaking while right-clicking (1.4 does not require it).
+  require-sneak: false
+  # How long one skewer takes, in ticks. 120 = 6 seconds, the 1.4 constant.
+  cooking-time-ticks: 120
+  progress-display:
+    # Rewrites the held skewer for that viewer only, showing the cooking as a client-only durability bar
+    # (real durability is never touched). Five packets per second, the same cadence the handheld skillet uses.
+    enabled: true
+  # Raw skewer -> cooked skewer. This table is an OVERRIDE in front of the campfire cooking recipe, which is
+  # what Farmer's Delight 1.4 asks (RecipeUtils.getCampfireCookingRecipe): an id listed here wins, anything
+  # else falls through to the campfire recipe, and an input with neither never starts cooking. The recipe
+  # query shares the very same cache the skillet uses, so editing the pack's campfire recipe changes handheld
+  # cooking too.
+  results:
+    farmersdelight:meat_skewer: farmersdelight:cooked_meat_skewer
+    farmersdelight:vegetable_skewer: farmersdelight:cooked_vegetable_skewer

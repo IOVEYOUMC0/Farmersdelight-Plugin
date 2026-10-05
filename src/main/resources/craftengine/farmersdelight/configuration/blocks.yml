@@ -1389,7 +1389,7 @@ block:
             x: 90
             y: 270
         up:
-          state: composter[level=7]
+          auto_state: non_tintable_leaves
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
         down:
@@ -1464,7 +1464,7 @@ block:
             x: 90
             y: 270
         up:
-          state: composter[level=7]
+          auto_state: non_tintable_leaves
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
         down:
@@ -1486,8 +1486,14 @@ block:
         facing=down:
           appearance: down
   farmersdelight:basket:
-    template:
-    - farmersdelight:block_loot_template
+    loot:
+      pools:
+      - rolls: 1
+        conditions:
+        - type: survives_explosion
+        entries:
+        - type: item
+          item: farmersdelight:bamboo_basket
     settings:
       hardness: 1.5
       resistance: 1.5
@@ -2206,7 +2212,7 @@ block:
         place: minecraft:block.wool.place
         step: minecraft:block.wool.step
     state:
-      state: gray_carpet
+      state: brown_carpet
       entity_renderer:
         item: ${__NAMESPACE__}:half_tatami_mat_elements
         scale: 1.003

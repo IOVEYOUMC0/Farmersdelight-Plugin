@@ -73,6 +73,15 @@ public final class RecipeFileLoader {
             }
         }
 
+        // Change detection: a reload that finds this file at the same stamp as the last parse reuses that
+        // parse instead of reading and parsing it again. The stamp is taken after saveResource below (it may
+        // have just created the file) and refreshed after reconciliation (it may have written it).
+        RecipeFileStamps.Stamp stamp = RecipeFileStamps.Stamp.of(recipesFile);
+        YamlConfiguration unchanged = RecipeFileStamps.cached(relativePath, stamp);
+        if (unchanged != null) {
+            return unchanged;
+        }
+
         // Read explicitly as UTF-8 (consistent with config.yml / language files), rather than the deprecated
         // loadConfiguration(File) that uses the platform default charset, so non-ASCII recipe content is not
         // corrupted on servers whose default charset is not UTF-8 (common on Windows).
@@ -80,6 +89,7 @@ public final class RecipeFileLoader {
         // crosses into the OS/file-system layer (and on reload paths this runs on the main thread).
         try (Reader reader = new BufferedReader(
                 new InputStreamReader(Files.newInputStream(recipesFile.toPath()), StandardCharsets.UTF_8), 8192)) {
+            RecipeFileStamps.noteParse();
             YamlConfiguration yaml = new YamlConfiguration();
             yaml.load(reader);
             // Only when the file parsed: on the failure path below the configuration is empty, and every
@@ -87,6 +97,8 @@ public final class RecipeFileLoader {
             if (reconcileWithBundled) {
                 reconcileWithBundledRecipes(plugin, relativePath, yaml);
             }
+            // Re-stamp: reconciliation may have appended missing bundled entries and rewritten the file.
+            RecipeFileStamps.remember(relativePath, RecipeFileStamps.Stamp.of(recipesFile), yaml);
             return yaml;
         } catch (Exception e) {
             I18n.logWarning("plugin.recipe_load_failed", "file", relativePath, "error", e.getMessage());
@@ -223,13 +235,39 @@ public final class RecipeFileLoader {
             return;
         }
 
-        int loadedCount = 0;
-        List<String> issues = new ArrayList<>();
-        for (String recipeId : recipesSection.getKeys(false)) {
+        // Registration is sharded: the first slice runs inline (so a small file behaves exactly as before)
+        // and the rest continues on the following ticks, same thread, at most the configured budget each.
+        Pass pass = new Pass(plugin, recipesSection, recipeTypeName, sourceFile, sectionConsumer);
+        List<String> ids = new ArrayList<>(recipesSection.getKeys(false));
+        plugin.recipeRegistrations().start(ids, pass::step, plugin.recipeRegistrationBudget(), pass::finish);
+    }
+
+    /** One recipe file's pass: the per-entry work and the reporting that has to wait until it finished. */
+    private static final class Pass {
+
+        private final FarmersDelightPlugin plugin;
+        private final ConfigurationSection recipesSection;
+        private final String recipeTypeName;
+        private final String sourceFile;
+        private final BiConsumer<String, ConfigurationSection> sectionConsumer;
+        private final List<String> issues = new ArrayList<>();
+        private int loadedCount;
+
+        private Pass(FarmersDelightPlugin plugin, ConfigurationSection recipesSection, String recipeTypeName,
+                     String sourceFile, BiConsumer<String, ConfigurationSection> sectionConsumer) {
+            this.plugin = plugin;
+            this.recipesSection = recipesSection;
+            this.recipeTypeName = recipeTypeName;
+            this.sourceFile = sourceFile;
+            this.sectionConsumer = sectionConsumer;
+        }
+
+        /** The loop body, unchanged: one bad recipe is collected as an issue, never thrown out of the pass. */
+        private void step(String recipeId) {
             ConfigurationSection section = recipesSection.getConfigurationSection(recipeId);
             if (section == null) {
                 issues.add(recipeId + " - expected a recipe section");
-                continue;
+                return;
             }
 
             try {
@@ -243,22 +281,25 @@ public final class RecipeFileLoader {
             }
         }
 
-        if (!issues.isEmpty()) {
-            List<String> freshIssues = new ArrayList<>(issues.size());
-            for (String issue : issues) {
-                if (REPORTED_ISSUES.add(sourceFile + "|" + issue)) {
-                    freshIssues.add(issue);
+        /** The tail, run once the last entry of this file went through. */
+        private void finish() {
+            if (!issues.isEmpty()) {
+                List<String> freshIssues = new ArrayList<>(issues.size());
+                for (String issue : issues) {
+                    if (REPORTED_ISSUES.add(sourceFile + "|" + issue)) {
+                        freshIssues.add(issue);
+                    }
+                }
+                if (!freshIssues.isEmpty()) {
+                    I18n.logWarning("plugin.recipe_issues_header", "file", sourceFile, "count", freshIssues.size());
+                    for (int i = 0; i < freshIssues.size(); i++) {
+                        I18n.logWarning("plugin.recipe_issue_detail", "index", i + 1, "detail", freshIssues.get(i));
+                    }
                 }
             }
-            if (!freshIssues.isEmpty()) {
-                I18n.logWarning("plugin.recipe_issues_header", "file", sourceFile, "count", freshIssues.size());
-                for (int i = 0; i < freshIssues.size(); i++) {
-                    I18n.logWarning("plugin.recipe_issue_detail", "index", i + 1, "detail", freshIssues.get(i));
-                }
-            }
-        }
 
-        I18n.logDetail("recipe", "recipe.loaded_total", "count", loadedCount, "type", recipeTypeName);
+            I18n.logDetail("recipe", "recipe.loaded_total", "count", loadedCount, "type", recipeTypeName);
+        }
     }
 
     private static String errorMessage(Exception error) {
