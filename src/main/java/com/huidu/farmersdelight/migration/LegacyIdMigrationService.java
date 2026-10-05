@@ -77,6 +77,9 @@ public final class LegacyIdMigrationService {
     /** Reads the config and schedules the one-off sweep over already loaded inventories. */
     public void start() {
         reloadConfig();
+        // The plugin's own renamed ids go in before the first sweep, so an already loaded inventory migrates in
+        // the same pass as anything an addon registered.
+        FarmersDelightLegacyIds.register();
         scheduleStartupSweep();
     }
 
