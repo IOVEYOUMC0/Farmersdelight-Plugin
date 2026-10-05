@@ -21,11 +21,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Which vanilla block state each basket occupies.
  *
  *
- * An explicit {@code state:} pins a vanilla state for the client model lookup. The three baskets used to pin
- * the same one ({@code composter[level=7]}, which the pack even remaps to {@code composter[level=6]}), so two
+ * An explicit state: pins a vanilla state for the client model lookup. The three baskets used to pin
+ * the same one (composter[level=7], which the pack even remaps to composter[level=6]), so two
  * of them could not have their own model. The legacy basket keeps its pinned state — old worlds still hold
  * baskets in it — while the two new baskets let CraftEngine reserve a state of their own through
- * {@code auto_state}, the same mechanism the other five faces and the crates already use.
+ * auto_state, the same mechanism the other five faces and the crates already use.
  *
  *
  * Data only: this reads blocks.yml through the classpath. What the client actually renders per state is on the

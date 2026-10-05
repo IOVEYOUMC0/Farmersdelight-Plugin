@@ -719,7 +719,7 @@ items:
   farmersdelight:apple_pie_slice:
     template: farmersdelight:pie_slice_template
     data:
-      item-name: <!i><lang:block.farmersdelight.apple_pie_slice>
+      item-name: <!i><lang:item.farmersdelight.apple_pie_slice>
     behavior:
       type: compostable_item
       chance: 0.85
@@ -731,7 +731,7 @@ items:
   farmersdelight:sweet_berry_cheesecake_slice:
     template: farmersdelight:pie_slice_template
     data:
-      item-name: <!i><lang:block.farmersdelight.sweet_berry_cheesecake_slice>
+      item-name: <!i><lang:item.farmersdelight.sweet_berry_cheesecake_slice>
     behavior:
       type: compostable_item
       chance: 0.85
@@ -743,7 +743,7 @@ items:
   farmersdelight:chocolate_pie_slice:
     template: farmersdelight:pie_slice_template
     data:
-      item-name: <!i><lang:block.farmersdelight.chocolate_pie_slice>
+      item-name: <!i><lang:item.farmersdelight.chocolate_pie_slice>
     behavior:
       type: compostable_item
       chance: 0.85
@@ -768,7 +768,7 @@ items:
   farmersdelight:pumpkin_pie_slice:
     template: farmersdelight:pie_slice_template
     data:
-      item-name: <!i><lang:block.farmersdelight.pumpkin_pie_slice>
+      item-name: <!i><lang:item.farmersdelight.pumpkin_pie_slice>
       lore: '<!i><blue><lang:effect.minecraft.speed> (00:30)</blue>'
       food:
         nutrition: 3

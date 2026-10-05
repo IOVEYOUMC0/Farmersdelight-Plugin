@@ -132,8 +132,8 @@ final class HandheldCookingModelPack {
      * item id the stack carries on the server side.
      *
      *
-     * With {@code item.client-bound-model: true} CraftEngine keeps the item-model component off the
-     * server-side stack, so {@code itemModel} is empty there even though the client is told to render
+     * With item.client-bound-model: true CraftEngine keeps the item-model component off the
+     * server-side stack, so itemModel is empty there even though the client is told to render
      * the CE model. The CE item id survives in the stack's persistent data and identifies the item's
      * generated definition, which is what the item/model lookup is keyed by. Without it the only
      * candidate left is the base material, and every custom food would cook with the vanilla texture
@@ -170,7 +170,7 @@ final class HandheldCookingModelPack {
         return sources;
     }
 
-    /** Every authored id the obfuscation mapping sends to {@code clientId}, also an available source. */
+    /** Every authored id the obfuscation mapping sends to clientId, also an available source. */
     private static void addAuthoredNamesFor(Set<String> sources, String clientId,
                                             Map<Key, Key> obfuscationMappings) {
         if (obfuscationMappings == null) return;

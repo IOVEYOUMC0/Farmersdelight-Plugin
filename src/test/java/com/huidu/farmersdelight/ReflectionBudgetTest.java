@@ -20,12 +20,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * Reflection here is legitimate for exactly three reasons: a class that is not on the compile classpath
  * (NMS, or a CraftEngine type only some builds ship), an optional plugin, and a class the release build
- * leaves out. Anything that <em>is</em> on the compile classpath can be referenced directly, so looking it up
+ * leaves out. Anything that is on the compile classpath can be referenced directly, so looking it up
  * is a mistake: it costs a class-loader query and a method scan, and where it sits on a tick, an interaction
  * or a placement that cost lands on every one of them.
  *
  *
- * An audit of every call site closed with the counts below. They are a ratchet, not a target: lower a
+ * The counts below cover every call site. They are a ratchet, not a target: lower a
  * number when a site starts resolving once and caching, never raise one to let a new lookup through. A file
  * that is not listed at all may not reflect.
  *
@@ -45,7 +45,7 @@ class ReflectionBudgetTest {
             Pattern.compile("Class\\.forName\\s*\\(\\s*\"(?:org\\.bukkit\\.|java\\.|javax\\.)");
 
     /**
-     * One audited source root: the directory walked and the per-file budgets measured against it. The debug
+     * One source root: the directory walked and the per-file budgets measured against it. The debug
      * source set is compiled only with -PdebugTools=true, so its files are deliberately kept apart
      * from the main counts rather than merged into one map.
      */
@@ -53,11 +53,11 @@ class ReflectionBudgetTest {
     }
 
     /**
-     * The files that legitimately reflect, each with the number of matches measured when the audit closed.
+     * The files that legitimately reflect, each with its current number of matches.
      * Paths are relative to their source root and use forward slashes.
      */
     private static final Map<String, Integer> MAIN_BUDGET = Map.ofEntries(
-            // Optional plugins and the WorldEdit/WorldGuard API, none of which is on our compile classpath.
+            // Optional plugins and the WorldEdit/WorldGuard API, none of which is on the compile classpath.
             Map.entry("com/huidu/farmersdelight/util/compat/WorldGuardCompat.java", 21),
             Map.entry("com/huidu/farmersdelight/compat/AuraSkillsHook.java", 14),
             Map.entry("com/huidu/farmersdelight/util/compat/MMOItemsCompat.java", 11),
@@ -68,7 +68,7 @@ class ReflectionBudgetTest {
             // A class the release build omits unless the debug-tools flag is on.
             Map.entry("com/huidu/farmersdelight/command/DebugToolsSubCommand.java", 3),
             // Folia and Paper API that the 1.21.5 compile target does not carry, plus CraftEngine's own player
-            // type, whose getBukkitEntity is not reachable through a type we can call.
+            // type, whose getBukkitEntity is not reachable through a callable type.
             Map.entry("com/huidu/farmersdelight/util/scheduler/SchedulerAdapter.java", 2),
             Map.entry("com/huidu/farmersdelight/block/behavior/TatamiPairingBehavior.java", 1),
             Map.entry("com/huidu/farmersdelight/advancement/AutomaticAdvancementLayout.java", 1),
@@ -123,7 +123,7 @@ class ReflectionBudgetTest {
 
     /**
      * Bukkit, Java and javax classes are always on the compile classpath, so a Class.forName for one
-     * only hides a direct reference behind a string and a class-loader query. The audit found none in the
+     * only hides a direct reference behind a string and a class-loader query. There are none in the
      * plugin; this keeps it that way.
      */
     @Test

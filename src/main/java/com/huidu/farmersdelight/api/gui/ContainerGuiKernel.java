@@ -14,29 +14,29 @@ import java.util.function.IntPredicate;
  * edits back only while the cell still holds what it was painted from.
  *
  *
- * A station supplies a {@link Controller} (its store, its lock, its placeholder items) and its
- * {@link GuiSlotGroup} table; this class owns the parts every container GUI repeats: mapping configured cells
+ * A station supplies a Controller (its store, its lock, its placeholder items) and its
+ * GuiSlotGroup table; this class owns the parts every container GUI repeats: mapping configured cells
  * to store indices, remembering what each cell was painted from, refusing a stale write-back and repainting
  * the cell from the store instead, and the skip rule for edits still in flight.
  *
  *
- * <h2>Threading</h2>
+ * Threading
  *
- * {@link #fill(Inventory)}, {@link #refreshAll(Inventory, IntPredicate)} and {@link #refreshSlot(Inventory, int)}
+ * fill(Inventory), refreshAll(Inventory, IntPredicate) and refreshSlot(Inventory, int)
  * only write the viewer's inventory, so they must be called on the region that owns the viewer. The engine
  * itself never dispatches, never calls a scheduler and never reads a world.
  *
  *
- * {@link #syncAll(Inventory)} and {@link #syncSlot(Inventory, int)} read the store and write it back. They run
- * under {@link Controller#storeLock()}, which the engine takes for every store access and for the per-cell
+ * syncAll(Inventory) and syncSlot(Inventory, int) read the store and write it back. They run
+ * under Controller#storeLock(), which the engine takes for every store access and for the per-cell
  * paint record, so a caller on the viewer's region cannot interleave with a ticker on the store's region. The
  * lock is reentrant: a caller that already holds it (the usual shape, a click handler that wraps its whole
  * read-modify-write) is unaffected.
  *
  *
- * <h2>What the controller still owns</h2>
+ * What the controller still owns
  *
- * Cloning and normalising: {@link Controller#store(int, ItemStack)} receives whatever the cell held, including
+ * Cloning and normalising: Controller#store(int, ItemStack) receives whatever the cell held, including
  * a null for a placeholder icon, and is responsible for cloning it and for storing null rather than an empty
  * stack.
  */
@@ -65,7 +65,7 @@ public final class ContainerGuiKernel {
         /** Called when a commit changed the store, so the station can mark its block entity dirty. */
         void markDirty();
 
-        /** The placeholder item for a group's {@code iconType}, or null when that group has none. */
+        /** The placeholder item for a group's iconType, or null when that group has none. */
         @Nullable
         default ItemStack icon(@Nullable String iconType) {
             return null;
@@ -77,7 +77,7 @@ public final class ContainerGuiKernel {
             return null;
         }
 
-        /** True when the cell holds the placeholder of {@code iconType} rather than a real item. */
+        /** True when the cell holds the placeholder of iconType rather than a real item. */
         default boolean isPlaceholder(ItemStack stack, @Nullable String iconType) {
             return false;
         }
@@ -144,7 +144,7 @@ public final class ContainerGuiKernel {
     }
 
     /**
-     * Refreshes every configured cell from the store except the cells {@code skipPending} accepts. A cell
+     * Refreshes every configured cell from the store except the cells skipPending accepts. A cell
      * whose edit is still in flight owns the value a player is about to take, so repainting it from the store
      * would show the item twice and hand it out again. False when the station has no layout.
      */
@@ -242,14 +242,14 @@ public final class ContainerGuiKernel {
     /**
      * Commits every configured cell the guard allows, without repainting anything, and returns the raw slots
      * it refused, in the order the groups declare their slots (the caller repaints them per slot, so the order
-     * does not matter to it). Marks the station dirty once, like {@link #syncAll(Inventory)}.
+     * does not matter to it). Marks the station dirty once, like syncAll(Inventory).
      *
      *
      * Region contract: this method writes only the store and the station's dirty flag, and never writes the
      * viewer's inventory. A caller may therefore run it on the region that owns the store and hand the refused
-     * slots to the viewer's own region for the repaint ({@link #repaintFrom}), which is what the
+     * slots to the viewer's own region for the repaint (repaintFrom), which is what the
      * cross-region container paths do. A caller already on the viewer's region keeps using
-     * {@link #syncAll(Inventory)}, which is this plus the repaint.
+     * syncAll(Inventory), which is this plus the repaint.
      */
     public int[] commitOnly(Inventory view) {
         Objects.requireNonNull(view, "view");
@@ -277,10 +277,10 @@ public final class ContainerGuiKernel {
     /**
      * Commits one configured cell, without repainting it. True when the station's store was written, false
      * when the guard refused; a slot that is not a configured cell returns true and changes nothing, exactly
-     * like {@link #syncSlot(Inventory, int)}.
+     * like syncSlot(Inventory, int).
      *
      *
-     * Region contract as {@link #commitOnly(Inventory)}: store writes only, never the viewer's inventory.
+     * Region contract as commitOnly(Inventory): store writes only, never the viewer's inventory.
      */
     public boolean commitOnly(Inventory view, int rawSlot) {
         Objects.requireNonNull(view, "view");
@@ -309,7 +309,7 @@ public final class ContainerGuiKernel {
      *
      * Region contract: this method writes the viewer's inventory and the paint record only, and never reads or
      * writes the store, so it must be called on the region that owns the viewer — the half of a cross-region
-     * commit that must not happen on the store's region. {@code storedByIndex} answers with the snapshot value
+     * commit that must not happen on the store's region. storedByIndex answers with the snapshot value
      * for a store index.
      */
     public void repaintFrom(Inventory view, int[] rawSlots, IntFunction<ItemStack> storedByIndex) {
@@ -338,7 +338,7 @@ public final class ContainerGuiKernel {
         return layout == null ? -1 : storeIndex(layout, rawSlot);
     }
 
-    /** The number of configured cells, i.e. the upper bound of {@link #commitOnly(Inventory)}'s result. */
+    /** The number of configured cells, i.e. the upper bound of commitOnly(Inventory)'s result. */
     private int countConfiguredCells(GuiLayout layout) {
         int total = 0;
         for (GuiSlotGroup group : groups) {
@@ -363,7 +363,7 @@ public final class ContainerGuiKernel {
     }
 
     /**
-     * The write half of {@link #commit(Inventory, int, int, String)}: commits when the guard allows and owns
+     * The write half of commit(Inventory, int, int, String): commits when the guard allows and owns
      * no repaint. The baseline of a refused cell is left alone on purpose — the viewer still sees the old
      * value until the caller repaints it, and recording the store's newer value here would let a click in that
      * window commit the stale on-screen value.

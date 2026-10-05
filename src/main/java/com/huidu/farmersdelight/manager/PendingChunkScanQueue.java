@@ -17,7 +17,7 @@ import java.util.UUID;
  * entry, and dropping one is constant time instead of a walk over the whole queue.
  *
  *
- * Draining stays bounded: {@link #drain(int)} removes at most the requested number of payloads, in
+ * Draining stays bounded: drain(int) removes at most the requested number of payloads, in
  * insertion order, and the caller does the work outside this class. A payload is removed even when the
  * caller then decides to skip it, so a chunk that unloaded before its turn is not retried from here; its
  * next load queues it again.
@@ -68,7 +68,7 @@ final class PendingChunkScanQueue<T> {
         }
     }
 
-    /** Removes and returns up to {@code limit} payloads, in insertion order. */
+    /** Removes and returns up to limit payloads, in insertion order. */
     List<T> drain(int limit) {
         if (limit <= 0) {
             return List.of();

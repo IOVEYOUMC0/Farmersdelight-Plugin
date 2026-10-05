@@ -15,12 +15,12 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Locks the legacy-id mapping rules and the replacement contract of {@link LegacyIdMigration}.
+ * Locks the legacy-id mapping rules and the replacement contract of LegacyIdMigration.
  *
  *
- * A test cannot build an ItemStack — {@code Material}'s static initialiser needs a running server — so the
- * mapping half is asserted through ids ({@link LegacyIdMigration#resolveId}) and the replacement half
- * through the {@code Bridge} seam: the stub records which CraftEngine/Bukkit calls the migration makes. The
+ * A test cannot build an ItemStack — Material's static initialiser needs a running server — so the
+ * mapping half is asserted through ids (LegacyIdMigration#resolveId) and the replacement half
+ * through the Bridge seam: the stub records which CraftEngine/Bukkit calls the migration makes. The
  * two production lines the seam hides are the amount write and the persistent-data merge, both quoted in the
  * facility notes.
  */
@@ -155,7 +155,7 @@ class LegacyIdMigrationTest {
     /**
      * Records the seam calls; the id table itself is what the other tests assert.
      *
-     * <p>{@code create} hands out a bare {@link StubStack}, which is constructible without a server. Its
+     * create hands out a bare StubStack, which is constructible without a server. Its
      * Craft-backed accessors are not usable offline (see the amount test), so it serves only as the object
      * the amount and the data merge are applied to.
      */
@@ -194,7 +194,7 @@ class LegacyIdMigrationTest {
         }
     }
 
-    /** Constructible without a server: {@code super()} does not touch the Craft delegate. */
+    /** Constructible without a server: super() does not touch the Craft delegate. */
     private static final class StubStack extends ItemStack {
     }
 }

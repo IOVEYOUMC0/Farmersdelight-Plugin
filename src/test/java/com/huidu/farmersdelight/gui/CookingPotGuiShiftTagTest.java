@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Locks the &lt;shift:N&gt; handling of the pot GUI title against a value that cannot be laid out.
+ * Locks the <shift:N> handling of the pot GUI title against a value that cannot be laid out.
  *
  *
  * The tag pattern accepts any number of digits and the title is laid out from the GUI constructor, so an

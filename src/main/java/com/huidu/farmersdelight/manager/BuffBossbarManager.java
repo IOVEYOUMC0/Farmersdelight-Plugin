@@ -291,7 +291,7 @@ public final class BuffBossbarManager implements Listener {
         }
         // NOTE: do NOT players.remove(id, state) when emptied — earlier version did, but races with a
         // concurrent update() on the same player. After this hide() exits its sync block, a concurrent
-        // update() can computeIfAbsent the SAME state object and add a bar; our identity-based remove
+        // update() can computeIfAbsent the SAME state object and add a bar; the identity-based remove
         // then drops the (now non-empty) state, orphaning the new bar (shown to client but lost from
         // manager → never hidden). The empty PlayerBars is ~64 bytes and cleaned on PlayerQuit, so the
         // memory cost of leaving it is trivial; the rotation tick early-skips state.bars.size() <= 1.

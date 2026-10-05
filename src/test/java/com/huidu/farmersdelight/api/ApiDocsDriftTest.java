@@ -22,9 +22,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * behind. This test fails the build the moment they disagree again.
  *
  *
- * The pages live in the wiki repository, which during normal work sits beside this repository's parent
- * directory and which CI checks out under wiki/. A copy under api-docs/ is honoured too, for a
- * checkout that still keeps one. None of them being present is a failure, not a skip: this build treats a
+ * The pages live in a separate documentation repository, checked out beside this repository (CI does it under wiki/). A copy under api-docs/ is used too, for acheckout that still keeps one. None of them being present is a failure, not a skip: this build treats a
  * skipped test as a broken report, and a drift check that quietly stops checking is worse than a red build.
  */
 class ApiDocsDriftTest {

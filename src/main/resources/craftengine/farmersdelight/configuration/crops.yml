@@ -212,9 +212,7 @@ blocks:
                         - type: item
                           item: farmersdelight:rice
                           conditions:
-                            - type: match_item
-                              item: "farmersdelight:.*_knife"
-                              regex: true
+                            - type: farmersdelight:is_knife
                         - type: item
                           item: farmersdelight:rice_panicle
                 - rolls: 1
@@ -223,9 +221,7 @@ blocks:
                       properties:
                         half: upper
                         age: 3
-                    - type: match_item
-                      item: "farmersdelight:.*_knife"
-                      regex: true
+                    - type: farmersdelight:is_knife
                   entries:
                     - type: item
                       item: farmersdelight:straw

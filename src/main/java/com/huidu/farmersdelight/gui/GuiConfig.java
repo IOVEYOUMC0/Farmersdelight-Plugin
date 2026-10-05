@@ -239,25 +239,20 @@ public class GuiConfig implements GuiLayout {
         return rows * 9;
     }
 
-    /** {@inheritDoc} */
     @Override
     public int rows() {
         return rows;
     }
 
-    /** {@inheritDoc} */
     @Override
     public int size() {
         return getSize();
     }
 
     /**
-     * {@inheritDoc}
-     *
-     *
      * A cell is functional when the grid draws it and its legend type is not
-     * {@link GuiLayout#BACKGROUND}. This is deliberately wider than
-     * {@link #isInteractiveSlot(int)}, which answers whether a click may put contents there; display-only
+     * GuiLayout#BACKGROUND. This is deliberately wider than
+     * isInteractiveSlot(int), which answers whether a click may put contents there; display-only
      * cells (progress, output, meal) are functional here and still must not be written back.
      *
      *
@@ -274,9 +269,6 @@ public class GuiConfig implements GuiLayout {
     }
 
     /**
-     * {@inheritDoc}
-     *
-     *
      * Answered from the grid, so a type no legend character maps to returns an empty array, and cells the
      * legend maps to it are returned in ascending slot order.
      */

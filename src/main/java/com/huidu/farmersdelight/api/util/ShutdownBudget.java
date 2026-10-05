@@ -18,15 +18,13 @@ import java.util.logging.Logger;
  * Steps are expected to be best-effort persistence (flush caches, write back open views, drain an
  * executor). Anything that must not be skipped does not belong behind a budget.
  *
- * <pre>
  * ShutdownBudget budget = ShutdownBudget.ofMillis(5000, getLogger());
- * budget.step("flush kegs", () -&gt; KegChunkListener.passivateLoadedChunks());
+ * budget.step("flush kegs", () -> KegChunkListener.passivateLoadedChunks());
  * budget.step("write back backpacks", this::flushBackpacks);
  * budget.awaitTermination("worker pool", executor);
- * </pre>
  *
  * Failures are reported as one warning that names the step, so every plugin in this family logs the same
- * sentence: pass the wording in with {@link #withMessages} from the caller's language layer instead of
+ * sentence: pass the wording in with withMessages from the caller's language layer instead of
  * relying on the built-in English default.
  */
 public final class ShutdownBudget {

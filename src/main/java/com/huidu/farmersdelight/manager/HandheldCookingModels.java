@@ -92,7 +92,7 @@ public final class HandheldCookingModels implements Listener {
             clientItem = serverItem.toClientSide(BukkitAdaptor.adapt(player));
         } catch (LinkageError error) {
             // CraftEngine 26.9.1 can expose an ItemManager compiled against a processor removed
-            // from the runtime jar. The server-side item still contains the model components we need.
+            // from the runtime jar. The server-side item still contains the model components it needs.
             clientItem = serverItem;
             if (clientModelFallbackWarned.compareAndSet(false, true)) {
                 plugin.getLogger().log(Level.WARNING,
@@ -110,7 +110,7 @@ public final class HandheldCookingModels implements Listener {
 
     /**
      * The CraftEngine item id of a stack, read from its server-side identity. This is the one model
-     * source that survives {@code item.client-bound-model: true}, which strips the item-model
+     * source that survives item.client-bound-model: true, which strips the item-model
      * component from the stack before the server ever sees it, and it is also the key CraftEngine's
      * generated item definitions are stored under.
      */
@@ -196,7 +196,7 @@ public final class HandheldCookingModels implements Listener {
      * resolve derives its lookup candidates: for every ingredient the cooking recipes accept, its own
      * item model, its CraftEngine item id, that model without the item/ prefix, its vanilla material id,
      * and any authored id an obfuscation mapping points at. The CraftEngine item id is what keeps a
-     * client-bound model reachable here: with {@code item.client-bound-model: true} the stack itself
+     * client-bound model reachable here: with item.client-bound-model: true the stack itself
      * carries no item model, so without that id a custom food would only offer its base material, which
      * is exactly the vanilla texture the CE model was supposed to replace. Sources no ingredient needs
      * are never written, so the pack only carries the foods that can actually be cooked in hand instead

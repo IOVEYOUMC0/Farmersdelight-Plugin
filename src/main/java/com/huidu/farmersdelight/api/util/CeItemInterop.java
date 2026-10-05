@@ -6,12 +6,12 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.ApiStatus;
 
 /**
- * Conversion between CraftEngine's {@link Item} and Bukkit's {@link ItemStack}.
+ * Conversion between CraftEngine's Item and Bukkit's ItemStack.
  *
  *
  * These are the conversions the plugin's container and recipe code perform on every stored item, so each
  * one lives here instead of being copied per call site. Nothing here resolves CraftEngine on its own: the
- * conversion is a direct pass-through of CraftEngine's own {@code ItemStackUtils.getBukkitStack}, so a
+ * conversion is a direct pass-through of CraftEngine's own ItemStackUtils.getBukkitStack, so a
  * caller that can run before CraftEngine is ready keeps its own readiness guard, and a caller that needs a
  * substitute for a failed conversion keeps that substitute.
  */
@@ -50,7 +50,7 @@ public final class CeItemInterop {
     }
 
     /**
-     * The same item as a defensive copy, or {@link Item#empty()} when there is nothing usable to copy: a
+     * The same item as a defensive copy, or Item#empty() when there is nothing usable to copy: a
      * null item, an empty item, or one whose count is not positive.
      */
     public static Item normalize(Item item) {

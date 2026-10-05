@@ -1034,7 +1034,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     // Linked jump fallback when no FD pot/board recipe produces the clicked item: hand off to the addon
     // RecipeBook at the workstation recipe that does (keg, BBQ station, ...). The workstation view is a
-    // separate GUI, so fully backing out of it re-opens this FD recipe view EXACTLY at the page we left
+    // separate GUI, so fully backing out of it re-opens this FD recipe view EXACTLY at the page it left
     // (not dropped onto the main menu), preserving the special/pot/board detail the user jumped from.
     private void navigateToAddonRecipe(Player player, ItemStack clickedItem) {
         if (recipeNavigationBlocked()) {

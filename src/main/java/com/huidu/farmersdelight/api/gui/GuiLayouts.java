@@ -20,8 +20,8 @@ import java.util.logging.Logger;
  * produce.
  *
  *
- * Nothing here touches CraftEngine or the server: {@link #cellTypes} and {@link #warnUnknownCharacters} are
- * plain data transforms, and {@link #parse} reads only rows/layout/legend.
+ * Nothing here touches CraftEngine or the server: cellTypes and warnUnknownCharacters are
+ * plain data transforms, and parse reads only rows/layout/legend.
  */
 public final class GuiLayouts {
 
@@ -32,7 +32,7 @@ public final class GuiLayouts {
      * Reads the generic layout of one gui.yml section: rows (default 3, at least 1), layout and legend.
      *
      *
-     * The returned view answers {@link GuiLayout} only; titles, items and station roles stay with the caller's
+     * The returned view answers GuiLayout only; titles, items and station roles stay with the caller's
      * own config class. Returns null when the section is null.
      */
     @Nullable
@@ -54,12 +54,12 @@ public final class GuiLayouts {
     }
 
     /**
-     * The normalised cell-type grid: {@code rows * 9} entries in slot order, never null.
+     * The normalised cell-type grid: rows * 9 entries in slot order, never null.
      *
      *
-     * Every cell that is not inside a drawn row or column is {@link GuiLayout#BACKGROUND}: a missing row, a
+     * Every cell that is not inside a drawn row or column is GuiLayout#BACKGROUND: a missing row, a
      * row shorter than nine cells, a whitespace character, a character the legend does not define and a null
-     * legend type all become the background. Rows beyond {@code rows} and characters beyond column nine are
+     * legend type all become the background. Rows beyond rows and characters beyond column nine are
      * ignored. A row count below 1 yields an empty array.
      *
      *
@@ -97,7 +97,7 @@ public final class GuiLayouts {
     }
 
     /**
-     * Logs the three grid problems — a row count that disagrees with {@code rows}, a row that is not nine
+     * Logs the three grid problems — a row count that disagrees with rows, a row that is not nine
      * cells wide, and a drawn character the legend does not define — and returns how many were logged.
      *
      *
