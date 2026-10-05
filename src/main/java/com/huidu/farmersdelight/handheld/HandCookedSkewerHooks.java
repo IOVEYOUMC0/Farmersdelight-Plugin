@@ -27,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
@@ -40,6 +41,9 @@ import java.util.function.Predicate;
  * inert: no session can start, no tick task is scheduled, and every handler returns immediately. The listener
  * itself stays in the registration list either way, because that list is a fixed order (see
  * {@code ListenerRegistrationOrderTest}); "off" means "armed with nothing", not "missing".
+ *
+ * <p><b>Lifecycle.</b> The one-per-tick loop exists only while a session does: it is armed when a session
+ * starts and cancels itself once the last one ends, so a second skewer arms it again.
  *
  * <p><b>Mutual exclusion.</b> A player cooks one handheld item at a time: the skillet's session is checked
  * first ({@code SkilletManager#isHandheldCooking}) so the two paths cannot both claim the same right-click,
@@ -84,7 +88,8 @@ public final class HandCookedSkewerHooks implements Listener {
                 active.getConfigBoolean(false, "handheld-skewer.require-sneak"),
                 active.getConfigInt(HandCookedSkewerService.COOKING_TICKS, "handheld-skewer.cooking-time-ticks"),
                 readResults(active),
-                this::armSchedulerTask);
+                this::armSchedulerTask,
+                null);
     }
 
     /** The service, or null while the path is inert (disabled, or no result is configured). */
@@ -102,10 +107,12 @@ public final class HandCookedSkewerHooks implements Listener {
      */
     @ApiStatus.Internal
     boolean applyConfig(boolean enabled, boolean requireSneak, int cookingTicks,
-                        @Nullable Map<String, String> configuredResults, @Nullable TaskArm arm) {
+                        @Nullable Map<String, String> configuredResults, @Nullable TaskArm arm,
+                        @Nullable Consumer<UUID> onCooked) {
         this.requireSneak = requireSneak;
         SkewerResultTable table = new SkewerResultTable(configuredResults);
         this.results = table;
+        this.taskArm = arm == null ? this::armSchedulerTask : arm;
         HandCookedSkewerService previous = service;
         if (!enabled || table.isEmpty()) {
             if (previous != null) {
@@ -116,13 +123,15 @@ public final class HandCookedSkewerHooks implements Listener {
             cancelTask();
             return false;
         }
-        this.taskArm = arm == null ? this::armSchedulerTask : arm;
         if (previous != null) {
             // A reload replaces the service; the old sessions must not survive it.
             previous.setEnabled(false);
         }
-        service = new HandCookedSkewerService(true, () -> Math.max(1, cookingTicks), this::convert);
-        armTask();
+        service = new HandCookedSkewerService(true, () -> Math.max(1, cookingTicks),
+                onCooked == null ? this::convert : onCooked);
+        // No tick loop is started here: it is armed by the session that needs it (see ensureTask), so a
+        // reload with no session running does not leave an idle loop behind.
+        cancelTask();
         return true;
     }
 
@@ -157,15 +166,29 @@ public final class HandCookedSkewerHooks implements Listener {
         if (!mayStart(true, hasResult, skilletCooking, player.isSneaking(), requireSneak)) {
             return;
         }
-        if (!active.tryStart(player.getUniqueId())) {
-            return;
-        }
-        hands.put(player.getUniqueId(), hand);
         if (!hasHeat(player)) {
             // The heat check happens once, when the use starts (upstream parity). Not near a heat source means
             // no session at all, so nothing is consumed and no tick runs.
-            cancel(player);
+            return;
         }
+        beginSession(player.getUniqueId(), hand);
+    }
+
+    /**
+     * Records a session and makes sure the tick loop is running. The loop cancels itself once the last session
+     * ends (see {@link #tick()}), so every new session has to arm it again — a loop that was armed only when
+     * the config was read would stop after the first skewer and never advance another one. Arming is
+     * idempotent: a running loop is left alone, so a player cannot end up with two of them.
+     */
+    @ApiStatus.Internal
+    boolean beginSession(UUID player, EquipmentSlot hand) {
+        HandCookedSkewerService active = service;
+        if (active == null || player == null || !active.tryStart(player)) {
+            return false;
+        }
+        hands.put(player, hand);
+        ensureTask();
+        return true;
     }
 
     /** Releasing the use key: zero progress. */
@@ -323,7 +346,11 @@ public final class HandCookedSkewerHooks implements Listener {
         return owner.scheduler().runRepeating(tick, 0, 1);
     }
 
-    private void armTask() {
+    /**
+     * Creates the one-per-tick loop if it is not running. Called from the session that needs it, never at
+     * config time, and never twice: a task that is not cancelled is left as it is.
+     */
+    private void ensureTask() {
         if (!tickTask.isCancelled()) {
             return;
         }
