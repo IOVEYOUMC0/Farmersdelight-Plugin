@@ -37,16 +37,20 @@ class BlockStateOccupancyTest {
         String foodText = packText("food_block.yml");
         assertEquals(0, occurrences(foodText, "state: tripwire"),
                 "no face may pin the shared tripwire state; every one of them reserves its own");
-        assertEquals(148, occurrences(foodText, "auto_state: higher_tripwire"),
-                "all 148 faces moved to the auto state (16 template + 132 direct)");
+        assertEquals(148, occurrences(foodText, "type: solid"),
+                "all 148 faces moved to the solid auto state (16 template + 132 direct)");
+        assertEquals(0, occurrences(foodText, "higher_tripwire"),
+                "the tripwire pool is far too small for this family (64 candidates, ~196 requests)");
 
         ConfigurationSection food = pack("food_block.yml");
         ConfigurationSection template = food.getConfigurationSection(
                 "templates.farmersdelight:sliceable_pie_states.states.appearances");
         assertNotNull(template, "the pie template has to keep its appearances");
         for (String face : template.getKeys(false)) {
-            assertEquals("higher_tripwire", template.getConfigurationSection(face).getString("auto_state"),
-                    "template face " + face + " reserves its own state");
+            assertEquals("solid", template.getConfigurationSection(face).getString("auto_state.type"),
+                    "template face " + face + " reserves a solid state");
+            assertEquals("${__ID__}", template.getConfigurationSection(face).getString("auto_state.id"),
+                    "template face " + face + " shares one allocation per block via its own id");
         }
 
         ConfigurationSection blocks = food.getConfigurationSection("blocks");
@@ -55,10 +59,10 @@ class BlockStateOccupancyTest {
             ConfigurationSection appearances = blocks.getConfigurationSection(block + ".states.appearances");
             assertNotNull(appearances, block + " has to keep its appearances");
             assertEquals(appearances.getKeys(false).size(), appearances.getKeys(false).stream()
-                            .filter(face -> "higher_tripwire"
-                                    .equals(appearances.getConfigurationSection(face).getString("auto_state")))
+                            .filter(face -> "solid"
+                                    .equals(appearances.getConfigurationSection(face).getString("auto_state.type")))
                             .count(),
-                    block + " must reserve its own state on every face");
+                    block + " must reserve a solid state on every face");
         }
     }
 
