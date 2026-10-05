@@ -719,7 +719,7 @@ public final class RecipeBookGui implements InventoryHolder {
     }
 
     // Appends the supplied lore lines to the item's existing lore instead of replacing it, so an item's own
-    // description (original lore) is preserved when we add recipe-derived lines.
+    // description (original lore) is preserved when recipe-derived lines are added.
     public static void applyLore(ItemStack item, List<Component> lore) {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {

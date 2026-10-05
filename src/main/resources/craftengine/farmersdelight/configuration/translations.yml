@@ -45,9 +45,8 @@ translations:
     block.farmersdelight.warped_cabinet: "Warped Cabinet"
 
     block.farmersdelight.apple_pie: "Apple Pie"
-    block.farmersdelight.apple_pie_slice: "Slice of Apple Pie"
     block.farmersdelight.pumpkin_pie: "Pumpkin Pie"
-    block.farmersdelight.pumpkin_pie_slice: "Slice of Pumpkin Pie"
+    item.farmersdelight.pumpkin_pie_slice: "Slice of Pumpkin Pie"
     block.farmersdelight.canvas_rug: "Canvas Rug"
     block.farmersdelight.safety_net: "Safety Net"
     block.farmersdelight.tomato_crop_on_rope: "Tomato Vine"
@@ -55,7 +54,6 @@ translations:
     block.farmersdelight.rich_soil: "Rich Soil"
     block.farmersdelight.rich_soil_farmland: "Rich Soil Farmland"
     block.farmersdelight.chocolate_pie: "Chocolate Pie"
-    block.farmersdelight.chocolate_pie_slice: "Slice of Chocolate Pie"
     block.farmersdelight.full_tatami_mat: "Full Tatami Mat"
     block.farmersdelight.half_tatami_mat: "Half Tatami Mat"
     block.farmersdelight.gleaming_salad_block: "Gleaming Salad"
@@ -65,7 +63,6 @@ translations:
     block.farmersdelight.shepherds_pie_block: "Shepherd's Pie"
     block.farmersdelight.stuffed_pumpkin_block: "Stuffed Pumpkin"
     block.farmersdelight.sweet_berry_cheesecake: "Sweet Berry Cheesecake"
-    block.farmersdelight.sweet_berry_cheesecake_slice: "Slice of Sweet Berry Cheesecake"
     block.farmersdelight.tatami: "Tatami Block"
     block.farmersdelight.tray: "Tray"
 
@@ -144,6 +141,7 @@ translations:
     item.farmersdelight.chicken_sandwich: "Chicken Sandwich"
     item.farmersdelight.chicken_soup: "Chicken Soup"
     item.farmersdelight.chocolate_pie_slice: "Slice of Chocolate Pie"
+    item.farmersdelight.sweet_berry_cheesecake_slice: "Slice of Sweet Berry Cheesecake"
     item.farmersdelight.cod_roll: "Cod Roll"
     item.farmersdelight.cooked_rice: "Cooked Rice"
     item.farmersdelight.dumplings: "Dumplings"
@@ -174,7 +172,6 @@ translations:
     item.farmersdelight.steak_and_potatoes: "Steak and Potatoes"
     item.farmersdelight.stuffed_potato: "Stuffed Potato"
     item.farmersdelight.stuffed_pumpkin: "Bowl of Stuffed Pumpkin"
-    item.farmersdelight.sweet_berry_cheesecake_slice: "Slice of Sweet Berry Cheesecake"
     item.farmersdelight.vegetable_noodles: "Vegetable Noodles"
     item.farmersdelight.vegetable_soup: "Vegetable Soup"
 
@@ -237,6 +234,11 @@ translations:
     farmersdelight.tooltip.cooking_pot.single_serving: "Holds 1 serving of:"
     farmersdelight.tooltip.cooking_pot.many_servings: "Holds %s servings of:"
 
+    block.farmersdelight.budding_tomatoes: "Budding Tomato Vine"
+    block.farmersdelight.cabbages: "Cabbage"
+    block.farmersdelight.onions: "Onions"
+    block.farmersdelight.rice: "Rice Crops"
+    block.farmersdelight.tomatoes: "Tomato Vine"
   zh_cn:
     block.farmersdelight.basket: "篮子"
     block.farmersdelight.bamboo_basket: "竹篮"
@@ -283,9 +285,8 @@ translations:
     block.farmersdelight.warped_cabinet: "诡异木橱柜"
 
     block.farmersdelight.apple_pie: "苹果派"
-    block.farmersdelight.apple_pie_slice: "苹果派切片"
     block.farmersdelight.pumpkin_pie: "南瓜派"
-    block.farmersdelight.pumpkin_pie_slice: "南瓜派切片"
+    item.farmersdelight.pumpkin_pie_slice: "南瓜派切片"
     block.farmersdelight.canvas_rug: "粗布毯"
     block.farmersdelight.safety_net: "安全网"
     block.farmersdelight.tomato_crop_on_rope: "番茄爬藤"
@@ -293,7 +294,6 @@ translations:
     block.farmersdelight.rich_soil: "沃土"
     block.farmersdelight.rich_soil_farmland: "沃土耕地"
     block.farmersdelight.chocolate_pie: "巧克力派"
-    block.farmersdelight.chocolate_pie_slice: "巧克力派切片"
     block.farmersdelight.full_tatami_mat: "长榻榻米垫"
     block.farmersdelight.half_tatami_mat: "短榻榻米垫"
     block.farmersdelight.gleaming_salad_block: "闪亮沙拉"
@@ -303,7 +303,6 @@ translations:
     block.farmersdelight.shepherds_pie_block: "牧羊人派"
     block.farmersdelight.stuffed_pumpkin_block: "填馅南瓜"
     block.farmersdelight.sweet_berry_cheesecake: "甜浆果芝士派"
-    block.farmersdelight.sweet_berry_cheesecake_slice: "甜浆果芝士派切片"
     block.farmersdelight.tatami: "榻榻米方块"
     block.farmersdelight.tray: "托盘"
 
@@ -382,6 +381,7 @@ translations:
     item.farmersdelight.chicken_sandwich: "鸡肉三明治"
     item.farmersdelight.chicken_soup: "鸡肉汤"
     item.farmersdelight.chocolate_pie_slice: "巧克力派切片"
+    item.farmersdelight.sweet_berry_cheesecake_slice: "甜浆果芝士派切片"
     item.farmersdelight.cod_roll: "鳕鱼寿司"
     item.farmersdelight.cooked_rice: "米饭"
     item.farmersdelight.dumplings: "饺子"
@@ -412,7 +412,6 @@ translations:
     item.farmersdelight.steak_and_potatoes: "牛排配马铃薯"
     item.farmersdelight.stuffed_potato: "填馅马铃薯"
     item.farmersdelight.stuffed_pumpkin: "碗装填馅南瓜"
-    item.farmersdelight.sweet_berry_cheesecake_slice: "甜浆果芝士派切片"
     item.farmersdelight.vegetable_noodles: "蔬菜面"
     item.farmersdelight.vegetable_soup: "蔬菜汤"
 
@@ -475,6 +474,11 @@ translations:
     farmersdelight.tooltip.cooking_pot.single_serving: "装有1份："
     farmersdelight.tooltip.cooking_pot.many_servings: "装有%s份："
 
+    block.farmersdelight.budding_tomatoes: "萌芽的番茄藤蔓"
+    block.farmersdelight.cabbages: "卷心菜"
+    block.farmersdelight.onions: "洋葱"
+    block.farmersdelight.rice: "稻米"
+    block.farmersdelight.tomatoes: "番茄藤蔓"
   ko_kr:
     block.farmersdelight.basket: "바구니"
     block.farmersdelight.bamboo_basket: "대나무 바구니"
@@ -521,9 +525,8 @@ translations:
     block.farmersdelight.warped_cabinet: "뒤틀린 식료품 선반"
 
     block.farmersdelight.apple_pie: "사과 파이"
-    block.farmersdelight.apple_pie_slice: "사과 파이 조각"
     block.farmersdelight.pumpkin_pie: "호박 파이"
-    block.farmersdelight.pumpkin_pie_slice: "호박 파이 조각"
+    item.farmersdelight.pumpkin_pie_slice: "호박 파이 조각"
     block.farmersdelight.canvas_rug: "천 깔개"
     block.farmersdelight.safety_net: "안전 망"
     block.farmersdelight.tomato_crop_on_rope: "줄에 매달린 토마토 덩굴"
@@ -531,7 +534,6 @@ translations:
     block.farmersdelight.rich_soil: "기름진 흙"
     block.farmersdelight.rich_soil_farmland: "기름진 경작지"
     block.farmersdelight.chocolate_pie: "초콜릿 파이"
-    block.farmersdelight.chocolate_pie_slice: "초콜릿 파이 조각"
     block.farmersdelight.full_tatami_mat: "다다미 매트"
     block.farmersdelight.half_tatami_mat: "다다미 반 매트"
     block.farmersdelight.gleaming_salad_block: "빛나는 샐러드"
@@ -541,7 +543,6 @@ translations:
     block.farmersdelight.shepherds_pie_block: "셰퍼드 파이"
     block.farmersdelight.stuffed_pumpkin_block: "속 채운 호박"
     block.farmersdelight.sweet_berry_cheesecake: "달콤한 열매 치즈케이크"
-    block.farmersdelight.sweet_berry_cheesecake_slice: "달콤한 열매 치즈케이크 조각"
     block.farmersdelight.tatami: "다다미 블록"
     block.farmersdelight.tray: "받침"
 
@@ -620,6 +621,7 @@ translations:
     item.farmersdelight.chicken_sandwich: "닭고기 샌드위치"
     item.farmersdelight.chicken_soup: "닭고기 수프"
     item.farmersdelight.chocolate_pie_slice: "초콜릿 파이 조각"
+    item.farmersdelight.sweet_berry_cheesecake_slice: "달콤한 열매 치즈케이크 조각"
     item.farmersdelight.cod_roll: "대구 초밥"
     item.farmersdelight.cooked_rice: "밥"
     item.farmersdelight.dumplings: "만두"
@@ -650,7 +652,6 @@ translations:
     item.farmersdelight.steak_and_potatoes: "스테이크와 감자"
     item.farmersdelight.stuffed_potato: "속 채운 감자"
     item.farmersdelight.stuffed_pumpkin: "그릇에 담긴 속 채운 호박"
-    item.farmersdelight.sweet_berry_cheesecake_slice: "달콤한 열매 치즈케이크 조각"
     item.farmersdelight.vegetable_noodles: "잡채"
     item.farmersdelight.vegetable_soup: "야채 수프"
 

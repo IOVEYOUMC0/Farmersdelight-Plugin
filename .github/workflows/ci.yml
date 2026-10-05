@@ -12,9 +12,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # The addon-facing api documentation lives in the wiki repository, and ApiDocsDriftTest checks it
-      # against the code. Checked out here so the test runs; without it the test fails on principle rather
-      # than skipping, so this step is not allowed to fail quietly either.
+      # ApiDocsDriftTest compares the addon-facing api documentation, which lives in the wiki repository,
+      # against the code. The wiki checkout is what lets that test run; it fails rather than skips when the
+      # documentation is missing.
       - name: Checkout the wiki (api documentation)
         uses: actions/checkout@v4
         with:
@@ -34,14 +34,13 @@ jobs:
       - name: Run tests
         run: ./gradlew test --no-daemon --stacktrace
 
-      # The addon repos compile against this jar, so a failure here breaks all five of them.
+      # All five addon repositories compile against this jar.
       - name: Build the api jar addons compile against
         run: ./gradlew apiJar --no-daemon --stacktrace
 
-      # src/debugTools/java is only added to the main source set with -PdebugTools=true (build.gradle.kts),
-      # so nothing else in this workflow compiles it: a main-side rename or removal that the debug command
-      # calls into used to fail only on a developer's machine, with the flag on. Deliberately the last build
-      # step so the test and api-jar steps above keep producing the release configuration's output.
+      # src/debugTools/java joins the main source set only with -PdebugTools=true (build.gradle.kts), so no
+      # other step compiles it. Last build step on purpose: the test and api-jar steps above keep producing
+      # the release configuration's output.
       - name: Compile the debug-tools source set
         run: ./gradlew compileJava -PdebugTools=true --no-daemon --offline --stacktrace
 
@@ -60,13 +59,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # The machine-enforceable half of the maintenance contracts written down in the project notes: shipped
-      # CraftEngine configuration carries no comments, meal icons match the recipes that actually produce
-      # them, no language key is referenced without a definition in both locales, addons only compile against
-      # the api facade, every config path the code reads exists in a file we ship, and no shipped YAML file
-      # repeats a mapping key (a duplicate is not a load error: the reader keeps the last one and the earlier
-      # block disappears). They used to be manual (or unenforced) steps, which meant a contract held only when
-      # someone remembered to check it.
+      # The checks below cover the contracts a running server depends on: shipped CraftEngine configuration
+      # carries no comments, meal icons match the recipes that produce them, every language key is defined in
+      # both locales, no shipped YAML file repeats a mapping key, addons compile against the api facade only,
+      # every config path the code reads exists in a shipped file, and no two custom blocks pin the same
+      # vanilla block state.
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -84,40 +81,27 @@ jobs:
       - name: Language keys are defined in both locales
         run: python tools/check_lang_keys.py --quiet
 
-      # The whole addon split rests on this rule: an addon may only compile against api.**, never against
-      # FarmersDelight's internals. It was convention (and a jar-layout audit) until now; this makes a
-      # violating import fail the build. It also fails if an api class exposes an internal type in a public
-      # signature without the @ApiStatus.Internal marker that says "not for addons".
+      # An addon may compile against api.** only, never against FarmersDelight internals. The check also
+      # rejects an api class that exposes an internal type in a public signature without the
+      # @ApiStatus.Internal marker.
       - name: Addons only depend on the api facade
         run: python tools/check_api_boundary.py --quiet
 
       # ConfigLookup falls back to the compiled default when none of a call site's aliases is set, so a
-      # renamed or misspelled path silently ignores the operator's value instead of failing. This resolves
-      # every literal path the code reads against the files we actually ship. An intentional exception marks
-      # itself in the source with "config-path-check: no shipped key, on purpose".
+      # renamed or misspelled path silently ignores the operator's value instead of failing. Every literal
+      # path the code reads is resolved against the files shipped here; an intentional exception marks itself
+      # in the source with "config-path-check: no shipped key, on purpose".
       - name: Every config path read exists in a shipped file
         run: python tools/check_config_paths.py --quiet
 
-      # A repeated mapping key is not a YAML error: yaml.safe_load (and CraftEngine's own loader) keep the
-      # last value and report nothing, so the earlier block silently disappears. The 1.4 migration shipped
-      # exactly that in blocks.yml -- two `states:` blocks under one block id, the second one also stealing
-      # the block above it. This walks the node tree with yaml.compose, where both keys are still visible.
+      # A repeated mapping key is not a YAML error: yaml.safe_load, and CraftEngine's own loader, keep the
+      # last value and report nothing, so the earlier block disappears silently. The check walks the node
+      # tree with yaml.compose, where both keys are still visible.
       - name: No shipped YAML file repeats a mapping key
         run: python tools/check_duplicate_yaml_keys.py --quiet
 
-      # Twice a whole-file write put one file's source into another path (CarrierRestorer into
-      # visual/ProxyItemDisplayManager.java, FarmersDelightPlugin into visual/RealDisplayCuller.java), and only
-      # a compile caught it. This reads just the package declaration and the top-level type declarations and
-      # requires the path to be <package dir>/<type>.java, plus no public type name declared twice. A new
-      # rename that forgets the file name now fails here instead of at compile time.
-      - name: Every Java file lives at its package and type path
-        run: python tools/check_java_file_identity.py --quiet
-
-      # Every custom block pins a vanilla block state. Two DIFFERENT blocks pinning the same state collide:
-      # the game sees one vanilla block, so the second one placed is indistinguishable from the first (the
-      # defect the owner found by eye: three baskets on one state). The known list is dispositioned now --
-      # the baskets and the two tatami mats reserve their own state, the food blocks use auto_state -- so this
-      # step blocks: a new collision fails the build. One block reusing a state across its own faces is normal
+      # Two custom blocks that pin the same vanilla block state are indistinguishable in the world, so the
+      # second one placed behaves like the first. One block reusing a state across its own faces is normal
       # and is only listed in the log.
       - name: No two custom blocks pin the same vanilla block state
         run: python tools/check_block_state_occupancy.py

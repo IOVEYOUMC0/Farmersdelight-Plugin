@@ -587,7 +587,7 @@ public class CookingPotGui extends AbstractInventoryGui {
             }
             // Heat-source detection reads the pot block, so it is dispatched to the pot's region via
             // refreshHeatStateOnRegion() (called from the sync/tick path) rather than read here,
-            // because here we may be on the viewer's thread.
+            // because this may run on the viewer's thread.
         }
     }
 

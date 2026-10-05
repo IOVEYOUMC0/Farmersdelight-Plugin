@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * tripwire state, and the two tatami mats shared a carpet.
  *
  *
- * The general rule lives in {@code tools/check_block_state_occupancy.py}, which now fails the build; this test
+ * The general rule lives in tools/check_block_state_occupancy.py, which now fails the build; this test
  * keeps the two concrete fixes from being reverted. It reads the pack files through the classpath, so it needs
  * no server, and it counts the pins in the file text so a re-added pin really fails it.
  */

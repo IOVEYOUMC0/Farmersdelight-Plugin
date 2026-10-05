@@ -276,3 +276,57 @@ tags:
   "c:mushrooms":
     - "minecraft:brown_mushroom"
     - "minecraft:red_mushroom"
+
+  "minecraft:enchantable/durability":
+    - "farmersdelight:flint_knife"
+    - "farmersdelight:iron_knife"
+    - "farmersdelight:golden_knife"
+    - "farmersdelight:diamond_knife"
+    - "farmersdelight:netherite_knife"
+    - "farmersdelight:skillet"
+
+  "minecraft:enchantable/weapon":
+    - "farmersdelight:flint_knife"
+    - "farmersdelight:iron_knife"
+    - "farmersdelight:golden_knife"
+    - "farmersdelight:diamond_knife"
+    - "farmersdelight:netherite_knife"
+    - "farmersdelight:skillet"
+
+  "minecraft:enchantable/sharp_weapon":
+    - "farmersdelight:flint_knife"
+    - "farmersdelight:iron_knife"
+    - "farmersdelight:golden_knife"
+    - "farmersdelight:diamond_knife"
+    - "farmersdelight:netherite_knife"
+    - "farmersdelight:skillet"
+
+  "minecraft:enchantable/fire_aspect":
+    - "farmersdelight:flint_knife"
+    - "farmersdelight:iron_knife"
+    - "farmersdelight:golden_knife"
+    - "farmersdelight:diamond_knife"
+    - "farmersdelight:netherite_knife"
+    - "farmersdelight:skillet"
+
+  "minecraft:enchantable/sword":
+    - "farmersdelight:flint_knife"
+    - "farmersdelight:iron_knife"
+    - "farmersdelight:golden_knife"
+    - "farmersdelight:diamond_knife"
+    - "farmersdelight:netherite_knife"
+    - "farmersdelight:skillet"
+
+  "minecraft:enchantable/mining":
+    - "farmersdelight:flint_knife"
+    - "farmersdelight:iron_knife"
+    - "farmersdelight:golden_knife"
+    - "farmersdelight:diamond_knife"
+    - "farmersdelight:netherite_knife"
+
+  "minecraft:enchantable/mining_loot":
+    - "farmersdelight:flint_knife"
+    - "farmersdelight:iron_knife"
+    - "farmersdelight:golden_knife"
+    - "farmersdelight:diamond_knife"
+    - "farmersdelight:netherite_knife"

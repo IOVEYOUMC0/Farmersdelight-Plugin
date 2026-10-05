@@ -191,7 +191,7 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
         }
     }
 
-    // CraftEngine's Player does not expose getBukkitEntity through a type we can call, so this stays
+    // CraftEngine's Player does not expose getBukkitEntity through a callable type, so this stays
     // reflective; the lookup itself is cached because it runs once per placement.
     private static volatile Method getBukkitEntityMethod;
 

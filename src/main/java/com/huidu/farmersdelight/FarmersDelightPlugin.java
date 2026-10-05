@@ -68,6 +68,7 @@ import com.huidu.farmersdelight.recipe.RecipeFileLoader;
 import com.huidu.farmersdelight.recipe.SpecialRecipeLoader;
 import com.huidu.farmersdelight.recipe.SpecialRecipeRegistry;
 import com.huidu.farmersdelight.registry.BehaviorRegistrar;
+import com.huidu.farmersdelight.startup.StartupVersionBanner;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CommonTagResolver;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
@@ -1929,10 +1930,18 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     private void logStartupSummary() {
         logConfigSummary(I18n.formatConsole("plugin.startup_config"));
+        // The one thing the version check may add to a startup: a warning when CraftEngine is older than the
+        // verified floor or its version cannot be read. A supported version stays completely silent.
+        new StartupVersionBanner(getLogger()::warning).warnIfUnsupported(resolveCraftEngineVersion());
     }
 
+    /**
+     * The scheduler, mode and hopper settings, at startup-detail level: a normal boot does not dump every
+     * setting, the summary line carries the versions and the counts that matter, and this stays one turn of the
+     * startup debug category away.
+     */
     private void logConfigSummary(String label) {
-        I18n.logInfo("plugin.config_summary",
+        I18n.logDetail("startup", "plugin.config_summary",
                 "label", label,
                 "scheduler", scheduler != null && scheduler.isFolia() ? "folia" : "bukkit",
                 "mode", stationSettings.interactionMode().configKey(),
@@ -1941,6 +1950,31 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 "cutting_board_hopper", stationSettings.cuttingBoardHopperEnabled(),
                 "skillet_hopper", stationSettings.skilletHopperEnabled(),
                 "advancements", advancementsEnabled);
+    }
+
+    /**
+     * The running CraftEngine version: its public API first, then the plugin description, and null when neither
+     * can be read (the summary then says unknown and the warning explains it). CraftEngine is a required
+     * dependency that loads before this plugin, so the API call is normally safe; it stays guarded because a
+     * CraftEngine that has not enabled yet throws instead of answering, and a version line must never be the
+     * reason a plugin fails to enable.
+     */
+    String resolveCraftEngineVersion() {
+        try {
+            BukkitCraftEngine craftEngine = BukkitCraftEngine.instance();
+            String fromApi = craftEngine == null ? null : craftEngine.pluginVersion();
+            if (fromApi != null && !fromApi.isBlank()) {
+                return fromApi;
+            }
+        } catch (RuntimeException | LinkageError notReady) {
+            // Fall through to the plugin description.
+        }
+        Plugin craftEngine = getServer().getPluginManager().getPlugin(HOST_PLUGIN_NAME);
+        if (craftEngine == null) {
+            return null;
+        }
+        String fromDescription = craftEngine.getPluginMeta().getVersion();
+        return fromDescription == null || fromDescription.isBlank() ? null : fromDescription;
     }
 
     public TickManager getTickManager() {

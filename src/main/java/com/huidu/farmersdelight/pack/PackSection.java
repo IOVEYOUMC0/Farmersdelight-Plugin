@@ -8,7 +8,7 @@ import java.util.Map;
  * A FarmersDelight content section a CraftEngine pack can declare.
  *
  *
- * Each entry pairs the root key a pack file uses (the CraftEngine section id our parser claims) with the
+ * Each entry pairs the root key a pack file uses (the CraftEngine section id the parser claims) with the
  * root key the same content carries once it reaches this plugin. The two differ only where the plugin already
  * had a root key of its own before packs could declare one, so the existing readers stay untouched: a pack
  * author writes cooking_recipes: and com.huidu.farmersdelight.recipe.CookingPotRecipeManager
