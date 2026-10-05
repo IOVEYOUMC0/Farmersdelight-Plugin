@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,23 +22,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  *
  * CraftEngine allocates one state per APPEARANCE, not per block: a plain {@code auto_state: x} is keyed
- * {@code "<block>[appearance=<name>]"}, and only the advanced form {@code auto_state: {type: x, id: y}} reuses
- * one allocation for every appearance that names the same id (AbstractBlockManager:629-651,
- * VisualBlockStateAllocator.requestAutoState). The food family used to ask the tripwire group for 148-196
- * allocations while that group only owns 64 states, which the occupancy guard cannot see because auto_state is
+ * {@code "<block>[appearance=<name>]"} (AbstractBlockManager:642/646/650), and only the advanced form
+ * {@code auto_state: {type: x, id: y}} reuses one allocation for every appearance that names the same id
+ * (:640, VisualBlockStateAllocator.requestAutoState). The food family used to ask the tripwire group for
+ * ~196 allocations while that group only owns 63, which the occupancy guard cannot see because auto_state is
  * not a pin. This test makes that arithmetic fail the build instead.
  */
 class AutoStateBudgetTest {
 
-    /** Candidates per group, from AutoStateGroup (core/.../block/AutoStateGroup.java). */
+    /**
+     * Candidates per group. The numbers for the groups the pack uses are counted from the pack CraftEngine
+     * ships, internal/configuration/mappings.yml: note_block 1300 (26 instruments x 25 notes x 2 powered,
+     * including the 1.21.2+ trumpet ones), each mushroom block 63, tripwire 126 and its attached halves 63
+     * each. The remaining groups are the block sets in AutoStateGroup (core/.../block/AutoStateGroup.java)
+     * times their property combinations, and are conservative.
+     */
     private static final Map<String, Integer> CAPACITY = Map.ofEntries(
-            Map.entry("solid", 992),
-            Map.entry("note_block", 800),
-            Map.entry("mushroom", 192),
-            Map.entry("mushroom_stem", 64),
-            Map.entry("tripwire", 128),
-            Map.entry("higher_tripwire", 64),
-            Map.entry("lower_tripwire", 64),
+            Map.entry("solid", 1489),
+            Map.entry("note_block", 1300),
+            Map.entry("mushroom", 189),
+            Map.entry("mushroom_stem", 63),
+            Map.entry("tripwire", 126),
+            Map.entry("higher_tripwire", 63),
+            Map.entry("lower_tripwire", 63),
             Map.entry("twisting_vines", 52),
             Map.entry("weeping_vines", 52),
             Map.entry("cave_vines", 52),
@@ -54,11 +61,25 @@ class AutoStateBudgetTest {
             Map.entry("waterlogged_tintable_leaves", 308));
 
     /** The mushroom half of solid: staying inside it keeps the blocks off note_block behaviour. */
-    private static final int INERT_SOLID = 192;
+    private static final int INERT_SOLID = 189;
+
+    /** The ten owners of the food family plus the shared template they inherit from. */
+    private static final List<String> FAMILY = List.of(
+            "farmersdelight:sliceable_pie_states",
+            "farmersdelight:apple_pie",
+            "farmersdelight:sweet_berry_cheesecake",
+            "farmersdelight:chocolate_pie",
+            "farmersdelight:pumpkin_pie",
+            "farmersdelight:gleaming_salad_block",
+            "farmersdelight:honey_glazed_ham_block",
+            "farmersdelight:rice_roll_medley_block",
+            "farmersdelight:roast_chicken_block",
+            "farmersdelight:shepherds_pie_block",
+            "farmersdelight:stuffed_pumpkin_block");
 
     @Test
     void everyAutoStateGroupIsAskedForNoMoreStatesThanItHas() {
-        Map<String, List<String>> requests = allocationKeys();
+        Map<String, List<String>> requests = allocationKeys(false);
         assertTrue(!requests.isEmpty(), "the pack has to use auto_state somewhere");
         for (Map.Entry<String, List<String>> entry : requests.entrySet()) {
             Integer capacity = CAPACITY.get(entry.getKey());
@@ -71,50 +92,73 @@ class AutoStateBudgetTest {
 
     @Test
     void theFoodFamilySharesOneSolidStatePerBlock() {
-        Map<String, List<String>> requests = allocationKeys();
-        List<String> solid = requests.getOrDefault("solid", List.of());
-        assertTrue(solid.size() <= INERT_SOLID,
-                "the family has to stay inside the inert mushroom states: " + solid);
-        assertTrue(!solid.contains("farmersdelight:rice_roll_medley_block"),
-                "the block id must itself never become an allocation key");
+        List<String> solid = allocationKeys(false).getOrDefault("solid", List.of());
+        assertEquals(11, solid.size(), "one shared allocation per owner plus the template: " + solid);
+        for (String key : solid) {
+            assertTrue(key.startsWith("solid[id=farmersdelight:"), "every key is the advanced shared form: " + key);
+            String owner = key.substring("solid[id=".length(), key.length() - 1);
+            assertTrue(FAMILY.contains(owner), "the id is the owner's own id: " + key);
+        }
+        assertTrue(solid.size() <= INERT_SOLID, "and it stays inside the inert mushroom states: " + solid);
     }
 
-    /** Allocation key per appearance, exactly as AbstractBlockManager builds it. */
-    private static Map<String, List<String>> allocationKeys() {
+    /**
+     * Proves the shared form is what keeps the family viable: with a plain {@code auto_state: solid} the ten
+     * blocks alone ask for 196 allocations (132 own appearances + 4 x the template's 16) and the template entry
+     * another 16, which overflows the inert mushroom half of the pool. Dropping the {@code id} therefore fails
+     * this suite.
+     */
+    @Test
+    void droppingTheSharedIdWouldAskForFarMoreStates() {
+        List<String> plain = allocationKeys(true).getOrDefault("solid", List.of());
+        assertTrue(plain.size() >= 196, "plain auto_state is keyed per appearance: " + plain.size());
+        assertTrue(plain.size() > INERT_SOLID,
+                "which overflows the inert half of the pool (" + INERT_SOLID + "): " + plain.size());
+    }
+
+    /**
+     * Allocation keys, exactly as AbstractBlockManager builds them, with template inheritance expanded: a block
+     * inherits the appearances of every template it lists, and {@code ${__ID__}} resolves to the owning block.
+     * With {@code plainAsAppearances} the advanced form is treated as plain, which is how a dropped {@code id}
+     * behaves.
+     */
+    private static Map<String, List<String>> allocationKeys(boolean plainAsAppearances) {
         Map<String, List<String>> requests = new LinkedHashMap<>();
-        ConfigurationSection configuration = pack("food_block.yml");
-        collect(configuration.getConfigurationSection("templates"), requests);
-        collect(configuration.getConfigurationSection("blocks"), requests);
-        ConfigurationSection blocks = pack("blocks.yml").getConfigurationSection("block");
-        collect(blocks, requests);
+        ConfigurationSection food = pack("food_block.yml");
+        ConfigurationSection templates = food.getConfigurationSection("templates");
+        collect(templates, templates, requests, plainAsAppearances);
+        collect(food.getConfigurationSection("blocks"), templates, requests, plainAsAppearances);
+        collect(pack("blocks.yml").getConfigurationSection("block"), null, requests, plainAsAppearances);
         return requests;
     }
 
-    private static void collect(ConfigurationSection owners, Map<String, List<String>> requests) {
+    private static void collect(ConfigurationSection owners, ConfigurationSection templates,
+                                Map<String, List<String>> requests, boolean plainAsAppearances) {
         if (owners == null) {
             return;
         }
         for (String owner : owners.getKeys(false)) {
-            ConfigurationSection appearances = owners.getConfigurationSection(owner + ".states.appearances");
-            if (appearances == null) {
-                continue;
+            List<Map.Entry<String, ConfigurationSection>> appearances = new ArrayList<>();
+            addAppearances(appearances, owners.getConfigurationSection(owner + ".states.appearances"));
+            if (templates != null) {
+                for (String template : owners.getStringList(owner + ".template")) {
+                    addAppearances(appearances, templates.getConfigurationSection(template + ".states.appearances"));
+                }
             }
-            for (String appearance : appearances.getKeys(false)) {
-                ConfigurationSection config = appearances.getConfigurationSection(appearance);
+            for (Map.Entry<String, ConfigurationSection> entry : appearances) {
+                ConfigurationSection config = entry.getValue();
                 Object auto = config.get("auto_state");
                 if (auto == null) {
                     continue;
                 }
-                String key;
-                String group;
-                if (auto instanceof String plain) {
-                    group = plain;
-                    key = owner + "[appearance=" + appearance + "]";
-                } else {
-                    group = config.getString("auto_state.type");
-                    String id = config.getString("auto_state.id");
-                    key = group + "[id=" + (id == null ? "" : id) + "]";
+                String group = auto instanceof String plain ? plain : config.getString("auto_state.type");
+                String id = auto instanceof String ? null : config.getString("auto_state.id");
+                if (id != null) {
+                    id = id.replace("${__ID__}", owner).replace("${__NAMESPACE__}", "farmersdelight");
                 }
+                String key = id == null || plainAsAppearances
+                        ? owner + "[appearance=" + entry.getKey() + "]"
+                        : group + "[id=" + id + "]";
                 List<String> list = requests.computeIfAbsent(group, ignored -> new ArrayList<>());
                 if (!list.contains(key)) {
                     list.add(key);
@@ -123,9 +167,22 @@ class AutoStateBudgetTest {
         }
     }
 
+    private static void addAppearances(List<Map.Entry<String, ConfigurationSection>> appearances,
+                                       ConfigurationSection section) {
+        if (section == null) {
+            return;
+        }
+        for (String name : section.getKeys(false)) {
+            ConfigurationSection config = section.getConfigurationSection(name);
+            if (config != null) {
+                appearances.add(new AbstractMap.SimpleEntry<>(name, config));
+            }
+        }
+    }
+
     private static ConfigurationSection pack(String file) {
         String resource = "craftengine/farmersdelight/configuration/" + file;
-        try (InputStream stream = AutoStateBudgetTest.class.getClassLoader().getResourceAsStream(resource)) {
+        try (InputStream stream = AutoStateBudgetTest.class.getResourceAsStream("/" + resource)) {
             assertNotNull(stream, "missing pack resource: " + resource);
             YamlConfiguration configuration = new YamlConfiguration();
             configuration.loadFromString(new String(stream.readAllBytes(), StandardCharsets.UTF_8));
