@@ -39,6 +39,9 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
     private static final double DEFAULT_VIEW_DISTANCE = 64.0D;
     private static final int DEFAULT_SYNC_INTERVAL_TICKS = 20;
     private static final int DEFAULT_SYNC_BATCH_SIZE = 256;
+    // Extra blocks an already-visible viewer keeps, so a player standing on the send boundary does not
+    // flap between spawn and destroy on every pass. Shared policy lives in DisplayCulling.
+    private static final double VIEW_HYSTERESIS = 8.0D;
 
     private final FarmersDelightPlugin plugin;
     private final ProxyDisplayPacketFactory packets;
@@ -852,7 +855,11 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
         double dx = player.getX() - location.getX();
         double dy = player.getY() - location.getY();
         double dz = player.getZ() - location.getZ();
-        return dx * dx + dy * dy + dz * dz <= viewDistanceSquared;
+        // Hysteresis: a display this viewer already sees keeps a few extra blocks, so the boundary itself
+        // does not turn into spawn/destroy churn every pass.
+        boolean alreadyShown = display.viewers.contains(player.getUniqueId());
+        return DisplayCulling.isVisible(dx * dx + dy * dy + dz * dz, viewDistance,
+                alreadyShown ? VIEW_HYSTERESIS : 0.0D);
     }
 
     private void spawnForViewer(Player player, ProxyDisplay display) {
@@ -869,6 +876,9 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
                 return;
             }
             user.sendPackets(display.spawnPackets, false);
+            // Per-viewer ViewRange, like CE's furniture elements: the spawn metadata carries the base range,
+            // this pins it for this viewer so a later cull only has to send a 0 without touching the entity.
+            user.sendPacket(packets.createViewRangePacket(display.entityId, viewRangeMeta), false);
             visibleDisplaysByPlayer.computeIfAbsent(player.getUniqueId(), ignored -> ConcurrentHashMap.newKeySet())
                     .add(display.entityId);
             viewerSpawnPacketCount.incrementAndGet();
@@ -886,6 +896,9 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
         try {
             NetWorkUser user = networkManager.getOnlineUser(player.getUniqueId());
             if (user != null && user.isOnline()) {
+                // CE order: take this viewer's range to 0 before the entity goes away, so a client that keeps
+                // the entity for a frame after the removal cannot draw it.
+                user.sendPacket(packets.createViewRangePacket(display.entityId, DisplayCulling.CULLED_RANGE), false);
                 user.sendPacket(display.destroyPacket, false);
                 viewerDestroyPacketCount.incrementAndGet();
             }
