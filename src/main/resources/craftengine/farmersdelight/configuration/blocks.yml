@@ -222,6 +222,16 @@ items:
     data:
       item-name: <!i><lang:block.farmersdelight.basket>
       model: farmersdelight:block/basket
+  farmersdelight:bamboo_basket:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><lang:block.farmersdelight.bamboo_basket>
+      model: farmersdelight:block/bamboo_basket
+  farmersdelight:wooden_basket:
+    template: farmersdelight:block_item_template
+    data:
+      item-name: <!i><lang:block.farmersdelight.wooden_basket>
+      model: farmersdelight:block/wooden_basket
   farmersdelight:tray:
     data:
       item-name: <!i><lang:block.farmersdelight.tray>
@@ -1325,6 +1335,156 @@ block:
           appearance: south
         facing=west:
           appearance: west
+  farmersdelight:bamboo_basket:
+    template:
+    - farmersdelight:block_loot_template
+    settings:
+      hardness: 1.5
+      resistance: 1.5
+      push-reaction: block
+      propagate-skylight: true
+      is-randomly-ticking: false
+      tags:
+      - minecraft:mineable/axe
+      sounds:
+        break: minecraft:block.scaffolding.break
+        fall: minecraft:block.scaffolding.fall
+        hit: minecraft:block.scaffolding.hit
+        place: minecraft:block.scaffolding.place
+        step: minecraft:block.scaffolding.step
+    behavior:
+    - type: simple_storage_block
+      title: <!i><lang:block.farmersdelight.bamboo_basket>
+      rows: 3
+      allow-input: true
+      allow-output: true
+    - type: farmersdelight:basket
+    states:
+      properties:
+        facing:
+          type: direction
+          default: up
+      appearances:
+        east:
+          auto_state: non_tintable_leaves
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 90
+            y: 90
+        north:
+          auto_state: non_tintable_leaves
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 90
+        south:
+          auto_state: non_tintable_leaves
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 90
+            y: 180
+        west:
+          auto_state: non_tintable_leaves
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 90
+            y: 270
+        up:
+          state: composter[level=7]
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+        down:
+          auto_state: non_tintable_leaves
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 180
+      variants:
+        facing=east:
+          appearance: east
+        facing=north:
+          appearance: north
+        facing=south:
+          appearance: south
+        facing=west:
+          appearance: west
+        facing=up:
+          appearance: up
+        facing=down:
+          appearance: down
+  farmersdelight:wooden_basket:
+    template:
+    - farmersdelight:block_loot_template
+    settings:
+      hardness: 1.5
+      resistance: 1.5
+      push-reaction: block
+      propagate-skylight: true
+      is-randomly-ticking: false
+      tags:
+      - minecraft:mineable/axe
+      sounds:
+        break: minecraft:block.scaffolding.break
+        fall: minecraft:block.scaffolding.fall
+        hit: minecraft:block.scaffolding.hit
+        place: minecraft:block.scaffolding.place
+        step: minecraft:block.scaffolding.step
+    behavior:
+    - type: simple_storage_block
+      title: <!i><lang:block.farmersdelight.wooden_basket>
+      rows: 3
+      allow-input: true
+      allow-output: true
+    - type: farmersdelight:basket
+    states:
+      properties:
+        facing:
+          type: direction
+          default: up
+      appearances:
+        east:
+          auto_state: non_tintable_leaves
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 90
+            y: 90
+        north:
+          auto_state: non_tintable_leaves
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 90
+        south:
+          auto_state: non_tintable_leaves
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 90
+            y: 180
+        west:
+          auto_state: non_tintable_leaves
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 90
+            y: 270
+        up:
+          state: composter[level=7]
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+        down:
+          auto_state: non_tintable_leaves
+          model:
+            path: ${__NAMESPACE__}:block/${__ID__}
+            x: 180
+      variants:
+        facing=east:
+          appearance: east
+        facing=north:
+          appearance: north
+        facing=south:
+          appearance: south
+        facing=west:
+          appearance: west
+        facing=up:
+          appearance: up
+        facing=down:
+          appearance: down
   farmersdelight:basket:
     template:
     - farmersdelight:block_loot_template
@@ -2293,7 +2453,7 @@ recipes:
     result:
       id: farmersdelight:cutting_board
       count: 1
-  farmersdelight:basket:
+  farmersdelight:bamboo_basket:
     type: shaped
     category: misc
     pattern:
@@ -2304,7 +2464,20 @@ recipes:
       B: minecraft:bamboo
       C: farmersdelight:canvas
     result:
-      id: farmersdelight:basket
+      id: farmersdelight:bamboo_basket
+      count: 1
+  farmersdelight:wooden_basket:
+    type: shaped
+    category: misc
+    pattern:
+    - B B
+    - C C
+    - BCB
+    ingredients:
+      B: minecraft:stick
+      C: farmersdelight:canvas
+    result:
+      id: farmersdelight:wooden_basket
       count: 1
   farmersdelight:carrot_crate:
     type: shaped
