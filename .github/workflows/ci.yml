@@ -105,6 +105,14 @@ jobs:
       - name: No shipped YAML file repeats a mapping key
         run: python tools/check_duplicate_yaml_keys.py --quiet
 
+      # Twice a whole-file write put one file's source into another path (CarrierRestorer into
+      # visual/ProxyItemDisplayManager.java, FarmersDelightPlugin into visual/RealDisplayCuller.java), and only
+      # a compile caught it. This reads just the package declaration and the top-level type declarations and
+      # requires the path to be <package dir>/<type>.java, plus no public type name declared twice. A new
+      # rename that forgets the file name now fails here instead of at compile time.
+      - name: Every Java file lives at its package and type path
+        run: python tools/check_java_file_identity.py --quiet
+
       # Every custom block pins a vanilla block state. Two DIFFERENT blocks pinning the same state collide:
       # the game sees one vanilla block, so the second one placed is indistinguishable from the first (the
       # defect the owner found by eye: three baskets on one state). The known list is dispositioned now --
