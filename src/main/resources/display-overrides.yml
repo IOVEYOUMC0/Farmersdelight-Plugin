@@ -36,6 +36,10 @@ items:
     position: 0,-0.225,0
   farmersdelight:basket:
     style: block
+  farmersdelight:bamboo_basket:
+    style: block
+  farmersdelight:wooden_basket:
+    style: block
   farmersdelight:tray:
     style: block
   # 3D blocks whose item icon is 2D (item/generated parent in the vanilla model) — placed on the board

@@ -52,7 +52,7 @@ cutting_board_recipes:
     results:
     - item: farmersdelight:raw_pasta
   basket:
-    input: farmersdelight:basket
+    input: farmersdelight:bamboo_basket
     tool: farmersdelight:axe_dig
     results:
     - item: farmersdelight:canvas
