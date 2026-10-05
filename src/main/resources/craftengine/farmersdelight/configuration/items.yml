@@ -769,6 +769,19 @@ items:
     template: farmersdelight:pie_slice_template
     data:
       item-name: <!i><lang:block.farmersdelight.pumpkin_pie_slice>
+      lore: '<!i><blue><lang:effect.minecraft.speed> (00:30)</blue>'
+      food:
+        nutrition: 3
+        saturation: 2
+        can-always-eat: true
+    events:
+      - on: consume
+        functions:
+          - type: potion_effect
+            potion-effect: minecraft:speed
+            duration: 600
+            amplifier: 0
+            particles: false
     settings:
       tags:
         - c:foods/pie
@@ -838,19 +851,10 @@ items:
     template: farmersdelight:soup_template
     data:
       item-name: <!i><lang:item.farmersdelight.fruit_salad>
-      lore: '<!i><blue><lang:effect.minecraft.regeneration> (00:05)</blue>'
       food:
         nutrition: 8
         saturation: 10
         can-always-eat: false
-    events:
-      - on: consume
-        functions:
-          - type: potion_effect
-            potion-effect: minecraft:regeneration
-            duration: 100
-            amplifier: 0
-            particles: true
     settings:
       tags:
         - farmersdelight:sweets
@@ -858,19 +862,10 @@ items:
     template: farmersdelight:soup_template
     data:
       item-name: <!i><lang:item.farmersdelight.mixed_salad>
-      lore: '<!i><blue><lang:effect.minecraft.regeneration> (00:05)</blue>'
       food:
         nutrition: 8
         saturation: 10
         can-always-eat: false
-    events:
-      - on: consume
-        functions:
-          - type: potion_effect
-            potion-effect: minecraft:regeneration
-            duration: 100
-            amplifier: 0
-            particles: true
     settings:
       tags:
         - farmersdelight:meals

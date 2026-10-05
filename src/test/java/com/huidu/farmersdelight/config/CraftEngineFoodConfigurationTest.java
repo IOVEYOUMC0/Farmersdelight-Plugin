@@ -156,8 +156,9 @@ class CraftEngineFoodConfigurationTest {
                 Map.entry("squid_ink_pasta", List.of(14, 20)),
                 Map.entry("roast_chicken", List.of(14, 20)),
                 Map.entry("gleaming_salad", List.of(14, 20)),
-                // Slices are 5/5 with the pumpkin one excepted; the pack has no pumpkin_pie_slice item yet.
+                // Slices are 5/5 with the pumpkin one excepted: it keeps its own 3/2 and its speed effect.
                 Map.entry("pie_slice_template.peach", List.of(5, 5)),
+                Map.entry("pumpkin_pie_slice", List.of(3, 2)),
                 // Already at their 1.4 values before this change: kept as a regression anchor.
                 Map.entry("salmon_slice", List.of(1, 0.2)),
                 Map.entry("cod_slice", List.of(1, 0.2)),
@@ -181,6 +182,47 @@ class CraftEngineFoodConfigurationTest {
                     id + " nutrition (1.4 absolute)");
             assertEquals(entry.getValue().get(1).doubleValue(), saturation, 0.0,
                     id + " saturation (1.4 absolute)");
+        }
+    }
+
+    /**
+     * Pins the two 1.4 exceptions the numeric table alone cannot catch: the pumpkin pie slice keeps its own
+     * 3/2 plus a 30 second speed effect instead of inheriting the 5/5 slice template, and both salads lost
+     * the 5 second Regeneration they used to grant.
+     */
+    @Test
+    void pumpkinPieSliceKeepsItsExceptionAndSaladsLostTheirRegeneration() {
+        Path path = Path.of("src", "main", "resources", "craftengine", "farmersdelight",
+                "configuration", "items.yml");
+        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(path.toFile());
+
+        List<Map<?, ?>> sliceEvents = yaml.getMapList("items.farmersdelight:pumpkin_pie_slice.events");
+        assertEquals(1, sliceEvents.size(), "the pumpkin pie slice has to carry exactly its speed event");
+        // Bukkit's YAML implementation follows YAML 1.1, where the bare scalar "on" resolves to the boolean
+        // true, while CraftEngine reads the key as written. Accept both so this pins the pack, not the loader.
+        Map<?, ?> sliceEvent = sliceEvents.getFirst();
+        assertEquals("consume", sliceEvent.containsKey("on") ? sliceEvent.get("on") : sliceEvent.get(Boolean.TRUE),
+                "the event has to fire on consume");
+        List<?> sliceFunctions = (List<?>) sliceEvent.get("functions");
+        assertEquals(1, sliceFunctions.size());
+        Map<?, ?> speed = (Map<?, ?>) sliceFunctions.getFirst();
+        assertEquals("potion_effect", speed.get("type"));
+        assertEquals("minecraft:speed", speed.get("potion-effect"));
+        assertEquals(600, ((Number) speed.get("duration")).intValue(),
+                "1.4 defines 600 ticks = 30 seconds, not 10");
+        assertEquals(Boolean.FALSE, speed.get("particles"),
+                "1.4 hides the effect particles (upstream visible=false, like the slice template)");
+
+        for (String salad : List.of("fruit_salad", "mixed_salad")) {
+            String itemPath = "items.farmersdelight:" + salad;
+            String lore = yaml.getString(itemPath + ".data.lore", "");
+            assertFalse(lore.contains("regeneration"), salad + " must not advertise Regeneration anymore");
+            assertFalse(lore.contains("00:05"), salad + " must not keep the 5 second lore line");
+            for (Map<?, ?> event : yaml.getMapList(itemPath + ".events")) {
+                String functions = String.valueOf(event.get("functions"));
+                assertFalse(functions.contains("regeneration"),
+                        salad + " must not grant Regeneration anymore (found " + functions + ")");
+            }
         }
     }
 }
