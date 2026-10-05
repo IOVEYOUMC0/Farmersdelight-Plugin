@@ -42,7 +42,7 @@ import java.util.UUID;
  * states therefore renders as nothing.
  *
  *
- * This class detects exactly those blocks and puts a {@link BlockDisplay} on their position carrying the
+ * This class detects exactly those blocks and puts a BlockDisplay on their position carrying the
  * same block data. The client resolves that block data through the same resource pack, so the display
  * shows the untouched vanilla model while CraftEngine's empty variant stays hidden underneath it. Only
  * the borrowed states are restored; every other block is left to the client's own block rendering.
@@ -72,16 +72,16 @@ public final class CarrierRestorer {
     private final FarmersDelightPlugin plugin;
     /** The region dispatcher every chunk and entity task goes through; the plugin's scheduler by default. */
     private final RegionDispatcher dispatcher;
-    /** world -> chunkKey -> (packed position -> display entity). Guarded by {@link #stateLock}. */
+    /** world -> chunkKey -> (packed position -> display entity). Guarded by stateLock. */
     private final Map<UUID, Map<Long, Map<Long, Entity>>> tracked = new HashMap<>();
-    /** world -> chunk keys already scanned this session. Guarded by {@link #stateLock}. */
+    /** world -> chunk keys already scanned this session. Guarded by stateLock. */
     private final Map<UUID, Set<Long>> scanned = new HashMap<>();
     /** Chunks still to scan, keyed by world and coordinates; drained by the maintenance task. */
     private final PendingChunkScanQueue<ChunkTarget> pending = new PendingChunkScanQueue<>();
     /**
      * Guards the tracking maps and the counters below.
      *
-     * <p>World events arrive on the region thread that owns the affected chunk, while the maintenance task
+     * World events arrive on the region thread that owns the affected chunk, while the maintenance task
      * and the enable/disable path run on the global thread, so every read and write of this state goes
      * through one lock. Nothing is dispatched and no entity is created while it is held: callers take what
      * they need under it and act outside it.
@@ -141,11 +141,11 @@ public final class CarrierRestorer {
     /**
      * Registers one block, creating or dropping its display as the block data requires.
      *
-     * <p>Region-bound: it reads the block and may spawn a display entity, so it must run on the thread that
+     * Region-bound: it reads the block and may spawn a display entity, so it must run on the thread that
      * owns the block's chunk. A neighbour handed over from a block event across a chunk border is left to
      * the region that owns it.
      *
-     * <p>Called for every placed or state-changed block of a carrier material, which is the only way a
+     * Called for every placed or state-changed block of a carrier material, which is the only way a
      * real vanilla block appears once a chunk is already resident.
      */
     public void update(Block block) {
@@ -250,7 +250,7 @@ public final class CarrierRestorer {
 
     /**
      * Drops the display at a position when its block changed or disappeared. Region-bound for the same
-     * reason as {@link #update(Block)}: the display it removes is an entity in that chunk.
+     * reason as update(Block): the display it removes is an entity in that chunk.
      */
     public void forget(Block block) {
         if (block == null || block.getWorld() == null) {
@@ -269,15 +269,15 @@ public final class CarrierRestorer {
      * the world's minimum build height: that is where fences and gates in the borrowed states occur, and
      * a full column scan is far more expensive.
      *
-     * <p>The positions are read from one snapshot of the chunk's block storage instead of a world lookup
+     * The positions are read from one snapshot of the chunk's block storage instead of a world lookup
      * per position: the copy costs one allocation for the whole chunk, while every world lookup allocates
      * a block and resolves the position through the chunk system again.
      *
-     * <p>Region-bound: it reads the chunk and calls {@link #update(Block)}, which may spawn a display. Its
+     * Region-bound: it reads the chunk and calls update(Block), which may spawn a display. Its
      * only caller is the region task the maintenance pass dispatches, and that task has already checked that
      * the chunk is loaded.
      *
-     * <p>Each chunk is scanned once between loads; the events that create or change a carrier block keep
+     * Each chunk is scanned once between loads; the events that create or change a carrier block keep
      * the result current afterwards, so a repeat scan buys nothing.
      */
     public void scanChunk(World world, int chunkX, int chunkZ) {
@@ -350,7 +350,7 @@ public final class CarrierRestorer {
      * Queues a chunk for a background scan. Scanning on the chunk-load event itself would put a full
      * column walk on the chunk's critical path; the maintenance task drains the queue in small slices.
      *
-     * <p>Only the world handle and the coordinates are kept: a Chunk belongs to the region that owns it and
+     * Only the world handle and the coordinates are kept: a Chunk belongs to the region that owns it and
      * is not handed to another thread. A chunk that is already queued keeps its place and only has its entry
      * replaced, so a burst of events naming the same chunk leaves one scan of it.
      */
@@ -364,8 +364,8 @@ public final class CarrierRestorer {
      * Fills the scan queue with the chunks that are already resident, so a plugin enable (or a reload)
      * still reaches blocks that no place or physics event will ever report.
      *
-     * <p>Only a platform whose loaded chunks may be enumerated from this thread does this; elsewhere the
-     * queue is filled by chunk load events alone. See {@link #mayEnumerateLoadedChunks(boolean)}.
+     * Only a platform whose loaded chunks may be enumerated from this thread does this; elsewhere the
+     * queue is filled by chunk load events alone. See mayEnumerateLoadedChunks(boolean).
      */
     public void prepareStartup() {
         if (!mayEnumerateLoadedChunks(plugin.scheduler().isFolia())) {
@@ -383,7 +383,7 @@ public final class CarrierRestorer {
     /**
      * Whether the loaded chunks of every world may be enumerated from the thread this runs on.
      *
-     * <p>On Folia they may not: the enumeration is a world-wide read that no single region owns, and the
+     * On Folia they may not: the enumeration is a world-wide read that no single region owns, and the
      * chunks it returns belong to regions this thread does not hold, so they must not be touched. There is
      * no region-scoped replacement for "every loaded chunk", so there the queue is filled by the chunk load
      * event instead, and a chunk that was already resident when the plugin enabled is covered once it
@@ -441,7 +441,7 @@ public final class CarrierRestorer {
      * Removes displays left behind by a previous session. They are spawned non-persistent, so a clean
      * shutdown leaves none; a crash or a force-stop can, and this is the only path that finds them.
      *
-     * <p>Paper only: the scan asks the world for every display it holds, which is a world-wide read that no
+     * Paper only: the scan asks the world for every display it holds, which is a world-wide read that no
      * single region owns on Folia. There the displays are in any case non-persistent, so they never survive
      * a restart, and the ones this session created are dropped by the per-chunk paths.
      */
@@ -461,7 +461,7 @@ public final class CarrierRestorer {
      * Throttled maintenance: hands a slice of the queued chunk scans to the region that owns each chunk,
      * then a slice of the tracked displays to the region that owns each entity.
      *
-     * <p>It runs on the global thread and reads neither block nor entity data itself, which is what makes it
+     * It runs on the global thread and reads neither block nor entity data itself, which is what makes it
      * legal there; the work always happens on the owning region.
      */
     public void tick() {
@@ -528,7 +528,7 @@ public final class CarrierRestorer {
     }
 
     /**
-     * Takes at most {@code budget} queued chunks, in insertion order, and hands each to the region that owns
+     * Takes at most budget queued chunks, in insertion order, and hands each to the region that owns
      * it. The chunk is re-checked inside the dispatched task, so one that unloaded while it waited is skipped
      * rather than scanned from stale state.
      */
@@ -553,8 +553,8 @@ public final class CarrierRestorer {
     }
 
     /**
-     * The rotating window of tracked entries one verification pass covers: {@code start} is the first entry
-     * index and {@code count} how many it visits. The cursor is reduced modulo the tracked count so it
+     * The rotating window of tracked entries one verification pass covers: start is the first entry
+     * index and count how many it visits. The cursor is reduced modulo the tracked count so it
      * survives a set that shrank, and an over-large cursor restarts at the beginning.
      */
     static SweepWindow verificationWindow(int total, int cursor, int perTick) {
@@ -562,7 +562,7 @@ public final class CarrierRestorer {
         return SweepWindow.of(total, bounded, perTick);
     }
 
-    /** Number of displays currently recorded, across all worlds and chunks. Caller holds {@link #stateLock}. */
+    /** Number of displays currently recorded, across all worlds and chunks. Caller holds stateLock. */
     private int trackedCount() {
         int total = 0;
         for (Map<Long, Map<Long, Entity>> byChunk : tracked.values()) {
@@ -574,9 +574,9 @@ public final class CarrierRestorer {
     }
 
     /**
-     * Copies up to {@code count} tracked entries starting at {@code start} in iteration order. Only the
+     * Copies up to count tracked entries starting at start in iteration order. Only the
      * entries this pass verifies are materialised, so a large tracked set does not allocate a full snapshot
-     * on every pass. Caller holds {@link #stateLock}.
+     * on every pass. Caller holds stateLock.
      */
     private List<Tracked> takeVerificationEntries(int start, int count) {
         if (count <= 0) {
@@ -626,13 +626,13 @@ public final class CarrierRestorer {
         }
     }
 
-    /** The display map of one chunk, created on demand. Caller holds {@link #stateLock}. */
+    /** The display map of one chunk, created on demand. Caller holds stateLock. */
     private Map<Long, Entity> chunkMap(World world, int chunkX, int chunkZ) {
         return tracked.computeIfAbsent(world.getUID(), key -> new HashMap<>())
                 .computeIfAbsent(chunkKey(chunkX, chunkZ), key -> new HashMap<>());
     }
 
-    /** The display map of one chunk, or null when that chunk has none. Caller holds {@link #stateLock}. */
+    /** The display map of one chunk, or null when that chunk has none. Caller holds stateLock. */
     private Map<Long, Entity> chunkAt(UUID worldId, int chunkX, int chunkZ) {
         Map<Long, Map<Long, Entity>> chunks = tracked.get(worldId);
         return chunks == null ? null : chunks.get(chunkKey(chunkX, chunkZ));

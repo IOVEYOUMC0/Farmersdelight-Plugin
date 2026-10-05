@@ -31,7 +31,7 @@ public final class DisplayCulling {
     }
 
     /**
-     * Squared-distance test in blocks. {@code extra} is the hysteresis: an entity already shown to this
+     * Squared-distance test in blocks. extra is the hysteresis: an entity already shown to this
      * viewer stays shown for that many extra blocks, so a player standing exactly on the boundary does not
      * flap between culled and shown on every pass.
      */

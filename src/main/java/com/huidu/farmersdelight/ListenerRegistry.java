@@ -459,6 +459,14 @@ final class ListenerRegistry {
         if (ropeBlockListener != null) {
             ropeBlockListener.shutdown();
         }
+        // Handheld skewer sessions rewrite the player's own inventory slot on the way out. Dropping those
+        // bars here (each close also resends the real slot) is what stops a handler from outliving the plugin.
+        if (handCookedSkewerHooks != null) {
+            handCookedSkewerHooks.shutdown();
+            handCookedSkewerHooks = null;
+        }
+        // A reload pass that is still registering recipes must not keep holding state past disable.
+        plugin.cancelRecipeRegistrations();
         if (effectListener != null) {
             effectListener.stop();
             effectListener = null;

@@ -359,7 +359,7 @@ command:
   reload_usage: "<yellow>/fd reload <{targets}></yellow>"
   reload_busy: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <red>上一次重载还在进行中，请稍候。"
   reload_cooldown: "<dark_gray>» </dark_gray><gradient:gold:yellow><b>FarmersDelight</b></gradient> <gray>•</gray> <red>重载过于频繁，请在 <white>{seconds}</white> 秒后重试。"
-  reload_report: "{prefix}<white>重载完成</white><gray>（</gray><yellow>{total}ms</yellow><gray>：</gray><gray>{split}</gray><gray>）</gray>"
+  reload_report: "{prefix}<white>重载完成</white><gray>（</gray><yellow>{total}ms</yellow><gray>{split}</gray><gray>）</gray>"
   reload_report_issues: "{prefix}<red>⚠ 发现</red><bold><red>{issues}</red></bold><red> 个问题，详见控制台。</red>"
   runtime_management_refused: "<yellow>[{plugin}]</yellow> <red>本插件不支持在运行时卸载或重载。请执行 /stop 停服后重新启动服务器以应用改动。"
   recipe_discovery_usage: "<yellow>/fd recipe discovery unlock|lock <类型> <配方id|all> [玩家]</yellow> <gray>|</gray> <yellow>/fd recipe discovery unlock|lock all [玩家]</yellow> <gray>|</gray> <yellow>/fd recipe discovery list [类型] [玩家]</yellow> <gray>|</gray> <yellow>/fd recipe discovery status [玩家]</yellow>"

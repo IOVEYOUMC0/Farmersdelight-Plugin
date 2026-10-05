@@ -7,7 +7,6 @@ import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
 import net.momirealms.craftengine.bukkit.plugin.network.BukkitNetworkManager;
 import net.momirealms.craftengine.core.plugin.network.NetWorkUser;
 import net.momirealms.craftengine.proxy.minecraft.network.protocol.game.ClientboundSetEntityDataPacketProxy;
-import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
@@ -145,14 +144,18 @@ public final class RealDisplayCuller {
             untrack(display);
             return;
         }
-        Location location = display.getLocation();
-        World world = location.getWorld();
+        // Field reads instead of a Location snapshot: getLocation() allocates one Location per tracked display
+        // per pass, while getX/getY/getZ read the position this task already owns.
+        World world = display.getWorld();
         if (world == null) {
             untrack(display);
             return;
         }
         int entityId = display.getEntityId();
         float baseRange = baseRange(display);
+        double displayX = display.getX();
+        double displayY = display.getY();
+        double displayZ = display.getZ();
         Map<UUID, DisplayCulling.ViewRangeState> states =
                 this.viewerStates.computeIfAbsent(entityId, ignored -> new ConcurrentHashMap<>());
         for (Player player : world.getPlayers()) {
@@ -160,9 +163,9 @@ public final class RealDisplayCuller {
             DisplayCulling.ViewRangeState state = states.computeIfAbsent(playerId,
                     ignored -> new DisplayCulling.ViewRangeState());
             boolean alreadyShown = state.hasSent() && state.lastSent() > DisplayCulling.CULLED_RANGE;
-            double dx = player.getX() - location.getX();
-            double dy = player.getY() - location.getY();
-            double dz = player.getZ() - location.getZ();
+            double dx = player.getX() - displayX;
+            double dy = player.getY() - displayY;
+            double dz = player.getZ() - displayZ;
             boolean visible = DisplayCulling.isVisible(dx * dx + dy * dy + dz * dz, this.viewDistance,
                     alreadyShown ? this.hysteresis : 0.0D);
             float range = state.update(visible, baseRange);

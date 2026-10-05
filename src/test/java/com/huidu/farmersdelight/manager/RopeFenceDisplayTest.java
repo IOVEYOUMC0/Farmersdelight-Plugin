@@ -30,9 +30,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * Both blocks borrow a vanilla fence or gate state as their carrier, and CraftEngine writes the empty
  * variant model for every visual state a custom block claims. Anything that silently moved one of them
- * back to a {@code model:} override would hijack that vanilla block's appearance again, which is what
+ * back to a model: override would hijack that vanilla block's appearance again, which is what
  * these tests exist to prevent: the rope fence must be drawn by element displays, its carriers must be
- * the crimson/warped family, and none of those carrier states may be claimed by another pack we ship.
+ * the crimson/warped family, and none of those carrier states may be claimed by another pack this repository ships.
  *
  *
  * The YAML is read with SnakeYAML rather than YamlConfiguration: the variant keys contain commas
@@ -100,7 +100,7 @@ class RopeFenceDisplayTest {
         assertEquals(32, carriers.size(), "16 fence plus 16 gate carriers");
         assertFalse(carriers.contains("null"));
 
-        // Another pack claiming these states would render our rope model on its own blocks.
+        // Another pack claiming these states would render the rope model on its own blocks.
         List<String> offenders = new ArrayList<>();
         Path ownPack = FARMERS_DELIGHT.toAbsolutePath().normalize();
         try (Stream<Path> packRoots = Files.list(WORKSPACE)) {
