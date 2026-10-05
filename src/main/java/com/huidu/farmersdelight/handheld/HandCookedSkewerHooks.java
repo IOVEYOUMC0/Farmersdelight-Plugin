@@ -324,6 +324,10 @@ public final class HandCookedSkewerHooks implements Listener {
                     continue;
                 }
                 UUID id = entry.getKey();
+                // Dispatched while the lock is held on purpose: on Paper the task runs inline, so this calls
+                // back into convert() on the same thread. Java monitors are reentrant, so the short
+                // hands.remove there is safe, and the alternative — releasing the lock around the dispatch —
+                // would let the loop be cancelled between the check above and the work it decided to do.
                 seam.dispatch(player, () -> active.tick(id));
             }
         }

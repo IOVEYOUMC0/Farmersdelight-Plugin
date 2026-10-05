@@ -108,12 +108,41 @@ class HandCookedSkewerHooksTest {
                 "and drops the sessions it can no longer advance");
     }
 
+    /**
+     * The guard in ensureTaskLocked: a loop that is still running is reused, never re-armed. Without the
+     * guard the second player would leave two live loops behind, which shows up as arm/live going to 2 here
+     * (and, in a real server, as a skewer cooking in half the time).
+     */
+    @Test
+    void aSecondPlayersSessionJoinsTheRunningLoopInsteadOfArmingAnother() {
+        AtomicInteger cooked = new AtomicInteger();
+        CountingArm arm = new CountingArm();
+        FakeLoopSeam seam = new FakeLoopSeam();
+        HandCookedSkewerHooks hooks = armed(arm, cooked, seam);
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+
+        assertTrue(hooks.beginSession(first, EquipmentSlot.HAND));
+        assertEquals(1, arm.armed);
+        assertEquals(1, arm.live, "one loop runs");
+
+        assertTrue(hooks.beginSession(second, EquipmentSlot.HAND), "a second player starts their own session");
+        assertEquals(1, arm.armed, "the running loop is reused, not armed again");
+        assertEquals(1, arm.live, "and there is still exactly one of them");
+
+        for (int tick = 0; tick < HandCookedSkewerService.COOKING_TICKS; tick++) {
+            arm.runTick();
+        }
+        assertEquals(2, cooked.get(), "the one loop advanced both sessions");
+        assertEquals(120 * 2, seam.dispatches, "each of the 120 iterations dispatched both players");
+    }
+
     /** The regression: the production loop cancels itself, so the next skewer must arm a fresh one. */
     @Test
     void theRealLoopCancelsItselfAndTheNextSessionArmsAFreshOne() {
         AtomicInteger cooked = new AtomicInteger();
         CountingArm arm = new CountingArm();
-        HandCookedSkewerHooks hooks = armed(arm, cooked);
+        HandCookedSkewerHooks hooks = armed(arm, cooked, new FakeLoopSeam());
         UUID player = UUID.randomUUID();
 
         assertTrue(hooks.beginSession(player, EquipmentSlot.HAND));
@@ -134,7 +163,7 @@ class HandCookedSkewerHooksTest {
     void threeSessionsInARowEachCookOneSkewer() {
         AtomicInteger cooked = new AtomicInteger();
         CountingArm arm = new CountingArm();
-        HandCookedSkewerHooks hooks = armed(arm, cooked);
+        HandCookedSkewerHooks hooks = armed(arm, cooked, new FakeLoopSeam());
         UUID player = UUID.randomUUID();
 
         for (int session = 1; session <= 3; session++) {
@@ -150,21 +179,25 @@ class HandCookedSkewerHooksTest {
     @Test
     void aReloadDropsSessionsSoTheLoopCanGoIdle() {
         CountingArm arm = new CountingArm();
-        HandCookedSkewerHooks hooks = armed(arm, new AtomicInteger());
+        FakeLoopSeam seam = new FakeLoopSeam();
+        HandCookedSkewerHooks hooks = armed(arm, new AtomicInteger(), seam);
         UUID player = UUID.randomUUID();
         assertTrue(hooks.beginSession(player, EquipmentSlot.HAND));
         assertEquals(1, arm.armed);
 
         assertTrue(hooks.applyConfig(true, false, 120, ONE_RESULT, arm, null));
         assertEquals(0, arm.live, "a reload cancels the loop and drops the sessions it was advancing");
-        arm.runTick(hooks, player);
+        int dispatchedBefore = seam.dispatches;
+        arm.runTick();
+        assertEquals(dispatchedBefore, seam.dispatches,
+                "nothing may be dispatched after a reload: a leftover hand entry would be advanced forever");
         assertEquals(1, arm.armed, "the idle loop must not arm itself again");
         assertTrue(arm.lastCancelled(), "and stays cancelled with nothing to advance");
     }
 
-    private static HandCookedSkewerHooks armed(CountingArm arm, AtomicInteger cooked) {
+    private static HandCookedSkewerHooks armed(CountingArm arm, AtomicInteger cooked, FakeLoopSeam seam) {
         HandCookedSkewerHooks hooks = new HandCookedSkewerHooks(null);
-        hooks.setLoopSeam(new FakeLoopSeam());
+        hooks.setLoopSeam(seam);
         assertTrue(hooks.applyConfig(true, false, 120, ONE_RESULT, arm, player -> cooked.incrementAndGet()));
         return hooks;
     }
@@ -172,6 +205,7 @@ class HandCookedSkewerHooksTest {
     /** Stands in for the server + entity scheduler so the production tick() loop can run offline. */
     private static final class FakeLoopSeam implements HandCookedSkewerHooks.LoopSeam {
 
+        private int dispatches;
         private final Player player = (Player) Proxy.newProxyInstance(Player.class.getClassLoader(),
                 new Class<?>[]{Player.class}, (proxy, method, args) -> switch (method.getName()) {
                     case "toString" -> "fake player";
@@ -188,8 +222,10 @@ class HandCookedSkewerHooksTest {
         @Override
         public void dispatch(Player target, Runnable task) {
             // Same thread on purpose: the production path runs the task inline off Folia, and running it here
-            // is what makes the loop's own cancellation observable.
+            // is what makes the loop's own cancellation observable. The count is how a test tells "the loop
+            // had nothing to advance" from "the loop advanced a stale entry".
             assertSame(player, target);
+            dispatches++;
             task.run();
         }
     }
@@ -209,7 +245,7 @@ class HandCookedSkewerHooksTest {
             return last;
         }
 
-        private void runTick(HandCookedSkewerHooks hooks, UUID player) {
+        private void runTick() {
             last.run();
         }
 
