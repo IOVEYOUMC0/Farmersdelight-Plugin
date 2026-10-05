@@ -64,6 +64,20 @@ public final class HandCookedSkewerHooks implements Listener {
         PluginTask arm(Runnable tick);
     }
 
+    /**
+     * Test seam: the two things the loop needs from the server — the player behind a session and the way a
+     * task is handed to that player's scheduler. Faking it lets a test drive the real {@link #tick()} loop,
+     * including the cancellation that happens when the last session ends.
+     */
+    @ApiStatus.Internal
+    interface LoopSeam {
+
+        @Nullable
+        Player player(UUID id);
+
+        void dispatch(Player player, Runnable task);
+    }
+
     private final FarmersDelightPlugin plugin;
     /** Which hand started the session, so finishing consumes the skewer that was used. */
     private final Map<UUID, EquipmentSlot> hands = new ConcurrentHashMap<>();
@@ -72,9 +86,44 @@ public final class HandCookedSkewerHooks implements Listener {
     private volatile boolean requireSneak;
     private volatile PluginTask tickTask = PluginTask.NOOP;
     private volatile TaskArm taskArm = this::armSchedulerTask;
+    /**
+     * The single lock over the loop's lifecycle: arming, cancelling, the tick loop's "is anything running"
+     * check and the hand bookkeeping all take it together. Two regions can run a player's session start and a
+     * tick at the same time, and splitting this into two locks would let both of them believe the loop is
+     * cancelled (two parallel loops, so a skewer cooks in half the time) or cancelled-but-still-needed (no
+     * loop at all, so the session never advances).
+     */
+    private final Object taskLock = new Object();
+    /** Test seam: how the loop finds and reaches a player; production uses the server and the entity scheduler. */
+    private volatile LoopSeam loopSeam = productionLoop();
 
     public HandCookedSkewerHooks(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
+    }
+
+    /** Replaces the loop seam; null restores the production one. Used by the wiring tests only. */
+    @ApiStatus.Internal
+    void setLoopSeam(@Nullable LoopSeam seam) {
+        this.loopSeam = seam == null ? productionLoop() : seam;
+    }
+
+    private LoopSeam productionLoop() {
+        return new LoopSeam() {
+
+            @Override
+            public Player player(UUID id) {
+                FarmersDelightPlugin owner = plugin;
+                return owner == null ? null : owner.getServer().getPlayer(id);
+            }
+
+            @Override
+            public void dispatch(Player player, Runnable task) {
+                FarmersDelightPlugin owner = plugin;
+                if (owner != null) {
+                    owner.scheduler().runForEntity(player, task);
+                }
+            }
+        };
     }
 
     /** Reads the config and arms the path. Called once the listeners are registered, and on every reload. */
@@ -113,26 +162,43 @@ public final class HandCookedSkewerHooks implements Listener {
         SkewerResultTable table = new SkewerResultTable(configuredResults);
         this.results = table;
         this.taskArm = arm == null ? this::armSchedulerTask : arm;
-        HandCookedSkewerService previous = service;
-        if (!enabled || table.isEmpty()) {
+        synchronized (taskLock) {
+            HandCookedSkewerService previous = service;
+            if (!enabled || table.isEmpty()) {
+                if (previous != null) {
+                    previous.setEnabled(false);
+                }
+                service = null;
+                hands.clear();
+                cancelTaskLocked();
+                return false;
+            }
             if (previous != null) {
+                // A reload replaces the service; the old sessions must not survive it.
                 previous.setEnabled(false);
             }
-            service = null;
+            // Reload keeps the hand bookkeeping only as long as a session exists: dropping the service above
+            // already dropped every session, so a leftover entry would keep the loop awake forever with
+            // nothing to advance.
             hands.clear();
-            cancelTask();
-            return false;
+            service = new HandCookedSkewerService(true, () -> Math.max(1, cookingTicks), id -> {
+                // The hand entry goes first, whoever handles the conversion: the loop decides whether it is
+                // still needed from this map, so a session that ended must never leave an entry behind.
+                EquipmentSlot hand;
+                synchronized (taskLock) {
+                    hand = hands.remove(id);
+                }
+                if (onCooked == null) {
+                    convert(id, hand);
+                } else {
+                    onCooked.accept(id);
+                }
+            });
+            // No tick loop is started here: it is armed by the session that needs it (see ensureTaskLocked),
+            // so a reload with no session running does not leave an idle loop behind.
+            cancelTaskLocked();
+            return true;
         }
-        if (previous != null) {
-            // A reload replaces the service; the old sessions must not survive it.
-            previous.setEnabled(false);
-        }
-        service = new HandCookedSkewerService(true, () -> Math.max(1, cookingTicks),
-                onCooked == null ? this::convert : onCooked);
-        // No tick loop is started here: it is armed by the session that needs it (see ensureTask), so a
-        // reload with no session running does not leave an idle loop behind.
-        cancelTask();
-        return true;
     }
 
     /** Whether a right-click on this raw id may start a session right now. Testable on its own. */
@@ -182,13 +248,18 @@ public final class HandCookedSkewerHooks implements Listener {
      */
     @ApiStatus.Internal
     boolean beginSession(UUID player, EquipmentSlot hand) {
-        HandCookedSkewerService active = service;
-        if (active == null || player == null || !active.tryStart(player)) {
+        if (player == null) {
             return false;
         }
-        hands.put(player, hand);
-        ensureTask();
-        return true;
+        synchronized (taskLock) {
+            HandCookedSkewerService active = service;
+            if (active == null || !active.tryStart(player)) {
+                return false;
+            }
+            hands.put(player, hand);
+            ensureTaskLocked();
+            return true;
+        }
     }
 
     /** Releasing the use key: zero progress. */
@@ -235,36 +306,37 @@ public final class HandCookedSkewerHooks implements Listener {
 
     /** The one-per-tick loop: every session is advanced on the scheduler of the player that owns it. */
     private void tick() {
-        HandCookedSkewerService active = service;
-        FarmersDelightPlugin owner = plugin;
-        if (active == null || owner == null) {
-            cancelTask();
-            return;
-        }
-        if (hands.isEmpty()) {
-            cancelTask();
-            return;
-        }
-        for (Map.Entry<UUID, EquipmentSlot> entry : hands.entrySet()) {
-            Player player = owner.getServer().getPlayer(entry.getKey());
-            if (player == null) {
-                hands.remove(entry.getKey());
-                active.cancel(entry.getKey());
-                continue;
+        synchronized (taskLock) {
+            HandCookedSkewerService active = service;
+            if (active == null || hands.isEmpty()) {
+                // Nothing to advance: cancel under the same lock a session start takes, so a start that
+                // arrives right now either ran before this check (and keeps the loop) or runs after it (and
+                // arms a fresh one).
+                cancelTaskLocked();
+                return;
             }
-            UUID id = entry.getKey();
-            owner.scheduler().runForEntity(player, () -> active.tick(id));
+            LoopSeam seam = loopSeam;
+            for (Map.Entry<UUID, EquipmentSlot> entry : hands.entrySet()) {
+                Player player = seam.player(entry.getKey());
+                if (player == null) {
+                    hands.remove(entry.getKey());
+                    active.cancel(entry.getKey());
+                    continue;
+                }
+                UUID id = entry.getKey();
+                seam.dispatch(player, () -> active.tick(id));
+            }
         }
     }
 
     /**
      * Finishes one skewer. Runs on the player's region (dispatched by {@link #tick()}), consumes one raw
      * skewer in the hand that started the session and hands over the cooked one; a full inventory drops it.
-     * No stack is cloned and no durability is written: the held stack is only shrunk by one.
+     * No stack is cloned and no durability is written: the held stack is only shrunk by one. The hand entry
+     * was already removed by the session wrapper in {@code start()}.
      */
-    private void convert(UUID id) {
+    private void convert(UUID id, @Nullable EquipmentSlot hand) {
         FarmersDelightPlugin owner = plugin;
-        EquipmentSlot hand = hands.remove(id);
         Player player = owner == null || hand == null ? null : owner.getServer().getPlayer(id);
         if (player == null) {
             return;
@@ -294,12 +366,17 @@ public final class HandCookedSkewerHooks implements Listener {
     }
 
     private void cancel(Player player) {
-        HandCookedSkewerService active = service;
-        if (active == null || player == null) {
+        if (player == null) {
             return;
         }
-        hands.remove(player.getUniqueId());
-        active.cancel(player.getUniqueId());
+        synchronized (taskLock) {
+            HandCookedSkewerService active = service;
+            if (active == null) {
+                return;
+            }
+            hands.remove(player.getUniqueId());
+            active.cancel(player.getUniqueId());
+        }
     }
 
     private boolean hasHeat(Player player) {
@@ -348,16 +425,18 @@ public final class HandCookedSkewerHooks implements Listener {
 
     /**
      * Creates the one-per-tick loop if it is not running. Called from the session that needs it, never at
-     * config time, and never twice: a task that is not cancelled is left as it is.
+     * config time, and never twice: a task that is not cancelled is left as it is. Must be called with
+     * {@link #taskLock} held.
      */
-    private void ensureTask() {
+    private void ensureTaskLocked() {
         if (!tickTask.isCancelled()) {
             return;
         }
         tickTask = taskArm.arm(this::tick);
     }
 
-    private void cancelTask() {
+    /** Must be called with {@link #taskLock} held. */
+    private void cancelTaskLocked() {
         tickTask.cancel();
         tickTask = PluginTask.NOOP;
     }
