@@ -61,8 +61,9 @@ public final class KnifeMineableBlocks {
         Set<Key> tags;
         try {
             tags = source.declaredTags(blockId);
-        } catch (RuntimeException failure) {
-            // CraftEngine not up yet, or a definition that is being reloaded: "not declared" is the safe answer.
+        } catch (RuntimeException | LinkageError failure) {
+            // CraftEngine not up yet, a definition that is being reloaded, or a CraftEngine class that this
+            // server cannot load: "not declared" is the safe answer, and nothing may escape to the caller.
             return false;
         }
         return matchesKnifeTag(tags);

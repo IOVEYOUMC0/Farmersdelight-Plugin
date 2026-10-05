@@ -74,7 +74,10 @@ class KnifeMineableBlocksTest {
     void theDefaultSourceIsRestoredByANullSource() {
         KnifeMineableBlocks.setSource(blockId -> Set.of(PACK_TAG));
         KnifeMineableBlocks.setSource(null);
-        // The production source cannot be exercised offline (no CraftEngine); this only proves the reset.
-        assertFalse(KnifeMineableBlocks.isKnifeMineable(null));
+        // After the reset the production lookup is back, and without CraftEngine it cannot answer, which has
+        // to read as false. A source that was not actually reset would still report the stub's pack tag, so
+        // asking about a real id (not null, which short-circuits before the source is read) is what bites.
+        assertFalse(KnifeMineableBlocks.isKnifeMineable(Key.of("farmersdelight:straw_bale")),
+                "resetting the source has to go back to the production lookup instead of keeping the stub");
     }
 }
