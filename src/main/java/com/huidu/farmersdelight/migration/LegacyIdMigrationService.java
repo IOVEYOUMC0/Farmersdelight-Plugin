@@ -22,11 +22,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  *
  * Everything here is either called on a thread that owns the object it touches (the hooks hand work over
- * through a {@link MigrationDispatch}) or is a pure stack/inventory rewrite. The startup sweep is the one
- * place that walks loaded chunks: it reuses {@link RegionTasks#runAtLoadedChunk} so each chunk is read from
+ * through a MigrationDispatch) or is a pure stack/inventory rewrite. The startup sweep is the one
+ * place that walks loaded chunks: it reuses RegionTasks#runAtLoadedChunk so each chunk is read from
  * inside the region that owns it.
  *
- * <p>While the migration table is empty — which is the case until an addon registers something — the hooks
+ * While the migration table is empty — which is the case until an addon registers something — the hooks
  * and the sweep do nothing at all.
  */
 public final class LegacyIdMigrationService {
@@ -58,7 +58,7 @@ public final class LegacyIdMigrationService {
 
     /**
      * Whether the automatic hooks should do anything. False when the feature is switched off in config.yml
-     * or when no addon has registered a legacy id; {@link LegacyIdMigration#migrate(ItemStack)} itself stays
+     * or when no addon has registered a legacy id; LegacyIdMigration#migrate(ItemStack) itself stays
      * available either way, so an addon can always migrate a stack at its own boundary.
      */
     public boolean hooksEnabled() {
@@ -130,7 +130,7 @@ public final class LegacyIdMigrationService {
         return true;
     }
 
-    /** Migrates the stored contents behind one of our block entities. Must run on the owning thread. */
+    /** Migrates the stored contents behind one of the plugin's block entities. Must run on the owning thread. */
     public int migrateBlockHolder(@Nullable InventoryHolder holder) {
         if (holder == null) {
             return 0;

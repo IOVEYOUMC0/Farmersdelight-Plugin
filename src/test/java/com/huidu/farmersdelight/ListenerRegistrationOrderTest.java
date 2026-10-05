@@ -27,6 +27,7 @@ import com.huidu.farmersdelight.listener.TatamiBreakListener;
 import com.huidu.farmersdelight.listener.worlddata.VillagerTradeListener;
 import com.huidu.farmersdelight.effect.EffectListener;
 import com.huidu.farmersdelight.manager.BuffBossbarManager;
+import com.huidu.farmersdelight.handheld.HandCookedSkewerHooks;
 import com.huidu.farmersdelight.migration.LegacyIdMigrationHooks;
 import com.huidu.farmersdelight.tool.ToolAttackListener;
 import org.bukkit.event.Listener;
@@ -72,7 +73,9 @@ class ListenerRegistrationOrderTest {
             PetFoodListener.class,
             HorseFeedTemptListener.class,
             EffectListener.class,
-            LegacyIdMigrationHooks.class);
+            LegacyIdMigrationHooks.class,
+            // Registered last: it must not see a right-click before the skillet handlers.
+            HandCookedSkewerHooks.class);
 
     @Test
     void interactionHandlersAreBuiltInRegistrationOrder() {

@@ -595,7 +595,7 @@ public class CookingPotRecipeManager {
         }
 
         // Snapshot the publish generation BEFORE reading the volatile maps below. Two volatile reads keep
-        // program order, so this pairs the match we are about to compute with the map version it saw.
+        // program order, so this pairs the match about to be computed with the map version it saw.
         long generationAtStart = recipeGeneration;
         CookingPotRecipe cached;
         boolean cachedMiss;
@@ -613,7 +613,7 @@ public class CookingPotRecipeManager {
         CookingPotRecipe result = matchUncached(nonEmptyInputs, container, normalizedGroupId);
 
         synchronized (recipeCache) {
-            // Skip caching if a (re)publish cleared the cache and bumped the generation while we were
+            // Skip caching if a (re)publish cleared the cache and bumped the generation while
             // matching: this result may be against now-stale maps and would poison the fresh cache.
             if (recipeGeneration == generationAtStart) {
                 if (result != null) {
@@ -836,7 +836,7 @@ public class CookingPotRecipeManager {
             return null;
         }
         // Copy-on-write avoids per-call HashSet allocations when only one source set needs merging.
-        // candidates / recipesForItem start as shared references to an unmodified index entry; we
+        // candidates / recipesForItem start as shared references to an unmodified index entry; the
         // allocate a real HashSet copy only when a second source forces a union or intersection.
         Set<String> candidates = null;
         boolean candidatesShared = false;

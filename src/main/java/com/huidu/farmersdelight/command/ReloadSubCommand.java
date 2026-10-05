@@ -15,6 +15,9 @@ import static com.huidu.farmersdelight.command.CommandSupport.normalize;
 
 final class ReloadSubCommand extends SubCommand {
 
+    /** The single separator between the total and the phases, for both languages, so it never varies. */
+    private static final String SEPARATOR = ": ";
+
     // Command tokens for tab-completion and usage, derived from ReloadTarget's primary aliases so a
     // new constant is offered automatically.
     private static final List<String> RELOAD_TARGETS = Arrays.stream(ReloadTarget.values())
@@ -57,6 +60,9 @@ final class ReloadSubCommand extends SubCommand {
         if (!busyGuard.begin()) {
             return;
         }
+        // One pass, one set of figures: the previous pass's phases are dropped before any work starts.
+        plugin.beginReloadPass();
+        long startedNanos = System.nanoTime();
         try {
             switch (target) {
                 case ALL -> plugin.reloadAll();
@@ -76,12 +82,23 @@ final class ReloadSubCommand extends SubCommand {
                 plugin.notifyAddonsOfReload(target.eventReason());
             }
 
+            // The targeted pass's own wall time: a full reload fills the phase figures itself, so this is only
+            // the fallback the report needs, and it is measured here where the work actually happens.
+            ReloadTiming.recordTargeted(System.nanoTime() - startedNanos);
+
             sender.sendMessage(I18n.getComponent("general.config_reloaded", placeholders()));
             // CraftEngine's shape: the success line always reports the elapsed time, and a problem is called
             // out only when there is one. A "no issues found" line on every reload is noise.
             Map<String, String> report = placeholders();
-            report.put("total", String.valueOf(plugin.reloadTotalMillis()));
-            report.put("split", plugin.reloadTimingSummary());
+            long totalMillis = plugin.reloadTotalMillis();
+            report.put("total", String.valueOf(totalMillis));
+            // One renderer for every reload path: the total is always printed, the phases only when they belong
+            // to this pass, in a fixed order, with one separator and no empty segment. A sharded pass may still
+            // be running, so its i/N progress rides along on the same line.
+            String phases = ReloadTiming.composeSegments(totalMillis, plugin.reloadPhaseNanos());
+            String progress = plugin.recipeRegistrations().progress();
+            report.put("split", ReloadTiming.split(phases, SEPARATOR)
+                    + (progress.isEmpty() ? "" : (phases.isEmpty() ? "" : " ") + "registered " + progress));
             sender.sendMessage(I18n.getComponent("command.reload_report", report));
 
             int issues = plugin.reloadIssueCount();
