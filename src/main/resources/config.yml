@@ -762,3 +762,14 @@ recipe-editor:
 recipe-navigation:
   # When false, clicking a linked item does nothing and the jump icons are inert.
   jumps: true
+
+# Rewriting item ids that addons declared as legacy (see com.huidu.farmersdelight.api.migration).
+# The table is empty until an addon registers an id, so these switches cost nothing by default.
+legacy-id-migration:
+  # false = the automatic hooks (join, container open, GUI open, item drop, startup sweep) do nothing.
+  # The api call LegacyIdMigration.migrate(stack) stays available either way, so an addon can always
+  # migrate a stack at its own storage boundary.
+  enabled: true
+  # true = log one line per run with how many stacks were rewritten. The line is only written when the
+  # total grew since the last one, so a busy server does not get a line per inventory.
+  log-summary: true
