@@ -1486,8 +1486,14 @@ block:
         facing=down:
           appearance: down
   farmersdelight:basket:
-    template:
-    - farmersdelight:block_loot_template
+    loot:
+      pools:
+      - rolls: 1
+        conditions:
+        - type: survives_explosion
+        entries:
+        - type: item
+          item: farmersdelight:bamboo_basket
     settings:
       hardness: 1.5
       resistance: 1.5
