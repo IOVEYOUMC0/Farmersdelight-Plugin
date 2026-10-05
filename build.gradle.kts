@@ -20,10 +20,21 @@ repositories {
     mavenLocal()
     maven("https://repo.momirealms.net/releases/")
     maven("https://repo.extendedclip.com/content/repositories/placeholderapi/")
+    // Snapshots are opt-in only: they are added when the requested ceVersion is a snapshot, so a default
+    // build keeps resolving from the release repository alone and stays reproducible. Read straight from the
+    // property here because ceVersion itself is defined below this block.
+    //   gradlew build -PceVersion=26.9.2-SNAPSHOT
+    if (providers.gradleProperty("ceVersion").getOrElse("").endsWith("-SNAPSHOT")) {
+        maven("https://repo.momirealms.net/snapshots/")
+    }
 }
 
 // CraftEngine is resolved from Maven. Overridable so a compatibility check can build the same sources
 // against another release without editing this file:  gradlew build -PceVersion=26.8.2
+// The default stays on the newest release that exists as a Maven artifact: 26.9.2 is source-only so far
+// (only 26.9.2-SNAPSHOT is published, in the snapshots repository), and our code path is the one shared by
+// 26.8.2 through 26.9.2. To compile against the snapshot anyway, add the snapshots repository and pass
+// -PceVersion=26.9.2-SNAPSHOT, or point -PceJar at a shaded CraftEngine 26.9.2 plugin JAR.
 val ceVersion = providers.gradleProperty("ceVersion").getOrElse("26.9.1")
 
 // CraftEngine can also be compiled against a locally supplied plugin JAR. That is the only way to compile
@@ -80,7 +91,7 @@ dependencies {
     } else {
         compileOnly("net.momirealms:craft-engine-bukkit:$ceVersion")
         compileOnly("net.momirealms:craft-engine-core:$ceVersion")
-        // CE 26.9.1 keeps proxy classes in its jar-in-jar proxy artifact.
+        // CE 26.9.2 keeps proxy classes in its jar-in-jar proxy artifact.
         compileOnly("net.momirealms:craft-engine-bukkit-proxy:$ceVersion")
     }
 
