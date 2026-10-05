@@ -896,8 +896,9 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
         try {
             NetWorkUser user = networkManager.getOnlineUser(player.getUniqueId());
             if (user != null && user.isOnline()) {
-                // CE order: take this viewer's range to 0 before the entity goes away, so a client that keeps
-                // the entity for a frame after the removal cannot draw it.
+                // Our defensive addition, not CE's order: CE sends only the despawn for elements it does not
+                // retain. Zeroing this viewer's range first costs one packet and covers a client that keeps
+                // the entity for a frame after the removal.
                 user.sendPacket(packets.createViewRangePacket(display.entityId, DisplayCulling.CULLED_RANGE), false);
                 user.sendPacket(display.destroyPacket, false);
                 viewerDestroyPacketCount.incrementAndGet();

@@ -1,10 +1,10 @@
 package com.huidu.farmersdelight.visual;
 
+import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -46,7 +46,7 @@ class DisplayCullingTest {
     }
 
     @Test
-    void hysteresisKeepsaViewerAtTheBoundaryFromFlapping() {
+    void hysteresisKeepsAViewerAtTheBoundaryFromFlapping() {
         double viewDistance = 64.0D;
         double atBoundary = 66.0D * 66.0D;
 
@@ -60,12 +60,57 @@ class DisplayCullingTest {
         assertFalse(DisplayCulling.isVisible(64.01D * 64.01D, viewDistance, 0.0D), "just past it is out");
     }
 
+    /** Two viewers of the same display never share state: culling one must not touch the other. */
     @Test
-    void cullingNeverProducesARemovalSignal() {
-        DisplayCulling.ViewRangeState state = new DisplayCulling.ViewRangeState();
-        assertEquals(1.0F, state.update(true, 1.0F), 0.0F);
-        assertEquals(0.0F, state.update(false, 1.0F), 0.0F, "the only signal a cull produces is range 0");
-        assertNotEquals(Float.NaN, state.update(true, 1.0F), "the entity is still there to bring back");
-        assertEquals(1.0F, state.lastSent(), 0.0F);
+    void twoViewersKeepIndependentRangeStates() {
+        DisplayCulling.ViewRangeState near = new DisplayCulling.ViewRangeState();
+        DisplayCulling.ViewRangeState far = new DisplayCulling.ViewRangeState();
+
+        assertEquals(1.0F, near.update(true, 1.0F), 0.0F);
+        assertEquals(1.0F, far.update(true, 1.0F), 0.0F);
+
+        assertEquals(0.0F, far.update(false, 1.0F), 0.0F, "the far viewer is culled");
+        assertTrue(Float.isNaN(near.update(true, 1.0F)), "the near viewer saw no change at all");
+        assertEquals(1.0F, near.lastSent(), 0.0F, "and keeps its base range");
+
+        assertEquals(1.0F, far.update(true, 1.0F), 0.0F, "the far viewer comes back on its own");
     }
+
+    /** Walking 64 -> 66 -> 73 -> 66 blocks must not oscillate: exactly three changes, none repeated. */
+    @Test
+    void aBoundaryRoundTripChangesTheRangeExactlyThreeTimes() {
+        DisplayCulling.ViewRangeState state = new DisplayCulling.ViewRangeState();
+        assertEquals(1.0F, state.update(true, 1.0F), 0.0F, "shown inside 64 blocks");
+
+        boolean at66 = DisplayCulling.isVisible(66.0D * 66.0D, 64.0D, 8.0D);
+        assertTrue(at66, "66 blocks is still inside the hysteresis margin");
+        assertTrue(Float.isNaN(state.update(at66, 1.0F)), "so no packet is sent");
+
+        boolean at73 = DisplayCulling.isVisible(73.0D * 73.0D, 64.0D, 8.0D);
+        assertFalse(at73, "73 blocks is outside the margin");
+        assertEquals(0.0F, state.update(at73, 1.0F), 0.0F, "culled once");
+
+        assertEquals(1.0F, state.update(at66, 1.0F), 0.0F, "and shown again when the player returns");
+        assertTrue(Float.isNaN(state.update(at66, 1.0F)), "staying there sends nothing");
+    }
+
+    /** A cancelled task (scheduler shutdown, disable/enable) has to be rebuilt, or culling stops silently. */
+    @Test
+    void aCancelledTaskIsRebuiltButALiveOneIsLeftAlone() {
+        assertTrue(DisplayCulling.needsFreshTask(null), "no task yet");
+        assertTrue(DisplayCulling.needsFreshTask(PluginTask.NOOP), "a cancelled task must be rebuilt");
+        assertFalse(DisplayCulling.needsFreshTask(LIVE_TASK), "a running task is left alone");
+    }
+
+    private static final PluginTask LIVE_TASK = new PluginTask() {
+
+        @Override
+        public void cancel() {
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return false;
+        }
+    };
 }

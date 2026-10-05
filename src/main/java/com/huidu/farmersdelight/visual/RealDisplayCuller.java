@@ -1,7 +1,6 @@
 package com.huidu.farmersdelight.visual;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
-import com.huidu.farmersdelight.util.ManagerSupport;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.momirealms.craftengine.bukkit.entity.data.DisplayData;
 import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
@@ -30,8 +29,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * Same rule as CraftEngine: an invisible display keeps its entity and its id, the viewer is sent a ViewRange
  * of 0 (ItemDisplayBlockEntityElement.setCulled), and the base range comes back when the player returns. The
- * pass is throttled to the existing 20-tick cadence, works per entity on its owning region, and prunes dead
- * entities instead of needing removal hooks at the call sites.
+ * pass is throttled to the existing 20-tick cadence, hands each entity to its own region (runForEntity)
+ * before touching it, and prunes dead entities instead of needing removal hooks at the call sites.
  */
 @ApiStatus.Internal
 public final class RealDisplayCuller {
@@ -39,7 +38,6 @@ public final class RealDisplayCuller {
     private static final int DEFAULT_INTERVAL_TICKS = 20;
     private static final double DEFAULT_VIEW_DISTANCE = 64.0D;
     private static final double DEFAULT_HYSTERESIS = 8.0D;
-    private static final Set<String> ACTIVE = ConcurrentHashMap.newKeySet();
 
     /** One culler per plugin. Kept out of the plugin class so the shared facility owns its own lifecycle. */
     public static RealDisplayCuller of(FarmersDelightPlugin plugin) {
@@ -59,7 +57,10 @@ public final class RealDisplayCuller {
         this.plugin = plugin;
     }
 
-    /** Configures the threshold; called from the plugin's reload, keeps the defaults when unset. */
+    /**
+     * Configures the threshold from the same existing key the proxy path reads
+     * (performance.proxy-display.view-distance), so both paths cull at one distance.
+     */
     public void reload(double configuredViewDistance) {
         this.viewDistance = configuredViewDistance > 0.0D ? configuredViewDistance : DEFAULT_VIEW_DISTANCE;
     }
@@ -73,12 +74,8 @@ public final class RealDisplayCuller {
         ensureTask();
     }
 
-    public int trackedCount() {
-        return this.displays.size();
-    }
-
-    /** Stops managing a display (chunk unload, world unload, reload). Only the bookkeeping is dropped. */
-    public void untrack(Entity display) {
+    /** Stops managing a display (dead entity, unloaded world). Only the bookkeeping is dropped. */
+    private void untrack(Entity display) {
         if (display == null) {
             return;
         }
@@ -86,6 +83,7 @@ public final class RealDisplayCuller {
         this.viewerStates.remove(display.getEntityId());
     }
 
+    /** Plugin disable: cancel the task, drop every tracked display and the cached holder. */
     public void shutdown() {
         stopTask();
         this.displays.clear();
@@ -94,12 +92,13 @@ public final class RealDisplayCuller {
     }
 
     private void ensureTask() {
-        if (this.task != null) {
+        if (!DisplayCulling.needsFreshTask(this.task)) {
             return;
         }
         synchronized (this) {
-            if (this.task == null) {
-                ACTIVE.add(this.plugin.getName());
+            // Second check under the lock, with the same rule: a task cancelled by a disable must be rebuilt
+            // instead of silently keeping culling switched off.
+            if (DisplayCulling.needsFreshTask(this.task)) {
                 this.task = this.plugin.scheduler().runRepeating(this::tick,
                         DEFAULT_INTERVAL_TICKS, DEFAULT_INTERVAL_TICKS);
             }
@@ -112,41 +111,44 @@ public final class RealDisplayCuller {
                 this.task.cancel();
                 this.task = null;
             }
-            ACTIVE.remove(this.plugin.getName());
         }
     }
 
-    /** One throttled pass: prune dead entities, then hand each live one to its owning region. */
+    /**
+     * One throttled pass. On Folia the entity is handed to its own region first (runForEntity): neither the
+     * entity's validity nor its position is read on this thread, so every read and every packet happens on the
+     * region that owns it. Only Paper — where the whole server is one thread — reads inline.
+     */
     private void tick() {
         if (this.displays.isEmpty()) {
             stopTask();
             return;
         }
+        boolean folia = this.plugin.scheduler().isFolia();
         for (Entity display : this.displays) {
-            if (!display.isValid() || display.isDead()) {
-                untrack(display);
-                continue;
-            }
-            Location location = display.getLocation();
-            World world = location.getWorld();
-            if (world == null) {
-                untrack(display);
-                continue;
-            }
-            if (this.plugin.scheduler().isFolia()) {
-                // Only the owning region may read the entity's location and send its packets.
-                this.plugin.scheduler().runAt(world, location.getBlockX() >> 4, location.getBlockZ() >> 4,
-                        () -> cull(display));
+            if (folia) {
+                try {
+                    this.plugin.scheduler().runForEntity(display, () -> cull(display));
+                } catch (RuntimeException e) {
+                    // A retired entity cannot be scheduled anywhere any more; drop the bookkeeping.
+                    untrack(display);
+                }
             } else {
                 cull(display);
             }
         }
     }
 
+    /** Runs on the region that owns the entity: the first thing touched here is the entity itself. */
     private void cull(Entity display) {
+        if (!display.isValid() || display.isDead()) {
+            untrack(display);
+            return;
+        }
         Location location = display.getLocation();
         World world = location.getWorld();
         if (world == null) {
+            untrack(display);
             return;
         }
         int entityId = display.getEntityId();
