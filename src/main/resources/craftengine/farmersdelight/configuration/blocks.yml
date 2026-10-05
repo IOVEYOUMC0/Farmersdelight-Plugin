@@ -1556,6 +1556,8 @@ block:
     settings:
       hardness: 0.8
       resistance: 0.8
+      tags:
+      - farmersdelight:mineable/knife
       sounds:
         break: minecraft:block.wool.break
         fall: minecraft:block.wool.fall
