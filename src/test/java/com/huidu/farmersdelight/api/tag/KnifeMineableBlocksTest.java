@@ -4,15 +4,20 @@ import net.momirealms.craftengine.core.util.Key;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Locks the knife-tag query: the tag match itself, the safe answers, and the "no definition, no action"
- * guard that keeps a future Java drop path from firing on blocks CraftEngine already handles.
+ * Locks the knife-tag query: the tag match itself, the safe answers, the "no definition, no action" guard,
+ * and the two failure classes — a structural API failure warns once and stops touching CraftEngine, while a
+ * temporary one keeps retrying without disabling the query.
  */
 class KnifeMineableBlocksTest {
 
@@ -22,6 +27,8 @@ class KnifeMineableBlocksTest {
     @AfterEach
     void reset() {
         KnifeMineableBlocks.setSource(null);
+        KnifeMineableBlocks.setWarner(null);
+        KnifeMineableBlocks.resetState();
     }
 
     @Test
@@ -61,20 +68,83 @@ class KnifeMineableBlocksTest {
     }
 
     @Test
-    void aFailingLookupAnswersFalseInsteadOfThrowing() {
+    void aStructuralFailureWarnsOnceAndDisablesTheQuery() {
+        AtomicInteger lookups = new AtomicInteger();
+        List<String> warnings = new ArrayList<>();
+        KnifeMineableBlocks.setWarner(warnings::add);
         KnifeMineableBlocks.setSource(blockId -> {
-            throw new IllegalStateException("CraftEngine is reloading");
+            lookups.incrementAndGet();
+            // What a CraftEngine without the expected API throws at the call site.
+            throw new NoSuchMethodError("BlockDefinition.defaultState()");
         });
 
-        assertFalse(KnifeMineableBlocks.isKnifeMineable(Key.of("farmersdelight:straw_bale")),
-                "a definition lookup that is not available yet must not break the caller");
+        assertFalse(KnifeMineableBlocks.isKnifeMineable(Key.of("farmersdelight:straw_bale")));
+        assertFalse(KnifeMineableBlocks.isKnifeMineable(Key.of("farmersdelight:straw_bale")));
+        assertFalse(KnifeMineableBlocks.isKnifeMineable(Key.of("farmersdelight:cooked_rice")));
+
+        assertEquals(1, lookups.get(), "a structural failure must stop touching CraftEngine");
+        assertEquals(1, warnings.size(), "and it has to warn exactly once");
+        assertTrue(KnifeMineableBlocks.isDisabledForUnsupportedApi());
+        assertTrue(warnings.getFirst().contains("26.8.2"), "the warning has to name the supported floor");
+        assertTrue(warnings.getFirst().toLowerCase().contains("disable"),
+                "and it has to say that the query is now disabled");
     }
 
     @Test
-    void theDefaultSourceIsRestoredByANullSource() {
+    void aTemporaryFailureKeepsRetryingAndLogsEachReasonOnce() {
+        AtomicInteger lookups = new AtomicInteger();
+        List<String> warnings = new ArrayList<>();
+        KnifeMineableBlocks.setWarner(warnings::add);
+        KnifeMineableBlocks.setSource(blockId -> {
+            lookups.incrementAndGet();
+            throw new IllegalStateException("CraftEngine is reloading");
+        });
+
+        assertFalse(KnifeMineableBlocks.isKnifeMineable(Key.of("farmersdelight:straw_bale")));
+        assertFalse(KnifeMineableBlocks.isKnifeMineable(Key.of("farmersdelight:straw_bale")));
+
+        assertEquals(2, lookups.get(), "a temporary failure has to be retried on the next call");
+        assertEquals(1, warnings.size(), "but the same reason is only logged once");
+        assertFalse(KnifeMineableBlocks.isDisabledForUnsupportedApi());
+    }
+
+    @Test
+    void resettingTheStateReenablesTheQuery() {
+        KnifeMineableBlocks.setWarner(message -> {
+        });
+        KnifeMineableBlocks.setSource(blockId -> {
+            throw new NoClassDefFoundError("craftengine");
+        });
+        assertFalse(KnifeMineableBlocks.isKnifeMineable(Key.of("farmersdelight:straw_bale")));
+        assertTrue(KnifeMineableBlocks.isDisabledForUnsupportedApi());
+
         KnifeMineableBlocks.setSource(blockId -> Set.of(PACK_TAG));
-        KnifeMineableBlocks.setSource(null);
-        // The production source cannot be exercised offline (no CraftEngine); this only proves the reset.
-        assertFalse(KnifeMineableBlocks.isKnifeMineable(null));
+        KnifeMineableBlocks.resetState();
+
+        assertTrue(KnifeMineableBlocks.isKnifeMineable(Key.of("farmersdelight:straw_bale")));
+        assertFalse(KnifeMineableBlocks.isDisabledForUnsupportedApi());
+    }
+
+    @Test
+    void aNullWarnerRestoresTheConsoleWarner() {
+        List<String> captured = new ArrayList<>();
+        KnifeMineableBlocks.setWarner(captured::add);
+        KnifeMineableBlocks.setSource(blockId -> {
+            throw new IllegalStateException("first reason");
+        });
+
+        assertFalse(KnifeMineableBlocks.isKnifeMineable(Key.of("farmersdelight:straw_bale")));
+        assertEquals(1, captured.size(), "the stub has to receive the first warning");
+
+        KnifeMineableBlocks.setWarner(null);
+        assertTrue(KnifeMineableBlocks.usingConsoleWarner(), "null has to install the console warner again");
+
+        // A different reason is reportable again: if the stub were still installed it would capture it. The
+        // console warner cannot be observed offline, so "the stub stopped receiving" is the assertion.
+        KnifeMineableBlocks.setSource(blockId -> {
+            throw new IllegalArgumentException("second reason");
+        });
+        assertFalse(KnifeMineableBlocks.isKnifeMineable(Key.of("farmersdelight:straw_bale")));
+        assertEquals(1, captured.size(), "the reset stub must not receive anything anymore");
     }
 }
