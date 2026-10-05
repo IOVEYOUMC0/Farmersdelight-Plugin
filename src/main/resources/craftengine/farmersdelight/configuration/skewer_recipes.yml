@@ -1,0 +1,97 @@
+recipes:
+  farmersdelight:meat_skewer:
+    type: shapeless
+    category: misc
+    ingredients:
+      - "minecraft:stick"
+      - items:
+        - "#c:foods/raw_meat"
+        - "#c:foods/safe_raw_fish"
+      - items:
+        - "#c:foods/raw_meat"
+        - "#c:foods/safe_raw_fish"
+    result:
+      id: farmersdelight:meat_skewer
+      count: 1
+  farmersdelight:vegetable_skewer:
+    type: shapeless
+    category: misc
+    ingredients:
+      - "minecraft:stick"
+      - items:
+        - "#c:foods/vegetable"
+        - "#c:mushrooms"
+      - items:
+        - "#c:foods/vegetable"
+        - "#c:mushrooms"
+    result:
+      id: farmersdelight:vegetable_skewer
+      count: 1
+  farmersdelight:cooked_meat_skewer_from_crafting:
+    type: shapeless
+    category: misc
+    ingredients:
+      - "minecraft:stick"
+      - items:
+        - "#c:foods/cooked_meat"
+        - "#c:foods/cooked_fish"
+      - items:
+        - "#c:foods/cooked_meat"
+        - "#c:foods/cooked_fish"
+    result:
+      id: farmersdelight:cooked_meat_skewer
+      count: 1
+  farmersdelight:cooked_meat_skewer:
+    type: smelting
+    experience: 0.35
+    category: food
+    time: 200
+    ingredient: "farmersdelight:meat_skewer"
+    result:
+      id: farmersdelight:cooked_meat_skewer
+      count: 1
+  farmersdelight:cooked_meat_skewer_smoking:
+    type: smoking
+    experience: 0.35
+    category: food
+    time: 100
+    ingredient: "farmersdelight:meat_skewer"
+    result:
+      id: farmersdelight:cooked_meat_skewer
+      count: 1
+  farmersdelight:cooked_meat_skewer_campfire:
+    type: campfire_cooking
+    experience: 0.35
+    category: food
+    time: 600
+    ingredient: "farmersdelight:meat_skewer"
+    result:
+      id: farmersdelight:cooked_meat_skewer
+      count: 1
+  farmersdelight:cooked_vegetable_skewer:
+    type: smelting
+    experience: 0.35
+    category: food
+    time: 200
+    ingredient: "farmersdelight:vegetable_skewer"
+    result:
+      id: farmersdelight:cooked_vegetable_skewer
+      count: 1
+  farmersdelight:cooked_vegetable_skewer_smoking:
+    type: smoking
+    experience: 0.35
+    category: food
+    time: 100
+    ingredient: "farmersdelight:vegetable_skewer"
+    result:
+      id: farmersdelight:cooked_vegetable_skewer
+      count: 1
+  farmersdelight:cooked_vegetable_skewer_campfire:
+    type: campfire_cooking
+    experience: 0.35
+    category: food
+    time: 600
+    ingredient: "farmersdelight:vegetable_skewer"
+    result:
+      id: farmersdelight:cooked_vegetable_skewer
+      count: 1

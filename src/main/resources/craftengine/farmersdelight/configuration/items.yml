@@ -917,6 +917,50 @@ items:
     settings:
       tags:
         - farmersdelight:snacks
+  farmersdelight:meat_skewer:
+    template: farmersdelight:food_template
+    data:
+      item-name: <!i><lang:item.farmersdelight.meat_skewer>
+      food:
+        nutrition: 4
+        saturation: 3.2
+        can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:snacks
+  farmersdelight:vegetable_skewer:
+    template: farmersdelight:food_template
+    data:
+      item-name: <!i><lang:item.farmersdelight.vegetable_skewer>
+      food:
+        nutrition: 4
+        saturation: 3.2
+        can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:snacks
+  farmersdelight:cooked_meat_skewer:
+    template: farmersdelight:food_template
+    data:
+      item-name: <!i><lang:item.farmersdelight.cooked_meat_skewer>
+      food:
+        nutrition: 8
+        saturation: 14.4
+        can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:snacks
+  farmersdelight:cooked_vegetable_skewer:
+    template: farmersdelight:food_template
+    data:
+      item-name: <!i><lang:item.farmersdelight.cooked_vegetable_skewer>
+      food:
+        nutrition: 8
+        saturation: 14.4
+        can-always-eat: false
+    settings:
+      tags:
+        - farmersdelight:snacks
   farmersdelight:chicken_sandwich:
     template: farmersdelight:food_template
     data:
