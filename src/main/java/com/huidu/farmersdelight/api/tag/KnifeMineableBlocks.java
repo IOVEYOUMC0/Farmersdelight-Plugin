@@ -64,7 +64,13 @@ public final class KnifeMineableBlocks {
     private static final Set<Key> KNIFE_TAGS = Set.of(
             Key.of(FarmersDelightTags.BLOCK_MINEABLE_WITH_KNIFE),
             Key.of(FarmersDelightTags.COMMON_MINEABLE_WITH_KNIFE));
-    private static final Consumer<String> CONSOLE_WARNER = message -> Bukkit.getLogger().warning(message);
+    private static final Consumer<String> CONSOLE_WARNER = message -> {
+        try {
+            Bukkit.getLogger().warning(message);
+        } catch (Throwable noServer) {
+            // Offline (unit tests, tooling) there is no server logger; the warning is then simply not shown.
+        }
+    };
     private static final Set<String> REPORTED = ConcurrentHashMap.newKeySet();
     private static volatile TagSource source = new CraftEngineTagSource();
     private static volatile Consumer<String> warner = CONSOLE_WARNER;
@@ -140,6 +146,12 @@ public final class KnifeMineableBlocks {
     public static void resetState() {
         unsupportedApi = false;
         REPORTED.clear();
+    }
+
+    /** Whether the console warner is installed; lets an offline test prove that a reset actually happened. */
+    @ApiStatus.Internal
+    public static boolean usingConsoleWarner() {
+        return warner == CONSOLE_WARNER;
     }
 
     private static void disableUnsupportedApi(LinkageError failure) {

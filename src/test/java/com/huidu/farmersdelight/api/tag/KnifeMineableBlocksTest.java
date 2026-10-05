@@ -126,12 +126,25 @@ class KnifeMineableBlocksTest {
     }
 
     @Test
-    void theDefaultWarnerIsRestoredByANullWarner() {
+    void aNullWarnerRestoresTheConsoleWarner() {
         List<String> captured = new ArrayList<>();
         KnifeMineableBlocks.setWarner(captured::add);
+        KnifeMineableBlocks.setSource(blockId -> {
+            throw new IllegalStateException("first reason");
+        });
+
+        assertFalse(KnifeMineableBlocks.isKnifeMineable(Key.of("farmersdelight:straw_bale")));
+        assertEquals(1, captured.size(), "the stub has to receive the first warning");
+
         KnifeMineableBlocks.setWarner(null);
-        // The production warner writes to the console and cannot be observed offline; this only proves the
-        // seam is reset (the captured list must stay empty for later failures of the reset test order).
-        assertEquals(0, captured.size());
+        assertTrue(KnifeMineableBlocks.usingConsoleWarner(), "null has to install the console warner again");
+
+        // A different reason is reportable again: if the stub were still installed it would capture it. The
+        // console warner cannot be observed offline, so "the stub stopped receiving" is the assertion.
+        KnifeMineableBlocks.setSource(blockId -> {
+            throw new IllegalArgumentException("second reason");
+        });
+        assertFalse(KnifeMineableBlocks.isKnifeMineable(Key.of("farmersdelight:straw_bale")));
+        assertEquals(1, captured.size(), "the reset stub must not receive anything anymore");
     }
 }
