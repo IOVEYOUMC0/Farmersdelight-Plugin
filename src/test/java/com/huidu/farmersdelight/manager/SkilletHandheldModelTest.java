@@ -187,7 +187,7 @@ class SkilletHandheldModelTest {
     void craftEngineIngredientResolvesToItsOwnOverlayNotTheMaterialItWasBuiltOn() throws Exception {
         // Deployed data: farmersdelight:bacon is a CraftEngine item built on minecraft:dried_kelp
         // (configuration/items.yml -> farmersdelight:food_cut_template), and CraftEngine generates the
-        // item definition below from the item's model. The model chain ends in our own texture.
+        // item definition below from the item's model. The model chain ends in the plugin's texture.
         var items = new HashMap<String, JsonObject>();
         items.put("farmersdelight:bacon", json(
                 "{\"oversized_in_gui\":true,\"model\":{\"type\":\"model\",\"model\":\"farmersdelight:item/bacon\"}}"));

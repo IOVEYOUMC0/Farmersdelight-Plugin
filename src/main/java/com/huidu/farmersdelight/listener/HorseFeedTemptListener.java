@@ -236,7 +236,7 @@ public class HorseFeedTemptListener implements Listener {
         if (activeTempterPlayers.isEmpty()) return;
 
         // Rebuild the indexable snapshot only when membership changes (generation bump); otherwise reuse
-        // the cache so we avoid List.copyOf on every iteration.
+        // the cache so List.copyOf is not needed on every iteration.
         long generation = tempterGeneration.get();
         if (cachedTempterSnapshotGeneration != generation) {
             cachedTempterSnapshot = List.copyOf(activeTempterPlayers.entrySet());
@@ -247,7 +247,7 @@ public class HorseFeedTemptListener implements Listener {
         int budget = Math.min(tickBudget, size);
         int start = tickCursor >= size ? 0 : tickCursor;
         // Resolve once per loop: on Paper/Spigot the repeating task is already on the main thread,
-        // so we can call tickTemptPlayer directly and skip the runForEntity task allocation per tempter
+        // so tickTemptPlayer can be called directly and skip the runForEntity task allocation per tempter
         // (on Folia it's required for region-thread safety, on Paper it's just overhead).
         boolean folia = plugin.scheduler().isFolia();
 
@@ -352,7 +352,7 @@ public class HorseFeedTemptListener implements Listener {
     }
 
     // Scan chunk entity lists instead of getNearbyEntities to avoid blocking on Folia region threads.
-    // Since the tempt range is bounded (configurable, default 10), we iterate loaded chunks within range.
+    // Since the tempt range is bounded (configurable, default 10), loaded chunks within range are iterated.
     private List<Entity> getChunkEntitiesInRange(Location center, double range) {
         World world = center.getWorld();
         if (world == null) return List.of();

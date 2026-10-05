@@ -18,7 +18,7 @@ import org.bukkit.event.world.ChunkUnloadEvent;
 import org.bukkit.event.world.WorldUnloadEvent;
 
 /**
- * Keeps {@link CarrierRestorer} in step with the world.
+ * Keeps CarrierRestorer in step with the world.
  *
  *
  * Placement, removal and the neighbour updates that reconnect fences are the events that can create or

@@ -7,9 +7,9 @@ import org.bukkit.entity.Entity;
 import java.util.Objects;
 
 /**
- * The production {@link MigrationDispatch}: every shape is handed to the plugin's own scheduler adapter, so
+ * The production MigrationDispatch: every shape is handed to the plugin's own scheduler adapter, so
  * the migration hooks follow exactly the same Folia rules as the rest of the plugin and never call
- * {@code Bukkit.getScheduler} directly.
+ * Bukkit.getScheduler directly.
  */
 public final class SchedulerMigrationDispatch implements MigrationDispatch {
 

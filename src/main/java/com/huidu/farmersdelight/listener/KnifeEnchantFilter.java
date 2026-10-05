@@ -27,6 +27,7 @@ import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.inventory.PrepareAnvilEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.view.AnvilView;
@@ -107,6 +108,7 @@ public final class KnifeEnchantFilter implements Listener {
         }
 
         Player player = event.getEnchanter();
+        diagnoseIfEnchantable(player, item, groupId, event);
         int seed = player.getEnchantmentSeed();
         int bonus = Math.min(event.getEnchantmentBonus(), 15);
         Random costRandom = new Random(seed);
@@ -145,6 +147,10 @@ public final class KnifeEnchantFilter implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onEnchantItem(EnchantItemEvent event) {
+        if (plugin != null && plugin.isDebugEnabled("enchant")) {
+            plugin.getLogger().info("[enchant] EnchantItemEvent fired for " + event.getEnchanter().getName()
+                    + " (button " + event.whichButton() + ")");
+        }
         EnchantmentSettings.GroupId groupId = enchantmentGroup(event.getItem());
         EnchantmentSettings current = settings;
         if (!current.enabled() || groupId == null) {
@@ -197,7 +203,7 @@ public final class KnifeEnchantFilter implements Listener {
         }
         // A non-knife item (or a group whose anvil enchanting is off) must not carry the knife-only backstab
         // enchant. Vanilla's supported_items guard is bypassed on the anvil in creative (and by some fork
-        // configs), so scrub any backstab the vanilla result leaked onto the item. We police only our own
+        // configs), so scrub any backstab the vanilla result leaked onto the item. Only the plugin's own
         // datapack enchant here, never vanilla enchants.
         if (groupId == null || !current.group(groupId).anvilEnabled()) {
             // If the incoming book holds a FarmersDelight-managed enchant (backstab or a registered addon),
@@ -308,7 +314,7 @@ public final class KnifeEnchantFilter implements Listener {
         return false;
     }
 
-    // Removes our knife-only backstab enchant from an anvil result on an item that isn't an enchantable knife.
+    // Removes the plugin's knife-only backstab enchant from an anvil result on an item that isn't an enchantable knife.
     // Only backstab is touched, so a creative player anvil-ing vanilla enchants onto arbitrary items is left
     // alone; if backstab was the only thing the anvil produced, the result is cancelled outright.
     private void stripManagedEnchants(PrepareAnvilEvent event) {
@@ -496,6 +502,38 @@ public final class KnifeEnchantFilter implements Listener {
             }
         }
         return candidates.getLast();
+    }
+
+    /**
+     * One diagnostic line per call, printed only while the enchant debug category is on: this is how the
+     * "the three options cannot be clicked" report is pinned down in the field. The line is deliberately not
+     * deduplicated — the method keeps no per-player state, because such a set would need its own logout and
+     * expiry lifecycle while the category is off in production. It prints what vanilla itself looks at
+     * (enchantment value, damage, max stack size) plus whether vanilla had offers at all — the item's own
+     * minecraft:enchantable declaration is what makes those costs non-zero, and a component that CraftEngine
+     * ignores reads back as 0 here. Not on a hot path: only a player opening an enchanting table.
+     */
+    private void diagnoseIfEnchantable(Player player, ItemStack item, EnchantmentSettings.GroupId groupId,
+                                       PrepareItemEnchantEvent event) {
+        if (plugin == null || !plugin.isDebugEnabled("enchant") || groupId == null) {
+            return;
+        }
+        ItemMeta meta = item.getItemMeta();
+        int enchantable = meta == null ? -1 : meta.getEnchantable();
+        int maxDamage = meta instanceof Damageable damageable && damageable.hasMaxDamage()
+                ? damageable.getMaxDamage() : -1;
+        int maxStackSize = item.getMaxStackSize();
+        // The same two conditions vanilla's EnchantmentMenu checks before it computes any cost: a single-item
+        // stack carrying an enchantment value above zero. Both read back from the real stack, so a component
+        // CraftEngine ignored shows up here as 0.
+        boolean vanillaWouldOffer = maxStackSize == 1 && enchantable > 0;
+        plugin.getLogger().info("[enchant] " + player.getName() + " item=" + item.getType()
+                + " group=" + groupId
+                + " getEnchantable=" + enchantable
+                + " maxDamage=" + maxDamage
+                + " maxStackSize=" + maxStackSize
+                + " vanillaWouldOffer=" + vanillaWouldOffer
+                + " vanillaOffers=" + (event.getOffers() == null ? -1 : event.getOffers().length));
     }
 
     private int enchantability(ItemStack item, EnchantmentSettings.Table table) {

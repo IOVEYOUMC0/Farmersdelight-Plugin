@@ -8,7 +8,7 @@ import java.util.WeakHashMap;
  * "Have I already handled this object once?" for the container-open hook.
  *
  *
- * The map is a synchronized {@link WeakHashMap}: regions call this concurrently (players in different
+ * The map is a synchronized WeakHashMap: regions call this concurrently (players in different
  * regions open containers at the same time), and a closed inventory must still be collectable. The
  * compound check-and-record is done under the map's own monitor so two threads cannot both see "first".
  */

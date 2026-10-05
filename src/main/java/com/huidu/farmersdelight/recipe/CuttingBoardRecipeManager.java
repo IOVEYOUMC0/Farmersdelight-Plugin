@@ -46,7 +46,7 @@ public class CuttingBoardRecipeManager {
     // into two buckets at load time:
     //   - byInputItemId: Item-typed recipes keyed by their input's literal item id (e.g. "minecraft:carrot")
     //   - tagInputRecipeIds: every Tag-typed recipe's id (these always need a full matchesTaggedItem check
-    //     because vanilla tags aren't surfaced through ItemUtils.getItemTagIds, so we can't index them)
+    //     because vanilla tags aren't surfaced through ItemUtils.getItemTagIds, so they cannot be indexed)
     // Query gathers candidates = byInputItemId[input.ids] ∪ tagInputRecipeIds, then iterates sortedRecipes
     // filtered by that set — sortedRecipes order (priority + id) preserved exactly.
     private volatile Map<String, Set<String>> byInputItemId = Map.of();

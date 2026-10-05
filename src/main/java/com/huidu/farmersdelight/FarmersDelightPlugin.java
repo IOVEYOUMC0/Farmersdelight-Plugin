@@ -27,6 +27,7 @@ import com.huidu.farmersdelight.listener.PetFoodListener;
 import com.huidu.farmersdelight.listener.RecipeDiscoveryListener;
 import com.huidu.farmersdelight.listener.RopeBlockListener;
 import com.huidu.farmersdelight.command.FarmersDelightCommandRegistrar;
+import com.huidu.farmersdelight.command.ReloadTiming;
 import com.huidu.farmersdelight.config.ContainerReturnConfig;
 import com.huidu.farmersdelight.config.ConfigLookup;
 import com.huidu.farmersdelight.config.CookingPotExperienceRewardConfig;
@@ -50,6 +51,7 @@ import com.huidu.farmersdelight.gui.recipebook.RecipeBookListener;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.loot.KnifeDropHandler;
 import com.huidu.farmersdelight.manager.BuffBossbarManager;
+import com.huidu.farmersdelight.manager.CeDerivedReloadGate;
 import com.huidu.farmersdelight.manager.CarrierRestorer;
 import com.huidu.farmersdelight.manager.DatapackCoordinator;
 import com.huidu.farmersdelight.manager.HandleManager;
@@ -58,6 +60,7 @@ import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.manager.TrayManager;
 import com.huidu.farmersdelight.recipe.AdvancedTagGroups;
+import com.huidu.farmersdelight.recipe.RecipeRegistrationDriver;
 import com.huidu.farmersdelight.recipe.CookingPotRecipeManager;
 import com.huidu.farmersdelight.recipe.RecipeDiscoveryManager;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipeManager;
@@ -70,6 +73,7 @@ import com.huidu.farmersdelight.util.CommonTagResolver;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.InteractionDebouncer;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.compat.CustomItemPresence;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.util.scheduler.SchedulerAdapter;
 import com.huidu.farmersdelight.visual.ProxyItemDisplayManager;
@@ -490,7 +494,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             }
         }
 
-        // The server already prints "Enabling FarmersDelight vX" for us; the startup config and content
+        // The server already prints "Enabling FarmersDelight vX" ; the startup config and content
         // summary lines carry everything a second "enabled" line would not.
         I18n.logDetail("startup", "plugin.enabled");
         enabledSuccessfully = true;
@@ -503,7 +507,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
         // Runtime disable warning: CraftEngine + per-chunk block-entity state still hold references
         // to FD listeners, scheduler tasks, and block behaviors. Once this classloader closes, any
-        // late-bound lambda / event delivery into FD throws NoClassDefFoundError. We can't unwind
+        // late-bound lambda / event delivery into FD throws NoClassDefFoundError. The plugin cannot unwind
         // CE's registrations, so do the best-effort cleanup below and tell the admin to restart.
         // Re-enabling FD in the same JVM is refused by onEnable's reload-guard system property, so
         // the worst case is "FD blocks misbehave until /stop", not double-registration chaos.
@@ -866,6 +870,11 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onCraftEngineReload(CraftEngineReloadEvent event) {
+        // A CraftEngine reload is the only event that makes the CE-derived reload work stale.
+        ceDerivedReloadGate.bumpRevision();
+        // The reload can also have removed every custom item, so the remembered "custom items exist" answer
+        // has to be re-asked; a reload that loads items needs no reset because only positives are remembered.
+        CustomItemPresence.invalidate();
         if (craftEngineReadinessCoordinator != null) {
             craftEngineReadinessCoordinator.queueReloadProcessing();
         }
@@ -874,6 +883,37 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     public void reloadRecipesWhenReady(String reason) {
         if (craftEngineReadinessCoordinator != null) {
             craftEngineReadinessCoordinator.loadRecipesWhenReady(reason);
+        }
+    }
+
+    /**
+     * The one active recipe registration pass. Reaching it from here means every sharded caller shares the
+     * single-active rule, and disabling the plugin can cancel it.
+     */
+    public RecipeRegistrationDriver recipeRegistrations() {
+        RecipeRegistrationDriver current = recipeRegistrations;
+        if (current == null) {
+            synchronized (reloadTimingLock) {
+                if (recipeRegistrations == null) {
+                    recipeRegistrations = new RecipeRegistrationDriver(
+                            tick -> scheduler().runRepeating(tick, 1, 1));
+                }
+                current = recipeRegistrations;
+            }
+        }
+        return current;
+    }
+
+    /** Entries a reload rebuilds per tick; 0 is treated as 1 so a bad value cannot stall the pass. */
+    public int recipeRegistrationBudget() {
+        return Math.max(1, getConfig().getInt("performance.budgets.reload-recipe-registrations-per-tick", 32));
+    }
+
+    /** Plugin disable: the running pass is dropped, so no half-registered batch survives the shutdown. */
+    public void cancelRecipeRegistrations() {
+        RecipeRegistrationDriver current = recipeRegistrations;
+        if (current != null) {
+            current.cancel();
         }
     }
 
@@ -891,21 +931,26 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             SpecialRecipeLoader.load(this, specialRecipeRegistry);
         }
 
-        // Pet food is declared as a CraftEngine item setting, so the scan in loadConfigs() only sees anything
-        // once CraftEngine has registered its items. FarmersDelight usually enables first, which left the scan
-        // empty and the tempt list at zero until an explicit /fd reload; repeat it here, where CraftEngine is
-        // known to be ready. PetFoodListener reads the config per interaction, so only the tempt list needs
-        // refreshing.
-        petFoodConfig = configFiles.loadPetFood(getConfig().getConfigurationSection("pet-foods"));
-        if (listeners.horseFeedTemptListener() != null) {
-            listeners.horseFeedTemptListener().reload();
-        }
+        // The next three are derived from CraftEngine's registries, not from the plugin's files: the pet-food setting,
+        // the stove and the skillet caches all read what CraftEngine registered or the server's campfire
+        // recipes. They are skipped unless CraftEngine reloaded since the last pass, so /fd reload recipes no
+        // longer pays for two full campfire-recipe scans and an item-setting scan on every run.
+        if (ceDerivedReloadGate.needsRefresh()) {
+            // Pet food is declared as a CraftEngine item setting, so the scan in loadConfigs() only sees
+            // anything once CraftEngine has registered its items; it is repeated on the first pass that can see
+            // them. PetFoodListener reads the config per interaction, so only the tempt list needs refreshing.
+            petFoodConfig = configFiles.loadPetFood(getConfig().getConfigurationSection("pet-foods"));
+            if (listeners.horseFeedTemptListener() != null) {
+                listeners.horseFeedTemptListener().reload();
+            }
 
-        if (stoveManager != null) {
-            stoveManager.reloadRecipeCache();
-        }
-        if (skilletManager != null) {
-            skilletManager.reloadRecipeCache();
+            if (stoveManager != null) {
+                stoveManager.reloadRecipeCache();
+            }
+            if (skilletManager != null) {
+                skilletManager.reloadRecipeCache();
+            }
+            ceDerivedReloadGate.markApplied();
         }
     }
 
@@ -915,7 +960,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     private void reloadCommon(boolean reloadLanguages) {
         // Registration is idempotent and skips ids CraftEngine already reports, so re-applying it here keeps
-        // another plugin's registrations alive across /fd reload without re-registering our own content.
+        // another plugin's registrations alive across /fd reload without re-registering the plugin's own content.
         BehaviorRegistrar.replayContentRegistrations();
         long reloadStart = System.nanoTime();
         // One parse per user file for this whole pass: validation and the load pass read the same four files,
@@ -1056,11 +1101,11 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     /**
-     * Notifies addons that content changed, on the <em>next</em> tick rather than inside the command tick.
+     * Notifies addons that content changed, on the next tick rather than inside the command tick.
      *
      *
      * Four addons listen to this and rebuild their own content synchronously, so calling it inline made
-     * /fd reload all block the server for FarmersDelight's own work <em>plus</em> every addon's. The
+     * /fd reload all block the server for FarmersDelight's own work plus every addon's. The
      * event is a notification hook — nothing in FarmersDelight reads a result back from it — so moving it one
      * tick later keeps the observable behaviour ("the reload happened") while halving the worst-case stall of
      * a single tick. This is the same treatment reloadRecipeFiles already gave it.
@@ -1102,6 +1147,12 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     /** Phase timings of the last reload, so the command can report them the way CraftEngine does. */
+    private final Object reloadTimingLock = new Object();
+    private volatile RecipeRegistrationDriver recipeRegistrations;
+
+    /** Guards the steps derived from CraftEngine's registries (pet food, stove/skillet recipe caches). */
+    private final CeDerivedReloadGate ceDerivedReloadGate = new CeDerivedReloadGate();
+
     private final AtomicLong reloadConfigNanos =
             new AtomicLong();
     private final AtomicLong reloadToolsNanos =
@@ -1126,32 +1177,49 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
      * pass found. The addon figure is only filled in on the following tick; a command that reports before that
      * simply shows the phase timings it has.
      */
+    /**
+     * The same phase line the reload report shows: the console summary and the player message share one renderer
+     * (ReloadTiming.composeSegments), so the two can no longer drift apart in labels, units or ordering.
+     */
     public String reloadTimingSummary() {
-        StringBuilder text = new StringBuilder();
-        appendTiming(text, "config", reloadConfigNanos.get());
-        appendTiming(text, "tools", reloadToolsNanos.get());
-        appendTiming(text, "managers", reloadManagersNanos.get());
-        appendTiming(text, "listeners", reloadListenersNanos.get());
-        appendTiming(text, "addons", reloadAddonsNanos.get());
-        return text.toString();
+        return ReloadTiming.composeSegments(reloadTotalMillis(), reloadPhaseNanos());
     }
 
-    private void appendTiming(StringBuilder text, String phase, long nanos) {
-        if (nanos <= 0) {
-            return;
+    /**
+     * Starts a reload pass: the phase figures of the previous pass are dropped, so nothing can be reported
+     * next to a total it does not belong to.
+     */
+    public void beginReloadPass() {
+        synchronized (reloadTimingLock) {
+            ReloadTiming.resetTargeted();
+            reloadConfigNanos.set(0L);
+            reloadToolsNanos.set(0L);
+            reloadManagersNanos.set(0L);
+            reloadListenersNanos.set(0L);
+            reloadAddonsNanos.set(0L);
         }
-        if (text.length() > 0) {
-            text.append(" / ");
-        }
-        // Deliberately not an i18n key: these are diagnostic phase names for the debug/reload log line, not
-        // player-facing text, and a dotted lookup would also look like a missing lang key to the checker.
-        text.append(phase).append(' ').append(nanos / 1_000_000L).append("ms");
     }
 
-    /** Total milliseconds the last reload's own pass occupied; the addon pass is reported separately. */
+    /** The phase figures of the running pass, in the order the report prints them. */
+    public long[] reloadPhaseNanos() {
+        return new long[]{
+                reloadConfigNanos.get(),
+                reloadToolsNanos.get(),
+                reloadManagersNanos.get(),
+                reloadListenersNanos.get(),
+                reloadAddonsNanos.get(),
+        };
+    }
+
+    /**
+     * Total milliseconds the last reload's own pass occupied; the addon pass is reported separately.
+     *
+     * A full reload fills the per-phase figures. A targeted one (recipes, tags, ...) does not, so falling
+     * back to its measured wall time is what stops the report from claiming a hard 0ms.
+     */
     public long reloadTotalMillis() {
-        return (reloadConfigNanos.get() + reloadToolsNanos.get() + reloadManagersNanos.get()
-                + reloadListenersNanos.get()) / 1_000_000L;
+        return ReloadTiming.totalMillis(reloadConfigNanos.get() + reloadToolsNanos.get()
+                + reloadManagersNanos.get() + reloadListenersNanos.get());
     }
 
     /** Problems the last reload found: config type mismatches plus recipe parse/reconcile issues. */
@@ -1166,7 +1234,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // Same reason as reloadAll: the reloaded per-type counts are the only evidence the edited files
         // actually parsed, and the summary suppresses itself when they are unchanged.
         reportContentSummaryWhenReady();
-        fireReloadEvent("reloadRecipes");
+        // The addon notification leaves the reload tick: it is a fan-out to third-party listeners, and the
+        // full-reload path already reaches addons on the following tick, so nothing observes a different
+        // order — the spike just stops carrying every listener's work in the same tick as the rebuild.
+        scheduler().run(() -> fireReloadEvent("reloadRecipes"));
         I18n.logInfo("plugin.recipe_files_reloaded");
     }
 
@@ -1236,8 +1307,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         enchantmentSettings = loadedEnchantments;
         // Keep the knife/skillet enchant filter running whatever else is installed: its CraftEngine knives are
         // nether_brick underneath and can be enchanted only through this filter, so disabling it would make them
-        // un-enchantable rather than hand them off. Only our custom backstab enchant stands down when a dedicated
-        // enchantment plugin is present, so we don't stack a second special enchant onto its system. Admin can
+        // un-enchantable rather than hand them off. Only the plugin's custom backstab enchant stands down when a dedicated
+        // enchantment plugin is present, so a second special enchant is not stacked onto its system. Admin can
         // force backstab on regardless with enchantments.compatibility.auto-disable-on-conflict: false.
         boolean backstab = resolveBackstabbingCompatibility(loadedEnchantments);
         if (backstab && loadedEnchantments.autoDisableOnConflict()) {
@@ -1512,7 +1583,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             return true;
         }
         // Knives registered by addons through the family tag registry (tag to members) are honored
-        // wherever we check knife behavior, so an addon adding its knives to farmersdelight:tools/knives
+        // wherever knife behavior is checked, so an addon adding its knives to farmersdelight:tools/knives
         // via its own tags.yml works as a cutting tool without editing the central knife-items config.
         Set<String> tags = CommonTagResolver.getTagsForItemId(id);
         for (String tag : settings.tagIds()) {
@@ -1894,9 +1965,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private String detectEnchantmentConflict() {
         for (RegisteredListener listener : PrepareItemEnchantEvent.getHandlerList().getRegisteredListeners()) {
             Plugin other = listener.getPlugin();
-            // CraftEngine is our required host, not a competing enchantment system: it hooks this event to manage
+            // CraftEngine is the required host, not a competing enchantment system: it hooks this event to manage
             // enchanting of its own custom items and is always present, so treating it as a conflict would disable
-            // the feature on every install. Skip it (and its craftengine: namespace below) the same way we skip
+            // the feature on every install. Skip it (and its craftengine: namespace below) the same way the plugin skips
             // ourselves; any genuine third-party enchant plugin is still caught.
             if (other != this && other.isEnabled() && !HOST_PLUGIN_NAME.equals(other.getName())) {
                 return other.getName();

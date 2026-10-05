@@ -236,6 +236,10 @@ performance:
   budgets:
     # Max cutting board/skillet display reconstructions scheduled per tick after a CraftEngine or plugin reload.
     reload-visual-refreshes-per-tick: 32
+    # Max recipe entries a reload rebuilds/registers per tick. The pass resumes on the next tick, so a big
+    # recipe file no longer registers everything in one tick and no longer dips the TPS. Higher finishes
+    # sooner with a bigger per-tick cost; 1 is smoothest, 0 is treated as 1.
+    reload-recipe-registrations-per-tick: 32
     # Max player/entity relationships processed per tick for pet food tempting.
     pet-tempt-tick-budget: 128
     # Max plugin block data entries reloaded per tick from already-loaded chunks during plugin startup.
@@ -785,11 +789,15 @@ handheld-skewer:
   require-sneak: false
   # How long one skewer takes, in ticks. 120 = 6 seconds, the 1.4 constant.
   cooking-time-ticks: 120
-  # Raw skewer -> cooked skewer. This is THIS path's own mapping, not the pack's campfire recipe:
-  # CraftEngine only exposes its recipe queries through NMS/proxy typed bindings, which this plugin does
-  # not use. Changing the pack's campfire recipe therefore does not change handheld cooking (the campfire,
-  # furnace and smoker recipes are separate paths and are unaffected).
-  # A raw id without an entry here never starts cooking.
+  progress-display:
+    # Rewrites the held skewer for that viewer only, showing the cooking as a client-only durability bar
+    # (real durability is never touched). Five packets per second, the same cadence the handheld skillet uses.
+    enabled: true
+  # Raw skewer -> cooked skewer. This table is an OVERRIDE in front of the campfire cooking recipe, which is
+  # what Farmer's Delight 1.4 asks (RecipeUtils.getCampfireCookingRecipe): an id listed here wins, anything
+  # else falls through to the campfire recipe, and an input with neither never starts cooking. The recipe
+  # query shares the very same cache the skillet uses, so editing the pack's campfire recipe changes handheld
+  # cooking too.
   results:
     farmersdelight:meat_skewer: farmersdelight:cooked_meat_skewer
     farmersdelight:vegetable_skewer: farmersdelight:cooked_vegetable_skewer

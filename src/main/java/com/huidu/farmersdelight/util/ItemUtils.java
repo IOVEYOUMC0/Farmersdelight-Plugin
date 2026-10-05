@@ -7,6 +7,7 @@ import com.huidu.farmersdelight.block.behavior.ConfiguredBlockSet;
 import com.huidu.farmersdelight.config.ContainerReturnConfig;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.compat.MMOItemsCompat;
+import com.huidu.farmersdelight.util.compat.CustomItemPresence;
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.UseRemainder;
 import net.kyori.adventure.text.Component;
@@ -179,8 +180,13 @@ public final class ItemUtils {
         return null;
     }
 
+    /**
+     * Whether CraftEngine has any custom item loaded. Answers false while CraftEngine is still starting
+     * (its registries NPE on some versions, 26.9.x among them) instead of failing the caller's load: see
+     * com.huidu.farmersdelight.util.compat.CustomItemPresence.
+     */
     public static boolean isAnyCustomItemLoaded() {
-        return !CraftEngineItems.loadedItems().isEmpty();
+        return CustomItemPresence.anyLoaded();
     }
 
     /** The declared tags of a CraftEngine item as strings, built once per item id. */

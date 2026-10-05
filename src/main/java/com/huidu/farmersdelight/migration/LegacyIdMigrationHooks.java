@@ -23,25 +23,23 @@ import org.jetbrains.annotations.Nullable;
  * ids.
  *
  *
- * Every hook decides through {@link MigrationDispatch#inlineIfOwned}: it runs on the current thread when
+ * Every hook decides through MigrationDispatch#inlineIfOwned: it runs on the current thread when
  * that thread already owns the player, item or block, and otherwise hands the work to the owning region.
- * A container is only touched when its owner can be named — a {@code BlockState}, either half of a
- * {@link org.bukkit.block.DoubleChest}, one of our own GUIs (owned by the viewing player) or a player
+ * A container is only touched when its owner can be named — a BlockState, either half of a
+ * org.bukkit.block.DoubleChest, one of the plugin's own GUIs (owned by the viewing player) or a player
  * holder. Any other holder is skipped rather than read, because reading it from an unknown thread is the
  * one thing this must not do; a skipped container is retried the next time it is opened. No hook uses
- * {@code Bukkit.getScheduler}.
+ * Bukkit.getScheduler.
  *
- * <p>The hooks are:
- * <ul>
- *   <li>player join — the player's inventory and ender chest, on the player's thread;</li>
- *   <li>container open — the opened inventory, once per open (not per click), on the owner of the block;</li>
- *   <li>our own container GUI opening — the view's stored contents, on the viewing player's thread;</li>
- *   <li>item spawn — the dropped stack, on the item entity's thread;</li>
- *   <li>startup — already loaded block inventories, one dispatch per loaded chunk (see
- *       {@link LegacyIdMigrationService#scheduleStartupSweep()}).</li>
- * </ul>
+ * The hooks are:
+ *   - player join — the player's inventory and ender chest, on the player's thread;
+ *   - container open — the opened inventory, once per open (not per click), on the owner of the block;
+ *   - the plugin's own container GUI opening — the view's stored contents, on the viewing player's thread;
+ *   - item spawn — the dropped stack, on the item entity's thread;
+ *   - startup — already loaded block inventories, one dispatch per loaded chunk (see
+ *       LegacyIdMigrationService#scheduleStartupSweep()).
  *
- * <p>Construction only stores the plugin: the scheduler is not consulted until {@link #start()}, so the
+ * Construction only stores the plugin: the scheduler is not consulted until start(), so the
  * registration order can still be asserted by a test that builds the registry with a null plugin.
  */
 public final class LegacyIdMigrationHooks implements Listener {
@@ -64,7 +62,7 @@ public final class LegacyIdMigrationHooks implements Listener {
         service.start();
     }
 
-    /** The service, or null before {@link #start()}. */
+    /** The service, or null before start(). */
     @Nullable
     public LegacyIdMigrationService service() {
         return service;
@@ -84,7 +82,7 @@ public final class LegacyIdMigrationHooks implements Listener {
         });
     }
 
-    /** Hook 2 (container) and hook 3 (our own GUI): the view's contents, once per open. */
+    /** Hook 2 (container) and hook 3 (the plugin's own GUI): the view's contents, once per open. */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onInventoryOpen(InventoryOpenEvent event) {
         LegacyIdMigrationService active = service;
@@ -128,7 +126,7 @@ public final class LegacyIdMigrationHooks implements Listener {
             return null;
         }
         if (holder instanceof AbstractInventoryGui && viewer instanceof Player player) {
-            // Our container GUI: the mirror is loaded from the block entity on open, and the viewer's thread
+            // The plugin's container GUI: the mirror is loaded from the block entity on open, and the viewer's thread
             // owns the view.
             return player.getLocation();
         }
