@@ -773,3 +773,23 @@ legacy-id-migration:
   # true = log one line per run with how many stacks were rewritten. The line is only written when the
   # total grew since the last one, so a busy server does not get a line per inventory.
   log-summary: true
+
+# Handheld skewers: hold a raw Meat Skewer / Vegetable Skewer near a heat source and it cooks one skewer
+# after 6 seconds (120 ticks), exactly like Farmer's Delight 1.4. Both hands work, sneaking is not required,
+# and the heat source is only checked when the cooking starts.
+# Turning this off disables ONLY the handheld path: the campfire, furnace and smoker recipes are separate
+# and keep working.
+handheld-skewer:
+  enabled: true
+  # Set to true to require sneaking while right-clicking (1.4 does not require it).
+  require-sneak: false
+  # How long one skewer takes, in ticks. 120 = 6 seconds, the 1.4 constant.
+  cooking-time-ticks: 120
+  # Raw skewer -> cooked skewer. This is THIS path's own mapping, not the pack's campfire recipe:
+  # CraftEngine only exposes its recipe queries through NMS/proxy typed bindings, which this plugin does
+  # not use. Changing the pack's campfire recipe therefore does not change handheld cooking (the campfire,
+  # furnace and smoker recipes are separate paths and are unaffected).
+  # A raw id without an entry here never starts cooking.
+  results:
+    farmersdelight:meat_skewer: farmersdelight:cooked_meat_skewer
+    farmersdelight:vegetable_skewer: farmersdelight:cooked_vegetable_skewer

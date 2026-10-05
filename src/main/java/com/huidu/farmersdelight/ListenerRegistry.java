@@ -35,6 +35,7 @@ import com.huidu.farmersdelight.listener.TatamiBreakListener;
 import com.huidu.farmersdelight.listener.worlddata.VillagerTradeListener;
 import com.huidu.farmersdelight.manager.BuffBossbarManager;
 import com.huidu.farmersdelight.manager.CarrierRestorer;
+import com.huidu.farmersdelight.handheld.HandCookedSkewerHooks;
 import com.huidu.farmersdelight.migration.LegacyIdMigrationHooks;
 import com.huidu.farmersdelight.tool.ToolAttackListener;
 import org.bukkit.configuration.ConfigurationSection;
@@ -79,6 +80,7 @@ final class ListenerRegistry {
     private HorseFeedTemptListener horseFeedTemptListener;
     private EffectListener effectListener;
     private LegacyIdMigrationHooks legacyIdMigrationHooks;
+    private HandCookedSkewerHooks handCookedSkewerHooks;
     private ChunkLoadListener chunkLoadListener;
     private CarrierRestoreListener carrierRestoreListener;
 
@@ -126,7 +128,11 @@ final class ListenerRegistry {
                 new EffectListener(plugin),
                 // Rewrites addon-declared legacy ids in stacks that are already in the world; its id table is
                 // empty until an addon registers one, so it does nothing on its own.
-                new LegacyIdMigrationHooks(plugin));
+                new LegacyIdMigrationHooks(plugin),
+                // Handheld skewer cooking. Inert until the switch is on and a result is
+                // configured; its position matters because a right-click reaches the skillet
+                // handlers first, which own the portable-skillet trigger.
+                new HandCookedSkewerHooks(plugin));
     }
 
     /**
@@ -162,6 +168,8 @@ final class ListenerRegistry {
         effectListener.start();
         // Reads the migration switches and schedules the one-off sweep over already loaded inventories.
         legacyIdMigrationHooks.start();
+        // Reads its own switch: a disabled path schedules no tick task.
+        handCookedSkewerHooks.start();
 
         register(new PluginManagerGuard(plugin.getName()));
     }
@@ -180,6 +188,7 @@ final class ListenerRegistry {
             case HorseFeedTemptListener value -> horseFeedTemptListener = value;
             case EffectListener value -> effectListener = value;
             case LegacyIdMigrationHooks value -> legacyIdMigrationHooks = value;
+            case HandCookedSkewerHooks value -> handCookedSkewerHooks = value;
             default -> {
             }
         }
@@ -365,6 +374,10 @@ final class ListenerRegistry {
         }
         if (legacyIdMigrationHooks != null && legacyIdMigrationHooks.service() != null) {
             legacyIdMigrationHooks.service().reloadConfig();
+        }
+        if (handCookedSkewerHooks != null) {
+            // Re-reads handheld-skewer.*: a disabled switch stops the path, an enabled one arms it.
+            handCookedSkewerHooks.start();
         }
     }
 
