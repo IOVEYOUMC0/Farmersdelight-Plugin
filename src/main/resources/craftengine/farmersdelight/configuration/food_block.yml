@@ -11,7 +11,9 @@ templates:
           default: north
       appearances:
         count_0_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -20,7 +22,9 @@ templates:
             translation: 0,0,0
             yaw: 90
         count_0_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -28,7 +32,9 @@ templates:
             scale: 1.0
             translation: 0,0,0
         count_0_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -37,7 +43,9 @@ templates:
             translation: 0,0,0
             yaw: 180
         count_0_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -46,7 +54,9 @@ templates:
             translation: 0,0,0
             yaw: 270
         count_1_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -55,7 +65,9 @@ templates:
             translation: 0,0,0
             yaw: 90
         count_1_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -63,7 +75,9 @@ templates:
             scale: 1.0
             translation: 0,0,0
         count_1_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -72,7 +86,9 @@ templates:
             translation: 0,0,0
             yaw: 180
         count_1_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -81,7 +97,9 @@ templates:
             translation: 0,0,0
             yaw: 270
         count_2_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -90,7 +108,9 @@ templates:
             translation: 0,0,0
             yaw: 90
         count_2_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -98,7 +118,9 @@ templates:
             scale: 1.0
             translation: 0,0,0
         count_2_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -107,7 +129,9 @@ templates:
             translation: 0,0,0
             yaw: 180
         count_2_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -116,7 +140,9 @@ templates:
             translation: 0,0,0
             yaw: 270
         count_3_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -125,7 +151,9 @@ templates:
             translation: 0,0,0
             yaw: 90
         count_3_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -133,7 +161,9 @@ templates:
             scale: 1.0
             translation: 0,0,0
         count_3_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -142,7 +172,9 @@ templates:
             translation: 0,0,0
             yaw: 180
         count_3_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -183,6 +215,11 @@ templates:
           appearance: count_3_south
         bites=3,facing=west:
           appearance: count_3_west
+    settings:
+      can_occlude: false
+      is_view_blocking: false
+      use_shape_for_light_occlusion: false
+      light_dampening: 0
   farmersdelight:pie_events:
     events:
       - on: break
@@ -879,6 +916,10 @@ blocks:
     arguments:
       drop_item: farmersdelight:apple_pie
     settings:
+      can_occlude: false
+      is_view_blocking: false
+      use_shape_for_light_occlusion: false
+      light_dampening: 0
       push-reaction: destroy
       hardness: 0.5
       template:
@@ -899,6 +940,10 @@ blocks:
     arguments:
       drop_item: farmersdelight:sweet_berry_cheesecake
     settings:
+      can_occlude: false
+      is_view_blocking: false
+      use_shape_for_light_occlusion: false
+      light_dampening: 0
       push-reaction: destroy
       hardness: 0.5
       template:
@@ -919,6 +964,10 @@ blocks:
     arguments:
       drop_item: farmersdelight:chocolate_pie
     settings:
+      can_occlude: false
+      is_view_blocking: false
+      use_shape_for_light_occlusion: false
+      light_dampening: 0
       push-reaction: destroy
       hardness: 0.5
       template:
@@ -934,6 +983,10 @@ blocks:
         step: minecraft:block.wool.step
   farmersdelight:roast_chicken_block:
     settings:
+      can_occlude: false
+      is_view_blocking: false
+      use_shape_for_light_occlusion: false
+      light_dampening: 0
       push-reaction: destroy
       map-color: wood
       hardness: 0.5
@@ -956,7 +1009,9 @@ blocks:
           default: north
       appearances:
         count_0_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -965,7 +1020,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_0_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -973,7 +1030,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_0_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -982,7 +1041,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_0_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -991,7 +1052,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_1_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1000,7 +1063,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_1_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1008,7 +1073,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_1_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1017,7 +1084,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_1_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1026,7 +1095,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_2_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1035,7 +1106,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_2_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1043,7 +1116,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_2_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1052,7 +1127,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_2_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1061,7 +1138,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_3_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1070,7 +1149,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_3_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1078,7 +1159,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_3_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1087,7 +1170,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_3_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1096,7 +1181,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_4_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1105,7 +1192,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_4_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1113,7 +1202,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_4_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1122,7 +1213,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_4_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1178,6 +1271,10 @@ blocks:
       leftover_item: minecraft:bone_meal
   farmersdelight:stuffed_pumpkin_block:
     settings:
+      can_occlude: false
+      is_view_blocking: false
+      use_shape_for_light_occlusion: false
+      light_dampening: 0
       push-reaction: destroy
       map-color: wood
       hardness: 0.5
@@ -1200,7 +1297,9 @@ blocks:
           default: north
       appearances:
         count_0_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1209,7 +1308,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_0_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1217,7 +1318,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_0_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1226,7 +1329,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_0_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1235,7 +1340,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_1_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1244,7 +1351,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_1_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1252,7 +1361,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_1_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1261,7 +1372,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_1_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1270,7 +1383,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_2_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1279,7 +1394,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_2_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1287,7 +1404,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_2_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1296,7 +1415,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_2_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1305,7 +1426,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_3_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1314,7 +1437,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_3_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1322,7 +1447,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_3_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1331,7 +1458,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_3_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1524,6 +1653,10 @@ blocks:
           - type: cancel_event
   farmersdelight:honey_glazed_ham_block:
     settings:
+      can_occlude: false
+      is_view_blocking: false
+      use_shape_for_light_occlusion: false
+      light_dampening: 0
       push-reaction: destroy
       map-color: wood
       hardness: 0.5
@@ -1546,7 +1679,9 @@ blocks:
           default: north
       appearances:
         count_0_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1555,7 +1690,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_0_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1563,7 +1700,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_0_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1572,7 +1711,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_0_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1581,7 +1722,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_1_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1590,7 +1733,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_1_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1598,7 +1743,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_1_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1607,7 +1754,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_1_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1616,7 +1765,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_2_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1625,7 +1776,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_2_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1633,7 +1786,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_2_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1642,7 +1797,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_2_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1651,7 +1808,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_3_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1660,7 +1819,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_3_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1668,7 +1829,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_3_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1677,7 +1840,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_3_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1686,7 +1851,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_4_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1695,7 +1862,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_4_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1703,7 +1872,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_4_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1712,7 +1883,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_4_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1768,6 +1941,10 @@ blocks:
       leftover_item: minecraft:bone
   farmersdelight:shepherds_pie_block:
     settings:
+      can_occlude: false
+      is_view_blocking: false
+      use_shape_for_light_occlusion: false
+      light_dampening: 0
       push-reaction: destroy
       map-color: wood
       hardness: 0.5
@@ -1790,7 +1967,9 @@ blocks:
           default: north
       appearances:
         count_0_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1799,7 +1978,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_0_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1807,7 +1988,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_0_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1816,7 +1999,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_0_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1825,7 +2010,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_1_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1834,7 +2021,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_1_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1842,7 +2031,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_1_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1851,7 +2042,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_1_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1860,7 +2053,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_2_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1869,7 +2064,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_2_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1877,7 +2074,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_2_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1886,7 +2085,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_2_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1895,7 +2096,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_3_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1904,7 +2107,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_3_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1912,7 +2117,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_3_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1921,7 +2128,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_3_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1930,7 +2139,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_4_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1939,7 +2150,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_4_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1947,7 +2160,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_4_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -1956,7 +2171,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_4_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2011,6 +2228,10 @@ blocks:
       serving_item: farmersdelight:shepherds_pie
   farmersdelight:gleaming_salad_block:
     settings:
+      can_occlude: false
+      is_view_blocking: false
+      use_shape_for_light_occlusion: false
+      light_dampening: 0
       push-reaction: destroy
       map-color: wood
       hardness: 0.5
@@ -2033,7 +2254,9 @@ blocks:
           default: north
       appearances:
         count_0_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2042,7 +2265,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_0_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2050,7 +2275,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_0_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2059,7 +2286,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_0_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2068,7 +2297,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_1_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2077,7 +2308,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_1_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2085,7 +2318,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_1_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2094,7 +2329,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_1_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2103,7 +2340,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_2_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2112,7 +2351,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_2_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2120,7 +2361,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_2_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2129,7 +2372,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_2_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2138,7 +2383,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_3_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2147,7 +2394,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_3_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2155,7 +2404,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_3_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2164,7 +2415,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_3_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2173,7 +2426,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_4_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2182,7 +2437,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_4_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2190,7 +2447,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_4_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2199,7 +2458,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_4_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2286,6 +2547,10 @@ blocks:
       serving_item: farmersdelight:gleaming_salad
   farmersdelight:rice_roll_medley_block:
     settings:
+      can_occlude: false
+      is_view_blocking: false
+      use_shape_for_light_occlusion: false
+      light_dampening: 0
       push-reaction: destroy
       map-color: wood
       hardness: 0.5
@@ -2308,7 +2573,9 @@ blocks:
           default: north
       appearances:
         count_0_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2317,7 +2584,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_0_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2325,7 +2594,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_0_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2334,7 +2605,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_0_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2343,7 +2616,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_1_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2352,7 +2627,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_1_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2360,7 +2637,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_1_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2369,7 +2648,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_1_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2378,7 +2659,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_2_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2387,7 +2670,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_2_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2395,7 +2680,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_2_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2404,7 +2691,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_2_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2413,7 +2702,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_3_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2422,7 +2713,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_3_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2430,7 +2723,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_3_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2439,7 +2734,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_3_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2448,7 +2745,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_4_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2457,7 +2756,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_4_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2465,7 +2766,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_4_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2474,7 +2777,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_4_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2483,7 +2788,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_5_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2492,7 +2799,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_5_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2500,7 +2809,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_5_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2509,7 +2820,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_5_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2518,7 +2831,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_6_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2527,7 +2842,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_6_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2535,7 +2852,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_6_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2544,7 +2863,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_6_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2553,7 +2874,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_7_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2562,7 +2885,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_7_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2570,7 +2895,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_7_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2579,7 +2906,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_7_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2588,7 +2917,9 @@ blocks:
             translation: 0,0,0
             yaw: 270
         count_8_east:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2597,7 +2928,9 @@ blocks:
             translation: 0,0,0
             yaw: 90
         count_8_north:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2605,7 +2938,9 @@ blocks:
             scale: 1.0
             translation: 0,0,0
         count_8_south:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -2614,7 +2949,9 @@ blocks:
             translation: 0,0,0
             yaw: 180
         count_8_west:
-          auto_state: higher_tripwire
+          auto_state:
+            type: solid
+            id: ${__ID__}
           transparent: true
           entity-renderer:
             type: item_display
@@ -3011,6 +3348,10 @@ blocks:
     arguments:
       drop_item: minecraft:pumpkin_pie
     settings:
+      can_occlude: false
+      is_view_blocking: false
+      use_shape_for_light_occlusion: false
+      light_dampening: 0
       push-reaction: destroy
       hardness: 0.5
       template:
