@@ -1,6 +1,8 @@
 translations:
   en:
     block.farmersdelight.basket: "Basket"
+    block.farmersdelight.bamboo_basket: "Bamboo Basket"
+    block.farmersdelight.wooden_basket: "Basket"
     block.farmersdelight.cabinet: "Cabinet"
     block.farmersdelight.cooking_pot: "Cooking Pot"
     block.farmersdelight.cutting_board: "Cutting Board"
@@ -237,6 +239,8 @@ translations:
 
   zh_cn:
     block.farmersdelight.basket: "篮子"
+    block.farmersdelight.bamboo_basket: "竹篮"
+    block.farmersdelight.wooden_basket: "木篮"
     block.farmersdelight.cabinet: "橱柜"
     block.farmersdelight.cooking_pot: "厨锅"
     block.farmersdelight.cutting_board: "砧板"
@@ -473,6 +477,8 @@ translations:
 
   ko_kr:
     block.farmersdelight.basket: "바구니"
+    block.farmersdelight.bamboo_basket: "대나무 바구니"
+    block.farmersdelight.wooden_basket: "나무 바구니"
     block.farmersdelight.cabinet: "식료품 선반"
     block.farmersdelight.cooking_pot: "조리용 냄비"
     block.farmersdelight.cutting_board: "도마"

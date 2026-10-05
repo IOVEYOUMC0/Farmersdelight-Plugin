@@ -39,15 +39,19 @@ class FarmersDelightLegacyIdsTest {
     }
 
     @Test
-    void theRegistrationMapsTheOldStickOntoTheCookedMeatSkewer() {
+    void theRegistrationMapsTheRenamedIdsOntoTheirReplacements() {
         FarmersDelightLegacyIds.register();
 
         assertEquals(CURRENT, LegacyIdMigration.resolveId(LEGACY), "1.4 renamed the stick to the cooked skewer");
-        assertEquals(1, LegacyIdMigration.size());
+        assertEquals("farmersdelight:bamboo_basket", LegacyIdMigration.resolveId("farmersdelight:basket"),
+                "1.3.4 renamed the basket to the bamboo basket");
+        assertEquals(2, LegacyIdMigration.size());
         assertFalse(LegacyIdMigration.isEmpty(), "the automatic hooks only run while the table is not empty");
         assertEquals(0, LegacyIdMigration.conflictCount());
         assertNull(LegacyIdMigration.resolveId("farmersdelight:meat_skewer"),
                 "the raw skewer is a new id, not a migration target");
+        assertNull(LegacyIdMigration.resolveId("farmersdelight:wooden_basket"),
+                "the wooden basket is a new id, not a migration target");
     }
 
     @Test
@@ -58,10 +62,61 @@ class FarmersDelightLegacyIdsTest {
         FarmersDelightLegacyIds.register();
         FarmersDelightLegacyIds.register();
 
-        assertEquals(1, LegacyIdMigration.size(), "the service may start twice; the table must not grow");
+        assertEquals(2, LegacyIdMigration.size(), "the service may start twice; the table must not grow");
         assertEquals(0, LegacyIdMigration.conflictCount(), "an identical re-registration is not a conflict");
         assertEquals(List.of(), reports);
         assertEquals(CURRENT, LegacyIdMigration.resolveId(LEGACY));
+    }
+
+    @Test
+    void theBasketDefinitionsStayAndTheTwoNewBasketsAreInPlace() {
+        ConfigurationSection blocksFile = pack("craftengine/farmersdelight/configuration/blocks.yml");
+        ConfigurationSection basketItems = blocksFile.getConfigurationSection("items");
+        ConfigurationSection basketBlocks = blocksFile.getConfigurationSection("block");
+        assertNotNull(basketItems, "blocks.yml has to keep its items section");
+        assertNotNull(basketBlocks, "blocks.yml has to keep its block section");
+
+        assertTrue(basketItems.isConfigurationSection("farmersdelight:basket"),
+                "the legacy basket item stays until old stacks are gone");
+        assertTrue(basketBlocks.isConfigurationSection("farmersdelight:basket"),
+                "the legacy basket block stays: a placed basket keeps its old id, which the facility does not"
+                        + " migrate, and removing the definition would turn it into air");
+        for (String name : new String[]{"bamboo_basket", "wooden_basket"}) {
+            assertTrue(basketItems.isConfigurationSection("farmersdelight:" + name),
+                    name + " needs an item definition (the block_item behaviour places the block)");
+            assertTrue(basketBlocks.isConfigurationSection("farmersdelight:" + name),
+                    name + " needs a block definition");
+        }
+    }
+
+    @Test
+    void noRecipeProducesTheRemovedBasketAndBothNewOnesHaveOne() {
+        List<String> producers = new ArrayList<>();
+        List<String> newBaskets = new ArrayList<>();
+        for (String file : new String[]{"items.yml", "blocks.yml"}) {
+            ConfigurationSection recipes = pack("craftengine/farmersdelight/configuration/" + file)
+                    .getConfigurationSection("recipes");
+            if (recipes == null) {
+                continue;
+            }
+            for (String key : recipes.getKeys(false)) {
+                ConfigurationSection result = recipes.getConfigurationSection(key + ".result");
+                if (result == null) {
+                    continue;
+                }
+                String id = result.getString("id");
+                if ("farmersdelight:basket".equals(id)) {
+                    producers.add(file + ":" + key);
+                } else if ("farmersdelight:bamboo_basket".equals(id) || "farmersdelight:wooden_basket".equals(id)) {
+                    newBaskets.add(id);
+                }
+            }
+        }
+
+        assertEquals(List.of(), producers, "the renamed basket is no longer crafted");
+        assertTrue(newBaskets.contains("farmersdelight:bamboo_basket"), newBaskets.toString());
+        assertTrue(newBaskets.contains("farmersdelight:wooden_basket"), newBaskets.toString());
+        assertEquals(2, newBaskets.size(), "exactly one recipe per new basket: " + newBaskets);
     }
 
     @Test
