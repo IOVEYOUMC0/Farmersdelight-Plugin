@@ -14,6 +14,10 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Claims CraftEngine pack sections for one addon, so its own content can ship inside its pack instead of a
@@ -28,10 +33,9 @@ import java.util.Map;
  *
  *
  * CraftEngine reads every <pack>/configuration/**.yml (and the same path inside
- * subpacks/&lt;name&gt;/), splits a file by root key and hands each root whose value is a mapping to the
+ * subpacks/<name>/), splits a file by root key and hands each root whose value is a mapping to the
  * parser registered for that key. Claim the keys your addon owns:
  *
- * <pre>
  * // onLoad: must run before CraftEngine loads packs, which happens in its own onEnable
  * kegSections = AddonPackSections.claim(this, "brewinandchewin:keg",
  *         Map.of("keg_recipes", "keg_recipes", "keg_pouring_recipes", "keg_fluids"));
@@ -40,7 +44,6 @@ import java.util.Map;
  * for (AddonPackSections.Section section : kegSections.sections("keg_recipes")) {
  *     ConfigurationSection root = section.config().getConfigurationSection("keg_recipes");
  * }
- * </pre>
  *
  *
  * The claimed id must be the file's root key, and it must not collide with a section CraftEngine or
@@ -111,6 +114,85 @@ public final class AddonPackSections extends AbstractConfigParser {
             }
         }
         return List.copyOf(merged.values());
+    }
+
+    /**
+     * The same entries, read straight out of a file the plugin ships (a jar resource), for the window in which
+     * CraftEngine has not dispatched the claimed sections yet: a plugin loaded before CraftEngine (its
+     * load: BEFORE dependency) enables before CraftEngine loads packs, so reading only the claim would
+     * silently see nothing at startup. The file is the pack's own configuration file, so its root key and body
+     * are exactly what the claim would have handed over.
+     *
+     * @param plugin       owning plugin, used to resolve the bundled resource
+     * @param resourcePath jar path of the pack file, e.g. craftengine/keg/configuration/recipes/keg_recipes.yml
+     * @param rootKey      root key inside that file
+     * @return the entries, or an empty list when the resource or its root key is missing
+     */
+    public static List<Entry> entriesFromResource(JavaPlugin plugin, String resourcePath, String rootKey) {
+        if (plugin == null || resourcePath == null || rootKey == null) {
+            return List.of();
+        }
+        ConfigurationSection root;
+        try (InputStream stream = plugin.getResource(resourcePath)) {
+            if (stream == null) {
+                return List.of();
+            }
+            YamlConfiguration yaml = YamlConfiguration.loadConfiguration(
+                    new InputStreamReader(stream, StandardCharsets.UTF_8));
+            root = yaml.getConfigurationSection(rootKey);
+        } catch (IOException | RuntimeException error) {
+            return List.of();
+        }
+        if (root == null) {
+            return List.of();
+        }
+        Map<String, Entry> entries = new LinkedHashMap<>();
+        for (String id : root.getKeys(false)) {
+            ConfigurationSection body = root.getConfigurationSection(id);
+            if (body != null) {
+                entries.put(id, new Entry(id, body, "jar:" + resourcePath));
+            }
+        }
+        return List.copyOf(entries.values());
+    }
+
+    /**
+     * The message a caller logs when a claimed section resolved to no entries, or null when there is something
+     * to load. Empty used to be silent - CraftEngine suppresses its own "config loaded" line for a parser whose
+     * count is zero - which is how a plugin whose packs have not been dispatched yet reported "0 recipes"
+     * without a single warning.
+     */
+    static String emptySectionMessage(AddonPackSections claim, String sectionId, String rootKey,
+                                      List<String> sources, List<Entry> entries) {
+        if (sectionId == null || sectionId.isEmpty() || (entries != null && !entries.isEmpty())) {
+            return null;
+        }
+        return "No entries for pack section '" + sectionId + "' (root key '" + rootKey + "', claim "
+                + (claim == null ? "none" : (claim.registered() ? claim.claimId() : claim.claimId() + " UNREGISTERED"))
+                + "): tried " + String.join(", ", sources)
+                + ". CraftEngine dispatches claimed sections while it loads packs in its own onEnable, so a"
+                + " plugin enabled before CraftEngine sees them only after a reload; the bundled pack file is"
+                + " read directly instead.";
+    }
+
+    /** The message above, logged once through the plugin logger. Call it after every source came up empty. */
+    public static void warnIfEmpty(JavaPlugin plugin, AddonPackSections claim, String sectionId, String rootKey,
+                                   List<String> sources, List<Entry> entries) {
+        warnIfEmpty(message -> warn(plugin, message), claim, sectionId, rootKey, sources, entries);
+    }
+
+    /** Test seam: the same decision, with the console handed in. */
+    public static void warnIfEmpty(Consumer<String> warn, AddonPackSections claim, String sectionId,
+                                   String rootKey, List<String> sources, List<Entry> entries) {
+        String message = emptySectionMessage(claim, sectionId, rootKey, sources, entries);
+        if (message != null && warn != null) {
+            warn.accept(message);
+        }
+    }
+
+    /** The registry key this claim was registered under, for diagnostics. */
+    public String claimId() {
+        return type.toString();
     }
 
     private final JavaPlugin plugin;

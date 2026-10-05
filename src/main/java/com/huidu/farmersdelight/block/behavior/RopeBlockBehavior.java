@@ -236,10 +236,17 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
         if (bukkitPlayer == null) return InteractionResult.PASS;
 
         ItemStack hand = ItemUtils.getItemInHand(bukkitPlayer, context.getHand());
-        // Empty hand is the bell-ringing case, which lives in useWithoutItem. CraftEngine only calls that method
-        // when useOnBlock reports TRY_EMPTY_HAND (the value BlockBehavior returns by default); PASS ends the
-        // dispatch here and would leave the whole bell path unreachable.
-        if (hand == null || hand.getType().isAir()) return InteractionResult.TRY_EMPTY_HAND;
+        // Empty hand is the bell-ringing case. CraftEngine only calls useWithoutItem when useOnBlock reports
+        // TRY_EMPTY_HAND, and it decides for itself whether it does; ringing from here as well means a rope whose
+        // top holds a bell always answers the click — the reported "the bell at the top of the rope does not
+        // ring" defect. Vanilla is untouched: this only runs for a click that landed on the plugin's rope.
+        if (hand == null || hand.getType().isAir()) {
+            if (tryRingBellAbove(bukkitPlayer, (World) context.getLevel().platformWorld(),
+                    context.getClickedPos())) {
+                return InteractionResult.SUCCESS_AND_CANCEL;
+            }
+            return InteractionResult.TRY_EMPTY_HAND;
+        }
 
         String handItemId = ItemUtils.getCustomItemId(hand);
         if (handItemId == null || !state.owner().value().id().toString().equals(handItemId)) {
@@ -321,33 +328,43 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
         }
 
         World world = (World) context.getLevel().platformWorld();
-        BlockPos pos = context.getClickedPos();
+        return tryRingBellAbove(bukkitPlayer, world, context.getClickedPos())
+                ? InteractionResult.SUCCESS : InteractionResult.PASS;
+    }
 
-        // Mirror vanilla RopeBlock.useWithoutItem: walk up through a contiguous rope column (max 24 blocks) and
-        // ring the first bell found. Any gap, or any block that is neither a rope nor a bell, stops the search.
+    /**
+     * Rings the first bell above the clicked rope, if there is one, and reports whether it rang.
+     *
+     * Upstream parity: walk up through a contiguous rope column (max rope.bell-ring-max-distance
+     * blocks) and ring the first bell found; any gap, or any block that is neither a rope nor a bell, ends the
+     * search. A click on anything but the plugin's rope never reaches here, so a vanilla bell or any other block keeps
+     * its own interaction.
+     */
+    private boolean tryRingBellAbove(Player player, World world, BlockPos pos) {
+        if (player == null || world == null || pos == null) {
+            return false;
+        }
+        int maxDistance = Math.max(1, plugin.getConfigInt(24, "rope.bell-ring-max-distance"));
         int x = pos.x();
         int z = pos.z();
-        int maxDistance = Math.max(1, plugin.getConfigInt(24, "rope.bell-ring-max-distance"));
-        for (int i = 1, y = pos.y() + 1; i <= maxDistance && y < world.getMaxHeight(); i++, y++) {
-            Block above = world.getBlockAt(x, y, z);
-            if (above.getType() == Material.BELL) {
-                // The bell can sit up to the configured distance away, so it needs its own use check: the click
-                // itself is covered by the protection plugin cancelling the interact event on the rope, but the
-                // bell that far away is not.
-                if (!ProtectionCompat.canUse(bukkitPlayer, above, ProtectionCompat.Feature.ROPE)) {
-                    return InteractionResult.PASS;
-                }
-                ringBell(above, bukkitPlayer);
-                // The rope's appearance is not one of the blocks the client predicts an interaction for, so
-                // the swing has to be sent from here.
-                bukkitPlayer.swingMainHand();
-                return InteractionResult.SUCCESS;
-            }
-            if (!CustomBlockUtils.hasBehavior(above, RopeBlockBehavior.class)) {
-                return InteractionResult.PASS;
-            }
+        int bellOffset = RopeBellScan.findBellOffset(maxDistance,
+                offset -> CustomBlockUtils.hasBehavior(world.getBlockAt(x, pos.y() + 1 + offset, z),
+                        RopeBlockBehavior.class),
+                offset -> world.getBlockAt(x, pos.y() + 1 + offset, z).getType() == Material.BELL);
+        if (bellOffset < 0) {
+            return false;
         }
-        return InteractionResult.PASS;
+
+        Block bell = world.getBlockAt(x, pos.y() + 1 + bellOffset, z);
+        // The bell can sit up to the configured distance away, so it needs its own use check.
+        if (!ProtectionCompat.canUse(player, bell, ProtectionCompat.Feature.ROPE)) {
+            return false;
+        }
+        ringBell(bell, player);
+        // The rope's appearance is not one of the blocks the client predicts an interaction for, so the swing
+        // has to be sent from here.
+        player.swingMainHand();
+        return true;
     }
 
     private void ringBell(Block bell, Player player) {

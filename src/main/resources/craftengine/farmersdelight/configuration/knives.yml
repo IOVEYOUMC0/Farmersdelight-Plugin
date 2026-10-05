@@ -3,6 +3,9 @@ items:
     material: nether_brick
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
+      components:
+        minecraft:enchantable:
+          value: 14
       item-name: <!i><lang:item.farmersdelight.flint_knife>
       max-stack-size: 1
       hide-tooltip:
@@ -33,6 +36,9 @@ items:
     material: nether_brick
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
+      components:
+        minecraft:enchantable:
+          value: 14
       item-name: <!i><lang:item.farmersdelight.iron_knife>
       max-stack-size: 1
       hide-tooltip:
@@ -63,6 +69,9 @@ items:
     material: nether_brick
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
+      components:
+        minecraft:enchantable:
+          value: 22
       item-name: <!i><lang:item.farmersdelight.golden_knife>
       max-stack-size: 1
       hide-tooltip:
@@ -93,6 +102,9 @@ items:
     material: nether_brick
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
+      components:
+        minecraft:enchantable:
+          value: 10
       item-name: <!i><lang:item.farmersdelight.diamond_knife>
       max-stack-size: 1
       hide-tooltip:
@@ -124,6 +136,8 @@ items:
     model: ${__NAMESPACE__}:item/${__ID__}
     data:
       components:
+        minecraft:enchantable:
+          value: 15
         minecraft:max_stack_size: 1
       item-name: <!i><lang:item.farmersdelight.netherite_knife>
       hide-tooltip:

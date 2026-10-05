@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The legacy {@code basket} block keeps its definition (old worlds still hold it) but breaks into the 1.4 item:
+ * The legacy basket block keeps its definition (old worlds still hold it) but breaks into the 1.4 item:
  * a placed basket drops a bamboo basket, so a player who removes one ends up with the current id even before
  * the migration layer sees anything. The two new baskets are untouched and still drop themselves.
  *

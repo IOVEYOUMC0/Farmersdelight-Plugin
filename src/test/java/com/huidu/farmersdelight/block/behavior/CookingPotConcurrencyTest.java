@@ -67,7 +67,7 @@ class CookingPotConcurrencyTest {
         CookingPotBlockEntity be = freshPot();
         seedOutput(be, 32);
         // closeOpenGuisAt(world,x,y,z) tears the BE state down ahead of the actual block break to
-        // prevent a click from racing in after; we simulate the clear here and assert a stray click
+        // prevent a click from racing in after; the test simulates the clear here and asserts a stray click
         // can't manufacture an item.
         be.setInventorySlot(OUTPUT_SLOT, null);
         assertNull(be.takeOutputSlotPortionForDelivery(OUTPUT_SLOT, 1),
@@ -118,7 +118,7 @@ class CookingPotConcurrencyTest {
     // ----- helpers -----
 
     private static CookingPotBlockEntity freshPot() {
-        // null World keeps syncWorldlyContainer() a no-op so we don't drag CE's block manager into the test.
+        // null World keeps syncWorldlyContainer() a no-op so CE's block manager is not dragged into the test.
         return new CookingPotBlockEntity(null, new BlockPosKey(0, 0, 0), null, CookingPotLayout.DEFAULT, null);
     }
 

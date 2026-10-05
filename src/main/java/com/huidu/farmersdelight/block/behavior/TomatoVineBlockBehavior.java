@@ -40,7 +40,7 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
     @Override
     public boolean isValidBonemealTarget(Object thisBlock, Object[] args) {
         // Always advertise as a valid target so vanilla doesn't reject the bonemeal use early — the
-        // sibling crop_block behavior controls the real "is at max age" gate, and our climb attempt
+        // sibling crop_block behavior controls the real "is at max age" gate, and the climb attempt
         // has its own guards inside tryClimb (rope present, column height, light).
         return true;
     }

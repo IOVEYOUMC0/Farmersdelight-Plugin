@@ -50,12 +50,12 @@ public interface RecipeBookLayout extends GuiLayout {
     }
 
     /**
-     * The normalised legend type of one cell, the primitive the shared {@link GuiLayout} view is derived
+     * The normalised legend type of one cell, the primitive the shared GuiLayout view is derived
      * from: a cell outside the drawn grid, and a legend entry that is null or blank, both read as
-     * {@link GuiLayout#BACKGROUND}.
+     * GuiLayout#BACKGROUND.
      *
      *
-     * The blank normalisation is what keeps this view and {@code GuiLayouts.cellTypes} agreeing. The config
+     * The blank normalisation is what keeps this view and GuiLayouts.cellTypes agreeing. The config
      * reader copies a legend value straight out of gui.yml, so a key written without a value arrives as null;
      * treating that as a type of its own would make the cell functional here while the normalising reader
      * calls the same cell background.
@@ -82,11 +82,8 @@ public interface RecipeBookLayout extends GuiLayout {
     }
 
     /**
-     * {@inheritDoc}
-     *
-     *
-     * Answered from the grid, like {@link #slotsByType(String)} but as the shared view's array: a cell the
-     * grid does not draw reads as {@link GuiLayout#BACKGROUND}, so asking for that type lists the undrawn
+     * Answered from the grid, like slotsByType(String) but as the shared view's array: a cell the
+     * grid does not draw reads as GuiLayout#BACKGROUND, so asking for that type lists the undrawn
      * cells as well.
      */
     @Override

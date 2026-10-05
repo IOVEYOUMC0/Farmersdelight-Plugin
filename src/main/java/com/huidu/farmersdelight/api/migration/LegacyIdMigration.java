@@ -16,31 +16,29 @@ import java.util.function.Consumer;
  * Lets an addon declare item ids that used to exist and now have a replacement, so stacks that are already
  * in the world are rewritten the next time FarmersDelight touches them.
  *
- * <p>CraftEngine has no alias mechanism, so a renamed id would otherwise leave every existing stack as an
- * unknown item. Addons call {@link #registerItem(Key, ItemStack)} (or the {@link Key} overload) from their
- * {@code onEnable}, after FarmersDelight has loaded; the plugin's automatic hooks then rewrite those stacks
+ * CraftEngine has no alias mechanism, so a renamed id would otherwise leave every existing stack as an
+ * unknown item. Addons call registerItem(Key, ItemStack) (or the Key overload) from their
+ * onEnable, after FarmersDelight has loaded; the plugin's automatic hooks then rewrite those stacks
  * on the thread that owns them. No addon code has to run on its own.
  *
- * <p><b>Precondition:</b> the legacy id must still have an item definition in the pack that produced it,
+ * Precondition: the legacy id must still have an item definition in the pack that produced it,
  * otherwise CraftEngine turns the old stack into an unknown item before anything here can see it, and
- * {@link #isLegacy(ItemStack)} will never match. Keep the old definition in the pack (even pointing at the
+ * isLegacy(ItemStack) will never match. Keep the old definition in the pack (even pointing at the
  * same model) for as long as old stacks may exist.
  *
- * <p>Contract of {@link #migrate(ItemStack)}:
- * <ul>
- *   <li>An id that is not registered is returned unchanged, as is an empty stack or {@code null}.</li>
- *   <li>A registered id becomes the replacement item; the stack <em>amount</em> is kept.</li>
- *   <li>Persistent data is <em>merged</em>: entries the replacement already carries win (this includes the
+ * Contract of migrate(ItemStack):
+ *   - An id that is not registered is returned unchanged, as is an empty stack or null.
+ *   - A registered id becomes the replacement item; the stack amount is kept.
+ *   - Persistent data is merged: entries the replacement already carries win (this includes the
  *       CraftEngine id key, so the result really is the new item), and entries only the old stack had are
  *       carried over. Anything else on the old stack — custom name, lore, enchantments, damage — is not
  *       copied; an addon that needs those should pass a fully prepared replacement stack to
- *       {@link #registerItem(Key, ItemStack)}, whose own meta is used as the template.</li>
- *   <li>Calling it again on a migrated stack changes nothing (the new id is not registered as legacy).</li>
- *   <li>Threading: it only reads the stack it is given and performs no world access, so any thread or region
- *       may call it. The automatic hooks always call it on the owner of the inventory or entity.</li>
- * </ul>
+ *       registerItem(Key, ItemStack), whose own meta is used as the template.
+ *   - Calling it again on a migrated stack changes nothing (the new id is not registered as legacy).
+ *   - Threading: it only reads the stack it is given and performs no world access, so any thread or region
+ *       may call it. The automatic hooks always call it on the owner of the inventory or entity.
  *
- * <p>Registering the same legacy id twice keeps the first mapping and reports the second, so two addons
+ * Registering the same legacy id twice keeps the first mapping and reports the second, so two addons
  * cannot silently fight over one id.
  */
 @ApiStatus.NonExtendable
@@ -83,7 +81,7 @@ public final class LegacyIdMigration {
     }
 
     /**
-     * Declares that {@code legacyId} should become the item in {@code replacement}, which is also the meta
+     * Declares that legacyId should become the item in replacement, which is also the meta
      * template for the migrated stack (amount is taken from the old stack).
      */
     public static void registerItem(Key legacyId, ItemStack replacement) {
@@ -99,7 +97,7 @@ public final class LegacyIdMigration {
         register(legacyId.toString(), currentId);
     }
 
-    /** Declares that {@code legacyId} should become {@code currentId}, using that item's own definition. */
+    /** Declares that legacyId should become currentId, using that item's own definition. */
     public static void registerItem(Key legacyId, Key currentId) {
         if (legacyId == null || currentId == null) {
             return;
@@ -137,7 +135,7 @@ public final class LegacyIdMigration {
         return replace(currentId, stack, stack.getAmount(), active);
     }
 
-    /** The id {@code legacyId} ends up as, or null when it is not registered. Testable without a server. */
+    /** The id legacyId ends up as, or null when it is not registered. Testable without a server. */
     @Nullable
     public static String resolveId(@Nullable String legacyId) {
         return resolve(legacyId);

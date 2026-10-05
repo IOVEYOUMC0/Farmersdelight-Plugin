@@ -24,9 +24,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * out.
  *
  *
- * CraftEngine allocates one state per APPEARANCE, not per block: a plain {@code auto_state: x} is keyed
- * {@code "<block>[appearance=<name>]"} (AbstractBlockManager:642/646/650), and only the advanced form
- * {@code auto_state: {type: x, id: y}} reuses one allocation for every appearance that names the same id
+ * CraftEngine allocates one state per APPEARANCE, not per block: a plain auto_state: x is keyed
+ * "<block>[appearance=<name>]" (AbstractBlockManager:642/646/650), and only the advanced form
+ * auto_state: {type: x, id: y} reuses one allocation for every appearance that names the same id
  * (:640, VisualBlockStateAllocator.requestAutoState). The food family used to ask the tripwire group for
  * ~196 allocations while that group only owns 63, which the occupancy guard cannot see because auto_state is
  * not a pin. This test makes that arithmetic fail the build instead.
@@ -150,8 +150,8 @@ class AutoStateBudgetTest {
 
     /**
      * Allocation keys, exactly as AbstractBlockManager builds them, with template inheritance expanded: a block
-     * inherits the appearances of every template it lists, and {@code ${__ID__}} resolves to the owning block.
-     * With {@code plainAsAppearances} the advanced form is treated as plain, which is how a dropped {@code id}
+     * inherits the appearances of every template it lists, and ${__ID__} resolves to the owning block.
+     * With plainAsAppearances the advanced form is treated as plain, which is how a dropped id
      * behaves.
      */
     private static Map<String, List<String>> allocationKeys(boolean plainAsAppearances) {

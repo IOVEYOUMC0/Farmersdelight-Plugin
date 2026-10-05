@@ -9,7 +9,6 @@ public final class FarmersDelightTags {
     public static final String BLOCK_HEAT_SOURCES = "farmersdelight:heat_sources";
     public static final String BLOCK_HEAT_CONDUCTORS = "farmersdelight:heat_conductors";
     public static final String BLOCK_TRAY_HEAT_SOURCES = "farmersdelight:tray_heat_sources";
-    public static final String BLOCK_DROPS_CAKE_SLICE = "farmersdelight:drops_cake_slice";
     public static final String BLOCK_MUSHROOM_COLONY_GROWABLE_ON = "farmersdelight:mushroom_colony_growable_on";
     public static final String BLOCK_PLANTED_FROM_BELOW = "farmersdelight:planted_from_below";
     public static final String BLOCK_FEASTS = "farmersdelight:feasts";

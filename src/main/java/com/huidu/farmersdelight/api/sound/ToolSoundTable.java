@@ -17,7 +17,6 @@ import java.util.concurrent.ThreadLocalRandom;
  * stack wins, so listing a specific item above the tag it belongs to overrides that tag. Values are
  * either a bare sound key or a map:
  *
- * <pre>
  * tool-sounds:
  *   minecraft:shears: minecraft:entity.sheep.shear
  *   "#farmersdelight:tools/knives":
@@ -25,7 +24,6 @@ import java.util.concurrent.ThreadLocalRandom;
  *     volume: 0.8
  *     pitch-min: 0.9
  *     pitch-max: 1.1
- * </pre>
  *
  *
  * Addon stations can build one of these for their own tools instead of hardcoding a sound per tool.

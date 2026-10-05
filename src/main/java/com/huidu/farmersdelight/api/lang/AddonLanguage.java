@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
- * Language-file manager for addons. Bundled lang files are copied to plugins/&lt;Plugin&gt;/lang/ so
+ * Language-file manager for addons. Bundled lang files are copied to plugins/<Plugin>/lang/ so
  * operators can edit them; init() merges missing keys and restores corrupted files, reload() re-reads
  * the data folder. The locale follows the addon's config.yml "language" setting; when it is left
  * empty it inherits FarmersDelight's own resolved server locale (I18n.getDefaultLocale()), then

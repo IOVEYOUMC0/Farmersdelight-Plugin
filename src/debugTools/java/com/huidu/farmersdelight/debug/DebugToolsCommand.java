@@ -78,7 +78,7 @@ import java.util.function.BiPredicate;
  * source set is compiled into the plugin only when the build passes -PdebugTools=true, so a main-side
  * rename or removal that this class calls into is caught by that build alone.
  *
- * <p>It reads one key that no shipped config.yml defines:
+ * It reads one key that no shipped config.yml defines:
  * CONFIG_MAX_PLACE_COUNT caps how many blocks a single place, test or recipe-setup
  * run may create, falling back to DEFAULT_MAX_PLACE_COUNT. The debug and release builds package the
  * same src/main/resources/config.yml, so a debug-only entry would ship to every server and is
@@ -459,7 +459,7 @@ public final class DebugToolsCommand {
      * slice place and fill at once. Returns how many setups were resolved and attempted, so the caller can
      * report a shortfall.
      *
-     * <p>Each setup's location is computed before the first slice, so the station and fill passes cannot
+     * Each setup's location is computed before the first slice, so the station and fill passes cannot
      * disagree about where the block went, and a position that turns out to be uneditable only skips itself.
      */
     private int placeRecipeSetups(Player player, String type, int loaded, List<RecipeChoice> selected) {
