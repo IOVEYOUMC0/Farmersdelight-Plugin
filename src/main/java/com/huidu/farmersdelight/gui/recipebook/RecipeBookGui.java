@@ -541,31 +541,59 @@ public final class RecipeBookGui implements InventoryHolder {
     }
 
     private void applyFillOutcome(Player player, FillOutcome outcome, RenderSpec cfg) {
-        String statusKey = switch (outcome) {
+        int fillSlot = cfg.firstSlotByType("fill");
+        if (fillSlot < 0) {
+            return;
+        }
+        // A book that configures a button per outcome shows that button; a book that does not keeps the
+        // original behaviour: the status appended as a lore line to the fill button, not a chat message.
+        String variantKey = fillVariantKey(outcome);
+        ItemStack variant = variantKey == null ? null : cfg.button(variantKey);
+        if (variant != null) {
+            inventory.setItem(fillSlot, variant);
+            return;
+        }
+        String statusKey = fillStatusKey(outcome);
+        if (statusKey == null) {
+            return;
+        }
+        ItemStack fillItem = cfg.button("fill");
+        if (fillItem == null) {
+            return;
+        }
+        ItemMeta meta = fillItem.getItemMeta();
+        if (meta != null) {
+            List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
+            lore.add(Text.deserialize(I18n.get(statusKey, player))
+                    .colorIfAbsent(NamedTextColor.RED)
+                    .decoration(TextDecoration.ITALIC, false));
+            meta.lore(lore);
+            fillItem.setItemMeta(meta);
+        }
+        inventory.setItem(fillSlot, fillItem);
+    }
+
+    /**
+     * The gui.yml button that reports this outcome, or null when the outcome has no button of its own.
+     * A book that does not configure it falls back to the fill button plus a status lore line.
+     */
+    static String fillVariantKey(FillOutcome outcome) {
+        return switch (outcome) {
+            case FILLED -> "fill-success";
+            case MISSING_INGREDIENTS -> "fill-missing";
+            case INVENTORY_FULL -> "fill-inventory-full";
+            case NOTHING -> null;
+        };
+    }
+
+    /** The status lore key used when the outcome's own button is not configured, or null when none applies. */
+    static String fillStatusKey(FillOutcome outcome) {
+        return switch (outcome) {
             case MISSING_INGREDIENTS -> "gui.recipe.missing_ingredients";
             case INVENTORY_FULL -> "gui.recipe.inventory_full";
             // FILLED reopens the station via the filler; NOTHING has no reason to show.
             case FILLED, NOTHING -> null;
         };
-        if (statusKey == null) {
-            return;
-        }
-        // Show the status ON the fill button (matching FD's cooking-pot fill button) rather than a chat line:
-        // append the status as a lore line to the fill item and re-place it. It reverts on the next detail draw.
-        int fillSlot = cfg.firstSlotByType("fill");
-        ItemStack fillItem = cfg.button("fill");
-        if (fillSlot >= 0 && fillItem != null) {
-            ItemMeta meta = fillItem.getItemMeta();
-            if (meta != null) {
-                List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
-                lore.add(Text.deserialize(I18n.get(statusKey, player))
-                        .colorIfAbsent(NamedTextColor.RED)
-                        .decoration(TextDecoration.ITALIC, false));
-                meta.lore(lore);
-                fillItem.setItemMeta(meta);
-            }
-            inventory.setItem(fillSlot, fillItem);
-        }
     }
 
     void handleClick(Player player, int rawSlot, boolean shiftClick) {
