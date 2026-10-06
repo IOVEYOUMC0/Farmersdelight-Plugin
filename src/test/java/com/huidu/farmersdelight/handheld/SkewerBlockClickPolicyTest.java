@@ -8,8 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Locks the block-click acceptance rule: air clicks are ours, a heat source without its own interaction is
- * ours, and a campfire that takes food keeps the click. Changing the rule either way has to fail here.
+ * Locks the block-click acceptance rule: air clicks are ours, a block without an interaction of its own is
+ * ours, a sneaking player takes the click from any block, and a non-sneaking click on a block that has an
+ * interaction stays with that block. Changing the rule either way has to fail here.
  */
 class SkewerBlockClickPolicyTest {
 
@@ -24,28 +25,29 @@ class SkewerBlockClickPolicyTest {
     }
 
     @Test
-    void aHeatSourceWithoutItsOwnInteractionIsAccepted() {
-        // fire / soul_fire / lava / magma_block: hot, but they do nothing with the skewer themselves.
-        assertEquals(SkewerBlockClickPolicy.Decision.ACCEPT_BLOCK_HEAT_WITHOUT_INTERACTION,
-                SkewerBlockClickPolicy.decide(false, true, true, false));
+    void aBlockWithoutItsOwnInteractionIsAccepted() {
+        // fire / soul_fire / lava / magma_block / plain terrain: they do nothing with the skewer themselves.
+        assertEquals(SkewerBlockClickPolicy.Decision.ACCEPT_BLOCK_WITHOUT_INTERACTION,
+                SkewerBlockClickPolicy.decide(false, true, false, false));
         assertTrue(SkewerBlockClickPolicy.accepted(
-                SkewerBlockClickPolicy.Decision.ACCEPT_BLOCK_HEAT_WITHOUT_INTERACTION));
+                SkewerBlockClickPolicy.Decision.ACCEPT_BLOCK_WITHOUT_INTERACTION));
     }
 
     @Test
-    void aCampfireKeepsItsOwnClick() {
-        // A campfire accepts food, so the skewer must not be cooked behind vanilla's back.
-        assertEquals(SkewerBlockClickPolicy.Decision.DECLINE_BLOCK_HAS_INTERACTION,
+    void sneakingTakesTheClickFromAnyBlock() {
+        // Campfire: it takes food, so the click is only ours when the player asks for it by sneaking.
+        assertEquals(SkewerBlockClickPolicy.Decision.ACCEPT_BLOCK_SNEAKING,
                 SkewerBlockClickPolicy.decide(false, true, true, true));
+        assertTrue(SkewerBlockClickPolicy.accepted(SkewerBlockClickPolicy.Decision.ACCEPT_BLOCK_SNEAKING));
+    }
+
+    @Test
+    void aCampfireKeepsItsOwnClickWhenNotSneaking() {
+        assertEquals(SkewerBlockClickPolicy.Decision.DECLINE_BLOCK_HAS_INTERACTION,
+                SkewerBlockClickPolicy.decide(false, true, true, false),
+                "not sneaking plus an interaction plus room for the item still belongs to the block");
         assertFalse(SkewerBlockClickPolicy.accepted(
                 SkewerBlockClickPolicy.Decision.DECLINE_BLOCK_HAS_INTERACTION));
-    }
-
-    @Test
-    void aBlockThatIsNotAHeatSourceIsDeclined() {
-        assertEquals(SkewerBlockClickPolicy.Decision.DECLINE_BLOCK_NOT_HEAT,
-                SkewerBlockClickPolicy.decide(false, true, false, false));
-        assertFalse(SkewerBlockClickPolicy.accepted(SkewerBlockClickPolicy.Decision.DECLINE_BLOCK_NOT_HEAT));
     }
 
     @Test
@@ -53,6 +55,9 @@ class SkewerBlockClickPolicyTest {
         assertEquals(SkewerBlockClickPolicy.Decision.DECLINE_NOT_A_RIGHT_CLICK,
                 SkewerBlockClickPolicy.decide(false, false, true, false),
                 "a left click or a physical interaction is never ours");
+        assertEquals(SkewerBlockClickPolicy.Decision.DECLINE_NOT_A_RIGHT_CLICK,
+                SkewerBlockClickPolicy.decide(false, false, false, true),
+                "sneaking does not turn a left click into a right click");
         assertFalse(SkewerBlockClickPolicy.accepted(null));
     }
 
