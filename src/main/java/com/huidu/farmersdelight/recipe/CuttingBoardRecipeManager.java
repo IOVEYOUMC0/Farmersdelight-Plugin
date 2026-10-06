@@ -75,43 +75,87 @@ public class CuttingBoardRecipeManager {
         // against this snapshot, and every load path (startup, /fd reload, external republish) runs through
         // here, so a recipe can never be read against the groups of an earlier load.
         RecipeParsingSupport.setAdvancedTagGroups(plugin.advancedTagGroups());
-        Map<String, CuttingBoardRecipe> newRecipes = new LinkedHashMap<>();
-        // Ids whose winning definition came from a CraftEngine pack section; see getPackRecipeCount().
-        Set<String> packIds = new HashSet<>();
         YamlConfiguration mainConfig = RecipeFileLoader.loadRecipeFile(plugin, "recipes/cutting_board_recipes.yml");
         if (mainConfig == null) {
             // Unreadable file (the loader already warned): keep the recipes published last rather than
             // rebuilding from an empty configuration.
             return;
         }
-        Set<String> overriddenExternalIds = externalOverrideIds(mainConfig, "cutting_board");
-        RecipeFileLoader.loadRecipeSections(plugin,
-                mainConfig, "cutting_board_recipes", "cutting board", "recipes/cutting_board_recipes.yml",
-                (recipeId, section) -> newRecipes.put(recipeId, parseRecipe(recipeId, section)));
 
-        // Recipes a CraftEngine pack declares under cutting_recipes. Loaded after the plugin's own file so a
-        // pack can never silently replace a built-in recipe, and before the API merge below so an explicit
-        // runtime registration still wins on an id clash. CraftEngine read the files; see PackSections.
-        for (PackSections.Section packSection : plugin.packSectionsOf(PackSection.CUTTING_BOARD)) {
-            RecipeFileLoader.loadRecipeSections(plugin, packSection.yaml(), PackSection.CUTTING_BOARD.rootKey(),
-                    "cutting board [" + packSection.source() + "]",
-                    packSection.source(),
-                    (recipeId, section) -> {
-                        if (newRecipes.containsKey(recipeId)) {
-                            I18n.logWarning("recipe.pack_duplicate_skipped", "id", recipeId, "source", packSection.source());
-                            return;
-                        }
-                        newRecipes.put(recipeId, parseRecipe(recipeId, section));
-                        packIds.add(recipeId);
-                    });
+        // Every source of this reload is queued into one registration round, and the round is what publishes:
+        // entries reach the buffers only as it advances, so the derived indexes and the published maps are
+        // built after the last entry. Matching reads those indexes and never the buffers, so a set published
+        // while the round was still running would leave every entry past the first slice without a recipe.
+        PendingLoad pending = new PendingLoad(mainConfig);
+        List<RecipeRegistrationRound.Segment> segments = new ArrayList<>();
+        RecipeRegistrationRound.Segment ownFile = RecipeFileLoader.recipeSectionSegment(plugin, mainConfig,
+                "cutting_board_recipes", "cutting board", "recipes/cutting_board_recipes.yml",
+                pending::putOwnFile);
+        if (ownFile != null) {
+            segments.add(ownFile);
         }
 
+        // Recipes a CraftEngine pack declares under cutting_recipes. Queued after the plugin's own file so a
+        // pack can never silently replace a built-in recipe; the runtime registrations are merged in the publish
+        // below, so an explicit registration still wins on an id clash. CraftEngine read the files; see
+        // PackSections.
+        for (PackSections.Section packSection : plugin.packSectionsOf(PackSection.CUTTING_BOARD)) {
+            RecipeRegistrationRound.Segment pack = RecipeFileLoader.recipeSectionSegment(plugin,
+                    packSection.yaml(), PackSection.CUTTING_BOARD.rootKey(),
+                    "cutting board [" + packSection.source() + "]",
+                    packSection.source(),
+                    (recipeId, section) -> pending.putPackFile(recipeId, section, packSection.source()));
+            if (pack != null) {
+                segments.add(pack);
+            }
+        }
+
+        plugin.recipeRegistrations().start(this, segments, plugin.recipeRegistrationBudget(),
+                () -> publishLoadedSet(pending));
+    }
+
+    /**
+     * The buffers one reload round fills before anything is published: the entries the round has registered so
+     * far and the pack ids among them. A replaced round is dropped together with its buffers, so a superseded
+     * reload can never publish a half-registered set over the live one.
+     */
+    private final class PendingLoad {
+
+        private final Map<String, CuttingBoardRecipe> recipes = new LinkedHashMap<>();
+        // Ids whose winning definition came from a CraftEngine pack section; see getPackRecipeCount().
+        private final Set<String> packIds = new HashSet<>();
+        private final Set<String> overriddenExternalIds;
+
+        private PendingLoad(YamlConfiguration mainConfig) {
+            this.overriddenExternalIds = externalOverrideIds(mainConfig, "cutting_board");
+        }
+
+        private void putOwnFile(String recipeId, ConfigurationSection section) {
+            recipes.put(recipeId, parseRecipe(recipeId, section));
+        }
+
+        private void putPackFile(String recipeId, ConfigurationSection section, String source) {
+            if (recipes.containsKey(recipeId)) {
+                I18n.logWarning("recipe.pack_duplicate_skipped", "id", recipeId, "source", source);
+                return;
+            }
+            recipes.put(recipeId, parseRecipe(recipeId, section));
+            packIds.add(recipeId);
+        }
+    }
+
+    /**
+     * Builds the derived indexes from a finished round and publishes them together as immutable snapshots, so
+     * a reader on any Folia thread sees either the previous set or the complete new one.
+     */
+    private void publishLoadedSet(PendingLoad pending) {
+        Map<String, CuttingBoardRecipe> newRecipes = pending.recipes;
         // Merge addon-registered recipes last so they survive reloads; an editor override is explicit and wins.
         for (CuttingBoardRecipe recipe : externalRecipes.values()) {
-            if (!overriddenExternalIds.contains(recipe.getId()) || !newRecipes.containsKey(recipe.getId())
+            if (!pending.overriddenExternalIds.contains(recipe.getId()) || !newRecipes.containsKey(recipe.getId())
                     || AddonRecipeFiles.ownerOf("cutting_board", recipe.getId()) != null) {
                 newRecipes.put(recipe.getId(), recipe);
-                packIds.remove(recipe.getId());
+                pending.packIds.remove(recipe.getId());
             }
         }
 
@@ -151,8 +195,10 @@ public class CuttingBoardRecipeManager {
             frozenByItemId.put(e.getKey(), Set.copyOf(e.getValue()));
         }
 
-        this.recipes = newRecipes;
-        this.packRecipeCount = packIds.size();
+        // Published as a snapshot: the round's buffer is done, and a later round must never write into the set
+        // a region thread may be matching against right now.
+        this.recipes = Collections.unmodifiableMap(new LinkedHashMap<>(newRecipes));
+        this.packRecipeCount = pending.packIds.size();
         this.sortedRecipes = newSorted;
         this.byInputItemId = Map.copyOf(frozenByItemId);
         this.tagInputRecipeIds = Set.copyOf(newTagInputRecipeIds);
