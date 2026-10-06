@@ -7,8 +7,7 @@ import java.util.List;
  *
  *
  * Everything that arms a repeating task with delay 0 starts on the same tick, so a server running the display
- * culler, the cleanup pass, the display sync and the carrier restorer on one period pays for all of them in the
- * same tick and nothing in the others. The delay is deterministic and derived from a fixed slot order:
+ * culler, the cleanup pass and the display sync on one period pays for all of them in the same tick and nothing in the others. The delay is deterministic and derived from a fixed slot order:
  * initialDelay = index * interval / slotCount, never random, so a test can assert exactly which tick each task
  * first runs on.
  *
@@ -21,8 +20,7 @@ public final class PeriodicStagger {
     private static final List<String> SLOTS = List.of(
             "display-cull",
             "tick-cleanup",
-            "display-sync",
-            "carrier-restore");
+            "display-sync");
 
     private PeriodicStagger() {
     }

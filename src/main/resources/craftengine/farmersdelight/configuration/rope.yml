@@ -55,58 +55,38 @@ items:
       hidden: true
       item-name: <!i><lang:block.farmersdelight.rope_fence>
     model: farmersdelight:block/rope_fence_side_alt
-  farmersdelight:rope_fence_gate_elements:
+  farmersdelight:crimson_fence_post_elements:
     data:
       hidden: true
-      item-name: <!i><lang:block.farmersdelight.rope_fence_gate>
-    model: farmersdelight:block/rope_fence_gate
-  farmersdelight:rope_fence_gate_open_elements:
+    model: farmersdelight:block/crimson_fence_post
+  farmersdelight:crimson_fence_side_elements:
     data:
       hidden: true
-      item-name: <!i><lang:block.farmersdelight.rope_fence_gate>
-    model: farmersdelight:block/rope_fence_gate_open
-  farmersdelight:rope_fence_gate_wall_elements:
+    model: farmersdelight:block/crimson_fence_side
+  farmersdelight:crimson_fence_gate_elements:
     data:
       hidden: true
-      item-name: <!i><lang:block.farmersdelight.rope_fence_gate>
-    model: farmersdelight:block/rope_fence_gate_wall
-  farmersdelight:rope_fence_gate_wall_open_elements:
+    model: farmersdelight:block/crimson_fence_gate
+  farmersdelight:crimson_fence_gate_open_elements:
     data:
       hidden: true
-      item-name: <!i><lang:block.farmersdelight.rope_fence_gate>
-    model: farmersdelight:block/rope_fence_gate_wall_open
-  farmersdelight:mangrove_fence_post_elements:
+    model: farmersdelight:block/crimson_fence_gate_open
+  farmersdelight:crimson_fence_gate_wall_elements:
     data:
       hidden: true
-    model: farmersdelight:block/mangrove_fence_post
-  farmersdelight:mangrove_fence_side_elements:
+    model: farmersdelight:block/crimson_fence_gate_wall
+  farmersdelight:crimson_fence_gate_wall_open_elements:
     data:
       hidden: true
-    model: farmersdelight:block/mangrove_fence_side
-  farmersdelight:mangrove_fence_gate_elements:
-    data:
-      hidden: true
-    model: farmersdelight:block/mangrove_fence_gate
-  farmersdelight:mangrove_fence_gate_open_elements:
-    data:
-      hidden: true
-    model: farmersdelight:block/mangrove_fence_gate_open
-  farmersdelight:mangrove_fence_gate_wall_elements:
-    data:
-      hidden: true
-    model: farmersdelight:block/mangrove_fence_gate_wall
-  farmersdelight:mangrove_fence_gate_wall_open_elements:
-    data:
-      hidden: true
-    model: farmersdelight:block/mangrove_fence_gate_wall_open
-  minecraft:mangrove_fence:
+    model: farmersdelight:block/crimson_fence_gate_wall_open
+  minecraft:crimson_fence:
     behavior:
       type: farmersdelight:substituting_block_item
-      block: farmersdelight:mangrove_fence
-  minecraft:mangrove_fence_gate:
+      block: farmersdelight:crimson_fence_cover
+  minecraft:crimson_fence_gate:
     behavior:
       type: farmersdelight:substituting_block_item
-      block: farmersdelight:mangrove_fence_gate
+      block: farmersdelight:crimson_fence_gate_cover
 blocks:
   farmersdelight:rope:
     settings:
@@ -257,7 +237,7 @@ blocks:
       tags:
       - minecraft:fences
       - minecraft:mineable/axe
-      - minecraft:wooden_fences
+      - farmersdelight:rope_fences
       - c:fences
       sounds:
         break: minecraft:block.wood.break
@@ -268,7 +248,7 @@ blocks:
     behavior:
       type: fence_block
       can_leash: true
-      connectable_block_tag: minecraft:wooden_fences
+      connectable_block_tag: farmersdelight:rope_fences
     states:
       properties:
         east:
@@ -287,215 +267,551 @@ blocks:
           type: boolean
           default: false
       appearances:
-        north=false,east=false,south=false,west=false:
-          state: mangrove_fence[east=false,north=false,south=false,waterlogged=true,west=false]
+        east=false,north=false,south=false,waterlogged=false,west=false:
+          state: crimson_fence[east=false,north=false,south=false,waterlogged=false,west=false]
           transparent: true
           entity_renderer:
           - type: item_display
             item: farmersdelight:rope_fence_post_elements
-        north=false,east=false,south=false,west=true:
-          state: mangrove_fence[east=false,north=false,south=false,waterlogged=true,west=true]
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+        east=false,north=false,south=false,waterlogged=false,west=true:
+          state: crimson_fence[east=false,north=false,south=false,waterlogged=false,west=true]
           transparent: true
           entity_renderer:
           - type: item_display
             item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
             item: farmersdelight:rope_fence_side_west_elements
-            rotation: 90
-        north=false,east=false,south=true,west=false:
-          state: mangrove_fence[east=false,north=false,south=true,waterlogged=true,west=false]
+            rotation: 270
+        east=false,north=false,south=true,waterlogged=false,west=false:
+          state: crimson_fence[east=false,north=false,south=true,waterlogged=false,west=false]
           transparent: true
           entity_renderer:
           - type: item_display
             item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
             item: farmersdelight:rope_fence_side_south_elements
-        north=false,east=false,south=true,west=true:
-          state: mangrove_fence[east=false,north=false,south=true,waterlogged=true,west=true]
+            rotation: 180
+        east=false,north=false,south=true,waterlogged=false,west=true:
+          state: crimson_fence[east=false,north=false,south=true,waterlogged=false,west=true]
           transparent: true
           entity_renderer:
           - type: item_display
             item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
             item: farmersdelight:rope_fence_side_south_elements
+            rotation: 180
           - type: item_display
             item: farmersdelight:rope_fence_side_west_elements
-            rotation: 90
-        north=false,east=true,south=false,west=false:
-          state: mangrove_fence[east=true,north=false,south=false,waterlogged=true,west=false]
+            rotation: 270
+        east=true,north=false,south=false,waterlogged=false,west=false:
+          state: crimson_fence[east=true,north=false,south=false,waterlogged=false,west=false]
           transparent: true
           entity_renderer:
           - type: item_display
             item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
             item: farmersdelight:rope_fence_side_east_elements
-            rotation: 90
-        north=false,east=true,south=false,west=true:
-          state: mangrove_fence[east=true,north=false,south=false,waterlogged=true,west=true]
+            rotation: 270
+        east=true,north=false,south=false,waterlogged=false,west=true:
+          state: crimson_fence[east=true,north=false,south=false,waterlogged=false,west=true]
           transparent: true
           entity_renderer:
           - type: item_display
             item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
             item: farmersdelight:rope_fence_side_east_elements
-            rotation: 90
+            rotation: 270
           - type: item_display
             item: farmersdelight:rope_fence_side_west_elements
-            rotation: 90
-        north=false,east=true,south=true,west=false:
-          state: mangrove_fence[east=true,north=false,south=true,waterlogged=true,west=false]
+            rotation: 270
+        east=true,north=false,south=true,waterlogged=false,west=false:
+          state: crimson_fence[east=true,north=false,south=true,waterlogged=false,west=false]
           transparent: true
           entity_renderer:
           - type: item_display
             item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
             item: farmersdelight:rope_fence_side_east_elements
-            rotation: 90
+            rotation: 270
           - type: item_display
             item: farmersdelight:rope_fence_side_south_elements
-        north=false,east=true,south=true,west=true:
-          state: mangrove_fence[east=true,north=false,south=true,waterlogged=true,west=true]
+            rotation: 180
+        east=true,north=false,south=true,waterlogged=false,west=true:
+          state: crimson_fence[east=true,north=false,south=true,waterlogged=false,west=true]
           transparent: true
           entity_renderer:
           - type: item_display
             item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
             item: farmersdelight:rope_fence_side_east_elements
-            rotation: 90
+            rotation: 270
           - type: item_display
             item: farmersdelight:rope_fence_side_south_elements
+            rotation: 180
           - type: item_display
             item: farmersdelight:rope_fence_side_west_elements
-            rotation: 90
-        north=true,east=false,south=false,west=false:
-          state: mangrove_fence[east=false,north=true,south=false,waterlogged=true,west=false]
+            rotation: 270
+        east=false,north=true,south=false,waterlogged=false,west=false:
+          state: crimson_fence[east=false,north=true,south=false,waterlogged=false,west=false]
           transparent: true
           entity_renderer:
           - type: item_display
             item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
             item: farmersdelight:rope_fence_side_north_elements
-        north=true,east=false,south=false,west=true:
-          state: mangrove_fence[east=false,north=true,south=false,waterlogged=true,west=true]
+            rotation: 180
+        east=false,north=true,south=false,waterlogged=false,west=true:
+          state: crimson_fence[east=false,north=true,south=false,waterlogged=false,west=true]
           transparent: true
           entity_renderer:
           - type: item_display
             item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
             item: farmersdelight:rope_fence_side_north_elements
+            rotation: 180
           - type: item_display
             item: farmersdelight:rope_fence_side_west_elements
-            rotation: 90
-        north=true,east=false,south=true,west=false:
-          state: mangrove_fence[east=false,north=true,south=true,waterlogged=true,west=false]
+            rotation: 270
+        east=false,north=true,south=true,waterlogged=false,west=false:
+          state: crimson_fence[east=false,north=true,south=true,waterlogged=false,west=false]
           transparent: true
           entity_renderer:
           - type: item_display
             item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
             item: farmersdelight:rope_fence_side_north_elements
+            rotation: 180
           - type: item_display
             item: farmersdelight:rope_fence_side_south_elements
-        north=true,east=false,south=true,west=true:
-          state: mangrove_fence[east=false,north=true,south=true,waterlogged=true,west=true]
+            rotation: 180
+        east=false,north=true,south=true,waterlogged=false,west=true:
+          state: crimson_fence[east=false,north=true,south=true,waterlogged=false,west=true]
           transparent: true
           entity_renderer:
           - type: item_display
             item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
             item: farmersdelight:rope_fence_side_north_elements
+            rotation: 180
           - type: item_display
             item: farmersdelight:rope_fence_side_south_elements
+            rotation: 180
           - type: item_display
             item: farmersdelight:rope_fence_side_west_elements
-            rotation: 90
-        north=true,east=true,south=false,west=false:
-          state: mangrove_fence[east=true,north=true,south=false,waterlogged=true,west=false]
+            rotation: 270
+        east=true,north=true,south=false,waterlogged=false,west=false:
+          state: crimson_fence[east=true,north=true,south=false,waterlogged=false,west=false]
           transparent: true
           entity_renderer:
           - type: item_display
             item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
             item: farmersdelight:rope_fence_side_north_elements
+            rotation: 180
           - type: item_display
             item: farmersdelight:rope_fence_side_east_elements
-            rotation: 90
-        north=true,east=true,south=false,west=true:
-          state: mangrove_fence[east=true,north=true,south=false,waterlogged=true,west=true]
+            rotation: 270
+        east=true,north=true,south=false,waterlogged=false,west=true:
+          state: crimson_fence[east=true,north=true,south=false,waterlogged=false,west=true]
           transparent: true
           entity_renderer:
           - type: item_display
             item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
             item: farmersdelight:rope_fence_side_north_elements
+            rotation: 180
           - type: item_display
             item: farmersdelight:rope_fence_side_east_elements
-            rotation: 90
+            rotation: 270
           - type: item_display
             item: farmersdelight:rope_fence_side_west_elements
-            rotation: 90
-        north=true,east=true,south=true,west=false:
-          state: mangrove_fence[east=true,north=true,south=true,waterlogged=true,west=false]
+            rotation: 270
+        east=true,north=true,south=true,waterlogged=false,west=false:
+          state: crimson_fence[east=true,north=true,south=true,waterlogged=false,west=false]
           transparent: true
           entity_renderer:
           - type: item_display
             item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
             item: farmersdelight:rope_fence_side_north_elements
+            rotation: 180
           - type: item_display
             item: farmersdelight:rope_fence_side_east_elements
-            rotation: 90
+            rotation: 270
           - type: item_display
             item: farmersdelight:rope_fence_side_south_elements
-        north=true,east=true,south=true,west=true:
-          state: mangrove_fence[east=true,north=true,south=true,waterlogged=true,west=true]
+            rotation: 180
+        east=true,north=true,south=true,waterlogged=false,west=true:
+          state: crimson_fence[east=true,north=true,south=true,waterlogged=false,west=true]
           transparent: true
           entity_renderer:
           - type: item_display
             item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
             item: farmersdelight:rope_fence_side_north_elements
+            rotation: 180
           - type: item_display
             item: farmersdelight:rope_fence_side_east_elements
-            rotation: 90
+            rotation: 270
           - type: item_display
             item: farmersdelight:rope_fence_side_south_elements
+            rotation: 180
           - type: item_display
             item: farmersdelight:rope_fence_side_west_elements
-            rotation: 90
+            rotation: 270
+        east=false,north=false,south=false,waterlogged=true,west=false:
+          state: crimson_fence[east=false,north=false,south=false,waterlogged=true,west=false]
+          transparent: true
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+        east=false,north=false,south=false,waterlogged=true,west=true:
+          state: crimson_fence[east=false,north=false,south=false,waterlogged=true,west=true]
+          transparent: true
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:rope_fence_side_west_elements
+            rotation: 270
+        east=false,north=false,south=true,waterlogged=true,west=false:
+          state: crimson_fence[east=false,north=false,south=true,waterlogged=true,west=false]
+          transparent: true
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:rope_fence_side_south_elements
+            rotation: 180
+        east=false,north=false,south=true,waterlogged=true,west=true:
+          state: crimson_fence[east=false,north=false,south=true,waterlogged=true,west=true]
+          transparent: true
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:rope_fence_side_south_elements
+            rotation: 180
+          - type: item_display
+            item: farmersdelight:rope_fence_side_west_elements
+            rotation: 270
+        east=true,north=false,south=false,waterlogged=true,west=false:
+          state: crimson_fence[east=true,north=false,south=false,waterlogged=true,west=false]
+          transparent: true
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:rope_fence_side_east_elements
+            rotation: 270
+        east=true,north=false,south=false,waterlogged=true,west=true:
+          state: crimson_fence[east=true,north=false,south=false,waterlogged=true,west=true]
+          transparent: true
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:rope_fence_side_east_elements
+            rotation: 270
+          - type: item_display
+            item: farmersdelight:rope_fence_side_west_elements
+            rotation: 270
+        east=true,north=false,south=true,waterlogged=true,west=false:
+          state: crimson_fence[east=true,north=false,south=true,waterlogged=true,west=false]
+          transparent: true
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:rope_fence_side_east_elements
+            rotation: 270
+          - type: item_display
+            item: farmersdelight:rope_fence_side_south_elements
+            rotation: 180
+        east=true,north=false,south=true,waterlogged=true,west=true:
+          state: crimson_fence[east=true,north=false,south=true,waterlogged=true,west=true]
+          transparent: true
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:rope_fence_side_east_elements
+            rotation: 270
+          - type: item_display
+            item: farmersdelight:rope_fence_side_south_elements
+            rotation: 180
+          - type: item_display
+            item: farmersdelight:rope_fence_side_west_elements
+            rotation: 270
+        east=false,north=true,south=false,waterlogged=true,west=false:
+          state: crimson_fence[east=false,north=true,south=false,waterlogged=true,west=false]
+          transparent: true
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:rope_fence_side_north_elements
+            rotation: 180
+        east=false,north=true,south=false,waterlogged=true,west=true:
+          state: crimson_fence[east=false,north=true,south=false,waterlogged=true,west=true]
+          transparent: true
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:rope_fence_side_north_elements
+            rotation: 180
+          - type: item_display
+            item: farmersdelight:rope_fence_side_west_elements
+            rotation: 270
+        east=false,north=true,south=true,waterlogged=true,west=false:
+          state: crimson_fence[east=false,north=true,south=true,waterlogged=true,west=false]
+          transparent: true
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:rope_fence_side_north_elements
+            rotation: 180
+          - type: item_display
+            item: farmersdelight:rope_fence_side_south_elements
+            rotation: 180
+        east=false,north=true,south=true,waterlogged=true,west=true:
+          state: crimson_fence[east=false,north=true,south=true,waterlogged=true,west=true]
+          transparent: true
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:rope_fence_side_north_elements
+            rotation: 180
+          - type: item_display
+            item: farmersdelight:rope_fence_side_south_elements
+            rotation: 180
+          - type: item_display
+            item: farmersdelight:rope_fence_side_west_elements
+            rotation: 270
+        east=true,north=true,south=false,waterlogged=true,west=false:
+          state: crimson_fence[east=true,north=true,south=false,waterlogged=true,west=false]
+          transparent: true
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:rope_fence_side_north_elements
+            rotation: 180
+          - type: item_display
+            item: farmersdelight:rope_fence_side_east_elements
+            rotation: 270
+        east=true,north=true,south=false,waterlogged=true,west=true:
+          state: crimson_fence[east=true,north=true,south=false,waterlogged=true,west=true]
+          transparent: true
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:rope_fence_side_north_elements
+            rotation: 180
+          - type: item_display
+            item: farmersdelight:rope_fence_side_east_elements
+            rotation: 270
+          - type: item_display
+            item: farmersdelight:rope_fence_side_west_elements
+            rotation: 270
+        east=true,north=true,south=true,waterlogged=true,west=false:
+          state: crimson_fence[east=true,north=true,south=true,waterlogged=true,west=false]
+          transparent: true
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:rope_fence_side_north_elements
+            rotation: 180
+          - type: item_display
+            item: farmersdelight:rope_fence_side_east_elements
+            rotation: 270
+          - type: item_display
+            item: farmersdelight:rope_fence_side_south_elements
+            rotation: 180
+        east=true,north=true,south=true,waterlogged=true,west=true:
+          state: crimson_fence[east=true,north=true,south=true,waterlogged=true,west=true]
+          transparent: true
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:rope_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:rope_fence_side_north_elements
+            rotation: 180
+          - type: item_display
+            item: farmersdelight:rope_fence_side_east_elements
+            rotation: 270
+          - type: item_display
+            item: farmersdelight:rope_fence_side_south_elements
+            rotation: 180
+          - type: item_display
+            item: farmersdelight:rope_fence_side_west_elements
+            rotation: 270
       variants:
-        north=false,east=false,south=false,west=false:
-          appearance: north=false,east=false,south=false,west=false
-        north=false,east=false,south=false,west=true:
-          appearance: north=false,east=false,south=false,west=true
-        north=false,east=false,south=true,west=false:
-          appearance: north=false,east=false,south=true,west=false
-        north=false,east=false,south=true,west=true:
-          appearance: north=false,east=false,south=true,west=true
-        north=false,east=true,south=false,west=false:
-          appearance: north=false,east=true,south=false,west=false
-        north=false,east=true,south=false,west=true:
-          appearance: north=false,east=true,south=false,west=true
-        north=false,east=true,south=true,west=false:
-          appearance: north=false,east=true,south=true,west=false
-        north=false,east=true,south=true,west=true:
-          appearance: north=false,east=true,south=true,west=true
-        north=true,east=false,south=false,west=false:
-          appearance: north=true,east=false,south=false,west=false
-        north=true,east=false,south=false,west=true:
-          appearance: north=true,east=false,south=false,west=true
-        north=true,east=false,south=true,west=false:
-          appearance: north=true,east=false,south=true,west=false
-        north=true,east=false,south=true,west=true:
-          appearance: north=true,east=false,south=true,west=true
-        north=true,east=true,south=false,west=false:
-          appearance: north=true,east=true,south=false,west=false
-        north=true,east=true,south=false,west=true:
-          appearance: north=true,east=true,south=false,west=true
-        north=true,east=true,south=true,west=false:
-          appearance: north=true,east=true,south=true,west=false
-        north=true,east=true,south=true,west=true:
-          appearance: north=true,east=true,south=true,west=true
+        east=false,north=false,south=false,waterlogged=false,west=false:
+          appearance: east=false,north=false,south=false,waterlogged=false,west=false
+        east=false,north=false,south=false,waterlogged=false,west=true:
+          appearance: east=false,north=false,south=false,waterlogged=false,west=true
+        east=false,north=false,south=true,waterlogged=false,west=false:
+          appearance: east=false,north=false,south=true,waterlogged=false,west=false
+        east=false,north=false,south=true,waterlogged=false,west=true:
+          appearance: east=false,north=false,south=true,waterlogged=false,west=true
+        east=true,north=false,south=false,waterlogged=false,west=false:
+          appearance: east=true,north=false,south=false,waterlogged=false,west=false
+        east=true,north=false,south=false,waterlogged=false,west=true:
+          appearance: east=true,north=false,south=false,waterlogged=false,west=true
+        east=true,north=false,south=true,waterlogged=false,west=false:
+          appearance: east=true,north=false,south=true,waterlogged=false,west=false
+        east=true,north=false,south=true,waterlogged=false,west=true:
+          appearance: east=true,north=false,south=true,waterlogged=false,west=true
+        east=false,north=true,south=false,waterlogged=false,west=false:
+          appearance: east=false,north=true,south=false,waterlogged=false,west=false
+        east=false,north=true,south=false,waterlogged=false,west=true:
+          appearance: east=false,north=true,south=false,waterlogged=false,west=true
+        east=false,north=true,south=true,waterlogged=false,west=false:
+          appearance: east=false,north=true,south=true,waterlogged=false,west=false
+        east=false,north=true,south=true,waterlogged=false,west=true:
+          appearance: east=false,north=true,south=true,waterlogged=false,west=true
+        east=true,north=true,south=false,waterlogged=false,west=false:
+          appearance: east=true,north=true,south=false,waterlogged=false,west=false
+        east=true,north=true,south=false,waterlogged=false,west=true:
+          appearance: east=true,north=true,south=false,waterlogged=false,west=true
+        east=true,north=true,south=true,waterlogged=false,west=false:
+          appearance: east=true,north=true,south=true,waterlogged=false,west=false
+        east=true,north=true,south=true,waterlogged=false,west=true:
+          appearance: east=true,north=true,south=true,waterlogged=false,west=true
+        east=false,north=false,south=false,waterlogged=true,west=false:
+          appearance: east=false,north=false,south=false,waterlogged=true,west=false
+        east=false,north=false,south=false,waterlogged=true,west=true:
+          appearance: east=false,north=false,south=false,waterlogged=true,west=true
+        east=false,north=false,south=true,waterlogged=true,west=false:
+          appearance: east=false,north=false,south=true,waterlogged=true,west=false
+        east=false,north=false,south=true,waterlogged=true,west=true:
+          appearance: east=false,north=false,south=true,waterlogged=true,west=true
+        east=true,north=false,south=false,waterlogged=true,west=false:
+          appearance: east=true,north=false,south=false,waterlogged=true,west=false
+        east=true,north=false,south=false,waterlogged=true,west=true:
+          appearance: east=true,north=false,south=false,waterlogged=true,west=true
+        east=true,north=false,south=true,waterlogged=true,west=false:
+          appearance: east=true,north=false,south=true,waterlogged=true,west=false
+        east=true,north=false,south=true,waterlogged=true,west=true:
+          appearance: east=true,north=false,south=true,waterlogged=true,west=true
+        east=false,north=true,south=false,waterlogged=true,west=false:
+          appearance: east=false,north=true,south=false,waterlogged=true,west=false
+        east=false,north=true,south=false,waterlogged=true,west=true:
+          appearance: east=false,north=true,south=false,waterlogged=true,west=true
+        east=false,north=true,south=true,waterlogged=true,west=false:
+          appearance: east=false,north=true,south=true,waterlogged=true,west=false
+        east=false,north=true,south=true,waterlogged=true,west=true:
+          appearance: east=false,north=true,south=true,waterlogged=true,west=true
+        east=true,north=true,south=false,waterlogged=true,west=false:
+          appearance: east=true,north=true,south=false,waterlogged=true,west=false
+        east=true,north=true,south=false,waterlogged=true,west=true:
+          appearance: east=true,north=true,south=false,waterlogged=true,west=true
+        east=true,north=true,south=true,waterlogged=true,west=false:
+          appearance: east=true,north=true,south=true,waterlogged=true,west=false
+        east=true,north=true,south=true,waterlogged=true,west=true:
+          appearance: east=true,north=true,south=true,waterlogged=true,west=true
   farmersdelight:rope_fence_gate:
     template:
     - farmersdelight:block_loot_template
@@ -510,6 +826,7 @@ blocks:
       - minecraft:fence_gates
       - minecraft:mineable/axe
       - minecraft:wooden_fence_gates
+      - farmersdelight:rope_fences
       - c:fence_gates
       sounds:
         break: minecraft:block.wood.break
@@ -527,8 +844,7 @@ blocks:
     states:
       properties:
         facing:
-          type: 4-direction
-          default: north
+          type: horizontal_direction
         in_wall:
           type: boolean
           default: false
@@ -540,147 +856,163 @@ blocks:
           default: false
       appearances:
         facing=east,in_wall=false,open=false:
-          state: mangrove_fence_gate[facing=east,in_wall=false,open=false,powered=true]
-          transparent: true
-          entity_renderer:
-            type: item_display
-            item: farmersdelight:rope_fence_gate_elements
-            rotation: 90
+          state: crimson_fence_gate[facing=east,in_wall=false,open=false,powered=true]
+          model:
+            path: farmersdelight:block/rope_fence_gate
+            y: 270
+            uvlock: true
         facing=east,in_wall=false,open=true:
-          state: mangrove_fence_gate[facing=east,in_wall=false,open=true,powered=true]
-          transparent: true
-          entity_renderer:
-            type: item_display
-            item: farmersdelight:rope_fence_gate_open_elements
-            rotation: 90
+          state: crimson_fence_gate[facing=east,in_wall=false,open=true,powered=true]
+          model:
+            path: farmersdelight:block/rope_fence_gate_open
+            y: 270
+            uvlock: true
         facing=east,in_wall=true,open=false:
-          state: mangrove_fence_gate[facing=east,in_wall=true,open=false,powered=true]
-          transparent: true
-          entity_renderer:
-            type: item_display
-            item: farmersdelight:rope_fence_gate_wall_elements
-            rotation: 90
+          state: crimson_fence_gate[facing=east,in_wall=true,open=false,powered=true]
+          model:
+            path: farmersdelight:block/rope_fence_gate_wall
+            y: 270
+            uvlock: true
         facing=east,in_wall=true,open=true:
-          state: mangrove_fence_gate[facing=east,in_wall=true,open=true,powered=true]
-          transparent: true
-          entity_renderer:
-            type: item_display
-            item: farmersdelight:rope_fence_gate_wall_open_elements
-            rotation: 90
+          state: crimson_fence_gate[facing=east,in_wall=true,open=true,powered=true]
+          model:
+            path: farmersdelight:block/rope_fence_gate_wall_open
+            y: 270
+            uvlock: true
         facing=north,in_wall=false,open=false:
-          state: mangrove_fence_gate[facing=north,in_wall=false,open=false,powered=true]
-          transparent: true
-          entity_renderer:
-            type: item_display
-            item: farmersdelight:rope_fence_gate_elements
-            rotation: 180
+          state: crimson_fence_gate[facing=north,in_wall=false,open=false,powered=true]
+          model:
+            path: farmersdelight:block/rope_fence_gate
+            y: 180
+            uvlock: true
         facing=north,in_wall=false,open=true:
-          state: mangrove_fence_gate[facing=north,in_wall=false,open=true,powered=true]
-          transparent: true
-          entity_renderer:
-            type: item_display
-            item: farmersdelight:rope_fence_gate_open_elements
-            rotation: 180
+          state: crimson_fence_gate[facing=north,in_wall=false,open=true,powered=true]
+          model:
+            path: farmersdelight:block/rope_fence_gate_open
+            y: 180
+            uvlock: true
         facing=north,in_wall=true,open=false:
-          state: mangrove_fence_gate[facing=north,in_wall=true,open=false,powered=true]
-          transparent: true
-          entity_renderer:
-            type: item_display
-            item: farmersdelight:rope_fence_gate_wall_elements
-            rotation: 180
+          state: crimson_fence_gate[facing=north,in_wall=true,open=false,powered=true]
+          model:
+            path: farmersdelight:block/rope_fence_gate_wall
+            y: 180
+            uvlock: true
         facing=north,in_wall=true,open=true:
-          state: mangrove_fence_gate[facing=north,in_wall=true,open=true,powered=true]
-          transparent: true
-          entity_renderer:
-            type: item_display
-            item: farmersdelight:rope_fence_gate_wall_open_elements
-            rotation: 180
+          state: crimson_fence_gate[facing=north,in_wall=true,open=true,powered=true]
+          model:
+            path: farmersdelight:block/rope_fence_gate_wall_open
+            y: 180
+            uvlock: true
         facing=south,in_wall=false,open=false:
-          state: mangrove_fence_gate[facing=south,in_wall=false,open=false,powered=true]
-          transparent: true
-          entity_renderer:
-            type: item_display
-            item: farmersdelight:rope_fence_gate_elements
+          state: crimson_fence_gate[facing=south,in_wall=false,open=false,powered=true]
+          model:
+            path: farmersdelight:block/rope_fence_gate
+            uvlock: true
         facing=south,in_wall=false,open=true:
-          state: mangrove_fence_gate[facing=south,in_wall=false,open=true,powered=true]
-          transparent: true
-          entity_renderer:
-            type: item_display
-            item: farmersdelight:rope_fence_gate_open_elements
+          state: crimson_fence_gate[facing=south,in_wall=false,open=true,powered=true]
+          model:
+            path: farmersdelight:block/rope_fence_gate_open
+            uvlock: true
         facing=south,in_wall=true,open=false:
-          state: mangrove_fence_gate[facing=south,in_wall=true,open=false,powered=true]
-          transparent: true
-          entity_renderer:
-            type: item_display
-            item: farmersdelight:rope_fence_gate_wall_elements
+          state: crimson_fence_gate[facing=south,in_wall=true,open=false,powered=true]
+          model:
+            path: farmersdelight:block/rope_fence_gate_wall
+            uvlock: true
         facing=south,in_wall=true,open=true:
-          state: mangrove_fence_gate[facing=south,in_wall=true,open=true,powered=true]
-          transparent: true
-          entity_renderer:
-            type: item_display
-            item: farmersdelight:rope_fence_gate_wall_open_elements
+          state: crimson_fence_gate[facing=south,in_wall=true,open=true,powered=true]
+          model:
+            path: farmersdelight:block/rope_fence_gate_wall_open
+            uvlock: true
         facing=west,in_wall=false,open=false:
-          state: mangrove_fence_gate[facing=west,in_wall=false,open=false,powered=true]
-          transparent: true
-          entity_renderer:
-            type: item_display
-            item: farmersdelight:rope_fence_gate_elements
-            rotation: 270
+          state: crimson_fence_gate[facing=west,in_wall=false,open=false,powered=true]
+          model:
+            path: farmersdelight:block/rope_fence_gate
+            y: 90
+            uvlock: true
         facing=west,in_wall=false,open=true:
-          state: mangrove_fence_gate[facing=west,in_wall=false,open=true,powered=true]
-          transparent: true
-          entity_renderer:
-            type: item_display
-            item: farmersdelight:rope_fence_gate_open_elements
-            rotation: 270
+          state: crimson_fence_gate[facing=west,in_wall=false,open=true,powered=true]
+          model:
+            path: farmersdelight:block/rope_fence_gate_open
+            y: 90
+            uvlock: true
         facing=west,in_wall=true,open=false:
-          state: mangrove_fence_gate[facing=west,in_wall=true,open=false,powered=true]
-          transparent: true
-          entity_renderer:
-            type: item_display
-            item: farmersdelight:rope_fence_gate_wall_elements
-            rotation: 270
+          state: crimson_fence_gate[facing=west,in_wall=true,open=false,powered=true]
+          model:
+            path: farmersdelight:block/rope_fence_gate_wall
+            y: 90
+            uvlock: true
         facing=west,in_wall=true,open=true:
-          state: mangrove_fence_gate[facing=west,in_wall=true,open=true,powered=true]
-          transparent: true
-          entity_renderer:
-            type: item_display
-            item: farmersdelight:rope_fence_gate_wall_open_elements
-            rotation: 270
+          state: crimson_fence_gate[facing=west,in_wall=true,open=true,powered=true]
+          model:
+            path: farmersdelight:block/rope_fence_gate_wall_open
+            y: 90
+            uvlock: true
       variants:
-        facing=east,in_wall=false,open=false:
+        facing=east,in_wall=false,open=false,powered=false:
           appearance: facing=east,in_wall=false,open=false
-        facing=east,in_wall=false,open=true:
+        facing=east,in_wall=false,open=false,powered=true:
+          appearance: facing=east,in_wall=false,open=false
+        facing=east,in_wall=false,open=true,powered=false:
           appearance: facing=east,in_wall=false,open=true
-        facing=east,in_wall=true,open=false:
+        facing=east,in_wall=false,open=true,powered=true:
+          appearance: facing=east,in_wall=false,open=true
+        facing=east,in_wall=true,open=false,powered=false:
           appearance: facing=east,in_wall=true,open=false
-        facing=east,in_wall=true,open=true:
+        facing=east,in_wall=true,open=false,powered=true:
+          appearance: facing=east,in_wall=true,open=false
+        facing=east,in_wall=true,open=true,powered=false:
           appearance: facing=east,in_wall=true,open=true
-        facing=north,in_wall=false,open=false:
+        facing=east,in_wall=true,open=true,powered=true:
+          appearance: facing=east,in_wall=true,open=true
+        facing=north,in_wall=false,open=false,powered=false:
           appearance: facing=north,in_wall=false,open=false
-        facing=north,in_wall=false,open=true:
+        facing=north,in_wall=false,open=false,powered=true:
+          appearance: facing=north,in_wall=false,open=false
+        facing=north,in_wall=false,open=true,powered=false:
           appearance: facing=north,in_wall=false,open=true
-        facing=north,in_wall=true,open=false:
+        facing=north,in_wall=false,open=true,powered=true:
+          appearance: facing=north,in_wall=false,open=true
+        facing=north,in_wall=true,open=false,powered=false:
           appearance: facing=north,in_wall=true,open=false
-        facing=north,in_wall=true,open=true:
+        facing=north,in_wall=true,open=false,powered=true:
+          appearance: facing=north,in_wall=true,open=false
+        facing=north,in_wall=true,open=true,powered=false:
           appearance: facing=north,in_wall=true,open=true
-        facing=south,in_wall=false,open=false:
+        facing=north,in_wall=true,open=true,powered=true:
+          appearance: facing=north,in_wall=true,open=true
+        facing=south,in_wall=false,open=false,powered=false:
           appearance: facing=south,in_wall=false,open=false
-        facing=south,in_wall=false,open=true:
+        facing=south,in_wall=false,open=false,powered=true:
+          appearance: facing=south,in_wall=false,open=false
+        facing=south,in_wall=false,open=true,powered=false:
           appearance: facing=south,in_wall=false,open=true
-        facing=south,in_wall=true,open=false:
+        facing=south,in_wall=false,open=true,powered=true:
+          appearance: facing=south,in_wall=false,open=true
+        facing=south,in_wall=true,open=false,powered=false:
           appearance: facing=south,in_wall=true,open=false
-        facing=south,in_wall=true,open=true:
+        facing=south,in_wall=true,open=false,powered=true:
+          appearance: facing=south,in_wall=true,open=false
+        facing=south,in_wall=true,open=true,powered=false:
           appearance: facing=south,in_wall=true,open=true
-        facing=west,in_wall=false,open=false:
+        facing=south,in_wall=true,open=true,powered=true:
+          appearance: facing=south,in_wall=true,open=true
+        facing=west,in_wall=false,open=false,powered=false:
           appearance: facing=west,in_wall=false,open=false
-        facing=west,in_wall=false,open=true:
+        facing=west,in_wall=false,open=false,powered=true:
+          appearance: facing=west,in_wall=false,open=false
+        facing=west,in_wall=false,open=true,powered=false:
           appearance: facing=west,in_wall=false,open=true
-        facing=west,in_wall=true,open=false:
+        facing=west,in_wall=false,open=true,powered=true:
+          appearance: facing=west,in_wall=false,open=true
+        facing=west,in_wall=true,open=false,powered=false:
           appearance: facing=west,in_wall=true,open=false
-        facing=west,in_wall=true,open=true:
+        facing=west,in_wall=true,open=false,powered=true:
+          appearance: facing=west,in_wall=true,open=false
+        facing=west,in_wall=true,open=true,powered=false:
           appearance: facing=west,in_wall=true,open=true
-  farmersdelight:mangrove_fence:
+        facing=west,in_wall=true,open=true,powered=true:
+          appearance: facing=west,in_wall=true,open=true
+  farmersdelight:crimson_fence_cover:
     template:
     - farmersdelight:block_loot_template
     settings:
@@ -691,7 +1023,7 @@ blocks:
       fire_spread_chance: 20
       push-reaction: block
       overrides:
-        item: minecraft:mangrove_fence
+        item: minecraft:crimson_fence
       tags:
       - minecraft:fences
       - minecraft:mineable/axe
@@ -725,224 +1057,520 @@ blocks:
           type: boolean
           default: false
       appearances:
-        north=false,east=false,south=false,west=false:
+        east=false,north=false,south=false,waterlogged=false,west=false:
           state: mangrove_fence[east=false,north=false,south=false,waterlogged=false,west=false]
-          transparent: true
           entity_renderer:
           - type: item_display
-            item: farmersdelight:mangrove_fence_post_elements
-        north=false,east=false,south=false,west=true:
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+        east=false,north=false,south=false,waterlogged=false,west=true:
           state: mangrove_fence[east=false,north=false,south=false,waterlogged=false,west=true]
-          transparent: true
           entity_renderer:
           - type: item_display
-            item: farmersdelight:mangrove_fence_post_elements
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
-            rotation: 270
-        north=false,east=false,south=true,west=false:
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 90
+        east=false,north=false,south=true,waterlogged=false,west=false:
           state: mangrove_fence[east=false,north=false,south=true,waterlogged=false,west=false]
-          transparent: true
           entity_renderer:
           - type: item_display
-            item: farmersdelight:mangrove_fence_post_elements
-          - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
+            item: farmersdelight:crimson_fence_post_elements
             rotation: 180
-        north=false,east=false,south=true,west=true:
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 0
+        east=false,north=false,south=true,waterlogged=false,west=true:
           state: mangrove_fence[east=false,north=false,south=true,waterlogged=false,west=true]
-          transparent: true
           entity_renderer:
           - type: item_display
-            item: farmersdelight:mangrove_fence_post_elements
-          - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
+            item: farmersdelight:crimson_fence_post_elements
             rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
-            rotation: 270
-        north=false,east=true,south=false,west=false:
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 90
+        east=true,north=false,south=false,waterlogged=false,west=false:
           state: mangrove_fence[east=true,north=false,south=false,waterlogged=false,west=false]
-          transparent: true
           entity_renderer:
           - type: item_display
-            item: farmersdelight:mangrove_fence_post_elements
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
-            rotation: 90
-        north=false,east=true,south=false,west=true:
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 270
+        east=true,north=false,south=false,waterlogged=false,west=true:
           state: mangrove_fence[east=true,north=false,south=false,waterlogged=false,west=true]
-          transparent: true
           entity_renderer:
           - type: item_display
-            item: farmersdelight:mangrove_fence_post_elements
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
-            rotation: 90
-          - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
+            item: farmersdelight:crimson_fence_side_elements
             rotation: 270
-        north=false,east=true,south=true,west=false:
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 90
+        east=true,north=false,south=true,waterlogged=false,west=false:
           state: mangrove_fence[east=true,north=false,south=true,waterlogged=false,west=false]
-          transparent: true
           entity_renderer:
           - type: item_display
-            item: farmersdelight:mangrove_fence_post_elements
-          - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
-            rotation: 90
-          - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
+            item: farmersdelight:crimson_fence_post_elements
             rotation: 180
-        north=false,east=true,south=true,west=true:
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 270
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 0
+        east=true,north=false,south=true,waterlogged=false,west=true:
           state: mangrove_fence[east=true,north=false,south=true,waterlogged=false,west=true]
-          transparent: true
           entity_renderer:
           - type: item_display
-            item: farmersdelight:mangrove_fence_post_elements
-          - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
-            rotation: 90
-          - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
+            item: farmersdelight:crimson_fence_post_elements
             rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
+            item: farmersdelight:crimson_fence_side_elements
             rotation: 270
-        north=true,east=false,south=false,west=false:
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 90
+        east=false,north=true,south=false,waterlogged=false,west=false:
           state: mangrove_fence[east=false,north=true,south=false,waterlogged=false,west=false]
-          transparent: true
           entity_renderer:
           - type: item_display
-            item: farmersdelight:mangrove_fence_post_elements
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
-        north=true,east=false,south=false,west=true:
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 180
+        east=false,north=true,south=false,waterlogged=false,west=true:
           state: mangrove_fence[east=false,north=true,south=false,waterlogged=false,west=true]
-          transparent: true
           entity_renderer:
           - type: item_display
-            item: farmersdelight:mangrove_fence_post_elements
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 180
           - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
-            rotation: 270
-        north=true,east=false,south=true,west=false:
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 90
+        east=false,north=true,south=true,waterlogged=false,west=false:
           state: mangrove_fence[east=false,north=true,south=true,waterlogged=false,west=false]
-          transparent: true
           entity_renderer:
           - type: item_display
-            item: farmersdelight:mangrove_fence_post_elements
-          - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
-          - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
+            item: farmersdelight:crimson_fence_post_elements
             rotation: 180
-        north=true,east=false,south=true,west=true:
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 180
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 0
+        east=false,north=true,south=true,waterlogged=false,west=true:
           state: mangrove_fence[east=false,north=true,south=true,waterlogged=false,west=true]
-          transparent: true
           entity_renderer:
           - type: item_display
-            item: farmersdelight:mangrove_fence_post_elements
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
-          - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
+            item: farmersdelight:crimson_fence_side_elements
             rotation: 180
           - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
-            rotation: 270
-        north=true,east=true,south=false,west=false:
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 90
+        east=true,north=true,south=false,waterlogged=false,west=false:
           state: mangrove_fence[east=true,north=true,south=false,waterlogged=false,west=false]
-          transparent: true
           entity_renderer:
           - type: item_display
-            item: farmersdelight:mangrove_fence_post_elements
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 180
           - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
-            rotation: 90
-        north=true,east=true,south=false,west=true:
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 270
+        east=true,north=true,south=false,waterlogged=false,west=true:
           state: mangrove_fence[east=true,north=true,south=false,waterlogged=false,west=true]
-          transparent: true
           entity_renderer:
           - type: item_display
-            item: farmersdelight:mangrove_fence_post_elements
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 180
           - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
-            rotation: 90
-          - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
+            item: farmersdelight:crimson_fence_side_elements
             rotation: 270
-        north=true,east=true,south=true,west=false:
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 90
+        east=true,north=true,south=true,waterlogged=false,west=false:
           state: mangrove_fence[east=true,north=true,south=true,waterlogged=false,west=false]
-          transparent: true
           entity_renderer:
           - type: item_display
-            item: farmersdelight:mangrove_fence_post_elements
-          - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
-          - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
-            rotation: 90
-          - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
+            item: farmersdelight:crimson_fence_post_elements
             rotation: 180
-        north=true,east=true,south=true,west=true:
-          state: mangrove_fence[east=true,north=true,south=true,waterlogged=false,west=true]
-          transparent: true
-          entity_renderer:
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
           - type: item_display
-            item: farmersdelight:mangrove_fence_post_elements
-          - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
-          - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
-            rotation: 90
-          - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
+            item: farmersdelight:crimson_fence_side_elements
             rotation: 180
           - type: item_display
-            item: farmersdelight:mangrove_fence_side_elements
+            item: farmersdelight:crimson_fence_side_elements
             rotation: 270
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 0
+        east=true,north=true,south=true,waterlogged=false,west=true:
+          state: mangrove_fence[east=true,north=true,south=true,waterlogged=false,west=true]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 180
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 270
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 90
+        east=false,north=false,south=false,waterlogged=true,west=false:
+          state: mangrove_fence[east=false,north=false,south=false,waterlogged=true,west=false]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+        east=false,north=false,south=false,waterlogged=true,west=true:
+          state: mangrove_fence[east=false,north=false,south=false,waterlogged=true,west=true]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 90
+        east=false,north=false,south=true,waterlogged=true,west=false:
+          state: mangrove_fence[east=false,north=false,south=true,waterlogged=true,west=false]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 0
+        east=false,north=false,south=true,waterlogged=true,west=true:
+          state: mangrove_fence[east=false,north=false,south=true,waterlogged=true,west=true]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 90
+        east=true,north=false,south=false,waterlogged=true,west=false:
+          state: mangrove_fence[east=true,north=false,south=false,waterlogged=true,west=false]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 270
+        east=true,north=false,south=false,waterlogged=true,west=true:
+          state: mangrove_fence[east=true,north=false,south=false,waterlogged=true,west=true]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 270
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 90
+        east=true,north=false,south=true,waterlogged=true,west=false:
+          state: mangrove_fence[east=true,north=false,south=true,waterlogged=true,west=false]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 270
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 0
+        east=true,north=false,south=true,waterlogged=true,west=true:
+          state: mangrove_fence[east=true,north=false,south=true,waterlogged=true,west=true]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 270
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 90
+        east=false,north=true,south=false,waterlogged=true,west=false:
+          state: mangrove_fence[east=false,north=true,south=false,waterlogged=true,west=false]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 180
+        east=false,north=true,south=false,waterlogged=true,west=true:
+          state: mangrove_fence[east=false,north=true,south=false,waterlogged=true,west=true]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 180
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 90
+        east=false,north=true,south=true,waterlogged=true,west=false:
+          state: mangrove_fence[east=false,north=true,south=true,waterlogged=true,west=false]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 180
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 0
+        east=false,north=true,south=true,waterlogged=true,west=true:
+          state: mangrove_fence[east=false,north=true,south=true,waterlogged=true,west=true]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 180
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 90
+        east=true,north=true,south=false,waterlogged=true,west=false:
+          state: mangrove_fence[east=true,north=true,south=false,waterlogged=true,west=false]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 180
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 270
+        east=true,north=true,south=false,waterlogged=true,west=true:
+          state: mangrove_fence[east=true,north=true,south=false,waterlogged=true,west=true]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 180
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 270
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 90
+        east=true,north=true,south=true,waterlogged=true,west=false:
+          state: mangrove_fence[east=true,north=true,south=true,waterlogged=true,west=false]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 180
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 270
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 0
+        east=true,north=true,south=true,waterlogged=true,west=true:
+          state: mangrove_fence[east=true,north=true,south=true,waterlogged=true,west=true]
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:crimson_fence_post_elements
+            rotation: 180
+            scale: 1.05,1.01,1.05
+            translation: 0,0.0001,0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 180
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 270
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 0
+          - type: item_display
+            item: farmersdelight:crimson_fence_side_elements
+            rotation: 90
       variants:
-        north=false,east=false,south=false,west=false:
-          appearance: north=false,east=false,south=false,west=false
-        north=false,east=false,south=false,west=true:
-          appearance: north=false,east=false,south=false,west=true
-        north=false,east=false,south=true,west=false:
-          appearance: north=false,east=false,south=true,west=false
-        north=false,east=false,south=true,west=true:
-          appearance: north=false,east=false,south=true,west=true
-        north=false,east=true,south=false,west=false:
-          appearance: north=false,east=true,south=false,west=false
-        north=false,east=true,south=false,west=true:
-          appearance: north=false,east=true,south=false,west=true
-        north=false,east=true,south=true,west=false:
-          appearance: north=false,east=true,south=true,west=false
-        north=false,east=true,south=true,west=true:
-          appearance: north=false,east=true,south=true,west=true
-        north=true,east=false,south=false,west=false:
-          appearance: north=true,east=false,south=false,west=false
-        north=true,east=false,south=false,west=true:
-          appearance: north=true,east=false,south=false,west=true
-        north=true,east=false,south=true,west=false:
-          appearance: north=true,east=false,south=true,west=false
-        north=true,east=false,south=true,west=true:
-          appearance: north=true,east=false,south=true,west=true
-        north=true,east=true,south=false,west=false:
-          appearance: north=true,east=true,south=false,west=false
-        north=true,east=true,south=false,west=true:
-          appearance: north=true,east=true,south=false,west=true
-        north=true,east=true,south=true,west=false:
-          appearance: north=true,east=true,south=true,west=false
-        north=true,east=true,south=true,west=true:
-          appearance: north=true,east=true,south=true,west=true
-  farmersdelight:mangrove_fence_gate:
+        east=false,north=false,south=false,waterlogged=false,west=false:
+          appearance: east=false,north=false,south=false,waterlogged=false,west=false
+        east=false,north=false,south=false,waterlogged=false,west=true:
+          appearance: east=false,north=false,south=false,waterlogged=false,west=true
+        east=false,north=false,south=true,waterlogged=false,west=false:
+          appearance: east=false,north=false,south=true,waterlogged=false,west=false
+        east=false,north=false,south=true,waterlogged=false,west=true:
+          appearance: east=false,north=false,south=true,waterlogged=false,west=true
+        east=true,north=false,south=false,waterlogged=false,west=false:
+          appearance: east=true,north=false,south=false,waterlogged=false,west=false
+        east=true,north=false,south=false,waterlogged=false,west=true:
+          appearance: east=true,north=false,south=false,waterlogged=false,west=true
+        east=true,north=false,south=true,waterlogged=false,west=false:
+          appearance: east=true,north=false,south=true,waterlogged=false,west=false
+        east=true,north=false,south=true,waterlogged=false,west=true:
+          appearance: east=true,north=false,south=true,waterlogged=false,west=true
+        east=false,north=true,south=false,waterlogged=false,west=false:
+          appearance: east=false,north=true,south=false,waterlogged=false,west=false
+        east=false,north=true,south=false,waterlogged=false,west=true:
+          appearance: east=false,north=true,south=false,waterlogged=false,west=true
+        east=false,north=true,south=true,waterlogged=false,west=false:
+          appearance: east=false,north=true,south=true,waterlogged=false,west=false
+        east=false,north=true,south=true,waterlogged=false,west=true:
+          appearance: east=false,north=true,south=true,waterlogged=false,west=true
+        east=true,north=true,south=false,waterlogged=false,west=false:
+          appearance: east=true,north=true,south=false,waterlogged=false,west=false
+        east=true,north=true,south=false,waterlogged=false,west=true:
+          appearance: east=true,north=true,south=false,waterlogged=false,west=true
+        east=true,north=true,south=true,waterlogged=false,west=false:
+          appearance: east=true,north=true,south=true,waterlogged=false,west=false
+        east=true,north=true,south=true,waterlogged=false,west=true:
+          appearance: east=true,north=true,south=true,waterlogged=false,west=true
+        east=false,north=false,south=false,waterlogged=true,west=false:
+          appearance: east=false,north=false,south=false,waterlogged=true,west=false
+        east=false,north=false,south=false,waterlogged=true,west=true:
+          appearance: east=false,north=false,south=false,waterlogged=true,west=true
+        east=false,north=false,south=true,waterlogged=true,west=false:
+          appearance: east=false,north=false,south=true,waterlogged=true,west=false
+        east=false,north=false,south=true,waterlogged=true,west=true:
+          appearance: east=false,north=false,south=true,waterlogged=true,west=true
+        east=true,north=false,south=false,waterlogged=true,west=false:
+          appearance: east=true,north=false,south=false,waterlogged=true,west=false
+        east=true,north=false,south=false,waterlogged=true,west=true:
+          appearance: east=true,north=false,south=false,waterlogged=true,west=true
+        east=true,north=false,south=true,waterlogged=true,west=false:
+          appearance: east=true,north=false,south=true,waterlogged=true,west=false
+        east=true,north=false,south=true,waterlogged=true,west=true:
+          appearance: east=true,north=false,south=true,waterlogged=true,west=true
+        east=false,north=true,south=false,waterlogged=true,west=false:
+          appearance: east=false,north=true,south=false,waterlogged=true,west=false
+        east=false,north=true,south=false,waterlogged=true,west=true:
+          appearance: east=false,north=true,south=false,waterlogged=true,west=true
+        east=false,north=true,south=true,waterlogged=true,west=false:
+          appearance: east=false,north=true,south=true,waterlogged=true,west=false
+        east=false,north=true,south=true,waterlogged=true,west=true:
+          appearance: east=false,north=true,south=true,waterlogged=true,west=true
+        east=true,north=true,south=false,waterlogged=true,west=false:
+          appearance: east=true,north=true,south=false,waterlogged=true,west=false
+        east=true,north=true,south=false,waterlogged=true,west=true:
+          appearance: east=true,north=true,south=false,waterlogged=true,west=true
+        east=true,north=true,south=true,waterlogged=true,west=false:
+          appearance: east=true,north=true,south=true,waterlogged=true,west=false
+        east=true,north=true,south=true,waterlogged=true,west=true:
+          appearance: east=true,north=true,south=true,waterlogged=true,west=true
+  farmersdelight:crimson_fence_gate_cover:
     template:
     - farmersdelight:block_loot_template
     settings:
@@ -953,7 +1581,7 @@ blocks:
       fire_spread_chance: 20
       push-reaction: block
       overrides:
-        item: minecraft:mangrove_fence_gate
+        item: minecraft:crimson_fence_gate
       tags:
       - minecraft:fence_gates
       - minecraft:mineable/axe
@@ -987,144 +1615,292 @@ blocks:
           type: boolean
           default: false
       appearances:
-        facing=east,in_wall=false,open=false:
+        facing=east,in_wall=false,open=false,powered=false:
           state: mangrove_fence_gate[facing=east,in_wall=false,open=false,powered=false]
-          transparent: true
           entity_renderer:
             type: item_display
-            item: farmersdelight:mangrove_fence_gate_elements
-            rotation: 270
-        facing=east,in_wall=false,open=true:
+            item: farmersdelight:crimson_fence_gate_elements
+            rotation: 90
+            scale: 1.002,1.002,1.002
+        facing=east,in_wall=false,open=false,powered=true:
+          state: mangrove_fence_gate[facing=east,in_wall=false,open=false,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:crimson_fence_gate_elements
+            rotation: 90
+            scale: 1.002,1.002,1.002
+        facing=east,in_wall=false,open=true,powered=false:
           state: mangrove_fence_gate[facing=east,in_wall=false,open=true,powered=false]
-          transparent: true
           entity_renderer:
             type: item_display
-            item: farmersdelight:mangrove_fence_gate_open_elements
-            rotation: 270
-        facing=east,in_wall=true,open=false:
+            item: farmersdelight:crimson_fence_gate_open_elements
+            rotation: 90
+            scale: 1.002,1.002,1.002
+        facing=east,in_wall=false,open=true,powered=true:
+          state: mangrove_fence_gate[facing=east,in_wall=false,open=true,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:crimson_fence_gate_open_elements
+            rotation: 90
+            scale: 1.002,1.002,1.002
+        facing=east,in_wall=true,open=false,powered=false:
           state: mangrove_fence_gate[facing=east,in_wall=true,open=false,powered=false]
-          transparent: true
           entity_renderer:
             type: item_display
-            item: farmersdelight:mangrove_fence_gate_wall_elements
-            rotation: 270
-        facing=east,in_wall=true,open=true:
+            item: farmersdelight:crimson_fence_gate_wall_elements
+            rotation: 90
+            scale: 1.002,1.002,1.002
+        facing=east,in_wall=true,open=false,powered=true:
+          state: mangrove_fence_gate[facing=east,in_wall=true,open=false,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:crimson_fence_gate_wall_elements
+            rotation: 90
+            scale: 1.002,1.002,1.002
+        facing=east,in_wall=true,open=true,powered=false:
           state: mangrove_fence_gate[facing=east,in_wall=true,open=true,powered=false]
-          transparent: true
           entity_renderer:
             type: item_display
-            item: farmersdelight:mangrove_fence_gate_wall_open_elements
-            rotation: 270
-        facing=north,in_wall=false,open=false:
+            item: farmersdelight:crimson_fence_gate_wall_open_elements
+            rotation: 90
+            scale: 1.002,1.002,1.002
+        facing=east,in_wall=true,open=true,powered=true:
+          state: mangrove_fence_gate[facing=east,in_wall=true,open=true,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:crimson_fence_gate_wall_open_elements
+            rotation: 90
+            scale: 1.002,1.002,1.002
+        facing=north,in_wall=false,open=false,powered=false:
           state: mangrove_fence_gate[facing=north,in_wall=false,open=false,powered=false]
-          transparent: true
           entity_renderer:
             type: item_display
-            item: farmersdelight:mangrove_fence_gate_elements
-            rotation: 180
-        facing=north,in_wall=false,open=true:
+            item: farmersdelight:crimson_fence_gate_elements
+            rotation: 0
+            scale: 1.002,1.002,1.002
+        facing=north,in_wall=false,open=false,powered=true:
+          state: mangrove_fence_gate[facing=north,in_wall=false,open=false,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:crimson_fence_gate_elements
+            rotation: 0
+            scale: 1.002,1.002,1.002
+        facing=north,in_wall=false,open=true,powered=false:
           state: mangrove_fence_gate[facing=north,in_wall=false,open=true,powered=false]
-          transparent: true
           entity_renderer:
             type: item_display
-            item: farmersdelight:mangrove_fence_gate_open_elements
-            rotation: 180
-        facing=north,in_wall=true,open=false:
+            item: farmersdelight:crimson_fence_gate_open_elements
+            rotation: 0
+            scale: 1.002,1.002,1.002
+        facing=north,in_wall=false,open=true,powered=true:
+          state: mangrove_fence_gate[facing=north,in_wall=false,open=true,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:crimson_fence_gate_open_elements
+            rotation: 0
+            scale: 1.002,1.002,1.002
+        facing=north,in_wall=true,open=false,powered=false:
           state: mangrove_fence_gate[facing=north,in_wall=true,open=false,powered=false]
-          transparent: true
           entity_renderer:
             type: item_display
-            item: farmersdelight:mangrove_fence_gate_wall_elements
-            rotation: 180
-        facing=north,in_wall=true,open=true:
+            item: farmersdelight:crimson_fence_gate_wall_elements
+            rotation: 0
+            scale: 1.002,1.002,1.002
+        facing=north,in_wall=true,open=false,powered=true:
+          state: mangrove_fence_gate[facing=north,in_wall=true,open=false,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:crimson_fence_gate_wall_elements
+            rotation: 0
+            scale: 1.002,1.002,1.002
+        facing=north,in_wall=true,open=true,powered=false:
           state: mangrove_fence_gate[facing=north,in_wall=true,open=true,powered=false]
-          transparent: true
           entity_renderer:
             type: item_display
-            item: farmersdelight:mangrove_fence_gate_wall_open_elements
-            rotation: 180
-        facing=south,in_wall=false,open=false:
+            item: farmersdelight:crimson_fence_gate_wall_open_elements
+            rotation: 0
+            scale: 1.002,1.002,1.002
+        facing=north,in_wall=true,open=true,powered=true:
+          state: mangrove_fence_gate[facing=north,in_wall=true,open=true,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:crimson_fence_gate_wall_open_elements
+            rotation: 0
+            scale: 1.002,1.002,1.002
+        facing=south,in_wall=false,open=false,powered=false:
           state: mangrove_fence_gate[facing=south,in_wall=false,open=false,powered=false]
-          transparent: true
           entity_renderer:
             type: item_display
-            item: farmersdelight:mangrove_fence_gate_elements
-        facing=south,in_wall=false,open=true:
+            item: farmersdelight:crimson_fence_gate_elements
+            rotation: 180
+            scale: 1.002,1.002,1.002
+        facing=south,in_wall=false,open=false,powered=true:
+          state: mangrove_fence_gate[facing=south,in_wall=false,open=false,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:crimson_fence_gate_elements
+            rotation: 180
+            scale: 1.002,1.002,1.002
+        facing=south,in_wall=false,open=true,powered=false:
           state: mangrove_fence_gate[facing=south,in_wall=false,open=true,powered=false]
-          transparent: true
           entity_renderer:
             type: item_display
-            item: farmersdelight:mangrove_fence_gate_open_elements
-        facing=south,in_wall=true,open=false:
+            item: farmersdelight:crimson_fence_gate_open_elements
+            rotation: 180
+            scale: 1.002,1.002,1.002
+        facing=south,in_wall=false,open=true,powered=true:
+          state: mangrove_fence_gate[facing=south,in_wall=false,open=true,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:crimson_fence_gate_open_elements
+            rotation: 180
+            scale: 1.002,1.002,1.002
+        facing=south,in_wall=true,open=false,powered=false:
           state: mangrove_fence_gate[facing=south,in_wall=true,open=false,powered=false]
-          transparent: true
           entity_renderer:
             type: item_display
-            item: farmersdelight:mangrove_fence_gate_wall_elements
-        facing=south,in_wall=true,open=true:
+            item: farmersdelight:crimson_fence_gate_wall_elements
+            rotation: 180
+            scale: 1.002,1.002,1.002
+        facing=south,in_wall=true,open=false,powered=true:
+          state: mangrove_fence_gate[facing=south,in_wall=true,open=false,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:crimson_fence_gate_wall_elements
+            rotation: 180
+            scale: 1.002,1.002,1.002
+        facing=south,in_wall=true,open=true,powered=false:
           state: mangrove_fence_gate[facing=south,in_wall=true,open=true,powered=false]
-          transparent: true
           entity_renderer:
             type: item_display
-            item: farmersdelight:mangrove_fence_gate_wall_open_elements
-        facing=west,in_wall=false,open=false:
+            item: farmersdelight:crimson_fence_gate_wall_open_elements
+            rotation: 180
+            scale: 1.002,1.002,1.002
+        facing=south,in_wall=true,open=true,powered=true:
+          state: mangrove_fence_gate[facing=south,in_wall=true,open=true,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:crimson_fence_gate_wall_open_elements
+            rotation: 180
+            scale: 1.002,1.002,1.002
+        facing=west,in_wall=false,open=false,powered=false:
           state: mangrove_fence_gate[facing=west,in_wall=false,open=false,powered=false]
-          transparent: true
           entity_renderer:
             type: item_display
-            item: farmersdelight:mangrove_fence_gate_elements
-            rotation: 90
-        facing=west,in_wall=false,open=true:
+            item: farmersdelight:crimson_fence_gate_elements
+            rotation: 270
+            scale: 1.002,1.002,1.002
+        facing=west,in_wall=false,open=false,powered=true:
+          state: mangrove_fence_gate[facing=west,in_wall=false,open=false,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:crimson_fence_gate_elements
+            rotation: 270
+            scale: 1.002,1.002,1.002
+        facing=west,in_wall=false,open=true,powered=false:
           state: mangrove_fence_gate[facing=west,in_wall=false,open=true,powered=false]
-          transparent: true
           entity_renderer:
             type: item_display
-            item: farmersdelight:mangrove_fence_gate_open_elements
-            rotation: 90
-        facing=west,in_wall=true,open=false:
+            item: farmersdelight:crimson_fence_gate_open_elements
+            rotation: 270
+            scale: 1.002,1.002,1.002
+        facing=west,in_wall=false,open=true,powered=true:
+          state: mangrove_fence_gate[facing=west,in_wall=false,open=true,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:crimson_fence_gate_open_elements
+            rotation: 270
+            scale: 1.002,1.002,1.002
+        facing=west,in_wall=true,open=false,powered=false:
           state: mangrove_fence_gate[facing=west,in_wall=true,open=false,powered=false]
-          transparent: true
           entity_renderer:
             type: item_display
-            item: farmersdelight:mangrove_fence_gate_wall_elements
-            rotation: 90
-        facing=west,in_wall=true,open=true:
+            item: farmersdelight:crimson_fence_gate_wall_elements
+            rotation: 270
+            scale: 1.002,1.002,1.002
+        facing=west,in_wall=true,open=false,powered=true:
+          state: mangrove_fence_gate[facing=west,in_wall=true,open=false,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:crimson_fence_gate_wall_elements
+            rotation: 270
+            scale: 1.002,1.002,1.002
+        facing=west,in_wall=true,open=true,powered=false:
           state: mangrove_fence_gate[facing=west,in_wall=true,open=true,powered=false]
-          transparent: true
           entity_renderer:
             type: item_display
-            item: farmersdelight:mangrove_fence_gate_wall_open_elements
-            rotation: 90
+            item: farmersdelight:crimson_fence_gate_wall_open_elements
+            rotation: 270
+            scale: 1.002,1.002,1.002
+        facing=west,in_wall=true,open=true,powered=true:
+          state: mangrove_fence_gate[facing=west,in_wall=true,open=true,powered=true]
+          entity_renderer:
+            type: item_display
+            item: farmersdelight:crimson_fence_gate_wall_open_elements
+            rotation: 270
+            scale: 1.002,1.002,1.002
       variants:
-        facing=east,in_wall=false,open=false:
-          appearance: facing=east,in_wall=false,open=false
-        facing=east,in_wall=false,open=true:
-          appearance: facing=east,in_wall=false,open=true
-        facing=east,in_wall=true,open=false:
-          appearance: facing=east,in_wall=true,open=false
-        facing=east,in_wall=true,open=true:
-          appearance: facing=east,in_wall=true,open=true
-        facing=north,in_wall=false,open=false:
-          appearance: facing=north,in_wall=false,open=false
-        facing=north,in_wall=false,open=true:
-          appearance: facing=north,in_wall=false,open=true
-        facing=north,in_wall=true,open=false:
-          appearance: facing=north,in_wall=true,open=false
-        facing=north,in_wall=true,open=true:
-          appearance: facing=north,in_wall=true,open=true
-        facing=south,in_wall=false,open=false:
-          appearance: facing=south,in_wall=false,open=false
-        facing=south,in_wall=false,open=true:
-          appearance: facing=south,in_wall=false,open=true
-        facing=south,in_wall=true,open=false:
-          appearance: facing=south,in_wall=true,open=false
-        facing=south,in_wall=true,open=true:
-          appearance: facing=south,in_wall=true,open=true
-        facing=west,in_wall=false,open=false:
-          appearance: facing=west,in_wall=false,open=false
-        facing=west,in_wall=false,open=true:
-          appearance: facing=west,in_wall=false,open=true
-        facing=west,in_wall=true,open=false:
-          appearance: facing=west,in_wall=true,open=false
-        facing=west,in_wall=true,open=true:
-          appearance: facing=west,in_wall=true,open=true
+        facing=east,in_wall=false,open=false,powered=false:
+          appearance: facing=east,in_wall=false,open=false,powered=false
+        facing=east,in_wall=false,open=false,powered=true:
+          appearance: facing=east,in_wall=false,open=false,powered=true
+        facing=east,in_wall=false,open=true,powered=false:
+          appearance: facing=east,in_wall=false,open=true,powered=false
+        facing=east,in_wall=false,open=true,powered=true:
+          appearance: facing=east,in_wall=false,open=true,powered=true
+        facing=east,in_wall=true,open=false,powered=false:
+          appearance: facing=east,in_wall=true,open=false,powered=false
+        facing=east,in_wall=true,open=false,powered=true:
+          appearance: facing=east,in_wall=true,open=false,powered=true
+        facing=east,in_wall=true,open=true,powered=false:
+          appearance: facing=east,in_wall=true,open=true,powered=false
+        facing=east,in_wall=true,open=true,powered=true:
+          appearance: facing=east,in_wall=true,open=true,powered=true
+        facing=north,in_wall=false,open=false,powered=false:
+          appearance: facing=north,in_wall=false,open=false,powered=false
+        facing=north,in_wall=false,open=false,powered=true:
+          appearance: facing=north,in_wall=false,open=false,powered=true
+        facing=north,in_wall=false,open=true,powered=false:
+          appearance: facing=north,in_wall=false,open=true,powered=false
+        facing=north,in_wall=false,open=true,powered=true:
+          appearance: facing=north,in_wall=false,open=true,powered=true
+        facing=north,in_wall=true,open=false,powered=false:
+          appearance: facing=north,in_wall=true,open=false,powered=false
+        facing=north,in_wall=true,open=false,powered=true:
+          appearance: facing=north,in_wall=true,open=false,powered=true
+        facing=north,in_wall=true,open=true,powered=false:
+          appearance: facing=north,in_wall=true,open=true,powered=false
+        facing=north,in_wall=true,open=true,powered=true:
+          appearance: facing=north,in_wall=true,open=true,powered=true
+        facing=south,in_wall=false,open=false,powered=false:
+          appearance: facing=south,in_wall=false,open=false,powered=false
+        facing=south,in_wall=false,open=false,powered=true:
+          appearance: facing=south,in_wall=false,open=false,powered=true
+        facing=south,in_wall=false,open=true,powered=false:
+          appearance: facing=south,in_wall=false,open=true,powered=false
+        facing=south,in_wall=false,open=true,powered=true:
+          appearance: facing=south,in_wall=false,open=true,powered=true
+        facing=south,in_wall=true,open=false,powered=false:
+          appearance: facing=south,in_wall=true,open=false,powered=false
+        facing=south,in_wall=true,open=false,powered=true:
+          appearance: facing=south,in_wall=true,open=false,powered=true
+        facing=south,in_wall=true,open=true,powered=false:
+          appearance: facing=south,in_wall=true,open=true,powered=false
+        facing=south,in_wall=true,open=true,powered=true:
+          appearance: facing=south,in_wall=true,open=true,powered=true
+        facing=west,in_wall=false,open=false,powered=false:
+          appearance: facing=west,in_wall=false,open=false,powered=false
+        facing=west,in_wall=false,open=false,powered=true:
+          appearance: facing=west,in_wall=false,open=false,powered=true
+        facing=west,in_wall=false,open=true,powered=false:
+          appearance: facing=west,in_wall=false,open=true,powered=false
+        facing=west,in_wall=false,open=true,powered=true:
+          appearance: facing=west,in_wall=false,open=true,powered=true
+        facing=west,in_wall=true,open=false,powered=false:
+          appearance: facing=west,in_wall=true,open=false,powered=false
+        facing=west,in_wall=true,open=false,powered=true:
+          appearance: facing=west,in_wall=true,open=false,powered=true
+        facing=west,in_wall=true,open=true,powered=false:
+          appearance: facing=west,in_wall=true,open=true,powered=false
+        facing=west,in_wall=true,open=true,powered=true:
+          appearance: facing=west,in_wall=true,open=true,powered=true

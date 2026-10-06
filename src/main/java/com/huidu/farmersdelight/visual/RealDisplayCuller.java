@@ -28,10 +28,9 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Per-viewer culling for the few REAL display entities FD still spawns (the rope carrier BlockDisplays in
- * CarrierRestorer). They are tracked by vanilla entity tracking, which follows the server view distance
- * (~160 blocks) rather than the player's own, so without this they stay client-side much longer than
- * CraftEngine's furniture does.
+ * Per-viewer culling for the few REAL display entities FD still spawns. They are tracked by vanilla entity
+ * tracking, which follows the server view distance (~160 blocks) rather than the player's own, so without
+ * this they stay client-side much longer than CraftEngine's furniture does.
  *
  *
  * Same rule as CraftEngine: an invisible display keeps its entity and its id, the viewer is sent a ViewRange
@@ -238,9 +237,8 @@ public final class RealDisplayCuller {
     }
 
     /**
-     * The display's model type: the block id of the vanilla carrier whose model the display draws
-     * (CarrierRestorer spawns a BlockDisplay carrying exactly that block data). It names the per-type entry
-     * an operator can write, and it is read here, on the region that owns the display.
+     * The display's model type: the block id whose model the display draws. It names the per-type entry an
+     * operator can write, and it is read here, on the region that owns the display.
      */
     private static String typeKey(Entity display) {
         if (display instanceof BlockDisplay blockDisplay) {
