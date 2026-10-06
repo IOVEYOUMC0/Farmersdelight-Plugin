@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.visual;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.util.PeriodicStagger;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.momirealms.craftengine.bukkit.entity.data.DisplayData;
 import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
@@ -99,7 +100,7 @@ public final class RealDisplayCuller {
             // instead of silently keeping culling switched off.
             if (DisplayCulling.needsFreshTask(this.task)) {
                 this.task = this.plugin.scheduler().runRepeating(this::tick,
-                        DEFAULT_INTERVAL_TICKS, DEFAULT_INTERVAL_TICKS);
+                        PeriodicStagger.initialDelay("display-cull", DEFAULT_INTERVAL_TICKS), DEFAULT_INTERVAL_TICKS);
             }
         }
     }
