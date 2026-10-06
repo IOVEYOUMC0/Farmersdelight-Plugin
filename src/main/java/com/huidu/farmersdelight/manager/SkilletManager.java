@@ -62,13 +62,15 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class SkilletManager {
 
     // ---- hand-held cooking, delegated to SkilletHandheldCooking -------------------------------
-    // Only these five members are read from outside (SkilletItemBehavior, SkilletLifecycleListener);
-    // everything else about hand-held sessions lives in the extracted class.
+    // Only these six members are read from outside (SkilletItemBehavior, SkilletLifecycleListener, and the
+    // listener registry wiring the skewer exclusion); everything else about hand-held sessions lives in the
+    // extracted class.
     //
     // Every one of them guards for null even though the constructor always assigns the field: listeners are
     // registered after it, but a partially-built manager (a throw part-way through the constructor) would
@@ -101,6 +103,17 @@ public class SkilletManager {
     /** Defaults to true, matching the config default, so an unbuilt manager does not report "disabled". */
     public boolean isHandheldCookingEnabled() {
         return handheldCooking == null || handheldCooking.cookingEnabled();
+    }
+
+    /**
+     * Hands the hand-held path the "is that player cooking a skewer" check, so the two handheld cooks cannot
+     * both own one player. Called by the listener registry once both handlers exist; a null check restores
+     * the never-cooking answer, which is what a build without the skewer path behaves like.
+     */
+    public void setSkewerCookingCheck(Predicate<Player> check) {
+        if (handheldCooking != null) {
+            handheldCooking.setSkewerCookingCheck(check);
+        }
     }
 
 
