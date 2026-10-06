@@ -52,7 +52,6 @@ import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.loot.KnifeDropHandler;
 import com.huidu.farmersdelight.manager.BuffBossbarManager;
 import com.huidu.farmersdelight.manager.CeDerivedReloadGate;
-import com.huidu.farmersdelight.manager.CarrierRestorer;
 import com.huidu.farmersdelight.manager.DatapackCoordinator;
 import com.huidu.farmersdelight.manager.HandleManager;
 import com.huidu.farmersdelight.manager.SkilletManager;
@@ -158,8 +157,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private StoveManager stoveManager;
     private SkilletManager skilletManager;
     private ItemDisplayManager itemDisplayManager;
-    // Restores the vanilla appearance of the vanilla block states the rope fence and its gate borrow.
-    private CarrierRestorer carrierRestorer;
     private KnifeDropHandler knifeDropHandler;
     private CookingPotRecipeManager cookingPotRecipeManager;
     private CuttingBoardRecipeManager cuttingBoardRecipeManager;
@@ -453,13 +450,12 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         skilletManager = new SkilletManager(this);
         trayManager = new TrayManager(this);
         handleManager = new HandleManager(this);
-        carrierRestorer = new CarrierRestorer(this);
         buffBossbarManager = new BuffBossbarManager(this);
         buffBossbarManager.applyConfig(getFirstConfigSection("buff.display", "bossbar"), buffSystemEnabled);
         EffectManager.applyBossbarStyles(
                 getFirstConfigSection("buff.display.styles", "bossbar.styles"));
         buffBossbarManager.start();
-        listeners.registerVisualAndWorldHandlers(carrierRestorer, buffBossbarManager);
+        listeners.registerVisualAndWorldHandlers(buffBossbarManager);
 
         listeners.registerDamageTypeDatapack();
 
@@ -618,12 +614,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             if (itemDisplayManager != null) {
                 itemDisplayManager.cleanup();
                 itemDisplayManager = null;
-            }
-            // The carrier displays are real entities rather than packet-only ones, so they are removed
-            // here as well: leaving them behind would survive the plugin's own lifetime.
-            if (carrierRestorer != null) {
-                carrierRestorer.shutdown();
-                carrierRestorer = null;
             }
         });
 
@@ -818,9 +808,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             // until a chunk unload event that may never fire.
             itemDisplayManager.cleanupWorld(worldId);
         }
-        if (carrierRestorer != null) {
-            carrierRestorer.unloadWorld(event.getWorld());
-        }
     }
 
     private void saveWorldBlockData(World world) {
@@ -844,9 +831,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onWorldLoad(WorldLoadEvent event) {
-        if (carrierRestorer != null) {
-            carrierRestorer.sweepOrphans(event.getWorld());
-        }
         if (!startupSyncCompleted) {
             return;
         }
@@ -888,8 +872,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     /**
-     * The one active recipe registration pass. Reaching it from here means every sharded caller shares the
-     * single-active rule, and disabling the plugin can cancel it.
+     * The one recipe registration driver. Every sharded caller reaches it from here, so each state owner gets
+     * one round, one armed task drains them all, and disabling the plugin cancels every round. A round
+     * publishes only from its own tail, as a complete immutable snapshot.
      */
     public RecipeRegistrationDriver recipeRegistrations() {
         RecipeRegistrationDriver current = recipeRegistrations;
@@ -1010,9 +995,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
         if (itemDisplayManager instanceof ProxyItemDisplayManager proxyItemDisplayManager) {
             proxyItemDisplayManager.reload();
-        }
-        if (carrierRestorer != null) {
-            carrierRestorer.reload();
         }
         CuttingBoardBlockBehavior.refreshDisplayEntities();
         if (skilletManager != null) {

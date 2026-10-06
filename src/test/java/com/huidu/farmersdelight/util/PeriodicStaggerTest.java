@@ -51,31 +51,26 @@ class PeriodicStaggerTest {
     @Test
     void theSpreadIsEvenAndDeterministic() {
         assertEquals(0L, PeriodicStagger.initialDelay("display-cull", SHARED_PERIOD));
-        assertEquals(5L, PeriodicStagger.initialDelay("tick-cleanup", SHARED_PERIOD));
-        assertEquals(10L, PeriodicStagger.initialDelay("display-sync", SHARED_PERIOD));
-        assertEquals(15L, PeriodicStagger.initialDelay("carrier-restore", SHARED_PERIOD));
+        assertEquals(6L, PeriodicStagger.initialDelay("tick-cleanup", SHARED_PERIOD));
+        assertEquals(13L, PeriodicStagger.initialDelay("display-sync", SHARED_PERIOD));
         assertEquals(PeriodicStagger.initialDelay("display-sync", SHARED_PERIOD),
                 PeriodicStagger.initialDelay("display-sync", SHARED_PERIOD), "no randomness");
     }
 
     @Test
-    void theThreeStaggeredSitesTakeThePhasesOfTheirOwnPeriod() {
+    void theStaggeredSitesTakeThePhasesOfTheirOwnPeriod() {
         long cleanup = PeriodicStagger.initialDelay("tick-cleanup", 6000L);
         long sync = PeriodicStagger.initialDelay("display-sync", 20L);
-        long carrier = PeriodicStagger.initialDelay("carrier-restore", 10L);
-        assertEquals(1500L, cleanup, "the cleanup pass keeps its 6000 tick period and starts one quarter in");
-        assertEquals(10L, sync, "the display sync keeps its 20 tick period and starts two quarters in");
-        assertEquals(7L, carrier, "the carrier restorer keeps its 10 tick period and starts three quarters in");
-        assertEquals(3, Set.of(cleanup, sync, carrier).size(),
-                "three sites on three different ticks: " + List.of(cleanup, sync, carrier));
-        assertEquals(6000L * 1L / 4L, cleanup, "phase one of four");
-        assertEquals(20L * 2L / 4L, sync, "phase two of four");
-        assertEquals(10L * 3L / 4L, carrier, "phase three of four");
+        assertEquals(2000L, cleanup, "the cleanup pass keeps its 6000 tick period and starts one third in");
+        assertEquals(13L, sync, "the display sync keeps its 20 tick period and starts two thirds in");
+        assertEquals(2, Set.of(cleanup, sync).size(),
+                "two sites on two different ticks: " + List.of(cleanup, sync));
+        assertEquals(6000L * 1L / 3L, cleanup, "phase one of three");
+        assertEquals(20L * 2L / 3L, sync, "phase two of three");
         Set<Long> firstTicks = new HashSet<>();
         firstTicks.add(PeriodicStagger.firstTick("tick-cleanup", 6000L));
         firstTicks.add(PeriodicStagger.firstTick("display-sync", 20L));
-        firstTicks.add(PeriodicStagger.firstTick("carrier-restore", 10L));
-        assertEquals(3, firstTicks.size(), "and on three different first ticks: " + firstTicks);
+        assertEquals(2, firstTicks.size(), "and on two different first ticks: " + firstTicks);
     }
 
     @Test
@@ -96,9 +91,6 @@ class PeriodicStaggerTest {
         assertTrue(flat("visual/ProxyItemDisplayManager.java").contains("runRepeating(this::syncAll,"
                         + " PeriodicStagger.initialDelay(\"display-sync\", syncIntervalTicks), syncIntervalTicks)"),
                 "the display sync has to reach its first tick through its own slot and keep its period");
-        assertTrue(flat("listener/CarrierRestoreListener.java").contains("runRepeating(restorer::tick,"
-                        + " PeriodicStagger.initialDelay(\"carrier-restore\", interval), interval)"),
-                "the carrier restorer has to reach its first tick through its own slot and keep its period");
         assertTrue(flat("visual/RealDisplayCuller.java")
                         .contains("PeriodicStagger.initialDelay(\"display-cull\", DEFAULT_INTERVAL_TICKS),"
                                 + " DEFAULT_INTERVAL_TICKS)"),

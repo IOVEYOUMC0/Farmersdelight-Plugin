@@ -253,23 +253,14 @@ performance:
     # countdown and the bossbar push. Higher = smoother CPU under many buffed
     # players at the cost of bar smoothness; durations self-correct since they decrement by this interval.
     effect-tick-interval-ticks: 4
-    # Carrier restore: how many displays one tick may create, how many tracked positions it verifies, how
-    # many loaded chunks it scans and how far above the world's minimum build height a scan looks. Scanning
-    # exists for blocks that appeared without a place event (world generation, external plugins), so a high
-    # scan cost only delays that recovery, while creation/verification run on the events' critical path.
-    carrier-restore-entities-per-tick: 8
-    carrier-restore-verify-per-tick: 64
-    carrier-restore-scan-chunks-per-tick: 4
-    carrier-restore-scan-height: 96
-    carrier-restore-tick-interval: 10
     # Max displays one player's culling pass examines: the displays that player already shows plus the
     # first sightings inside the pass's window. The refresh walks a rotating cursor, so a budget below the
     # number of displays a player sees delays an update to a later pass instead of dropping it. Raise it
     # for quicker reactions, lower it to cap the per-pass cost tighter.
     display-cull-checks-per-player: 64
 
-  # Display visibility: how far proxy item displays and the restored carrier displays stay visible, how
-  # often their near/far state is refreshed, and the culling rule of each restored carrier type.
+  # Display visibility: how far proxy item displays stay visible and how often their near/far state is
+  # refreshed.
   proxy-display:
     view-distance: 64.0
     sync-interval-ticks: 20
@@ -287,17 +278,6 @@ performance:
         entity-culling: true
         view-distance: 64.0
 
-  # The rope fence and its gate are drawn by CraftEngine block entity renderers, but their carrier states are
-  # real vanilla mangrove fence states whose models CraftEngine leaves empty. A genuinely vanilla mangrove
-  # fence (or mangrove fence gate) standing in one of those states would therefore render as nothing;
-  # with this on, a BlockDisplay carrying the same block data is placed there so the vanilla model still
-  # shows. It costs one entity per affected vanilla block, so it is capped and duty-cycled.
-  # Turn it off to keep the entity count at zero and accept that those vanilla blocks look like the rope
-  # fence/gate in the states the plugin borrows.
-  restore-vanilla-carriers: true
-  # Hard cap on the restore displays alive at once across all worlds. Once reached, no further vanilla block
-  # is restored until existing displays are released.
-  carrier-restore-max-entities: 4096
 
 # Master switch for the vanilla container bridge between hoppers and plugin blocks.
 # When enabled=false, the hopper container bridge for plugin blocks is fully disabled, avoiding hoppers eating items, duplicate container creation or write errors.
