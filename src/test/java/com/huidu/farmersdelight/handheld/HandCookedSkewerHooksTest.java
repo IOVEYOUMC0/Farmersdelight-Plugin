@@ -398,6 +398,61 @@ class HandCookedSkewerHooksTest {
         assertEquals(0, display.updates.size(), "and nothing is sent");
     }
 
+    /**
+     * The bar reads the player's world and held slot, so its update has to run inside the task dispatched to
+     * that player: off Folia that task runs inline on the loop thread, on Folia it runs on the player's entity
+     * scheduler while the loop itself runs on the global one. The recording seam marks the dispatch context, so
+     * an update left next to the dispatch instead of inside it is visible here.
+     */
+    @Test
+    void theProgressBarUpdateRunsInsideTheDispatchedTickTask() {
+        CountingArm arm = new CountingArm();
+        ContextLoopSeam seam = new ContextLoopSeam();
+        HandCookedSkewerHooks hooks = new HandCookedSkewerHooks(null);
+        hooks.setLoopSeam(seam);
+        assertTrue(hooks.applyConfig(true, false, 120, ONE_RESULT, arm, null));
+        ContextDisplay display = new ContextDisplay(seam);
+        hooks.setProgressDisplay(display);
+        UUID player = UUID.randomUUID();
+        assertTrue(hooks.beginSession(player, EquipmentSlot.HAND));
+
+        for (int tick = 0; tick < 8; tick++) {
+            arm.runTick();
+        }
+
+        assertEquals(2, display.updates, "the one-update-every-four-ticks cadence still arrives");
+        assertEquals(0, display.updatesOutsideDispatch,
+                "the bar reads the player's world and held slot, so it must run in the player's dispatched task");
+    }
+
+    /** Records whether each bar update ran while the loop's dispatch was on the stack. */
+    private static final class ContextDisplay implements HandCookedSkewerHooks.SkewerProgressDisplay {
+
+        private final ContextLoopSeam seam;
+        private int updates;
+        private int updatesOutsideDispatch;
+
+        private ContextDisplay(ContextLoopSeam seam) {
+            this.seam = seam;
+        }
+
+        @Override
+        public void start(UUID player, int slot, String expectedId, int duration) {
+        }
+
+        @Override
+        public void update(UUID player, int progress, int duration) {
+            this.updates++;
+            if (!this.seam.dispatching) {
+                this.updatesOutsideDispatch++;
+            }
+        }
+
+        @Override
+        public void close(UUID player) {
+        }
+    }
+
     /** Records what the bar seam was asked to do. */
     private static final class RecordingDisplay implements HandCookedSkewerHooks.SkewerProgressDisplay {
 
@@ -461,14 +516,126 @@ class HandCookedSkewerHooksTest {
         assertEquals(0, stillThere.size(), "an untouched slot keeps its bar");
     }
 
-    /** Mandatory fix 4: the source itself is asserted, not just a grep on the author's machine. */
+    /**
+     * The vanilla use is cancelled only for a click this path owns: the raw skewers are food, so an
+     * uncancelled accepted click would also start eating the skewer the same click cooks, and one skewer would
+     * become a meal and a cooked skewer at once. Every refused click (no result, no heat, skillet busy, sneak
+     * required) has to return before the cancel, so the skewer stays edible everywhere else.
+     */
     @Test
-    void theHooksSourceNeverCancelsTheVanillaInteraction() throws Exception {
+    void theVanillaUseIsCancelledOnlyForAnOwnedClick() throws Exception {
         Path source = locateHooksSource();
         assertNotNull(source, "the handler source has to be reachable from the test working directory");
         String code = Files.readString(source);
-        assertFalse(code.contains("setCancelled"), "the handheld path must never cancel the vanilla use");
-        assertFalse(code.contains("cancelVanilla"), "and never carries a cancel callback");
+        assertEquals(1, code.split("setCancelled\\(", -1).length - 1,
+                "exactly one cancel: the click a session was started or confirmed for");
+        assertFalse(code.contains("cancelVanilla"), "and never a cancel callback");
+
+        String interact = methodBody(code, "public void onInteract(PlayerInteractEvent event)");
+        int start = interact.indexOf("SessionStart start = handleUse(");
+        int refused = interact.indexOf("SessionStart.REFUSED");
+        int cancel = interact.indexOf("setCancelled(true)");
+        assertTrue(start > 0 && refused > start && cancel > refused,
+                "the cancel has to sit behind the refused-clicks-return guard");
+    }
+
+    /**
+     * The conversion snapshots the inventory before it consumes and restores it when the commit throws, so a
+     * half-finished conversion can never leave the raw skewer in the hand and the cooked one in the inventory.
+     * The bar is closed in the finally, after the stack changed, so its resend carries the real slot.
+     */
+    @Test
+    void theConversionSnapshotsAndRollsBack() throws Exception {
+        Path source = locateHooksSource();
+        assertNotNull(source, "the handler source has to be reachable from the test working directory");
+        String convert = methodBody(Files.readString(source),
+                "private void convert(UUID id, @Nullable SkewerSession session)");
+
+        int valid = convert.indexOf("sessionStillHolds(player, session)");
+        int snapshot = convert.indexOf("snapshotContents(player)");
+        int consume = convert.indexOf("setHeld(player, session.hand(),");
+        int restore = convert.indexOf("player.getInventory().setContents(before)");
+        int rethrow = convert.indexOf("throw failure");
+        int close = convert.indexOf("progressDisplay.close(id)", rethrow);
+        assertTrue(valid > 0 && snapshot > valid && consume > snapshot,
+                "the session is re-checked and the inventory snapshotted before anything is consumed");
+        assertTrue(restore > consume && rethrow > restore, "a throwing commit restores the snapshot and rethrows");
+        assertTrue(close > rethrow, "the bar is closed after the stack changed, so its resend is the real one");
+    }
+
+    /**
+     * The loop thread must not read the player or the inventory after dispatching: those reads belong to the
+     * dispatched task, which is the player's own scheduler on Folia. A single-threaded test cannot tell the two
+     * threads apart, so the shape of tick() is asserted on the source: the bar update is part of the dispatched
+     * statement, and nothing after that statement touches the player again.
+     */
+    @Test
+    void theTickLoopLeavesNoPlayerReadOutsideTheDispatch() throws Exception {
+        Path source = locateHooksSource();
+        assertNotNull(source, "the handler source has to be reachable from the test working directory");
+        String body = methodBody(Files.readString(source), "private void tick()");
+        int dispatch = body.indexOf("seam.dispatch(");
+        assertTrue(dispatch > 0, "the loop has to dispatch the per-player work");
+        int dispatchedEnd = matchingParen(body, body.indexOf('(', dispatch));
+        String dispatched = body.substring(dispatch, dispatchedEnd + 1);
+        assertTrue(dispatched.contains("updateProgressDisplay("),
+                "the bar update has to be part of the dispatched task: " + dispatched);
+        String afterDispatch = body.substring(dispatchedEnd + 1);
+        for (String forbidden : new String[]{"updateProgressDisplay(", "progressDisplay", "getInventory(",
+                "getWorld(", "stillHoldsTheSkewer"}) {
+            assertFalse(afterDispatch.contains(forbidden),
+                    "the loop thread must not keep reading the player after dispatching: " + forbidden);
+        }
+    }
+
+    /** The body of the method with the given signature, so a test can assert its shape. */
+    private static String methodBody(String code, String signature) {
+        int start = code.indexOf(signature);
+        assertTrue(start > 0, "the method has to exist: " + signature);
+        int open = code.indexOf('{', start);
+        assertTrue(open > start, "the method has to have a body: " + signature);
+        return code.substring(open + 1, matchingBrace(code, open));
+    }
+
+    /** The index of the parenthesis that closes the one at the given index. */
+    private static int matchingParen(String code, int open) {
+        int depth = 0;
+        for (int index = open; index < code.length(); index++) {
+            char current = code.charAt(index);
+            if (current == '(') {
+                depth++;
+            } else if (current == ')') {
+                depth--;
+                if (depth == 0) {
+                    return index;
+                }
+            }
+        }
+        throw new AssertionError("unbalanced parentheses from index " + open);
+    }
+
+    /** The index of the brace that closes the one at the given index, ignoring line comments. */
+    private static int matchingBrace(String code, int open) {
+        int depth = 0;
+        for (int index = open; index < code.length(); index++) {
+            char current = code.charAt(index);
+            if (current == '/' && index + 1 < code.length() && code.charAt(index + 1) == '/') {
+                index = code.indexOf('\n', index);
+                if (index < 0) {
+                    break;
+                }
+                continue;
+            }
+            if (current == '{') {
+                depth++;
+            } else if (current == '}') {
+                depth--;
+                if (depth == 0) {
+                    return index;
+                }
+            }
+        }
+        throw new AssertionError("unbalanced braces from index " + open);
     }
 
     private static Path locateHooksSource() {
@@ -789,6 +956,9 @@ class HandCookedSkewerHooksTest {
                     case "toString" -> "fake player";
                     case "hashCode" -> System.identityHashCode(proxy);
                     case "equals" -> proxy == args[0];
+                    // The per-tick gate reads these two; false means alive and no native use.
+                    case "isDead" -> false;
+                    case "isHandRaised" -> false;
                     default -> throw new AssertionError("unexpected Player call: " + method.getName());
                 });
 
@@ -805,6 +975,40 @@ class HandCookedSkewerHooksTest {
             assertSame(player, target);
             dispatches++;
             task.run();
+        }
+    }
+
+    /**
+     * Like the seam above, but it also records whether a task is currently running inside the dispatch, which
+     * is what tells "the work happened on the player's task" from "the work happened on the loop thread".
+     */
+    private static final class ContextLoopSeam implements HandCookedSkewerHooks.LoopSeam {
+
+        private final Player player = (Player) Proxy.newProxyInstance(Player.class.getClassLoader(),
+                new Class<?>[]{Player.class}, (proxy, method, args) -> switch (method.getName()) {
+                    case "toString" -> "fake player";
+                    case "hashCode" -> System.identityHashCode(proxy);
+                    case "equals" -> proxy == args[0];
+                    case "isDead" -> false;
+                    case "isHandRaised" -> false;
+                    default -> throw new AssertionError("unexpected Player call: " + method.getName());
+                });
+        private boolean dispatching;
+
+        @Override
+        public Player player(UUID id) {
+            return player;
+        }
+
+        @Override
+        public void dispatch(Player target, Runnable task) {
+            assertSame(player, target);
+            this.dispatching = true;
+            try {
+                task.run();
+            } finally {
+                this.dispatching = false;
+            }
         }
     }
 
