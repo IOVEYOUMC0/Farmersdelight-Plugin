@@ -550,32 +550,42 @@ class HandCookedSkewerHooksTest {
 
     /**
      * The wiring's action mapping. The rule lives in SkewerBlockClickPolicy; what has to hold here is that a left
-     * click can never reach the accepted branch and that the block case is judged, not dropped.
+     * click can never reach the accepted branch, that a block without an interaction is judged instead of
+     * dropped, and that sneaking is what takes the click from a block that has one.
      */
     @Test
-    void aBlockClickOnAHeatWithoutInteractionIsAccepted() {
-        assertEquals(SkewerBlockClickPolicy.Decision.ACCEPT_BLOCK_HEAT_WITHOUT_INTERACTION,
-                HandCookedSkewerHooks.decideClick(Action.RIGHT_CLICK_BLOCK, true, false),
-                "fire/lava/magma next to the player is exactly the click the report could not trigger");
+    void aBlockClickWithoutInteractionIsAccepted() {
+        assertEquals(SkewerBlockClickPolicy.Decision.ACCEPT_BLOCK_WITHOUT_INTERACTION,
+                HandCookedSkewerHooks.decideClick(Action.RIGHT_CLICK_BLOCK, false, false),
+                "fire/lava/magma/plain terrain next to the player is exactly the click the report could not trigger");
         assertTrue(SkewerBlockClickPolicy.accepted(
-                HandCookedSkewerHooks.decideClick(Action.RIGHT_CLICK_BLOCK, true, false)));
+                HandCookedSkewerHooks.decideClick(Action.RIGHT_CLICK_BLOCK, false, false)));
+    }
+
+    @Test
+    void sneakingTakesTheClickFromACampfire() {
+        assertEquals(SkewerBlockClickPolicy.Decision.ACCEPT_BLOCK_SNEAKING,
+                HandCookedSkewerHooks.decideClick(Action.RIGHT_CLICK_BLOCK, true, true),
+                "a sneaking player deliberately aims at the campfire, so the click is ours");
+        assertTrue(SkewerBlockClickPolicy.accepted(
+                HandCookedSkewerHooks.decideClick(Action.RIGHT_CLICK_BLOCK, true, true)));
     }
 
     @Test
     void aCampfireKeepsItsOwnClick() {
         assertEquals(SkewerBlockClickPolicy.Decision.DECLINE_BLOCK_HAS_INTERACTION,
-                HandCookedSkewerHooks.decideClick(Action.RIGHT_CLICK_BLOCK, true, true),
-                "a campfire takes the skewer as food, so the click stays vanilla's");
+                HandCookedSkewerHooks.decideClick(Action.RIGHT_CLICK_BLOCK, true, false),
+                "a campfire takes the skewer as food, so a non-sneaking click stays vanilla's");
         assertFalse(SkewerBlockClickPolicy.accepted(
-                HandCookedSkewerHooks.decideClick(Action.RIGHT_CLICK_BLOCK, true, true)));
+                HandCookedSkewerHooks.decideClick(Action.RIGHT_CLICK_BLOCK, true, false)));
     }
 
     @Test
-    void aBlockThatIsNotAHeatSourceIsDeclined() {
-        assertEquals(SkewerBlockClickPolicy.Decision.DECLINE_BLOCK_NOT_HEAT,
-                HandCookedSkewerHooks.decideClick(Action.RIGHT_CLICK_BLOCK, false, false));
-        assertFalse(SkewerBlockClickPolicy.accepted(
-                HandCookedSkewerHooks.decideClick(Action.RIGHT_CLICK_BLOCK, false, false)));
+    void anAcceptedBlockClickStillNeedsHeat() {
+        // The policy only answers "may this click be ours"; without heat around the player the start gate still
+        // refuses, which is the same no-heat line an air click gets.
+        assertEquals("no-heat",
+                HandCookedSkewerHooks.blockedReason(true, true, false, false, false, false, false));
     }
 
     @Test
@@ -588,7 +598,7 @@ class HandCookedSkewerHooksTest {
     @Test
     void aLeftOrPhysicalClickIsNeverOurs() {
         assertEquals(SkewerBlockClickPolicy.Decision.DECLINE_NOT_A_RIGHT_CLICK,
-                HandCookedSkewerHooks.decideClick(Action.LEFT_CLICK_BLOCK, true, false));
+                HandCookedSkewerHooks.decideClick(Action.LEFT_CLICK_BLOCK, false, false));
         assertEquals(SkewerBlockClickPolicy.Decision.DECLINE_NOT_A_RIGHT_CLICK,
                 HandCookedSkewerHooks.decideClick(Action.PHYSICAL, true, true));
         assertEquals(SkewerBlockClickPolicy.Decision.DECLINE_NOT_A_RIGHT_CLICK,

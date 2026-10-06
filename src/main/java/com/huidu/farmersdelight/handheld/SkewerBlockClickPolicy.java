@@ -7,23 +7,19 @@ import org.jetbrains.annotations.Nullable;
  * Decides whether one right-click may start handheld skewer cooking, as pure logic so every branch is
  * testable without a server.
  *
- * <p><b>Why a block click is accepted at all.</b> Farmer's Delight 1.4 only implements
- * {@code HandCookedItem#use} (right click in the air), but NeoForge falls back to {@code use} when the
- * clicked block has no interaction of its own. Accepting only air clicks therefore loses the case a player
- * actually performs next to a heat source: aiming at it. That was a silent failure — the hook returned before
- * any log — so the block click is now accepted, but <b>only</b> when it cannot steal a vanilla/CraftEngine
- * interaction:
- * <ul>
- *   <li>the clicked block has to be a heat source (see {@code api/block/HeatSources}); and</li>
- *   <li>the block must not have its own interaction for the held item. A campfire takes food (placing the
- *       skewer on it) and a stove may too, so those keep owning the click; {@code fire}, {@code soul_fire},
- *       {@code lava} and {@code magma_block} have no interaction and are taken over.</li>
- * </ul>
- * Air clicks stay unconditional: nothing else can claim them.
+ * An air click is always ours. A block click is ours when the block cannot do anything with the held item
+ * (plain terrain, fire, soul fire, lava and magma blocks all fall through to the item's own use) or when the
+ * player is sneaking, which is the deliberate way to cook while aiming at a block that would otherwise take
+ * the click. A non-sneaking click on a block that does have an interaction of its own stays with that block:
+ * a campfire takes the skewer as food and a stove may too.
  *
- * <p>The rest of the semantics are unchanged: the heat source is only checked when cooking starts, cooking
- * takes {@code handheld-skewer.cooking-time-ticks} (120) ticks of holding the use key, one skewer per
- * session, and five interactions cancel it.
+ * Whether such a block would still accept the item cannot be answered from Java, so it is not part of the
+ * rule: neither Bukkit nor CraftEngine offers a cheap, thread-correct way to see a campfire's four slots or a
+ * stove's contents from here, and guessing would either steal vanilla's click or drop ours. Those clicks keep
+ * belonging to the block unless the player sneaks.
+ *
+ * The heat condition is not part of this class either: the caller starts cooking only when the player is
+ * inside the three by three by three cube or is on fire, and that check is unchanged.
  */
 public final class SkewerBlockClickPolicy {
 
@@ -32,13 +28,13 @@ public final class SkewerBlockClickPolicy {
 
         /** Right click in the air: always ours to handle. */
         ACCEPT_AIR,
-        /** Right click on a heat source that has no interaction of its own: ours to handle. */
-        ACCEPT_BLOCK_HEAT_WITHOUT_INTERACTION,
-        /** The block claims the click (a campfire taking food), so vanilla/CraftEngine keeps it. */
+        /** Right click on a block that has no interaction of its own: ours to handle. */
+        ACCEPT_BLOCK_WITHOUT_INTERACTION,
+        /** Right click on any block while sneaking: the player asked us to take this click. */
+        ACCEPT_BLOCK_SNEAKING,
+        /** The block claims the click (a campfire taking food), so vanilla or CraftEngine keeps it. */
         DECLINE_BLOCK_HAS_INTERACTION,
-        /** Clicking a block that is not a heat source. */
-        DECLINE_BLOCK_NOT_HEAT,
-        /** Not a right click, or no block data at all. */
+        /** Not a right click. */
         DECLINE_NOT_A_RIGHT_CLICK
     }
 
@@ -46,30 +42,32 @@ public final class SkewerBlockClickPolicy {
     }
 
     /**
-     * The acceptance rule. {@code blockHasInteraction} is "the clicked block does something with this item
+     * The acceptance rule. blockHasInteraction is "the clicked block does something with this item
      * before we would" (campfire food placement being the case that matters).
      */
     @ApiStatus.Internal
     public static Decision decide(boolean rightClickAir, boolean rightClickBlock,
-                                  boolean blockIsHeatSource, boolean blockHasInteraction) {
+                                  boolean blockHasInteraction, boolean sneaking) {
         if (rightClickAir) {
             return Decision.ACCEPT_AIR;
         }
         if (!rightClickBlock) {
             return Decision.DECLINE_NOT_A_RIGHT_CLICK;
         }
-        if (blockHasInteraction) {
-            return Decision.DECLINE_BLOCK_HAS_INTERACTION;
+        if (sneaking) {
+            return Decision.ACCEPT_BLOCK_SNEAKING;
         }
-        if (!blockIsHeatSource) {
-            return Decision.DECLINE_BLOCK_NOT_HEAT;
+        if (!blockHasInteraction) {
+            return Decision.ACCEPT_BLOCK_WITHOUT_INTERACTION;
         }
-        return Decision.ACCEPT_BLOCK_HEAT_WITHOUT_INTERACTION;
+        return Decision.DECLINE_BLOCK_HAS_INTERACTION;
     }
 
     /** Whether this decision lets the skewer cooking start. */
     public static boolean accepted(@Nullable Decision decision) {
-        return decision == Decision.ACCEPT_AIR || decision == Decision.ACCEPT_BLOCK_HEAT_WITHOUT_INTERACTION;
+        return decision == Decision.ACCEPT_AIR
+                || decision == Decision.ACCEPT_BLOCK_WITHOUT_INTERACTION
+                || decision == Decision.ACCEPT_BLOCK_SNEAKING;
     }
 
     /**
