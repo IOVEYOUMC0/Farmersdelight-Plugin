@@ -514,8 +514,13 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
                     pos.y() + face.getModY(),
                     pos.z() + face.getModZ()
             );
-            // Neighbours on a chunk border are read and rewritten only while their chunk is resident: the CE
-            // lookup would otherwise load it and the place below would cross into another region.
+            // A neighbour on a chunk border is read and rewritten only while this thread owns its region and
+            // its chunk is resident: the CE lookup would otherwise load the chunk, and the place after it
+            // would write into another region. A skipped neighbour is left to the neighbour update that runs
+            // when the border is crossed.
+            if (!Bukkit.isOwnedByCurrentRegion(neighbor)) {
+                continue;
+            }
             ImmutableBlockState state = CustomBlockUtils.getStateIfResident(neighbor);
             if (state == null || state.isEmpty() || !CustomBlockUtils.hasBehavior(state, RopeBlockBehavior.class)) {
                 continue;
