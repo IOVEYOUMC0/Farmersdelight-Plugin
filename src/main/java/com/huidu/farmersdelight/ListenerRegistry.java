@@ -33,6 +33,7 @@ import com.huidu.farmersdelight.listener.TagDatapackInstaller;
 import com.huidu.farmersdelight.listener.TatamiBreakListener;
 import com.huidu.farmersdelight.listener.worlddata.VillagerTradeListener;
 import com.huidu.farmersdelight.manager.BuffBossbarManager;
+import com.huidu.farmersdelight.manager.SkilletManager;
 import com.huidu.farmersdelight.handheld.HandCookedSkewerHooks;
 import com.huidu.farmersdelight.migration.LegacyIdMigrationHooks;
 import com.huidu.farmersdelight.tool.ToolAttackListener;
@@ -167,8 +168,24 @@ final class ListenerRegistry {
         legacyIdMigrationHooks.start();
         // Reads its own switch: a disabled path schedules no tick task.
         handCookedSkewerHooks.start();
+        // Both handheld cooks refuse a click while the other one owns the player. The skewer side asks the
+        // skillet by itself; the skillet side needs this check, and this registry owns both handlers.
+        wireSkilletSkewerExclusion();
 
         register(new PluginManagerGuard(plugin.getName()));
+    }
+
+    /**
+     * Hands the hand-held skillet path the skewer session check. Wired after the handlers are stored, because
+     * both instances are built by this registry and neither one can reach the other on its own.
+     */
+    private void wireSkilletSkewerExclusion() {
+        SkilletManager skilletManager = plugin.getSkilletManager();
+        if (skilletManager != null && handCookedSkewerHooks != null) {
+            // The field is read per call, so a re-registration that replaces the hooks is followed.
+            skilletManager.setSkewerCookingCheck(player ->
+                    handCookedSkewerHooks.isCooking(player.getUniqueId()));
+        }
     }
 
     /**

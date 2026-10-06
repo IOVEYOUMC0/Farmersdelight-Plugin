@@ -360,6 +360,16 @@ public final class HandCookedSkewerHooks implements Listener {
     }
 
     /**
+     * Whether this player is cooking a skewer right now. Read-only state for the sibling handheld path: the
+     * skillet refuses a click while a skewer session owns the player, the mirror of isSkilletCooking() here.
+     * The bookkeeping behind the service stays private; only this answer leaves the class.
+     */
+    public boolean isCooking(@Nullable UUID player) {
+        HandCookedSkewerService active = service;
+        return active != null && active.isCooking(player);
+    }
+
+    /**
      * The arming decision on its own, so the wiring tests can drive it without a plugin or a server.
      *
      * Order matters: a disabled path never arms, a raw id this table does not cook never starts, and a
