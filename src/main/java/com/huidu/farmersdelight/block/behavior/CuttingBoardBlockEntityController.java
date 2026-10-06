@@ -22,6 +22,7 @@ import net.momirealms.craftengine.libraries.nbt.CompoundTag;
 import net.momirealms.craftengine.libraries.nbt.Tag;
 import net.momirealms.craftengine.proxy.bukkit.craftbukkit.inventory.CraftInventoryProxy;
 import org.bukkit.World;
+import org.bukkit.block.BlockFace;
 import org.bukkit.entity.HumanEntity;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
@@ -163,9 +164,10 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
         if (world == null) return false;
 
         BlockPosKey posKey = new BlockPosKey(this.blockEntity.pos);
-        if (CuttingBoardBlockBehavior.getBlockEntity(world, posKey) != null) {
-            // A live entity exists (created after a flush attempt): it is newer than this parked
-            // snapshot, so consume the snapshot instead of replacing the live entity with stale data.
+        CuttingBoardBlockEntity entity = CuttingBoardBlockBehavior.getBlockEntity(world, posKey);
+        if (entity != null && entity.hasItem()) {
+            // A live entity that already holds an item is newer than this parked snapshot, so consume the
+            // snapshot instead of replacing newer state with stale data.
             return true;
         }
         Tag itemTag = data.get(STORED_ITEM);
@@ -182,10 +184,18 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
         }
         if (storedItem == null || storedItem.getType().isAir()) return true;
 
-        CuttingBoardBlockEntity entity = new CuttingBoardBlockEntity(plugin, posKey, world);
-        entity.setItem(storedItem, world, posKey, CustomBlockUtils.getFacing(posKey.toLocation(world).getBlock()),
-                data.getBoolean(ITEM_CARVED, false));
-        CuttingBoardBlockBehavior.putBlockEntity(world, posKey, entity);
+        BlockFace facing = CustomBlockUtils.getFacing(posKey.toLocation(world).getBlock());
+        boolean carved = data.getBoolean(ITEM_CARVED, false);
+        boolean created = entity == null;
+        if (created) {
+            entity = new CuttingBoardBlockEntity(plugin, posKey, world);
+        }
+        // A live but empty entity must not shadow the parked snapshot: fill that entity instead of dropping
+        // the stored item, which is what a write that created the entity before this load would otherwise do.
+        entity.setItem(storedItem, world, posKey, facing, carved);
+        if (created) {
+            CuttingBoardBlockBehavior.putBlockEntity(world, posKey, entity);
+        }
         refreshFromEntity(entity);
         return true;
     }
@@ -227,11 +237,12 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
         if (world == null) return;
 
         BlockPosKey posKey = new BlockPosKey(this.blockEntity.pos);
-        CuttingBoardBlockEntity entity = CuttingBoardBlockBehavior.getBlockEntity(world, posKey);
-        if (entity == null) {
-            entity = new CuttingBoardBlockEntity(plugin, posKey, world);
-            CuttingBoardBlockBehavior.putBlockEntity(world, posKey, entity);
-        }
+        // Parked controller data has to reach the entity before this write decides anything: the container can
+        // be mutated without ever passing through canPlaceItem, and a blank entity created here would shadow
+        // the snapshot that a later apply discards, so the stored item would be lost. The helper creates the
+        // entity when there is none; it also refreshes this shadow from the snapshot it applies.
+        CuttingBoardBlockEntity entity = getOrCreateEntity();
+        if (entity == null) return;
 
         ItemStack stack = CeItemInterop.asBukkitStack(this.item);
         if (stack == null || stack.getType().isAir()) {
