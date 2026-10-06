@@ -8,12 +8,19 @@ import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
 import net.momirealms.craftengine.bukkit.plugin.network.BukkitNetworkManager;
 import net.momirealms.craftengine.core.plugin.network.NetWorkUser;
 import net.momirealms.craftengine.proxy.minecraft.network.protocol.game.ClientboundSetEntityDataPacketProxy;
+import org.bukkit.Bukkit;
 import org.bukkit.World;
+import org.bukkit.block.data.BlockData;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.BlockDisplay;
+import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.ApiStatus;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,9 +35,11 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  *
  * Same rule as CraftEngine: an invisible display keeps its entity and its id, the viewer is sent a ViewRange
- * of 0 (ItemDisplayBlockEntityElement.setCulled), and the base range comes back when the player returns. The
- * pass is throttled to the existing 20-tick cadence, hands each entity to its own region (runForEntity)
- * before touching it, and prunes dead entities instead of needing removal hooks at the call sites.
+ * of 0, and the base range comes back when the player returns. The work is split by ownership: the region
+ * that owns a display registers it in a bounded spatial record and re-checks that it is still there, and a
+ * player's pass reads that record on the player's own region. No pass reads an entity it does not own, and
+ * no pass walks the displays of the whole world: it refreshes the displays its player is showing and looks
+ * for new ones only inside a window around the player, both under one per-player budget.
  */
 @ApiStatus.Internal
 public final class RealDisplayCuller {
@@ -38,6 +47,7 @@ public final class RealDisplayCuller {
     private static final int DEFAULT_INTERVAL_TICKS = 20;
     private static final double DEFAULT_VIEW_DISTANCE = 64.0D;
     private static final double DEFAULT_HYSTERESIS = 8.0D;
+    private static final int DEFAULT_CHECKS_PER_PLAYER = 64;
 
     /** One culler per plugin. Kept out of the plugin class so the shared facility owns its own lifecycle. */
     public static RealDisplayCuller of(FarmersDelightPlugin plugin) {
@@ -48,9 +58,10 @@ public final class RealDisplayCuller {
 
     private final FarmersDelightPlugin plugin;
     private final Set<Entity> displays = ConcurrentHashMap.newKeySet();
-    private final Map<Integer, Map<UUID, DisplayCulling.ViewRangeState>> viewerStates = new ConcurrentHashMap<>();
-    private volatile double viewDistance = DEFAULT_VIEW_DISTANCE;
-    private volatile double hysteresis = DEFAULT_HYSTERESIS;
+    /** The world each tracked display was registered in, so its bookkeeping can be dropped without reading it. */
+    private final Map<Entity, UUID> displayWorlds = new ConcurrentHashMap<>();
+    private final DisplayViewMirror mirror = new DisplayViewMirror();
+    private volatile DisplayViewSettings settings = DisplayViewSettings.defaults();
     private volatile PluginTask task;
 
     private RealDisplayCuller(FarmersDelightPlugin plugin) {
@@ -58,11 +69,37 @@ public final class RealDisplayCuller {
     }
 
     /**
-     * Configures the threshold from the same existing key the proxy path reads
-     * (performance.proxy-display.view-distance), so both paths cull at one distance.
+     * Reads the culling thresholds: the shared performance.proxy-display.view-distance as the fallback,
+     * performance.budgets.display-cull-checks-per-player as the budget one player's pass runs under, and
+     * performance.proxy-display.display-culling for the per-type overrides.
      */
     public void reload(double configuredViewDistance) {
-        this.viewDistance = configuredViewDistance > 0.0D ? configuredViewDistance : DEFAULT_VIEW_DISTANCE;
+        double fallback = configuredViewDistance > 0.0D ? configuredViewDistance : DEFAULT_VIEW_DISTANCE;
+        int checksPerPlayer = Math.max(1, this.plugin.getConfigInt(DEFAULT_CHECKS_PER_PLAYER,
+                "performance.budgets.display-cull-checks-per-player"));
+        this.settings = new DisplayViewSettings(fallback, DEFAULT_HYSTERESIS, checksPerPlayer,
+                readTypes(fallback));
+        // A viewer is only told a range when it changed, so a new distance has to invalidate what was told.
+        this.mirror.clearStates();
+    }
+
+    private Map<String, DisplayViewSettings.Type> readTypes(double fallback) {
+        ConfigurationSection section =
+                this.plugin.getFirstConfigSection("performance.proxy-display.display-culling");
+        if (section == null) {
+            return Map.of();
+        }
+        Map<String, DisplayViewSettings.Type> types = new HashMap<>();
+        for (String key : section.getKeys(false)) {
+            ConfigurationSection entry = section.getConfigurationSection(key);
+            if (entry == null) {
+                continue;
+            }
+            boolean culling = entry.getBoolean("entity-culling", true);
+            double distance = entry.getDouble("view-distance", fallback);
+            types.put(key, new DisplayViewSettings.Type(culling, distance > 0.0D ? distance : fallback));
+        }
+        return types;
     }
 
     /** Starts managing this real display. The culler never removes it; vanilla ownership stays untouched. */
@@ -71,23 +108,16 @@ public final class RealDisplayCuller {
             return;
         }
         this.displays.add(display);
+        register(display);
         ensureTask();
-    }
-
-    /** Stops managing a display (dead entity, unloaded world). Only the bookkeeping is dropped. */
-    private void untrack(Entity display) {
-        if (display == null) {
-            return;
-        }
-        this.displays.remove(display);
-        this.viewerStates.remove(display.getEntityId());
     }
 
     /** Plugin disable: cancel the task, drop every tracked display and the cached holder. */
     public void shutdown() {
         stopTask();
         this.displays.clear();
-        this.viewerStates.clear();
+        this.displayWorlds.clear();
+        this.mirror.clear();
         HOLDERS.remove(this.plugin.getName(), this);
     }
 
@@ -115,9 +145,8 @@ public final class RealDisplayCuller {
     }
 
     /**
-     * One throttled pass. On Folia the entity is handed to its own region first (runForEntity): neither the
-     * entity's validity nor its position is read on this thread, so every read and every packet happens on the
-     * region that owns it. Only Paper — where the whole server is one thread — reads inline.
+     * One throttled pass. The displays are handed to their own regions first, then each online player gets a
+     * pass on its own region; this thread reads neither an entity nor a block.
      */
     private void tick() {
         if (this.displays.isEmpty()) {
@@ -128,57 +157,104 @@ public final class RealDisplayCuller {
         for (Entity display : this.displays) {
             if (folia) {
                 try {
-                    this.plugin.scheduler().runForEntity(display, () -> cull(display));
+                    // The retired callback covers an entity that is gone before the task could run: without
+                    // it the mirror would keep a display no region can ever reach again.
+                    this.plugin.scheduler().runForEntity(display, () -> verify(display), () -> untrack(display));
                 } catch (RuntimeException e) {
                     // A retired entity cannot be scheduled anywhere any more; drop the bookkeeping.
                     untrack(display);
                 }
             } else {
-                cull(display);
+                verify(display);
             }
+        }
+        DisplayViewSettings current = this.settings;
+        List<Player> online = new ArrayList<>(Bukkit.getOnlinePlayers());
+        Set<UUID> onlineIds = new HashSet<>(Math.max(4, online.size() * 2));
+        for (Player player : online) {
+            onlineIds.add(player.getUniqueId());
+        }
+        // A player who is gone keeps nothing: no further pass would ever reach that mirror.
+        this.mirror.retainOnline(onlineIds);
+        for (Player player : online) {
+            if (folia) {
+                try {
+                    this.plugin.scheduler().runForEntity(player, () -> pass(player, current),
+                            () -> this.mirror.forget(player.getUniqueId()));
+                } catch (RuntimeException e) {
+                    this.mirror.forget(player.getUniqueId());
+                }
+            } else {
+                pass(player, current);
+            }
+        }
+    }
+
+    /**
+     * Records what a pass needs about one display: its position, its model type and its render range. Runs on
+     * the region that owns the entity, so the pass itself never has to read it.
+     */
+    private void register(Entity display) {
+        World world = display.getWorld();
+        if (world == null) {
+            return;
+        }
+        this.displayWorlds.put(display, world.getUID());
+        this.mirror.register(world.getUID(), display.getEntityId(), typeKey(display),
+                display.getX(), display.getY(), display.getZ(), baseRange(display));
+    }
+
+    /** Stops managing a display (dead entity, unloaded world). Only the bookkeeping is dropped. */
+    private void untrack(Entity display) {
+        if (display == null) {
+            return;
+        }
+        this.displays.remove(display);
+        UUID worldId = this.displayWorlds.remove(display);
+        if (worldId != null) {
+            this.mirror.unregister(worldId, display.getEntityId());
         }
     }
 
     /** Runs on the region that owns the entity: the first thing touched here is the entity itself. */
-    private void cull(Entity display) {
+    private void verify(Entity display) {
         if (!display.isValid() || display.isDead()) {
             untrack(display);
             return;
         }
-        // Field reads instead of a Location snapshot: getLocation() allocates one Location per tracked display
-        // per pass, while getX/getY/getZ read the position this task already owns.
-        World world = display.getWorld();
+        // Refreshing an entry the mirror already holds keeps what every viewer was told, so this sends
+        // nothing by itself; it only makes the record agree with an entity that moved.
+        register(display);
+    }
+
+    /** Runs on the region that owns the player: the only entity read here is the player itself. */
+    private void pass(Player player, DisplayViewSettings current) {
+        World world = player.getWorld();
         if (world == null) {
-            untrack(display);
             return;
         }
-        int entityId = display.getEntityId();
-        float baseRange = baseRange(display);
-        double displayX = display.getX();
-        double displayY = display.getY();
-        double displayZ = display.getZ();
-        Map<UUID, DisplayCulling.ViewRangeState> states =
-                this.viewerStates.computeIfAbsent(entityId, ignored -> new ConcurrentHashMap<>());
-        for (Player player : world.getPlayers()) {
-            UUID playerId = player.getUniqueId();
-            DisplayCulling.ViewRangeState state = states.computeIfAbsent(playerId,
-                    ignored -> new DisplayCulling.ViewRangeState());
-            boolean alreadyShown = state.hasSent() && state.lastSent() > DisplayCulling.CULLED_RANGE;
-            double dx = player.getX() - displayX;
-            double dy = player.getY() - displayY;
-            double dz = player.getZ() - displayZ;
-            boolean visible = DisplayCulling.isVisible(dx * dx + dy * dy + dz * dz, this.viewDistance,
-                    alreadyShown ? this.hysteresis : 0.0D);
-            float range = state.update(visible, baseRange);
-            if (!Float.isNaN(range)) {
-                send(player, entityId, range);
+        this.mirror.pass(player.getUniqueId(), world.getUID(), player.getX(), player.getY(), player.getZ(),
+                current, (entityId, range) -> send(player, entityId, range));
+    }
+
+    /**
+     * The display's model type: the block id of the vanilla carrier whose model the display draws
+     * (CarrierRestorer spawns a BlockDisplay carrying exactly that block data). It names the per-type entry
+     * an operator can write, and it is read here, on the region that owns the display.
+     */
+    private static String typeKey(Entity display) {
+        if (display instanceof BlockDisplay blockDisplay) {
+            BlockData data = blockDisplay.getBlock();
+            if (data != null) {
+                return data.getMaterial().getKey().toString();
             }
         }
+        return display.getType().getKey().toString();
     }
 
     /** CE takes the per-player display distance scale when it is available; 1.0 is its default. */
     private float baseRange(Entity display) {
-        if (display instanceof org.bukkit.entity.Display bukkitDisplay) {
+        if (display instanceof Display bukkitDisplay) {
             float range = bukkitDisplay.getViewRange();
             return range > 0.0F ? range : 1.0F;
         }
