@@ -30,10 +30,12 @@ public final class SchedulerAdapter implements RegionDispatcher {
     private final FarmersDelightPlugin plugin;
     private final boolean folia;
     private final ThreadPoolExecutor asyncExecutor;
+    private final BlockedThreadDump stalledPoolDump;
 
     public SchedulerAdapter(FarmersDelightPlugin plugin) {
         this.plugin = Objects.requireNonNull(plugin, "plugin");
         this.folia = isClassPresent();
+        this.stalledPoolDump = BlockedThreadDump.toLogger(plugin.getLogger());
         this.asyncExecutor = BoundedExecutor.create(
                 Math.max(2, Math.min(4, Runtime.getRuntime().availableProcessors())),
                 ASYNC_QUEUE_CAPACITY,
@@ -206,6 +208,8 @@ public final class SchedulerAdapter implements RegionDispatcher {
         asyncExecutor.shutdown();
         try {
             if (!asyncExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
+                // Recorded before the force-cancel below, while the stuck work is still on its stack.
+                stalledPoolDump.report("async pool did not drain within 10 seconds");
                 asyncExecutor.shutdownNow();
             }
         } catch (InterruptedException e) {
