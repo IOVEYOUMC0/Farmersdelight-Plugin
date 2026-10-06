@@ -32,14 +32,14 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Restores the vanilla appearance of the vanilla fence and gate states the rope fence and rope fence
- * gate borrow as their carriers.
+ * Restores the vanilla appearance of the vanilla fence and gate states the rope fence, the rope fence
+ * gate and their vanilla-looking counterparts borrow as their carriers.
  *
  *
- * The two blocks are drawn by CraftEngine block entity renderers, but their carriers are still real
- * vanilla block states and CraftEngine writes the empty variant model for every visual state a custom
- * block claims. A genuinely vanilla crimson fence (or warped fence gate) standing in one of those
- * states therefore renders as nothing.
+ * Those blocks are drawn by CraftEngine block entity renderers and declare transparent appearances, so
+ * CraftEngine writes the empty variant model for every carrier state our pack claims and its generated
+ * block state file replaces the vanilla one. A genuinely vanilla mangrove fence (or mangrove fence
+ * gate) standing in one of those states therefore renders as nothing.
  *
  *
  * This class detects exactly those blocks and puts a BlockDisplay on their position carrying the
@@ -162,7 +162,7 @@ public final class CarrierRestorer {
         // Physics events reach this with every neighbour of every moved block, so the material test runs
         // first: only the two carriers can be hijacked, and it avoids copying block data for the rest.
         Material material = block.getType();
-        if (material != Material.CRIMSON_FENCE && material != Material.WARPED_FENCE_GATE) {
+        if (material != Material.MANGROVE_FENCE && material != Material.MANGROVE_FENCE_GATE) {
             return;
         }
         int x = block.getX();
@@ -177,7 +177,7 @@ public final class CarrierRestorer {
             return;
         }
         // Before CraftEngine has bound its blocks, every custom block still reads as a plain vanilla one,
-        // so a rope fence placed during startup would be mistaken for a real crimson fence and get a second
+        // so a rope fence placed during startup would be mistaken for a real mangrove fence and get a second
         // copy of its model drawn over it. The chunk is scanned again once CraftEngine is up.
         if (!ItemUtils.isAnyCustomItemLoaded()) {
             return;
@@ -321,7 +321,7 @@ public final class CarrierRestorer {
             for (int x = 0; x < 16; x++) {
                 for (int z = 0; z < 16; z++) {
                     Material type = snapshot.getBlockType(x, y, z);
-                    if (type == Material.CRIMSON_FENCE || type == Material.WARPED_FENCE_GATE) {
+                    if (type == Material.MANGROVE_FENCE || type == Material.MANGROVE_FENCE_GATE) {
                         update(world.getBlockAt(baseX + x, y, baseZ + z));
                     }
                 }
@@ -734,22 +734,26 @@ public final class CarrierRestorer {
     }
 
     private static Set<String> buildHijackedStates() {
-        Set<String> states = new HashSet<>(32);
-        for (boolean north : BOOLEANS) {
-            for (boolean east : BOOLEANS) {
-                for (boolean south : BOOLEANS) {
-                    for (boolean west : BOOLEANS) {
-                        states.add("minecraft:crimson_fence[east=" + east + ",north=" + north
-                                + ",south=" + south + ",waterlogged=true,west=" + west + "]");
+        Set<String> states = new HashSet<>(64);
+        for (boolean waterlogged : BOOLEANS) {
+            for (boolean north : BOOLEANS) {
+                for (boolean east : BOOLEANS) {
+                    for (boolean south : BOOLEANS) {
+                        for (boolean west : BOOLEANS) {
+                            states.add("minecraft:mangrove_fence[east=" + east + ",north=" + north
+                                    + ",south=" + south + ",waterlogged=" + waterlogged + ",west=" + west + "]");
+                        }
                     }
                 }
             }
         }
-        for (String facing : new String[]{"north", "east", "south", "west"}) {
-            for (boolean inWall : BOOLEANS) {
-                for (boolean open : BOOLEANS) {
-                    states.add("minecraft:warped_fence_gate[facing=" + facing + ",in_wall=" + inWall
-                            + ",open=" + open + ",powered=true]");
+        for (boolean powered : BOOLEANS) {
+            for (String facing : new String[]{"north", "east", "south", "west"}) {
+                for (boolean inWall : BOOLEANS) {
+                    for (boolean open : BOOLEANS) {
+                        states.add("minecraft:mangrove_fence_gate[facing=" + facing + ",in_wall=" + inWall
+                                + ",open=" + open + ",powered=" + powered + "]");
+                    }
                 }
             }
         }
