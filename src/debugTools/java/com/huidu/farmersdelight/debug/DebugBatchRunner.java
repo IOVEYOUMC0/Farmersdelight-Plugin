@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.debug;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.util.TickBudget;
 import org.bukkit.entity.Player;
 
 import java.util.Map;
@@ -64,10 +65,13 @@ final class DebugBatchRunner {
         }
     }
 
-    // Yield after 16 operations or 2 ms; a single world operation cannot be interrupted safely.
+    // One slice takes at most this many entries, and gives up earlier after 2 ms: a single world operation
+    // cannot be interrupted safely, so the time check only runs between two of them.
+    static final int SLICE_BUDGET = 16;
+
     static int processSlice(int cursor, int count, IntConsumer action) {
         long started = System.nanoTime();
-        int end = Math.min(count, cursor + 16);
+        int end = TickBudget.at(cursor, count, SLICE_BUDGET).sliceEnd();
         while (cursor < end) {
             action.accept(cursor++);
             if (System.nanoTime() - started >= 2_000_000L) break;
