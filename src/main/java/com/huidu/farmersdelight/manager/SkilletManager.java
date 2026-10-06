@@ -1180,40 +1180,50 @@ public class SkilletManager {
 
         // A skillet with no matching recipe can never cook, so just cool down and return, skipping the per-tick heat-source probe
         // (heat detection often does a CraftEngine custom block-state lookup).
-        if (skillet.currentRecipe == null) {
-            skillet.advanceCookingProgress(skillet.elapsedSinceLastCredit(
-                    Bukkit.getCurrentTick(), PLACED_TICK_INTERVAL, MAX_ELAPSED_CREDIT_TICKS), false, coolingDecrement);
+        long currentBukkitTick = Bukkit.getCurrentTick();
+        boolean hasRecipe;
+        synchronized (skillet) {
+            hasRecipe = skillet.currentRecipe != null;
+        }
+        if (!hasRecipe) {
+            creditPlacedCooking(skillet, currentBukkitTick, false, coolingDecrement);
             return;
         }
 
         boolean hasHeat;
-        long currentBukkitTick = Bukkit.getCurrentTick();
-        if (skillet.lastHeatState != null
-                && skillet.heatSourceCheckedTick != Long.MIN_VALUE
-                && currentBukkitTick - skillet.heatSourceCheckedTick < HEAT_SOURCE_CACHE_TTL) {
+        Boolean cachedHeat;
+        synchronized (skillet) {
+            cachedHeat = skillet.lastHeatState != null
+                    && skillet.heatSourceCheckedTick != Long.MIN_VALUE
+                    && currentBukkitTick - skillet.heatSourceCheckedTick < HEAT_SOURCE_CACHE_TTL
+                    ? skillet.lastHeatState
+                    : null;
+        }
+        if (cachedHeat != null) {
             // Reuse the cached heat-source result within the TTL window. Heat source changes are
             // block-event driven (break/place below the skillet), so 1s max staleness is acceptable
             // for cook-progress gating and saves two getBlockAt + HeatSourceConfig queries per tick.
-            hasHeat = skillet.lastHeatState;
+            hasHeat = cachedHeat;
         } else {
             hasHeat = computeHasHeatSource(location);
-            skillet.heatSourceCheckedTick = currentBukkitTick;
-            if (!Objects.equals(skillet.lastHeatState, hasHeat)) {
-                debug(() -> "heat state: hasHeat=" + hasHeat + ", progress=" + skillet.cookingProgress
-                        + "/" + skillet.cookingDuration + ", recipe="
-                        + (skillet.currentRecipe != null ? skillet.currentRecipe.getKey() : "null")
-                        + ", stored=" + formatItem(skillet.storedItem) + ", location=" + formatLocation(location)
-                        + ", fireAspectLevel=" + skillet.fireAspectLevel);
+            synchronized (skillet) {
+                skillet.heatSourceCheckedTick = currentBukkitTick;
+                if (!Objects.equals(skillet.lastHeatState, hasHeat)) {
+                    debug(() -> "heat state: hasHeat=" + hasHeat + ", progress=" + skillet.cookingProgress
+                            + "/" + skillet.cookingDuration + ", recipe="
+                            + (skillet.currentRecipe != null ? skillet.currentRecipe.getKey() : "null")
+                            + ", stored=" + formatItem(skillet.storedItem) + ", location=" + formatLocation(location)
+                            + ", fireAspectLevel=" + skillet.fireAspectLevel);
+                }
+                skillet.lastHeatState = hasHeat;
             }
-            skillet.lastHeatState = hasHeat;
         }
 
-        skillet.advanceCookingProgress(skillet.elapsedSinceLastCredit(
-                currentBukkitTick, PLACED_TICK_INTERVAL, MAX_ELAPSED_CREDIT_TICKS), hasHeat, coolingDecrement);
+        boolean finished = creditPlacedCooking(skillet, currentBukkitTick, hasHeat, coolingDecrement);
         if (!hasHeat) return;
 
         effectManager.dispatchTickEffects(world, location, carrierState);
-        if (skillet.cookingProgress >= skillet.cookingDuration) {
+        if (finished) {
             debug(() -> "tick finish: progress reached duration for " + formatItem(skillet.storedItem)
                     + " at " + formatLocation(location));
             finishCooking(location, skillet);
@@ -1251,7 +1261,11 @@ public class SkilletManager {
     }
 
     private void finishCooking(Location location, SkilletData skillet) {
-        if (skillet.currentRecipe == null || skillet.storedItem == null) return;
+        boolean hasWork;
+        synchronized (skillet) {
+            hasWork = skillet.currentRecipe != null && skillet.storedItem != null;
+        }
+        if (!hasWork) return;
         if (isSkilletBlock(location)) {
             debug("finish cooking: skipped because block is no longer a skillet at " + formatLocation(location));
             cleanupVisual(skillet);
@@ -1261,47 +1275,54 @@ public class SkilletManager {
             return;
         }
 
-        ItemStack result = skillet.currentRecipe.getResult();
-        debug("finish cooking: result=" + formatItem(result) + ", storedBefore=" + formatItem(skillet.storedItem)
-                + ", location=" + formatLocation(location));
-        if (result != null) {
-            if (skillet.ownerId != null) {
-                Bukkit.getPluginManager().callEvent(new ProfessionCookingExperienceEvent(
-                        skillet.ownerId,
-                        skillet.ownerName,
-                        "skillet",
-                        result,
-                        skillet.currentRecipe.getExperience(),
-                        location
+        CookingSettlement settlement = settleFinishedCooking(skillet, true);
+        if (settlement == null) return;
+
+        ItemStack result = settlement.recipe().getResult();
+        debug("finish cooking: result=" + formatItem(result) + ", storedBefore="
+                + formatItem(settlement.previous().item()) + ", location=" + formatLocation(location));
+
+        // The world part stays outside the monitor: the experience event, the drop, the display and the save.
+        // A failure in it puts the settled state back, so an item is never consumed without its result.
+        try {
+            if (result != null) {
+                if (settlement.ownerId() != null) {
+                    Bukkit.getPluginManager().callEvent(new ProfessionCookingExperienceEvent(
+                            settlement.ownerId(),
+                            settlement.ownerName(),
+                            "skillet",
+                            result,
+                            settlement.recipe().getExperience(),
+                            location
+                    ));
+                }
+                Block block = location.getBlock();
+                BlockFace facing = CustomBlockUtils.getFacing(block);
+                BlockFace clockwise = getClockWise(facing);
+
+                Location dropLoc = location.clone().add(0.5, 0.3, 0.5);
+                var droppedItem = location.getWorld().dropItem(dropLoc, result.clone());
+                droppedItem.setVelocity(new Vector(
+                        clockwise.getModX() * 0.08,
+                        0.25,
+                        clockwise.getModZ() * 0.08
                 ));
             }
-            Block block = location.getBlock();
-            BlockFace facing = CustomBlockUtils.getFacing(block);
-            BlockFace clockwise = getClockWise(facing);
 
-            Location dropLoc = location.clone().add(0.5, 0.3, 0.5);
-            var droppedItem = location.getWorld().dropItem(dropLoc, result.clone());
-            droppedItem.setVelocity(new Vector(
-                    clockwise.getModX() * 0.08,
-                    0.25,
-                    clockwise.getModZ() * 0.08
-            ));
+            if (settlement.keepStored()) {
+                createVisual(location, skillet);
+            } else {
+                cleanupVisual(skillet);
+            }
+            saveSkillet(location, skillet);
+            location.getWorld().playSound(location, Sound.BLOCK_FIRE_EXTINGUISH, 0.5f, 1.0f);
+        } catch (RuntimeException | LinkageError failure) {
+            synchronized (skillet) {
+                restoreCookingState(skillet, settlement.previous());
+            }
+            repairVisualAfterRollback(location, skillet);
+            throw failure;
         }
-
-        skillet.storedItem.setAmount(skillet.storedItem.getAmount() - 1);
-        if (skillet.storedItem.getAmount() <= 0) {
-            skillet.storedItem = null;
-            skillet.currentRecipe = null;
-            skillet.ownerId = null;
-            skillet.ownerName = null;
-            cleanupVisual(skillet);
-        } else {
-            createVisual(location, skillet);
-        }
-
-        skillet.cookingProgress = 0;
-        saveSkillet(location, skillet);
-        location.getWorld().playSound(location, Sound.BLOCK_FIRE_EXTINGUISH, 0.5f, 1.0f);
     }
 
     private void ensurePlacedSkilletState(SkilletData skillet) {
@@ -1348,6 +1369,93 @@ public class SkilletManager {
 
     private void ensureVisualsExist(Location location, SkilletData skillet) {
         visualManager.ensureVisualsExist(location, skillet);
+    }
+
+    // The cooking fields of one skillet, captured before a settlement so a failure in the world part can put
+    // the item back instead of consuming it without handing its result out. The stack's amount belongs to the
+    // capture because the settlement changes the stack in place.
+    record CookingState(ItemStack item, int amount, CookingRecipe<?> recipe, int progress,
+                        UUID ownerId, String ownerName) {
+    }
+
+    // What the world part of a finished-cooking pass still has to do, decided while the monitor was held.
+    record CookingSettlement(CookingState previous, CookingRecipe<?> recipe, UUID ownerId, String ownerName,
+                             boolean keepStored) {
+    }
+
+    static CookingState captureCookingState(SkilletData skillet) {
+        return new CookingState(skillet.storedItem, skillet.storedItem == null ? 0 : skillet.storedItem.getAmount(),
+                skillet.currentRecipe, skillet.cookingProgress, skillet.ownerId, skillet.ownerName);
+    }
+
+    static void restoreCookingState(SkilletData skillet, CookingState previous) {
+        skillet.storedItem = previous.item();
+        if (previous.item() != null) {
+            previous.item().setAmount(previous.amount());
+        }
+        skillet.currentRecipe = previous.recipe();
+        skillet.cookingProgress = previous.progress();
+        skillet.ownerId = previous.ownerId();
+        skillet.ownerName = previous.ownerName();
+    }
+
+    /**
+     * Credits one placed tick and reports whether the skillet has reached its duration. The credit and the
+     * decision are one critical section on the per-block monitor, which is also the monitor a hopper insert
+     * holds while it reads and rewrites the stored stack for a freshly inserted item.
+     */
+    static boolean creditPlacedCooking(SkilletData skillet, long currentTick, boolean heated, int coolingDecrement) {
+        synchronized (skillet) {
+            skillet.advanceCookingProgress(skillet.elapsedSinceLastCredit(
+                    currentTick, PLACED_TICK_INTERVAL, MAX_ELAPSED_CREDIT_TICKS), heated, coolingDecrement);
+            return skillet.cookingProgress >= skillet.cookingDuration;
+        }
+    }
+
+    /**
+     * Consumes one finished item on the per-block monitor and clears the stacking state when the stack runs
+     * out. Returns null when there is nothing stored, or when the caller requires a recipe and none is set;
+     * that requirement is checked while the monitor is held, so a hopper insert cannot change it between the
+     * check and the consumption. The returned state lets the world part be undone if it fails.
+     */
+    static CookingSettlement settleFinishedCooking(SkilletData skillet, boolean requiresRecipe) {
+        synchronized (skillet) {
+            if (skillet.storedItem == null) return null;
+            if (requiresRecipe && skillet.currentRecipe == null) return null;
+
+            CookingState previous = captureCookingState(skillet);
+            CookingRecipe<?> recipe = skillet.currentRecipe;
+            UUID ownerId = skillet.ownerId;
+            String ownerName = skillet.ownerName;
+            int left = skillet.storedItem.getAmount() - 1;
+            boolean keepStored = left > 0;
+            if (keepStored) {
+                skillet.storedItem.setAmount(left);
+            } else {
+                skillet.storedItem = null;
+                skillet.currentRecipe = null;
+                skillet.ownerId = null;
+                skillet.ownerName = null;
+            }
+            skillet.cookingProgress = 0;
+            return new CookingSettlement(previous, recipe, ownerId, ownerName, keepStored);
+        }
+    }
+
+    /**
+     * Puts the display back in line with the state a failed world part was rolled back to. A second failure
+     * here only leaves the display stale, so it never replaces the failure that caused the rollback.
+     */
+    private void repairVisualAfterRollback(Location location, SkilletData skillet) {
+        try {
+            if (skillet.storedItem == null || skillet.storedItem.getType().isAir()) {
+                cleanupVisual(skillet);
+            } else {
+                createVisual(location, skillet);
+            }
+        } catch (RuntimeException | LinkageError repeated) {
+            debug("rollback display repair failed at " + formatLocation(location) + ": " + repeated);
+        }
     }
 
     private void refreshVisualsAfterConfigReload() {
