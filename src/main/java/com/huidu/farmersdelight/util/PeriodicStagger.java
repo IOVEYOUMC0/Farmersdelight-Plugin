@@ -6,28 +6,28 @@ import java.util.List;
  * First-tick delays that spread the periodic work of several features over the tick they share.
  *
  *
- * Everything that arms a repeating task with delay 0 starts on the same tick, so a server with a display culler, a
- * recipe pass and the workstation tickers all on one period pays for all of them in the same tick and nothing in
- * the others. The delay is deterministic and derived from a fixed slot order (the shape CraftEngine uses for its
- * entity-culling workers: {@code initialDelay = index * interval / workers}), never random, so a test can assert
- * exactly which tick each task first runs on.
+ * Everything that arms a repeating task with delay 0 starts on the same tick, so a server running the display
+ * culler, the cleanup pass, the display sync and the carrier restorer on one period pays for all of them in the
+ * same tick and nothing in the others. The delay is deterministic and derived from a fixed slot order:
+ * initialDelay = index * interval / slotCount, never random, so a test can assert exactly which tick each task
+ * first runs on.
  *
- * <p>Only the first delay changes: the period, and everything a task decides, stays exactly as it was.
+ * Only the first delay changes: the period, and everything a task decides, stays exactly as it was.
  */
 public final class PeriodicStagger {
 
-    /** Fixed slot order. Append new names at the end: the delay of an existing slot must not move. */
+    /** Fixed slot order. Never insert or reorder an existing name: a slot's delay depends on its index and on the
+     * slot count, so adding one past the end still moves every delay that follows. */
     private static final List<String> SLOTS = List.of(
             "display-cull",
-            "recipe-registration",
-            "workstation-tick",
-            "carrier-restore",
-            "effect-tick");
+            "tick-cleanup",
+            "display-sync",
+            "carrier-restore");
 
     private PeriodicStagger() {
     }
 
-    /** The first-tick delay for one slot, spread over {@code period} ticks: 0, period/N, 2*period/N, ... */
+    /** The first-tick delay for one slot, spread over the given period: 0, period/N, 2*period/N, ... */
     public static long initialDelay(String slot, long period) {
         int index = SLOTS.indexOf(slot);
         if (index < 0) {
