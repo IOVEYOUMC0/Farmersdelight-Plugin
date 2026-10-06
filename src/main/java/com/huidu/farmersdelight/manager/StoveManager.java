@@ -279,12 +279,14 @@ public class StoveManager {
         // regions can each receive the same slot, both write, last write wins — first player's food is
         // consumed (heldItem.setAmount-1) but the slot now holds B's food, so A loses the item silently.
         int emptySlot;
+        SlotState previous;
         synchronized (stove) {
             emptySlot = findEmptySlot(stove);
             if (emptySlot < 0) {
                 debug(() -> "Stove interact no empty slot for " + formatItem(itemInHand) + " at " + formatLocation(location));
                 return false;
             }
+            previous = captureSlot(stove, emptySlot);
             ItemStack toPlace = itemInHand.clone();
             toPlace.setAmount(1);
             stove.items[emptySlot] = toPlace;
@@ -296,16 +298,21 @@ public class StoveManager {
                     + ", duration=" + stove.maxTime[emptySlot] + ", location=" + formatLocation(location));
         }
 
-        visualManager.createVisual(location, stove, emptySlot, CustomBlockUtils.getFacing(block).getOppositeFace());
-        saveStove(location, stove);
-        if (player.getGameMode() != GameMode.CREATIVE) {
-            debug(() -> "consume: slot=" + emptySlot + ", before=" + itemInHand.getAmount() + ", after=" + (itemInHand.getAmount() - 1)
-                    + ", item=" + formatItem(itemInHand) + ", location=" + formatLocation(location));
-            itemInHand.setAmount(itemInHand.getAmount() - 1);
-        } else {
-            debug(() -> "consume: skipped for creative mode, slot=" + emptySlot + ", item=" + formatItem(itemInHand)
-                    + ", location=" + formatLocation(location));
-        }
+        // The display, the persistence step and the hand deduction are one step: whichever of them fails, the
+        // claim above is released again, so the food stays in the hand that still holds it and nowhere else.
+        BlockFace facing = CustomBlockUtils.getFacing(block).getOppositeFace();
+        applySlotStep(stove, emptySlot, previous, () -> {
+            visualManager.createVisual(location, stove, emptySlot, facing);
+            saveStove(location, stove);
+            if (player.getGameMode() != GameMode.CREATIVE) {
+                debug(() -> "consume: slot=" + emptySlot + ", before=" + itemInHand.getAmount() + ", after=" + (itemInHand.getAmount() - 1)
+                        + ", item=" + formatItem(itemInHand) + ", location=" + formatLocation(location));
+                itemInHand.setAmount(itemInHand.getAmount() - 1);
+            } else {
+                debug(() -> "consume: skipped for creative mode, slot=" + emptySlot + ", item=" + formatItem(itemInHand)
+                        + ", location=" + formatLocation(location));
+            }
+        }, () -> repairSlotDisplay(location, stove, emptySlot, previous));
 
         location.getWorld().playSound(location, Sound.BLOCK_LANTERN_PLACE, 0.5f, 1.0f);
         return true;
@@ -977,6 +984,7 @@ public class StoveManager {
         UUID ownerId;
         String ownerName;
         float experience;
+        SlotState previous;
         // Slot state is read and cleared under the per-stove monitor: a concurrent interaction claims its slot
         // under the same monitor, so without it this clear could drop an item a player just inserted.
         synchronized (stove) {
@@ -991,33 +999,35 @@ public class StoveManager {
             experience = recipe != null ? recipe.getExperience() : 0.0F;
             ownerId = stove.ownerIds[slot];
             ownerName = stove.ownerNames[slot];
+            previous = captureSlot(stove, slot);
 
-            stove.items[slot] = null;
-            stove.cookingTime[slot] = 0;
-            stove.maxTime[slot] = defaultCookTime;
-            stove.ownerIds[slot] = null;
-            stove.ownerNames[slot] = null;
+            clearSlot(stove, slot);
         }
 
-        if (result != null && !result.getType().isAir()) {
-            if (ownerId != null) {
-                Bukkit.getPluginManager().callEvent(new ProfessionCookingExperienceEvent(
-                        ownerId,
-                        ownerName,
-                        "stove",
-                        result,
-                        experience,
-                        location
-                ));
+        // The drop is the last thing that happens: the slot is written away before the finished item reaches the
+        // world, so a failure in the display or the write puts the finished slot back and the next tick tries
+        // again instead of handing the same result out twice.
+        applySlotStep(stove, slot, previous, () -> {
+            visualManager.removeVisual(location, stove, slot);
+
+            // Mark unconditionally: with other slots still occupied the disk copy would otherwise keep the
+            // finished slot until the next unrelated write, and a crash would restore the already-dropped item.
+            markStoveDirty(location);
+
+            if (result != null && !result.getType().isAir()) {
+                if (ownerId != null) {
+                    Bukkit.getPluginManager().callEvent(new ProfessionCookingExperienceEvent(
+                            ownerId,
+                            ownerName,
+                            "stove",
+                            result,
+                            experience,
+                            location
+                    ));
+                }
+                location.getWorld().dropItemNaturally(location.clone().add(0.5, 1.0, 0.5), result.clone());
             }
-            location.getWorld().dropItemNaturally(location.clone().add(0.5, 1.0, 0.5), result.clone());
-        }
-
-        visualManager.removeVisual(location, stove, slot);
-
-        // Mark unconditionally: with other slots still occupied the disk copy would otherwise keep the
-        // finished slot until the next unrelated write, and a crash would restore the already-dropped item.
-        markStoveDirty(location);
+        }, () -> repairSlotDisplay(location, stove, slot, previous));
     }
 
     private void ejectAllItems(Location location, StoveData stove) {
@@ -1042,6 +1052,62 @@ public class StoveManager {
         stove.maxTime[slot] = defaultCookTime;
         stove.ownerIds[slot] = null;
         stove.ownerNames[slot] = null;
+    }
+
+    // Everything one slot holds, captured before a change so a failure in the display, the persistence step or
+    // the hand-over can put the slot back exactly as it was.
+    record SlotState(ItemStack item, int cookingTime, int maxTime, UUID ownerId, String ownerName) {
+    }
+
+    static SlotState captureSlot(StoveData stove, int slot) {
+        return new SlotState(stove.items[slot], stove.cookingTime[slot], stove.maxTime[slot],
+                stove.ownerIds[slot], stove.ownerNames[slot]);
+    }
+
+    static void restoreSlot(StoveData stove, int slot, SlotState previous) {
+        stove.items[slot] = previous.item();
+        stove.cookingTime[slot] = previous.cookingTime();
+        stove.maxTime[slot] = previous.maxTime();
+        stove.ownerIds[slot] = previous.ownerId();
+        stove.ownerNames[slot] = previous.ownerName();
+    }
+
+    /**
+     * Runs the display, persistence and hand-over step of one slot change and undoes the change when that step
+     * fails. The step is fallible: CraftEngine throws while it resolves a block entity during a reload, and a
+     * slot change that survived the failure would leave the item in the stove and in the hand at the same time.
+     * The repair runs after the slot is back exactly as it was and must not throw; the failure that started this
+     * is always the one that propagates.
+     */
+    static void applySlotStep(StoveData stove, int slot, SlotState previous, Runnable step, Runnable repair) {
+        try {
+            step.run();
+        } catch (RuntimeException | LinkageError failure) {
+            synchronized (stove) {
+                restoreSlot(stove, slot, previous);
+            }
+            repair.run();
+            throw failure;
+        }
+    }
+
+    /**
+     * Puts one slot's display and stored copy back in line with the state it was rolled back to. Both are best
+     * effort: the rolled-back slot is what the next save writes, so a repeated failure here only leaves the
+     * display stale until the next visual refresh.
+     */
+    private void repairSlotDisplay(Location location, StoveData stove, int slot, SlotState previous) {
+        try {
+            if (previous.item() == null || previous.item().getType().isAir()) {
+                visualManager.removeVisual(location, stove, slot);
+            } else {
+                visualManager.createVisual(location, stove, slot,
+                        CustomBlockUtils.getFacing(location.getBlock()).getOppositeFace());
+            }
+            markStoveDirty(location);
+        } catch (RuntimeException | LinkageError repeated) {
+            debug(() -> "slot repair failed at " + formatLocation(location) + ": " + repeated);
+        }
     }
 
     private void spawnCookingParticles(List<Player> viewers, Location location, int slot, BlockFace facing) {
@@ -1070,6 +1136,7 @@ public class StoveManager {
     private boolean retrieveItem(Player player, Location location, StoveData stove) {
         ItemStack toReturn;
         int slot;
+        SlotState previous;
         // Claim the slot under the per-stove monitor: without it a concurrent tick could clear or refill the
         // very slot this call just cloned, handing out one item twice (or none at all).
         synchronized (stove) {
@@ -1084,19 +1151,27 @@ public class StoveManager {
             }
 
             toReturn = item.clone();
+            previous = captureSlot(stove, slot);
             clearSlot(stove, slot);
         }
-        visualManager.removeVisual(location, stove, slot);
 
-        if (player.getInventory().getItemInMainHand().getType().isAir()) {
-            player.getInventory().setItemInMainHand(toReturn);
-        } else {
-            ItemDelivery.giveOrDrop(player, location.clone().add(0.5, 1.0, 0.5), toReturn);
-        }
+        // The hand-over is the last thing that happens: the display is dropped and the slot is written away
+        // before the item reaches the hand, so a failure in either of those puts the slot back instead of
+        // leaving the item in the stove and in the hand at the same time.
+        applySlotStep(stove, slot, previous, () -> {
+            visualManager.removeVisual(location, stove, slot);
 
-        // Mark unconditionally: with other slots still occupied the disk copy would otherwise keep the
-        // retrieved slot until the next unrelated write, and a crash would duplicate the taken item.
-        markStoveDirty(location);
+            // Mark unconditionally: with other slots still occupied the disk copy would otherwise keep the
+            // retrieved slot until the next unrelated write, and a crash would duplicate the taken item.
+            markStoveDirty(location);
+
+            if (player.getInventory().getItemInMainHand().getType().isAir()) {
+                player.getInventory().setItemInMainHand(toReturn);
+            } else {
+                ItemDelivery.giveOrDrop(player, location.clone().add(0.5, 1.0, 0.5), toReturn);
+            }
+        }, () -> repairSlotDisplay(location, stove, slot, previous));
+
         location.getWorld().playSound(location, Sound.ENTITY_ITEM_PICKUP, 0.8f, 1.0f);
         return true;
     }
