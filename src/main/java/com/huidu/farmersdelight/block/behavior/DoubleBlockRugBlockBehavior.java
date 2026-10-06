@@ -16,6 +16,7 @@ import net.momirealms.craftengine.core.plugin.config.KnownResourceException;
 import net.momirealms.craftengine.core.util.Direction;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.context.BlockPlaceContext;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -141,6 +142,26 @@ public class DoubleBlockRugBlockBehavior extends RugBlockBehavior {
         }
     }
 
+    // The break hook is the only removal callback that carries the player, so the player-driven teardown
+    // happens here: the permission check and the clear run in that order, and the destruction state is
+    // returned as it arrived because the interceptor hands this value back to the caller.
+    @Override
+    public Object playerWillDestroy(Object thisBlock, Object[] args) {
+        if (args == null || args.length < 4) {
+            return args == null || args.length < 3 ? null : args[2];
+        }
+        World world = CraftEngineAdapter.toWorld(args[0]);
+        BlockPos pos = CraftEngineAdapter.toBlockPos(args[1]);
+        if (world != null && pos != null && args[3] instanceof Player player) {
+            Block broken = world.getBlockAt(pos.x(), pos.y(), pos.z());
+            ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(broken);
+            if (state != null && !state.isEmpty()) {
+                clearPartner(partnerOf(broken, state), player);
+            }
+        }
+        return args[2];
+    }
+
     @Override
     public void affectNeighborsAfterRemoval(Object thisBlock, Object[] args) {
         handleRemoval(args);
@@ -167,11 +188,31 @@ public class DoubleBlockRugBlockBehavior extends RugBlockBehavior {
             return;
         }
         Block partner = partnerOf(removed, state);
-        if (partner != null) {
-            ImmutableBlockState partnerState = CraftEngineBlocks.getCustomBlockState(partner);
-            if (partnerState != null && !partnerState.isEmpty() && isPartner(partnerState)) {
-                partner.setType(Material.AIR, false);
-            }
+        // No player is attached to these callbacks, so there is no permission subject to check: they clear
+        // the partner as before, while a player-driven break goes through playerWillDestroy instead.
+        clearPartner(partner, null);
+    }
+
+    // Clears the paired half. Residency, region ownership and, when a player drove the break, that player's
+    // build permission are checked first; a cell that fails any of them is left to its own next update.
+    private void clearPartner(Block partner, Player breaker) {
+        if (partner == null) {
+            return;
+        }
+        if (!partner.getWorld().isChunkLoaded(partner.getX() >> 4, partner.getZ() >> 4)) {
+            return;
+        }
+        if (!Bukkit.isOwnedByCurrentRegion(partner)) {
+            return;
+        }
+        // The teardown is a block state change, so a player who may not build at the partner cell keeps it
+        // standing; that half is left for them or an administrator to clear by hand.
+        if (breaker != null && !ProtectionCompat.canPlace(breaker, partner, (ProtectionCompat.Feature) null)) {
+            return;
+        }
+        ImmutableBlockState partnerState = CraftEngineBlocks.getCustomBlockState(partner);
+        if (partnerState != null && !partnerState.isEmpty() && isPartner(partnerState)) {
+            partner.setType(Material.AIR, false);
         }
     }
 
@@ -185,6 +226,11 @@ public class DoubleBlockRugBlockBehavior extends RugBlockBehavior {
         }
         BlockFace facing = facingFromState(state);
         Block partner = self.getRelative(facing);
+        // The foot cell can belong to another region, and the place below writes on the calling thread. Skip
+        // it: placing into a region this thread does not own would touch a foreign block.
+        if (!Bukkit.isOwnedByCurrentRegion(partner)) {
+            return;
+        }
         CraftEngineBlocks.place(partner.getLocation(), withPart(state, "foot"), false);
     }
 
