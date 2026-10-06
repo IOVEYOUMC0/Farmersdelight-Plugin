@@ -114,67 +114,113 @@ public class CookingPotRecipeManager {
         // against this snapshot, and every load path (startup, /fd reload, external republish) runs through
         // here, so a recipe can never be read against the groups of an earlier load.
         RecipeParsingSupport.setAdvancedTagGroups(plugin.advancedTagGroups());
-        // Build everything into fresh local collections first, then publish atomically (below), so readers
-        // never see a half-cleared map. Do not clear()/refill the live fields in place.
-        Map<String, CookingPotRecipe> newRecipes = new LinkedHashMap<>();
-        Map<String, Map<String, CookingPotRecipe>> newCustomRecipes = new HashMap<>();
-        Map<String, Set<String>> newIngredientToRecipes = new HashMap<>();
-        Map<String, Map<String, Set<String>>> newCustomIngredientToRecipes = new HashMap<>();
-        Set<String> newValidContainerKeys = new HashSet<>();
-        // Recipes that got their container from their own result instead of the file; reported below so an
-        // operator can see which entries rely on the inference.
-        int[] inferredContainers = {0};
-        // Ids whose winning definition came from a CraftEngine pack section; the registry buckets in the
-        // startup summary read this, so it may only count entries that survived the merges below.
-        Set<String> packIds = new HashSet<>();
-
         YamlConfiguration config = RecipeFileLoader.loadRecipeFile(plugin, "recipes/cooking_pot_recipes.yml");
         if (config == null) {
             // Unreadable file (the loader already warned with the parse error): keep the recipes published
             // last instead of rebuilding from an empty file. Pack and API recipes stay as they are too.
             return;
         }
-        Set<String> overriddenExternalIds = externalOverrideIds(config, "cooking_pot");
-        RecipeFileLoader.loadRecipeSections(plugin, config, "cooking_pot_recipes", "cooking pot",
-                "recipes/cooking_pot_recipes.yml", (recipeId, section) -> {
-                    CookingPotRecipe recipe = parseRecipe(recipeId, section, 6);
-                    newRecipes.put(recipeId, recipe);
 
-                    indexDefaultRecipe(newIngredientToRecipes, recipeId, recipe);
-                    indexContainer(newValidContainerKeys, recipe);
-                    if (section.get("container") == null && recipe.getContainer() != null) {
-                        inferredContainers[0]++;
-                    }
-                });
-        loadCustomRecipes(config, newCustomRecipes, newCustomIngredientToRecipes, newValidContainerKeys, inferredContainers);
+        // Every source of this reload is queued into one registration round, and the round is what publishes:
+        // entries reach the buffers only as it advances, so the derived indexes and the published maps are
+        // built after the last entry rather than from the first slice of the first file.
+        PendingLoad pending = new PendingLoad(config);
+        List<RecipeRegistrationRound.Segment> segments = new ArrayList<>();
+        RecipeRegistrationRound.Segment ownFile = RecipeFileLoader.recipeSectionSegment(plugin, config,
+                "cooking_pot_recipes", "cooking pot", "recipes/cooking_pot_recipes.yml", pending::putOwnFile);
+        if (ownFile != null) {
+            segments.add(ownFile);
+        }
+        pending.loadCustom(config);
 
-        // Recipes a CraftEngine pack declares under cooking_recipes. Loaded after the plugin's own file so a
-        // pack can never silently replace a built-in recipe, and before the API merge below so an explicit
-        // runtime registration still wins on an id clash. CraftEngine read the files; see PackSections.
+        // Recipes a CraftEngine pack declares under cooking_recipes. Queued after the plugin's own file so a
+        // pack can never silently replace a built-in recipe; the runtime registrations are merged in the publish
+        // below, so an explicit registration still wins on an id clash. CraftEngine read the files; see
+        // PackSections.
         for (PackSections.Section packSection : plugin.packSectionsOf(PackSection.COOKING_POT)) {
-            RecipeFileLoader.loadRecipeSections(plugin, packSection.yaml(), PackSection.COOKING_POT.rootKey(),
+            RecipeRegistrationRound.Segment pack = RecipeFileLoader.recipeSectionSegment(plugin,
+                    packSection.yaml(), PackSection.COOKING_POT.rootKey(),
                     "cooking pot [" + packSection.source() + "]",
                     packSection.source(),
-                    (recipeId, section) -> {
-                        if (newRecipes.containsKey(recipeId)) {
-                            I18n.logWarning("recipe.pack_duplicate_skipped", "id", recipeId, "source", packSection.source());
-                            return;
-                        }
-                        CookingPotRecipe recipe = parseRecipe(recipeId, section, 6);
-                        newRecipes.put(recipeId, recipe);
-                        packIds.add(recipeId);
-                        indexDefaultRecipe(newIngredientToRecipes, recipeId, recipe);
-                        indexContainer(newValidContainerKeys, recipe);
-                        if (section.get("container") == null && recipe.getContainer() != null) {
-                            inferredContainers[0]++;
-                        }
-                    });
-            loadCustomRecipes(packSection.yaml(), newCustomRecipes, newCustomIngredientToRecipes, newValidContainerKeys, inferredContainers);
+                    (recipeId, section) -> pending.putPackFile(recipeId, section, packSection.source()));
+            if (pack != null) {
+                segments.add(pack);
+            }
+            pending.loadCustom(packSection.yaml());
         }
 
+        plugin.recipeRegistrations().start(this, segments, plugin.recipeRegistrationBudget(),
+                () -> publishLoadedSet(pending));
+    }
+
+    /**
+     * The buffers one reload round fills before anything is published. A replaced round is dropped together
+     * with its buffers, so a superseded reload can never publish a half-registered set over the live one.
+     */
+    private final class PendingLoad {
+
+        private final Map<String, CookingPotRecipe> recipes = new LinkedHashMap<>();
+        private final Map<String, Map<String, CookingPotRecipe>> customRecipes = new HashMap<>();
+        private final Map<String, Set<String>> ingredientToRecipes = new HashMap<>();
+        private final Map<String, Map<String, Set<String>>> customIngredientToRecipes = new HashMap<>();
+        private final Set<String> validContainerKeys = new HashSet<>();
+        // Ids whose winning definition came from a CraftEngine pack section; the registry buckets in the
+        // startup summary read this, so it may only count entries that survived the merges in publish.
+        private final Set<String> packIds = new HashSet<>();
+        // Recipes that got their container from their own result instead of the file; reported by publish so an
+        // operator can see which entries rely on the inference.
+        private final int[] inferredContainers = {0};
+        private final Set<String> overriddenExternalIds;
+
+        private PendingLoad(YamlConfiguration config) {
+            this.overriddenExternalIds = externalOverrideIds(config, "cooking_pot");
+        }
+
+        private void putOwnFile(String recipeId, ConfigurationSection section) {
+            CookingPotRecipe recipe = parseRecipe(recipeId, section, 6);
+            recipes.put(recipeId, recipe);
+            indexDefaultRecipe(ingredientToRecipes, recipeId, recipe);
+            indexContainer(validContainerKeys, recipe);
+            if (section.get("container") == null && recipe.getContainer() != null) {
+                inferredContainers[0]++;
+            }
+        }
+
+        private void putPackFile(String recipeId, ConfigurationSection section, String source) {
+            if (recipes.containsKey(recipeId)) {
+                I18n.logWarning("recipe.pack_duplicate_skipped", "id", recipeId, "source", source);
+                return;
+            }
+            CookingPotRecipe recipe = parseRecipe(recipeId, section, 6);
+            recipes.put(recipeId, recipe);
+            packIds.add(recipeId);
+            indexDefaultRecipe(ingredientToRecipes, recipeId, recipe);
+            indexContainer(validContainerKeys, recipe);
+            if (section.get("container") == null && recipe.getContainer() != null) {
+                inferredContainers[0]++;
+            }
+        }
+
+        private void loadCustom(YamlConfiguration yaml) {
+            loadCustomRecipes(yaml, customRecipes, customIngredientToRecipes, validContainerKeys, inferredContainers);
+        }
+    }
+
+    /**
+     * Builds the derived indexes from a finished round and publishes them together as immutable snapshots, so
+     * a reader on any Folia region thread sees either the previous set or the complete new one.
+     */
+    private void publishLoadedSet(PendingLoad pending) {
+        Map<String, CookingPotRecipe> newRecipes = pending.recipes;
+        Map<String, Map<String, CookingPotRecipe>> newCustomRecipes = pending.customRecipes;
+        Map<String, Set<String>> newIngredientToRecipes = pending.ingredientToRecipes;
+        Map<String, Map<String, Set<String>>> newCustomIngredientToRecipes = pending.customIngredientToRecipes;
+        Set<String> newValidContainerKeys = pending.validContainerKeys;
+        Set<String> packIds = pending.packIds;
+        int[] inferredContainers = pending.inferredContainers;
         // Merge addon-registered recipes last so they survive reloads; an editor override is explicit and wins.
         for (CookingPotRecipe recipe : externalRecipes.values()) {
-            if (!overriddenExternalIds.contains(recipe.getId()) || !newRecipes.containsKey(recipe.getId())
+            if (!pending.overriddenExternalIds.contains(recipe.getId()) || !newRecipes.containsKey(recipe.getId())
                     || AddonRecipeFiles.ownerOf("cooking_pot", recipe.getId()) != null) {
                 newRecipes.put(recipe.getId(), recipe);
                 packIds.remove(recipe.getId());
@@ -207,8 +253,9 @@ public class CookingPotRecipeManager {
             }
         }
 
-        // Publish the freshly built structures (each a single volatile write).
-        this.recipes = newRecipes;
+        // Publish the freshly built structures (each a single volatile write). The recipe map is a snapshot
+        // because its buffer is done here and no later round may write into a set a region thread is matching.
+        this.recipes = Collections.unmodifiableMap(new LinkedHashMap<>(newRecipes));
         this.customRecipes = newCustomRecipes;
         this.ingredientToRecipes = newIngredientToRecipes;
         this.customIngredientToRecipes = newCustomIngredientToRecipes;
