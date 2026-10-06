@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.manager.CarrierRestorer;
+import com.huidu.farmersdelight.util.PeriodicStagger;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import org.bukkit.Chunk;
 import org.bukkit.World;
@@ -48,7 +49,8 @@ public final class CarrierRestoreListener implements Listener {
         stop();
         int interval = Math.max(1, plugin.getConfigInt(DEFAULT_TICK_INTERVAL,
                 "performance.budgets.carrier-restore-tick-interval"));
-        this.task = plugin.scheduler().runRepeating(restorer::tick, interval, interval);
+        this.task = plugin.scheduler().runRepeating(restorer::tick,
+                PeriodicStagger.initialDelay("carrier-restore", interval), interval);
     }
 
     public void stop() {
