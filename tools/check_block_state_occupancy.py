@@ -22,6 +22,11 @@ The judgement rule (this is the anti-false-positive rule):
 `composter[level=7] -> composter[level=6]`), which can push two states that blocks pinned apart onto one slot.
 It is a hint, not a problem, and never changes the exit code.
 
+A share can also be deliberate. KNOWN_SHARES lists the exact owner set a state is allowed to be shared by,
+together with the reason, and those are printed under "deliberate shares" instead of counting as problems.
+The list has to name every owner, so a third block joining a known share is still a problem; nothing else is
+exempted.
+
 Usage:
     python tools/check_block_state_occupancy.py            # from FarmersDelight/
     python tools/check_block_state_occupancy.py --quiet    # summary only
@@ -47,6 +52,16 @@ CONFIG_ROOT = "src/main/resources/craftengine"
 BLOCK_SECTIONS = ("blocks", "block", "templates")
 REMAP_SECTION = "block-state-mappings"
 SKIP_PARTS = ("\\build\\", "/build/", "\\Reference\\", "/Reference/")
+
+# States two owners may share on purpose. The owner set has to match exactly, so a new block joining a listed
+# share is reported as a problem again. Key: the vanilla state; value: (block ids it may be shared by, reason).
+KNOWN_SHARES: dict[str, tuple[frozenset[str], str]] = {
+    "composter[level=7]": (
+        frozenset({"farmersdelight:basket", "farmersdelight:bamboo_basket"}),
+        "the basket and the bamboo basket are the same block with two ids, so they are meant to occupy one "
+        "state and render and behave identically; the owner asked for exactly that.",
+    ),
+}
 
 
 def config_files() -> list[Path]:
@@ -171,6 +186,17 @@ def main() -> int:
             _, first_rel, first_line = pins[0]
             single_owner.append((first_rel, first_line, state, owners[0], len(pins)))
 
+    deliberate = []
+    problems = []
+    for conflict in conflicts:
+        state, owners = conflict[2], conflict[3]
+        known = KNOWN_SHARES.get(state)
+        ids = {owner.split(":", 1)[1] for owner in owners}
+        if known is not None and ids == known[0]:
+            deliberate.append((conflict, known[1]))
+        else:
+            problems.append(conflict)
+
     template_ids = {owner.split(":", 1)[1] for _, owner, _, _ in findings.pins
                     if owner.startswith("templates:")}
 
@@ -192,11 +218,17 @@ def main() -> int:
     for rel, reason in skipped:
         print(f"skipped: {rel}: {reason}")
 
-    if conflicts and not args.quiet:
-        print(f"\nstates pinned by more than one owner ({len(conflicts)}):")
-        for rel, line, state, owners, pins in conflicts:
+    if problems and not args.quiet:
+        print(f"\nstates pinned by more than one owner ({len(problems)}):")
+        for rel, line, state, owners, pins in problems:
             print(f"  {rel}:{line}: {state} pinned by {', '.join(label(owner) for owner in owners)}"
                   f" ({pins} pin(s))")
+
+    if deliberate and not args.quiet:
+        print(f"\ndeliberate shares, listed in KNOWN_SHARES ({len(deliberate)}):")
+        for (rel, line, state, owners, pins), reason in deliberate:
+            print(f"  {rel}:{line}: {state} pinned by {', '.join(label(owner) for owner in owners)}"
+                  f" ({pins} pin(s)): {reason}")
 
     if single_owner and not args.quiet:
         print(f"\nsingle owner reusing one state across its own faces (normal, {len(single_owner)}):")
@@ -209,8 +241,8 @@ def main() -> int:
         for rel, source, target, line in findings.remaps:
             print(f"  {rel}:{line}: {source} -> {target}")
 
-    print(f"\nproblems: {len(conflicts)}")
-    return 1 if conflicts else 0
+    print(f"\nproblems: {len(problems)}")
+    return 1 if problems else 0
 
 
 if __name__ == "__main__":

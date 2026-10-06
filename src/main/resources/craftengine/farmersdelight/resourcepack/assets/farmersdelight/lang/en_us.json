@@ -456,6 +456,8 @@
   "farmersdelight.tooltip.melon_juice.effect": "Restores a small amount of health instantly",
   "farmersdelight.tooltip.milk_bottle.effect": "Removes a random status effect",
   "farmersdelight.tooltip.no_collision": "This block does not have collision yet.",
+  "farmersdelight.category.deprecated": "Deprecated items",
+  "farmersdelight.tooltip.deprecated": "Deprecated item",
   "block.farmersdelight.budding_tomatoes": "Budding Tomato Vine",
   "block.farmersdelight.cabbages": "Cabbage",
   "block.farmersdelight.onions": "Onions",

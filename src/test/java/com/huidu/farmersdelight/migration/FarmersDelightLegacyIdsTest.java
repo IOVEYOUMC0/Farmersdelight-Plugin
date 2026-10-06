@@ -6,10 +6,14 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -76,8 +80,11 @@ class FarmersDelightLegacyIdsTest {
         assertNotNull(basketItems, "blocks.yml has to keep its items section");
         assertNotNull(basketBlocks, "blocks.yml has to keep its block section");
 
-        assertTrue(basketItems.isConfigurationSection("farmersdelight:basket"),
-                "the legacy basket item stays until old stacks are gone");
+        ConfigurationSection legacyItems = pack("craftengine/farmersdelight/configuration/blocks.yml")
+                .getConfigurationSection("items");
+        assertNotNull(legacyItems, "blocks.yml has to keep its items section");
+        assertTrue(legacyItems.isConfigurationSection("farmersdelight:basket"),
+                "the legacy basket item stays until old stacks are gone, in the file it always lived in");
         assertTrue(basketBlocks.isConfigurationSection("farmersdelight:basket"),
                 "the legacy basket block stays: a placed basket keeps its old id, which the facility does not"
                         + " migrate, and removing the definition would turn it into air");
@@ -85,7 +92,7 @@ class FarmersDelightLegacyIdsTest {
             assertTrue(basketItems.isConfigurationSection("farmersdelight:" + name),
                     name + " needs an item definition (the block_item behaviour places the block)");
             assertTrue(basketBlocks.isConfigurationSection("farmersdelight:" + name),
-                    name + " needs a block definition");
+                    name + " keeps its own block definition");
         }
     }
 
@@ -93,9 +100,8 @@ class FarmersDelightLegacyIdsTest {
     void noRecipeProducesTheRemovedBasketAndBothNewOnesHaveOne() {
         List<String> producers = new ArrayList<>();
         List<String> newBaskets = new ArrayList<>();
-        for (String file : new String[]{"items.yml", "blocks.yml"}) {
-            ConfigurationSection recipes = pack("craftengine/farmersdelight/configuration/" + file)
-                    .getConfigurationSection("recipes");
+        for (ConfigurationSection configuration : recipeFiles()) {
+            ConfigurationSection recipes = configuration.getConfigurationSection("recipes");
             if (recipes == null) {
                 continue;
             }
@@ -106,7 +112,7 @@ class FarmersDelightLegacyIdsTest {
                 }
                 String id = result.getString("id");
                 if ("farmersdelight:basket".equals(id)) {
-                    producers.add(file + ":" + key);
+                    producers.add(key);
                 } else if ("farmersdelight:bamboo_basket".equals(id) || "farmersdelight:wooden_basket".equals(id)) {
                     newBaskets.add(id);
                 }
@@ -121,9 +127,11 @@ class FarmersDelightLegacyIdsTest {
 
     @Test
     void theLegacyDefinitionAndTheTargetBothStayInThePack() {
+        ConfigurationSection legacy = items();
         ConfigurationSection items = items();
+        assertNotNull(legacy, "items.yml has to keep its items section");
 
-        assertTrue(items.isConfigurationSection(LEGACY),
+        assertTrue(legacy.isConfigurationSection(LEGACY),
                 "the legacy id must keep its definition, otherwise CraftEngine drops the old stacks before"
                         + " the migration can see them");
         assertTrue(items.isConfigurationSection(CURRENT), "the replacement has to exist in the same pack");
@@ -131,22 +139,24 @@ class FarmersDelightLegacyIdsTest {
 
     @Test
     void noRecipeProducesTheRemovedItemAnyMore() {
-        ConfigurationSection recipes = pack("craftengine/farmersdelight/configuration/items.yml")
-                .getConfigurationSection("recipes");
-        assertNotNull(recipes, "items.yml has to keep its recipes section");
-
         List<String> producers = new ArrayList<>();
         List<String> retargeted = new ArrayList<>();
-        for (String key : recipes.getKeys(false)) {
-            ConfigurationSection result = recipes.getConfigurationSection(key + ".result");
-            if (result == null) {
+        for (ConfigurationSection configuration : recipeFiles()) {
+            ConfigurationSection recipes = configuration.getConfigurationSection("recipes");
+            if (recipes == null) {
                 continue;
             }
-            String id = result.getString("id");
-            if (LEGACY.equals(id)) {
-                producers.add(key);
-            } else if (CURRENT.equals(id) && key.startsWith("farmersdelight:barbecue_stick_")) {
-                retargeted.add(key);
+            for (String key : recipes.getKeys(false)) {
+                ConfigurationSection result = recipes.getConfigurationSection(key + ".result");
+                if (result == null) {
+                    continue;
+                }
+                String id = result.getString("id");
+                if (LEGACY.equals(id)) {
+                    producers.add(key);
+                } else if (CURRENT.equals(id) && key.startsWith("farmersdelight:barbecue_stick_")) {
+                    retargeted.add(key);
+                }
             }
         }
 
@@ -154,8 +164,8 @@ class FarmersDelightLegacyIdsTest {
         assertEquals(9, retargeted.size(),
                 "the nine barbecue_stick_* variants have to craft the 1.4 target instead: " + retargeted);
 
-        ConfigurationSection skewers = pack("craftengine/farmersdelight/configuration/skewer_recipes.yml");
-        assertTrue(skewers.isConfigurationSection("recipes"), "the new skewer recipes live in their own file");
+        ConfigurationSection skewers = pack("craftengine/farmersdelight/configuration/recipes.yml");
+        assertTrue(skewers.isConfigurationSection("recipes"), "the skewer recipes live under the recipes root key");
     }
 
     @Test
@@ -182,6 +192,28 @@ class FarmersDelightLegacyIdsTest {
     /** The pack's items.yml, parsed from the classpath so the test needs no running server. */
     private static ConfigurationSection items() {
         return pack("craftengine/farmersdelight/configuration/items.yml").getConfigurationSection("items");
+    }
+
+    /**
+     * Every configuration file that holds pack recipes. The recipes live in one merged file, so a check that
+     * used to read one of the item files has to walk the files that actually carry the recipes root key.
+     */
+    private static List<ConfigurationSection> recipeFiles() {
+        Path directory = Path.of("src", "main", "resources", "craftengine", "farmersdelight", "configuration");
+        try (Stream<Path> files = Files.list(directory)) {
+            List<ConfigurationSection> holders = new ArrayList<>();
+            for (Path path : files.filter(file -> file.getFileName().toString().endsWith(".yml")).sorted().toList()) {
+                ConfigurationSection configuration =
+                        pack("craftengine/farmersdelight/configuration/" + path.getFileName());
+                if (configuration.isConfigurationSection("recipes")) {
+                    holders.add(configuration);
+                }
+            }
+            assertFalse(holders.isEmpty(), "no configuration file carries the recipes root key");
+            return holders;
+        } catch (IOException error) {
+            throw new AssertionError("cannot list " + directory, error);
+        }
     }
 
     private static ConfigurationSection pack(String resource) {

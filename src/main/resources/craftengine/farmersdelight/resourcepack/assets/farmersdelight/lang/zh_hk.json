@@ -456,5 +456,7 @@
   "farmersdelight.tooltip.melon_juice.effect": "Restores a small amount of health instantly",
   "farmersdelight.tooltip.milk_bottle.effect": "Removes a random status effect",
   "farmersdelight.tooltip.no_collision": "This block does not have collision yet.",
+  "farmersdelight.category.deprecated": "废弃物品",
+  "farmersdelight.tooltip.deprecated": "废弃物品",
   "item.farmersdelight.pumpkin_pie_slice": "南瓜批片"
 }

@@ -409,6 +409,8 @@
   "farmersdelight.tooltip.melon_juice.effect": "소량의 체력을 즉시 회복합니다",
   "farmersdelight.tooltip.milk_bottle.effect": "무작위로 상태 효과 1개를 제거합니다",
   "farmersdelight.tooltip.no_collision": "이 블록은 아직 충돌 박스가 없습니다.",
+  "farmersdelight.category.deprecated": "Deprecated items",
+  "farmersdelight.tooltip.deprecated": "Deprecated item",
   "gui.recipe.special_recipes": "Special Recipes",
   "gui.recipe.special_recipes_lore": "Click to view special recipe guides",
   "gui.condition.sunlight": "Sunlight",

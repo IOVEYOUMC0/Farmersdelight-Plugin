@@ -276,25 +276,6 @@ blocks:
                         - type: item
                           item: minecraft:red_mushroom
                           count: 2
-recipes:
-  farmersdelight:brown_mushroom_colony:
-    type: shapeless
-    category: building
-    ingredients:
-      - minecraft:brown_mushroom_block
-      - minecraft:brown_mushroom
-    result:
-      id: farmersdelight:brown_mushroom_colony
-      count: 1
-  farmersdelight:red_mushroom_colony:
-    type: shapeless
-    category: building
-    ingredients:
-      - minecraft:red_mushroom_block
-      - minecraft:red_mushroom
-    result:
-      id: farmersdelight:red_mushroom_colony
-      count: 1
 placed-features:
   farmersdelight:wild_brown_mushroom_colony:
     biome:

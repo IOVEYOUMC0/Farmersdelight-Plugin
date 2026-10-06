@@ -34,8 +34,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class SkewerIngredientOverlapTest {
 
-    private static final Path SKEWER_RECIPES = Path.of(
-            "src/main/resources/craftengine/farmersdelight/configuration/skewer_recipes.yml");
+    private static final Path RECIPES = Path.of(
+            "src/main/resources/craftengine/farmersdelight/configuration/recipes.yml");
     private static final Path COMMON_TAGS = Path.of("src/main/resources/common-tags.yml");
     private static final Path FD_ITEMS = Path.of(
             "src/main/resources/craftengine/farmersdelight/configuration/items.yml");
@@ -136,7 +136,7 @@ class SkewerIngredientOverlapTest {
     }
 
     private static List<Object> craftingSlots() throws Exception {
-        ConfigurationSection root = load(SKEWER_RECIPES).getConfigurationSection("recipes");
+        ConfigurationSection root = load(RECIPES).getConfigurationSection("recipes");
         List<Object> slots = new ArrayList<>();
         for (String id : root.getKeys(false)) {
             ConfigurationSection recipe = root.getConfigurationSection(id);
@@ -205,7 +205,7 @@ class SkewerIngredientOverlapTest {
 
     @Test
     void theStickSlotStaysAVanillaStick() throws Exception {
-        ConfigurationSection root = load(SKEWER_RECIPES).getConfigurationSection("recipes");
+        ConfigurationSection root = load(RECIPES).getConfigurationSection("recipes");
         for (String id : List.of("farmersdelight:meat_skewer", "farmersdelight:vegetable_skewer",
                 "farmersdelight:cooked_meat_skewer_from_crafting")) {
             List<?> ingredients = root.getConfigurationSection(id).getList("ingredients");
