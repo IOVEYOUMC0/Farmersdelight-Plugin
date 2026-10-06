@@ -1,5 +1,7 @@
 package com.huidu.farmersdelight.api.util;
 
+import com.huidu.farmersdelight.util.scheduler.BlockedThreadDump;
+
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -43,10 +45,12 @@ public final class ShutdownBudget {
     private String stepFailureMessage = DEFAULT_STEP_FAILURE;
     private String exhaustedMessage = DEFAULT_EXHAUSTED;
     private boolean exhaustedReported;
+    private BlockedThreadDump stallDump;
 
     private ShutdownBudget(long totalMillis, Logger logger) {
         this.deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(totalMillis);
         this.logger = logger;
+        this.stallDump = BlockedThreadDump.toLogger(logger);
     }
 
     public static ShutdownBudget ofMillis(long totalMillis, Logger logger) {
@@ -72,6 +76,14 @@ public final class ShutdownBudget {
     public long remainingMillis() {
         long remaining = TimeUnit.NANOSECONDS.toMillis(deadlineNanos - System.nanoTime());
         return Math.max(0L, remaining);
+    }
+
+    /** Replaces the stuck-shutdown dump, so a test can observe the timeout path without threads. */
+    ShutdownBudget withStallDump(BlockedThreadDump dump) {
+        if (dump != null) {
+            this.stallDump = dump;
+        }
+        return this;
     }
 
     public boolean expired() {
@@ -120,6 +132,11 @@ public final class ShutdownBudget {
                 return true;
             }
             reportExhausted(name);
+            // Only a wait that ran and timed out is a stuck pool worth a stack dump; a budget that was
+            // already spent never waited, and reporting the whole tail stays one line.
+            if (wait > 0L && stallDump != null) {
+                stallDump.report("pool '" + name + "' did not drain inside the shutdown budget");
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
