@@ -9,7 +9,9 @@ import io.papermc.paper.event.player.PlayerStopUsingItemEvent;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -26,8 +28,10 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -49,7 +53,14 @@ import java.util.function.Predicate;
  * ListenerRegistrationOrderTest); "off" means "armed with nothing", not "missing".
  *
  * Lifecycle. The one-per-tick loop exists only while a session does: it is armed when a session
- * starts and cancels itself once the last one ends, so a second skewer arms it again.
+ * starts and cancels itself once the last one ends, so a second skewer arms it again. Every tick is gated on
+ * the session still holding the raw skewer it started from and on the right-click still being held, the same
+ * per-tick gate the handheld skillet uses; a tick that fails it ends the session and takes the progress bar
+ * with it, so a released click cannot cook anything.
+ *
+ * The vanilla use. The raw skewers are food, so a right-click on one would also start eating it. The click is
+ * cancelled only when this path accepts it and owns the session that follows; a click this path refuses (no
+ * result, no heat, skillet busy, sneak required) is left alone and the skewer stays edible.
  *
  * Mutual exclusion. A player cooks one handheld item at a time: the skillet's session is checked
  * first (SkilletManager#isHandheldCooking) so the two paths cannot both claim the same right-click,
@@ -85,8 +96,89 @@ public final class HandCookedSkewerHooks implements Listener {
     }
 
     private final FarmersDelightPlugin plugin;
-    /** Which hand started the session, so finishing consumes the skewer that was used. */
-    private final Map<UUID, EquipmentSlot> hands = new ConcurrentHashMap<>();
+
+    /** The grace a held right-click survives without a new click event, matching the handheld skillet. */
+    @ApiStatus.Internal
+    static final long INPUT_TIMEOUT_MILLIS = 400L;
+
+    /** A session started without a slot to remember: only the wiring tests start sessions that way. */
+    @ApiStatus.Internal
+    static final int UNKNOWN_SLOT = -1;
+
+    /**
+     * One running cook: the hand and inventory slot it started from, the stack it was started on, its raw id
+     * and when a click last confirmed it. The hand, slot and stack identity are what the per-tick gate compares
+     * against, so a stack that was dragged away or replaced ends the session instead of being cooked.
+     */
+    static final class SkewerSession {
+
+        private final EquipmentSlot hand;
+        private final int slot;
+        @Nullable
+        private final String rawId;
+        @Nullable
+        private final ItemStack startedWith;
+        private volatile long lastInputMillis;
+
+        SkewerSession(EquipmentSlot hand, int slot, @Nullable String rawId, @Nullable ItemStack startedWith,
+                      long nowMillis) {
+            this.hand = hand;
+            this.slot = slot;
+            this.rawId = rawId;
+            this.startedWith = startedWith == null ? null : startedWith.clone();
+            this.lastInputMillis = nowMillis;
+        }
+
+        EquipmentSlot hand() {
+            return this.hand;
+        }
+
+        int slot() {
+            return this.slot;
+        }
+
+        @Nullable
+        String rawId() {
+            return this.rawId;
+        }
+
+        @Nullable
+        ItemStack startedWith() {
+            return this.startedWith;
+        }
+
+        long lastInputMillis() {
+            return this.lastInputMillis;
+        }
+
+        void refreshInput(long nowMillis) {
+            this.lastInputMillis = nowMillis;
+        }
+    }
+
+    /** The click one session is started from: which hand, which slot, the stack and its raw id. */
+    @ApiStatus.Internal
+    record StartTarget(EquipmentSlot hand, int slot, @Nullable ItemStack stack, @Nullable String rawId) {
+
+        static StartTarget unknown(EquipmentSlot hand) {
+            return new StartTarget(hand, UNKNOWN_SLOT, null, null);
+        }
+    }
+
+    /** What one accepted click did to the session bookkeeping. */
+    @ApiStatus.Internal
+    enum SessionStart {
+
+        /** A new session was recorded: the caller is the click that owns it. */
+        STARTED,
+        /** The click confirmed the running session; nothing restarts. */
+        CONTINUED,
+        /** No session for this click. */
+        REFUSED
+    }
+
+    /** Which hand and slot started the session, so finishing consumes the skewer that was used. */
+    private final Map<UUID, SkewerSession> hands = new ConcurrentHashMap<>();
     private volatile HandCookedSkewerService service;
     private volatile SkewerResultTable results = new SkewerResultTable(null);
     // Override table first, campfire recipe second (upstream default). Swapped for the production source in
@@ -112,7 +204,8 @@ public final class HandCookedSkewerHooks implements Listener {
             }));
     // The hand and held item one click is judged on, after the policy's null-hand fallback: the entry line and
     // the start path both read it instead of resolving the item twice.
-    private record HandCandidate(EquipmentSlot hand, @Nullable String rawId, boolean hasResult) {
+    private record HandCandidate(EquipmentSlot hand, @Nullable ItemStack stack, @Nullable String rawId,
+                                 boolean hasResult) {
     }
     private volatile boolean requireSneak;
     private volatile PluginTask tickTask = PluginTask.NOOP;
@@ -127,6 +220,13 @@ public final class HandCookedSkewerHooks implements Listener {
     private final Object taskLock = new Object();
     /** Test seam: how the loop finds and reaches a player; production uses the server and the entity scheduler. */
     private volatile LoopSeam loopSeam = productionLoop();
+    /** The nearby-heat answer; a seam so a test can drive the whole accept path without a server. */
+    private volatile Predicate<Player> heatProbe = this::probeHeat;
+    /** How a held stack resolves to its raw id and how a result id becomes an item; CraftEngine does both. */
+    private volatile Function<ItemStack, String> idResolver = ItemUtils::resolveItemId;
+    private volatile Function<String, ItemStack> itemFactory = ItemUtils::createItem;
+    /** The clock the input grace is measured against; a seam so a test can age a click without sleeping. */
+    private volatile java.util.function.LongSupplier clock = System::currentTimeMillis;
 
     public HandCookedSkewerHooks(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -136,6 +236,34 @@ public final class HandCookedSkewerHooks implements Listener {
     @ApiStatus.Internal
     void setLoopSeam(@Nullable LoopSeam seam) {
         this.loopSeam = seam == null ? productionLoop() : seam;
+    }
+
+    /** Replaces the heat probe; null restores the production probe. Used by the wiring tests only. */
+    @ApiStatus.Internal
+    void setHeatProbe(@Nullable Predicate<Player> probe) {
+        this.heatProbe = probe == null ? this::probeHeat : probe;
+    }
+
+    /** Replaces the raw-id resolver; null restores the production one. Used by the wiring tests only. */
+    @ApiStatus.Internal
+    void setIdResolver(@Nullable Function<ItemStack, String> resolver) {
+        this.idResolver = resolver == null ? ItemUtils::resolveItemId : resolver;
+    }
+
+    /** Replaces the result-item factory; null restores the production one. Used by the wiring tests only. */
+    @ApiStatus.Internal
+    void setItemFactory(@Nullable Function<String, ItemStack> factory) {
+        this.itemFactory = factory == null ? ItemUtils::createItem : factory;
+    }
+
+    /** Replaces the input clock; null restores the wall clock. Used by the wiring tests only. */
+    @ApiStatus.Internal
+    void setClock(@Nullable java.util.function.LongSupplier source) {
+        this.clock = source == null ? System::currentTimeMillis : source;
+    }
+
+    private long nowMillis() {
+        return this.clock.getAsLong();
     }
 
     private LoopSeam productionLoop() {
@@ -273,14 +401,14 @@ public final class HandCookedSkewerHooks implements Listener {
             }
             hands.clear();
             service = new HandCookedSkewerService(true, () -> Math.max(1, cookingTicks), id -> {
-                // The hand entry goes first, whoever handles the conversion: the loop decides whether it is
+                // The session entry goes first, whoever handles the conversion: the loop decides whether it is
                 // still needed from this map, so a session that ended must never leave an entry behind.
-                EquipmentSlot hand;
+                SkewerSession session;
                 synchronized (taskLock) {
-                    hand = hands.remove(id);
+                    session = hands.remove(id);
                 }
                 if (onCooked == null) {
-                    convert(id, hand);
+                    convert(id, session);
                 } else {
                     onCooked.accept(id);
                 }
@@ -309,7 +437,10 @@ public final class HandCookedSkewerHooks implements Listener {
      * player sneaks. Which click is ours is decided only in SkewerBlockClickPolicy; this method
      * resolves the hand, reports, and starts the session.
      *
-     * Runs at MONITOR and never cancels: this path does not touch the vanilla interaction at all.
+     * Runs at MONITOR. The vanilla use is cancelled only once this path accepts the click and has a session
+     * for it: the raw skewers are food, so an uncancelled click would also start eating the skewer that is
+     * being cooked, and one skewer would become a meal and a cooked skewer at the same time. A click this
+     * path refuses is left untouched, so the skewer stays edible everywhere else.
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent event) {
@@ -349,11 +480,26 @@ public final class HandCookedSkewerHooks implements Listener {
             reportBlocked(player, candidate.rawId(), blocked);
             return;
         }
-        if (handleUse(player.getUniqueId(), candidate.hand(), true, false, false, false, true)) {
-            int slot = candidate.hand() == EquipmentSlot.OFF_HAND ? 40 : player.getInventory().getHeldItemSlot();
+        // This click belongs to the skewer path: the slot is fixed here, because the gate and the conversion
+        // both have to know which stack this session is about.
+        int slot = candidate.hand() == EquipmentSlot.OFF_HAND ? 40 : player.getInventory().getHeldItemSlot();
+        StartTarget target = new StartTarget(candidate.hand(), slot, candidate.stack(), candidate.rawId());
+        SessionStart start = handleUse(player.getUniqueId(), target, true, false, false, false, true);
+        if (start == SessionStart.REFUSED) {
+            if (plugin != null && plugin.isDebugEnabled("handheld")) {
+                plugin.getLogger().info("[handheld] use was accepted but the session did not start for " + player.getName());
+            }
+            return;
+        }
+        // Owned by a session now (started or confirmed): stop the vanilla use, so a hungry player does not eat
+        // the skewer this same click is cooking and the repeat clicks keep confirming the session.
+        event.setCancelled(true);
+        if (event.hasItem()) {
+            // Paper reports no item for some air clicks; the use result can only be denied when there is one.
+            event.setUseItemInHand(Event.Result.DENY);
+        }
+        if (start == SessionStart.STARTED) {
             startProgressDisplay(player.getUniqueId(), slot, candidate.rawId());
-        } else if (plugin != null && plugin.isDebugEnabled("handheld")) {
-            plugin.getLogger().info("[handheld] use was accepted but the session did not start for " + player.getName());
         }
     }
 
@@ -434,7 +580,7 @@ public final class HandCookedSkewerHooks implements Listener {
         for (int index : SkewerBlockClickPolicy.handsToCheck(reportedHand != null)) {
             EquipmentSlot hand = handAt(index, reportedHand);
             ItemStack stack = held(player, hand);
-            HandCandidate candidate = new HandCandidate(hand, resolveRawId(stack),
+            HandCandidate candidate = new HandCandidate(hand, stack, resolveRawId(stack),
                     resultSource.resultId(stack) != null);
             if (first == null) {
                 first = candidate;
@@ -443,7 +589,7 @@ public final class HandCookedSkewerHooks implements Listener {
                 return candidate;
             }
         }
-        return first == null ? new HandCandidate(EquipmentSlot.HAND, null, false) : first;
+        return first == null ? new HandCandidate(EquipmentSlot.HAND, null, null, false) : first;
     }
 
     /**
@@ -507,7 +653,7 @@ public final class HandCookedSkewerHooks implements Listener {
      * off-hand fallback of the actual decision is not worth a second lookup just for a log line).
      */
     @Nullable
-    private static String rawHeldId(Player player, @Nullable EquipmentSlot reportedHand) {
+    private String rawHeldId(Player player, @Nullable EquipmentSlot reportedHand) {
         return resolveRawId(held(player, reportedHand != null ? reportedHand : EquipmentSlot.HAND));
     }
 
@@ -545,49 +691,93 @@ public final class HandCookedSkewerHooks implements Listener {
      * Upstream parity: the heat check is the 3x3x3 cube around the player (or the player being on fire) and the
      * use has to be held for the full cooking time; useOn is not overridden, so a block click only starts this
      * when the block has no interaction of its own — SkewerBlockClickPolicy decides that and passes the
-     * outcome in as blockClick (true meaning "the block keeps the click"). Nothing here can cancel the
-     * interaction: there is no cancel parameter to run.
+     * outcome in as blockClick (true meaning "the block keeps the click").
      */
     @ApiStatus.Internal
     boolean handleUse(UUID player, EquipmentSlot hand, boolean rawSkewer, boolean skilletCooking, boolean sneaking,
                       boolean blockClick, boolean nearbyHeat) {
-        if (blockClick) {
-            // The policy left this click to the block (a campfire taking food): never cook behind vanilla's back.
-            return false;
-        }
-        if (!mayStart(service != null, rawSkewer, skilletCooking, sneaking, requireSneak)) {
-            return false;
-        }
-        if (!nearbyHeat) {
-            // No heat means no session at all, so nothing is consumed and no tick runs.
-            return false;
-        }
-        return beginSession(player, hand);
+        return handleUse(player, StartTarget.unknown(hand), rawSkewer, skilletCooking, sneaking, blockClick,
+                nearbyHeat) != SessionStart.REFUSED;
     }
 
     /**
-     * Records a session and makes sure the tick loop is running. The loop cancels itself once the last session
-     * ends (see tick()), so every new session has to arm it again — a loop that was armed only when
-     * the config was read would stop after the first skewer and never advance another one. Arming is
-     * idempotent: a running loop is left alone, so a player cannot end up with two of them.
+     * The same decision with the slot, stack and raw id the session has to remember: the wiring starts a
+     * session with all three, a test that only drives the gate passes a target with an unknown slot.
      */
     @ApiStatus.Internal
-    boolean beginSession(UUID player, EquipmentSlot hand) {
-        if (player == null) {
-            return false;
+    SessionStart handleUse(UUID player, StartTarget target, boolean rawSkewer, boolean skilletCooking,
+                           boolean sneaking, boolean blockClick, boolean nearbyHeat) {
+        if (blockClick) {
+            // The policy left this click to the block (a campfire taking food): never cook behind vanilla's back.
+            return SessionStart.REFUSED;
+        }
+        if (!mayStart(service != null, rawSkewer, skilletCooking, sneaking, requireSneak)) {
+            return SessionStart.REFUSED;
+        }
+        if (!nearbyHeat) {
+            // No heat means no session at all, so nothing is consumed and no tick runs.
+            return SessionStart.REFUSED;
+        }
+        return beginSession(player, target);
+    }
+
+    /**
+     * Records a session and makes sure the tick loop is running, or confirms the session this click continues.
+     * The loop cancels itself once the last session ends (see tick()), so every new session has to arm it
+     * again — a loop that was armed only when the config was read would stop after the first skewer and never
+     * advance another one. Arming is idempotent: a running loop is left alone, so a player cannot end up with
+     * two of them.
+     *
+     * A click on the same hand, slot and stack only refreshes the input clock, which is what keeps the session
+     * alive while the client repeats its use packet. A click that no longer matches ends the running cook and
+     * starts the new one, so the two never share a stack.
+     */
+    @ApiStatus.Internal
+    SessionStart beginSession(UUID player, StartTarget target) {
+        if (player == null || target == null || target.hand() == null) {
+            return SessionStart.REFUSED;
         }
         synchronized (taskLock) {
             HandCookedSkewerService active = service;
-            if (active == null || !active.tryStart(player)) {
-                return false;
+            if (active == null) {
+                return SessionStart.REFUSED;
             }
-            hands.put(player, hand);
+            SkewerSession running = hands.get(player);
+            if (running != null) {
+                if (matchesTarget(running, target)) {
+                    running.refreshInput(nowMillis());
+                    return SessionStart.CONTINUED;
+                }
+                hands.remove(player);
+                active.cancel(player);
+                progressDisplay.close(player);
+            }
+            if (!active.tryStart(player)) {
+                return SessionStart.REFUSED;
+            }
+            hands.put(player, new SkewerSession(target.hand(), target.slot(), target.rawId(), target.stack(),
+                    nowMillis()));
             ensureTaskLocked();
-            return true;
+            return SessionStart.STARTED;
         }
     }
 
-    /** Releasing the use key: zero progress. */
+    private static boolean matchesTarget(SkewerSession running, StartTarget target) {
+        return running.hand() == target.hand() && running.slot() == target.slot()
+                && sameRawId(running.rawId(), target.rawId());
+    }
+
+    /** The two-argument start the wiring tests use: no slot and no stack to match against. */
+    @ApiStatus.Internal
+    boolean beginSession(UUID player, EquipmentSlot hand) {
+        return beginSession(player, StartTarget.unknown(hand)) == SessionStart.STARTED;
+    }
+
+    private static boolean sameRawId(@Nullable String first, @Nullable String second) {
+        return first == null ? second == null : first.equals(second);
+    }
+
+    /** Releasing the use key: zero progress, and the bar goes with it before the next tick. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onStopUsing(PlayerStopUsingItemEvent event) {
         cancel(event.getPlayer());
@@ -629,7 +819,11 @@ public final class HandCookedSkewerHooks implements Listener {
         }
     }
 
-    /** The one-per-tick loop: every session is advanced on the scheduler of the player that owns it. */
+    /**
+     * The one-per-tick loop: every session is advanced on the scheduler of the player that owns it, and the bar
+     * for that session is updated in the same dispatched task so no player or inventory read happens on the
+     * loop's own thread.
+     */
     private void tick() {
         synchronized (taskLock) {
             HandCookedSkewerService active = service;
@@ -641,7 +835,7 @@ public final class HandCookedSkewerHooks implements Listener {
                 return;
             }
             LoopSeam seam = loopSeam;
-            for (Map.Entry<UUID, EquipmentSlot> entry : hands.entrySet()) {
+            for (Map.Entry<UUID, SkewerSession> entry : hands.entrySet()) {
                 Player player = seam.player(entry.getKey());
                 if (player == null) {
                     hands.remove(entry.getKey());
@@ -649,54 +843,145 @@ public final class HandCookedSkewerHooks implements Listener {
                     continue;
                 }
                 UUID id = entry.getKey();
+                SkewerSession session = entry.getValue();
                 // Dispatched while the lock is held on purpose: on Paper the task runs inline, so this calls
                 // back into convert() on the same thread. Java monitors are reentrant, so the short
                 // hands.remove there is safe, and the alternative — releasing the lock around the dispatch —
                 // would let the loop be cancelled between the check above and the work it decided to do.
-                seam.dispatch(player, () -> active.tick(id));
-                // After the tick that was just applied, so the bar shows progress that really happened.
-                updateProgressDisplay(id, active, entry.getValue());
+                //
+                // The gate and the bar update belong to the same task: both read that player's hand and use
+                // state, and on Folia this loop runs on the global scheduler while the task runs on the
+                // player's entity scheduler. A session the gate refuses is ended right here, so the bar goes
+                // away in the same tick the click was released. Inside the task the tick is applied first, so
+                // the bar still reports progress that really happened.
+                seam.dispatch(player, () -> {
+                    if (!mayAdvance(player, session) || !sessionStillHolds(player, session)) {
+                        endSession(id, session);
+                        return;
+                    }
+                    active.tick(id);
+                    updateProgressDisplay(id, active);
+                });
             }
+        }
+    }
+
+    /**
+     * Whether the session may advance this tick: the player is alive and still holding right-click. A native
+     * use means the client is eating or drinking something; when it is the item this session is cooking, that
+     * use owns the click and the session is stale, and when it is the other hand the skillet rule applies and
+     * the skewer click is not held either. Holding is recognised by the input clock the accepted clicks refresh,
+     * because the client repeats its use packet only about every four ticks.
+     */
+    private boolean mayAdvance(Player player, SkewerSession session) {
+        if (player.isDead() || player.isHandRaised()) {
+            return false;
+        }
+        return nowMillis() - session.lastInputMillis() <= INPUT_TIMEOUT_MILLIS;
+    }
+
+    /**
+     * Whether the stack the session was started on is still the stack in that slot, mirroring the handheld
+     * skillet's session match: the same item with a positive amount. A session started without a slot or a
+     * stack (the wiring tests) has no identity to compare and is judged on the input alone.
+     */
+    private boolean sessionStillHolds(Player player, SkewerSession session) {
+        if (session.slot() < 0 || session.startedWith() == null) {
+            return true;
+        }
+        if (session.hand() == EquipmentSlot.HAND && player.getInventory().getHeldItemSlot() != session.slot()) {
+            // The player moved the selection off the skewer: the hand no longer points at it.
+            return false;
+        }
+        ItemStack current = player.getInventory().getItem(session.slot());
+        return current != null && current.getAmount() > 0 && session.startedWith().isSimilar(current);
+    }
+
+    /** Ends one session and its bar; a session that was already replaced by a newer one is left alone. */
+    private void endSession(UUID id, SkewerSession session) {
+        synchronized (taskLock) {
+            if (hands.get(id) != session) {
+                return;
+            }
+            hands.remove(id);
+            HandCookedSkewerService active = service;
+            if (active != null) {
+                active.cancel(id);
+            }
+            progressDisplay.close(id);
         }
     }
 
     /**
      * Finishes one skewer. Runs on the player's region (dispatched by tick()), consumes one raw
      * skewer in the hand that started the session and hands over the cooked one; a full inventory drops it.
-     * No stack is cloned and no durability is written: the held stack is only shrunk by one. The hand entry
+     * No stack is cloned and no durability is written: the held stack is only shrunk by one. The session entry
      * was already removed by the session wrapper in start().
+     *
+     * The conversion re-checks that the session still holds its stack, because a lifecycle event can end the
+     * session between the tick that reached the end and this call; it must not take an item the player no
+     * longer offered. The consumption is atomic: the inventory is snapshotted first and restored when the
+     * commit throws, so a half-finished conversion cannot leave the raw skewer in the hand and the cooked one
+     * in the inventory at the same time.
      */
-    private void convert(UUID id, @Nullable EquipmentSlot hand) {
-        FarmersDelightPlugin owner = plugin;
-        Player player = owner == null || hand == null ? null : owner.getServer().getPlayer(id);
+    private void convert(UUID id, @Nullable SkewerSession session) {
+        // The loop's own way of finding the player: the same lookup in production, and the seam the wiring
+        // tests replace, so the conversion can be driven without a server.
+        Player player = session == null ? null : loopSeam.player(id);
         if (player == null) {
+            progressDisplay.close(id);
             return;
         }
-        ItemStack held = held(player, hand);
-        // The bar (and its packet rewrite) goes away before the item changes hands, so the client sees the
-        // real stack again and never a stale fake bar.
-        progressDisplay.close(player.getUniqueId());
-        // Same source the session was started from: the override table first, then the campfire recipe.
-        String cookedId = resultSource.resultId(held);
-        if (cookedId == null) {
-            // The held item changed while cooking; nothing is produced and nothing is consumed.
-            return;
+        try {
+            if (!sessionStillHolds(player, session)) {
+                return;
+            }
+            ItemStack held = held(player, session.hand());
+            // Same source the session was started from: the override table first, then the campfire recipe.
+            String cookedId = resultSource.resultId(held);
+            if (cookedId == null) {
+                // The held item changed while cooking; nothing is produced and nothing is consumed.
+                return;
+            }
+            ItemStack cooked = this.itemFactory.apply(cookedId);
+            if (cooked == null) {
+                return;
+            }
+            ItemStack[] before = snapshotContents(player);
+            List<Item> drops = new ArrayList<>();
+            try {
+                int left = held.getAmount() - 1;
+                if (left > 0) {
+                    held.setAmount(left);
+                    setHeld(player, session.hand(), held);
+                } else {
+                    setHeld(player, session.hand(), null);
+                }
+                for (ItemStack rest : player.getInventory().addItem(cooked).values()) {
+                    drops.add(player.getWorld().dropItem(player.getLocation(), rest));
+                }
+            } catch (RuntimeException | LinkageError failure) {
+                for (Item drop : drops) {
+                    drop.remove();
+                }
+                player.getInventory().setContents(before);
+                throw failure;
+            }
+        } finally {
+            // The bar goes away after the stack changed: closing it resends the player's current slot, so the
+            // client ends on the real item and never on the cooking copy.
+            progressDisplay.close(id);
         }
-        ItemStack cooked = ItemUtils.createItem(cookedId);
-        if (cooked == null) {
-            return;
+    }
+
+    private static ItemStack[] snapshotContents(Player player) {
+        ItemStack[] before = player.getInventory().getContents();
+        for (int index = 0; index < before.length; index++) {
+            if (before[index] != null) {
+                before[index] = before[index].clone();
+            }
         }
-        int left = held.getAmount() - 1;
-        if (left > 0) {
-            held.setAmount(left);
-            setHeld(player, hand, held);
-        } else {
-            setHeld(player, hand, null);
-        }
-        Map<Integer, ItemStack> overflow = player.getInventory().addItem(cooked);
-        for (ItemStack rest : overflow.values()) {
-            player.getWorld().dropItem(player.getLocation(), rest);
-        }
+        return before;
     }
 
     private void cancel(Player player) {
@@ -715,6 +1000,10 @@ public final class HandCookedSkewerHooks implements Listener {
     }
 
     private boolean hasHeat(Player player) {
+        return heatProbe.test(player);
+    }
+
+    private boolean probeHeat(Player player) {
         FarmersDelightPlugin owner = plugin;
         if (owner == null) {
             return false;
@@ -732,8 +1021,8 @@ public final class HandCookedSkewerHooks implements Listener {
     }
 
     @Nullable
-    private static String resolveRawId(@Nullable ItemStack stack) {
-        return stack == null || stack.getType().isAir() ? null : ItemUtils.resolveItemId(stack);
+    private String resolveRawId(@Nullable ItemStack stack) {
+        return stack == null || stack.getType().isAir() ? null : this.idResolver.apply(stack);
     }
 
     private static ItemStack held(Player player, EquipmentSlot hand) {
@@ -880,9 +1169,10 @@ public final class HandCookedSkewerHooks implements Listener {
 
     /**
      * Called once per loop tick for every session: the bar follows the same cadence as the handheld skillet,
-     * one update every four ticks, and never before the first tick of real progress.
+     * one update every four ticks, and never before the first tick of real progress. Called from inside the
+     * task dispatched to the owning player, because the bar reads that player's world and held slot.
      */
-    private void updateProgressDisplay(UUID playerId, HandCookedSkewerService active, EquipmentSlot hand) {
+    private void updateProgressDisplay(UUID playerId, HandCookedSkewerService active) {
         if (!this.progressDisplayEnabled) {
             return;
         }
