@@ -14,98 +14,106 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Which vanilla block state each basket occupies.
+ * Which vanilla block states the basket family occupies.
  *
  *
- * An explicit state: pins a vanilla state for the client model lookup. The three baskets used to pin
- * the same one (composter[level=7], which the pack even remaps to composter[level=6]), so two
- * of them could not have their own model. The legacy basket keeps its pinned state — old worlds still hold
- * baskets in it — while the two new baskets let CraftEngine reserve a state of their own through
- * auto_state, the same mechanism the other five faces and the crates already use.
+ * The basket and the bamboo basket are the same block with two ids, so they reference the same six states: five
+ * per-face auto_state allocations that both blocks name by id, plus the historic composter[level=7] pin on the
+ * up face that worlds saved before this change still hold their placed baskets in. Naming the same id in both
+ * blocks is what makes CraftEngine hand out one allocation instead of one per block and face
+ * (AbstractBlockManager:636-651). The wooden basket is not part of the share: it keeps its own per-appearance
+ * states.
  *
  *
- * Data only: this reads blocks.yml through the classpath. What the client actually renders per state is on the
+ * Data only: this reads blocks.yml through the classpath. What the client renders per state is on the
  * real-server checklist.
  */
 class BasketStatesTest {
 
     private static final List<String> FACES = List.of("east", "north", "south", "west", "up", "down");
-    private static final String CONVENTION = "non_tintable_leaves";
-    private static final String LEGACY = "farmersdelight:basket";
+    private static final String BASKET = "farmersdelight:basket";
+    private static final String BAMBOO = "farmersdelight:bamboo_basket";
+    private static final String WOODEN = "farmersdelight:wooden_basket";
+    private static final String LEGACY_PIN = "composter[level=7]";
 
     @Test
-    void theLegacyBasketKeepsItsPinnedState() {
-        ConfigurationSection legacy = appearances(LEGACY);
-        assertEquals("composter[level=7]", legacy.getConfigurationSection("up").getString("state"),
-                "placed baskets in old worlds sit in that state; changing it would move them");
+    void theThreeBasketBlocksStay() {
+        for (String id : List.of(BASKET, BAMBOO, WOODEN)) {
+            assertNotNull(blocks().getConfigurationSection("block." + id),
+                    id + " keeps its own block definition");
+        }
     }
 
     @Test
-    void theTwoNewBasketsReserveTheirOwnStatesInsteadOfPinningTheLegacyOne() {
-        for (String name : new String[]{"farmersdelight:bamboo_basket", "farmersdelight:wooden_basket"}) {
-            ConfigurationSection up = appearances(name).getConfigurationSection("up");
-            assertNull(up.getString("state"),
-                    name + " must not pin a vanilla state: it has to reserve one of its own");
-            assertEquals(CONVENTION, up.getString("auto_state"),
-                    name + " uses the pack's auto_state convention");
-            for (String face : FACES) {
-                assertNotNull(appearances(name).getConfigurationSection(face), name + " keeps the " + face + " face");
+    void theBasketAndTheBambooBasketReferenceTheSameStates() {
+        Map<String, String> basket = references(BASKET);
+        Map<String, String> bamboo = references(BAMBOO);
+        assertEquals(basket, bamboo,
+                "the two ids have to occupy the same states, otherwise the second one costs extra states");
+        assertEquals(FACES.size(), basket.size(), "every face is accounted for");
+        for (String face : FACES) {
+            if ("up".equals(face)) {
+                assertEquals("state:" + LEGACY_PIN, basket.get(face),
+                        "the up face keeps the historic pin both blocks share");
+            } else {
+                assertEquals("auto-id:non_tintable_leaves:basket_" + face, basket.get(face),
+                        face + " names a shared allocation instead of reserving one per block");
             }
         }
     }
 
     @Test
-    void noTwoBasketsShareAPinnedState() {
-        List<String> baskets = List.of("farmersdelight:bamboo_basket", "farmersdelight:wooden_basket", LEGACY);
-        Map<String, List<String>> owners = pinnedStates();
-        for (Map.Entry<String, List<String>> entry : owners.entrySet()) {
-            List<String> basketOwners = entry.getValue().stream().filter(baskets::contains).toList();
-            assertTrue(basketOwners.size() <= 1,
-                    "state " + entry.getKey() + " is pinned by more than one basket (" + basketOwners
-                            + "): the client can only resolve one model for it");
+    void theWoodenBasketKeepsItsOwnStates() {
+        Map<String, String> wooden = references(WOODEN);
+        assertFalse(wooden.containsValue("state:" + LEGACY_PIN),
+                "the wooden basket must not be pulled into the shared pin");
+        for (String face : FACES) {
+            assertEquals("auto:non_tintable_leaves", wooden.get(face),
+                    face + " keeps its own per-appearance allocation");
         }
-        assertEquals(List.of(LEGACY), owners.get("composter[level=7]"),
-                "after the fix the legacy basket is the only block left on that state");
+        assertFalse(wooden.equals(references(BASKET)),
+                "the wooden state set has to differ from the shared one");
     }
 
-    /**
-     * The other shared pinned states in the pack, listed rather than asserted: they are used by crops and
-     * carpets on purpose and are outside this task. The test exists so the list is visible when it changes.
-     */
     @Test
-    void thePacksOtherSharedStatesAreKnownAndOutOfScope() {
+    void onlyTheTwoBasketBlocksShareThePinnedState() {
+        assertEquals(List.of(BAMBOO, BASKET), pinnedStates().get(LEGACY_PIN),
+                "the deliberate share is exactly these two blocks");
         List<String> shared = new ArrayList<>();
         for (Map.Entry<String, List<String>> entry : pinnedStates().entrySet()) {
             if (entry.getValue().size() > 1) {
                 shared.add(entry.getKey() + " <- " + entry.getValue());
             }
         }
-        for (String entry : shared) {
-            assertFalse(entry.startsWith("composter[level=7]"),
-                    "the baskets' old state must not be shared any more: " + entry);
-        }
-        assertEquals(shared.size(), shared.stream().distinct().count());
+        assertEquals(List.of(LEGACY_PIN + " <- [" + BAMBOO + ", " + BASKET + "]"), shared,
+                "no other state in the pack is pinned by two owners: " + shared);
     }
 
-    @Test
-    void everyBasketFaceStillFollowsThePackConvention() {
-        for (String name : new String[]{"farmersdelight:bamboo_basket", "farmersdelight:wooden_basket", LEGACY}) {
-            ConfigurationSection faces = appearances(name);
-            List<String> autoFaces = new ArrayList<>();
-            for (String face : FACES) {
-                ConfigurationSection appearance = faces.getConfigurationSection(face);
-                if (appearance.getString("state") == null) {
-                    autoFaces.add(face);
-                    assertEquals(CONVENTION, appearance.getString("auto_state"),
-                            name + "." + face + " must use the auto_state convention");
-                }
+    /** face -> a readable key for the state that face references. */
+    private static Map<String, String> references(String blockId) {
+        ConfigurationSection appearances = blocks()
+                .getConfigurationSection("block." + blockId + ".states.appearances");
+        assertNotNull(appearances, blockId + " has to keep its appearances");
+        Map<String, String> references = new LinkedHashMap<>();
+        for (String face : appearances.getKeys(false)) {
+            ConfigurationSection appearance = appearances.getConfigurationSection(face);
+            String pinned = appearance.getString("state");
+            if (pinned != null) {
+                references.put(face, "state:" + pinned);
+                continue;
             }
-            assertFalse(autoFaces.isEmpty(), name + " keeps at least one auto-allocated state");
+            if (appearance.isConfigurationSection("auto_state")) {
+                references.put(face, "auto-id:" + appearance.getString("auto_state.type") + ":"
+                        + appearance.getString("auto_state.id"));
+                continue;
+            }
+            String plain = appearance.getString("auto_state");
+            references.put(face, "auto:" + plain);
         }
+        return references;
     }
 
     /** Every pinned vanilla state in the pack, with the blocks that pin it. */
@@ -117,12 +125,8 @@ class BasketStatesTest {
             if (appearances == null) {
                 continue;
             }
-            for (String face : FACES) {
-                ConfigurationSection appearance = appearances.getConfigurationSection(face);
-                if (appearance == null) {
-                    continue;
-                }
-                String state = appearance.getString("state");
+            for (String face : appearances.getKeys(false)) {
+                String state = appearances.getConfigurationSection(face).getString("state");
                 if (state != null) {
                     List<String> stateOwners = owners.computeIfAbsent(state, ignored -> new ArrayList<>());
                     // One entry per block, not per face: several faces of one block sharing a state is normal.
@@ -132,13 +136,8 @@ class BasketStatesTest {
                 }
             }
         }
+        assertTrue(!owners.isEmpty(), "the pack still pins some states explicitly");
         return owners;
-    }
-
-    private static ConfigurationSection appearances(String blockId) {
-        ConfigurationSection appearances = blocks().getConfigurationSection("block." + blockId + ".states.appearances");
-        assertNotNull(appearances, blockId + " has to keep its appearances");
-        return appearances;
     }
 
     private static ConfigurationSection blocks() {

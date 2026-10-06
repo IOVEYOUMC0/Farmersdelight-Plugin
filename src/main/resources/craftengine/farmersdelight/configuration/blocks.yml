@@ -220,9 +220,13 @@ items:
     settings:
       fuel_time: 200
   farmersdelight:basket:
+    category: farmersdelight:deprecated
     template: farmersdelight:block_item_template
     data:
       item-name: <!i><lang:block.farmersdelight.basket>
+      lore:
+      - content:
+        - <!i><red><lang:farmersdelight.tooltip.deprecated></red>
       model: farmersdelight:block/basket
   farmersdelight:bamboo_basket:
     template: farmersdelight:block_item_template
@@ -1367,34 +1371,44 @@ block:
           default: up
       appearances:
         east:
-          auto_state: non_tintable_leaves
+          auto_state:
+            type: non_tintable_leaves
+            id: basket_east
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
             y: 90
         north:
-          auto_state: non_tintable_leaves
+          auto_state:
+            type: non_tintable_leaves
+            id: basket_north
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
         south:
-          auto_state: non_tintable_leaves
+          auto_state:
+            type: non_tintable_leaves
+            id: basket_south
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
             y: 180
         west:
-          auto_state: non_tintable_leaves
+          auto_state:
+            type: non_tintable_leaves
+            id: basket_west
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
             y: 270
         up:
-          auto_state: non_tintable_leaves
+          state: composter[level=7]
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
         down:
-          auto_state: non_tintable_leaves
+          auto_state:
+            type: non_tintable_leaves
+            id: basket_down
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 180
@@ -1523,24 +1537,32 @@ block:
           default: up
       appearances:
         east:
-          auto_state: non_tintable_leaves
+          auto_state:
+            type: non_tintable_leaves
+            id: basket_east
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
             y: 90
         north:
-          auto_state: non_tintable_leaves
+          auto_state:
+            type: non_tintable_leaves
+            id: basket_north
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
         south:
-          auto_state: non_tintable_leaves
+          auto_state:
+            type: non_tintable_leaves
+            id: basket_south
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
             y: 180
         west:
-          auto_state: non_tintable_leaves
+          auto_state:
+            type: non_tintable_leaves
+            id: basket_west
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 90
@@ -1550,7 +1572,9 @@ block:
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
         down:
-          auto_state: non_tintable_leaves
+          auto_state:
+            type: non_tintable_leaves
+            id: basket_down
           model:
             path: ${__NAMESPACE__}:block/${__ID__}
             x: 180
@@ -2371,598 +2395,3 @@ block-state-mappings:
   farmland[moisture=5]: farmland[moisture=0]
   farmland[moisture=6]: farmland[moisture=0]
   composter[level=7]: composter[level=6]
-recipes:
-  farmersdelight:organic_compost:
-    type: shapeless
-    category: misc
-    group: organic_compost
-    ingredients:
-      - minecraft:dirt
-      - farmersdelight:straw
-      - farmersdelight:straw
-      - minecraft:rotten_flesh
-      - minecraft:rotten_flesh
-      - minecraft:bone_meal
-      - minecraft:bone_meal
-      - minecraft:bone_meal
-      - minecraft:bone_meal
-    result:
-      id: farmersdelight:organic_compost
-      count: 1
-  farmersdelight:organic_compost_tree_bark:
-    type: shapeless
-    category: misc
-    group: organic_compost
-    ingredients:
-      - minecraft:dirt
-      - farmersdelight:straw
-      - farmersdelight:straw
-      - minecraft:bone_meal
-      - minecraft:bone_meal
-      - farmersdelight:tree_bark
-      - farmersdelight:tree_bark
-      - farmersdelight:tree_bark
-      - farmersdelight:tree_bark
-    result:
-      id: farmersdelight:organic_compost
-      count: 1
-  farmersdelight:stove:
-    type: shaped
-    category: misc
-    pattern:
-    - III
-    - B B
-    - BCB
-    ingredients:
-      B: minecraft:bricks
-      C: minecraft:campfire
-      I: minecraft:iron_ingot
-    result:
-      id: farmersdelight:stove
-      count: 1
-  farmersdelight:cooking_pot:
-    type: shaped
-    category: misc
-    pattern:
-    - BSB
-    - IWI
-    - III
-    ingredients:
-      B: minecraft:brick
-      I: minecraft:iron_ingot
-      S: minecraft:wooden_shovel
-      W: minecraft:water_bucket
-    result:
-      id: farmersdelight:cooking_pot
-      count: 1
-  farmersdelight:skillet:
-    type: shaped
-    category: misc
-    pattern:
-    - ' II'
-    - ' II'
-    - 'B  '
-    ingredients:
-      B: minecraft:brick
-      I: minecraft:iron_ingot
-    result:
-      id: farmersdelight:skillet
-      count: 1
-  farmersdelight:cutting_board:
-    type: shaped
-    category: misc
-    pattern:
-    - SPP
-    - SPP
-    ingredients:
-      P: '#minecraft:planks'
-      S: minecraft:stick
-    result:
-      id: farmersdelight:cutting_board
-      count: 1
-  farmersdelight:bamboo_basket:
-    type: shaped
-    category: misc
-    pattern:
-    - B B
-    - C C
-    - BCB
-    ingredients:
-      B: minecraft:bamboo
-      C: farmersdelight:canvas
-    result:
-      id: farmersdelight:bamboo_basket
-      count: 1
-  farmersdelight:wooden_basket:
-    type: shaped
-    category: misc
-    pattern:
-    - B B
-    - C C
-    - BCB
-    ingredients:
-      B: minecraft:stick
-      C: farmersdelight:canvas
-    result:
-      id: farmersdelight:wooden_basket
-      count: 1
-  farmersdelight:carrot_crate:
-    type: shaped
-    category: building
-    group: crate
-    pattern:
-    - CCC
-    - CCC
-    - CCC
-    ingredients:
-      C: minecraft:carrot
-    result:
-      id: farmersdelight:carrot_crate
-      count: 1
-  farmersdelight:carrot_crate_unpack:
-    type: shapeless
-    category: misc
-    group: unpack_crate
-    ingredients:
-    - farmersdelight:carrot_crate
-    result:
-      id: minecraft:carrot
-      count: 9
-  farmersdelight:potato_crate:
-    type: shaped
-    category: building
-    group: crate
-    pattern:
-    - PPP
-    - PPP
-    - PPP
-    ingredients:
-      P: minecraft:potato
-    result:
-      id: farmersdelight:potato_crate
-      count: 1
-  farmersdelight:potato_crate_unpack:
-    type: shapeless
-    category: misc
-    group: unpack_crate
-    ingredients:
-    - farmersdelight:potato_crate
-    result:
-      id: minecraft:potato
-      count: 9
-  farmersdelight:beetroot_crate:
-    type: shaped
-    category: building
-    group: crate
-    pattern:
-    - BBB
-    - BBB
-    - BBB
-    ingredients:
-      B: minecraft:beetroot
-    result:
-      id: farmersdelight:beetroot_crate
-      count: 1
-  farmersdelight:beetroot_crate_unpack:
-    type: shapeless
-    category: misc
-    group: unpack_crate
-    ingredients:
-    - farmersdelight:beetroot_crate
-    result:
-      id: minecraft:beetroot
-      count: 9
-  farmersdelight:cabbage_crate:
-    type: shaped
-    category: building
-    group: crate
-    pattern:
-    - CCC
-    - CCC
-    - CCC
-    ingredients:
-      C: farmersdelight:cabbage
-    result:
-      id: farmersdelight:cabbage_crate
-      count: 1
-  farmersdelight:cabbage_crate_unpack:
-    type: shapeless
-    category: misc
-    group: unpack_crate
-    ingredients:
-    - farmersdelight:cabbage_crate
-    result:
-      id: farmersdelight:cabbage
-      count: 9
-  farmersdelight:tomato_crate:
-    type: shaped
-    category: building
-    group: crate
-    pattern:
-    - TTT
-    - TTT
-    - TTT
-    ingredients:
-      T: farmersdelight:tomato
-    result:
-      id: farmersdelight:tomato_crate
-      count: 1
-  farmersdelight:tomato_crate_unpack:
-    type: shapeless
-    category: misc
-    group: unpack_crate
-    ingredients:
-    - farmersdelight:tomato_crate
-    result:
-      id: farmersdelight:tomato
-      count: 9
-  farmersdelight:onion_crate:
-    type: shaped
-    category: building
-    group: crate
-    pattern:
-    - OOO
-    - OOO
-    - OOO
-    ingredients:
-      O: farmersdelight:onion
-    result:
-      id: farmersdelight:onion_crate
-      count: 1
-  farmersdelight:onion_crate_unpack:
-    type: shapeless
-    category: misc
-    group: unpack_crate
-    ingredients:
-    - farmersdelight:onion_crate
-    result:
-      id: farmersdelight:onion
-      count: 9
-  farmersdelight:rice_bale:
-    type: shaped
-    category: building
-    group: crate
-    pattern:
-    - RRR
-    - RRR
-    - RRR
-    ingredients:
-      R: farmersdelight:rice_panicle
-    result:
-      id: farmersdelight:rice_bale
-      count: 1
-  farmersdelight:rice_bale_unpack:
-    type: shapeless
-    category: misc
-    ingredients:
-    - farmersdelight:rice_bale
-    result:
-      id: farmersdelight:rice_panicle
-      count: 9
-  farmersdelight:rice_bag:
-    type: shaped
-    category: building
-    group: crate
-    pattern:
-    - RRR
-    - RRR
-    - RRR
-    ingredients:
-      R: farmersdelight:rice
-    result:
-      id: farmersdelight:rice_bag
-      count: 1
-  farmersdelight:rice_bag_unpack:
-    type: shapeless
-    category: misc
-    group: rice
-    ingredients:
-    - farmersdelight:rice_bag
-    result:
-      id: farmersdelight:rice
-      count: 9
-  farmersdelight:straw_bale:
-    type: shaped
-    category: building
-    group: crate
-    pattern:
-    - SSS
-    - SSS
-    - SSS
-    ingredients:
-      S: farmersdelight:straw
-    result:
-      id: farmersdelight:straw_bale
-      count: 1
-  farmersdelight:straw_bale_unpack:
-    type: shapeless
-    category: misc
-    ingredients:
-    - farmersdelight:straw_bale
-    result:
-      id: farmersdelight:straw
-      count: 9
-  farmersdelight:tatami_1:
-    type: shaped
-    category: building
-    group: tatami
-    pattern:
-    - CS
-    - SC
-    ingredients:
-      C: farmersdelight:canvas
-      S: farmersdelight:straw
-    result:
-      id: farmersdelight:tatami
-      count: 2
-  farmersdelight:tatami_2:
-    type: shaped
-    category: building
-    group: tatami
-    pattern:
-    - SC
-    - CS
-    ingredients:
-      C: farmersdelight:canvas
-      S: farmersdelight:straw
-    result:
-      id: farmersdelight:tatami
-      count: 2
-  farmersdelight:tatami_mat:
-    type: shaped
-    category: building
-    group: tatami
-    pattern:
-    - FF
-    ingredients:
-      F: farmersdelight:full_tatami_mat
-    result:
-      id: farmersdelight:tatami
-      count: 1
-  farmersdelight:full_tatami_mat:
-    type: shapeless
-    category: building
-    group: tatami_mat
-    ingredients:
-    - farmersdelight:tatami
-    result:
-      id: farmersdelight:full_tatami_mat
-      count: 2
-  farmersdelight:full_tatami_mat_from_halves:
-    type: shaped
-    category: building
-    group: tatami_mat
-    pattern:
-    - HH
-    ingredients:
-      H: farmersdelight:half_tatami_mat
-    result:
-      id: farmersdelight:full_tatami_mat
-      count: 1
-  farmersdelight:half_tatami_mat:
-    type: shapeless
-    category: building
-    ingredients:
-    - farmersdelight:full_tatami_mat
-    result:
-      id: farmersdelight:half_tatami_mat
-      count: 2
-  farmersdelight:canvas_rug:
-    type: shapeless
-    category: building
-    ingredients:
-    - farmersdelight:canvas
-    result:
-      id: farmersdelight:canvas_rug
-      count: 2
-  farmersdelight:canvas_from_canvas_rug:
-    type: shapeless
-    category: misc
-    group: canvas
-    ingredients:
-    - farmersdelight:canvas_rug
-    - farmersdelight:canvas_rug
-    result:
-      id: farmersdelight:canvas
-      count: 1
-  farmersdelight:safety_net:
-    type: shaped
-    category: misc
-    pattern:
-    - RR
-    - RR
-    ingredients:
-      R: farmersdelight:rope
-    result:
-      id: farmersdelight:safety_net
-      count: 1
-  farmersdelight:rope_from_safety_net:
-    type: shapeless
-    category: misc
-    group: rope
-    ingredients:
-    - farmersdelight:safety_net
-    result:
-      id: farmersdelight:rope
-      count: 4
-  farmersdelight:oak_cabinet:
-    type: shaped
-    category: building
-    group: cabinet
-    pattern:
-    - SSS
-    - D D
-    - SSS
-    ingredients:
-      D: minecraft:oak_trapdoor
-      S: minecraft:oak_slab
-    result:
-      id: farmersdelight:oak_cabinet
-      count: 1
-  farmersdelight:spruce_cabinet:
-    type: shaped
-    category: building
-    group: cabinet
-    pattern:
-    - SSS
-    - D D
-    - SSS
-    ingredients:
-      D: minecraft:spruce_trapdoor
-      S: minecraft:spruce_slab
-    result:
-      id: farmersdelight:spruce_cabinet
-      count: 1
-  farmersdelight:birch_cabinet:
-    type: shaped
-    category: building
-    group: cabinet
-    pattern:
-    - SSS
-    - D D
-    - SSS
-    ingredients:
-      D: minecraft:birch_trapdoor
-      S: minecraft:birch_slab
-    result:
-      id: farmersdelight:birch_cabinet
-      count: 1
-  farmersdelight:jungle_cabinet:
-    type: shaped
-    category: building
-    group: cabinet
-    pattern:
-    - SSS
-    - D D
-    - SSS
-    ingredients:
-      D: minecraft:jungle_trapdoor
-      S: minecraft:jungle_slab
-    result:
-      id: farmersdelight:jungle_cabinet
-      count: 1
-  farmersdelight:acacia_cabinet:
-    type: shaped
-    category: building
-    group: cabinet
-    pattern:
-    - SSS
-    - D D
-    - SSS
-    ingredients:
-      D: minecraft:acacia_trapdoor
-      S: minecraft:acacia_slab
-    result:
-      id: farmersdelight:acacia_cabinet
-      count: 1
-  farmersdelight:dark_oak_cabinet:
-    type: shaped
-    category: building
-    group: cabinet
-    pattern:
-    - SSS
-    - D D
-    - SSS
-    ingredients:
-      D: minecraft:dark_oak_trapdoor
-      S: minecraft:dark_oak_slab
-    result:
-      id: farmersdelight:dark_oak_cabinet
-      count: 1
-  farmersdelight:mangrove_cabinet:
-    type: shaped
-    category: building
-    group: cabinet
-    pattern:
-    - SSS
-    - D D
-    - SSS
-    ingredients:
-      D: minecraft:mangrove_trapdoor
-      S: minecraft:mangrove_slab
-    result:
-      id: farmersdelight:mangrove_cabinet
-      count: 1
-  farmersdelight:cherry_cabinet:
-    type: shaped
-    category: building
-    group: cabinet
-    pattern:
-    - SSS
-    - D D
-    - SSS
-    ingredients:
-      D: minecraft:cherry_trapdoor
-      S: minecraft:cherry_slab
-    result:
-      id: farmersdelight:cherry_cabinet
-      count: 1
-  farmersdelight:bamboo_cabinet:
-    type: shaped
-    category: building
-    group: cabinet
-    pattern:
-    - SSS
-    - D D
-    - SSS
-    ingredients:
-      D: minecraft:bamboo_trapdoor
-      S: minecraft:bamboo_slab
-    result:
-      id: farmersdelight:bamboo_cabinet
-      count: 1
-  farmersdelight:pale_oak_cabinet:
-    type: shaped
-    category: building
-    group: cabinet
-    pattern:
-    - SSS
-    - D D
-    - SSS
-    ingredients:
-      D: minecraft:pale_oak_trapdoor
-      S: minecraft:pale_oak_slab
-    result:
-      id: farmersdelight:pale_oak_cabinet
-      count: 1
-  farmersdelight:crimson_cabinet:
-    type: shaped
-    category: building
-    group: cabinet
-    pattern:
-    - SSS
-    - D D
-    - SSS
-    ingredients:
-      D: minecraft:crimson_trapdoor
-      S: minecraft:crimson_slab
-    result:
-      id: farmersdelight:crimson_cabinet
-      count: 1
-  farmersdelight:warped_cabinet:
-    type: shaped
-    category: building
-    group: cabinet
-    pattern:
-    - SSS
-    - D D
-    - SSS
-    ingredients:
-      D: minecraft:warped_trapdoor
-      S: minecraft:warped_slab
-    result:
-      id: farmersdelight:warped_cabinet
-      count: 1
-  farmersdelight:tray:
-    type: shaped
-    category: building
-    pattern:
-    - ITI
-    - I I
-    - I I
-    ingredients:
-      I: minecraft:iron_nugget
-      T: minecraft:iron_trapdoor
-    result:
-      id: farmersdelight:tray
-      count: 2

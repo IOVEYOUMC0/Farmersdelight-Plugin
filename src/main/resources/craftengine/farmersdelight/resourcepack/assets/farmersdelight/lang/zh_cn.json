@@ -456,6 +456,8 @@
   "farmersdelight.tooltip.melon_juice.effect": "瞬间恢复少量生命值",
   "farmersdelight.tooltip.milk_bottle.effect": "随机清除1个状态效果",
   "farmersdelight.tooltip.no_collision": "该方块暂未实现物理碰撞效果",
+  "farmersdelight.category.deprecated": "废弃物品",
+  "farmersdelight.tooltip.deprecated": "废弃物品",
   "block.farmersdelight.budding_tomatoes": "萌芽的番茄藤蔓",
   "block.farmersdelight.cabbages": "卷心菜",
   "block.farmersdelight.onions": "洋葱",

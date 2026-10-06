@@ -456,5 +456,7 @@
   "farmersdelight.tooltip.melon_juice.effect": "Restores a small amount of health instantly",
   "farmersdelight.tooltip.milk_bottle.effect": "Removes a random status effect",
   "farmersdelight.tooltip.no_collision": "This block does not have collision yet.",
+  "farmersdelight.category.deprecated": "Deprecated items",
+  "farmersdelight.tooltip.deprecated": "Deprecated item",
   "item.farmersdelight.pumpkin_pie_slice": "Кусочек тыквенного пирога"
 }
