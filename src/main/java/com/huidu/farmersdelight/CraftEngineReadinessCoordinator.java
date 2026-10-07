@@ -10,6 +10,7 @@ import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.listener.RopeBlockListener;
 import com.huidu.farmersdelight.recipe.CookingPotRecipeManager;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipeManager;
+import com.huidu.farmersdelight.recipe.RecipeContentEpoch;
 import com.huidu.farmersdelight.recipe.RecipeDiscoveryManager;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.recipe.RecipePublicationRollback;
@@ -197,6 +198,9 @@ final class CraftEngineReadinessCoordinator {
         }
         try {
             pendingReloadTask = null;
+            // A CraftEngine reload means its content may have changed: parses cached against the previous
+            // content generation are not reused for this pass.
+            RecipeContentEpoch.advance();
             // Everything below reads CraftEngine content. When the reload event arrives before that content
             // finished loading, wait for it instead of doing the work against empty registries.
             if (!isReady()) {
@@ -283,6 +287,9 @@ final class CraftEngineReadinessCoordinator {
      * from disk a moment ago and have not changed.
      */
     private void runStartupReadinessWork() {
+        // This pass first sees the loaded CraftEngine content, so parses cached against anything earlier are
+        // not reused.
+        RecipeContentEpoch.advance();
         loadRecipesThenPublish("plugin.loading_recipes",
                 () -> {
                     refreshAdvancementsWhenReady(false);
@@ -305,6 +312,7 @@ final class CraftEngineReadinessCoordinator {
      * event path and its readiness retry cannot drift apart.
      */
     private void runDeferredReadinessWork() {
+        RecipeContentEpoch.advance();
         loadRecipesThenPublish("plugin.refreshing_recipes_after_ce",
                 () -> refreshAdvancementsWhenReady(false),
                 () -> {
