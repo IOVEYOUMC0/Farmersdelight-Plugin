@@ -583,6 +583,25 @@ recipe-book-gui:
       fill:
         material: HOPPER
         name: "<green><lang:gui.recipe.fill>"
+        lore:
+          - "<yellow><lang:gui.recipe.fill_hint>"
+          - "<gray><lang:gui.recipe.fill_hint_shift>"
+      fill-success:
+        material: HOPPER
+        name: "<green><lang:gui.recipe.fill>"
+        lore:
+          - "<green><lang:gui.recipe.fill_success>"
+      fill-missing:
+        material: HOPPER
+        name: "<green><lang:gui.recipe.fill>"
+        lore:
+          - "<red><lang:gui.recipe.fill_missing>"
+          - "<gray><lang:gui.recipe.fill_hint_shift>"
+      fill-inventory-full:
+        material: BARRIER
+        name: "<green><lang:gui.recipe.fill>"
+        lore:
+          - "<red><lang:gui.recipe.fill_inventory_full>"
       back:
         material: ARROW
         name: "<gray><lang:gui.recipe.back>"

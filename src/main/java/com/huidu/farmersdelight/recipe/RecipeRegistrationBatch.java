@@ -7,8 +7,8 @@ import java.util.List;
  *
  *
  * Rebuilding every recipe entry in a single tick is what produced the reported TPS spike on
- * /fd reload recipes. This is the resumable half of the fix: the manager keeps the batch, calls
- * run(int) once per tick on the same thread that owns the recipe state, and the batch never
+ * /fd reload recipes. This is the resumable half of the fix: the round keeps the batch, calls
+ * run(int) while it still has budget, on the thread that drives the round, and the batch never
  * does more than the configured budget. Nothing here is asynchronous, and nothing here touches published state
  * on its own — the caller registers entries through Step.
  *

@@ -44,6 +44,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * Cooking a skillet held in a player's hand: the per-player session, its tick task and the display
@@ -83,6 +84,12 @@ final class SkilletHandheldCooking {
     private volatile PluginTask handheldTickTask;
     private volatile boolean handheldCookingEnabled = true;
     private volatile boolean handheldProgressDisplayEnabled = true;
+    // One handheld cook per player, both ways: the skewer path refuses to start while this skillet cooks, and
+    // this path refuses the other way round. Without the reverse check both sessions could run on the same
+    // skewer stack, because the skillet's ingredient can be the very skewer the other session is cooking.
+    // Wired by the listener registry at startup; the default answers "no" so a server that never wires it, or
+    // a test with no wiring at all, behaves exactly as before.
+    private volatile Predicate<Player> skewerCooking = player -> false;
     // Cooking-time settings, pushed from SkilletManager#reloadConfig. The hand-held path scales cook time
     // exactly like the placed path does, so it holds its own copy instead of reaching back into the manager.
     private volatile int defaultCookingTime;
@@ -102,6 +109,14 @@ final class SkilletHandheldCooking {
         this.minCookingTime = minCookingTime;
         this.cookTimeMultiplier = cookTimeMultiplier;
         this.fireAspectBonus = fireAspectBonus;
+    }
+
+    /**
+     * Sets the "is this player cooking a skewer" check. Wired by the listener registry, which owns both
+     * handheld paths; null restores the never-cooking answer a server without the skewer path would give.
+     */
+    void setSkewerCookingCheck(Predicate<Player> check) {
+        this.skewerCooking = check == null ? player -> false : check;
     }
 
     /**
@@ -174,13 +189,30 @@ final class SkilletHandheldCooking {
         return campfireRecipes.find(item);
     }
 
+    /**
+     * The first gate of a handheld skillet click, on plain answers so the contract is testable without a
+     * server: the path has to be armed, the hand being used must not be busy with a native use of the other
+     * hand, and the player must not be cooking a skewer. One handheld cook per player, in both directions:
+     * the skewer path refuses while this path cooks, and this path refuses while the skewer path does.
+     */
+    static boolean mayStartHandheld(boolean enabled, boolean otherHandUsing, boolean skewerCooking) {
+        return enabled && !otherHandUsing && !skewerCooking;
+    }
+
     /** Ingredients remain in the other hand until the cooking result is committed. */
     public boolean handleHandheldInteract(Player player, EquipmentSlot skilletHand,
                                           NamespacedKey cookingModel, NamespacedKey overlayModel,
                                           Map<String, NamespacedKey> ingredientModels) {
-        if (!handheldCookingEnabled || player == null || skilletHand == null) return false;
-        if (isUsingOtherHand(player, skilletHand)) {
-            stopHandheldUse(player, null);
+        if (player == null || skilletHand == null) return false;
+        boolean otherHandUsing = isUsingOtherHand(player, skilletHand);
+        boolean skewerCookingNow = skewerCooking.test(player);
+        if (!mayStartHandheld(handheldCookingEnabled, otherHandUsing, skewerCookingNow)) {
+            // Both stop cases keep their old meaning: a native use of the other hand cancels the session, and
+            // a running skewer session takes the click away from this path entirely (its ingredient would be
+            // the very stack that session is cooking).
+            if (handheldCookingEnabled && (otherHandUsing || skewerCookingNow)) {
+                stopHandheldUse(player, null);
+            }
             return false;
         }
         ItemStack skillet = skilletHand == EquipmentSlot.OFF_HAND

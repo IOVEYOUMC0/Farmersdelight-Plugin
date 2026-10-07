@@ -1541,7 +1541,7 @@ block:
             type: non_tintable_leaves
             id: basket_east
           model:
-            path: ${__NAMESPACE__}:block/${__ID__}
+            path: farmersdelight:block/bamboo_basket
             x: 90
             y: 90
         north:
@@ -1549,14 +1549,14 @@ block:
             type: non_tintable_leaves
             id: basket_north
           model:
-            path: ${__NAMESPACE__}:block/${__ID__}
+            path: farmersdelight:block/bamboo_basket
             x: 90
         south:
           auto_state:
             type: non_tintable_leaves
             id: basket_south
           model:
-            path: ${__NAMESPACE__}:block/${__ID__}
+            path: farmersdelight:block/bamboo_basket
             x: 90
             y: 180
         west:
@@ -1564,19 +1564,19 @@ block:
             type: non_tintable_leaves
             id: basket_west
           model:
-            path: ${__NAMESPACE__}:block/${__ID__}
+            path: farmersdelight:block/bamboo_basket
             x: 90
             y: 270
         up:
           state: composter[level=7]
           model:
-            path: ${__NAMESPACE__}:block/${__ID__}
+            path: farmersdelight:block/bamboo_basket
         down:
           auto_state:
             type: non_tintable_leaves
             id: basket_down
           model:
-            path: ${__NAMESPACE__}:block/${__ID__}
+            path: farmersdelight:block/bamboo_basket
             x: 180
       variants:
         facing=east:

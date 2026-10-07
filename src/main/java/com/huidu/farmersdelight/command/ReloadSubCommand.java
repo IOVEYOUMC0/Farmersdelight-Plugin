@@ -107,6 +107,7 @@ final class ReloadSubCommand extends SubCommand {
                         Map.of("prefix", report.get("prefix"), "issues", String.valueOf(issues))));
             }
         } finally {
+            plugin.endReloadPass();
             // Released even when a reload throws, so one failure cannot wedge every later reload.
             busyGuard.finish();
         }

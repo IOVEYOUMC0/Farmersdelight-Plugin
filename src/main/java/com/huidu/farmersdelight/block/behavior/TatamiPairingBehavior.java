@@ -19,6 +19,7 @@ import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.context.BlockPlaceContext;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -174,8 +175,13 @@ public class TatamiPairingBehavior extends FarmersDelightBlockBehavior {
         Block center = world.getBlockAt(brokenLocation);
         for (BlockFace face : ORTHOGONAL_FACES) {
             Block neighbor = center.getRelative(face);
-            // A neighbour in an unloaded chunk is left alone: unpairing it would mean loading that chunk (or
-            // writing into another region) from a break handler.
+            // A neighbour in a chunk this thread does not own, or in an unloaded one, is left alone: unpairing
+            // it would mean reading or writing another region from a break handler. Residency alone does not
+            // prove ownership, so the region check comes first, and a skipped neighbour stays paired until the
+            // neighbour update that runs when the border is crossed.
+            if (!Bukkit.isOwnedByCurrentRegion(neighbor)) {
+                continue;
+            }
             ImmutableBlockState nState = CustomBlockUtils.getStateIfResident(neighbor);
             if (!isTatamiState(nState)) {
                 continue;

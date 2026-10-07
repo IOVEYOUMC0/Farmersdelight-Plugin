@@ -12,6 +12,7 @@ import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.plugin.config.KnownResourceException;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.world.BlockPos;
+import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -61,14 +62,23 @@ public class ConnectedRugBlockBehavior extends RugBlockBehavior {
         }
     };
 
+    // A placement and a neighbour change hand over different native argument lists: the placement carries the
+    // level first and the block position second, while the neighbour change carries the previous state first.
+    // Reading the wrong index leaves the level null and skips the recompute without any error.
     @Override
     public void placeMultiState(Object thisBlock, Object[] args) {
-        handleNeighborUpdate(args);
+        if (!variantEnabled || args == null || args.length < 2) {
+            return;
+        }
+        recomputeSelf(args[0], args[1]);
     }
 
     @Override
     public void neighborChanged(Object thisBlock, Object[] args) {
-        handleNeighborUpdate(args);
+        if (!variantEnabled || args == null || args.length < 3) {
+            return;
+        }
+        recomputeSelf(args[1], args[2]);
     }
 
     @Override
@@ -81,15 +91,12 @@ public class ConnectedRugBlockBehavior extends RugBlockBehavior {
         handleRemoval(args);
     }
 
-    // A freshly placed rug recomputes its frayed edges immediately, and so does a neighbor change. Both
-    // share the same entry point; the write is skipped when the computed variant already equals the current
-    // one, so the state is stable and no redundant re-place happens.
-    private void handleNeighborUpdate(Object[] args) {
-        if (!variantEnabled || args.length < 3) {
-            return;
-        }
-        World world = CraftEngineAdapter.toWorld(args[1]);
-        BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
+    // A freshly placed rug recomputes its frayed edges immediately, and so does a neighbour change; the write
+    // is skipped when the computed variant already equals the current one, so the state is stable and no
+    // redundant re-place happens.
+    private void recomputeSelf(Object levelArg, Object posArg) {
+        World world = CraftEngineAdapter.toWorld(levelArg);
+        BlockPos pos = CraftEngineAdapter.toBlockPos(posArg);
         if (world == null || pos == null) {
             return;
         }
@@ -140,9 +147,15 @@ public class ConnectedRugBlockBehavior extends RugBlockBehavior {
     private void writeVariant(World world, Block self, ImmutableBlockState state) {
         Set<BlockFace> connected = EnumSet.noneOf(BlockFace.class);
         for (BlockFace face : HORIZONTAL) {
+            Block neighbor = self.getRelative(face);
+            // A neighbour this thread does not own counts as unconnected, so the frayed edge stays until the
+            // neighbour's own next update corrects it; reading a foreign chunk here would cross the region.
+            if (!Bukkit.isOwnedByCurrentRegion(neighbor)) {
+                continue;
+            }
             // A neighbour in a chunk that is not loaded counts as unconnected: reading its CE state would load
             // the chunk, and the variant rewrite below would cross into the owning region.
-            if (isConnected(CustomBlockUtils.getStateIfResident(self.getRelative(face)))) {
+            if (isConnected(CustomBlockUtils.getStateIfResident(neighbor))) {
                 connected.add(face);
             }
         }
@@ -165,6 +178,12 @@ public class ConnectedRugBlockBehavior extends RugBlockBehavior {
     private void refreshNeighbors(World world, Block center) {
         for (BlockFace face : HORIZONTAL) {
             Block neighbor = center.getRelative(face);
+            // A loaded neighbour can still belong to another region, and both the state lookup below and the
+            // variant rewrite it feeds would then run on the wrong thread. Skip it: the neighbour's own next
+            // update retries the refresh.
+            if (!Bukkit.isOwnedByCurrentRegion(neighbor)) {
+                continue;
+            }
             ImmutableBlockState neighborState = CustomBlockUtils.getStateIfResident(neighbor);
             if (neighborState == null || neighborState.isEmpty() || !isConnected(neighborState)) {
                 continue;

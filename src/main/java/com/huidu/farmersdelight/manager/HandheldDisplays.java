@@ -4,6 +4,7 @@ import net.momirealms.craftengine.bukkit.api.BukkitAdaptor;
 import net.momirealms.craftengine.bukkit.plugin.network.BukkitNetworkManager;
 import net.momirealms.craftengine.core.item.component.DataComponentKeys;
 import net.momirealms.craftengine.proxy.minecraft.network.protocol.game.ClientboundSetPlayerInventoryPacketProxy;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -119,11 +120,22 @@ public final class HandheldDisplays {
 
         private void sendRealSlot() {
             try {
+                // The slot is read as it is now, not as it was when the bar opened: the stack can have been
+                // dropped, eaten or moved while the bar was up, and resending the opening copy would tell the
+                // client a stack the server no longer has.
+                if (!Bukkit.isOwnedByCurrentRegion(this.player)) {
+                    // A session can end from the global thread (a reload, a plugin disable, a quit). A player's
+                    // inventory belongs to that player's region, so off it the resend is skipped: a stale copy
+                    // would be worse than none, and the next inventory sync restores the real stack anyway.
+                    return;
+                }
                 var user = BukkitAdaptor.adapt(this.player);
                 if (user == null) {
                     return;
                 }
-                ItemStack item = this.original.getType() == Material.AIR ? new ItemStack(Material.AIR) : this.original;
+                ItemStack current = this.player.getInventory().getItem(this.slot);
+                ItemStack item = current == null || current.getType().isAir()
+                        ? new ItemStack(Material.AIR) : current;
                 user.sendPacket(ClientboundSetPlayerInventoryPacketProxy.INSTANCE.newInstance(
                         this.slot, BukkitAdaptor.adapt(item).minecraftItem()), false);
             } catch (RuntimeException | LinkageError ignored) {

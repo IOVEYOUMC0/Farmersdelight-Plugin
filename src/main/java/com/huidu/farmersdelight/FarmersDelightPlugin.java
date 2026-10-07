@@ -52,7 +52,6 @@ import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.loot.KnifeDropHandler;
 import com.huidu.farmersdelight.manager.BuffBossbarManager;
 import com.huidu.farmersdelight.manager.CeDerivedReloadGate;
-import com.huidu.farmersdelight.manager.CarrierRestorer;
 import com.huidu.farmersdelight.manager.DatapackCoordinator;
 import com.huidu.farmersdelight.manager.HandleManager;
 import com.huidu.farmersdelight.manager.SkilletManager;
@@ -158,8 +157,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private StoveManager stoveManager;
     private SkilletManager skilletManager;
     private ItemDisplayManager itemDisplayManager;
-    // Restores the vanilla appearance of the vanilla block states the rope fence and its gate borrow.
-    private CarrierRestorer carrierRestorer;
     private KnifeDropHandler knifeDropHandler;
     private CookingPotRecipeManager cookingPotRecipeManager;
     private CuttingBoardRecipeManager cuttingBoardRecipeManager;
@@ -453,13 +450,12 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         skilletManager = new SkilletManager(this);
         trayManager = new TrayManager(this);
         handleManager = new HandleManager(this);
-        carrierRestorer = new CarrierRestorer(this);
         buffBossbarManager = new BuffBossbarManager(this);
         buffBossbarManager.applyConfig(getFirstConfigSection("buff.display", "bossbar"), buffSystemEnabled);
         EffectManager.applyBossbarStyles(
                 getFirstConfigSection("buff.display.styles", "bossbar.styles"));
         buffBossbarManager.start();
-        listeners.registerVisualAndWorldHandlers(carrierRestorer, buffBossbarManager);
+        listeners.registerVisualAndWorldHandlers(buffBossbarManager);
 
         listeners.registerDamageTypeDatapack();
 
@@ -618,12 +614,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             if (itemDisplayManager != null) {
                 itemDisplayManager.cleanup();
                 itemDisplayManager = null;
-            }
-            // The carrier displays are real entities rather than packet-only ones, so they are removed
-            // here as well: leaving them behind would survive the plugin's own lifetime.
-            if (carrierRestorer != null) {
-                carrierRestorer.shutdown();
-                carrierRestorer = null;
             }
         });
 
@@ -818,9 +808,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             // until a chunk unload event that may never fire.
             itemDisplayManager.cleanupWorld(worldId);
         }
-        if (carrierRestorer != null) {
-            carrierRestorer.unloadWorld(event.getWorld());
-        }
     }
 
     private void saveWorldBlockData(World world) {
@@ -844,9 +831,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onWorldLoad(WorldLoadEvent event) {
-        if (carrierRestorer != null) {
-            carrierRestorer.sweepOrphans(event.getWorld());
-        }
         if (!startupSyncCompleted) {
             return;
         }
@@ -888,8 +872,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     /**
-     * The one active recipe registration pass. Reaching it from here means every sharded caller shares the
-     * single-active rule, and disabling the plugin can cancel it.
+     * The one recipe registration driver. Every sharded caller reaches it from here, so each state owner gets
+     * one round, one armed task drains them all, and disabling the plugin cancels every round. A round
+     * publishes only from its own tail, as a complete immutable snapshot.
      */
     public RecipeRegistrationDriver recipeRegistrations() {
         RecipeRegistrationDriver current = recipeRegistrations;
@@ -1011,9 +996,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         if (itemDisplayManager instanceof ProxyItemDisplayManager proxyItemDisplayManager) {
             proxyItemDisplayManager.reload();
         }
-        if (carrierRestorer != null) {
-            carrierRestorer.reload();
-        }
         CuttingBoardBlockBehavior.refreshDisplayEntities();
         if (skilletManager != null) {
             skilletManager.reloadConfig();
@@ -1068,12 +1050,12 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // Addons rebuild their own content off this event, synchronously. It runs on the next tick so their work
         // does not stack onto this command's tick; see notifyAddonsOfReload for why that is safe.
         notifyAddonsOfReload("reloadAll");
-        I18n.logInfo("plugin.configuration_reloaded");
+        logReloadEvent("plugin.configuration_reloaded");
     }
 
     public void reloadMainConfigOnly() {
         reloadCommon(false);
-        I18n.logInfo("plugin.main_configuration_reloaded");
+        logReloadEvent("plugin.main_configuration_reloaded");
     }
 
     public void reloadGuiConfig() {
@@ -1086,7 +1068,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         customCookingPotGuiConfigs = loadCustomCookingPotGuiConfigs(guiConfig);
         RecipeEditorView.reloadGui(guiConfig);
         GuiCacheInvalidator.clearConfigCachesAndCloseOpenGuis();
-        I18n.logInfo("plugin.gui_configuration_reloaded", "file", "gui.yml");
+        logReloadEvent("plugin.gui_configuration_reloaded", "file", "gui.yml");
     }
 
     public void reloadLanguageFiles() {
@@ -1094,7 +1076,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // GUI item names/lore come from language files and are cached, so invalidate those caches
         // and close open GUIs to force a rebuild in the new language.
         GuiCacheInvalidator.clearConfigCachesAndCloseOpenGuis();
-        I18n.logInfo("plugin.language_files_reloaded");
+        logReloadEvent("plugin.language_files_reloaded");
     }
 
     private void fireReloadEvent(String reason) {
@@ -1162,6 +1144,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             new AtomicLong();
     private final AtomicLong reloadListenersNanos =
             new AtomicLong();
+    /** True while the running pass was started by the reload command, which reports to its own sender. */
+    private volatile boolean reloadDrivenByCommand;
+
     private final AtomicLong reloadAddonsNanos =
             new AtomicLong();
 
@@ -1191,6 +1176,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
      * next to a total it does not belong to.
      */
     public void beginReloadPass() {
+        // The command answers its own sender with the styled receipt, so the console lines this pass would
+        // otherwise print are the same event a second time; anything else has no other visible line.
+        reloadDrivenByCommand = true;
         synchronized (reloadTimingLock) {
             ReloadTiming.resetTargeted();
             reloadConfigNanos.set(0L);
@@ -1198,6 +1186,24 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             reloadManagersNanos.set(0L);
             reloadListenersNanos.set(0L);
             reloadAddonsNanos.set(0L);
+        }
+    }
+
+    /** The pass is over: the next one is not command-driven until a command starts it again. */
+    public void endReloadPass() {
+        reloadDrivenByCommand = false;
+    }
+
+    /**
+     * Prints the finished phase's console line. A command-started pass already told its sender, so the
+     * line would repeat the same event from another channel and drops to the detail switch instead; a
+     * pass started elsewhere (the public reload hook, the recipe editor) is only visible through it.
+     */
+    private void logReloadEvent(String key, Object... args) {
+        if (reloadDrivenByCommand) {
+            I18n.logDetail("reload", key, args);
+        } else {
+            I18n.logInfo(key, args);
         }
     }
 
@@ -1239,12 +1245,12 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // full-reload path already reaches addons on the following tick, so nothing observes a different
         // order — the spike just stops carrying every listener's work in the same tick as the rebuild.
         scheduler().run(() -> fireReloadEvent("reloadRecipes"));
-        I18n.logInfo("plugin.recipe_files_reloaded");
+        logReloadEvent("plugin.recipe_files_reloaded");
     }
 
     public void reloadAdvancements() {
         refreshAdvancementSystem(true);
-        I18n.logInfo("plugin.advancement_data_reloaded");
+        logReloadEvent("plugin.advancement_data_reloaded");
     }
 
     public void reloadTags() {
@@ -1252,7 +1258,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         refreshTagDependentRecipes();
         // Refresh the exported vanilla-member tag data pack; Bukkit/Paper reloads it automatically.
         listeners.refreshTagDatapack();
-        I18n.logInfo("plugin.tags_reloaded");
+        logReloadEvent("plugin.tags_reloaded");
     }
 
     /** Rebuilds recipe state after common-tag membership changes at runtime. */
@@ -1315,9 +1321,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         if (backstab && loadedEnchantments.autoDisableOnConflict()) {
             String conflict = detectEnchantmentConflict();
             if (conflict != null) {
-                getLogger().warning("Backstab enchantment disabled: another enchantment plugin is present ("
-                        + conflict + "); knife enchanting stays active. Set "
-                        + "enchantments.compatibility.auto-disable-on-conflict: false to force backstab on.");
+                I18n.logWarning("plugin.backstab_disabled_conflict", "conflict", conflict);
                 backstab = false;
             }
         }
@@ -2034,9 +2038,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         if (conflict == null) {
             return;
         }
-        getLogger().warning("Backstab enchantment disabled: another enchantment plugin is present ("
-                + conflict + "); knife enchanting stays active. Set "
-                + "enchantments.compatibility.auto-disable-on-conflict: false to force backstab on.");
+        I18n.logWarning("plugin.backstab_disabled_conflict", "conflict", conflict);
         backstabEnchantmentEnabled = false;
         listeners.disableBackstabOnConflict(current);
     }

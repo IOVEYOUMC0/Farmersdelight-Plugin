@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntity;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
@@ -12,11 +13,13 @@ import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import org.bukkit.GameMode;
 import org.bukkit.Sound;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.ApiStatus;
 
 public class CuttingBoardInteractListener implements Listener {
 
@@ -64,25 +67,62 @@ public class CuttingBoardInteractListener implements Listener {
             blockEntity = new CuttingBoardBlockEntity(plugin, posKey, block.getWorld());
             CuttingBoardBlockBehavior.putBlockEntity(block.getWorld(), posKey, blockEntity);
         }
+        CuttingBoardBlockEntity board = blockEntity;
 
         ItemStack itemToPlace = mainHand.clone();
         itemToPlace.setAmount(1);
-        blockEntity.setItem(itemToPlace, block.getWorld(), posKey, CustomBlockUtils.getFacing(block), true);
-        CuttingBoardBlockBehavior.markManualInsertion(block.getWorld(), posKey, player.getUniqueId());
-
-        if (player.getGameMode() != GameMode.CREATIVE) {
-            int newAmount = mainHand.getAmount() - 1;
-            if (newAmount <= 0) {
-                player.getInventory().setItemInMainHand(null);
-            } else {
-                mainHand.setAmount(newAmount);
-                player.getInventory().setItemInMainHand(mainHand);
+        BlockFace facing = CustomBlockUtils.getFacing(block);
+        // Store, then consume — atomically: the store commits the board's item before its persistence side
+        // effects run, and on Folia one of those can throw a region thread-check. Without the rollback below
+        // the tool would sit on the board while the hand keeps it, so the player could take it back for free.
+        // A failed store empties the board again and consumes nothing: no dupe and no loss.
+        if (!storeThenConsume(
+                () -> board.setItem(itemToPlace, block.getWorld(), posKey, facing, true),
+                () -> board.setStoredItem(null, block.getWorld(), posKey, facing),
+                () -> {
+                    CuttingBoardBlockBehavior.markManualInsertion(block.getWorld(), posKey, player.getUniqueId());
+                    if (player.getGameMode() != GameMode.CREATIVE) {
+                        int newAmount = mainHand.getAmount() - 1;
+                        if (newAmount <= 0) {
+                            player.getInventory().setItemInMainHand(null);
+                        } else {
+                            mainHand.setAmount(newAmount);
+                            player.getInventory().setItemInMainHand(mainHand);
+                        }
+                    }
+                })) {
+            if (plugin.isDebugEnabled("interact")) {
+                plugin.getLogger().info(I18n.formatConsole("debug.cutting_board",
+                        "message", "sneak insert rolled back after store failure"));
             }
+            return;
         }
 
         CuttingBoardBlockBehavior.saveBlockEntityData(block.getWorld(), posKey);
         player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_HIT, 1.0f, 1.2f);
         player.swingMainHand();
         event.setCancelled(true);
+    }
+
+    /**
+     * Runs the board store, then the hand consumption, with the store guarded: a store that throws is rolled
+     * back and nothing is consumed, because a committed item plus an unconsumed hand is a free copy of the
+     * tool. The rollback is best-effort for the same reason it exists — the item must not be consumed either
+     * way. Returns true only when the store committed and the consumption ran.
+     */
+    @ApiStatus.Internal
+    static boolean storeThenConsume(Runnable store, Runnable rollback, Runnable consume) {
+        try {
+            store.run();
+        } catch (RuntimeException | LinkageError failure) {
+            try {
+                rollback.run();
+            } catch (RuntimeException | LinkageError ignored) {
+                // Nothing else to restore: the hand item stays untouched regardless of the rollback result.
+            }
+            return false;
+        }
+        consume.run();
+        return true;
     }
 }
