@@ -45,6 +45,7 @@ gui:
     disabled: "<red>The recipe editor is disabled in config.yml (recipe-editor.enabled)."
     feedback:
       invalid_id: "<red>Recipe id contains invalid characters."
+      save_busy: "<red>The recipe editor is busy writing another change; try again in a moment."
     tag:
       select_hint: "<gray>Left: use this tag <dark_gray>| <gray>Right: edit exclusions"
       member_included: "<gray>Click: exclude this item from the tag"
@@ -114,6 +115,7 @@ console:
     recipe_files_reloaded: "Recipe files reloaded."
     recipe_publication_failed: "Publishing the reloaded recipes failed; the previously published recipes stay active."
     recipe_rollback_failed: "Undoing a failed recipe publication failed; a recipe component may be left on the reloaded files."
+    recipe_saves_pending: "The shutdown ended with {count} recipe edit(s) still being written; they may not have reached disk."
     advancement_data_reloaded: "Advancement data reloaded."
     tags_reloaded: "Tag configuration reloaded."
     gui_missing_defaults: "gui.yml is missing, using bundled defaults in memory until reload writes it back."
