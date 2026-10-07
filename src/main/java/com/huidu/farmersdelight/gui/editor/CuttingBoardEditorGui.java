@@ -4,6 +4,7 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.gui.AbstractInventoryGui;
 import com.huidu.farmersdelight.gui.GuiConfig;
 import com.huidu.farmersdelight.gui.RecipeViewGuiConfig;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.recipe.RecipeSerializer;
@@ -358,14 +359,19 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
         }
 
         CuttingBoardRecipe recipe = new CuttingBoardRecipe(recipeId, input, null, toolList, results, sound, priority);
-        if (RecipeEditorView.store().saveCuttingBoardRecipe(recipe)) {
-            player.sendMessage(Component.translatable("gui.editor.feedback.saved",
-                    Component.text(recipeId).color(NamedTextColor.WHITE))
-                    .color(NamedTextColor.GREEN));
-            closeEditor();
-        } else {
-            player.sendMessage(Component.translatable("gui.editor.feedback.save_failed")
-                    .color(NamedTextColor.RED));
+        boolean accepted = RecipeEditorView.store().saveCuttingBoardRecipeAsync(recipe, player, saved -> {
+            if (saved) {
+                player.sendMessage(Component.translatable("gui.editor.feedback.saved",
+                        Component.text(recipeId).color(NamedTextColor.WHITE))
+                        .color(NamedTextColor.GREEN));
+                closeEditor();
+            } else {
+                player.sendMessage(Component.translatable("gui.editor.feedback.save_failed")
+                        .color(NamedTextColor.RED));
+            }
+        });
+        if (!accepted) {
+            player.sendMessage(I18n.getComponent("gui.editor.feedback.save_busy", player));
         }
     }
 
@@ -381,15 +387,20 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
     }
 
     private void performDelete() {
-        if (RecipeEditorView.store().deleteCuttingBoardRecipe(recipeId)) {
-            player.sendMessage(Component.translatable("gui.editor.feedback.deleted",
-                    Component.text(recipeId).color(NamedTextColor.WHITE))
-                    .color(NamedTextColor.GREEN));
-        } else {
-            player.sendMessage(Component.translatable("gui.editor.feedback.delete_failed")
-                    .color(NamedTextColor.RED));
+        boolean accepted = RecipeEditorView.store().deleteCuttingBoardRecipeAsync(recipeId, player, deleted -> {
+            if (deleted) {
+                player.sendMessage(Component.translatable("gui.editor.feedback.deleted",
+                        Component.text(recipeId).color(NamedTextColor.WHITE))
+                        .color(NamedTextColor.GREEN));
+            } else {
+                player.sendMessage(Component.translatable("gui.editor.feedback.delete_failed")
+                        .color(NamedTextColor.RED));
+            }
+            player.closeInventory();
+        });
+        if (!accepted) {
+            player.sendMessage(I18n.getComponent("gui.editor.feedback.save_busy", player));
         }
-        player.closeInventory();
     }
 
     private void openTagPicker(ItemStack source) {

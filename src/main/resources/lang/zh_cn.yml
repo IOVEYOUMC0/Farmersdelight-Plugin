@@ -45,6 +45,7 @@ gui:
     disabled: "<red>配方编辑器已在 config.yml 中停用（recipe-editor.enabled）。"
     feedback:
       invalid_id: "<red>配方 id 包含无效字符。"
+      save_busy: "<red>配方编辑器正在写入其它改动，请稍后再试。"
     tag:
       select_hint: "<gray>左键: 使用此标签 <dark_gray>| <gray>右键: 编辑排除项"
       member_included: "<gray>点击: 从该标签中排除此物品"
@@ -114,6 +115,7 @@ console:
     recipe_files_reloaded: "配方文件已重新加载。"
     recipe_publication_failed: "重新加载的配方发布失败；仍在使用上一次成功发布的配方。"
     recipe_rollback_failed: "回滚失败的配方发布时出错；可能有配方组件仍停留在刚重新加载的文件上。"
+    recipe_saves_pending: "停机时仍有 {count} 条配方编辑未写完；它们可能没有写入磁盘。"
     advancement_data_reloaded: "进度数据已重新加载。"
     tags_reloaded: "标签配置已重新加载。"
     gui_missing_defaults: "gui.yml 缺失，暂时在内存中使用内置默认值，直到下次重载写回。"

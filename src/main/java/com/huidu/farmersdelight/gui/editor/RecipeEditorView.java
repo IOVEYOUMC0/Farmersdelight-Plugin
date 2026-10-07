@@ -96,6 +96,15 @@ public final class RecipeEditorView implements InventoryHolder {
         return current;
     }
 
+    /**
+     * Editor writes still in flight. The shutdown reports them instead of letting a queued save disappear with
+     * the plugin, and this never creates the store just to answer.
+     */
+    public static int pendingEditorWrites() {
+        RecipeEditorStore current = store;
+        return current == null ? 0 : current.pendingWrites();
+    }
+
     /** Opens the editor an addon exposes through api.recipe.RecipeEditor. */
     public static void open(Player player, RecipeType type, String recipeId) {
         if (type == null || type.editor() == null) {

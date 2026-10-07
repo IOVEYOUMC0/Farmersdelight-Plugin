@@ -4,6 +4,7 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.gui.AbstractInventoryGui;
 import com.huidu.farmersdelight.gui.GuiConfig;
 import com.huidu.farmersdelight.gui.RecipeViewGuiConfig;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.recipe.RecipeSerializer;
@@ -437,14 +438,20 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
                 recipeId, ingredientList, savedContainer, savedContainer != null, savedResult,
                 experience, cookTime, category, priority);
 
-        if (RecipeEditorView.store().saveCookingPotRecipe(recipe, customGroupId)) {
-            player.sendMessage(Component.translatable("gui.editor.feedback.saved",
-                    Component.text(recipeId).color(NamedTextColor.WHITE))
-                    .color(NamedTextColor.GREEN));
-            closeEditor();
-        } else {
-            player.sendMessage(Component.translatable("gui.editor.feedback.save_failed")
-                    .color(NamedTextColor.RED));
+        boolean accepted = RecipeEditorView.store().saveCookingPotRecipeAsync(recipe, customGroupId, player,
+                saved -> {
+                    if (saved) {
+                        player.sendMessage(Component.translatable("gui.editor.feedback.saved",
+                                Component.text(recipeId).color(NamedTextColor.WHITE))
+                                .color(NamedTextColor.GREEN));
+                        closeEditor();
+                    } else {
+                        player.sendMessage(Component.translatable("gui.editor.feedback.save_failed")
+                                .color(NamedTextColor.RED));
+                    }
+                });
+        if (!accepted) {
+            player.sendMessage(I18n.getComponent("gui.editor.feedback.save_busy", player));
         }
     }
 
@@ -460,15 +467,21 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
     }
 
     private void performDelete() {
-        if (RecipeEditorView.store().deleteCookingPotRecipe(recipeId, customGroupId)) {
-            player.sendMessage(Component.translatable("gui.editor.feedback.deleted",
-                    Component.text(recipeId).color(NamedTextColor.WHITE))
-                    .color(NamedTextColor.GREEN));
-        } else {
-            player.sendMessage(Component.translatable("gui.editor.feedback.delete_failed")
-                    .color(NamedTextColor.RED));
+        boolean accepted = RecipeEditorView.store().deleteCookingPotRecipeAsync(recipeId, customGroupId, player,
+                deleted -> {
+                    if (deleted) {
+                        player.sendMessage(Component.translatable("gui.editor.feedback.deleted",
+                                Component.text(recipeId).color(NamedTextColor.WHITE))
+                                .color(NamedTextColor.GREEN));
+                    } else {
+                        player.sendMessage(Component.translatable("gui.editor.feedback.delete_failed")
+                                .color(NamedTextColor.RED));
+                    }
+                    player.closeInventory();
+                });
+        if (!accepted) {
+            player.sendMessage(I18n.getComponent("gui.editor.feedback.save_busy", player));
         }
-        player.closeInventory();
     }
 
     private RecipeIngredient appendOption(RecipeIngredient current, RecipeIngredient.Item added) {
