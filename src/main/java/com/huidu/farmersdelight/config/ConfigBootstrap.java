@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.config;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.config.ConfigFileUpdater;
 import com.huidu.farmersdelight.api.config.ConfigKeyRename;
+import com.huidu.farmersdelight.api.config.ConfigUpdateNotices;
 import com.huidu.farmersdelight.api.config.ConfigUpdatePolicy;
 import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.configuration.ConfigurationSection;
@@ -280,7 +281,7 @@ public final class ConfigBootstrap {
         List<ConfigKeyRename> migrated =
                 ConfigFileUpdater.applyMigrations(plugin.getConfig(), CONFIG_POLICY.migrations());
         for (ConfigKeyRename rename : migrated) {
-            I18n.logInfo("plugin.config_key_migrated", "old", rename.oldPath(), "new", rename.newPath());
+            ConfigUpdateNotices.log(plugin, ConfigUpdateNotices.migrated(rename));
             changed = true;
         }
         changed |= migrateLegacyDrops();
@@ -321,7 +322,7 @@ public final class ConfigBootstrap {
                 backupQuietly(configPath);
                 ConfigFileUpdater.tidy(existing);
                 ConfigFileUpdater.writeStringAtomically(configPath, existing.saveToString(), true);
-                I18n.logInfo("plugin.config_keys_added", "file", fileName, "count", added);
+                ConfigUpdateNotices.log(plugin, ConfigUpdateNotices.added(fileName, added));
                 rememberReloadRead(configPath, existing);
             }
             return existing;
@@ -350,7 +351,7 @@ public final class ConfigBootstrap {
             backupQuietly(dropsPath);
             copyLegacyDrops(legacy, dropsPath);
             plugin.getConfig().set("drops", null);
-            I18n.logInfo("plugin.config_key_migrated", "old", "drops", "new", DROPS_FILE);
+            ConfigUpdateNotices.log(plugin, ConfigUpdateNotices.migrated("drops", DROPS_FILE));
             return true;
         } catch (Exception e) {
             I18n.logWarning("plugin.config_merge_failed", "file", DROPS_FILE, "error", e.getMessage());
@@ -381,7 +382,7 @@ public final class ConfigBootstrap {
             backupQuietly(worldDataPath);
             copyLegacyWorldData(legacy, worldDataPath);
             plugin.getConfig().set("world-data", null);
-            I18n.logInfo("plugin.config_key_migrated", "old", "world-data", "new", WORLD_DATA_FILE);
+            ConfigUpdateNotices.log(plugin, ConfigUpdateNotices.migrated("world-data", WORLD_DATA_FILE));
             return true;
         } catch (Exception e) {
             I18n.logWarning("plugin.config_merge_failed", "file", WORLD_DATA_FILE, "error", e.getMessage());
@@ -424,8 +425,8 @@ public final class ConfigBootstrap {
             ConfigFileUpdater.writeStringAtomically(overridesPath, overrides.saveToString(), true);
             plugin.getConfig().set("cutting-board.display-overrides", null);
             plugin.getConfig().set("cutting-board.display-tag-overrides", null);
-            I18n.logInfo("plugin.config_key_migrated", "old", "cutting-board.display-overrides",
-                    "new", DISPLAY_OVERRIDES_FILE);
+            ConfigUpdateNotices.log(plugin, ConfigUpdateNotices.migrated("cutting-board.display-overrides",
+                    DISPLAY_OVERRIDES_FILE));
             return true;
         } catch (Exception e) {
             I18n.logWarning("plugin.config_merge_failed", "file", DISPLAY_OVERRIDES_FILE, "error", e.getMessage());
@@ -447,7 +448,7 @@ public final class ConfigBootstrap {
         for (String group : List.of("knives", "skillet")) {
             String targetPath = "enchantments.groups." + group + "." + childPath;
             if (ConfigFileUpdater.copyPathIfMissing(plugin.getConfig(), sourcePath, targetPath)) {
-                I18n.logInfo("plugin.config_key_migrated", "old", sourcePath, "new", targetPath);
+                ConfigUpdateNotices.log(plugin, ConfigUpdateNotices.migrated(sourcePath, targetPath));
             }
         }
         plugin.getConfig().set(sourcePath, null);
@@ -464,7 +465,7 @@ public final class ConfigBootstrap {
                     CONFIG_POLICY.registrySections());
             if (added > 0) {
                 backupQuietly(plugin.getDataFolder().toPath().resolve("config.yml"));
-                I18n.logInfo("plugin.config_keys_added", "file", "config.yml", "count", added);
+                ConfigUpdateNotices.log(plugin, ConfigUpdateNotices.added("config.yml", added));
             }
             return added;
         } catch (Exception e) {
@@ -493,7 +494,7 @@ public final class ConfigBootstrap {
                 ConfigFileUpdater.tidy(existing);
                 ConfigFileUpdater.writeStringAtomically(guiPath, existing.saveToString(), true);
                 rememberReloadRead(guiPath, existing);
-                I18n.logInfo("plugin.config_keys_added", "file", "gui.yml", "count", migrated + added);
+                ConfigUpdateNotices.log(plugin, ConfigUpdateNotices.added("gui.yml", migrated + added));
             }
         } catch (Exception e) {
             I18n.logWarning("plugin.config_merge_failed", "file", "gui.yml", "error", e.getMessage());
@@ -619,7 +620,7 @@ public final class ConfigBootstrap {
         // This path discards values the admin wrote, so it takes the same copy the merge path does. The log names
         // the keys but not what they held, and without the copy the tuned value is unrecoverable.
         backupQuietly(plugin.getDataFolder().toPath().resolve("config.yml"));
-        I18n.logInfo("plugin.config_keys_retired", "count", removed.size(), "keys", String.join(", ", removed));
+        ConfigUpdateNotices.log(plugin, ConfigUpdateNotices.retired(removed));
         return true;
     }
 
