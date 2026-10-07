@@ -110,7 +110,8 @@ public class CuttingBoardRecipeManager {
             }
         }
 
-        plugin.recipeRegistrations().start(this, segments, plugin.recipeRegistrationBudget(),
+        plugin.recipeRegistrations().start(this, segments,
+                RecipeRegistrationBudget.forLoad(recipes.size(), plugin.recipeRegistrationBudget()),
                 () -> publishLoadedSet(pending));
     }
 

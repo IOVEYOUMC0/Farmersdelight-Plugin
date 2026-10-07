@@ -45,13 +45,27 @@ class RecipeShardPublishTest {
 
             assertEquals(1, count(source, "recipeRegistrations().start("),
                     manager + " has to start one round for the whole reload, not one round per source");
-            assertTrue(source.contains("recipeRegistrations().start(this, segments, plugin.recipeRegistrationBudget(),"),
+            assertTrue(source.contains("recipeRegistrations().start(this, segments,"),
                     manager + " owns its round, so a manager rebuilt next in the same pass cannot cancel it");
 
             int ownFile = source.indexOf("segments.add(ownFile)");
             int packLoop = source.indexOf("for (PackSections.Section packSection");
             assertTrue(ownFile > 0 && packLoop > ownFile,
                     manager + " queues the plugin's own file before every pack section");
+        }
+    }
+
+    // The CraftEngine readiness pass keeps going in the same tick after the managers are rebuilt: it warms the
+    // recipe-backed caches and prints the content summary out of the published set. A load with nothing
+    // published yet therefore runs whole, or that pass reads zero recipes.
+    @Test
+    void theFirstLoadRunsWholeSoTheReadinessPassSeesIt() throws IOException {
+        for (String manager : MANAGERS) {
+            String source = readSource(manager);
+
+            assertTrue(source.contains(
+                            "RecipeRegistrationBudget.forLoad(recipes.size(), plugin.recipeRegistrationBudget())"),
+                    manager + " has to run a load with nothing published yet whole, not on the per-tick budget");
         }
     }
 
