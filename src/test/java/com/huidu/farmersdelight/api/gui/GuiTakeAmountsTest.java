@@ -13,7 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The click-take arithmetic behind the container GUIs, asserted as plain numbers: the branches the containers
  * share, the three answers they deliberately differ on, and the invariant that a take never exceeds the slot
- * or the room the caller allows. This pass adds the arithmetic only, so the call sites are pinned untouched.
+ * or the room the caller allows. The cooking pot answers through it now, and only through its take decision:
+ * where the taken items land is still the pot's own business.
  */
 class GuiTakeAmountsTest {
 
@@ -109,11 +110,24 @@ class GuiTakeAmountsTest {
     }
 
     @Test
-    void theCallSitesAreNotWiredUpInThisPass() throws IOException {
-        assertFalse(read(POT_TAKER).contains("GuiTakeAmounts"),
-                "the cooking pot still resolves its own take; wiring it up is the next pass");
-        assertTrue(read(POT_TAKER).contains("public int resolveOutputTakeAmount(InventoryClickEvent event, int guiSlot) {"),
-                "the pot keeps its resolver until that pass");
+    void theCookingPotResolvesItsTakeThroughTheSharedRule() throws IOException {
+        String taker = read(POT_TAKER);
+
+        assertTrue(taker.contains("GuiTakeAmounts.take(click, stored, cursorAmount, cursorEmpty, cursorSimilar, limit)"),
+                "the pot's decision is the shared arithmetic now");
+        assertTrue(taker.contains("currentOutput.getMaxStackSize(), containerMaxStack)"),
+                "and the limit stays the smaller of the item's own stack size and the container's");
+
+        // "How much does this click take" and "where does it land" are separate decisions: the first one is the
+        // shared rule now, the second never changed, and the cursor's own maximum is only still read by the second.
+        int take = taker.indexOf("resolveTake(boolean shiftClick");
+        int delivery = taker.indexOf("deliverOutputToPlayer(");
+        assertTrue(take > 0 && delivery > take, "both decisions are still in the file");
+        assertFalse(taker.substring(take, delivery).contains("cursor.getMaxStackSize()"),
+                "the take path no longer clamps with the cursor's maximum; similar stacks share one maximum");
+        assertTrue(taker.substring(delivery).contains("Math.min(cursor.getMaxStackSize(),"
+                        + " event.getView().getTopInventory().getMaxStackSize())"),
+                "the delivery path is untouched, so where the items land did not change");
     }
 
     private static String read(Path path) throws IOException {
