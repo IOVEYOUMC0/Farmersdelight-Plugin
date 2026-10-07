@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.jar.JarEntry;
@@ -76,42 +75,7 @@ public final class ResourceInstaller {
     private int migrateKnownResourceFixes(Path targetRoot) throws IOException {
         int changed = migrateItemsEggTag(targetRoot.resolve("configuration").resolve("items.yml"));
         changed += migrateAnimatedGuiItem(targetRoot.resolve("configuration").resolve("gui.yml"));
-        changed += migrateLegacyPositionArguments(targetRoot);
         return changed;
-    }
-
-    private int migrateLegacyPositionArguments(Path targetRoot) throws IOException {
-        if (!Files.isDirectory(targetRoot)) {
-            return 0;
-        }
-        // The <arg:block.block_*> rewrite is a one-off migration of files this plugin ships. Once it has
-        // run for a pack root there is nothing left to find, so a marker file turns a full walk that reads
-        // every yml, yaml and json under the namespace into a single stat on every later boot.
-        Path migrationMarker = targetRoot.resolve(".position-args-migrated");
-        if (Files.exists(migrationMarker)) {
-            return 0;
-        }
-        int changed = 0;
-        try (Stream<Path> paths = Files.walk(targetRoot)) {
-            for (Path path : paths.filter(Files::isRegularFile).filter(ResourceInstaller::isTextResource).toList()) {
-                String content = Files.readString(path);
-                String migrated = content
-                        .replace("<arg:block.block_x>", "<arg:position.block_x>")
-                        .replace("<arg:block.block_y>", "<arg:position.block_y>")
-                        .replace("<arg:block.block_z>", "<arg:position.block_z>");
-                if (!content.equals(migrated)) {
-                    Files.writeString(path, migrated);
-                    changed++;
-                }
-            }
-        }
-        Files.writeString(migrationMarker, "");
-        return changed;
-    }
-
-    private static boolean isTextResource(Path path) {
-        String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
-        return name.endsWith(".yml") || name.endsWith(".yaml") || name.endsWith(".json");
     }
 
     private int migrateItemsEggTag(Path items) throws IOException {

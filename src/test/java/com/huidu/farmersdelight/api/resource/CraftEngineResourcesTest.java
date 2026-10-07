@@ -43,15 +43,39 @@ class CraftEngineResourcesTest {
     }
 
     @Test
-    void migratesLegacyPositionArgumentsWithoutCompletingExistingResources() throws IOException {
+    void leavesALegacyPositionArgumentAloneInAnExistingNamespace() throws IOException {
         Path jar = createJar();
         Path target = directory.resolve("plugins/CraftEngine/resources/demo/config.yml");
         Files.createDirectories(target.getParent());
-        Files.writeString(target, "x: <arg:block.block_x>\ny: <arg:block.block_y>\nz: <arg:block.block_z>\n");
+        String legacy = "x: <arg:block.block_x>\ny: <arg:block.block_y>\nz: <arg:block.block_z>\n";
+        Files.writeString(target, legacy);
 
-        assertEquals(1, CraftEngineResources.release(jar, directory.resolve("plugins"), "demo", false));
-        assertEquals("x: <arg:position.block_x>\ny: <arg:position.block_y>\nz: <arg:position.block_z>\n",
-                Files.readString(target));
+        // The one-off rewrite is retired: an existing namespace is left exactly as the operator has it, and no
+        // migration marker is written next to it.
+        assertEquals(0, CraftEngineResources.release(jar, directory.resolve("plugins"), "demo", false));
+        assertEquals(legacy, Files.readString(target));
+        assertFalse(Files.exists(target.getParent().resolve(".position-args-migrated")),
+                "the marker the retired migration wrote is gone");
+    }
+
+    @Test
+    void noSourceRewritesTheLegacyPositionArgumentsAnymore() throws IOException {
+        for (String relative : new String[] {
+                "src/main/java/com/huidu/farmersdelight/api/resource/CraftEngineResources.java",
+                "src/main/java/com/huidu/farmersdelight/resource/ResourceInstaller.java"}) {
+            Path source = Path.of(relative);
+            if (!Files.isRegularFile(source)) {
+                source = Path.of("FarmersDelight").resolve(relative);
+            }
+            String text = Files.readString(source);
+
+            assertFalse(text.contains("position-args-migrated"),
+                    relative + " still knows the retired migration marker");
+            assertFalse(text.contains("migrateLegacyPositionArguments"),
+                    relative + " still carries the retired migration");
+            assertFalse(text.contains("<arg:block.block_"),
+                    relative + " still rewrites the legacy position arguments");
+        }
     }
 
     @Test
