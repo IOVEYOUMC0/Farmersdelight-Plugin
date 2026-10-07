@@ -36,6 +36,8 @@ public class I18n {
     private static final String FALLBACK_LOCALE = "zh_cn";
     private static final String ENGLISH_FALLBACK = "en_us";
     private static final String[] DEFAULT_LANGUAGES = {"zh_cn", "en_us"};
+    private static final String PREFIX_KEY = "general.prefix";
+    private static final String PREFIX_PLACEHOLDER = "{prefix}";
     private static final String LANG_RESOURCE_PREFIX = "lang/";
     private static final String BACKUP_DATE_FORMAT = "yyyyMMdd-HHmmss";
     private static final String CONSOLE_KEY_PREFIX = "console.";
@@ -309,6 +311,46 @@ public class I18n {
         return get(key, state.defaultLocale());
     }
 
+    /**
+     * Applies the brand prefix to a message that asks for it. A value carrying the placeholder gets the
+     * prefix of the same locale substituted in; a value without it is returned untouched. The prefix comes
+     * straight from the locale maps rather than from get, so the prefix key can never recurse into this.
+     */
+    private static String applyPrefix(String key, String value, String locale) {
+        if (value == null || key == null || key.equals(PREFIX_KEY) || !value.contains(PREFIX_PLACEHOLDER)) {
+            return value;
+        }
+        String prefix = prefixValue(locale);
+        return prefix == null ? value : value.replace(PREFIX_PLACEHOLDER, prefix);
+    }
+
+    /** The brand prefix of a locale from the deployed maps, then the bundled file, or null when unknown. */
+    private static String prefixValue(String locale) {
+        LocaleState snapshot = state;
+        String resolved = locale == null ? snapshot.defaultLocale() : locale;
+        Map<String, YamlConfiguration> locales = snapshot.locales();
+        YamlConfiguration lang = locales.get(resolved.toLowerCase(Locale.ROOT));
+        if (lang == null) {
+            String matched = matchInstalledLocale(locales, resolved);
+            if (matched != null) {
+                lang = locales.get(matched);
+            }
+        }
+        if (lang != null) {
+            String value = lang.getString(PREFIX_KEY);
+            if (value != null) {
+                return value;
+            }
+        }
+        YamlConfiguration current = snapshot.currentLocale();
+        if (current != null) {
+            String value = current.getString(PREFIX_KEY);
+            if (value != null) {
+                return value;
+            }
+        }
+        return bundledValue(PREFIX_KEY, resolved);
+    }
     public static String getDefaultLocale() {
         return state.defaultLocale();
     }
@@ -337,21 +379,21 @@ public class I18n {
         if (lang != null) {
             String value = lang.getString(key);
             if (value != null) {
-                return value;
+                return applyPrefix(key, value, locale);
             }
         }
 
         if (!locale.equalsIgnoreCase(snapshot.defaultLocale()) && currentLocale != null) {
             String value = currentLocale.getString(key);
             if (value != null) {
-                return value;
+                return applyPrefix(key, value, locale);
             }
         }
 
         // Bundled-language fallback covers incomplete deployed files and lookups before initialization.
         String bundled = bundledValue(key, locale);
         if (bundled != null) {
-            return bundled;
+            return applyPrefix(key, bundled, locale);
         }
 
         // CraftEngine translation via public API (no reflection)

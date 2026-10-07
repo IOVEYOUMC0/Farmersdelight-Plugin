@@ -55,7 +55,7 @@ public final class GuiLayoutWarnings {
         if (plugin != null) {
             plugin.getLogger().warning(message);
         } else {
-            Bukkit.getLogger().warning(I18n.formatConsole("prefix") + " " + message);
+            Bukkit.getLogger().warning(message);
         }
     }
 }
