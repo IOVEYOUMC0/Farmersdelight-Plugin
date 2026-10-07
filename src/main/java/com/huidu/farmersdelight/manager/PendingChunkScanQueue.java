@@ -1,5 +1,9 @@
 package com.huidu.farmersdelight.manager;
 
+import com.huidu.farmersdelight.util.scheduler.RegionDispatcher;
+import com.huidu.farmersdelight.util.scheduler.RegionTasks;
+import org.bukkit.World;
+
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -21,6 +25,10 @@ import java.util.UUID;
  * insertion order, and the caller does the work outside this class. A payload is removed even when the
  * caller then decides to skip it, so a chunk that unloaded before its turn is not retried from here; its
  * next load queues it again.
+ *
+ *
+ * Alongside the queue live the pieces a bounded per-chunk scan needs: the payload a scan carries, the
+ * region hand-off for one slice, and the band arithmetic a caller measures its per-chunk cost with.
  *
  * @param <T> payload type; this class never inspects it
  */
@@ -103,5 +111,44 @@ final class PendingChunkScanQueue<T> {
         synchronized (lock) {
             entries.clear();
         }
+    }
+
+    /** One chunk waiting for a scan: a world handle plus coordinates, never a Chunk across threads. */
+    record ChunkTarget(World world, int chunkX, int chunkZ) {
+    }
+
+    /** The body a queued chunk scan runs on the region that owns the chunk. */
+    interface ChunkScanTask {
+        void scan(World world, int chunkX, int chunkZ);
+    }
+
+    /**
+     * Takes at most budget queued chunks, in insertion order, and hands each to the region that owns it.
+     * The chunk is re-checked inside the dispatched task, so one that unloaded while it waited is skipped
+     * rather than scanned from stale state.
+     */
+    static void dispatchQueuedScans(PendingChunkScanQueue<ChunkTarget> pending, int budget,
+                                    RegionDispatcher dispatcher, ChunkScanTask scanTask) {
+        for (ChunkTarget target : pending.drain(budget)) {
+            RegionTasks.runAtLoadedChunk(dispatcher, target.world(), target.chunkX(), target.chunkZ(),
+                    () -> scanTask.scan(target.world(), target.chunkX(), target.chunkZ()));
+        }
+    }
+
+    /**
+     * Height of the scanned band: the configured column height, clamped to the world's own build range so
+     * a world shorter than the band never walks past its ceiling.
+     */
+    static int scanYLength(int scanColumnHeight, int worldMinHeight, int worldMaxHeight) {
+        int maxY = Math.min(worldMaxHeight, worldMinHeight + scanColumnHeight);
+        return Math.max(0, maxY - worldMinHeight);
+    }
+
+    /**
+     * Block positions one full chunk scan visits: the 16x16 column of the scanned band. Kept next to the
+     * band calculation so the per-chunk cost is a checked number rather than a comment.
+     */
+    static int positionsPerChunk(int scanColumnHeight, int worldMinHeight, int worldMaxHeight) {
+        return 16 * 16 * scanYLength(scanColumnHeight, worldMinHeight, worldMaxHeight);
     }
 }

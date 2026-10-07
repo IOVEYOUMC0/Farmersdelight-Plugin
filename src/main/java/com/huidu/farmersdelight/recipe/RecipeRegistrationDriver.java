@@ -2,23 +2,28 @@ package com.huidu.farmersdelight.recipe;
 
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 /**
- * Owns the one active recipe registration batch and drives it on the thread that owns recipe state.
+ * Drives the recipe registration rounds of this plugin.
  *
  *
  * A reload used to register every entry of a recipe file in a single tick, which is the spike behind the
- * reported TPS dip. The driver runs the first slice inline — so a file no bigger than the budget behaves
- * exactly as before, with no tick of delay — and only then arms a repeating task that keeps registering the
- * remainder, at most budget entries per tick, on the same thread. Nothing here is asynchronous and
- * nothing here hands work to another thread.
+ * reported TPS dip. Each round runs its first slice inline, on the calling thread — so a file no bigger than
+ * the budget behaves exactly as before, with no tick of delay — and arms a repeating task for the remainder,
+ * at most budget entries per tick. On Folia that task is the global region scheduler while the published sets
+ * are read from region threads, which is why a round publishes only complete, immutable snapshots. Nothing
+ * here is asynchronous and nothing here hands work to another thread.
  *
  *
- * Re-entrancy is defined as cancel and restart: starting a new pass cancels the previous batch (its
- * remaining entries are never registered) and begins again from the first id, so a reload that arrives
- * mid-pass never double-registers and never leaves two passes interleaved.
+ * Every source of one owner's reload (its own file plus one source per CraftEngine pack section) goes into
+ * that owner's round, so exhausting one source hands the remaining budget to the next instead of cancelling
+ * it. The owner is matched by identity and a new round for the same owner replaces that owner's previous one,
+ * which keeps the single-active rule per owner: a reload that arrives mid-round never double-registers.
+ * Different owners reloading in the same pass — the cooking pot and the cutting board are rebuilt back to back
+ * by one reload — keep their own rounds and their own tails, and one armed task drains all of them.
  */
 public final class RecipeRegistrationDriver {
 
@@ -28,78 +33,142 @@ public final class RecipeRegistrationDriver {
         PluginTask arm(Runnable tick);
     }
 
+    /** One owner's round and the tail that runs once that owner's last entry went through. */
+    private record OwnerRound(Object owner, RecipeRegistrationRound round, Runnable onDone) {
+    }
+
     private final TaskArm taskArm;
-    private volatile RecipeRegistrationBatch batch;
+    // Copy-on-write: rounds are added, replaced and retired on the recipe-state thread, while isRunning and
+    // progress are read from the reload command thread.
+    private volatile List<OwnerRound> rounds = List.of();
     private volatile PluginTask task = PluginTask.NOOP;
-    private volatile int budget = 1;
-    private volatile Runnable onDone;
 
     public RecipeRegistrationDriver(TaskArm taskArm) {
         this.taskArm = Objects.requireNonNull(taskArm, "taskArm");
     }
 
-    /** Whether a pass is still registering entries. */
+    /** Whether any owner is still registering entries. */
     public boolean isRunning() {
-        return batch != null;
+        return !rounds.isEmpty();
     }
 
-    /** i/N of the running pass, or an empty string when there is none. */
+    /** i/N over the running rounds, or an empty string when there is none. */
     public String progress() {
-        RecipeRegistrationBatch current = batch;
-        return current == null ? "" : current.cursor() + "/" + current.size();
+        List<OwnerRound> current = rounds;
+        if (current.isEmpty()) {
+            return "";
+        }
+        int cursor = 0;
+        int total = 0;
+        for (OwnerRound entry : current) {
+            cursor += entry.round().cursor();
+            total += entry.round().size();
+        }
+        return cursor + "/" + total;
     }
 
     /**
-     * Registers up to budget entries now and schedules the rest; onDone runs once, on the
-     * thread that finished the pass, after the last entry.
+     * Queues every source of one owner's reload as that owner's round, registers up to budget entries now and
+     * schedules the rest; onDone runs once, on the thread that finished the round, after the last entry of the
+     * last source. The sources are registered in the order they are handed over, and a round that replaces this
+     * owner's previous one drops whatever that one had not reached.
      */
-    public void start(List<String> ids, RecipeRegistrationBatch.Step step, int budget, Runnable onDone) {
-        cancel();
-        this.budget = Math.max(1, budget);
-        this.onDone = onDone;
-        RecipeRegistrationBatch fresh = new RecipeRegistrationBatch(ids, step);
-        this.batch = fresh;
-        tick();
-        if (this.batch == fresh && !fresh.isDone()) {
+    public void start(Object owner, List<RecipeRegistrationRound.Segment> segments, int budget, Runnable onDone) {
+        Objects.requireNonNull(owner, "owner");
+        RecipeRegistrationRound fresh = new RecipeRegistrationRound(segments, budget);
+        OwnerRound queued = new OwnerRound(owner, fresh, onDone == null ? () -> { } : onDone);
+        this.rounds = queue(owner, queued);
+        runInline(fresh);
+        if (!fresh.isDone() && this.rounds.contains(queued) && this.task == PluginTask.NOOP) {
             this.task = this.taskArm.arm(this::tick);
         }
     }
 
-    /** Drops the running pass without registering anything else: plugin disable and a replaced reload. */
+    /** Drops every round without registering anything else: plugin disable. */
     public void cancel() {
-        RecipeRegistrationBatch current = this.batch;
-        this.batch = null;
-        this.onDone = null;
-        if (current != null) {
-            current.cancel();
+        dropAll();
+    }
+
+    /** Runs the first slice of the round that was just queued, without spending another round's budget. */
+    private void runInline(RecipeRegistrationRound fresh) {
+        try {
+            fresh.run();
+        } catch (RuntimeException | Error error) {
+            // Loud failure: the round (and every other) is dropped so nothing half-registered keeps running.
+            dropAll();
+            throw error;
         }
-        stopTask();
+        retireFinished();
     }
 
     private void tick() {
-        RecipeRegistrationBatch current = this.batch;
-        if (current == null) {
+        List<OwnerRound> current = this.rounds;
+        if (current.isEmpty()) {
             stopTask();
             return;
         }
         try {
-            current.run(this.budget);
+            for (OwnerRound entry : current) {
+                entry.round().run();
+            }
         } catch (RuntimeException | Error error) {
-            // Loud failure: the batch is dropped so nothing half-registered keeps running.
-            this.batch = null;
-            current.cancel();
-            stopTask();
+            dropAll();
             throw error;
         }
-        if (current.isDone()) {
-            this.batch = null;
-            stopTask();
-            Runnable done = this.onDone;
-            this.onDone = null;
-            if (done != null) {
-                done.run();
+        retireFinished();
+    }
+
+    /** Retires the rounds that finished, and runs their tails once the retired set is no longer visible. */
+    private void retireFinished() {
+        List<OwnerRound> current = this.rounds;
+        List<OwnerRound> remaining = new ArrayList<>(current.size());
+        List<Runnable> tails = new ArrayList<>(0);
+        for (OwnerRound entry : current) {
+            if (entry.round().isDone()) {
+                tails.add(entry.onDone());
+            } else {
+                remaining.add(entry);
             }
         }
+        if (tails.isEmpty()) {
+            return;
+        }
+        this.rounds = List.copyOf(remaining);
+        if (remaining.isEmpty()) {
+            stopTask();
+        }
+        for (Runnable tail : tails) {
+            tail.run();
+        }
+    }
+
+    /** This owner's round replaces its own previous round; other owners' rounds are left alone. */
+    private List<OwnerRound> queue(Object owner, OwnerRound queued) {
+        List<OwnerRound> current = this.rounds;
+        List<OwnerRound> updated = new ArrayList<>(current.size() + 1);
+        boolean replaced = false;
+        for (OwnerRound entry : current) {
+            if (entry.owner() == owner) {
+                entry.round().cancel();
+                updated.add(queued);
+                replaced = true;
+            } else {
+                updated.add(entry);
+            }
+        }
+        if (!replaced) {
+            updated.add(queued);
+        }
+        return List.copyOf(updated);
+    }
+
+    private void dropAll() {
+        List<OwnerRound> current = this.rounds;
+        this.rounds = List.of();
+        for (OwnerRound entry : current) {
+            entry.round().cancel();
+        }
+        stopTask();
     }
 
     private void stopTask() {

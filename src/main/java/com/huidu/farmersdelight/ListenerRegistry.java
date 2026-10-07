@@ -10,7 +10,6 @@ import com.huidu.farmersdelight.listener.AchievementListener;
 import com.huidu.farmersdelight.listener.BackstabListener;
 import com.huidu.farmersdelight.listener.BlockBreakListener;
 import com.huidu.farmersdelight.listener.BlockPlaceListener;
-import com.huidu.farmersdelight.listener.CarrierRestoreListener;
 import com.huidu.farmersdelight.listener.ChunkLoadListener;
 import com.huidu.farmersdelight.listener.CraftEngineWatchdogListener;
 import com.huidu.farmersdelight.listener.CropInteractProtectionListener;
@@ -34,7 +33,7 @@ import com.huidu.farmersdelight.listener.TagDatapackInstaller;
 import com.huidu.farmersdelight.listener.TatamiBreakListener;
 import com.huidu.farmersdelight.listener.worlddata.VillagerTradeListener;
 import com.huidu.farmersdelight.manager.BuffBossbarManager;
-import com.huidu.farmersdelight.manager.CarrierRestorer;
+import com.huidu.farmersdelight.manager.SkilletManager;
 import com.huidu.farmersdelight.handheld.HandCookedSkewerHooks;
 import com.huidu.farmersdelight.migration.LegacyIdMigrationHooks;
 import com.huidu.farmersdelight.tool.ToolAttackListener;
@@ -82,7 +81,6 @@ final class ListenerRegistry {
     private LegacyIdMigrationHooks legacyIdMigrationHooks;
     private HandCookedSkewerHooks handCookedSkewerHooks;
     private ChunkLoadListener chunkLoadListener;
-    private CarrierRestoreListener carrierRestoreListener;
 
     // Datapack installers: they also listen, so they are installed and registered together.
     private EnchantmentDatapackInstaller enchantmentDatapackInstaller;
@@ -170,8 +168,24 @@ final class ListenerRegistry {
         legacyIdMigrationHooks.start();
         // Reads its own switch: a disabled path schedules no tick task.
         handCookedSkewerHooks.start();
+        // Both handheld cooks refuse a click while the other one owns the player. The skewer side asks the
+        // skillet by itself; the skillet side needs this check, and this registry owns both handlers.
+        wireSkilletSkewerExclusion();
 
         register(new PluginManagerGuard(plugin.getName()));
+    }
+
+    /**
+     * Hands the hand-held skillet path the skewer session check. Wired after the handlers are stored, because
+     * both instances are built by this registry and neither one can reach the other on its own.
+     */
+    private void wireSkilletSkewerExclusion() {
+        SkilletManager skilletManager = plugin.getSkilletManager();
+        if (skilletManager != null && handCookedSkewerHooks != null) {
+            // The field is read per call, so a re-registration that replaces the hooks is followed.
+            skilletManager.setSkewerCookingCheck(player ->
+                    handCookedSkewerHooks.isCooking(player.getUniqueId()));
+        }
     }
 
     /**
@@ -225,20 +239,17 @@ final class ListenerRegistry {
      * that are already loaded.
      *
      *
-     * The carrier restorer is handed in rather than built here because the rope fence's restoration state is
-     * owned by the plugin's manager lifecycle, not by the registration order below.
+     * The buff bossbar renderer is handed in rather than built here because its configuration and start belong
+     * to the plugin's manager lifecycle, not to the registration order below.
      */
-    void registerVisualAndWorldHandlers(CarrierRestorer carrierRestorer, BuffBossbarManager bars) {
+    void registerVisualAndWorldHandlers(BuffBossbarManager bars) {
         register(bars);
-        this.carrierRestoreListener = register(new CarrierRestoreListener(plugin, carrierRestorer));
 
         for (Listener listener : buildVisualAndWorldHandlers()) {
             storeVisualHandler(listener);
             register(listener);
         }
 
-        this.carrierRestoreListener.start();
-        carrierRestorer.prepareStartup();
         enchantmentDatapackInstaller.installToPrimaryWorld(plugin.getPrimaryWorld());
         // Registry tags are server-global (shared by every world), so the common-item tag data pack is
         // written once into the primary world's datapacks folder; a per-world inject would be redundant.
@@ -477,10 +488,6 @@ final class ListenerRegistry {
         }
         if (chunkLoadListener != null) {
             chunkLoadListener.shutdown();
-        }
-        if (carrierRestoreListener != null) {
-            carrierRestoreListener.stop();
-            carrierRestoreListener = null;
         }
         blockBreakListener = null;
         blockPlaceListener = null;

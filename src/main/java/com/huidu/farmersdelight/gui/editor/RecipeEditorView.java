@@ -12,6 +12,7 @@ import com.huidu.farmersdelight.gui.RecipeViewGuiConfig;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
+import com.huidu.farmersdelight.recipe.RecipeIds;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -24,6 +25,8 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 
@@ -131,10 +134,14 @@ public final class RecipeEditorView implements InventoryHolder {
                 player.sendMessage(Component.translatable("gui.editor.feedback.not_configured"));
                 return;
             }
+            String storedId = resolveStoredId(type, recipeId,
+                    (group == null || group.isBlank())
+                            ? plugin.getCookingPotRecipes().getRecipes().keySet()
+                            : plugin.getCookingPotRecipes().getRecipes(group).keySet());
             CookingPotRecipe existing = (group == null || group.isBlank())
-                    ? plugin.getCookingPotRecipes().getRecipe(recipeId)
-                    : plugin.getCookingPotRecipes().getRecipe(group, recipeId);
-            new CookingPotEditorGui(plugin, player, recipeId, group, existing, editorConfig).open();
+                    ? plugin.getCookingPotRecipes().getRecipe(storedId)
+                    : plugin.getCookingPotRecipes().getRecipe(group, storedId);
+            new CookingPotEditorGui(plugin, player, storedId, group, existing, editorConfig).open();
             return;
         }
         if (RecipeStationType.isCuttingBoard(type)) {
@@ -147,11 +154,23 @@ public final class RecipeEditorView implements InventoryHolder {
                 player.sendMessage(Component.translatable("gui.editor.feedback.not_configured"));
                 return;
             }
-            CuttingBoardRecipe existing = plugin.getCuttingBoardRecipes().getRecipe(recipeId);
-            new CuttingBoardEditorGui(plugin, player, recipeId, existing, boardConfig).open();
+            String storedId = resolveStoredId(type, recipeId,
+                    plugin.getCuttingBoardRecipes().getRecipes().keySet());
+            CuttingBoardRecipe existing = plugin.getCuttingBoardRecipes().getRecipe(storedId);
+            new CuttingBoardEditorGui(plugin, player, storedId, existing, boardConfig).open();
             return;
         }
         player.sendMessage(I18n.getComponent("gui.editor.usage", player));
+    }
+
+    /**
+     * The id the files store for what the operator typed: a namespaced spelling of an existing recipe has to
+     * find that recipe, or the editor would open a second one under a different id and save a duplicate. A
+     * token that names no existing recipe is kept as typed, because that is how a new recipe is created.
+     */
+    private static String resolveStoredId(String type, String recipeId, Collection<String> knownIds) {
+        String canonical = RecipeIds.canonical(type, recipeId, new HashSet<>(knownIds));
+        return canonical == null ? recipeId : canonical;
     }
 
     /** Opens the recipe viewer's edit button target one tick later. */
@@ -176,16 +195,20 @@ public final class RecipeEditorView implements InventoryHolder {
             if (editorConfig == null) {
                 return;
             }
-            CookingPotRecipe existing = plugin.getCookingPotRecipes().getRecipe(recipeId);
-            new CookingPotEditorGui(plugin, player, recipeId, null, existing, editorConfig).open();
+            String storedId = resolveStoredId(RecipeStationType.COOKING_POT.discoveryTypeId(), recipeId,
+                    plugin.getCookingPotRecipes().getRecipes().keySet());
+            CookingPotRecipe existing = plugin.getCookingPotRecipes().getRecipe(storedId);
+            new CookingPotEditorGui(plugin, player, storedId, null, existing, editorConfig).open();
             return;
         }
         RecipeViewGuiConfig.BaseConfig boardConfig = guiConfig().getCuttingBoardConfig();
         if (boardConfig == null) {
             return;
         }
-        CuttingBoardRecipe existing = plugin.getCuttingBoardRecipes().getRecipe(recipeId);
-        new CuttingBoardEditorGui(plugin, player, recipeId, existing, boardConfig).open();
+        String storedId = resolveStoredId(RecipeStationType.CUTTING_BOARD.discoveryTypeId(), recipeId,
+                plugin.getCuttingBoardRecipes().getRecipes().keySet());
+        CuttingBoardRecipe existing = plugin.getCuttingBoardRecipes().getRecipe(storedId);
+        new CuttingBoardEditorGui(plugin, player, storedId, existing, boardConfig).open();
     }
 
     /** Validates a recipe id before anything is opened. */

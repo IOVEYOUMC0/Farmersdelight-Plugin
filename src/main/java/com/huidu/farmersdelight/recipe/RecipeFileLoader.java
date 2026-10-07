@@ -50,11 +50,6 @@ public final class RecipeFileLoader {
         return REPORTED_ISSUES.size();
     }
 
-    static void loadRecipeSections(FarmersDelightPlugin plugin,
-                                   BiConsumer<String, ConfigurationSection> sectionConsumer) {
-        loadRecipeSections(plugin, loadRecipeFile(plugin, "recipes/cutting_board_recipes.yml"), "cutting_board_recipes", "cutting board", sectionConsumer);
-    }
-
     static YamlConfiguration loadRecipeFile(FarmersDelightPlugin plugin, String relativePath) {
         return loadRecipeFile(plugin, relativePath, true);
     }
@@ -206,24 +201,21 @@ public final class RecipeFileLoader {
         }
     }
 
-    static void loadRecipeSections(FarmersDelightPlugin plugin,
-                                   YamlConfiguration config,
-                                   String rootSectionKey,
-                                   String recipeTypeName,
-                                   BiConsumer<String, ConfigurationSection> sectionConsumer) {
-        loadRecipeSections(plugin, config, rootSectionKey, recipeTypeName, "recipes/" + rootSectionKey + ".yml", sectionConsumer);
-    }
-
-    static void loadRecipeSections(FarmersDelightPlugin plugin,
-                                   YamlConfiguration config,
-                                   String rootSectionKey,
-                                   String recipeTypeName,
-                                   String sourceFile,
-                                   BiConsumer<String, ConfigurationSection> sectionConsumer) {
+    /**
+     * Prepares one recipe file (or pack section) as a source of the caller's registration round: the segment
+     * it returns carries that file's entries, the per-entry work, and the reporting that waits until the file
+     * went through. Returns null when there is nothing to register, so the caller can queue the rest.
+     */
+    static RecipeRegistrationRound.Segment recipeSectionSegment(FarmersDelightPlugin plugin,
+                                                                YamlConfiguration config,
+                                                                String rootSectionKey,
+                                                                String recipeTypeName,
+                                                                String sourceFile,
+                                                                BiConsumer<String, ConfigurationSection> sectionConsumer) {
         // A null config is an unreadable file (see loadRecipeFile): the caller keeps whatever it published
         // last, so there is nothing to parse here.
         if (config == null) {
-            return;
+            return null;
         }
         ConfigurationSection recipesSection = config.getConfigurationSection(rootSectionKey);
         if (recipesSection == null) {
@@ -232,17 +224,19 @@ public final class RecipeFileLoader {
                 I18n.logWarning("plugin.recipe_issue_detail", "index", 1,
                         "detail", rootSectionKey + " - expected a section");
             }
-            return;
+            return null;
         }
 
-        // Registration is sharded: the first slice runs inline (so a small file behaves exactly as before)
-        // and the rest continues on the following ticks, same thread, at most the configured budget each.
+        // Registration is sharded: the first slice of the round runs inline (so a small file behaves exactly as
+        // before) and the rest continues on the following ticks through the driver's task, at most the
+        // configured budget each. Queuing the segment instead of starting it keeps the sources of one reload in
+        // one round.
         Pass pass = new Pass(plugin, recipesSection, recipeTypeName, sourceFile, sectionConsumer);
         List<String> ids = new ArrayList<>(recipesSection.getKeys(false));
-        plugin.recipeRegistrations().start(ids, pass::step, plugin.recipeRegistrationBudget(), pass::finish);
+        return new RecipeRegistrationRound.Segment(ids, pass::step, pass::finish);
     }
 
-    /** One recipe file's pass: the per-entry work and the reporting that has to wait until it finished. */
+    /** One recipe file's entries: the per-entry work and the reporting that has to wait until they went through. */
     private static final class Pass {
 
         private final FarmersDelightPlugin plugin;

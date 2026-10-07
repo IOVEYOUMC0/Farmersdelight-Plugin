@@ -124,22 +124,22 @@ class PendingChunkScanQueueTest {
     @Test
     void scanBandKeepsTheConfiguredHeightWhenTheWorldIsTallEnough() {
         // The overworld build range is taller than the band, so the band is exactly the configured height.
-        assertEquals(96, CarrierRestorer.scanYLength(96, -64, 320));
-        assertEquals(24576, CarrierRestorer.positionsPerChunk(96, -64, 320));
-        assertEquals(16 * 16 * 96, CarrierRestorer.positionsPerChunk(96, -64, 320));
+        assertEquals(96, PendingChunkScanQueue.scanYLength(96, -64, 320));
+        assertEquals(24576, PendingChunkScanQueue.positionsPerChunk(96, -64, 320));
+        assertEquals(16 * 16 * 96, PendingChunkScanQueue.positionsPerChunk(96, -64, 320));
     }
 
     @Test
     void scanBandIsClampedToAWorldShorterThanTheBand() {
         // A 64-block-tall world cannot offer more than its own range.
-        assertEquals(64, CarrierRestorer.scanYLength(96, 0, 64));
-        assertEquals(16 * 16 * 64, CarrierRestorer.positionsPerChunk(96, 0, 64));
-        assertEquals(0, CarrierRestorer.scanYLength(96, 0, 0));
+        assertEquals(64, PendingChunkScanQueue.scanYLength(96, 0, 64));
+        assertEquals(16 * 16 * 64, PendingChunkScanQueue.positionsPerChunk(96, 0, 64));
+        assertEquals(0, PendingChunkScanQueue.scanYLength(96, 0, 0));
     }
 
     @Test
     void positionsPerChunkFollowsTheConfiguredColumnHeight() {
-        assertEquals(16 * 16 * 16, CarrierRestorer.positionsPerChunk(16, -64, 320));
-        assertEquals(16 * 16 * 96, CarrierRestorer.positionsPerChunk(96, 0, 256));
+        assertEquals(16 * 16 * 16, PendingChunkScanQueue.positionsPerChunk(16, -64, 320));
+        assertEquals(16 * 16 * 96, PendingChunkScanQueue.positionsPerChunk(96, 0, 256));
     }
 }
