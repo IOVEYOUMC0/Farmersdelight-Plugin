@@ -1,10 +1,11 @@
-"""Runs every repository contract check, the self-tests of those checks, and the workspace matrix check.
+"""Runs every repository contract check, the self-tests of those checks, and the verification matrix check.
 
 Usage: python tools/run_all_checks.py [--quiet]
 
-Each step runs in the directory its tool expects: the contract checks in the plugin module, the self-tests in
-tools (so they can import the support module), and the workspace matrix check at the workspace root. The exit
-status is non-zero when any step failed, so the whole set can be a single build gate.
+Each step runs in the directory it needs: the contract checks and the matrix check in this module (the matrix
+check finds the repository from its own path, so the working directory only has to be somewhere sensible), and
+the self-tests in tools (so they can import the support module). The exit status is non-zero when any step
+failed, so the whole set can be a single build gate.
 """
 
 import argparse
@@ -14,8 +15,7 @@ from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parent
 MODULE = TOOLS.parent
-WORKSPACE = MODULE.parent
-MATRIX = WORKSPACE / "tools" / "check_verification_matrix.py"
+MATRIX = TOOLS / "check_verification_matrix.py"
 
 CHECKS = (
     ("strip_ce_comments.py", ["--check"]),
@@ -53,9 +53,9 @@ def main() -> int:
              for script, extra in CHECKS]
     steps.append(("self-test tools/test_checks.py", ["-m", "unittest", "test_checks"], TOOLS))
     if MATRIX.is_file():
-        steps.append((f"workspace {MATRIX.name}", [str(MATRIX)], WORKSPACE))
+        steps.append((f"matrix {MATRIX.name}", [str(MATRIX)], MODULE))
     else:
-        print(f"[SKIP] workspace matrix check not found at {MATRIX}")
+        print(f"[SKIP] verification matrix check not found at {MATRIX}")
 
     failures = [label for label, command, cwd in steps if not run(label, command, cwd, args.quiet)]
 
