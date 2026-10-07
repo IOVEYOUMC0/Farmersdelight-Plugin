@@ -10,6 +10,7 @@ import com.huidu.farmersdelight.gui.recipebook.RecipeBookGui;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.gui.editor.RecipeEditorView;
 import com.huidu.farmersdelight.recipe.RecipeDiscoveryManager;
+import com.huidu.farmersdelight.recipe.RecipeIds;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
@@ -212,7 +213,11 @@ final class RecipeSubCommand extends SubCommand {
             return;
         }
         boolean everyRecipe = normalize(recipeToken).equals("all");
-        if (!everyRecipe && !manager.isKnownRecipe(typeId, recipeToken)) {
+        // A recipe answers to its stored id and to the namespaced spelling of it, so a line that writes out
+        // farmersdelight:beef_stew unlocks the recipe the file calls beef_stew.
+        String resolvedRecipe = everyRecipe ? null
+                : RecipeIds.canonical(typeId, recipeToken, Set.copyOf(known.getOrDefault(typeId, List.of())));
+        if (!everyRecipe && resolvedRecipe == null) {
             sender.sendMessage(I18n.getComponent("command.recipe_discovery_unknown_recipe", Map.of(
                     "recipe", recipeToken,
                     "type", typeId)));
@@ -226,8 +231,8 @@ final class RecipeSubCommand extends SubCommand {
                     : manager.lockAllOfType(target.id(), typeId, Source.COMMAND);
         } else {
             boolean moved = unlock
-                    ? manager.unlock(target.id(), typeId, recipeToken, Source.COMMAND)
-                    : manager.lock(target.id(), typeId, recipeToken, Source.COMMAND);
+                    ? manager.unlock(target.id(), typeId, resolvedRecipe, Source.COMMAND)
+                    : manager.lock(target.id(), typeId, resolvedRecipe, Source.COMMAND);
             changed = moved ? 1 : 0;
         }
         sendDiscoveryChange(sender, unlock, changed, typeId, target.name());
@@ -272,7 +277,9 @@ final class RecipeSubCommand extends SubCommand {
         List<String> shown = new ArrayList<>();
         for (String recipeId : all) {
             if (unlockedIds.contains(recipeId)) {
-                shown.add(recipeId);
+                // Shown namespaced so the plugin's own ids read like every other id in the same list; the
+                // stored form is what the state and the unlock calls keep using.
+                shown.add(RecipeIds.displayId(typeId, recipeId));
             }
         }
         if (shown.isEmpty()) {
@@ -382,7 +389,9 @@ final class RecipeSubCommand extends SubCommand {
         boolean discovery = canUseDiscovery(sender);
         if (args.length == 2) {
             String partial = normalize(args[1]);
-            List<String> base = new ArrayList<>(List.of("cooking_pot", "cutting_board", "book", "special"));
+            List<String> base = new ArrayList<>(List.of(
+                    "farmersdelight:cooking_pot", "cooking_pot",
+                    "farmersdelight:cutting_board", "cutting_board", "book", "special"));
             List<RecipeType> types = FarmersDelightApi.get().recipeTypes();
             Map<String, Integer> shortCount = new HashMap<>();
             for (RecipeType type : types) {
@@ -460,7 +469,15 @@ final class RecipeSubCommand extends SubCommand {
                     Map<String, List<String>> known = manager.allRecipeKeysByType();
                     String typeId = resolveDiscoveryType(known.keySet(), normalize(args[3]));
                     if (typeId != null) {
-                        options.addAll(known.getOrDefault(typeId, List.of()));
+                        // The namespaced spelling leads; the stored one stays offered so an operator who
+                        // learned the bare key keeps finding it.
+                        for (String recipeId : known.getOrDefault(typeId, List.of())) {
+                            String namespaced = RecipeIds.displayId(typeId, recipeId);
+                            options.add(namespaced);
+                            if (!namespaced.equals(recipeId)) {
+                                options.add(recipeId);
+                            }
+                        }
                     }
                     return prefixFilter(normalize(args[4]), options);
                 }
@@ -492,7 +509,11 @@ final class RecipeSubCommand extends SubCommand {
     }
 
     private List<String> discoveryTypeTokens(Map<String, List<String>> known) {
-        List<String> tokens = new ArrayList<>(List.of("cooking_pot", "cutting_board"));
+        // The namespaced spelling of the two built-in types leads their bare keywords, matching how every id
+        // in the command is displayed; the bare keyword stays offered because it is what operators have used.
+        List<String> tokens = new ArrayList<>(List.of(
+                RecipeDiscoveryManager.TYPE_COOKING_POT, "cooking_pot",
+                RecipeDiscoveryManager.TYPE_CUTTING_BOARD, "cutting_board"));
         for (String typeId : known.keySet()) {
             if (!typeId.equals(RecipeDiscoveryManager.TYPE_COOKING_POT)
                     && !typeId.equals(RecipeDiscoveryManager.TYPE_CUTTING_BOARD)) {
