@@ -33,7 +33,7 @@ def run(label: str, command: list, cwd: Path, quiet: bool) -> bool:
     result = subprocess.run([sys.executable, *command], cwd=str(cwd), capture_output=True, text=True)
     ok = result.returncode == 0
     print(f"[{'PASS' if ok else 'FAIL'}] {label}" + ("" if ok else f"  (exit {result.returncode})"))
-    output = result.stdout + result.stderr
+    output = (result.stdout or "") + (result.stderr or "")
     if not ok:
         for line in [row for row in output.splitlines() if row.strip()][-8:]:
             print(f"        {line}")
