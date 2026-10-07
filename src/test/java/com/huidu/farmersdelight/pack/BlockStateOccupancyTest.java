@@ -4,13 +4,19 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -109,6 +115,56 @@ class BlockStateOccupancyTest {
             index = text.indexOf(needle, index + needle.length());
         }
         return count;
+    }
+
+    /**
+     * The retired self-written block item behavior has to stay gone: no class, no register call, no
+     * configuration entry, and every item behavior in the rope pack is CraftEngine's built-in block_item.
+     *
+     *
+     * The two probes are built by concatenation on purpose. The retired name is not supposed to exist in the
+     * repository's history either, and a plain literal here would put it back into `git log -S` the moment this
+     * test is committed. Do not "tidy" these strings into one piece; the split is the point.
+     */
+    @Test
+    void theRetiredBlockItemBehaviorIsStillGone() {
+        String retiredClass = "Substituting" + "BlockItemBehavior";
+        String retiredType = "substituting" + "_block_item";
+
+        assertThrows(ClassNotFoundException.class,
+                () -> Class.forName("com.huidu.farmersdelight.item.behavior." + retiredClass),
+                "the retired behavior class must not come back");
+
+        List<String> offenders = new ArrayList<>();
+        Path main = Path.of("src/main");
+        assertTrue(Files.isDirectory(main), "the test runs from the module directory: " + main.toAbsolutePath());
+        try (Stream<Path> files = Files.walk(main)) {
+            for (Path file : files.filter(Files::isRegularFile).toList()) {
+                String name = file.toString();
+                if (!name.endsWith(".java") && !name.endsWith(".yml") && !name.endsWith(".yaml")) {
+                    continue;
+                }
+                if (Files.readString(file).contains(retiredType)) {
+                    offenders.add(name);
+                }
+            }
+        } catch (IOException error) {
+            throw new AssertionError("cannot scan " + main, error);
+        }
+        assertEquals(List.of(), offenders, "nothing may register or declare the retired behavior type");
+
+        ConfigurationSection items = pack("rope.yml").getConfigurationSection("items");
+        assertNotNull(items, "rope.yml keeps its items section");
+        List<String> behaviorTypes = new ArrayList<>();
+        for (String item : items.getKeys(false)) {
+            String type = items.getString(item + ".behavior.type");
+            if (type != null) {
+                behaviorTypes.add(type);
+            }
+        }
+        assertFalse(behaviorTypes.isEmpty(), "rope.yml still declares the item behaviors this test guards");
+        assertEquals(List.of("block_item"), behaviorTypes.stream().distinct().toList(),
+                "every rope.yml item behavior is CraftEngine's built-in block_item");
     }
 
     private static String packText(String file) {
