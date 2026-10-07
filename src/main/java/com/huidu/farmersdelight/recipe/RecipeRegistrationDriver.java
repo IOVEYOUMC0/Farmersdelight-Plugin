@@ -33,8 +33,9 @@ public final class RecipeRegistrationDriver {
         PluginTask arm(Runnable tick);
     }
 
-    /** One owner's round and the tail that runs once that owner's last entry went through. */
-    private record OwnerRound(Object owner, RecipeRegistrationRound round, Runnable onDone) {
+    /** One owner's round, the tail that runs once that owner's last entry went through, and its watcher. */
+    private record OwnerRound(Object owner, RecipeRegistrationRound round, Runnable onDone,
+                              RecipePublicationWatch watch) {
     }
 
     private final TaskArm taskArm;
@@ -42,6 +43,9 @@ public final class RecipeRegistrationDriver {
     // progress are read from the reload command thread.
     private volatile List<OwnerRound> rounds = List.of();
     private volatile PluginTask task = PluginTask.NOOP;
+    // The pass a load call belongs to, while that call is running: the rounds it starts join this watch. Only
+    // touched on the recipe-state thread, the same thread the rounds and their tails run on.
+    private RecipePublicationWatch openWatch;
 
     public RecipeRegistrationDriver(TaskArm taskArm) {
         this.taskArm = Objects.requireNonNull(taskArm, "taskArm");
@@ -50,6 +54,26 @@ public final class RecipeRegistrationDriver {
     /** Whether any owner is still registering entries. */
     public boolean isRunning() {
         return !rounds.isEmpty();
+    }
+
+    /**
+     * Opens the window one readiness pass belongs to: every round started until the window closes joins the
+     * returned watch, which reports once all of them have published. A load whose files fit the budget publishes
+     * during that very call, so a continuation registered on the watch then runs in the same tick as before.
+     */
+    public RecipePublicationWatch beginPublicationWatch() {
+        RecipePublicationWatch watch = new RecipePublicationWatch();
+        this.openWatch = watch;
+        return watch;
+    }
+
+    /** Closes the window: no further round joins it, and a watch with nothing left to wait for settles. */
+    public void endPublicationWatch() {
+        RecipePublicationWatch watch = this.openWatch;
+        this.openWatch = null;
+        if (watch != null) {
+            watch.closeJoining();
+        }
     }
 
     /** i/N over the running rounds, or an empty string when there is none. */
@@ -76,7 +100,13 @@ public final class RecipeRegistrationDriver {
     public void start(Object owner, List<RecipeRegistrationRound.Segment> segments, int budget, Runnable onDone) {
         Objects.requireNonNull(owner, "owner");
         RecipeRegistrationRound fresh = new RecipeRegistrationRound(segments, budget);
-        OwnerRound queued = new OwnerRound(owner, fresh, onDone == null ? () -> { } : onDone);
+        RecipePublicationWatch watch = openWatch;
+        if (watch != null) {
+            // The round joins before the previous one for this owner is dropped, so a replacement never settles
+            // the pass before the round that replaces it has had its chance to publish.
+            watch.join();
+        }
+        OwnerRound queued = new OwnerRound(owner, fresh, onDone == null ? () -> { } : onDone, watch);
         this.rounds = queue(owner, queued);
         runInline(fresh);
         if (!fresh.isDone() && this.rounds.contains(queued) && this.task == PluginTask.NOOP) {
@@ -94,7 +124,9 @@ public final class RecipeRegistrationDriver {
         try {
             fresh.run();
         } catch (RuntimeException | Error error) {
-            // Loud failure: the round (and every other) is dropped so nothing half-registered keeps running.
+            // Loud failure: the round (and every other) is dropped so nothing half-registered keeps running, and
+            // every waiting pass is told that this run is not publishing rather than waiting for a later tick.
+            failWatches(error);
             dropAll();
             throw error;
         }
@@ -112,33 +144,55 @@ public final class RecipeRegistrationDriver {
                 entry.round().run();
             }
         } catch (RuntimeException | Error error) {
+            failWatches(error);
             dropAll();
             throw error;
         }
         retireFinished();
     }
 
-    /** Retires the rounds that finished, and runs their tails once the retired set is no longer visible. */
+    /** Tells every pass that still has a round in flight that this run failed and nothing more will publish. */
+    private void failWatches(Throwable error) {
+        for (OwnerRound entry : this.rounds) {
+            if (entry.watch() != null) {
+                entry.watch().failed(error);
+            }
+        }
+    }
+
+    /** Retires the rounds that finished, publishing each tail and reporting it to that round's pass. */
     private void retireFinished() {
         List<OwnerRound> current = this.rounds;
         List<OwnerRound> remaining = new ArrayList<>(current.size());
-        List<Runnable> tails = new ArrayList<>(0);
+        List<OwnerRound> finished = new ArrayList<>(0);
         for (OwnerRound entry : current) {
             if (entry.round().isDone()) {
-                tails.add(entry.onDone());
+                finished.add(entry);
             } else {
                 remaining.add(entry);
             }
         }
-        if (tails.isEmpty()) {
+        if (finished.isEmpty()) {
             return;
         }
         this.rounds = List.copyOf(remaining);
         if (remaining.isEmpty()) {
             stopTask();
         }
-        for (Runnable tail : tails) {
-            tail.run();
+        for (OwnerRound entry : finished) {
+            try {
+                // The tail is the publish: the pass only counts as published after this returns, and a tail
+                // that throws settles the pass as failed before the error keeps travelling outwards.
+                entry.onDone().run();
+            } catch (RuntimeException | Error error) {
+                if (entry.watch() != null) {
+                    entry.watch().failed(error);
+                }
+                throw error;
+            }
+            if (entry.watch() != null) {
+                entry.watch().published();
+            }
         }
     }
 
@@ -150,6 +204,9 @@ public final class RecipeRegistrationDriver {
         for (OwnerRound entry : current) {
             if (entry.owner() == owner) {
                 entry.round().cancel();
+                if (entry.watch() != null) {
+                    entry.watch().dropped();
+                }
                 updated.add(queued);
                 replaced = true;
             } else {
@@ -167,6 +224,9 @@ public final class RecipeRegistrationDriver {
         this.rounds = List.of();
         for (OwnerRound entry : current) {
             entry.round().cancel();
+            if (entry.watch() != null) {
+                entry.watch().dropped();
+            }
         }
         stopTask();
     }
