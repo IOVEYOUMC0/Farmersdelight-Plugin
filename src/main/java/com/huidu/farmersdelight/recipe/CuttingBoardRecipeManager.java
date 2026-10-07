@@ -209,6 +209,45 @@ public class CuttingBoardRecipeManager {
         }
         this.toolRequirements = List.copyOf(uniqueTools);
         this.resultToRecipes = buildResultIndex(newSorted);
+        invalidateRecipeCaches();
+    }
+
+    /**
+     * The structures one published generation holds. Capturing takes the references and restoring puts them
+     * back, so the set and the indexes derived from it always belong to the same generation.
+     */
+    public record PublishedState(Map<String, CuttingBoardRecipe> recipes,
+                                 int packRecipeCount,
+                                 List<CuttingBoardRecipe> sortedRecipes,
+                                 Map<String, Set<String>> byInputItemId,
+                                 Set<String> tagInputRecipeIds,
+                                 Map<String, List<CuttingBoardRecipe>> resultToRecipes,
+                                 List<CuttingBoardRecipe.ToolRequirement> toolRequirements) {
+    }
+
+    /** Captures the published generation before a pass replaces it, so a failed pass can be put back. */
+    public PublishedState capturePublished() {
+        return new PublishedState(recipes, packRecipeCount, sortedRecipes, byInputItemId, tagInputRecipeIds,
+                resultToRecipes, toolRequirements);
+    }
+
+    /**
+     * Puts a captured generation back after a pass failed instead of publishing it. The caches keyed on the
+     * recipe set are dropped too: going back to the earlier set is a change as far as they are concerned.
+     */
+    public void restorePublished(PublishedState state) {
+        this.recipes = state.recipes();
+        this.packRecipeCount = state.packRecipeCount();
+        this.sortedRecipes = state.sortedRecipes();
+        this.byInputItemId = state.byInputItemId();
+        this.tagInputRecipeIds = state.tagInputRecipeIds();
+        this.resultToRecipes = state.resultToRecipes();
+        this.toolRequirements = state.toolRequirements();
+        invalidateRecipeCaches();
+    }
+
+    /** Drops every cache keyed on the recipe set; a publish and a rollback both need it. */
+    private void invalidateRecipeCaches() {
         vanillaItemIdsByTagCache.clear();
         // Invalidate the recipe-list GUI display cache: this republish path (incl. addon register/
         // unregister) bypasses RecipeViewGui.clearConfigCache.

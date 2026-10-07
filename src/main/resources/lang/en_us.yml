@@ -112,6 +112,8 @@ console:
     gui_configuration_reloaded: "GUI configuration reloaded: {file}"
     language_files_reloaded: "Language files reloaded."
     recipe_files_reloaded: "Recipe files reloaded."
+    recipe_publication_failed: "Publishing the reloaded recipes failed; the previously published recipes stay active."
+    recipe_rollback_failed: "Undoing a failed recipe publication failed; a recipe component may be left on the reloaded files."
     advancement_data_reloaded: "Advancement data reloaded."
     tags_reloaded: "Tag configuration reloaded."
     gui_missing_defaults: "gui.yml is missing, using bundled defaults in memory until reload writes it back."

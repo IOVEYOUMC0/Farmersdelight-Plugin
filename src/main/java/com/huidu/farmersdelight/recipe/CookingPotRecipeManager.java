@@ -268,6 +268,55 @@ public class CookingPotRecipeManager {
         this.packRecipeCount = newPackRecipeCount;
         this.anyIngredientConstrainsNbt = newAnyIngredientConstrainsNbt;
 
+        invalidateRecipeCaches();
+    }
+
+    /**
+     * The structures one published generation holds. Capturing takes the references and restoring puts them
+     * back, and nothing in between mutates them, so a reader on any thread sees one whole generation at a time
+     * rather than a new set next to indexes built for the old one.
+     */
+    public record PublishedState(Map<String, CookingPotRecipe> recipes,
+                                 Map<String, Map<String, CookingPotRecipe>> customRecipes,
+                                 Map<String, Set<String>> ingredientToRecipes,
+                                 Map<String, Map<String, Set<String>>> customIngredientToRecipes,
+                                 List<CookingPotRecipe> sortedRecipes,
+                                 Map<String, List<CookingPotRecipe>> sortedCustomRecipes,
+                                 Map<String, List<CookingPotRecipe>> sortedCustomOnlyRecipes,
+                                 Map<String, List<CookingPotRecipe>> resultToRecipes,
+                                 Set<String> validContainerKeys,
+                                 int packRecipeCount,
+                                 boolean anyIngredientConstrainsNbt) {
+    }
+
+    /** Captures the published generation before a pass replaces it, so a failed pass can be put back. */
+    public PublishedState capturePublished() {
+        return new PublishedState(recipes, customRecipes, ingredientToRecipes, customIngredientToRecipes,
+                sortedRecipes, sortedCustomRecipes, sortedCustomOnlyRecipes, resultToRecipes, validContainerKeys,
+                packRecipeCount, anyIngredientConstrainsNbt);
+    }
+
+    /**
+     * Puts a captured generation back after a pass failed instead of publishing it. The caches keyed on the
+     * recipe set are dropped too: going back to the earlier set is a change as far as they are concerned.
+     */
+    public void restorePublished(PublishedState state) {
+        this.recipes = state.recipes();
+        this.customRecipes = state.customRecipes();
+        this.ingredientToRecipes = state.ingredientToRecipes();
+        this.customIngredientToRecipes = state.customIngredientToRecipes();
+        this.sortedRecipes = state.sortedRecipes();
+        this.sortedCustomRecipes = state.sortedCustomRecipes();
+        this.sortedCustomOnlyRecipes = state.sortedCustomOnlyRecipes();
+        this.resultToRecipes = state.resultToRecipes();
+        this.validContainerKeys = state.validContainerKeys();
+        this.packRecipeCount = state.packRecipeCount();
+        this.anyIngredientConstrainsNbt = state.anyIngredientConstrainsNbt();
+        invalidateRecipeCaches();
+    }
+
+    /** Drops every cache keyed on the recipe set; a publish and a rollback both need it. */
+    private void invalidateRecipeCaches() {
         vanillaItemIdsByTagCache.clear();
         synchronized (recipeCache) {
             recipeCache.clear();

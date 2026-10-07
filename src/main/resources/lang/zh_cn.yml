@@ -112,6 +112,8 @@ console:
     gui_configuration_reloaded: "GUI 配置已重新加载：{file}"
     language_files_reloaded: "语言文件已重新加载。"
     recipe_files_reloaded: "配方文件已重新加载。"
+    recipe_publication_failed: "重新加载的配方发布失败；仍在使用上一次成功发布的配方。"
+    recipe_rollback_failed: "回滚失败的配方发布时出错；可能有配方组件仍停留在刚重新加载的文件上。"
     advancement_data_reloaded: "进度数据已重新加载。"
     tags_reloaded: "标签配置已重新加载。"
     gui_missing_defaults: "gui.yml 缺失，暂时在内存中使用内置默认值，直到下次重载写回。"

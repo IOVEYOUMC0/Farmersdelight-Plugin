@@ -8,12 +8,19 @@ import com.huidu.farmersdelight.gui.CookingPotGui;
 import com.huidu.farmersdelight.gui.RecipeIngredientIcons;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.listener.RopeBlockListener;
+import com.huidu.farmersdelight.recipe.CookingPotRecipeManager;
+import com.huidu.farmersdelight.recipe.CuttingBoardRecipeManager;
+import com.huidu.farmersdelight.recipe.RecipeDiscoveryManager;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
+import com.huidu.farmersdelight.recipe.RecipePublicationRollback;
+import com.huidu.farmersdelight.recipe.RecipePublicationWatch;
 import com.huidu.farmersdelight.tool.ToolRegistry;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import org.bukkit.Bukkit;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
@@ -26,6 +33,9 @@ final class CraftEngineReadinessCoordinator {
     private final AtomicBoolean loadedChunkContentIndexStarted = new AtomicBoolean();
     private final AtomicBoolean contentWarmupCompleted = new AtomicBoolean();
     private final AtomicLong reloadGeneration = new AtomicLong();
+    // Bumped by every readiness pass. The work a pass runs once its recipes published compares against this:
+    // a pass that a newer one has overtaken leaves the newer pass's state alone instead of reporting on it.
+    private final AtomicLong readinessPassGeneration = new AtomicLong();
     private final AtomicBoolean contentSummaryRequested = new AtomicBoolean();
     private volatile boolean active = true;
     private PluginTask pendingReloadTask;
@@ -199,8 +209,15 @@ final class CraftEngineReadinessCoordinator {
             I18n.logDetail("startup", "plugin.craftengine_reload");
             plugin.refreshAfterCraftEngineReload();
             if (!contentWarmupCompleted.get()) {
-                loadRecipesWhenReady("plugin.refreshing_recipes_after_ce");
-                refreshAdvancementsWhenReady(false);
+                loadRecipesThenPublish("plugin.refreshing_recipes_after_ce",
+                        () -> refreshAdvancementsWhenReady(false),
+                        () -> {
+                            warmUpWhenReady("reload");
+                            indexLoadedChunkContentWhenReady();
+                            ToolRegistry.refresh();
+                            reportContentSummaryWhenReady();
+                        });
+                return;
             }
             // Outside the first-warm-up guard on purpose: refreshAfterCraftEngineReload just emptied the
             // item, sound and GUI caches this fills. Leaving it to the guard meant that after the first
@@ -266,17 +283,21 @@ final class CraftEngineReadinessCoordinator {
      * from disk a moment ago and have not changed.
      */
     private void runStartupReadinessWork() {
-        loadRecipesWhenReady("plugin.loading_recipes");
-        refreshAdvancementsWhenReady(false);
-        // Pet food, special recipes and the stove/skillet recipe caches are all read out of CraftEngine
-        // content, so the pass that first sees that content has to refresh them here.
-        plugin.refreshAfterCraftEngineReload();
-        // Explicit rather than left to warmUp's own gate, so an operator debugging start-up ordering can
-        // see whether this pass ran.
-        indexLoadedChunkContentWhenReady();
-        warmUp("enable");
-        ToolRegistry.refresh();
-        reportContentSummaryWhenReady();
+        loadRecipesThenPublish("plugin.loading_recipes",
+                () -> {
+                    refreshAdvancementsWhenReady(false);
+                    // Pet food, special recipes and the stove/skillet recipe caches are all read out of
+                    // CraftEngine content, so the pass that first sees that content has to refresh them here.
+                    plugin.refreshAfterCraftEngineReload();
+                    // Explicit rather than left to warmUp's own gate, so an operator debugging start-up
+                    // ordering can see whether this pass ran.
+                    indexLoadedChunkContentWhenReady();
+                },
+                () -> {
+                    warmUp("enable");
+                    ToolRegistry.refresh();
+                    reportContentSummaryWhenReady();
+                });
     }
 
     /**
@@ -284,12 +305,110 @@ final class CraftEngineReadinessCoordinator {
      * event path and its readiness retry cannot drift apart.
      */
     private void runDeferredReadinessWork() {
-        loadRecipesWhenReady("plugin.refreshing_recipes_after_ce");
-        refreshAdvancementsWhenReady(false);
-        warmUpWhenReady("enable");
-        indexLoadedChunkContentWhenReady();
-        ToolRegistry.refresh();
-        reportContentSummaryWhenReady();
+        loadRecipesThenPublish("plugin.refreshing_recipes_after_ce",
+                () -> refreshAdvancementsWhenReady(false),
+                () -> {
+                    warmUpWhenReady("enable");
+                    indexLoadedChunkContentWhenReady();
+                    ToolRegistry.refresh();
+                    reportContentSummaryWhenReady();
+                });
+    }
+
+    /**
+     * Loads the recipe managers and runs this pass's recipe-dependent work once their rounds have published.
+     *
+     *
+     * The managers register their sets across ticks, so the work that reads them — the warm-up with its
+     * ingredient icons and the recipe index, and the content summary with its counts — has to wait for the
+     * publication rather than run against the set of the previous pass. A load whose files fit the budget
+     * publishes during the call below and the work still runs in the same tick.
+     *
+     *
+     * A pass whose publication failed, or that a newer pass replaced, keeps the catalog published before it and
+     * skips the work entirely: a failure is reported, the captured sets are put back so no component stays on
+     * the new files alone, and nothing is ever read out of a set that is only half registered.
+     */
+    private void loadRecipesThenPublish(String logKey, Runnable contentWork, Runnable recipeWork) {
+        long pass = readinessPassGeneration.incrementAndGet();
+        RecipePublicationRollback rollback = captureRecipePublication();
+        RecipePublicationWatch watch = plugin.recipeRegistrations().beginPublicationWatch();
+        // Registered before the load runs: a registration that fails halfway has to report and roll back too,
+        // and the watch cannot settle before the window closes below, so the order of the work is unchanged.
+        watch.whenPublished(outcome -> {
+            try {
+                onRecipesPublished(pass, outcome, rollback, contentWork, recipeWork);
+            } catch (RuntimeException | LinkageError error) {
+                plugin.getLogger().log(Level.SEVERE,
+                        "Error during CraftEngine reload processing in " + plugin.getClass().getSimpleName(), error);
+            }
+        });
+        try {
+            loadRecipesWhenReady(logKey);
+        } finally {
+            plugin.recipeRegistrations().endPublicationWatch();
+        }
+    }
+
+    /**
+     * Runs this pass's work once its recipes published, or puts the captured sets back when they did not.
+     *
+     *
+     * Work that reads recipe state waits for the publication; work that only reads CraftEngine content runs
+     * here as well, so one pass never leaves a step running against a set another step is replacing. A pass a
+     * newer one has overtaken does neither, and a pass that failed rolls back and reports instead of touching
+     * recipe state at all.
+     */
+    private void onRecipesPublished(long pass, RecipePublicationWatch.Outcome outcome,
+                                    RecipePublicationRollback rollback, Runnable contentWork, Runnable recipeWork) {
+        if (!active || pass != readinessPassGeneration.get()) {
+            return;
+        }
+        if (!outcome.published()) {
+            for (Throwable restoreFailure : rollback.restore()) {
+                plugin.getLogger().log(Level.WARNING,
+                        I18n.formatConsole("plugin.recipe_rollback_failed"), restoreFailure);
+            }
+            if (outcome.failure() != null) {
+                plugin.getLogger().log(Level.WARNING,
+                        I18n.formatConsole("plugin.recipe_publication_failed"), outcome.failure());
+            }
+            return;
+        }
+        if (contentWork != null) {
+            contentWork.run();
+        }
+        recipeWork.run();
+    }
+
+    /**
+     * Captures what a failed pass has to put back: the pot and the cutting board sets, and the indexes derived
+     * from them.
+     *
+     *
+     * The derived indexes are not captured: they are rebuilt from the managers, so putting the managers back
+     * and asking for a refresh restores them. That refresh runs last, after the sets it reads are in place.
+     */
+    private RecipePublicationRollback captureRecipePublication() {
+        List<Runnable> restores = new ArrayList<>(3);
+        CookingPotRecipeManager pot = plugin.getCookingPotRecipes();
+        if (pot != null) {
+            CookingPotRecipeManager.PublishedState before = pot.capturePublished();
+            restores.add(() -> pot.restorePublished(before));
+        }
+        CuttingBoardRecipeManager board = plugin.getCuttingBoardRecipes();
+        if (board != null) {
+            CuttingBoardRecipeManager.PublishedState before = board.capturePublished();
+            restores.add(() -> board.restorePublished(before));
+        }
+        restores.add(() -> {
+            RecipeDiscoveryManager discovery = plugin.getRecipeDiscoveryManager();
+            if (discovery != null) {
+                discovery.invalidateIndex();
+            }
+            FarmersDelightApi.get().refreshRecipeIndex();
+        });
+        return new RecipePublicationRollback(restores);
     }
 
     private void warmUp(String reason) {
