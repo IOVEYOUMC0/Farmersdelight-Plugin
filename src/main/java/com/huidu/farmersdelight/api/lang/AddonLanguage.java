@@ -18,6 +18,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 /**
@@ -34,6 +35,7 @@ public final class AddonLanguage {
     private static final Pattern LOCALE_PATTERN = Pattern.compile("^[a-z]{2}(_[a-z]{2})?$");
     private static final String ENGLISH = "en_us";
     private static final String[] DEFAULT_LANGUAGES = {"zh_cn", "en_us"};
+    private static final Map<String, AddonLanguage> INSTALLED = new ConcurrentHashMap<>();
 
     private final JavaPlugin plugin;
     private final String keyPrefix;
@@ -49,6 +51,48 @@ public final class AddonLanguage {
         this.plugin = plugin;
         this.keyPrefix = keyPrefix;
         this.fallback = fallback;
+    }
+
+    /**
+     * Installs an addon's language files under its key prefix and remembers the instance, so an addon does
+     * not need a static holder of its own. Installing a prefix again replaces the previous instance, which is
+     * what an addon's reload does.
+     */
+    public static AddonLanguage install(JavaPlugin plugin, String keyPrefix) {
+        AddonLanguage created = new AddonLanguage(plugin, keyPrefix);
+        created.init();
+        return register(keyPrefix, created);
+    }
+
+    /**
+     * The instance installed under this prefix, or null when nothing installed one. Several addons load one
+     * shared copy of this class, so the prefix is what keeps their language files apart.
+     */
+    public static AddonLanguage of(String keyPrefix) {
+        return keyPrefix == null ? null : INSTALLED.get(keyPrefix);
+    }
+
+    /** Text of the addon installed under this prefix; the key itself while nothing is installed. */
+    public static String text(String keyPrefix, String key, Object... args) {
+        AddonLanguage installed = of(keyPrefix);
+        return installed == null ? key : installed.get(key, args);
+    }
+
+    /** Re-reads the installed addon's language files; a no-op while nothing is installed. */
+    public static void reload(String keyPrefix) {
+        AddonLanguage installed = of(keyPrefix);
+        if (installed != null) {
+            installed.reload();
+        }
+    }
+
+    static AddonLanguage register(String keyPrefix, AddonLanguage language) {
+        INSTALLED.put(keyPrefix, language);
+        return language;
+    }
+
+    static void clearInstalled() {
+        INSTALLED.clear();
     }
 
     /**
