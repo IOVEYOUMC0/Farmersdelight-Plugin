@@ -99,8 +99,22 @@ final class HandheldCookingDisplay extends ChannelOutboundHandlerAdapter {
     }
 
     private boolean matches(Object item) {
-        return ItemStackProxy.INSTANCE.getCount(item) == 1
-                && ItemStackProxy.INSTANCE.isSameItemSameComponents(original, item);
+        return matchesRealStack(ItemStackProxy.INSTANCE.getCount(item),
+                ItemStackProxy.INSTANCE.isSameItemSameComponents(original, item));
+    }
+
+    /**
+     * Whether an outgoing item for this slot is the real stack the display was opened for: any count, as long as
+     * it is not empty and is still the same item with the same components.
+     *
+     * Requiring exactly one item looked harmless because the handheld skillet is always a single item, but the
+     * skewer cooks one item out of a stack: for two or more the rewrite went inert, the client kept the server's
+     * own inventory sync next to the display copy, and the bar flickered for exactly those stacks while a single
+     * skewer was steady. An empty stack still never matches, so the display copy cannot resurrect a cleared slot,
+     * and a different item still never matches.
+     */
+    static boolean matchesRealStack(int itemCount, boolean sameItemAndComponents) {
+        return itemCount > 0 && sameItemAndComponents;
     }
 
     private Object copyDisplay() {
