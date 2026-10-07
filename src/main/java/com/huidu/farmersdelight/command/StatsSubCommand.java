@@ -8,6 +8,7 @@ import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.manager.PerformanceMonitor;
 import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.util.BlockPosKey;
+import com.huidu.farmersdelight.util.scheduler.AsyncSnapshot;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import com.huidu.farmersdelight.visual.ProxyItemDisplayManager;
 import org.bukkit.Bukkit;
@@ -101,6 +102,7 @@ final class StatsSubCommand extends SubCommand {
         }
         sendPerformanceSnapshot(player, snapshot);
         appendProxyDisplayStats(player);
+        appendAsyncPoolStats(player);
         sendEnabledAddons(player);
         // List each registered addon as a clickable name that drills into /fd stats addon <name>;
         // each addon's own status lines are shown only on demand to keep the overview readable.
@@ -172,6 +174,16 @@ final class StatsSubCommand extends SubCommand {
         for (String line : proxy.debugStats()) {
             player.sendMessage(I18n.getComponent("command.stats_proxy_line", player, Map.of("line", line)));
         }
+    }
+
+    private void appendAsyncPoolStats(Player player) {
+        AsyncSnapshot pool = plugin.scheduler().asyncSnapshot();
+        player.sendMessage(I18n.getComponent("command.stats_async_pool", player, Map.of(
+                "submitted", String.valueOf(pool.submitted()),
+                "completed", String.valueOf(pool.completed()),
+                "rejected", String.valueOf(pool.rejected()),
+                "inFlight", String.valueOf(pool.inFlight()),
+                "queued", String.valueOf(pool.queueDepth()))));
     }
 
     private void profile(Player player, String[] args) {

@@ -13,7 +13,6 @@ import java.lang.reflect.Modifier;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -30,6 +29,7 @@ public final class SchedulerAdapter implements RegionDispatcher {
     private final FarmersDelightPlugin plugin;
     private final boolean folia;
     private final ThreadPoolExecutor asyncExecutor;
+    private final AsyncPoolMetrics asyncMetrics = new AsyncPoolMetrics();
     private final BlockedThreadDump stalledPoolDump;
 
     public SchedulerAdapter(FarmersDelightPlugin plugin) {
@@ -174,7 +174,7 @@ public final class SchedulerAdapter implements RegionDispatcher {
      *         down; the task did not run, so the caller still owns whatever it was going to flush
      */
     public void runAsync(Runnable task) {
-        asyncExecutor.execute(Objects.requireNonNull(task, "task"));
+        asyncMetrics.submit(asyncExecutor, task);
     }
 
     /**
@@ -183,12 +183,12 @@ public final class SchedulerAdapter implements RegionDispatcher {
      * @return false when the task was refused and therefore never ran
      */
     public boolean tryRunAsync(Runnable task) {
-        try {
-            asyncExecutor.execute(Objects.requireNonNull(task, "task"));
-            return true;
-        } catch (RejectedExecutionException refused) {
-            return false;
-        }
+        return asyncMetrics.trySubmit(asyncExecutor, task);
+    }
+
+    /** One reading of the async pool's counters, for the runtime statistics screen. */
+    public AsyncSnapshot asyncSnapshot() {
+        return asyncMetrics.snapshot(asyncExecutor);
     }
 
     public void shutdown() {
@@ -203,6 +203,7 @@ public final class SchedulerAdapter implements RegionDispatcher {
     public void shutdown(ShutdownBudget budget) {
         if (budget != null) {
             budget.awaitTermination("farmersdelight async pool", asyncExecutor);
+            asyncMetrics.accountTerminated(asyncExecutor);
             return;
         }
         asyncExecutor.shutdown();
@@ -210,11 +211,11 @@ public final class SchedulerAdapter implements RegionDispatcher {
             if (!asyncExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
                 // Recorded before the force-cancel below, while the stuck work is still on its stack.
                 stalledPoolDump.report("async pool did not drain within 10 seconds");
-                asyncExecutor.shutdownNow();
+                asyncMetrics.forcedShutdown(asyncExecutor);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            asyncExecutor.shutdownNow();
+            asyncMetrics.forcedShutdown(asyncExecutor);
         }
     }
 

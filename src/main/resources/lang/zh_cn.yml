@@ -419,6 +419,7 @@ command:
   stats_addon_title: "{prefix}<gray>附属统计</gray> <white>{name}</white>"
   stats_addon_line: "<dark_gray>- </dark_gray><white>{line}</white>"
   stats_proxy_line: "<gray>[proxy-display]</gray> <white>{line}</white>"
+  stats_async_pool: "<gray>异步池</gray> <white>{inFlight}</white> <gray>在途 · 等待 {queued} · 已提交 {submitted} · 已完成 {completed} · 被拒 {rejected}</gray>"
   stats_tickmanager_unavailable: "<red>TickManager 当前不可用。"
   stats_profile_invalid_ticks: "<red>采样时长必须是整数。"
   stats_usage_status: "<yellow>/fd stats</yellow> <gray>- 查看当前计数与附属列表</gray>"
