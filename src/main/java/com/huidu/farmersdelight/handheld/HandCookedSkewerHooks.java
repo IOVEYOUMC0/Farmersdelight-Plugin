@@ -18,6 +18,10 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCreativeEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
@@ -827,6 +831,48 @@ public final class HandCookedSkewerHooks implements Listener {
         if (event.getEntity() instanceof Player player) {
             cancel(player);
         }
+    }
+
+    /**
+     * Opening any inventory: the display is client-only, but the server also rewrites the held slot inside the
+     * player's own inventory menu, so the open window would show the fake bar. The rewriter is dropped and the
+     * real slot is resent before the window is used, exactly like the handheld skillet does.
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onInventoryOpen(InventoryOpenEvent event) {
+        if (event.getPlayer() instanceof Player player) {
+            cancel(player);
+        }
+    }
+
+    /** Clicking in an inventory: the click carries whatever the client believes the slot holds. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (event.getWhoClicked() instanceof Player player) {
+            cancel(player);
+        }
+    }
+
+    /** Dragging across slots: the same client-side belief, over several slots at once. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (event.getWhoClicked() instanceof Player player) {
+            cancel(player);
+        }
+    }
+
+    /**
+     * A creative set-slot packet carries the stack the client is holding, display-only damage and all, and the
+     * server would store it as it is. Refuse that packet while a skewer session is cooking, then take the bar
+     * down so the next window shows the real item; the handheld skillet refuses it the same way.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onInventoryCreative(InventoryCreativeEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player) || !isCooking(player.getUniqueId())) {
+            return;
+        }
+        event.setCancelled(true);
+        cancel(player);
     }
 
     /**

@@ -527,8 +527,10 @@ class HandCookedSkewerHooksTest {
         Path source = locateHooksSource();
         assertNotNull(source, "the handler source has to be reachable from the test working directory");
         String code = Files.readString(source);
-        assertEquals(1, code.split("setCancelled\\(", -1).length - 1,
-                "exactly one cancel: the click a session was started or confirmed for");
+        // Two cancels exist and both are guarded: the accepted click that owns the vanilla use, and the
+        // creative set-slot packet that would otherwise store the display-only damage. Nothing else may cancel.
+        assertEquals(2, code.split("setCancelled\\(", -1).length - 1,
+                "only the owned click and the creative-packet guard may cancel an event");
         assertFalse(code.contains("cancelVanilla"), "and never a cancel callback");
 
         String interact = methodBody(code, "public void onInteract(PlayerInteractEvent event)");
@@ -537,6 +539,14 @@ class HandCookedSkewerHooksTest {
         int cancel = interact.indexOf("setCancelled(true)");
         assertTrue(start > 0 && refused > start && cancel > refused,
                 "the cancel has to sit behind the refused-clicks-return guard");
+        assertFalse(interact.substring(0, cancel).contains("setCancelled("),
+                "and the click handler cancels nothing before that guard");
+
+        String creative = methodBody(code, "public void onInventoryCreative(InventoryCreativeEvent event)");
+        int cooking = creative.indexOf("isCooking(player.getUniqueId())");
+        int refuse = creative.indexOf("setCancelled(true)");
+        assertTrue(cooking > 0 && refuse > cooking,
+                "the creative refusal has to sit behind the cooking guard");
     }
 
     /**
