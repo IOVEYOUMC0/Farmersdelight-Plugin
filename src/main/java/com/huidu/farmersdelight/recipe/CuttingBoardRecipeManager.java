@@ -115,6 +115,17 @@ public class CuttingBoardRecipeManager {
                 () -> publishLoadedSet(pending));
     }
 
+    /** The plugin's own file parses under this source; every pack section passes its own. */
+    private static final String OWN_FILE_SOURCE = "recipes/cutting_board_recipes.yml";
+
+    private final ParsedRecipeCache<CuttingBoardRecipe> parseCache = new ParsedRecipeCache<>();
+
+    /** One entry's parse, reused while the content generation and the entry's own values are unchanged. */
+    private CuttingBoardRecipe parseCached(String source, String recipeId, ConfigurationSection section) {
+        return parseCache.parse(RecipeContentEpoch.current(), source, recipeId,
+                String.valueOf(section.getValues(true)), () -> parseRecipe(recipeId, section));
+    }
+
     /**
      * The buffers one reload round fills before anything is published: the entries the round has registered so
      * far and the pack ids among them. A replaced round is dropped together with its buffers, so a superseded
@@ -132,7 +143,7 @@ public class CuttingBoardRecipeManager {
         }
 
         private void putOwnFile(String recipeId, ConfigurationSection section) {
-            recipes.put(recipeId, parseRecipe(recipeId, section));
+            recipes.put(recipeId, parseCached(OWN_FILE_SOURCE, recipeId, section));
         }
 
         private void putPackFile(String recipeId, ConfigurationSection section, String source) {
@@ -140,7 +151,7 @@ public class CuttingBoardRecipeManager {
                 I18n.logWarning("recipe.pack_duplicate_skipped", "id", recipeId, "source", source);
                 return;
             }
-            recipes.put(recipeId, parseRecipe(recipeId, section));
+            recipes.put(recipeId, parseCached(source, recipeId, section));
             packIds.add(recipeId);
         }
     }

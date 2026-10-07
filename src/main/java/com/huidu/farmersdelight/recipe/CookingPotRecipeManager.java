@@ -131,7 +131,7 @@ public class CookingPotRecipeManager {
         if (ownFile != null) {
             segments.add(ownFile);
         }
-        pending.loadCustom(config);
+        pending.loadCustom(OWN_FILE_SOURCE, config);
 
         // Recipes a CraftEngine pack declares under cooking_recipes. Queued after the plugin's own file so a
         // pack can never silently replace a built-in recipe; the runtime registrations are merged in the publish
@@ -146,12 +146,24 @@ public class CookingPotRecipeManager {
             if (pack != null) {
                 segments.add(pack);
             }
-            pending.loadCustom(packSection.yaml());
+            pending.loadCustom(packSection.source(), packSection.yaml());
         }
 
         plugin.recipeRegistrations().start(this, segments,
                 RecipeRegistrationBudget.forLoad(recipes.size(), plugin.recipeRegistrationBudget()),
                 () -> publishLoadedSet(pending));
+    }
+
+    /** The plugin's own file parses under this source; every pack section passes its own. */
+    private static final String OWN_FILE_SOURCE = "recipes/cooking_pot_recipes.yml";
+
+    private final ParsedRecipeCache<CookingPotRecipe> parseCache = new ParsedRecipeCache<>();
+
+    /** One entry's parse, reused while the content generation and the entry's own values are unchanged. */
+    private CookingPotRecipe parseCached(String source, String recipeId, ConfigurationSection section,
+                                         int maxIngredients) {
+        return parseCache.parse(RecipeContentEpoch.current(), source, recipeId,
+                String.valueOf(section.getValues(true)), () -> parseRecipe(recipeId, section, maxIngredients));
     }
 
     /**
@@ -178,7 +190,7 @@ public class CookingPotRecipeManager {
         }
 
         private void putOwnFile(String recipeId, ConfigurationSection section) {
-            CookingPotRecipe recipe = parseRecipe(recipeId, section, 6);
+            CookingPotRecipe recipe = parseCached(OWN_FILE_SOURCE, recipeId, section, 6);
             recipes.put(recipeId, recipe);
             indexDefaultRecipe(ingredientToRecipes, recipeId, recipe);
             indexContainer(validContainerKeys, recipe);
@@ -192,7 +204,7 @@ public class CookingPotRecipeManager {
                 I18n.logWarning("recipe.pack_duplicate_skipped", "id", recipeId, "source", source);
                 return;
             }
-            CookingPotRecipe recipe = parseRecipe(recipeId, section, 6);
+            CookingPotRecipe recipe = parseCached(source, recipeId, section, 6);
             recipes.put(recipeId, recipe);
             packIds.add(recipeId);
             indexDefaultRecipe(ingredientToRecipes, recipeId, recipe);
@@ -202,8 +214,9 @@ public class CookingPotRecipeManager {
             }
         }
 
-        private void loadCustom(YamlConfiguration yaml) {
-            loadCustomRecipes(yaml, customRecipes, customIngredientToRecipes, validContainerKeys, inferredContainers);
+        private void loadCustom(String source, YamlConfiguration yaml) {
+            loadCustomRecipes(source, yaml, customRecipes, customIngredientToRecipes, validContainerKeys,
+                    inferredContainers);
         }
     }
 
@@ -331,7 +344,7 @@ public class CookingPotRecipeManager {
         RecipeItemCodec.clearDecodeCache();
     }
 
-    private void loadCustomRecipes(YamlConfiguration config,
+    private void loadCustomRecipes(String source, YamlConfiguration config,
                                    Map<String, Map<String, CookingPotRecipe>> targetCustomRecipes,
                                    Map<String, Map<String, Set<String>>> targetCustomIndex,
                                    Set<String> targetContainerKeys,
@@ -360,7 +373,7 @@ public class CookingPotRecipeManager {
                     continue;
                 }
                 try {
-                    CookingPotRecipe recipe = parseRecipe(recipeId, section, 54);
+                    CookingPotRecipe recipe = parseCached(source, recipeId, section, 54);
                     groupRecipes.put(recipeId, recipe);
                     indexCustomRecipe(targetCustomIndex, groupId, recipeId, recipe);
                     indexContainer(targetContainerKeys, recipe);
