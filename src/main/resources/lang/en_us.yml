@@ -419,6 +419,7 @@ command:
   stats_addon_title: "{prefix}<gray>Addon stats</gray> <white>{name}</white>"
   stats_addon_line: "<dark_gray>- </dark_gray><white>{line}</white>"
   stats_proxy_line: "<gray>[proxy-display]</gray> <white>{line}</white>"
+  stats_async_pool: "<gray>Async pool</gray> <white>{inFlight}</white> <gray>in flight · {queued} waiting · submitted {submitted} · completed {completed} · refused {rejected}</gray>"
   stats_tickmanager_unavailable: "<red>TickManager is not available."
   stats_profile_invalid_ticks: "<red>Profile ticks must be a whole number."
   stats_usage_status: "<yellow>/fd stats</yellow> <gray>- show current counters and addon list</gray>"
