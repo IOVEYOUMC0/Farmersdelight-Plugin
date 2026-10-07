@@ -30,7 +30,7 @@ public final class BlockedThreadDump {
     /** At most this many threads appear in one dump. */
     public static final int MAX_THREADS = 32;
 
-    /** Frames kept per thread by {@link #toLogger(Logger)}; {@link #render} takes the cap as an argument. */
+    /** Frames kept per thread by toLogger(Logger); render takes the cap as an argument. */
     public static final int MAX_FRAMES = 8;
 
     private static final String OWN_PACKAGE = "com.huidu.farmersdelight";

@@ -17,10 +17,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The four pie slices are items, so their display name has to live on an {@code item.farmersdelight.*} key in
+ * The four pie slices are items, so their display name has to live on an item.farmersdelight.* key in
  * both carriers (the client resource-pack language files and the CraftEngine pack translations). The block
  * prefix would work by accident but splits the same name over two key sets, so this test pins the item prefix
- * and the absence of any {@code block.*} leftovers.
+ * and the absence of any block.* leftovers.
  */
 class PieSliceNameKeysTest {
 

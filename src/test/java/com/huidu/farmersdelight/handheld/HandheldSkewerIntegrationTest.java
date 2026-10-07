@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * CampfireSkewerResults -> CampfireRecipeCache.find, which reads Bukkit campfire recipes), so the addon needs
  * no FarmersDelight API and FarmersDelight ships no addon id at all.
  *
- * <p>Removing a campfire recipe (or changing its result) turns the first case red; hardcoding an addon id in
+ * Removing a campfire recipe (or changing its result) turns the first case red; hardcoding an addon id in
  * FarmersDelight turns the second one red.
  */
 class HandheldSkewerIntegrationTest {
