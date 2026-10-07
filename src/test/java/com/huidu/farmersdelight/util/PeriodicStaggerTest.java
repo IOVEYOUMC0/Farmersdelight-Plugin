@@ -50,9 +50,11 @@ class PeriodicStaggerTest {
 
     @Test
     void theSpreadIsEvenAndDeterministic() {
-        assertEquals(0L, PeriodicStagger.initialDelay("display-cull", SHARED_PERIOD));
-        assertEquals(6L, PeriodicStagger.initialDelay("tick-cleanup", SHARED_PERIOD));
-        assertEquals(13L, PeriodicStagger.initialDelay("display-sync", SHARED_PERIOD));
+        assertEquals(0L, PeriodicStagger.initialDelay("tick-cleanup", SHARED_PERIOD));
+        assertEquals(10L, PeriodicStagger.initialDelay("display-sync", SHARED_PERIOD));
+        assertThrows(IllegalArgumentException.class,
+                () -> PeriodicStagger.initialDelay("display-cull", SHARED_PERIOD),
+                "the removed culling slot must not come back");
         assertEquals(PeriodicStagger.initialDelay("display-sync", SHARED_PERIOD),
                 PeriodicStagger.initialDelay("display-sync", SHARED_PERIOD), "no randomness");
     }
@@ -61,12 +63,12 @@ class PeriodicStaggerTest {
     void theStaggeredSitesTakeThePhasesOfTheirOwnPeriod() {
         long cleanup = PeriodicStagger.initialDelay("tick-cleanup", 6000L);
         long sync = PeriodicStagger.initialDelay("display-sync", 20L);
-        assertEquals(2000L, cleanup, "the cleanup pass keeps its 6000 tick period and starts one third in");
-        assertEquals(13L, sync, "the display sync keeps its 20 tick period and starts two thirds in");
+        assertEquals(0L, cleanup, "the cleanup pass keeps its 6000 tick period and starts immediately");
+        assertEquals(10L, sync, "the display sync keeps its 20 tick period and starts halfway in");
         assertEquals(2, Set.of(cleanup, sync).size(),
                 "two sites on two different ticks: " + List.of(cleanup, sync));
-        assertEquals(6000L * 1L / 3L, cleanup, "phase one of three");
-        assertEquals(20L * 2L / 3L, sync, "phase two of three");
+        assertEquals(6000L * 0L / 2L, cleanup, "phase one of two");
+        assertEquals(20L * 1L / 2L, sync, "phase two of two");
         Set<Long> firstTicks = new HashSet<>();
         firstTicks.add(PeriodicStagger.firstTick("tick-cleanup", 6000L));
         firstTicks.add(PeriodicStagger.firstTick("display-sync", 20L));
@@ -91,10 +93,6 @@ class PeriodicStaggerTest {
         assertTrue(flat("visual/ProxyItemDisplayManager.java").contains("runRepeating(this::syncAll,"
                         + " PeriodicStagger.initialDelay(\"display-sync\", syncIntervalTicks), syncIntervalTicks)"),
                 "the display sync has to reach its first tick through its own slot and keep its period");
-        assertTrue(flat("visual/RealDisplayCuller.java")
-                        .contains("PeriodicStagger.initialDelay(\"display-cull\", DEFAULT_INTERVAL_TICKS),"
-                                + " DEFAULT_INTERVAL_TICKS)"),
-                "the culling pass stays on the first slot, the one that keeps its immediate start");
     }
 
     @Test

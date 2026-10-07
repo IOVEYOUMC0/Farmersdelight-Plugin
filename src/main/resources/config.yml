@@ -253,31 +253,12 @@ performance:
     # countdown and the bossbar push. Higher = smoother CPU under many buffed
     # players at the cost of bar smoothness; durations self-correct since they decrement by this interval.
     effect-tick-interval-ticks: 4
-    # Max displays one player's culling pass examines: the displays that player already shows plus the
-    # first sightings inside the pass's window. The refresh walks a rotating cursor, so a budget below the
-    # number of displays a player sees delays an update to a later pass instead of dropping it. Raise it
-    # for quicker reactions, lower it to cap the per-pass cost tighter.
-    display-cull-checks-per-player: 64
-
   # Display visibility: how far proxy item displays stay visible and how often their near/far state is
   # refreshed.
   proxy-display:
     view-distance: 64.0
     sync-interval-ticks: 20
     sync-batch-size: 256
-    # Per-display-type culling for the BlockDisplays that restore a vanilla carrier block. The key is the
-    # block id of the carrier whose model the display draws. entity-culling: false turns culling off for
-    # that type: no pass ever hides it, and a viewer that was hidden before the rule changed is given its
-    # range back once. A type that has no entry here, and a type whose entry leaves view-distance out,
-    # use view-distance above.
-    display-culling:
-      minecraft:mangrove_fence:
-        entity-culling: true
-        view-distance: 64.0
-      minecraft:mangrove_fence_gate:
-        entity-culling: true
-        view-distance: 64.0
-
 
 # Master switch for the vanilla container bridge between hoppers and plugin blocks.
 # When enabled=false, the hopper container bridge for plugin blocks is fully disabled, avoiding hoppers eating items, duplicate container creation or write errors.
