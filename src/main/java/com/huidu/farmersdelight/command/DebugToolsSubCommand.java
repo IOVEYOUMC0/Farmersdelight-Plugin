@@ -54,7 +54,7 @@ final class DebugToolsSubCommand extends SubCommand {
                     ? ite.getCause() : e;
             logger.warning("Debug tools execution failed: " + cause);
             cause.printStackTrace();
-            sender.sendMessage(MINI.deserialize("<red>Debug tools are not available in this build.</red>"));
+            sender.sendMessage(I18n.getComponent("command.debug_tools_failed"));
         }
     }
 

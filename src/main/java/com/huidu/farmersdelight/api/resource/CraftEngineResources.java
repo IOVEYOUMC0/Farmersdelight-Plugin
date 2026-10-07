@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.api.resource;
 
 import com.huidu.farmersdelight.api.FarmersDelightApi;
+import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.IOException;
@@ -59,8 +60,8 @@ public final class CraftEngineResources {
             }
             return changed;
         } catch (Exception e) {
-            plugin.getLogger().warning("Failed to release CraftEngine resources for " + namespace + ": "
-                    + e.getMessage());
+            I18n.logWarning("plugin.craftengine_release_failed", "namespace", namespace,
+                    "error", e.getMessage());
             return 0;
         }
     }

@@ -1,5 +1,7 @@
 package com.huidu.farmersdelight.api.config;
 
+import com.huidu.farmersdelight.i18n.I18n;
+
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -84,9 +86,8 @@ public final class ConfigFileUpdater {
         }
         ConfigUpdateReport report = applyTo(bundled, plugin.getConfig(), policy);
         if (report.downgraded()) {
-            plugin.getLogger().warning("config.yml declares config-version " + report.fromVersion()
-                    + " but this build ships " + report.toVersion()
-                    + "; it was written by a newer version. Leaving it untouched.");
+            I18n.logWarning("plugin.config_version_downgraded", "from", report.fromVersion(),
+                    "to", report.toVersion());
             return report;
         }
         if (!report.changed()) {
