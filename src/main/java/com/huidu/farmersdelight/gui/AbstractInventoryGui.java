@@ -17,16 +17,19 @@ public abstract class AbstractInventoryGui implements InventoryHolder {
     // own region. Batch close loops (reload, block break) run on whatever thread triggered them, so
     // every such loop routes through here instead of calling closeInventory directly.
     protected static void closeViewerInventory(Player player) {
+        closeViewerInventory(player, null);
+    }
+
+    protected static void closeViewerInventory(Player player, Inventory expected) {
         if (player == null) {
             return;
         }
         try {
-            player.getScheduler().run(FarmersDelightPlugin.getInstance(), t -> player.closeInventory(), null);
-        } catch (Throwable t) {
-            try {
-                player.closeInventory();
-            } catch (Throwable ignored) {
-            }
+            player.getScheduler().run(FarmersDelightPlugin.getInstance(), t -> {
+                if (expected == null || player.getOpenInventory().getTopInventory() == expected) player.closeInventory();
+            }, null);
+        } catch (RuntimeException rejected) {
+            // A rejected entity task cannot safely be retried on the calling region.
         }
     }
 

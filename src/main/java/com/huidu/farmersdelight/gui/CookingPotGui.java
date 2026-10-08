@@ -101,16 +101,12 @@ public class CookingPotGui extends AbstractInventoryGui {
     private int cachedRemainingSeconds = -1;
     private final Map<Integer, ItemStack> cachedDisplayItems = new HashMap<>();
     private ItemStack cachedPendingContainer;
-    private boolean syncQueued;
     // Inventory version seen at last input-slot rescan; skip rescan if unchanged.
     private long lastSeenInventoryVersion = Long.MIN_VALUE;
     // Tracks which writable GUI slots have been mutated by a click/drag handler since the last
     // syncToBlockEntity. Sync only writes back these slots — so an unchanged GUI slot can't clobber
     // a concurrent cook tick that mutated the corresponding entity slot in the same window
     // (multi-viewer dup vector).
-    // Slots are added from the viewer's click region; syncToBlockEntity iterates and clears them on the
-    // pot's region during a break-triggered close. A concurrent set keeps that cross-region access from
-    // corrupting the backing table or throwing under iteration.
     private final Set<Integer> dirtyWritableSlots = ConcurrentHashMap.newKeySet();
 
     public CookingPotGui(FarmersDelightPlugin plugin, CookingPotBlockEntity blockEntity,
@@ -167,16 +163,14 @@ public class CookingPotGui extends AbstractInventoryGui {
     public void open(Player player) {
         this.player = player;
         this.playerId = player.getUniqueId();
+        if (!potRegion().isOwned(potLocation())) return;
         doOpen(this::refreshInventory);
     }
 
     private void tick() {
-        if (closed) return;
+        if (closed || !ensureOwner()) return;
 
-        // The tick callback runs on the VIEWER's region/entity thread (GuiTickManager uses
-        // runForEntity). Reading the pot block here would be cross-region access on Folia,
-        // so dispatch the heat-source block read to the pot's own region; the result is stored
-        // on the thread-safe block entity and consumed by updateDisplayItems below or the next tick.
+        // The player must still share the pot's owner before world or inventory access.
         refreshHeatStateOnRegion();
 
         blockEntity.tryMovePendingToOutput();
@@ -187,7 +181,7 @@ public class CookingPotGui extends AbstractInventoryGui {
         if (world == null || blockBehavior == null) {
             return;
         }
-        plugin.scheduler().runAt(cookingPotLocation, () -> {
+        potRegion().runAt(potLocation(), () -> {
             if (!closed && world != null && blockBehavior != null) {
                 blockEntity.setHasHeatSource(blockBehavior.checkHeatSource(blockEntity.getPos(), world));
             }
@@ -332,13 +326,10 @@ public class CookingPotGui extends AbstractInventoryGui {
     }
 
     private void updateDisplayItems() {
-        if (!syncQueued) {
-            // Only do a full input-slot rescan when the inventory version changed; skip when pot contents are unchanged.
-            long version = blockEntity.getInventoryVersion();
-            if (version != lastSeenInventoryVersion) {
-                refreshInputSlotsFromBlockEntity();
-                lastSeenInventoryVersion = version;
-            }
+        long version = blockEntity.getInventoryVersion();
+        if (version != lastSeenInventoryVersion) {
+            refreshInputSlotsFromBlockEntity();
+            lastSeenInventoryVersion = version;
         }
 
         if (heatSlot >= 0) {
@@ -529,23 +520,24 @@ public class CookingPotGui extends AbstractInventoryGui {
         }
     }
 
-    // Whether a click this handler deliberately leaves to vanilla can change a writable GUI slot and so has
-    // to be marked dirty for the deferred sync. Guarded by cursorHasItem rather than unconditional: with an
-    // empty cursor vanilla leaves the slot at the value the cook tick last published, and marking it dirty
-    // would let the GUI mirror's older stack overwrite that tick's consumption.
-    static boolean marksSlotDirtyForVanillaPlacement(InventoryAction action, ClickType click,
-                                                     boolean clickedTop, boolean cursorHasItem) {
+    static boolean isDoubleClickPlacement(InventoryAction action, ClickType click,
+                                          boolean clickedTop, boolean cursorHasItem) {
         return action == InventoryAction.NOTHING && click == ClickType.DOUBLE_CLICK
                 && clickedTop && cursorHasItem;
     }
 
+    private boolean ensureOwner() {
+        if (potRegion().isOwned(potLocation())) return true;
+        close();
+        closeViewerInventory(player, inventory);
+        return false;
+    }
+
     private void syncToBlockEntity() {
-        // The store write happens on the region that owns the pot: the mirror belongs to the viewer's region
-        // while the cook tick runs on the pot's region, so writing the entity from here would be a cross-region
-        // write that Folia only lets land silently. Same region keeps this inline with no extra task, and a
-        // dispatch that cannot be queued (the plugin is disabling) falls back to inline inside runAt, so a
-        // close() flush is never dropped.
-        potRegion().runAt(potLocation(), this::syncToBlockEntityNow);
+        if (!potRegion().isOwned(potLocation())) {
+            throw new IllegalStateException("Cooking pot edits require the container owner");
+        }
+        syncToBlockEntityNow();
     }
 
     /**
@@ -603,22 +595,16 @@ public class CookingPotGui extends AbstractInventoryGui {
     @Override
     public void close() {
         if (closed) return;
-        syncQueued = false;
         try {
             super.close();
         } catch (Exception e) {
             plugin.getLogger().warning(I18n.formatConsole("gui_runtime.unregister_tick_failed", "error", e.getMessage()));
         }
-        try {
-            syncToBlockEntity();
-        } catch (Exception e) {
-            plugin.getLogger().warning(I18n.formatConsole("gui_runtime.sync_inventory_failed", "error", e.getMessage()));
-        }
     }
 
     void onClick(InventoryClickEvent event) {
         if (event.getInventory().getHolder() != this) return;
-        if (closed) {
+        if (closed || !ensureOwner()) {
             event.setCancelled(true);
             return;
         }
@@ -648,22 +634,11 @@ public class CookingPotGui extends AbstractInventoryGui {
             handleCollectToCursor(event, player);
             return;
         }
-        // On a double-click of an empty slot with nothing to merge, Paper fires NOTHING + DOUBLE_CLICK.
-        // If the clicked slot is a placeable input slot, let vanilla handle it normally (drop the cursor
-        // item into the slot) by not cancelling the event, so the double-click is not interrupted.
-        if (action == InventoryAction.NOTHING && click == ClickType.DOUBLE_CLICK
-                && clickedTop && isPlayerInputSlot(rawSlot)
-                && !ItemUtils.isContainerNestingHazard(event.getCursor())) {
-            // Vanilla performs the placement, so this handler never passes through writeWritableSlot and the
-            // slot has to be marked dirty here instead: syncToBlockEntity and close() write dirty slots only,
-            // and a slot vanilla filled without being marked would be discarded with the GUI mirror when the
-            // view closes.
-            ItemStack doubleClickCursor = event.getCursor();
-            if (marksSlotDirtyForVanillaPlacement(action, click, clickedTop,
-                    doubleClickCursor != null && !doubleClickCursor.getType().isAir())) {
-                dirtyWritableSlots.add(rawSlot);
-            }
-            scheduleGuiSync(event.getWhoClicked() instanceof Player p ? p : null);
+        if (isDoubleClickPlacement(action, click, clickedTop,
+                event.getCursor() != null && !event.getCursor().getType().isAir())
+                && isPlayerInputSlot(rawSlot)) {
+            event.setCancelled(true);
+            handleTopInventoryInteraction(event);
             return;
         }
         // Hotbar number-key / offhand swap targeting top (GUI) slots does not fit this GUI's
@@ -681,12 +656,12 @@ public class CookingPotGui extends AbstractInventoryGui {
         if (rawSlot == recipeSlot) {
             event.setCancelled(true);
             Player player = (Player) event.getWhoClicked();
-            syncToBlockEntity();
-            close();
-            activeGuis.remove(player.getUniqueId());
-            player.closeInventory();
-            RecipeViewGui recipeGui = new RecipeViewGui(plugin, player, true, cookingPotLocation);
-            recipeGui.open(player);
+            player.getScheduler().run(plugin, task -> {
+                if (closed || player.getOpenInventory().getTopInventory() != inventory || !ensureOwner()) return;
+                close();
+                player.closeInventory();
+                new RecipeViewGui(plugin, player, true, cookingPotLocation).open(player);
+            }, null);
             return;
         }
 
@@ -745,13 +720,12 @@ public class CookingPotGui extends AbstractInventoryGui {
             return;
         }
 
-        scheduleGuiSync(event.getWhoClicked() instanceof Player p ? p : null);
     }
 
     @Override
     public void onDrag(InventoryDragEvent event) {
         if (event.getInventory().getHolder() != this) return;
-        if (closed) {
+        if (closed || !ensureOwner()) {
             event.setCancelled(true);
             return;
         }
@@ -765,7 +739,6 @@ public class CookingPotGui extends AbstractInventoryGui {
         }
         if (!touchesTop) {
             // Drag entirely within the player inventory; leave to vanilla handling.
-            scheduleGuiSync(event.getWhoClicked() instanceof Player p ? p : null);
             return;
         }
 
@@ -835,6 +808,7 @@ public class CookingPotGui extends AbstractInventoryGui {
     // holds, then removes exactly that much from it, so the pot and the cursor can never disagree.
     private void commitDragShares(Player player, ItemStack expectedCursor,
                                   Map<Integer, Integer> requested, int maxStack) {
+        if (closed || player.getOpenInventory().getTopInventory() != inventory || !ensureOwner()) return;
         ItemStack cursor = player.getItemOnCursor();
         if (cursor == null || cursor.getType().isAir() || !cursor.isSimilar(expectedCursor)) {
             return; // the restored stack is gone or changed: commit nothing
@@ -1074,47 +1048,6 @@ public class CookingPotGui extends AbstractInventoryGui {
         writeWritableSlot(rawSlot, leftover);
     }
 
-    private void scheduleGuiSync(Player viewer) {
-        if (closed || syncQueued) {
-            return;
-        }
-
-        syncQueued = true;
-        Runnable syncTask = () -> {
-            if (closed) {
-                syncQueued = false;
-                return;
-            }
-
-            try {
-                syncToBlockEntity();
-            } finally {
-                syncQueued = false;
-            }
-            updateDisplayItems();
-            refreshHeatStateOnRegion();
-        };
-        // The GUI inventory is owned by the viewer's region/entity thread, so deferred reads/writes
-        // must run there (not on the pot's region) to avoid cross-thread access to the Bukkit
-        // inventory on Folia. Block-related work is dispatched to the pot's region from inside syncTask.
-        if (viewer != null) {
-            // With a retired callback: if the player is retired, syncTask's finally block never runs, so syncQueued
-            // would stay true forever, causing every later scheduleGuiSync call to early-return and breaking GUI sync.
-            plugin.scheduler().runForEntity(viewer, syncTask, () -> syncQueued = false);
-        } else {
-            plugin.scheduler().runAt(cookingPotLocation, syncTask);
-        }
-    }
-
-    @Override
-    public void onClose(InventoryCloseEvent event) {
-        if (event.getInventory().getHolder() != this) return;
-        if (closed) return;
-        super.onClose(event);
-    }
-
-
-
     public static void cleanupAll() {
         for (CookingPotGui gui : activeGuis.values()) {
             if (!gui.closed) {
@@ -1138,7 +1071,7 @@ public class CookingPotGui extends AbstractInventoryGui {
             }
             activeGuis.remove(entry.getKey());
             if (player != null && player.isOnline()) {
-                closeViewerInventory(player);
+                closeViewerInventory(player, gui.inventory);
             }
         }
     }
@@ -1165,7 +1098,7 @@ public class CookingPotGui extends AbstractInventoryGui {
             activeGuis.remove(entry.getKey());
             Player player = Bukkit.getPlayer(entry.getKey());
             if (player != null && player.isOnline()) {
-                closeViewerInventory(player);
+                closeViewerInventory(player, gui.inventory);
             }
         }
     }
@@ -1230,17 +1163,7 @@ public class CookingPotGui extends AbstractInventoryGui {
 
 }
 
-/**
- * The region seam for the cooking pot GUI's store writes.
- *
- *
- * The GUI and its clicks run on the viewer's region while the pot and its cook ticker belong to the region
- * that owns the block, and Folia does not throw on that mismatch: it silently lets the write land on the
- * wrong thread. Every store write therefore goes through here — inline when the pot's region is the current
- * one, dispatched otherwise — and a dispatch that cannot be queued (the plugin is disabling) or a location
- * whose world is already gone falls back to running the write inline, so a close() flush is never dropped.
- * Injectable so the decision can be asserted offline.
- */
+/** Dispatches store-only work; unavailable owners never fall back to the calling thread. */
 final class PotRegionDispatch {
 
     private final Logger logger;
@@ -1273,22 +1196,8 @@ final class PotRegionDispatch {
         return worldOrNull(location) != null && ownedByCurrentRegion.test(location);
     }
 
-    /**
-     * Runs the store write on the region owning the location, in this order:
-     *
-     *
-     * 1. no usable world — nothing can be dispatched anywhere, so the write runs inline and the fallback is
-     *    logged rather than silent;
-     * 2. the world's region is the current one — inline, with no extra task;
-     * 3. otherwise dispatched to that region, and if the dispatch itself fails (the plugin is disabling, the
-     *    region rejects the task) the write still runs inline, with a warning naming the failure.
-     */
     void runAt(Location location, Runnable task) {
-        if (worldOrNull(location) == null) {
-            log(Level.FINE, "pot store write has no usable world; writing inline", null);
-            task.run();
-            return;
-        }
+        if (worldOrNull(location) == null) return;
         if (ownedByCurrentRegion.test(location)) {
             task.run();
             return;
@@ -1296,8 +1205,7 @@ final class PotRegionDispatch {
         try {
             dispatch.accept(location, task);
         } catch (RuntimeException failure) {
-            log(Level.WARNING, "pot store write dispatch failed; writing inline", failure);
-            task.run();
+            log(Level.WARNING, "pot region dispatch rejected", failure);
         }
     }
 

@@ -13,15 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * The region decision behind the cooking pot GUI's store writes: the pot's own region runs them inline, any
- * other region gets exactly one dispatched task aimed at the pot's location, and a dispatch that cannot be
- * queued (or a world that cannot be resolved) still performs the write inline — a close() flush must never be
- * dropped.
- *
- *
- * No server is involved: the seam takes the ownership query and the dispatcher as arguments.
- */
+/** Region ownership and scheduler failure behavior without a server. */
 class PotRegionDispatchTest {
 
     // Held strongly on purpose: Bukkit's Location keeps its world in a WeakReference and getWorld() throws
@@ -65,7 +57,7 @@ class PotRegionDispatchTest {
     }
 
     @Test
-    void aDispatchThatCannotBeQueuedStillWritesInline() {
+    void aRejectedDispatchNeverWritesOnTheCaller() {
         List<Location> dispatched = new ArrayList<>();
         PotRegionDispatch region = new PotRegionDispatch(null, location -> false, (location, task) -> {
             dispatched.add(location);
@@ -76,11 +68,11 @@ class PotRegionDispatchTest {
         region.runAt(new Location(WORLD, 1, 65, 1), () -> storeWrites[0]++);
 
         assertEquals(1, dispatched.size(), "the dispatch was attempted");
-        assertEquals(1, storeWrites[0], "a refused dispatch must not drop the close() flush");
+        assertEquals(0, storeWrites[0], "dispatch failure never grants ownership");
     }
 
     @Test
-    void aLocationWithoutAWorldIsNotOwnedAndWritesInline() {
+    void aMissingWorldNeverWrites() {
         List<Location> dispatched = new ArrayList<>();
         PotRegionDispatch region = new PotRegionDispatch(null, location -> false, (location, task) -> {
             dispatched.add(location);
@@ -94,12 +86,12 @@ class PotRegionDispatchTest {
         assertFalse(region.isOwned(new Location(null, 0, 0, 0)));
         region.runAt(new Location(null, 0, 0, 0), () -> storeWrites[0]++);
 
-        assertEquals(2, storeWrites[0], "both fall back to inline");
+        assertEquals(0, storeWrites[0], "no usable owner means no store write");
         assertEquals(List.of(), dispatched, "a location with no world cannot be dispatched");
     }
 
     @Test
-    void anUnloadedWorldFallsBackToInlineWithoutClaimingOwnership() {
+    void anUnloadedWorldNeverFallsBack() {
         List<Location> dispatched = new ArrayList<>();
         PotRegionDispatch region = new PotRegionDispatch(null, location -> false, (location, task) -> {
             dispatched.add(location);
@@ -116,7 +108,7 @@ class PotRegionDispatchTest {
         assertFalse(region.isOwned(unloaded), "an unusable world is never claimed as the current region");
         region.runAt(unloaded, () -> storeWrites[0]++);
 
-        assertEquals(1, storeWrites[0], "the fallback still performs the write");
+        assertEquals(0, storeWrites[0], "dispatch failure never grants ownership");
         assertEquals(List.of(), dispatched);
     }
 

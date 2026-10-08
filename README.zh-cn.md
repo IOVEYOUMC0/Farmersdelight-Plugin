@@ -3,7 +3,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Minecraft-1.21.5%2B-3fb950" alt="Minecraft 1.21.5+">
   <img src="https://img.shields.io/badge/CraftEngine-26.8.2%2B-5865F2" alt="CraftEngine 26.8.2+">
-  <img src="https://img.shields.io/badge/Java-21-orange" alt="Java 21">
+  <img src="https://img.shields.io/badge/Java-21%20%2F%2025-orange" alt="Java 21 / 25">
   <img src="https://img.shields.io/badge/Folia-supported-blueviolet" alt="Folia supported">
   <img src="https://img.shields.io/badge/API-com.huidu.farmersdelight.api-blue" alt="附属 API">
 </p>
@@ -27,12 +27,14 @@ FarmersDelight 是基于 CraftEngine 的 Farmer's Delight Paper/Folia 移植插�
 - 可配置作物、耕地、绳索、蘑菇群落和储物方块。
 - 营养、舒适、食物效果和配方书。
 - Folia 安全调度，以及稳定的 `com.huidu.farmersdelight.api` 附属 API。
-- 支持 Brewin' And Chewin'、End's Delight、Expanded Delight、Crabber's Delight、Barbeque's Delight 和 Villagers' Delight 等附属。
+- 支持 Brewin' And Chewin'、End's Delight、Crabber's Delight、Barbeque's Delight 和 Villagers' Delight 等附属。
+
+Expanded Delight 仍在移植，不属于已发布附属。
 
 ## 运行要求
 
 - Paper 或 Folia 1.21.5 及以上
-- Java 21
+- Minecraft 1.21.5–1.21.11 使用 Java 21；Minecraft 26.1+ 使用 Java 25（插件主线字节码目标为 21）
 - CraftEngine 26.8.2 及以上（用 26.9.1 编译；26.8.2 / 26.9 / 26.9.1 已实机核对）
 
 先安装 CraftEngine，再将 FarmersDelight 放入 `plugins/`。修改插件配置后使用 `/fd reload`，修改 CraftEngine 资源后使用 `/ce reload`。
@@ -47,7 +49,7 @@ FarmersDelight 是基于 CraftEngine 的 Farmer's Delight Paper/Folia 移植插�
 ./gradlew build
 ```
 
-构建使用官方 Maven 的 CraftEngine 26.9.1 API，加 `-PceVersion=<版本>` 可改为对着别的版本编译。
+构建使用官方 Maven 的 CraftEngine 26.9.1 API，加 `-PceVersion=<版本>` 可切换 Maven 版本；`-PceJar=<插件.jar>`（或 `FARMERSDELIGHT_CE_JAR`）与可选的 `-PceLibraries=<目录>` 用于本地 CE 构建。
 
 `build` 会在 `build/libs/` 下生成两个产物：可运行的插件本体（`farmersdelight-<版本>.jar`，即 shadow jar）和给附属用的 API-only jar（`farmersdelight-plugin-<版本>-api.jar`，其内容与模块的默认 `farmersdelight-plugin-<版本>.jar` 一致），后者只含 `com.huidu.farmersdelight.api.**`。该 API 以坐标 `com.huidu.farmersdelight:farmersdelight-plugin:<版本>` 发布，附属通过两条通道之一消费：
 

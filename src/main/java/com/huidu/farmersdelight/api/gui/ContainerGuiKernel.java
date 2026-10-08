@@ -5,7 +5,9 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Objects;
+import java.util.WeakHashMap;
 import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
 
@@ -23,15 +25,13 @@ import java.util.function.IntPredicate;
  * Threading
  *
  * fill(Inventory), refreshAll(Inventory, IntPredicate) and refreshSlot(Inventory, int)
- * only write the viewer's inventory, so they must be called on the region that owns the viewer. The engine
+ * read the store and write the viewer's inventory, so the caller must own both. The engine
  * itself never dispatches, never calls a scheduler and never reads a world.
  *
  *
- * syncAll(Inventory) and syncSlot(Inventory, int) read the store and write it back. They run
- * under Controller#storeLock(), which the engine takes for every store access and for the per-cell
- * paint record, so a caller on the viewer's region cannot interleave with a ticker on the store's region. The
- * lock is reentrant: a caller that already holds it (the usual shape, a click handler that wraps its whole
- * read-modify-write) is unaffected.
+ * syncAll(Inventory), syncSlot(Inventory, int) and commitOnly also require both owners. The engine
+ * takes Controller#storeLock() for store access and each view's baseline; this protects plugin data,
+ * never grants permission to read a live inventory on another region. The lock is reentrant.
  *
  *
  * What the controller still owns
@@ -94,10 +94,8 @@ public final class ContainerGuiKernel {
 
     private final Controller controller;
     private final GuiSlotGroup[] groups;
-    // What each GUI cell was painted from, indexed by raw slot; recorded under the store lock whenever a cell
-    // is painted. A cell that was painted empty is indistinguishable from one never painted, and both must
-    // refuse a commit, which is what the guard does with a null baseline.
-    private ItemStack[] painted = new ItemStack[0];
+    // Each viewer has an independent baseline; copies must not alias mutable store stacks.
+    private final Map<Inventory, ItemStack[]> painted = new WeakHashMap<>();
 
     public ContainerGuiKernel(Controller controller, GuiSlotGroup... groups) {
         this.controller = Objects.requireNonNull(controller, "controller");
@@ -121,7 +119,7 @@ public final class ContainerGuiKernel {
             return false;
         }
         synchronized (controller.storeLock()) {
-            ensurePainted(layout.size());
+            ensurePainted(view, layout.size());
             for (int rawSlot = 0; rawSlot < layout.size(); rawSlot++) {
                 if (!layout.isFunctional(rawSlot)) {
                     ItemStack backdrop = controller.backdrop();
@@ -156,7 +154,7 @@ public final class ContainerGuiKernel {
             return false;
         }
         synchronized (controller.storeLock()) {
-            ensurePainted(layout.size());
+            ensurePainted(view, layout.size());
             for (GuiSlotGroup group : groups) {
                 int[] cells = layout.slotsOf(group.type());
                 for (int offset = 0; offset < cells.length && offset < group.count(); offset++) {
@@ -186,7 +184,7 @@ public final class ContainerGuiKernel {
             return false;
         }
         synchronized (controller.storeLock()) {
-            ensurePainted(layout.size());
+            ensurePainted(view, layout.size());
             paint(view, rawSlot, controller.stored(storeIndex), iconTypeAt(storeIndex));
         }
         return true;
@@ -203,7 +201,7 @@ public final class ContainerGuiKernel {
             return false;
         }
         synchronized (controller.storeLock()) {
-            ensurePainted(layout.size());
+            ensurePainted(view, layout.size());
             for (GuiSlotGroup group : groups) {
                 int[] cells = layout.slotsOf(group.type());
                 for (int offset = 0; offset < cells.length && offset < group.count(); offset++) {
@@ -231,7 +229,7 @@ public final class ContainerGuiKernel {
             return true;
         }
         synchronized (controller.storeLock()) {
-            ensurePainted(layout.size());
+            ensurePainted(view, layout.size());
             if (commit(view, rawSlot, storeIndex, iconTypeAt(storeIndex))) {
                 controller.markDirty();
             }
@@ -245,11 +243,8 @@ public final class ContainerGuiKernel {
      * does not matter to it). Marks the station dirty once, like syncAll(Inventory).
      *
      *
-     * Region contract: this method writes only the store and the station's dirty flag, and never writes the
-     * viewer's inventory. A caller may therefore run it on the region that owns the store and hand the refused
-     * slots to the viewer's own region for the repaint (repaintFrom), which is what the
-     * cross-region container paths do. A caller already on the viewer's region keeps using
-     * syncAll(Inventory), which is this plus the repaint.
+     * The caller must own both the viewer and the store: this method still reads the live inventory.
+     * A store lock provides mutual exclusion, never Folia region ownership.
      */
     public int[] commitOnly(Inventory view) {
         Objects.requireNonNull(view, "view");
@@ -258,7 +253,7 @@ public final class ContainerGuiKernel {
             return new int[0];
         }
         synchronized (controller.storeLock()) {
-            ensurePainted(layout.size());
+            ensurePainted(view, layout.size());
             int[] refused = new int[countConfiguredCells(layout)];
             int count = 0;
             for (GuiSlotGroup group : groups) {
@@ -280,7 +275,7 @@ public final class ContainerGuiKernel {
      * like syncSlot(Inventory, int).
      *
      *
-     * Region contract as commitOnly(Inventory): store writes only, never the viewer's inventory.
+     * The caller must own the viewer and the store, as for commitOnly(Inventory).
      */
     public boolean commitOnly(Inventory view, int rawSlot) {
         Objects.requireNonNull(view, "view");
@@ -293,7 +288,7 @@ public final class ContainerGuiKernel {
             return true;
         }
         synchronized (controller.storeLock()) {
-            ensurePainted(layout.size());
+            ensurePainted(view, layout.size());
             if (!commitCell(view, rawSlot, storeIndex, iconTypeAt(storeIndex))) {
                 return false;
             }
@@ -321,7 +316,7 @@ public final class ContainerGuiKernel {
             return;
         }
         synchronized (controller.storeLock()) {
-            ensurePainted(layout.size());
+            ensurePainted(view, layout.size());
             for (int rawSlot : rawSlots) {
                 int storeIndex = storeIndex(layout, rawSlot);
                 if (storeIndex < 0) {
@@ -353,7 +348,7 @@ public final class ContainerGuiKernel {
      */
     private boolean commit(Inventory view, int rawSlot, int storeIndex, @Nullable String iconType) {
         ItemStack stored = controller.stored(storeIndex);
-        if (!controller.mayCommit(stored, painted[rawSlot])) {
+        if (!controller.mayCommit(stored, painted.get(view)[rawSlot])) {
             // The store moved on since this cell was painted: adopt its value, never keep the stale one.
             paint(view, rawSlot, stored, iconType);
             return false;
@@ -370,7 +365,7 @@ public final class ContainerGuiKernel {
      */
     private boolean commitCell(Inventory view, int rawSlot, int storeIndex, @Nullable String iconType) {
         ItemStack stored = controller.stored(storeIndex);
-        if (!controller.mayCommit(stored, painted[rawSlot])) {
+        if (!controller.mayCommit(stored, painted.get(view)[rawSlot])) {
             return false;
         }
         storeFromView(view, rawSlot, storeIndex, iconType);
@@ -382,11 +377,13 @@ public final class ContainerGuiKernel {
         ItemStack item = view.getItem(rawSlot);
         boolean placeholder = item != null && !item.getType().isAir() && controller.isPlaceholder(item, iconType);
         controller.store(storeIndex, placeholder ? null : item);
+        ItemStack saved = controller.stored(storeIndex);
+        painted.get(view)[rawSlot] = saved == null ? null : saved.clone();
     }
 
     /** Paints one cell from a store value and records that value as the cell's write-back baseline. */
     private void paint(Inventory view, int rawSlot, @Nullable ItemStack stored, @Nullable String iconType) {
-        painted[rawSlot] = stored;
+        painted.get(view)[rawSlot] = stored == null ? null : stored.clone();
         if (stored == null || stored.getType().isAir()) {
             ItemStack icon = controller.icon(iconType);
             view.setItem(rawSlot, icon == null ? null : icon.clone());
@@ -395,9 +392,10 @@ public final class ContainerGuiKernel {
         }
     }
 
-    private void ensurePainted(int size) {
-        if (painted.length < size) {
-            painted = Arrays.copyOf(painted, size);
+    private void ensurePainted(Inventory view, int size) {
+        ItemStack[] baseline = painted.get(view);
+        if (baseline == null || baseline.length < size) {
+            painted.put(view, baseline == null ? new ItemStack[size] : Arrays.copyOf(baseline, size));
         }
     }
 
