@@ -361,7 +361,7 @@ final class SkilletHandheldCooking {
             stopHandheldUse(player, null);
             return;
         }
-        if (++session.progress < session.duration) {
+        if (!session.advanceProgress()) {
             // Progress updates stay at five packets per second. Normal inventory sync uses the
             // same display snapshot, so it cannot alternate real damage with cooking progress.
             if (session.display != null && session.progress % 4 == 0) {
@@ -603,10 +603,16 @@ final class SkilletHandheldCooking {
             this.model = model;
         }
 
+        boolean advanceProgress() {
+            return ++progress >= duration;
+        }
+
         boolean matches(PlayerInventory inventory) {
-            ItemStack pan = inventory.getItem(slot);
-            ItemStack food = inventory.getItem(ingredientSlot);
-            return inventory.getHeldItemSlot() == (slot == 40 ? ingredientSlot : slot)
+            return matches(inventory.getHeldItemSlot(), inventory.getItem(slot), inventory.getItem(ingredientSlot));
+        }
+
+        boolean matches(int heldSlot, ItemStack pan, ItemStack food) {
+            return heldSlot == (slot == 40 ? ingredientSlot : slot)
                     && pan != null && pan.getAmount() == 1 && skillet.isSimilar(pan)
                     && food != null && food.getAmount() > 0 && ingredient.isSimilar(food);
         }

@@ -9,6 +9,7 @@ import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntity;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.manager.SkilletManager;
+import com.huidu.farmersdelight.manager.HandheldSimulation;
 import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
@@ -52,7 +53,6 @@ import org.bukkit.block.data.type.Campfire;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.CookingRecipe;
-import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
 import java.lang.reflect.Field;
@@ -70,7 +70,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
 import java.util.function.BiPredicate;
 
 /**
@@ -95,8 +96,7 @@ public final class DebugToolsCommand {
     // class comment). Read with getConfig().getInt(key, default), so an absent key always means the default.
     private static final String CONFIG_MAX_PLACE_COUNT = "debug-tools.max-place-count";
     private static final List<String> TEST_TARGETS = List.of("cooking_pot", "skillet", "stove", "handheld", "all");
-    private static final List<String> ACTIONS = List.of("test", "place", "placeRecipe", "placeRecipeRandom",
-            "activate", "undo", "stop", "inspect", "item", "recipe", "i18n");
+    private static final List<String> ACTIONS = List.of("test", "place", "activate", "undo", "stop", "inspect", "item", "recipe", "i18n");
     private static final List<String> TARGETS = List.of("cooking_pot", "skillet", "stove", "stove_blocked",
             "cutting_board", "basket", "all");
     // Stations a single recipe can be set up on; a recipe's own type decides which one is placed.
@@ -115,7 +115,7 @@ public final class DebugToolsCommand {
     private final FarmersDelightPlugin plugin;
     private final DebugBatchRunner batches;
     private final Map<String, ItemStack> debugItemCache = new ConcurrentHashMap<>();
-    private final Map<UUID, PluginTask> handheldTests = new ConcurrentHashMap<>();
+    private final Map<UUID, HandheldTest> handheldTests = new ConcurrentHashMap<>();
 
     public DebugToolsCommand(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -132,6 +132,7 @@ public final class DebugToolsCommand {
             return;
         }
 
+        args = normalizePlacementArguments(args);
         switch (normalize(args[1])) {
             case "test" -> test(player, args);
             case "place" -> place(player, args);
@@ -149,6 +150,13 @@ public final class DebugToolsCommand {
     }
 
     public List<String> tabComplete(CommandSender sender, String[] args) {
+        if (args.length == 3 && "place".equals(normalize(args[1]))) {
+            List<String> targets = new ArrayList<>(TARGETS);
+            targets.addAll(List.of("recipe", "random"));
+            targets.addAll(DebugToolRegistry.registeredNames());
+            return complete(targets, args[2]);
+        }
+        args = normalizePlacementArguments(args);
         if (args.length == 2) {
             return complete(ACTIONS, args[1]);
         }
@@ -188,6 +196,23 @@ public final class DebugToolsCommand {
         return List.of();
     }
 
+    static String[] normalizePlacementArguments(String[] args) {
+        if (args.length < 3 || !"place".equalsIgnoreCase(args[1])) return args;
+        String action;
+        if ("recipe".equalsIgnoreCase(args[2])) {
+            action = "place_recipe";
+        } else if ("random".equalsIgnoreCase(args[2])) {
+            action = "place_random_recipe";
+        } else {
+            return args;
+        }
+        String[] normalized = new String[args.length - 1];
+        normalized[0] = args[0];
+        normalized[1] = action;
+        System.arraycopy(args, 3, normalized, 2, args.length - 3);
+        return normalized;
+    }
+
     private void test(Player player, String[] args) {
         Integer count = parseOptionalInt(args, 3, 64);
         Integer ticks = parseOptionalInt(args, 4, 200);
@@ -196,56 +221,109 @@ public final class DebugToolsCommand {
             player.sendMessage(I18n.getComponent("command.debug_test_usage", player));
             return;
         }
-        if (plugin.getTickManager().getPerformanceSnapshot().statsEnabled()) {
-            player.sendMessage(I18n.getComponent("command.stats_profile_busy", player));
+        if ("handheld".equals(normalize(args[2]))) {
+            testHandheld(player, Math.min(4096, Math.min(getMaxPlaceCount(), count)), ticks);
             return;
         }
-        if ("handheld".equals(normalize(args[2]))) {
-            testHandheld(player, ticks);
+        if (plugin.getTickManager().getPerformanceSnapshot().statsEnabled()) {
+            player.sendMessage(I18n.getComponent("command.stats_profile_busy", player));
             return;
         }
         place(player, new String[]{args[0], "place", normalize(args[2]), count.toString(), "1", "1"}, true,
                 () -> player.performCommand("fd stats profile " + ticks + " " + normalize(args[2])));
     }
 
-    private void testHandheld(Player player, int ticks) {
+    private void testHandheld(Player player, int count, int ticks) {
         SkilletManager manager = plugin.getSkilletManager();
-        if (manager == null) {
+        ItemStack pan = ItemUtils.createItem(Constants.BLOCK_SKILLET);
+        ItemStack ingredient = new ItemStack(Material.BEEF);
+        CookingRecipe<?> recipe = manager == null ? null : manager.campfireRecipes().find(ingredient);
+        if (pan == null || recipe == null) {
             player.sendMessage(I18n.getComponent("command.debug_test_handheld_unavailable", player));
             return;
         }
-        boolean started = manager.handleHandheldInteract(player, EquipmentSlot.HAND,
+        var simulation = new HandheldSimulation(count, pan, ingredient, recipe.getCookingTime(),
                 NamespacedKey.fromString("farmersdelight:skillet_cooking"),
-                NamespacedKey.fromString("farmersdelight:item/skillet_food"), Map.of());
-        if (!started) {
-            player.sendMessage(I18n.getComponent("command.debug_test_handheld_setup", player));
+                plugin.getConfigBoolean(true, "skillet.handheld.progress-display.enabled",
+                        "skillet.handheld-progress-display.enabled"),
+                item -> manager.campfireRecipes().find(item) == recipe, recipe::getResult);
+        HandheldTest job = new HandheldTest(simulation);
+        if (handheldTests.putIfAbsent(player.getUniqueId(), job) != null) {
+            player.sendMessage(I18n.getComponent("command.debug_batch_busy", player));
             return;
         }
-        player.performCommand("fd stats profile " + ticks + " handheld");
-        UUID playerId = player.getUniqueId();
-        PluginTask previous = handheldTests.remove(playerId);
-        if (previous != null) previous.cancel();
-        AtomicReference<PluginTask> taskRef = new AtomicReference<>();
-        PluginTask task = plugin.scheduler().runLater(() -> plugin.scheduler().runForEntity(player, () -> {
-            if (handheldTests.get(playerId) != taskRef.get()) return;
-            handheldTests.remove(playerId, taskRef.get());
-            manager.stopHandheldUse(player, null);
-        }), ticks + 1L);
-        taskRef.set(task);
-        handheldTests.put(playerId, task);
+        try {
+            job.task = plugin.scheduler().runRepeating(() -> {
+                if (handheldTests.get(player.getUniqueId()) != job || !job.scheduled.compareAndSet(false, true)) return;
+                try {
+                    plugin.scheduler().runForEntity(player, () -> {
+                        try {
+                            if (handheldTests.get(player.getUniqueId()) != job) return;
+                            if (!player.isOnline()) {
+                                discardHandheldTest(player.getUniqueId(), job);
+                                return;
+                            }
+                            simulation.tick();
+                            if (simulation.snapshot().ticks() >= ticks) finishHandheldTest(player, job);
+                        } catch (RuntimeException e) {
+                            discardHandheldTest(player.getUniqueId(), job);
+                            plugin.getLogger().log(Level.WARNING, "Handheld simulation failed", e);
+                            player.sendMessage(I18n.getComponent("command.debug_batch_failed", player,
+                                    Map.of("count", String.valueOf(simulation.snapshot().ticks()))));
+                        } finally {
+                            job.scheduled.set(false);
+                        }
+                    }, () -> discardHandheldTest(player.getUniqueId(), job));
+                } catch (RuntimeException e) {
+                    discardHandheldTest(player.getUniqueId(), job);
+                    plugin.getLogger().log(Level.WARNING, "Handheld simulation scheduling failed", e);
+                }
+            }, 1L, 1L);
+            if (handheldTests.get(player.getUniqueId()) != job) job.task.cancel();
+        } catch (RuntimeException e) {
+            discardHandheldTest(player.getUniqueId(), job);
+            throw e;
+        }
+        player.sendMessage(I18n.getComponent("command.debug_test_handheld_started", player,
+                Map.of("count", String.valueOf(count), "ticks", String.valueOf(ticks))));
+    }
+
+    private boolean discardHandheldTest(UUID owner, HandheldTest job) {
+        if (!handheldTests.remove(owner, job)) return false;
+        if (job.task != null) job.task.cancel();
+        return true;
+    }
+
+    private void finishHandheldTest(Player player, HandheldTest job) {
+        if (!discardHandheldTest(player.getUniqueId(), job)) return;
+        var result = job.simulation.snapshot();
+        player.sendMessage(I18n.getComponent("command.debug_test_handheld_result", player, Map.of(
+                "count", String.valueOf(result.sessions()), "ticks", String.valueOf(result.ticks()),
+                "calls", String.valueOf(result.calls()), "displays", String.valueOf(result.displayCalls()),
+                "completed", String.valueOf(result.completions()),
+                "avg", String.format(Locale.ROOT, "%.3f", result.totalNanos() / 1_000_000.0 / Math.max(1, result.ticks())),
+                "max", String.format(Locale.ROOT, "%.3f", result.maxTickNanos() / 1_000_000.0))));
     }
 
     private void stop(Player player) {
         boolean stopped = batches.stop(player);
-        PluginTask handheldTask = handheldTests.remove(player.getUniqueId());
-        if (handheldTask != null) {
-            handheldTask.cancel();
-            SkilletManager manager = plugin.getSkilletManager();
-            if (manager != null) manager.stopHandheldUse(player, null);
+        HandheldTest job = handheldTests.get(player.getUniqueId());
+        if (job != null) {
+            finishHandheldTest(player, job);
             stopped = true;
         }
         player.sendMessage(I18n.getComponent(stopped
                 ? "command.debug_batch_stopped" : "command.debug_batch_no_task", player));
+    }
+
+    private static final class HandheldTest {
+        final HandheldSimulation simulation;
+        final AtomicBoolean scheduled = new AtomicBoolean();
+        volatile PluginTask task;
+
+        HandheldTest(HandheldSimulation simulation) {
+            this.simulation = simulation;
+        }
     }
 
     private void place(Player player, String[] args) {
@@ -1904,40 +1982,10 @@ public final class DebugToolsCommand {
     }
 
     private void sendUsage(CommandSender sender) {
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools test <cooking_pot|skillet|stove|handheld|all> [count] [ticks]</yellow>"
-                        + " <gray>- place a bounded local test and start feature sampling</gray>"
-        ));
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools place <cooking_pot|skillet|stove|stove_blocked|cutting_board|basket|all> [count] [spacing] [layers]</yellow>"
-                        + " <gray>- place a batch only; use activate to start its workload</gray>"
-        ));
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools placeRecipe <cooking_pot|cutting_board|all> <recipeId> [count]</yellow>"
-                        + " <gray>- place that recipe's station and fill it with exactly its ingredients</gray>"
-        ));
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools placeRecipeRandom <cooking_pot|cutting_board|all> [count]</yellow>"
-                        + " <gray>- place count distinct random recipe setups and report which ids they are</gray>"
-        ));
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools activate <cooking_pot|skillet|stove|all></yellow>"
-        ));
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools undo</yellow> <gray>- revert the last debug placement batch</gray>"
-        ));
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools inspect [distance]</yellow> <gray>- dump the CE block you look at / stand on</gray>"
-        ));
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools item [offhand]</yellow> <gray>- dump the held item's CE id / tags / components</gray>"
-        ));
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools recipe validate</yellow> <gray>- validate recipe structure, tags, results and containers</gray>"
-        ));
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools i18n <key> [locale]</yellow> <gray>- trace a translation key through each layer</gray>"
-        ));
+        for (String topic : List.of("test", "place", "place_recipe", "place_random", "activate",
+                "undo", "stop", "inspect", "item", "recipe", "i18n")) {
+            sender.sendMessage(I18n.getComponent("command.debug_usage_" + topic));
+        }
     }
 
     private record PlaceResult(boolean placed, boolean activated, String activationTarget, List<UndoEntry> undoEntries) {

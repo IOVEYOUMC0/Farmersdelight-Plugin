@@ -199,6 +199,12 @@ sourceSets {
         }
     }
 
+    named("test") {
+        if (debugToolsBuild.get()) {
+            java.srcDir("src/debugToolsTest/java")
+        }
+    }
+
     create("api") {
         java.setSrcDirs(listOf("src/main/java"))
         resources.setSrcDirs(listOf("src/main/resources"))
