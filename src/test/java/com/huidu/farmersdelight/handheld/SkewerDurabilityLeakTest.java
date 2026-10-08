@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.handheld;
 
+import com.huidu.farmersdelight.manager.HandheldDisplays;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
@@ -73,16 +74,78 @@ class SkewerDurabilityLeakTest {
         assertEquals(1, fixture.player.get(3).getAmount(), "the real skewer keeps its count");
     }
 
+    /**
+     * A stack of two is the normal way to cook a batch, and the bar has to survive it: the rewriter claims the
+     * slot for any count, and the display still never touches the real stack.
+     */
+    @Test
+    void aStackOfTwoKeepsItsBarAndItsRealStack() {
+        Fixture fixture = new Fixture();
+        fixture.cookingPlayer(2);
+        int writesBefore = fixture.player.writes;
+        int updatesBefore = fixture.display.updates;
+
+        fixture.runTicks(8);
+
+        assertEquals(1, fixture.display.running(), "the bar stays up for a stack of two");
+        assertEquals(updatesBefore + 2, fixture.display.updates,
+                "and keeps painting (progress 4 and 8 are the % 4 points)");
+        assertEquals(2, fixture.player.get(3).getAmount(), "the real stack is still two");
+        assertEquals(writesBefore, fixture.player.writes, "and no slot write happened");
+    }
+
+    /**
+     * The opener is handed the whole stack, not a single item: that is exactly what the shared rewriter's claim
+     * had to accept, and what the count == 1 requirement refused.
+     */
+    @Test
+    void theBarIsOpenedForTheWholeStack() {
+        Fixture fixture = new Fixture();
+        fixture.player.put(3, raw(3));
+        int[] openedWith = {-1};
+
+        HandCookedSkewerHooks.HeldSkewerProgressDisplay display =
+                new HandCookedSkewerHooks.HeldSkewerProgressDisplay(null,
+                        id -> fixture.player.asPlayer(),
+                        (player, slot, original, duration) -> {
+                            openedWith[0] = original == null ? -1 : original.getAmount();
+                            return closeRecordingHandle();
+                        },
+                        stack -> RAW_ID);
+
+        display.start(fixture.player.id(), 3, RAW_ID, HandCookedSkewerService.COOKING_TICKS);
+
+        assertEquals(3, openedWith[0], "the display opens for the stack the slot holds");
+    }
+
+    private static HandheldDisplays.Handle closeRecordingHandle() {
+        return new HandheldDisplays.Handle() {
+
+            @Override
+            public void update(int progress) {
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+    }
+
     /** The two display files write components on a clone and send packets, never on a Bukkit inventory. */
     @Test
     void theDisplaySourceClonesBeforeItPaintsAndNeverTouchesAnInventory() throws IOException {
         String handle = read("manager/HandheldDisplays.java");
-        assertTrue(handle.contains("ItemStack copy = this.original.clone();"),
-                "the fake stack has to come from a clone");
-        assertTrue(handle.indexOf("this.original.clone()") < handle.indexOf("setJavaComponent(DataComponentKeys.MAX_DAMAGE"),
-                "and the clone has to exist before the damage components are painted");
+        // The base is a clone of the slot's current stack, and the per-update copy is a clone of that base: the
+        // real stack is read, never painted.
+        assertTrue(handle.contains("ItemStack base = source.clone();"),
+                "the display base has to come from a clone of the live stack");
+        assertTrue(handle.contains("ItemStack copy = this.displayBase.clone();"),
+                "and each painted item has to be a clone too");
+        assertTrue(handle.indexOf("ItemStack base = source.clone();")
+                        < handle.indexOf("setJavaComponent(DataComponentKeys.MAX_DAMAGE"),
+                "the clone has to exist before the damage components are painted");
         assertTrue(handle.contains("getInventory().getItem("),
-                "its only inventory reach is the read that resends the real slot");
+                "its inventory reach is the read of the slot it displays and resends");
         for (String forbidden : new String[]{"getInventory().set", "getInventory().clear", "setItem(",
                 "setItemInMainHand", "setItemInOffHand", "setItemMeta", "setContents("}) {
             assertFalse(handle.contains(forbidden),

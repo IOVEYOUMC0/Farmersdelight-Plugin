@@ -926,6 +926,10 @@ items:
         nutrition: 4
         saturation: 3.2
         can-always-eat: false
+      components:
+        minecraft:use_remainder:
+          id: minecraft:stick
+          count: 1
     settings:
       tags:
         - farmersdelight:snacks
@@ -937,6 +941,10 @@ items:
         nutrition: 4
         saturation: 3.2
         can-always-eat: false
+      components:
+        minecraft:use_remainder:
+          id: minecraft:stick
+          count: 1
     settings:
       tags:
         - farmersdelight:snacks
@@ -948,6 +956,10 @@ items:
         nutrition: 8
         saturation: 14.4
         can-always-eat: false
+      components:
+        minecraft:use_remainder:
+          id: minecraft:stick
+          count: 1
     settings:
       tags:
         - farmersdelight:snacks
@@ -959,6 +971,10 @@ items:
         nutrition: 8
         saturation: 14.4
         can-always-eat: false
+      components:
+        minecraft:use_remainder:
+          id: minecraft:stick
+          count: 1
     settings:
       tags:
         - farmersdelight:snacks

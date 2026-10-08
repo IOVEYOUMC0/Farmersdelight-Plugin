@@ -13,11 +13,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  *
  * CraftEngine's world layer drives controllers through
- * {@code BlockEntityController#createBlockEntityTicker(CEWorld, ImmutableBlockState)}. The engine also offers an
+ * BlockEntityController#createBlockEntityTicker(CEWorld, ImmutableBlockState). The engine also offers an
  * asynchronous variant, but its thread model is not established on a regionised server, so a controller must never
  * declare it: block state writes belong to the owning region.
  *
- * <p>The Gradle test working directory is the module root, so the sources are read relative to it. The failure
+ * The Gradle test working directory is the module root, so the sources are read relative to it. The failure
  * messages name the directory they resolved, which is what makes a wrong working directory diagnosable instead of
  * mysterious.
  */

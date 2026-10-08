@@ -29,6 +29,39 @@ python tools/check_block_state_occupancy.py        # add --quiet for the summary
 Without `--check`, `strip_ce_comments.py` and `meal_icons.py` rewrite the files instead of reporting. That is
 the intended way to fix what they find; both keep existing order and only add, prune or de-comment.
 
+## Self-tests and the total runner
+
+`test_checks.py` proves each check above can still fail. It builds a throwaway module tree, puts one violation
+in it, requires the check to exit non-zero and name the offending place, then repairs the tree and requires exit
+zero — so a rule that is removed or weakened turns the self-test red with it. `selftest_support.py` holds the
+fixture plumbing the classes share, and a check locates its module root from its own file, which is why the
+fixture tree gets its own `tools/` copy of the script under test.
+
+```bash
+python tools/run_all_checks.py            # every check + the self-tests + the workspace matrix check
+python tools/run_all_checks.py --quiet    # verdicts only
+python -m unittest test_checks            # the self-tests alone (run from this directory)
+```
+
+`run_all_checks.py` exits non-zero when any step fails, so the whole set is one gate.
+
+## The verification matrix
+
+`docs/verification.md` records which claims have been verified, and `tools/check_verification_matrix.py` reads it
+without touching anything: every row needs the seven columns, a conclusion from a fixed set, and — for a row
+that claims a pass — a reference that resolves. The script takes no argument and no particular working
+directory: it finds the plugin repository from its own path (`<repo>/tools/...`).
+
+| Reference | Resolves against | Order |
+| --- | --- | --- |
+| `test:<class>` | this repository's `src/test/java`, the class name split into directories plus `.java` | repository only |
+| `doc:<path>` | this repository first, then the directory that holds it (the monorepo parent) | repository, then parent |
+
+The second root exists because some evidence documents are the scratchpad reports written beside the repository
+rather than inside it, so a `doc:` path that is not in the repository is looked up there before it is reported
+missing. `run_all_checks.py` runs this check from the in-repository copy and prints `[SKIP]` when that copy is
+absent; the check is not wired into CI, by decision.
+
 ## Scope
 
 These copies are scoped to this repository. The monorepo parent directory holds workspace-level copies of three

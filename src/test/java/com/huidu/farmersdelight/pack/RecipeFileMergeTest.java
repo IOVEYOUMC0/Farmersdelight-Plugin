@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Locks the single merged recipe file: every recipe lives under the root key the loader claims, the item and
  * block files carry none of them, the entries sit in the agreed type order, and the merge changed no field.
  *
- * <p>The raw block of every recipe is checked in as a baseline, so this compares the current pack against the
+ * The raw block of every recipe is checked in as a baseline, so this compares the current pack against the
  * text that existed before the recipes were moved out rather than against a count that could be kept while
  * fields drift.
  */
