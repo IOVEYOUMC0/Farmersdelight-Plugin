@@ -4,6 +4,7 @@ import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.item.ItemBuildContext;
 import net.momirealms.craftengine.core.plugin.compatibility.CompatibilityManager;
 import net.momirealms.craftengine.core.plugin.compatibility.ItemSource;
+import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
@@ -89,18 +90,26 @@ public final class CraftEngineItemSources {
 
     public String id(ItemStack stack) {
         if (stack == null || stack.getType().isAir()) return null;
+        return id(wrap.apply(stack));
+    }
+
+    public String id(Item item) {
+        if (item == null) return null;
+        Key customId = item.customId().orElse(null);
+        if (customId != null) return customId.toString();
         try {
-            for (String plugin : configured) bind(plugin);
-            if (sources.isEmpty()) return null;
-            Item item = wrap.apply(stack);
-            if (item == null) return null;
+            String legacyId = MMOItemsCompat.getItemId(item);
+            if (legacyId != null) return legacyId;
+        } catch (RuntimeException | LinkageError unavailable) {
+            // Other providers can still identify an item when custom_data is unavailable.
+        }
+        try {
+            for (String plugin : configured) {
+                if (!plugin.equals("mmoitems")) bind(plugin);
+            }
             for (ItemSource source : sources) {
                 try {
-                    if (source.plugin().equals("mmoitems")) {
-                        String legacyId = MMOItemsCompat.getItemId(item);
-                        if (legacyId != null) return legacyId;
-                        continue;
-                    }
+                    if (source.plugin().equals("mmoitems")) continue;
                     String id = source.id(item);
                     if (id != null && !id.isBlank()) return source.plugin() + ":" + id;
                 } catch (RuntimeException | LinkageError unavailable) {

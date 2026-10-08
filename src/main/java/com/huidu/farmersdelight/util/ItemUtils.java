@@ -6,7 +6,6 @@ import com.huidu.farmersdelight.block.behavior.BlockBehaviorConfigs;
 import com.huidu.farmersdelight.block.behavior.ConfiguredBlockSet;
 import com.huidu.farmersdelight.config.ContainerReturnConfig;
 import com.huidu.farmersdelight.i18n.I18n;
-import com.huidu.farmersdelight.util.compat.MMOItemsCompat;
 import com.huidu.farmersdelight.util.compat.CraftEngineItemSources;
 import com.huidu.farmersdelight.util.compat.CustomItemPresence;
 import io.papermc.paper.datacomponent.DataComponentTypes;
@@ -826,11 +825,13 @@ public final class ItemUtils {
         if (item == null || item.getType().isAir() || isEmptyItemId(itemId)) {
             return false;
         }
-        String identity = resolveItemId(item);
+        Item wrapped = BukkitAdaptor.adapt(item);
+        String identity = EXTERNAL_ITEMS.id(wrapped);
+        if (identity == null) identity = getVanillaMaterialItemId(item);
         if (identity == null) return false;
         String normalized = itemId.trim();
         // External provider ids may be case-sensitive; legacy CE and MMOItems matching stays compatible.
-        if (getCustomItemId(item) != null || identity.startsWith("minecraft:") || identity.startsWith("mmoitems:")) {
+        if (wrapped.customId().isPresent() || identity.startsWith("minecraft:") || identity.startsWith("mmoitems:")) {
             return identity.equalsIgnoreCase(normalized);
         }
         return CraftEngineItemSources.matchesId(identity, normalized);
@@ -859,16 +860,18 @@ public final class ItemUtils {
         }
         LinkedHashSet<String> tags = new LinkedHashSet<>();
         // CE-declared tags (self-identifying, e.g. a knife declaring farmersdelight:tools/knives).
-        String customId = getCustomItemId(item);
-        if (customId != null) {
-            tags.addAll(customItemTagIds(Key.of(customId)));
+        Item wrapped = BukkitAdaptor.adapt(item);
+        Key customKey = wrapped.customId().orElse(null);
+        String customId = customKey == null ? null : customKey.toString();
+        if (customKey != null) {
+            tags.addAll(customItemTagIds(customKey));
         }
         // Registered tags (c:... conventions plus any addon-registered tags) are resolved against
         // the item's authoritative identity. Do not include the base material for custom items: a CE
         // custom apple rendered as cooked beef must not inherit cooked-beef recipe tags.
         String identity = customId;
         if (identity == null) {
-            identity = getNonVanillaItemId(item);
+            identity = EXTERNAL_ITEMS.id(wrapped);
         }
         if (identity == null) {
             identity = getVanillaMaterialItemId(item);
@@ -987,10 +990,7 @@ public final class ItemUtils {
 
     public static String getNonVanillaItemId(ItemStack item) {
         if (item == null || item.getType().isAir()) return null;
-        String customId = getCustomItemId(item);
-        if (customId != null) return customId;
-        String mmoId = MMOItemsCompat.getItemId(item);
-        return mmoId != null ? mmoId : EXTERNAL_ITEMS.id(item);
+        return EXTERNAL_ITEMS.id(item);
     }
 
     public static ItemStack cloneOrNull(ItemStack item) {

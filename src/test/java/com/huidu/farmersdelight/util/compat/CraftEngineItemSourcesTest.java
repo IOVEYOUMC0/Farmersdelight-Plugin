@@ -20,6 +20,7 @@ import java.lang.reflect.Proxy;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -141,10 +142,83 @@ class CraftEngineItemSourcesTest {
         assertEquals(0, source.idCalls, "the provider's lossy TYPE_ID form must not become the saved identity");
     }
 
+    @Test
+    void customIdentityWinsBeforeLegacyDataAndExternalProviders() {
+        Fixture fixture = new Fixture();
+        fixture.sources.configure(List.of("itemsadder"));
+        fixture.registered.put("itemsadder", new Source("itemsadder"));
+        Stack held = new Stack("Food:Rice_A", "data");
+        held.customId = Key.of("farmersdelight:rice");
+        held.mmo = new CompoundTag();
+        held.mmo.putString("MMOITEMS_ITEM_TYPE", "FOOD");
+        held.mmo.putString("MMOITEMS_ITEM_ID", "RICE");
+        assertEquals("farmersdelight:rice", fixture.sources.id(held));
+        assertEquals(1, fixture.wraps.get());
+        assertTrue(fixture.lookups.isEmpty());
+        assertEquals("farmersdelight:rice", fixture.sources.id(item(held)));
+        assertEquals(1, fixture.wraps.get(), "an existing CE wrapper must not be wrapped again");
+    }
+
+    @Test
+    void legacyIdentitySurvivesAbsentProvidersAndMutableStackChanges() {
+        Fixture fixture = new Fixture();
+        Stack held = new Stack("Food:Rice_A", "data");
+        held.mmo = new CompoundTag();
+        held.mmo.putString("MMOITEMS_ITEM_TYPE", "CUSTOM_SWORD");
+        held.mmo.putString("MMOITEMS_ITEM_ID", "RICE_KNIFE_A");
+        assertEquals("mmoitems:CUSTOM_SWORD:RICE_KNIFE_A", fixture.sources.id(held));
+        held.mmo.putString("MMOITEMS_ITEM_ID", "RICE_KNIFE_B");
+        assertEquals("mmoitems:CUSTOM_SWORD:RICE_KNIFE_B", fixture.sources.id(held));
+        assertEquals(2, fixture.wraps.get());
+        assertTrue(fixture.lookups.isEmpty());
+    }
+
+    @Test
+    void sixInputsAndContainerUseOneWrapperEachAcrossTwoThousandPots() {
+        Fixture fixture = new Fixture();
+        Source source = new Source("itemsadder");
+        fixture.registered.put("itemsadder", source);
+        fixture.sources.configure(List.of("itemsadder"));
+        Stack input = new Stack("Food:Rice_A", "data");
+        Stack vanilla = new Stack(null, "data");
+        for (int pot = 0; pot < 2000; pot++) {
+            for (int slot = 0; slot < 7; slot++) {
+                ItemStack stack = (slot & 1) == 0 ? input : vanilla;
+                assertEquals((slot & 1) == 0 ? "itemsadder:Food:Rice_A" : null, fixture.sources.id(stack));
+            }
+        }
+        assertEquals(14000, fixture.wraps.get());
+        assertEquals(14000, source.idCalls);
+        assertFalse(fixture.lookups.containsKey("mmoitems"));
+        assertEquals(1, fixture.lookups.get("itemsadder"));
+    }
+
+    @Test
+    void wrappingFailureIsNotReportedAsAnUnidentifiedVanillaItem() {
+        Fixture fixture = new Fixture();
+        CraftEngineItemSources unavailable = new CraftEngineItemSources(() -> fixture.manager,
+                stack -> { throw new IllegalStateException("CE wrapper unavailable"); },
+                value -> (Stack) value.minecraftItem());
+        assertThrows(IllegalStateException.class, () -> unavailable.id(new Stack(null, "data")));
+        assertTrue(fixture.lookups.isEmpty());
+    }
+
+    @Test
+    void unreadableLegacyDataStillAllowsOtherProvidersToIdentifyTheItem() {
+        Fixture fixture = new Fixture();
+        fixture.sources.configure(List.of("itemsadder"));
+        fixture.registered.put("itemsadder", new Source("itemsadder"));
+        Stack held = new Stack("Food:Rice_A", "data");
+        held.failData = true;
+        assertEquals("itemsadder:Food:Rice_A", fixture.sources.id(held));
+        assertEquals(1, fixture.wraps.get());
+    }
+
     private static final class Fixture {
         final Map<String, ItemSource> registered = new HashMap<>();
         final Map<String, Integer> lookups = new HashMap<>();
         final AtomicInteger nexoLookupsAfterRegistration = new AtomicInteger();
+        final AtomicInteger wraps = new AtomicInteger();
         final CompatibilityManager manager = (CompatibilityManager) Proxy.newProxyInstance(
                 CompatibilityManager.class.getClassLoader(), new Class<?>[]{CompatibilityManager.class},
                 (proxy, method, args) -> {
@@ -155,7 +229,10 @@ class CraftEngineItemSourcesTest {
                     return registered.get(plugin);
                 });
         final CraftEngineItemSources sources = new CraftEngineItemSources(() -> manager,
-                stack -> item((Stack) stack), value -> (Stack) value.minecraftItem());
+                stack -> {
+                    wraps.incrementAndGet();
+                    return item((Stack) stack);
+                }, value -> (Stack) value.minecraftItem());
     }
 
     private static final class Source implements ItemSource {
@@ -185,7 +262,11 @@ class CraftEngineItemSourcesTest {
         return (Item) Proxy.newProxyInstance(Item.class.getClassLoader(), new Class<?>[]{Item.class},
                 (proxy, method, args) -> switch (method.getName()) {
                     case "minecraftItem" -> stack;
-                    case "getSparrowTag" -> stack.mmo;
+                    case "customId" -> Optional.ofNullable(stack.customId);
+                    case "getSparrowTag" -> {
+                        if (stack.failData) throw new IllegalStateException("custom_data unavailable");
+                        yield stack.mmo;
+                    }
                     case "isEmpty" -> false;
                     default -> throw new AssertionError(method.getName());
                 });
@@ -195,6 +276,8 @@ class CraftEngineItemSourcesTest {
         String id;
         String data;
         CompoundTag mmo;
+        Key customId;
+        boolean failData;
         int amount = 1;
         Stack(String id, String data) { this.id = id; this.data = data; }
         @Override public Material getType() { return Material.STONE; }
@@ -203,6 +286,8 @@ class CraftEngineItemSourcesTest {
         @Override public Stack clone() {
             Stack copy = new Stack(id, data);
             copy.amount = amount;
+            copy.customId = customId;
+            copy.failData = failData;
             copy.mmo = mmo == null ? null : mmo.copy();
             return copy;
         }
