@@ -60,7 +60,6 @@ class ReflectionBudgetTest {
             // Optional plugins and the WorldEdit/WorldGuard API, none of which is on the compile classpath.
             Map.entry("com/huidu/farmersdelight/util/compat/WorldGuardCompat.java", 21),
             Map.entry("com/huidu/farmersdelight/compat/AuraSkillsHook.java", 14),
-            Map.entry("com/huidu/farmersdelight/util/compat/MMOItemsCompat.java", 11),
             // NMS and the CraftEngine proxy: present at runtime, absent from the compile classpath.
             Map.entry("com/huidu/farmersdelight/api/util/DatapackSupport.java", 5),
             Map.entry("com/huidu/farmersdelight/recipe/RecipeItemCodec.java", 5),

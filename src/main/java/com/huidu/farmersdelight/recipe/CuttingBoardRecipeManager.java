@@ -11,7 +11,6 @@ import com.huidu.farmersdelight.gui.RecipeViewGui;
 import com.huidu.farmersdelight.util.CommonTagResolver;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
-import com.huidu.farmersdelight.util.compat.MMOItemsCompat;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
@@ -487,7 +486,7 @@ public class CuttingBoardRecipeManager {
     }
 
     public CuttingBoardRecipe matchRecipe(ItemStack input, ItemStack tool) {
-        String toolId = ItemUtils.getCustomItemId(tool);
+        String toolId = ItemUtils.getNonVanillaItemId(tool);
         // ToolContext depends only on the tool itself, not on any recipe; build it once outside the loop to avoid
         // repeating CraftEngine tag/ID lookups and set allocations per recipe (cutting is a per-click hot path).
         ToolContext toolContext = ToolContext.from(plugin, tool, toolId);
@@ -521,7 +520,7 @@ public class CuttingBoardRecipeManager {
         if (tool == null || tool.getType().isAir()) {
             return false;
         }
-        ToolContext context = ToolContext.from(plugin, tool, ItemUtils.getCustomItemId(tool));
+        ToolContext context = ToolContext.from(plugin, tool, ItemUtils.getNonVanillaItemId(tool));
         for (CuttingBoardRecipe.ToolRequirement requirement : toolRequirements) {
             if (matchesToolRequirement(requirement, context)) {
                 return true;
@@ -544,7 +543,7 @@ public class CuttingBoardRecipeManager {
             }
             available.add(new AvailableItem(
                     item,
-                    ToolContext.from(plugin, item, ItemUtils.getCustomItemId(item))
+                    ToolContext.from(plugin, item, ItemUtils.getNonVanillaItemId(item))
             ));
         }
 
@@ -579,10 +578,7 @@ public class CuttingBoardRecipeManager {
                 if (result.item() == null) {
                     continue;
                 }
-                String key = ItemUtils.getCustomItemId(result.item());
-                if (key == null) {
-                    key = ItemUtils.getVanillaMaterialItemId(result.item());
-                }
+                String key = ItemUtils.resolveItemId(result.item());
                 if (key == null) {
                     continue;
                 }
@@ -601,10 +597,7 @@ public class CuttingBoardRecipeManager {
         if (item == null || item.getType().isAir()) {
             return List.of();
         }
-        String key = ItemUtils.getCustomItemId(item);
-        if (key == null) {
-            key = ItemUtils.getVanillaMaterialItemId(item);
-        }
+        String key = ItemUtils.resolveItemId(item);
         if (key == null) {
             return List.of();
         }
@@ -734,9 +727,9 @@ public class CuttingBoardRecipeManager {
     }
 
     private boolean matchesTaggedItem(ItemStack item, Key tagKey, Set<Key> excludedItems, Set<Key> excludedTags) {
-        String customId = ItemUtils.getCustomItemId(item);
+        String customId = ItemUtils.getNonVanillaItemId(item);
         String vanillaId = ItemUtils.getVanillaMaterialItemId(item);
-        boolean nonVanillaIdentity = customId != null || MMOItemsCompat.getItemId(item) != null;
+        boolean nonVanillaIdentity = customId != null;
 
         if (excludedItems.stream().anyMatch(excluded -> ItemUtils.matchesItemId(item, excluded))) {
             return false;

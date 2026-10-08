@@ -125,6 +125,7 @@ console:
     craftengine_resources_release_failed: "Failed to release CraftEngine farmersdelight resources: {error}"
     auraskills_hook_failed: "Failed to initialize AuraSkills API compatibility: {error}"
     auraskills_skill_missing: "AuraSkills skill was not found: {skill}"
+    leveler_xp_failed: "Failed to add CraftEngine leveler experience: {error}"
     auraskills_xp_failed: "Failed to add AuraSkills XP for skill {skill} to {player}: {error}"
     registered_block_behaviors: "Registered custom block behaviors"
     content_registration_late: "Registered {id} ({kind}) after CraftEngine loaded its content; CraftEngine must reload for existing content to use it"

@@ -90,8 +90,7 @@ public final class RecipeSerializer {
         if (item == null) {
             return null;
         }
-        // Resolve the full identity (CE custom id -> mmoitems:<TYPE>:<ID> -> vanilla id) so an
-        // ingredient or tool carrying an MMOItems identity survives the editor's save round-trip.
+        // Preserve the authoritative CE/external identity through the editor's save round-trip.
         return ItemUtils.resolveItemId(item);
     }
 }

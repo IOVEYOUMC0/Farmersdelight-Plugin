@@ -10,7 +10,6 @@ import net.momirealms.craftengine.core.world.BlockPos;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
@@ -19,8 +18,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.ToDoubleFunction;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -708,8 +707,8 @@ public class CookingPotBlockEntity {
     }
 
     public ItemStack useHeldContainerOnPendingMeal(Player player, ItemStack container) {
-        awardUsedRecipes(player);
         TakenMeal meal = useHeldContainerOnPendingMeal(container);
+        if (meal != null) awardUsedRecipes(player, meal.item());
         return meal == null ? null : meal.item();
     }
 
@@ -742,8 +741,8 @@ public class CookingPotBlockEntity {
     }
 
     public ItemStack takeMealPortionForDelivery(Player player, int requestedAmount) {
-        awardUsedRecipes(player);
         TakenMeal meal = takeMealPortionForDelivery(requestedAmount);
+        if (meal != null) awardUsedRecipes(player, meal.item());
         return meal == null ? null : meal.item();
     }
 
@@ -755,8 +754,8 @@ public class CookingPotBlockEntity {
         if (!layout.isOutputSlot(outputSlot)) {
             return null;
         }
-        awardUsedRecipes(player);
         TakenMeal meal = takeOutputSlotPortionForDelivery(outputSlot, requestedAmount);
+        if (meal != null) awardUsedRecipes(player, meal.item());
         return meal == null ? null : meal.item();
     }
 
@@ -820,7 +819,6 @@ public class CookingPotBlockEntity {
     }
 
     public ItemStack takeMealWithExperience(Player player) {
-        awardUsedRecipes(player);
         SplitItem meal;
         synchronized (inventoryLock) {
             int outputSlot = firstNonEmptySlot(layout.outputSlots());
@@ -836,43 +834,34 @@ public class CookingPotBlockEntity {
             tryMovePendingToOutput();
         }
         syncWorldlyContainer();
+        awardUsedRecipes(player, meal.item());
         return meal.item();
     }
 
-    public void awardUsedRecipes(Player player) {
-        if (usedRecipeTracker.isEmpty()) return;
-        World currentWorld = this.world;
-        if (currentWorld == null) return;
-
-        for (String recipeId : List.copyOf(usedRecipeTracker.keySet())) {
-            Integer craftedAmount = usedRecipeTracker.remove(recipeId);
-            if (craftedAmount == null) continue;
-            if (plugin == null) continue;
-            var recipes = plugin.getCookingPotRecipes();
-            if (recipes == null) continue;
-            CookingPotRecipe recipe = recipes.getRecipe(recipeId);
-            if (recipe == null) continue;
-            float exp = recipe.getExperience();
-            splitAndSpawnExperience(currentWorld, craftedAmount, exp);
-        }
+    public void awardUsedRecipes(Player player, ItemStack result) {
+        if (player == null || plugin == null || result == null || result.getType().isAir()) return;
+        var recipes = plugin.getCookingPotRecipes();
+        if (recipes == null) return;
+        double experience = collectUsedRecipeExperience(id -> {
+            CookingPotRecipe recipe = recipes.getRecipe(recipeGroupId, id);
+            return recipe == null ? 0.0D : recipe.getExperience();
+        });
+        World currentWorld = world;
+        Location location = currentWorld == null ? null
+                : new Location(currentWorld, posKey.x() + 0.5, posKey.y() + 1.0, posKey.z() + 0.5);
+        plugin.awardCraftingExperience(player, location, result, experience, "cooking_pot");
     }
 
-    private void splitAndSpawnExperience(World world, int craftedAmount, float experience) {
-        double totalExp = (double) craftedAmount * (double) experience;
-        int expValue = (int) Math.floor(totalExp);
-        double fraction = totalExp - expValue;
-        if (fraction > 0.0D && ThreadLocalRandom.current().nextDouble() < fraction) {
-            expValue += 1;
+    double collectUsedRecipeExperience(ToDoubleFunction<String> recipeExperience) {
+        double total = 0.0D;
+        for (String recipeId : List.copyOf(usedRecipeTracker.keySet())) {
+            Integer craftedAmount = usedRecipeTracker.remove(recipeId);
+            if (craftedAmount == null || craftedAmount <= 0) continue;
+            double experience = recipeExperience.applyAsDouble(recipeId);
+            double earned = craftedAmount * experience;
+            if (Double.isFinite(earned) && earned > 0.0D && Double.isFinite(total + earned)) total += earned;
         }
-        if (expValue > 0) {
-            int amount = expValue;
-            Location loc = new Location(world, posKey.x() + 0.5, posKey.y() + 1.0, posKey.z() + 0.5);
-            // Reward collection runs on the taking player's region, which need not own the pot's chunk;
-            // spawning there would trip Folia's tick-thread check and abort the whole take.
-            if (plugin != null) {
-                plugin.scheduler().runAt(loc, () -> world.spawn(loc, ExperienceOrb.class, orb -> orb.setExperience(amount)));
-            }
-        }
+        return total;
     }
 
     public List<ItemStack> returnContainerItems() {

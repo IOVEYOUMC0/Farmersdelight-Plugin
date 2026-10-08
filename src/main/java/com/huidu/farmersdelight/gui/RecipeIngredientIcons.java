@@ -78,11 +78,7 @@ public final class RecipeIngredientIcons {
     }
 
     public static String buildIngredientDisplayKey(ItemStack item) {
-        String customId = ItemUtils.getCustomItemId(item);
-        if (customId != null) {
-            return customId;
-        }
-        return "minecraft:" + item.getType().name().toLowerCase(Locale.ROOT);
+        return ItemUtils.resolveItemId(item);
     }
 
     public static List<ItemStack> sortIngredientDisplayItems(Collection<ItemStack> items) {

@@ -934,9 +934,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
 
         ItemDelivery.giveOrDrop(player, posKey.toLocation(world).add(0.5, 0.7, 0.5), meal);
 
-        blockEntity.awardUsedRecipes(player);
-        plugin.callCookingPotExperienceEvent(player, meal, 0.0D);
-
         saveBlockEntityData(world, posKey);
         world.playSound(posKey.toLocation(world), Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.0f);
         player.updateInventory();

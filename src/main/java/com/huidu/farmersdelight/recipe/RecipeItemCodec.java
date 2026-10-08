@@ -3,7 +3,6 @@ package com.huidu.farmersdelight.recipe;
 import com.google.gson.JsonElement;
 import com.huidu.farmersdelight.api.util.CeItemInterop;
 import com.huidu.farmersdelight.util.ItemUtils;
-import com.huidu.farmersdelight.util.compat.MMOItemsCompat;
 import net.momirealms.craftengine.bukkit.item.BukkitItem;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
 import net.momirealms.craftengine.bukkit.util.ItemStackUtils;
@@ -92,8 +91,8 @@ public final class RecipeItemCodec {
     /**
      * True when the item differs from a freshly built default of its own id, i.e. it carries extra data
      * worth a snapshot. CE custom items are excluded; their data comes from the item definition, so the
-     * id alone round-trips it. MMOItems items are excluded too: their full identity is the
-     * mmoitems:<TYPE>:<ID> id and MMOItems rebuilds the item from its own data, so no NBT snapshot is kept.
+     * id alone round-trips it. External items keep a snapshot because providers may rebuild random
+     * attributes or omit data added after the original item was created.
      */
     public static boolean carriesExtraData(ItemStack item) {
         if (item == null || item.getType().isAir()) {
@@ -102,8 +101,8 @@ public final class RecipeItemCodec {
         if (ItemUtils.isCustomItem(item)) {
             return false;
         }
-        if (MMOItemsCompat.getItemId(item) != null) {
-            return false;
+        if (ItemUtils.getNonVanillaItemId(item) != null) {
+            return true;
         }
         String id = RecipeSerializer.itemIdString(item);
         ItemStack rebuilt = ItemUtils.createItem(id);

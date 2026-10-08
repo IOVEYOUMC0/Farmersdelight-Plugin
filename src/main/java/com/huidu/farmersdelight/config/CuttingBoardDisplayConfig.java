@@ -206,7 +206,7 @@ public final class CuttingBoardDisplayConfig {
         if (item == null || item.getType().isAir()) {
             return null;
         }
-        String customId = ItemUtils.getCustomItemId(item);
+        String customId = ItemUtils.getNonVanillaItemId(item);
         if (customId != null) {
             return customId;
         }

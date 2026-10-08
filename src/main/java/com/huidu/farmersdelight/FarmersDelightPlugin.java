@@ -41,6 +41,7 @@ import com.huidu.farmersdelight.config.PluginConfigFiles;
 import com.huidu.farmersdelight.config.DebugSettings;
 import com.huidu.farmersdelight.config.KnifeSettings;
 import com.huidu.farmersdelight.compat.AuraSkillsHook;
+import com.huidu.farmersdelight.compat.LevelerExperienceRewards;
 import com.huidu.farmersdelight.compat.CraftEngineStateUsageMonitor;
 import com.huidu.farmersdelight.gui.CookingPotGui;
 import com.huidu.farmersdelight.gui.GuiCacheInvalidator;
@@ -91,6 +92,7 @@ import com.huidu.farmersdelight.effect.EffectManager;
 import com.huidu.farmersdelight.config.ConfigBootstrap;
 import com.huidu.farmersdelight.config.CuttingBoardSounds;
 import net.momirealms.craftengine.bukkit.api.event.CraftEngineReloadEvent;
+import net.momirealms.craftengine.bukkit.api.BukkitAdaptor;
 import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
 import net.momirealms.craftengine.bukkit.world.BukkitWorldManager;
 import net.momirealms.craftengine.core.world.CEWorld;
@@ -98,6 +100,8 @@ import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Location;
+import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -1398,6 +1402,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         cookingPotExperienceRewardConfig = new CookingPotExperienceRewardConfig();
         cookingPotExperienceRewardConfig.loadFromConfig(
                 getFirstConfigSection("experience-reward", "cooking-pot.experience-reward"));
+        ItemUtils.configureExternalItemSources(getConfig().getStringList("external-item-sources"));
         WorldDataConfig.reload(this, worldDataConfig);
         // Load the c: common-tag mapping before recipes load; it feeds recipe tag matching/indexing.
         CommonTagResolver.reload(this);
@@ -1495,41 +1500,46 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return getCookingPotExperienceRewardConfig().shouldDropVanillaExperience();
     }
 
-    public boolean shouldAwardCookingPotAuraSkillsExperience() {
-        return getCookingPotExperienceRewardConfig().shouldAwardAuraSkillsExperience();
-    }
-
-    public void awardCookingPotAuraSkillsExperience(Player player, double baseExperience) {
-        if (player == null || baseExperience <= 0.0D || !shouldAwardCookingPotAuraSkillsExperience()) {
-            return;
-        }
-        for (CookingPotExperienceRewardConfig.AuraSkillsReward reward
-                : getCookingPotExperienceRewardConfig().auraSkillsRewards()) {
-            if (!shouldApplyReward(reward.chance())) {
-                continue;
-            }
-            var xpDefinition = reward.toXpDefinition(baseExperience);
-            if (xpDefinition.amount() > 0.0D) {
-                getAuraSkillsHook().addXp(player, xpDefinition);
-            }
+    public void awardCookingPotSkillExperience(Player player, double baseExperience) {
+        var config = getCookingPotExperienceRewardConfig();
+        if (player == null || !Double.isFinite(baseExperience) || baseExperience <= 0.0D
+                || (!config.shouldAwardAuraSkillsExperience() && !config.shouldAwardLevelerExperience())) return;
+        try {
+            var engine = getCraftEngine();
+            LevelerExperienceRewards.award(config, baseExperience,
+                    engine == null ? null : BukkitAdaptor.adapt(player),
+                    engine == null ? null : engine.compatibilityManager(),
+                    xp -> getAuraSkillsHook().addXp(player, xp),
+                    error -> getLogger().fine(I18n.formatConsole("plugin.leveler_xp_failed", "error", error)));
+        } catch (RuntimeException | LinkageError unavailable) {
+            getLogger().fine(I18n.formatConsole("plugin.leveler_xp_failed", "error", unavailable.getMessage()));
         }
     }
 
-    public void callCookingPotExperienceEvent(Player player, ItemStack result, double baseExperience) {
-        if (player == null) {
-            return;
+    public void awardCraftingExperience(Player player, Location location, ItemStack result,
+                                        double baseExperience, String source) {
+        if (player == null || !Double.isFinite(baseExperience) || baseExperience < 0.0D) return;
+        ItemStack resultCopy = result == null ? null : result.clone();
+        Location locationCopy = location == null ? null : location.clone();
+        if (baseExperience > 0.0D && shouldDropCookingPotVanillaExperience()
+                && locationCopy != null && locationCopy.getWorld() != null) {
+            scheduler().runAt(locationCopy, () -> {
+                int exp = (int) Math.min(Integer.MAX_VALUE - 1.0D, Math.floor(baseExperience));
+                double fraction = baseExperience - Math.floor(baseExperience);
+                if (ThreadLocalRandom.current().nextDouble() < fraction) exp++;
+                if (exp > 0) {
+                    int amount = exp;
+                    locationCopy.getWorld().spawn(locationCopy, ExperienceOrb.class, orb -> orb.setExperience(amount));
+                }
+            });
         }
-        getServer().getPluginManager().callEvent(new ProfessionCookingExperienceEvent(
-                player.getUniqueId(),
-                player.getName(),
-                "cooking_pot",
-                result,
-                (float) Math.max(0.0D, baseExperience)
-        ));
-    }
-
-    private boolean shouldApplyReward(double chance) {
-        return chance >= 1.0D || (chance > 0.0D && ThreadLocalRandom.current().nextDouble() < chance);
+        // The station and taking player can have different Folia owners.
+        scheduler().runForEntity(player, () -> {
+            awardCookingPotSkillExperience(player, baseExperience);
+            getServer().getPluginManager().callEvent(new ProfessionCookingExperienceEvent(
+                    player.getUniqueId(), player.getName(), source, resultCopy,
+                    (float) Math.min(Float.MAX_VALUE, baseExperience), locationCopy));
+        });
     }
 
     public AuraSkillsHook getAuraSkillsHook() {

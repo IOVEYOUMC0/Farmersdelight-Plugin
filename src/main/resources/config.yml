@@ -442,7 +442,7 @@ cooking-pot:
         speed: 0.02
 
 # How recipe experience is settled when a station hands a finished result to the player.
-# vanilla = drop vanilla experience orbs; auraskills = only grant AuraSkills experience; both = both; none = no experience reward.
+# vanilla = vanilla orbs; auraskills = legacy AuraSkills; levelers = CE providers; both = orbs + skills; none = no rewards.
 # Base experience is still decided by each recipe's experience field in recipes/cooking_pot_recipes.yml.
 # Applies to the cooking pot and to every addon station that credits experience through the FarmersDelight API,
 # such as the Brewin' and Chewin' keg, so setting none here silences those addons too.
@@ -456,6 +456,19 @@ experience-reward:
     skill: farming
     multiplier: 1.0
     raw: false
+
+  # Used by levelers/both. Targets retain provider-specific spelling. A generic auraskills entry
+  # replaces the legacy auraskills section in both mode, preventing duplicate rewards.
+  # levelers:
+  #   - plugin: mmocore
+  #     target: cooking
+  #     multiplier: 1.0
+  levelers: []
+
+# CE sources referenced by recipes bind automatically. Add source names here to also recognize
+# held items in the editor before any recipe references them. MMOItems is always recognized.
+# Example: [itemsadder, nexo, oraxen]
+external-item-sources: []
 
 # Return table after a station consumes container-type items.
 # Key is the container item ID consumed (a CraftEngine custom id or a vanilla id), value is the item ID returned

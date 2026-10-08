@@ -142,7 +142,7 @@ public class CookingPotGui extends AbstractInventoryGui {
         this.inventory = Bukkit.createInventory(this, config.getSize(), resolveTitleComponent());
         this.itemDistributor = new CookingPotItemDistributor(blockEntity, plugin, inventory,
                 writableSlotMapping, ingredientSlots, containerSlots, this::writeWritableSlot);
-        this.outputTaker = new CookingPotOutputTaker(blockEntity, plugin, slotMapping);
+        this.outputTaker = new CookingPotOutputTaker(blockEntity, slotMapping);
     }
 
     @Override
@@ -676,7 +676,6 @@ public class CookingPotGui extends AbstractInventoryGui {
             ItemStack outputItem = outputTaker.takeOutputFromSlot(player, rawSlot, requestedAmount);
             if (outputItem != null && !outputItem.getType().isAir()) {
                 outputTaker.deliverOutputToPlayer(event, player, outputItem);
-                outputTaker.applyOutputExperienceReward(player, outputItem);
                 player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.0f);
                 Bukkit.getPluginManager().callEvent(new FarmersDelightProduceEvent(
                         player.getUniqueId(), "cooking_pot", outputItem, cookingPotLocation));

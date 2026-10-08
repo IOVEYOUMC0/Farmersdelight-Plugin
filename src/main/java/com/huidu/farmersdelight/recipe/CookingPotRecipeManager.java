@@ -8,7 +8,6 @@ import com.huidu.farmersdelight.pack.PackSection;
 import com.huidu.farmersdelight.pack.PackSections;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
-import com.huidu.farmersdelight.util.compat.MMOItemsCompat;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
@@ -422,7 +421,7 @@ public class CookingPotRecipeManager {
     private void indexContainer(Set<String> containerKeys, CookingPotRecipe recipe) {
         ItemStack container = recipe.getContainer();
         if (container != null && !container.getType().isAir()) {
-            String customId = ItemUtils.getCustomItemId(container);
+            String customId = ItemUtils.getNonVanillaItemId(container);
             if (customId != null) {
                 containerKeys.add(customId);
             }
@@ -565,7 +564,7 @@ public class CookingPotRecipeManager {
         if (inferred == null || inferred.getType().isAir()) {
             return null;
         }
-        String customId = ItemUtils.getCustomItemId(inferred);
+        String customId = ItemUtils.getNonVanillaItemId(inferred);
         String vanillaId = ItemUtils.getVanillaMaterialItemId(inferred);
         return isExcludedRemainder(excluded, customId, vanillaId) ? null : inferred;
     }
@@ -1100,17 +1099,7 @@ public class CookingPotRecipeManager {
             return "none";
         }
 
-        String customId = ItemUtils.getCustomItemId(item);
-        if (customId != null) {
-            return customId;
-        }
-        // Distinct MMOItems items can share a base material; key on their identity so different
-        // mmoitems:<TYPE>:<ID> items never collide in the recipe cache.
-        String mmoId = MMOItemsCompat.getItemId(item);
-        if (mmoId != null) {
-            return mmoId;
-        }
-        return ItemUtils.getVanillaMaterialItemId(item);
+        return ItemUtils.resolveItemId(item);
     }
 
     public Map<String, CookingPotRecipe> getRecipes() {
