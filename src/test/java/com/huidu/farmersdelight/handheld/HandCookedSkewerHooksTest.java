@@ -209,7 +209,7 @@ class HandCookedSkewerHooksTest {
     }
 
     /**
-     * The {@code blockClick} flag means "the policy left this click to the block" (a campfire taking food), not
+     * The blockClick flag means "the policy left this click to the block" (a campfire taking food), not
      * "a block was clicked": an accepted block click is passed as false by the wiring.
      */
     @Test

@@ -21,7 +21,7 @@ import java.util.function.BooleanSupplier;
  * Only a positive answer is remembered. A negative one is asked again on every call on purpose, because
  * CraftEngine enables after this plugin's onLoad and remembering it would defer those registrations forever.
  * The probe is not free — it reaches CraftEngine's item registry, and one caller's path (a block-physics event)
- * asks five times per event — so a CraftEngine reload calls {@link #invalidate()} to drop a stale positive.
+ * asks five times per event — so a CraftEngine reload calls the invalidate() method to drop a stale positive.
  */
 public final class CustomItemPresence {
 

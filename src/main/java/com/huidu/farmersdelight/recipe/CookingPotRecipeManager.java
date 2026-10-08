@@ -131,7 +131,7 @@ public class CookingPotRecipeManager {
         if (ownFile != null) {
             segments.add(ownFile);
         }
-        pending.loadCustom(config);
+        pending.loadCustom(OWN_FILE_SOURCE, config);
 
         // Recipes a CraftEngine pack declares under cooking_recipes. Queued after the plugin's own file so a
         // pack can never silently replace a built-in recipe; the runtime registrations are merged in the publish
@@ -146,12 +146,24 @@ public class CookingPotRecipeManager {
             if (pack != null) {
                 segments.add(pack);
             }
-            pending.loadCustom(packSection.yaml());
+            pending.loadCustom(packSection.source(), packSection.yaml());
         }
 
         plugin.recipeRegistrations().start(this, segments,
                 RecipeRegistrationBudget.forLoad(recipes.size(), plugin.recipeRegistrationBudget()),
                 () -> publishLoadedSet(pending));
+    }
+
+    /** The plugin's own file parses under this source; every pack section passes its own. */
+    private static final String OWN_FILE_SOURCE = "recipes/cooking_pot_recipes.yml";
+
+    private final ParsedRecipeCache<CookingPotRecipe> parseCache = new ParsedRecipeCache<>();
+
+    /** One entry's parse, reused while the content generation and the entry's own values are unchanged. */
+    private CookingPotRecipe parseCached(String source, String recipeId, ConfigurationSection section,
+                                         int maxIngredients) {
+        return parseCache.parse(RecipeContentEpoch.current(), source, recipeId,
+                String.valueOf(section.getValues(true)), () -> parseRecipe(recipeId, section, maxIngredients));
     }
 
     /**
@@ -178,7 +190,7 @@ public class CookingPotRecipeManager {
         }
 
         private void putOwnFile(String recipeId, ConfigurationSection section) {
-            CookingPotRecipe recipe = parseRecipe(recipeId, section, 6);
+            CookingPotRecipe recipe = parseCached(OWN_FILE_SOURCE, recipeId, section, 6);
             recipes.put(recipeId, recipe);
             indexDefaultRecipe(ingredientToRecipes, recipeId, recipe);
             indexContainer(validContainerKeys, recipe);
@@ -192,7 +204,7 @@ public class CookingPotRecipeManager {
                 I18n.logWarning("recipe.pack_duplicate_skipped", "id", recipeId, "source", source);
                 return;
             }
-            CookingPotRecipe recipe = parseRecipe(recipeId, section, 6);
+            CookingPotRecipe recipe = parseCached(source, recipeId, section, 6);
             recipes.put(recipeId, recipe);
             packIds.add(recipeId);
             indexDefaultRecipe(ingredientToRecipes, recipeId, recipe);
@@ -202,8 +214,9 @@ public class CookingPotRecipeManager {
             }
         }
 
-        private void loadCustom(YamlConfiguration yaml) {
-            loadCustomRecipes(yaml, customRecipes, customIngredientToRecipes, validContainerKeys, inferredContainers);
+        private void loadCustom(String source, YamlConfiguration yaml) {
+            loadCustomRecipes(source, yaml, customRecipes, customIngredientToRecipes, validContainerKeys,
+                    inferredContainers);
         }
     }
 
@@ -268,6 +281,55 @@ public class CookingPotRecipeManager {
         this.packRecipeCount = newPackRecipeCount;
         this.anyIngredientConstrainsNbt = newAnyIngredientConstrainsNbt;
 
+        invalidateRecipeCaches();
+    }
+
+    /**
+     * The structures one published generation holds. Capturing takes the references and restoring puts them
+     * back, and nothing in between mutates them, so a reader on any thread sees one whole generation at a time
+     * rather than a new set next to indexes built for the old one.
+     */
+    public record PublishedState(Map<String, CookingPotRecipe> recipes,
+                                 Map<String, Map<String, CookingPotRecipe>> customRecipes,
+                                 Map<String, Set<String>> ingredientToRecipes,
+                                 Map<String, Map<String, Set<String>>> customIngredientToRecipes,
+                                 List<CookingPotRecipe> sortedRecipes,
+                                 Map<String, List<CookingPotRecipe>> sortedCustomRecipes,
+                                 Map<String, List<CookingPotRecipe>> sortedCustomOnlyRecipes,
+                                 Map<String, List<CookingPotRecipe>> resultToRecipes,
+                                 Set<String> validContainerKeys,
+                                 int packRecipeCount,
+                                 boolean anyIngredientConstrainsNbt) {
+    }
+
+    /** Captures the published generation before a pass replaces it, so a failed pass can be put back. */
+    public PublishedState capturePublished() {
+        return new PublishedState(recipes, customRecipes, ingredientToRecipes, customIngredientToRecipes,
+                sortedRecipes, sortedCustomRecipes, sortedCustomOnlyRecipes, resultToRecipes, validContainerKeys,
+                packRecipeCount, anyIngredientConstrainsNbt);
+    }
+
+    /**
+     * Puts a captured generation back after a pass failed instead of publishing it. The caches keyed on the
+     * recipe set are dropped too: going back to the earlier set is a change as far as they are concerned.
+     */
+    public void restorePublished(PublishedState state) {
+        this.recipes = state.recipes();
+        this.customRecipes = state.customRecipes();
+        this.ingredientToRecipes = state.ingredientToRecipes();
+        this.customIngredientToRecipes = state.customIngredientToRecipes();
+        this.sortedRecipes = state.sortedRecipes();
+        this.sortedCustomRecipes = state.sortedCustomRecipes();
+        this.sortedCustomOnlyRecipes = state.sortedCustomOnlyRecipes();
+        this.resultToRecipes = state.resultToRecipes();
+        this.validContainerKeys = state.validContainerKeys();
+        this.packRecipeCount = state.packRecipeCount();
+        this.anyIngredientConstrainsNbt = state.anyIngredientConstrainsNbt();
+        invalidateRecipeCaches();
+    }
+
+    /** Drops every cache keyed on the recipe set; a publish and a rollback both need it. */
+    private void invalidateRecipeCaches() {
         vanillaItemIdsByTagCache.clear();
         synchronized (recipeCache) {
             recipeCache.clear();
@@ -282,7 +344,7 @@ public class CookingPotRecipeManager {
         RecipeItemCodec.clearDecodeCache();
     }
 
-    private void loadCustomRecipes(YamlConfiguration config,
+    private void loadCustomRecipes(String source, YamlConfiguration config,
                                    Map<String, Map<String, CookingPotRecipe>> targetCustomRecipes,
                                    Map<String, Map<String, Set<String>>> targetCustomIndex,
                                    Set<String> targetContainerKeys,
@@ -311,7 +373,7 @@ public class CookingPotRecipeManager {
                     continue;
                 }
                 try {
-                    CookingPotRecipe recipe = parseRecipe(recipeId, section, 54);
+                    CookingPotRecipe recipe = parseCached(source, recipeId, section, 54);
                     groupRecipes.put(recipeId, recipe);
                     indexCustomRecipe(targetCustomIndex, groupId, recipeId, recipe);
                     indexContainer(targetContainerKeys, recipe);

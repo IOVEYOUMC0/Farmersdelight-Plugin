@@ -645,6 +645,14 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             }
         });
 
+        // The pool drained above, so an editor save still counted here is one that budget could not finish:
+        // report it rather than let it disappear with the plugin.
+        int pendingEditorWrites = RecipeEditorView.pendingEditorWrites();
+        if (pendingEditorWrites > 0) {
+            getLogger().warning(I18n.formatConsole("plugin.recipe_saves_pending",
+                    "count", String.valueOf(pendingEditorWrites)));
+        }
+
         knifeDropHandler = null;
         cookingPotRecipeManager = null;
         cuttingBoardRecipeManager = null;

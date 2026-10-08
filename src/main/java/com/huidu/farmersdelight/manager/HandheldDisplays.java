@@ -74,6 +74,11 @@ public final class HandheldDisplays {
         private final ItemStack original;
         private final int duration;
         private final HandheldCookingDisplay display;
+        // The display base is the real stack with the display-only max damage applied once; only the damage value
+        // changes per update, so the item the client keeps re-rendering has a stable component set. The base is
+        // rebuilt when the slot no longer holds the same stack.
+        private ItemStack displayBase;
+        private int displayedDamage = -1;
         private boolean closed;
 
         private HandleImpl(Player player, int slot, ItemStack original, int duration,
@@ -91,17 +96,47 @@ public final class HandheldDisplays {
                 return;
             }
             try {
-                ItemStack copy = this.original.clone();
-                var wrapped = BukkitAdaptor.adapt(copy);
-                wrapped.setJavaComponent(DataComponentKeys.MAX_DAMAGE, this.duration);
                 int damage = Math.max(0, Math.min(this.duration, this.duration - progress));
+                ItemStack source = currentStack();
+                if (damage == this.displayedDamage && this.displayBase != null
+                        && sameStack(this.displayBase, source)) {
+                    // The bar would be identical, and re-sending it only makes the client redraw the item.
+                    return;
+                }
+                if (this.displayBase == null || !sameStack(this.displayBase, source)) {
+                    // Rebuilt from the slot as it is now, not from the copy taken when the bar opened: a stack
+                    // that changed size or was replaced must not keep showing the old item.
+                    ItemStack base = source.clone();
+                    BukkitAdaptor.adapt(base).setJavaComponent(DataComponentKeys.MAX_DAMAGE, this.duration);
+                    this.displayBase = base;
+                }
+                ItemStack copy = this.displayBase.clone();
+                var wrapped = BukkitAdaptor.adapt(copy);
                 wrapped.setJavaComponent(DataComponentKeys.DAMAGE, damage);
                 Object item = wrapped.minecraftItem();
+                this.displayedDamage = damage;
                 this.display.update(item,
                         ClientboundSetPlayerInventoryPacketProxy.INSTANCE.newInstance(this.slot, item));
             } catch (RuntimeException | LinkageError ignored) {
                 // A failed cosmetic update only costs the bar for this tick.
             }
+        }
+
+        /**
+         * The stack the slot holds right now, so the bar always shows the server's own item. Off the player's
+         * region the opening copy stands in, because that read belongs to the owning region.
+         */
+        private ItemStack currentStack() {
+            if (!Bukkit.isOwnedByCurrentRegion(this.player)) {
+                return this.original;
+            }
+            ItemStack current = this.player.getInventory().getItem(this.slot);
+            return current == null || current.getType().isAir() ? this.original : current;
+        }
+
+        /** Same item and same count: the display base only needs rebuilding when that changes. */
+        private static boolean sameStack(ItemStack base, ItemStack source) {
+            return base.getAmount() == source.getAmount() && base.isSimilar(source);
         }
 
         @Override

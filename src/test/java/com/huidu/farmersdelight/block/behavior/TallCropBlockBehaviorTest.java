@@ -154,6 +154,69 @@ class TallCropBlockBehaviorTest {
     }
 
     @Test
+    void resetToAgeIsDisabledByDefault() {
+        TallCropBlockBehavior rice = crop("farmersdelight:rice", Map.of());
+
+        org.junit.jupiter.api.Assertions.assertNull(rice.resetToAge());
+        assertTrue(rice.resetsOnHarvest());
+    }
+
+    @Test
+    void resetToAgeTakesTheConfiguredFixedAge() {
+        TallCropBlockBehavior corn = crop("corndelight:corn_crop", Map.of(
+                "max-age-lower", 7,
+                "reset-to-age", 2
+        ));
+
+        assertEquals(2, corn.resetToAge());
+        assertTrue(readBehaviorSource().contains("Math.min(config.resetToAge(), config.maxAgeLower())"));
+    }
+
+    @Test
+    void resetToAgeIsClampedToTheLowerHalfMaturity() {
+        TallCropBlockBehavior corn = crop("corndelight:corn_crop", Map.of(
+                "max-age-lower", 7,
+                "reset-to-age", 99
+        ));
+
+        assertEquals(7, corn.resetToAge());
+    }
+
+    @Test
+    void resetToAgeZeroIsNotTheSameAsAbsence() {
+        TallCropBlockBehavior corn = crop("corndelight:corn_crop", Map.of(
+                "max-age-lower", 7,
+                "reset-to-age", 0
+        ));
+
+        assertEquals(0, corn.resetToAge());
+        assertTrue(readBehaviorSource().contains("config.resetToAge() != null"));
+        assertFalse(readBehaviorSource().contains("config.resetToAge() > 0"));
+    }
+
+    @Test
+    void resetToAgeOverridesTheHarvestSwitch() {
+        TallCropBlockBehavior corn = crop("corndelight:corn_crop", Map.of(
+                "max-age-lower", 7,
+                "reset-on-harvest", false,
+                "reset-to-age", 2
+        ));
+
+        assertEquals(2, corn.resetToAge());
+        assertFalse(corn.resetsOnHarvest());
+        assertTrue(readBehaviorSource().contains("&& (config.resetToAge() != null || config.resetOnHarvest())"));
+    }
+
+    private static String readBehaviorSource() {
+        try {
+            return java.nio.file.Files.readString(java.nio.file.Path.of(
+                    "src/main/java/com/huidu/farmersdelight/block/behavior/TallCropBlockBehavior.java"));
+        } catch (java.io.IOException exception) {
+            throw new AssertionError(exception);
+        }
+    }
+
+    @Test
     void upperMinAgeDefaultsToTheLowerHalfMaturity() {
         TallCropBlockBehavior crop = crop("corndelight:corn_crop", Map.of("max-age-lower", 7));
 

@@ -10,7 +10,6 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.Locale;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -30,7 +29,7 @@ public final class CraftEngineResources {
     private CraftEngineResources() {
     }
 
-    /** Installs missing files and applies the one-off text migrations. */
+    /** Installs the files the installed namespace is missing. */
     public static int release(JavaPlugin plugin, String namespace) {
         return release(plugin, namespace, true);
     }
@@ -78,7 +77,7 @@ public final class CraftEngineResources {
         }
 
         if (Files.exists(targetRoot) && !completeExisting) {
-            return migrateLegacyPositionArguments(targetRoot);
+            return 0;
         }
 
         String prefix = "craftengine/" + namespace + "/";
@@ -86,7 +85,7 @@ public final class CraftEngineResources {
         try (ZipFile zip = new ZipFile(jar.toFile())) {
             copied = copyEntries(zip, prefix, targetRoot, !Files.exists(targetRoot));
         }
-        return copied + migrateLegacyPositionArguments(targetRoot);
+        return copied;
     }
 
     private static int copyEntries(ZipFile zip, String prefix, Path targetRoot, boolean installAll)
@@ -109,36 +108,5 @@ public final class CraftEngineResources {
             }
         }
         return copied;
-    }
-
-    private static int migrateLegacyPositionArguments(Path targetRoot) throws IOException {
-        if (!Files.isDirectory(targetRoot)) {
-            return 0;
-        }
-        Path migrationMarker = targetRoot.resolve(".position-args-migrated");
-        if (Files.exists(migrationMarker)) {
-            return 0;
-        }
-        int changed = 0;
-        try (var paths = Files.walk(targetRoot)) {
-            for (Path path : paths.filter(Files::isRegularFile).filter(CraftEngineResources::isTextResource).toList()) {
-                String content = Files.readString(path);
-                String migrated = content
-                        .replace("<arg:block.block_x>", "<arg:position.block_x>")
-                        .replace("<arg:block.block_y>", "<arg:position.block_y>")
-                        .replace("<arg:block.block_z>", "<arg:position.block_z>");
-                if (!content.equals(migrated)) {
-                    Files.writeString(path, migrated);
-                    changed++;
-                }
-            }
-        }
-        Files.writeString(migrationMarker, "");
-        return changed;
-    }
-
-    private static boolean isTextResource(Path path) {
-        String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
-        return name.endsWith(".yml") || name.endsWith(".yaml") || name.endsWith(".json");
     }
 }

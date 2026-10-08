@@ -1267,20 +1267,140 @@ block:
       variants:
         facing=north,support=false:
           appearance: north
+          settings:
+            destroy_stages:
+              items:
+              - farmersdelight:skillet_destroy_stage_0
+              - farmersdelight:skillet_destroy_stage_1
+              - farmersdelight:skillet_destroy_stage_2
+              - farmersdelight:skillet_destroy_stage_3
+              - farmersdelight:skillet_destroy_stage_4
+              - farmersdelight:skillet_destroy_stage_5
+              - farmersdelight:skillet_destroy_stage_6
+              - farmersdelight:skillet_destroy_stage_7
+              - farmersdelight:skillet_destroy_stage_8
+              - farmersdelight:skillet_destroy_stage_9
+              yaw: 0
+              scale: 1.01
         facing=north,support=true:
           appearance: north_support
+          settings:
+            destroy_stages:
+              items:
+              - farmersdelight:skillet_destroy_stage_0
+              - farmersdelight:skillet_destroy_stage_1
+              - farmersdelight:skillet_destroy_stage_2
+              - farmersdelight:skillet_destroy_stage_3
+              - farmersdelight:skillet_destroy_stage_4
+              - farmersdelight:skillet_destroy_stage_5
+              - farmersdelight:skillet_destroy_stage_6
+              - farmersdelight:skillet_destroy_stage_7
+              - farmersdelight:skillet_destroy_stage_8
+              - farmersdelight:skillet_destroy_stage_9
+              yaw: 0
+              scale: 1.01
         facing=south,support=false:
           appearance: south
+          settings:
+            destroy_stages:
+              items:
+              - farmersdelight:skillet_destroy_stage_0
+              - farmersdelight:skillet_destroy_stage_1
+              - farmersdelight:skillet_destroy_stage_2
+              - farmersdelight:skillet_destroy_stage_3
+              - farmersdelight:skillet_destroy_stage_4
+              - farmersdelight:skillet_destroy_stage_5
+              - farmersdelight:skillet_destroy_stage_6
+              - farmersdelight:skillet_destroy_stage_7
+              - farmersdelight:skillet_destroy_stage_8
+              - farmersdelight:skillet_destroy_stage_9
+              yaw: 180
+              scale: 1.01
         facing=south,support=true:
           appearance: south_support
+          settings:
+            destroy_stages:
+              items:
+              - farmersdelight:skillet_destroy_stage_0
+              - farmersdelight:skillet_destroy_stage_1
+              - farmersdelight:skillet_destroy_stage_2
+              - farmersdelight:skillet_destroy_stage_3
+              - farmersdelight:skillet_destroy_stage_4
+              - farmersdelight:skillet_destroy_stage_5
+              - farmersdelight:skillet_destroy_stage_6
+              - farmersdelight:skillet_destroy_stage_7
+              - farmersdelight:skillet_destroy_stage_8
+              - farmersdelight:skillet_destroy_stage_9
+              yaw: 180
+              scale: 1.01
         facing=east,support=false:
           appearance: east
+          settings:
+            destroy_stages:
+              items:
+              - farmersdelight:skillet_destroy_stage_0
+              - farmersdelight:skillet_destroy_stage_1
+              - farmersdelight:skillet_destroy_stage_2
+              - farmersdelight:skillet_destroy_stage_3
+              - farmersdelight:skillet_destroy_stage_4
+              - farmersdelight:skillet_destroy_stage_5
+              - farmersdelight:skillet_destroy_stage_6
+              - farmersdelight:skillet_destroy_stage_7
+              - farmersdelight:skillet_destroy_stage_8
+              - farmersdelight:skillet_destroy_stage_9
+              yaw: 90
+              scale: 1.01
         facing=east,support=true: 
           appearance: east_support
+          settings:
+            destroy_stages:
+              items:
+              - farmersdelight:skillet_destroy_stage_0
+              - farmersdelight:skillet_destroy_stage_1
+              - farmersdelight:skillet_destroy_stage_2
+              - farmersdelight:skillet_destroy_stage_3
+              - farmersdelight:skillet_destroy_stage_4
+              - farmersdelight:skillet_destroy_stage_5
+              - farmersdelight:skillet_destroy_stage_6
+              - farmersdelight:skillet_destroy_stage_7
+              - farmersdelight:skillet_destroy_stage_8
+              - farmersdelight:skillet_destroy_stage_9
+              yaw: 90
+              scale: 1.01
         facing=west,support=false:
           appearance: west
+          settings:
+            destroy_stages:
+              items:
+              - farmersdelight:skillet_destroy_stage_0
+              - farmersdelight:skillet_destroy_stage_1
+              - farmersdelight:skillet_destroy_stage_2
+              - farmersdelight:skillet_destroy_stage_3
+              - farmersdelight:skillet_destroy_stage_4
+              - farmersdelight:skillet_destroy_stage_5
+              - farmersdelight:skillet_destroy_stage_6
+              - farmersdelight:skillet_destroy_stage_7
+              - farmersdelight:skillet_destroy_stage_8
+              - farmersdelight:skillet_destroy_stage_9
+              yaw: 270
+              scale: 1.01
         facing=west,support=true: 
           appearance: west_support
+          settings:
+            destroy_stages:
+              items:
+              - farmersdelight:skillet_destroy_stage_0
+              - farmersdelight:skillet_destroy_stage_1
+              - farmersdelight:skillet_destroy_stage_2
+              - farmersdelight:skillet_destroy_stage_3
+              - farmersdelight:skillet_destroy_stage_4
+              - farmersdelight:skillet_destroy_stage_5
+              - farmersdelight:skillet_destroy_stage_6
+              - farmersdelight:skillet_destroy_stage_7
+              - farmersdelight:skillet_destroy_stage_8
+              - farmersdelight:skillet_destroy_stage_9
+              yaw: 270
+              scale: 1.01
   farmersdelight:cutting_board:
     template:
     - farmersdelight:block_loot_template

@@ -134,6 +134,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
             Object halfUpperValue,
             boolean requiresWater,
             boolean resetOnHarvest,
+            Integer resetToAge,
             Key upperBlockId,
             Set<Key> harvestToolTags,
             Set<String> harvestToolItems,
@@ -245,6 +246,12 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
             
             boolean requiresWater = BehaviorArgParser.getBoolean(arguments, "requires-water", false);
             boolean resetOnHarvest = BehaviorArgParser.getBoolean(arguments, "reset-on-harvest", true);
+            // An absent key keeps the existing behaviour (the lower half steps back one level below its maturity);
+            // a present key names the fixed age to reset to. Nullable follows the repository's optional-int
+            // convention, ConfigSectionReader.optionalIntOrNull.
+            Integer resetToAge = BehaviorArgParser.hasArgument(arguments, "reset-to-age")
+                    ? Math.min(BehaviorArgParser.getInt(arguments, "reset-to-age", 0), maxAgeLower)
+                    : null;
             Set<Key> harvestToolTags = SoilRuleSupport.parseKeys(arguments, "harvest-tool.tags");
             Set<String> harvestToolItems = parseConfiguredItemIds(arguments);
             SoilRules soilRules = SoilRuleSupport.parseSoilRules(arguments);
@@ -259,7 +266,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
                     growSpeed, minGrowLight, isBoneMealTarget, boneMealAgeBonus,
                     maxAgeLower, maxAgeUpper, upperMinAge, vanillaGrowth, boneMealOverflow,
                     halfLowerValue, halfUpperValue,
-                    requiresWater, resetOnHarvest, upperBlockId,
+                    requiresWater, resetOnHarvest, resetToAge, upperBlockId,
                     harvestToolTags, harvestToolItems, extraPlantingItems, soilRules
             ));
             BEHAVIORS.put(block.id(), behavior);
@@ -313,6 +320,10 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
 
     public boolean resetsOnHarvest() {
         return config.resetOnHarvest();
+    }
+
+    public Integer resetToAge() {
+        return config.resetToAge();
     }
 
     public int getMaxAgeUpper() {
@@ -508,7 +519,8 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
                     }
                 }
 
-                if (matchesHalfValue(half, config.halfUpperValue()) && config.resetOnHarvest()) {
+                if (matchesHalfValue(half, config.halfUpperValue())
+                        && (config.resetToAge() != null || config.resetOnHarvest())) {
                     BlockPos lowerPos = new BlockPos(pos.x(), pos.y() - 1, pos.z());
                     Block lowerBlock = world.getBlockAt(lowerPos.x(), lowerPos.y(), lowerPos.z());
 
@@ -588,7 +600,10 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
     private ImmutableBlockState buildLowerResetState(ImmutableBlockState lowerState) {
         ImmutableBlockState resetState = lowerState;
         if (config.ageProperty() != null) {
-            resetState = resetState.with(config.ageProperty(), Math.max(0, config.maxAgeLower() - 1));
+            int targetAge = config.resetToAge() != null
+                    ? Math.min(config.resetToAge(), config.maxAgeLower())
+                    : Math.max(0, config.maxAgeLower() - 1);
+            resetState = resetState.with(config.ageProperty(), targetAge);
         }
         if (config.halfProperty() != null) {
             resetState = withRaw(resetState, config.halfProperty(), config.halfLowerValue());

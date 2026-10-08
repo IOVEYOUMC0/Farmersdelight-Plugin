@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.gui;
 
+import com.huidu.farmersdelight.api.gui.GuiTakeAmounts;
 import com.huidu.farmersdelight.api.util.ItemDelivery;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
@@ -37,29 +38,31 @@ public class CookingPotOutputTaker {
 
         ItemStack cursor = event.getCursor();
         boolean cursorEmpty = cursor == null || cursor.getType().isAir();
-        boolean rightClick = event.isRightClick();
-        boolean shiftClick = event.isShiftClick();
-        int guiStackLimit = event.getView().getTopInventory().getMaxStackSize();
+        int containerMaxStack = event.getView().getTopInventory().getMaxStackSize();
+        return resolveTake(event.isShiftClick(), event.isRightClick(), currentOutput.getAmount(),
+                cursorEmpty ? 0 : cursor.getAmount(), cursorEmpty,
+                !cursorEmpty && cursor.isSimilar(currentOutput),
+                currentOutput.getMaxStackSize(), containerMaxStack);
+    }
 
-        if (shiftClick) {
-            return currentOutput.getAmount();
-        }
-
-        if (cursorEmpty) {
-            return rightClick ? 1 : Math.min(currentOutput.getAmount(),
-                    Math.min(currentOutput.getMaxStackSize(), guiStackLimit));
-        }
-
-        if (!cursor.isSimilar(currentOutput)) {
+    /**
+     * How much this click takes, from the click shape and the amounts alone, so the answer can be asserted
+     * without a server. The limit is the smaller of the item's own stack size and the container's, which is
+     * what this pot has always clamped a take to.
+     *
+     * Similar stacks share one maximum stack size, so the caller passes the stored item's and the cursor's own
+     * is never read: the branches below used to read the cursor's, and for items that are similar by definition
+     * the two numbers are the same.
+     */
+    static int resolveTake(boolean shiftClick, boolean rightClick, int stored, int cursorAmount,
+                           boolean cursorEmpty, boolean cursorSimilar, int itemMaxStack, int containerMaxStack) {
+        if (stored <= 0) {
             return 0;
         }
-
-        int availableCursorSpace = Math.min(cursor.getMaxStackSize(), guiStackLimit) - cursor.getAmount();
-        if (availableCursorSpace <= 0) {
-            return 0;
-        }
-
-        return Math.min(rightClick ? 1 : currentOutput.getAmount(), availableCursorSpace);
+        int limit = Math.min(itemMaxStack, containerMaxStack);
+        GuiTakeAmounts.Click click = shiftClick ? GuiTakeAmounts.Click.SHIFT
+                : rightClick ? GuiTakeAmounts.Click.RIGHT : GuiTakeAmounts.Click.LEFT;
+        return GuiTakeAmounts.take(click, stored, cursorAmount, cursorEmpty, cursorSimilar, limit);
     }
 
     public ItemStack takeOutputFromSlot(Player player, int guiSlot, int requestedAmount) {

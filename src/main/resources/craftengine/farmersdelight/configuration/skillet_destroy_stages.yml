@@ -1,0 +1,25 @@
+config_factory:
+  instances:
+    - stage: 0
+    - stage: 1
+    - stage: 2
+    - stage: 3
+    - stage: 4
+    - stage: 5
+    - stage: 6
+    - stage: 7
+    - stage: 8
+    - stage: 9
+  blueprint:
+    items:
+      farmersdelight:skillet_destroy_stage_${stage}:
+        data::item_name: skillet destroy ${stage}
+        model:
+          path: item/custom/skillet_destroy_stage_${stage}
+          generation:
+            parent: farmersdelight:block/skillet
+            textures:
+              particle: minecraft:block/destroy_stage_${stage}
+              top: minecraft:block/destroy_stage_${stage}
+              side: minecraft:block/destroy_stage_${stage}
+              bottom: minecraft:block/destroy_stage_${stage}
