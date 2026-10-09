@@ -43,6 +43,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     private static final String COOKING_PROGRESS = "cooking_progress";
     private static final String COOKING_DURATION = "cooking_duration";
     private static final String MEAL_CONTAINER = "meal_container";
+    private static final String RECIPES_USED = "recipes_used";
 
     private final FarmersDelightPlugin plugin;
     private final CookingPotBlockBehavior behavior;
@@ -121,6 +122,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         data.putInt(DATA_VERSION, VersionHelper.WORLD_VERSION);
         synchronized (entity.getLock()) {
             data.put(ITEMS, ItemStackUtils.saveBukkitItemsAsListTag(entity.getInventoryInternal()));
+            data.put(RECIPES_USED, entity.saveUsedRecipes());
         }
         data.putInt(COOKING_PROGRESS, entity.getCookingProgress());
         data.putInt(COOKING_DURATION, entity.getCookingDuration());
@@ -239,6 +241,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
             entity.setInventorySlot(i, items[i]);
         }
 
+        entity.loadUsedRecipes(data.getCompound(RECIPES_USED));
         entity.setCookingProgress(data.getInt(COOKING_PROGRESS, 0));
         entity.setCookingDuration(data.getInt(COOKING_DURATION, 200));
         Tag mealContainerTag = data.get(MEAL_CONTAINER);

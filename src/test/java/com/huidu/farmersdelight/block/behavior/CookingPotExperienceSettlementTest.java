@@ -62,6 +62,66 @@ class CookingPotExperienceSettlementTest {
     }
 
     @Test
+    void handServingFromPendingMealDoesNotClaimExperience() throws Exception {
+        RewardPot pot = new RewardPot();
+        ledger(pot).put("rice", 4);
+        pot.setMealContainer(new CookingPotConcurrencyTest.StubStack(1));
+        pot.setInventorySlot(6, new CookingPotConcurrencyTest.StubStack(2));
+
+        ItemStack serving = pot.useHeldContainerOnPendingMeal(null, new CookingPotConcurrencyTest.StubStack(1));
+        assertNotNull(serving);
+        assertEquals(1, serving.getAmount());
+        assertEquals(1, pot.getInventorySlot(6).getAmount());
+        assertEquals(0, pot.rewardCalls);
+        assertEquals(4, ledger(pot).get("rice"));
+
+        pot.setInventorySlot(8, new CookingPotConcurrencyTest.StubStack(1));
+        assertNotNull(pot.takeOutputSlotPortionForDelivery(null, 8, 1));
+        assertEquals(2.0, pot.experience);
+        assertTrue(ledger(pot).isEmpty());
+    }
+
+    @Test
+    void movingPendingMealsToOutputDoesNotClaimExperience() throws Exception {
+        RewardPot pot = new RewardPot();
+        ledger(pot).put("rice", 4);
+        pot.setMealContainer(new CookingPotConcurrencyTest.StubStack(1));
+        pot.setInventorySlot(6, new CookingPotConcurrencyTest.StubStack(2));
+        pot.setInventorySlot(7, new CookingPotConcurrencyTest.StubStack(1));
+
+        pot.tryMovePendingToOutput();
+        assertEquals(1, pot.getInventorySlot(8).getAmount());
+        assertEquals(1, pot.getInventorySlot(6).getAmount());
+        assertEquals(0, pot.rewardCalls);
+        assertEquals(4, ledger(pot).get("rice"));
+    }
+
+    @Test
+    void accumulatedRecipesSurviveSaveAndLoad() throws Exception {
+        RewardPot pot = new RewardPot();
+        ledger(pot).putAll(Map.of("rice", 4, "stew", 3));
+        var data = pot.saveUsedRecipes();
+
+        RewardPot restored = new RewardPot();
+        restored.loadUsedRecipes(data);
+        assertEquals(Map.of("rice", 4, "stew", 3), ledger(restored));
+        assertEquals(3.5, restored.collectUsedRecipeExperience(id -> 0.5));
+
+        var afterClaim = restored.saveUsedRecipes();
+        RewardPot reloaded = new RewardPot();
+        reloaded.loadUsedRecipes(afterClaim);
+        assertEquals(0.0, reloaded.collectUsedRecipeExperience(id -> 0.5));
+    }
+
+    @Test
+    void loadingAnOldSaveClearsStaleRecipeExperience() throws Exception {
+        RewardPot restored = new RewardPot();
+        ledger(restored).put("stale", 8);
+        restored.loadUsedRecipes(null);
+        assertTrue(ledger(restored).isEmpty());
+    }
+
+    @Test
     void concurrentClaimsCannotDuplicateExperience() throws Exception {
         RewardPot pot = new RewardPot();
         ledger(pot).put("rice", 64);

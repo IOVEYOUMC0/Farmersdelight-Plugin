@@ -7,6 +7,7 @@ import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.core.world.BlockPos;
+import net.momirealms.craftengine.libraries.nbt.CompoundTag;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -19,7 +20,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.ToDoubleFunction;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -39,10 +39,8 @@ public class CookingPotBlockEntity {
     // Inventory version: incremented on every write to the inventory array, lets the GUI cheaply detect
     // "did the pot change" and skip a full input-slot rescan when unchanged. volatile so GUI threads see the latest value.
     private volatile long inventoryVersion;
-    // Written by the cook tick on the pot's region, drained by awardUsedRecipes on the taking player's
-    // region (a GUI viewer can stand in a different region). Concurrent map + atomic per-key removal so
-    // neither side can lose a craft or trip over a resize.
-    private final Map<String, Integer> usedRecipeTracker = new ConcurrentHashMap<>();
+    // Cooking, claims and persistence share inventoryLock so a save cannot capture a partial settlement.
+    private final Map<String, Integer> usedRecipeTracker = new HashMap<>();
     private final AtomicInteger cookingProgress = new AtomicInteger(0);
     private final AtomicInteger cookingDuration = new AtomicInteger(200);
     private final AtomicBoolean hasHeatSource = new AtomicBoolean(false);
@@ -707,8 +705,8 @@ public class CookingPotBlockEntity {
     }
 
     public ItemStack useHeldContainerOnPendingMeal(Player player, ItemStack container) {
+        // Hand serving bypasses the result slot and leaves recipe XP unclaimed.
         TakenMeal meal = useHeldContainerOnPendingMeal(container);
-        if (meal != null) awardUsedRecipes(player, meal.item());
         return meal == null ? null : meal.item();
     }
 
@@ -840,28 +838,60 @@ public class CookingPotBlockEntity {
 
     public void awardUsedRecipes(Player player, ItemStack result) {
         if (player == null || plugin == null || result == null || result.getType().isAir()) return;
-        var recipes = plugin.getCookingPotRecipes();
-        if (recipes == null) return;
-        double experience = collectUsedRecipeExperience(id -> {
-            CookingPotRecipe recipe = recipes.getRecipe(recipeGroupId, id);
-            return recipe == null ? 0.0D : recipe.getExperience();
-        });
+        double experience = collectUsedRecipeExperience();
         World currentWorld = world;
         Location location = currentWorld == null ? null
                 : new Location(currentWorld, posKey.x() + 0.5, posKey.y() + 1.0, posKey.z() + 0.5);
         plugin.awardCraftingExperience(player, location, result, experience, "cooking_pot");
     }
 
+    public void dropUsedRecipeExperience(Location location) {
+        if (plugin == null) return;
+        plugin.dropCraftingExperience(location, collectUsedRecipeExperience());
+    }
+
+    private double collectUsedRecipeExperience() {
+        var recipes = plugin.getCookingPotRecipes();
+        if (recipes == null) return 0.0D;
+        return collectUsedRecipeExperience(id -> {
+            CookingPotRecipe recipe = recipes.getRecipe(recipeGroupId, id);
+            return recipe == null ? 0.0D : recipe.getExperience();
+        });
+    }
+
     double collectUsedRecipeExperience(ToDoubleFunction<String> recipeExperience) {
         double total = 0.0D;
-        for (String recipeId : List.copyOf(usedRecipeTracker.keySet())) {
-            Integer craftedAmount = usedRecipeTracker.remove(recipeId);
-            if (craftedAmount == null || craftedAmount <= 0) continue;
-            double experience = recipeExperience.applyAsDouble(recipeId);
-            double earned = craftedAmount * experience;
-            if (Double.isFinite(earned) && earned > 0.0D && Double.isFinite(total + earned)) total += earned;
+        synchronized (inventoryLock) {
+            for (Map.Entry<String, Integer> entry : usedRecipeTracker.entrySet()) {
+                int craftedAmount = entry.getValue();
+                if (craftedAmount <= 0) continue;
+                double experience = recipeExperience.applyAsDouble(entry.getKey());
+                double earned = craftedAmount * experience;
+                if (Double.isFinite(earned) && earned > 0.0D && Double.isFinite(total + earned)) total += earned;
+            }
+            usedRecipeTracker.clear();
         }
+        syncWorldlyContainer();
         return total;
+    }
+
+    CompoundTag saveUsedRecipes() {
+        CompoundTag recipes = new CompoundTag();
+        synchronized (inventoryLock) {
+            usedRecipeTracker.forEach(recipes::putInt);
+        }
+        return recipes;
+    }
+
+    void loadUsedRecipes(CompoundTag recipes) {
+        synchronized (inventoryLock) {
+            usedRecipeTracker.clear();
+            if (recipes == null) return;
+            for (String id : recipes.keySet()) {
+                int count = recipes.getInt(id, 0);
+                if (count > 0) usedRecipeTracker.put(id, count);
+            }
+        }
     }
 
     public List<ItemStack> returnContainerItems() {

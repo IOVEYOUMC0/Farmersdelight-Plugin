@@ -249,6 +249,8 @@ public class BlockBreakListener implements Listener {
             return;
         }
 
+        // Settle before packing so a recovered pot cannot award the same recipes again.
+        entity.dropUsedRecipeExperience(dropLocation);
         if (shouldDropItems) {
             if (explosion) {
                 // The loot table drops the pot item on explosion (with its survives_explosion roll, like the

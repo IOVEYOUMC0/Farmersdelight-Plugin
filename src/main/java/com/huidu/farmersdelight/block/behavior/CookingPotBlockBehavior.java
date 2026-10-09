@@ -992,9 +992,11 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         // the world + coords and is a cheap no-op when no viewer is open at this position.
         CookingPotGui.closeOpenGuisAt(world, pos.x(), pos.y(), pos.z());
         BlockPosKey posKey = new BlockPosKey(pos);
-        if (getBlockEntity(world, posKey) == null) {
+        CookingPotBlockEntity entity = getBlockEntity(world, posKey);
+        if (entity == null) {
             return;
         }
+        entity.dropUsedRecipeExperience(new Location(world, pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5));
         saveBlockEntityData(world, posKey);
         removeBlockEntity(world, posKey, false);
     }

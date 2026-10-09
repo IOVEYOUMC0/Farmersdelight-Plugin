@@ -1543,24 +1543,28 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         if (player == null || !Double.isFinite(baseExperience) || baseExperience < 0.0D) return;
         ItemStack resultCopy = result == null ? null : result.clone();
         Location locationCopy = location == null ? null : location.clone();
-        if (baseExperience > 0.0D && shouldDropCookingPotVanillaExperience()
-                && locationCopy != null && locationCopy.getWorld() != null) {
-            scheduler().runAt(locationCopy, () -> {
-                int exp = (int) Math.min(Integer.MAX_VALUE - 1.0D, Math.floor(baseExperience));
-                double fraction = baseExperience - Math.floor(baseExperience);
-                if (ThreadLocalRandom.current().nextDouble() < fraction) exp++;
-                if (exp > 0) {
-                    int amount = exp;
-                    locationCopy.getWorld().spawn(locationCopy, ExperienceOrb.class, orb -> orb.setExperience(amount));
-                }
-            });
-        }
+        dropCraftingExperience(locationCopy, baseExperience);
         // The station and taking player can have different Folia owners.
         scheduler().runForEntity(player, () -> {
             awardCookingPotSkillExperience(player, baseExperience);
             getServer().getPluginManager().callEvent(new ProfessionCookingExperienceEvent(
                     player.getUniqueId(), player.getName(), source, resultCopy,
                     (float) Math.min(Float.MAX_VALUE, baseExperience), locationCopy));
+        });
+    }
+
+    public void dropCraftingExperience(Location location, double baseExperience) {
+        if (location == null || location.getWorld() == null || !shouldDropCookingPotVanillaExperience()
+                || !Double.isFinite(baseExperience) || baseExperience <= 0.0D) return;
+        Location locationCopy = location.clone();
+        scheduler().runAt(locationCopy, () -> {
+            int exp = (int) Math.min(Integer.MAX_VALUE - 1.0D, Math.floor(baseExperience));
+            double fraction = baseExperience - Math.floor(baseExperience);
+            if (ThreadLocalRandom.current().nextDouble() < fraction) exp++;
+            if (exp > 0) {
+                int amount = exp;
+                locationCopy.getWorld().spawn(locationCopy, ExperienceOrb.class, orb -> orb.setExperience(amount));
+            }
         });
     }
 
