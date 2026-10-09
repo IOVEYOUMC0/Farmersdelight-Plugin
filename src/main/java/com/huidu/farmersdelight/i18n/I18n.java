@@ -34,13 +34,9 @@ public class I18n {
 
     private static final Pattern LOCALE_PATTERN = Pattern.compile("^[a-z]{2}(_[a-z]{2})?$");
     private static final String FALLBACK_LOCALE = "zh_cn";
-    private static final String ENGLISH_FALLBACK = "en_us";
     private static final String[] DEFAULT_LANGUAGES = {"zh_cn", "en_us"};
     private static final String PREFIX_KEY = "general.prefix";
     private static final String PREFIX_PLACEHOLDER = "{prefix}";
-    private static final String LANG_RESOURCE_PREFIX = "lang/";
-    private static final String BACKUP_DATE_FORMAT = "yyyyMMdd-HHmmss";
-    private static final String CONSOLE_KEY_PREFIX = "console.";
     
     private static FarmersDelightPlugin plugin;
     private static volatile LocaleState state = new LocaleState(Map.of(), null, FALLBACK_LOCALE);
@@ -91,13 +87,8 @@ public class I18n {
         // The locale set is resolved on plugin load, again on enable, and once more on every CraftEngine
         // reload. Which locale is active is startup detail: the one line a boot prints already names the
         // versions and the content counts, so this stays one turn of the startup debug category away.
-        lastLoggedLocaleSignature = loaded.size() + "/" + resolvedDefault;
         logDetail("startup", "i18n.loaded", "count", loaded.size(), "locale", resolvedDefault);
     }
-
-    // Locale count + selected locale last reported at INFO, so a repeated resolution with an unchanged
-    // result stays off the console. Null until the first resolution of this plugin lifecycle.
-    private static volatile String lastLoggedLocaleSignature;
 
     private static void saveDefaultLanguages() {
 
@@ -671,7 +662,6 @@ public class I18n {
 
     public static void cleanup() {
         plugin = null;
-        lastLoggedLocaleSignature = null;
         state = new LocaleState(Map.of(), null, FALLBACK_LOCALE);
     }
 }

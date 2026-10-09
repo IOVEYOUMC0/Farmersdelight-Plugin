@@ -87,8 +87,7 @@ public final class StartupVersionBanner {
     }
 
     /** Parses 26.9.2, 26.10-SNAPSHOT or 26.9; null when no version can be read. */
-    @Nullable
-    static int[] parse(@Nullable String version) {
+    static int @Nullable [] parse(@Nullable String version) {
         if (version == null) {
             return null;
         }

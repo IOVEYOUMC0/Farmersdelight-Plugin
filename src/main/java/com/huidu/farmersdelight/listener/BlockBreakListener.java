@@ -405,7 +405,8 @@ public class BlockBreakListener implements Listener {
             return;
         }
         int servings = meal.getAmount();
-        List<Component> lore = meta.hasLore() ? new ArrayList<>(meta.lore()) : new ArrayList<>();
+        List<Component> originalLore = meta.lore();
+        List<Component> lore = originalLore == null ? new ArrayList<>() : new ArrayList<>(originalLore);
         // Display the serving count, meal icon and name with a readable server fallback.
         Component servingsLine = FarmersDelightText.translatable(
                 servings == 1

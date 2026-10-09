@@ -199,13 +199,13 @@ public class CookingPotBlockEntity {
     }
 
     // Package-private so CookingPotCraftingHandler reuses the same validity guard on layout slots.
-    boolean isValidSlot(int slot) {
+    boolean isInvalidSlot(int slot) {
         return slot < 0 || slot >= inventory.length;
     }
 
     public ItemStack getInventorySlot(int slot) {
         synchronized (inventoryLock) {
-            if (isValidSlot(slot)) {
+            if (isInvalidSlot(slot)) {
                 return null;
             }
             return copyOrNull(inventory[slot]);
@@ -233,7 +233,7 @@ public class CookingPotBlockEntity {
 
     public void setInventorySlot(int slot, ItemStack item) {
         synchronized (inventoryLock) {
-            if (isValidSlot(slot)) {
+            if (isInvalidSlot(slot)) {
                 return;
             }
             setSlot(slot, copyOrNull(item));
@@ -262,7 +262,7 @@ public class CookingPotBlockEntity {
                 return 0;
             }
             for (ItemStack item : inventory) {
-                // Amount-based empty check — see takeMealPortionWithExperience for rationale.
+                // Amount-based empty check — see extractMealPortion for rationale.
                 if (item == null || item.getType().isAir() || item.getAmount() <= 0) {
                     continue;
                 }
@@ -294,11 +294,11 @@ public class CookingPotBlockEntity {
             return -1;
         }
         for (int slot : slots) {
-            if (isValidSlot(slot)) {
+            if (isInvalidSlot(slot)) {
                 continue;
             }
             ItemStack item = inventory[slot];
-            // Amount-based empty check — see takeMealPortionWithExperience for rationale.
+            // Amount-based empty check — see extractMealPortion for rationale.
             if (item != null && item.getAmount() > 0) {
                 return slot;
             }
@@ -453,7 +453,7 @@ public class CookingPotBlockEntity {
 
         ItemStack pending = item.clone();
         for (int i : slots) {
-            if (isValidSlot(i)) continue;
+            if (isInvalidSlot(i)) continue;
             ItemStack existing = inventory[i];
             if (existing == null || existing.getType().isAir() || !isSimilarIgnoringStoredExperience(existing, pending)) {
                 continue;
@@ -474,7 +474,7 @@ public class CookingPotBlockEntity {
         }
 
         for (int i : slots) {
-            if (isValidSlot(i)) continue;
+            if (isInvalidSlot(i)) continue;
             ItemStack existing = inventory[i];
             if (existing != null && !existing.getType().isAir()) {
                 continue;
@@ -725,7 +725,7 @@ public class CookingPotBlockEntity {
                 return null;
             }
 
-            SplitItem result = splitItemFromSlot(pendingSlot, 1);
+            ItemStack result = splitItemFromSlot(pendingSlot, 1);
             if (meal.getAmount() <= 0) {
                 setSlot(pendingSlot, null);
                 if (!hasAnyItem(layout.pendingOutputSlots())) {
@@ -745,7 +745,7 @@ public class CookingPotBlockEntity {
     }
 
     public TakenMeal takeMealPortionForDelivery(int requestedAmount) {
-        return TakenMeal.from(takeMealPortionWithExperience(requestedAmount));
+        return TakenMeal.from(extractMealPortion(requestedAmount));
     }
 
     public ItemStack takeOutputSlotPortionForDelivery(Player player, int outputSlot, int requestedAmount) {
@@ -761,33 +761,32 @@ public class CookingPotBlockEntity {
         if (!layout.isOutputSlot(outputSlot)) {
             return null;
         }
-        return TakenMeal.from(takeMealPortionWithExperience(outputSlot, requestedAmount));
+        return TakenMeal.from(extractMealPortion(outputSlot, requestedAmount));
     }
 
     public ItemStack takeMealPortion(int requestedAmount) {
-        SplitItem meal = takeMealPortionWithExperience(requestedAmount);
-        return meal == null ? null : meal.item();
+        return extractMealPortion(requestedAmount);
     }
 
-    private SplitItem takeMealPortionWithExperience(int requestedAmount) {
+    private ItemStack extractMealPortion(int requestedAmount) {
         int outputSlot;
         synchronized (inventoryLock) {
             outputSlot = firstNonEmptySlot(layout.outputSlots());
             if (outputSlot < 0) return null;
         }
-        return takeMealPortionWithExperience(outputSlot, requestedAmount);
+        return extractMealPortion(outputSlot, requestedAmount);
     }
 
-    private SplitItem takeMealPortionWithExperience(int outputSlot, int requestedAmount) {
+    private ItemStack extractMealPortion(int outputSlot, int requestedAmount) {
         synchronized (inventoryLock) {
-            if (isValidSlot(outputSlot) || !layout.isOutputSlot(outputSlot)) {
+            if (isInvalidSlot(outputSlot) || !layout.isOutputSlot(outputSlot)) {
                 return null;
             }
             ItemStack meal = inventory[outputSlot];
             if (meal == null || meal.getAmount() <= 0) return null;
 
             int amount = Math.max(1, Math.min(requestedAmount, meal.getAmount()));
-            SplitItem result = splitItemFromSlot(outputSlot, amount);
+            ItemStack result = splitItemFromSlot(outputSlot, amount);
 
             if (meal.getAmount() <= 0) {
                 setSlot(outputSlot, null);
@@ -817,7 +816,7 @@ public class CookingPotBlockEntity {
     }
 
     public ItemStack takeMealWithExperience(Player player) {
-        SplitItem meal;
+        ItemStack meal;
         synchronized (inventoryLock) {
             int outputSlot = firstNonEmptySlot(layout.outputSlots());
             if (outputSlot < 0) {
@@ -827,13 +826,13 @@ public class CookingPotBlockEntity {
             if (item == null || item.getType().isAir()) {
                 return null;
             }
-            meal = new SplitItem(item, 0.0D);
+            meal = item;
             setSlot(outputSlot, null);
             tryMovePendingToOutput();
         }
         syncWorldlyContainer();
-        awardUsedRecipes(player, meal.item());
-        return meal.item();
+        awardUsedRecipes(player, meal);
+        return meal;
     }
 
     public void awardUsedRecipes(Player player, ItemStack result) {
@@ -936,8 +935,8 @@ public class CookingPotBlockEntity {
                         continue;
                     }
 
-                    SplitItem moving = splitItemFromSlot(pendingSlot, movableAmount);
-                    addItemToSlots(layout.outputSlots(), moving.item());
+                    ItemStack moving = splitItemFromSlot(pendingSlot, movableAmount);
+                    addItemToSlots(layout.outputSlots(), moving);
 
                     ItemStack requiredContainer = mealContainerStack.get();
                     if (requiredContainer != null && !requiredContainer.getType().isAir()) {
@@ -1068,7 +1067,7 @@ public class CookingPotBlockEntity {
     }
 
     private int getAvailableSpace(int slot, ItemStack item) {
-        if (isValidSlot(slot) || item == null || item.getType().isAir()) {
+        if (isInvalidSlot(slot) || item == null || item.getType().isAir()) {
             return 0;
         }
         ItemStack existing = inventory[slot];
@@ -1082,7 +1081,7 @@ public class CookingPotBlockEntity {
     }
 
     private void addItemToSlot(int slot, ItemStack item) {
-        if (isValidSlot(slot)) {
+        if (isInvalidSlot(slot)) {
             return;
         }
         if (item == null || item.getType().isAir()) {
@@ -1143,8 +1142,8 @@ public class CookingPotBlockEntity {
         }
     }
 
-    private SplitItem splitItemFromSlot(int slot, int amount) {
-        if (isValidSlot(slot)) {
+    private ItemStack splitItemFromSlot(int slot, int amount) {
+        if (isInvalidSlot(slot)) {
             return null;
         }
         ItemStack source = inventory[slot];
@@ -1158,7 +1157,7 @@ public class CookingPotBlockEntity {
         source.setAmount(remainingAmount);
         bumpInventoryVersion();
 
-        return new SplitItem(split, 0.0D);
+        return split;
     }
 
     private boolean isSimilarIgnoringStoredExperience(ItemStack first, ItemStack second) {
@@ -1286,15 +1285,12 @@ public class CookingPotBlockEntity {
         }
     }
 
-    private record SplitItem(ItemStack item, double experience) {
-    }
-
     public record TakenMeal(ItemStack item, double experience) {
-        private static TakenMeal from(SplitItem splitItem) {
+        private static TakenMeal from(ItemStack splitItem) {
             if (splitItem == null) {
                 return null;
             }
-            return new TakenMeal(splitItem.item(), splitItem.experience());
+            return new TakenMeal(splitItem, 0.0D);
         }
 
         public TakenMeal {

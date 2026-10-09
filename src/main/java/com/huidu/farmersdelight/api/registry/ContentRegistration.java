@@ -52,7 +52,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * for the rest of the JVM run: content that already uses the id keeps working, and the id cannot be
  * registered again (a replacement factory would never be consulted). Use a new id instead.
  */
-@ApiStatus.NonExtendable
 public final class ContentRegistration {
 
     /** The CraftEngine registry a registration belongs to. */

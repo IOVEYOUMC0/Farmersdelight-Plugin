@@ -41,7 +41,6 @@ import java.util.function.Consumer;
  * Registering the same legacy id twice keeps the first mapping and reports the second, so two addons
  * cannot silently fight over one id.
  */
-@ApiStatus.NonExtendable
 public final class LegacyIdMigration {
 
     private static final int MAX_CHAIN = 8;

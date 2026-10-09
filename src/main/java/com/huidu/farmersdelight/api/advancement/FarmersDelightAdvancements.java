@@ -7,14 +7,11 @@ import com.huidu.farmersdelight.advancement.AddonAdvancementTab;
 import com.huidu.farmersdelight.advancement.AdvancementDef;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.advancement.AutomaticAdvancementLayout;
-import com.huidu.farmersdelight.api.FarmersDelightApi;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
-import org.jetbrains.annotations.ApiStatus;
 
 import java.util.List;
 
-@ApiStatus.NonExtendable
 public final class FarmersDelightAdvancements {
 
     private FarmersDelightAdvancements() {
@@ -121,9 +118,10 @@ public final class FarmersDelightAdvancements {
     public static void showTab(String tabId, Player player) {
         AddonAdvancementTab tab = addonTab(tabId);
         if (tab != null) {
-            if (FarmersDelightApi.get().isFolia() && player != null) {
-                FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
-                player.getScheduler().run(plugin, task -> tab.showTo(player), null);
+            FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
+            if (plugin == null) return;
+            if (plugin.scheduler().isFolia() && player != null) {
+                plugin.scheduler().runForEntity(player, () -> tab.showTo(player));
             } else {
                 tab.showTo(player);
             }

@@ -173,7 +173,6 @@ class CookingPotEffectManager {
             }
         }
         if (nearbyViewers.isEmpty()) {
-            nearbyViewers.clear();
             return;
         }
         AtomicInteger chunkBudget = fx.budget;

@@ -5,7 +5,6 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.block.CuttingBoardInteractionHandler;
 import com.huidu.farmersdelight.api.block.HeatSources;
 import com.huidu.farmersdelight.api.advancement.FarmersDelightAdvancements;
-import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import com.huidu.farmersdelight.api.recipe.ChanceResult;
 import com.huidu.farmersdelight.api.recipe.FarmersDelightRecipes;
 import com.huidu.farmersdelight.api.recipe.JumpTarget;
@@ -51,7 +50,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
-@ApiStatus.NonExtendable
 public final class FarmersDelightApi {
 
     private static final int API_VERSION = 4;

@@ -65,7 +65,8 @@ final class RecipeDetailRenderer {
             if (configured == null) {
                 meta.displayName(gui.tr("gui.recipe.cook_time", NamedTextColor.YELLOW));
             }
-            if (meta.lore() == null || meta.lore().isEmpty()) {
+            List<Component> originalLore = meta.lore();
+            if (originalLore == null || originalLore.isEmpty()) {
                 meta.lore(List.of(
                         gui.tr("gui.recipe.cook_time_line",
                                 Component.text(placeholders.get("cook_time")).color(NamedTextColor.AQUA)),
@@ -199,10 +200,8 @@ final class RecipeDetailRenderer {
                 CuttingBoardRecipe.ResultEntry resultEntry = results.get(i);
                 ItemStack resultDisplay = resultEntry.item().clone();
                 ItemMeta resultMeta = resultDisplay.getItemMeta();
-                List<Component> lore = new ArrayList<>();
-                if (resultMeta.hasLore()) {
-                    lore = new ArrayList<>(resultMeta.lore());
-                }
+                List<Component> originalLore = resultMeta.lore();
+                List<Component> lore = originalLore == null ? new ArrayList<>() : new ArrayList<>(originalLore);
                 lore.add(0, gui.tr("gui.recipe.result", NamedTextColor.GREEN));
                 if (resultEntry.chance() < 1.0d) {
                     lore.add(1, gui.tr("gui.recipe.chance_line",

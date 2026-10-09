@@ -52,7 +52,7 @@ final class RecipeIngredientDisplay {
             }
 
             int slot = entry.getKey();
-            CyclicSlot cycle = ingredientCycles.computeIfAbsent(slot, s -> new CyclicSlot(gui.INGREDIENT_SWITCH_CALLBACKS));
+            CyclicSlot cycle = ingredientCycles.computeIfAbsent(slot, s -> new CyclicSlot(RecipeViewGui.INGREDIENT_SWITCH_CALLBACKS));
             // tick() reports whether the frame actually advanced. On every other tick the slot would be
             // rebuilt to the item it already shows, which is the same guard the tool cycle uses.
             if (!cycle.tick()) {
@@ -129,7 +129,7 @@ final class RecipeIngredientDisplay {
     ) {
         if (!options.isEmpty()) {
             animatedIngredientSlots.put(slot, options);
-            ingredientCycles.put(slot, new CyclicSlot(gui.INGREDIENT_SWITCH_CALLBACKS));
+            ingredientCycles.put(slot, new CyclicSlot(RecipeViewGui.INGREDIENT_SWITCH_CALLBACKS));
             animatedIngredientDefinitions.put(slot, ingredient);
             return createAnimatedIngredientDisplay(ingredient, options.getFirst(), options, player);
         }

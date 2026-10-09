@@ -130,6 +130,7 @@ configurations.all {
         // Force patched transitive dependency versions for compilation only; they are not bundled.
         force("org.codehaus.plexus:plexus-utils:4.0.3")
         force("org.apache.commons:commons-lang3:3.18.0")
+        force("org.apache.logging.log4j:log4j-api:2.25.5")
     }
 }
 

@@ -8,6 +8,7 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.scheduler.BukkitTask;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Objects;
 import java.util.concurrent.ThreadFactory;
@@ -263,7 +264,7 @@ public final class SchedulerAdapter implements RegionDispatcher {
         private final AtomicInteger counter = new AtomicInteger();
 
         @Override
-        public Thread newThread(Runnable runnable) {
+        public @NotNull Thread newThread(@NotNull Runnable runnable) {
             Thread thread = new Thread(runnable, "farmersdelight-worker-" + counter.incrementAndGet());
             thread.setDaemon(true);
             return thread;

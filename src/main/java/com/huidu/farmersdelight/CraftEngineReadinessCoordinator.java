@@ -235,7 +235,7 @@ final class CraftEngineReadinessCoordinator {
             // as CraftEngine pack content have no republish, so the pass itself has to report.
             reportContentSummaryWhenReady();
         } catch (Exception e) {
-            Bukkit.getLogger().log(Level.SEVERE,
+            plugin.getLogger().log(Level.SEVERE,
                     "Error during CraftEngine reload processing in " + plugin.getClass().getSimpleName(), e);
         }
     }

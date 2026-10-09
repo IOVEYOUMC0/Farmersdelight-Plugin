@@ -142,7 +142,7 @@ public final class CustomBlockUtils {
         } catch (RuntimeException | LinkageError e) {
             // A saved block from an uninstalled pack (or a CE deserialize race) must not crash the caller.
             if (CE_WORLD_LOAD_FAILURE_LOGGED.compareAndSet(false, true)) {
-                Bukkit.getLogger().warning("[FarmersDelight] Skipped a chunk whose CraftEngine block data could not be loaded: " + e);
+                Bukkit.getServer().getLogger().warning("[FarmersDelight] Skipped a chunk whose CraftEngine block data could not be loaded: " + e);
             }
             return null;
         }

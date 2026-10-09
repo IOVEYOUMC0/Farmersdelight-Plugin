@@ -67,7 +67,6 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
     private static final long MANUAL_INSERT_GUARD_MILLIS = 250L;
     private static final int DEFAULT_RELOAD_VISUAL_REFRESH_BUDGET = 32;
     // Increase each output unit's keep chance by this amount per Fortune level.
-    private static final double FORTUNE_BONUS_PER_LEVEL = 0.1d;
     private static final Object displayRefreshLock = new Object();
     private static final Deque<DisplayRefresh> pendingDisplayRefreshes = new ArrayDeque<>();
     private static PluginTask displayRefreshTask;
@@ -97,7 +96,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         this.maxStackAmount = maxStackAmount;
         this.customDataKey = customDataKey;
         this.toolMatcher = new CuttingBoardToolMatcher(plugin, toolTags, toolItems);
-        this.cutter = new CuttingBoardCutter(plugin, toolMatcher);
+        this.cutter = new CuttingBoardCutter(plugin);
     }
 
     @Override

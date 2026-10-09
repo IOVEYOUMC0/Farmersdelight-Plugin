@@ -1,7 +1,6 @@
 package com.huidu.farmersdelight.api.util;
 
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.annotations.ApiStatus;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -9,7 +8,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-@ApiStatus.NonExtendable
 public final class DebugToolRegistry {
 
     private static final Map<String, DebugToolExtension> EXTENSIONS = new ConcurrentHashMap<>();

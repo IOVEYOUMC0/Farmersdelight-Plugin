@@ -17,6 +17,8 @@ import static com.huidu.farmersdelight.command.CommandSupport.BASE_PERMISSION;
 import static com.huidu.farmersdelight.command.CommandSupport.MINI;
 import static com.huidu.farmersdelight.command.CommandSupport.normalize;
 import static com.huidu.farmersdelight.command.CommandSupport.sendNoPermission;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
 
@@ -67,7 +69,7 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+    public boolean onCommand(@NotNull CommandSender sender, @Nullable Command command, @NotNull String label, @NotNull String[] args) {
         if (!sender.hasPermission(BASE_PERMISSION)) {
             sendNoPermission(sender);
             return true;
@@ -100,7 +102,7 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+    public @NotNull List<String> onTabComplete(@NotNull CommandSender sender, @Nullable Command command, @NotNull String alias, @NotNull String[] args) {
         if (!sender.hasPermission(BASE_PERMISSION)) {
             return List.of();
         }

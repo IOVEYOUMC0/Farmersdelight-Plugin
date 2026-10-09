@@ -10,6 +10,7 @@ import io.papermc.paper.event.player.PlayerStopUsingItemEvent;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
@@ -1234,11 +1235,12 @@ public final class HandCookedSkewerHooks implements Listener {
 
     private static Map<String, String> readResults(FarmersDelightPlugin plugin) {
         Map<String, String> configured = new LinkedHashMap<>();
-        if (!plugin.getConfig().isConfigurationSection("handheld-skewer.results")) {
+        ConfigurationSection results = plugin.getConfig().getConfigurationSection("handheld-skewer.results");
+        if (results == null) {
             return configured;
         }
-        for (String key : plugin.getConfig().getConfigurationSection("handheld-skewer.results").getKeys(false)) {
-            configured.put(key, plugin.getConfig().getString("handheld-skewer.results." + key));
+        for (String key : results.getKeys(false)) {
+            configured.put(key, results.getString(key));
         }
         return configured;
     }

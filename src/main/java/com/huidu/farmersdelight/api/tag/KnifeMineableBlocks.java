@@ -48,7 +48,6 @@ import java.util.function.Consumer;
  * region. That is also why the entry point takes a block id rather than a Block: resolving a
  * Block to its CraftEngine id needs the world's custom state, which is a region-bound read.
  */
-@ApiStatus.NonExtendable
 public final class KnifeMineableBlocks {
 
     /** Looks a block definition's declared tags up through CraftEngine. Internal so it can be stubbed. */
@@ -64,7 +63,7 @@ public final class KnifeMineableBlocks {
             Key.of(FarmersDelightTags.COMMON_MINEABLE_WITH_KNIFE));
     private static final Consumer<String> CONSOLE_WARNER = message -> {
         try {
-            Bukkit.getLogger().warning(message);
+            Bukkit.getServer().getLogger().warning(message);
         } catch (Throwable noServer) {
             // Offline (unit tests, tooling) there is no server logger; the warning is then simply not shown.
         }

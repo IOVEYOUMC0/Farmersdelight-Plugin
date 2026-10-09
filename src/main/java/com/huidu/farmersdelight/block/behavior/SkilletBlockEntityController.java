@@ -212,7 +212,7 @@ public final class SkilletBlockEntityController extends BlockEntityController im
 
     @Override
     public Item getItem(int slot) {
-        if (isValidSlot(slot)) {
+        if (isInvalidSlot(slot)) {
             return Item.empty();
         }
         return this.item;
@@ -230,7 +230,7 @@ public final class SkilletBlockEntityController extends BlockEntityController im
 
     @Override
     public void setItem(int slot, Item item) {
-        if (isValidSlot(slot)) {
+        if (isInvalidSlot(slot)) {
             return;
         }
         this.item = CeItemInterop.normalize(item);
@@ -290,7 +290,7 @@ public final class SkilletBlockEntityController extends BlockEntityController im
 
     @Override
     public boolean canPlaceItem(int slot, Item item) {
-        if (isValidSlot(slot)) {
+        if (isInvalidSlot(slot)) {
             return false;
         }
         SkilletManager manager = getManager();
@@ -341,7 +341,7 @@ public final class SkilletBlockEntityController extends BlockEntityController im
         return false;
     }
 
-    private boolean isValidSlot(int slot) {
+    private boolean isInvalidSlot(int slot) {
         return slot != SLOT_INDEX;
     }
 

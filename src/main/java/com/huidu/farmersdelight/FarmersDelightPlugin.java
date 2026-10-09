@@ -24,7 +24,6 @@ import com.huidu.farmersdelight.listener.BlockPlaceListener;
 import com.huidu.farmersdelight.listener.CraftEngineWatchdogListener;
 import com.huidu.farmersdelight.listener.FoodEatListener;
 import com.huidu.farmersdelight.listener.HorseFeedTemptListener;
-import com.huidu.farmersdelight.listener.PetFoodListener;
 import com.huidu.farmersdelight.listener.RecipeDiscoveryListener;
 import com.huidu.farmersdelight.listener.RopeBlockListener;
 import com.huidu.farmersdelight.command.FarmersDelightCommandRegistrar;
@@ -1170,15 +1169,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         reloadAddonsNanos.set(0L);
     }
 
-    /**
-     * Reports the last reload the way CraftEngine reports its own: elapsed milliseconds plus the problems the
-     * pass found. The addon figure is only filled in on the following tick; a command that reports before that
-     * simply shows the phase timings it has.
-     */
-    /**
-     * The same phase line the reload report shows: the console summary and the player message share one renderer
-     * (ReloadTiming.composeSegments), so the two can no longer drift apart in labels, units or ordering.
-     */
+    /** Reports reload time and phase costs; addon costs may arrive on the following tick. */
     public String reloadTimingSummary() {
         return ReloadTiming.composeSegments(reloadTotalMillis(), reloadPhaseNanos());
     }

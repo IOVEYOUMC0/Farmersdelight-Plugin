@@ -746,7 +746,8 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (meta == null) {
             return item;
         }
-        List<Component> lore = meta.lore() == null ? new ArrayList<>() : new ArrayList<>(meta.lore());
+        List<Component> originalLore = meta.lore();
+        List<Component> lore = originalLore == null ? new ArrayList<>() : new ArrayList<>(originalLore);
         lore.add(Component.empty());
         lore.add(tr("gui.recipe.ingredient", NamedTextColor.GRAY));
         meta.lore(lore);
@@ -1189,8 +1190,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
         List<Component> lore = new ArrayList<>();
         // Keep the result item's own description instead of replacing it, matching the addon recipe books.
-        if (meta.lore() != null && !meta.lore().isEmpty()) {
-            lore.addAll(meta.lore());
+        List<Component> originalLore = meta.lore();
+        if (originalLore != null && !originalLore.isEmpty()) {
+            lore.addAll(originalLore);
             lore.add(Component.text(""));
         }
         lore.add(tr("gui.recipe.ingredients_label", NamedTextColor.GRAY));
@@ -1226,8 +1228,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
         List<Component> lore = new ArrayList<>();
         // Keep the input item's own description instead of replacing it, matching the addon recipe books.
-        if (meta.lore() != null && !meta.lore().isEmpty()) {
-            lore.addAll(meta.lore());
+        List<Component> originalLore = meta.lore();
+        if (originalLore != null && !originalLore.isEmpty()) {
+            lore.addAll(originalLore);
             lore.add(Component.text(""));
         }
         lore.add(tr("gui.recipe.tool_line",

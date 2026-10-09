@@ -293,13 +293,13 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
 
     @Override
     public Item getItem(int slot) {
-        if (isValidSlot(slot)) return Item.empty();
+        if (isInvalidSlot(slot)) return Item.empty();
         return this.item;
     }
 
     @Override
     public Item removeItem(int slot, int count) {
-        if (isValidSlot(slot) || count <= 0) {
+        if (isInvalidSlot(slot) || count <= 0) {
             return Item.empty();
         }
         Item item = getItem(slot);
@@ -322,7 +322,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
 
     @Override
     public Item removeItemNoUpdate(int slot) {
-        if (isValidSlot(slot)) {
+        if (isInvalidSlot(slot)) {
             return Item.empty();
         }
         Item item = getItem(slot);
@@ -337,7 +337,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
 
     @Override
     public void setItem(int slot, Item item) {
-        if (isValidSlot(slot)) return;
+        if (isInvalidSlot(slot)) return;
         this.item = CeItemInterop.normalize(item);
         if (this.item.isEmpty()) {
             this.itemCarved = false;
@@ -437,7 +437,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
         return direction == Direction.DOWN && slot == 0;
     }
 
-    private boolean isValidSlot(int slot) {
+    private boolean isInvalidSlot(int slot) {
         return slot != 0;
     }
 

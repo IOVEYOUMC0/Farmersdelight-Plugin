@@ -211,7 +211,7 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
         switch (type) {
             case "input":
                 if (click.isShiftClick()) {
-                    openChoiceBuilder(displayIndex(slot));
+                    openChoiceBuilder(1);
                     return;
                 }
                 if (hasCursorItem) {
@@ -225,12 +225,12 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
                     clearCursor();
                 } else if (click.isRightClick()) {
                     if (input instanceof RecipeIngredient.Choice) {
-                        openChoiceBuilder(displayIndex(slot));
+                        openChoiceBuilder(1);
                         return;
                     }
                     input = null;
                 } else if (input instanceof RecipeIngredient.Choice) {
-                    openChoiceBuilder(displayIndex(slot));
+                    openChoiceBuilder(1);
                     return;
                 } else if (input instanceof RecipeIngredient.Item item) {
                     ItemStack pickedUp = item.createStack();
@@ -544,14 +544,6 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
                     reopen();
                 },
                 this::reopen).open();
-    }
-
-    private int displayIndex(int slot) {
-        return switch ("input") {
-            case "input" -> 1;
-            case "tool" -> toolSlots.indexOf(slot) + 1;
-            default -> 1;
-        };
     }
 
     private RecipeIngredient appendOption(RecipeIngredient current, RecipeIngredient added) {

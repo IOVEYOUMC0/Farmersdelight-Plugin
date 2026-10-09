@@ -940,8 +940,9 @@ class HandCookedSkewerHooksTest {
         hooks.shutdown();
 
         assertTrue(display.closes >= 1, "shutdown has to close the bar, or its netty handler survives disable");
+        int closesAfterShutdown = display.closes;
         hooks.shutdown();
-        assertEquals(display.closes, display.closes, "a second shutdown is a no-op, never an error");
+        assertEquals(closesAfterShutdown, display.closes, "a second shutdown must not close a bar again");
     }
 
     private static HandCookedSkewerHooks armed(CountingArm arm, AtomicInteger cooked, FakeLoopSeam seam) {

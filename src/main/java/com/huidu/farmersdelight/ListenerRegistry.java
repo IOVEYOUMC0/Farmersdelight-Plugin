@@ -66,11 +66,8 @@ final class ListenerRegistry {
     private final FarmersDelightPlugin plugin;
 
     // Event handlers with no timer of their own.
-    private BlockBreakListener blockBreakListener;
-    private BlockPlaceListener blockPlaceListener;
     private StrawDropListener strawDropListener;
     private FoodEatListener foodEatListener;
-    private PetFoodListener petFoodListener;
     private BackstabListener backstabListener;
     private KnifeEnchantFilter knifeEnchantFilter;
     private RopeBlockListener ropeBlockListener;
@@ -194,11 +191,8 @@ final class ListenerRegistry {
      */
     private void storeHandler(Listener listener) {
         switch (listener) {
-            case BlockBreakListener value -> blockBreakListener = value;
-            case BlockPlaceListener value -> blockPlaceListener = value;
             case StrawDropListener value -> strawDropListener = value;
             case FoodEatListener value -> foodEatListener = value;
-            case PetFoodListener value -> petFoodListener = value;
             case HorseFeedTemptListener value -> horseFeedTemptListener = value;
             case EffectListener value -> effectListener = value;
             case LegacyIdMigrationHooks value -> legacyIdMigrationHooks = value;
@@ -489,11 +483,8 @@ final class ListenerRegistry {
         if (chunkLoadListener != null) {
             chunkLoadListener.shutdown();
         }
-        blockBreakListener = null;
-        blockPlaceListener = null;
         strawDropListener = null;
         foodEatListener = null;
-        petFoodListener = null;
         backstabListener = null;
         knifeEnchantFilter = null;
         achievementListener = null;

@@ -285,7 +285,7 @@ public final class ItemUtils {
         } catch (Exception ex) {
             // Unknown tag or CraftEngine not ready: the slot renders as empty/barrier elsewhere, but
             // surface the failure so a misconfigured tag is not silently swallowed.
-            Bukkit.getLogger().warning("Failed to resolve CraftEngine tag '" + itemId + "' in slot items: "
+            Bukkit.getServer().getLogger().warning("Failed to resolve CraftEngine tag '" + itemId + "' in slot items: "
                     + (ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage()));
         }
         return items;

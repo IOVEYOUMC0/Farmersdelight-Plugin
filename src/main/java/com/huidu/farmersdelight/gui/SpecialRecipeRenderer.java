@@ -110,7 +110,8 @@ final class SpecialRecipeRenderer {
                                         boolean showFullList, List<ItemStack> options, Player player) {
         ItemStack copy = item.clone();
         ItemMeta meta = copy.getItemMeta();
-        List<Component> lore = meta.lore() == null ? new ArrayList<>() : new ArrayList<>(meta.lore());
+        List<Component> originalLore = meta.lore();
+        List<Component> lore = originalLore == null ? new ArrayList<>() : new ArrayList<>(originalLore);
         if (showFullList && !options.isEmpty()) {
             for (ItemStack catalyst : options) {
                 lore.add(Component.text("- " + ItemUtils.getDisplayName(catalyst, player))

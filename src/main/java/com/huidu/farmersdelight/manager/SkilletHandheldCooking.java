@@ -63,15 +63,15 @@ final class SkilletHandheldCooking {
     private static final long HANDHELD_INPUT_TIMEOUT_MILLIS = 400L;
     // Read-only migration keys for versions that stored unfinished food and fake damage on the item.
     private static final NamespacedKey HANDHELD_INGREDIENT_KEY =
-            NamespacedKey.fromString("farmersdelight:skillet_ingredient");
+            new NamespacedKey("farmersdelight", "skillet_ingredient");
     private static final NamespacedKey HANDHELD_DURATION_KEY =
-            NamespacedKey.fromString("farmersdelight:skillet_duration");
+            new NamespacedKey("farmersdelight", "skillet_duration");
     private static final NamespacedKey HANDHELD_PROGRESS_KEY =
-            NamespacedKey.fromString("farmersdelight:skillet_progress");
+            new NamespacedKey("farmersdelight", "skillet_progress");
     private static final NamespacedKey HANDHELD_ORIGINAL_DAMAGE_KEY =
-            NamespacedKey.fromString("farmersdelight:skillet_original_damage");
+            new NamespacedKey("farmersdelight", "skillet_original_damage");
     private static final NamespacedKey HANDHELD_ORIGINAL_MODEL_KEY =
-            NamespacedKey.fromString("farmersdelight:skillet_original_model");
+            new NamespacedKey("farmersdelight", "skillet_original_model");
 
     private final FarmersDelightPlugin plugin;
     private final CampfireRecipeCache campfireRecipes;
@@ -441,7 +441,9 @@ final class SkilletHandheldCooking {
         // Static displays remain installed for normal inventory sync; only a setting or model
         // change requires rebuilding them while progress is hidden.
         if (!session.needsDisplayUpdate(model, showProgress)) return;
-        ItemStack display = createHandheldDisplay(player.getInventory().getItem(session.slot),
+        ItemStack skillet = player.getInventory().getItem(session.slot);
+        if (skillet == null || skillet.getType().isAir()) return;
+        ItemStack display = createHandheldDisplay(skillet,
                 model, session.progress, session.duration, showProgress);
         var wrapped = BukkitAdaptor.adapt(display);
         // Note-block interaction swings are predicted by the client before event cancellation.
@@ -614,10 +616,11 @@ final class SkilletHandheldCooking {
         }
 
         boolean consumeIngredient(PlayerInventory inventory, boolean creative) {
-            if (consumed || !matches(inventory)) return false;
+            if (consumed) return false;
+            ItemStack food = inventory.getItem(ingredientSlot);
+            if (food == null || !matches(inventory.getHeldItemSlot(), inventory.getItem(slot), food)) return false;
             consumed = true;
             if (!creative) {
-                ItemStack food = inventory.getItem(ingredientSlot);
                 food.setAmount(food.getAmount() - 1);
             }
             return true;

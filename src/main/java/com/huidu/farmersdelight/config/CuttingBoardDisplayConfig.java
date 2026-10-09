@@ -174,7 +174,8 @@ public final class CuttingBoardDisplayConfig {
     }
 
     public Vector3f getDefaultOffset() {
-        return defaultOverride.offset() == null ? new Vector3f(ZERO_OFFSET) : new Vector3f(defaultOverride.offset());
+        Vector3f offset = defaultOverride.offset();
+        return new Vector3f(offset == null ? ZERO_OFFSET : offset);
     }
 
     public float getDefaultUniformScale(float fallback) {

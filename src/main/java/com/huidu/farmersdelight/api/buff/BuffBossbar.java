@@ -6,11 +6,9 @@ import net.kyori.adventure.text.Component;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
-import org.jetbrains.annotations.ApiStatus;
 
 import java.util.Locale;
 
-@ApiStatus.NonExtendable
 public final class BuffBossbar {
 
     private BuffBossbar() {
