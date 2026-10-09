@@ -1,12 +1,12 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.util.CeItemInterop;
 import com.huidu.farmersdelight.manager.SkilletManager;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
-import net.momirealms.craftengine.bukkit.util.ItemStackUtils;
 import net.momirealms.craftengine.bukkit.world.BukkitContainer;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.block.entity.BlockEntityController;
@@ -76,16 +76,18 @@ public final class SkilletBlockEntityController extends BlockEntityController im
             tag.put(DATA_KEY, dataTag);
             return;
         }
-        SkilletManager manager = getManager();
-        World world = getBukkitWorld();
-        if (manager == null || world == null) {
-            return;
+        try (PerformanceProbe.Sample ignored = PerformanceProbe.begin(PerformanceProbe.Operation.SERIALIZATION)) {
+            SkilletManager manager = getManager();
+            World world = getBukkitWorld();
+            if (manager == null || world == null) {
+                return;
+            }
+            Map<String, Object> data = manager.exportSkilletData(world, new BlockPosKey(this.blockEntity.pos));
+            if (data == null || data.isEmpty()) {
+                return;
+            }
+            tag.put(DATA_KEY, SimpleBlockEntityData.save(data));
         }
-        Map<String, Object> data = manager.exportSkilletData(world, new BlockPosKey(this.blockEntity.pos));
-        if (data == null || data.isEmpty()) {
-            return;
-        }
-        tag.put(DATA_KEY, SimpleBlockEntityData.save(data));
     }
 
     public boolean passivate() {

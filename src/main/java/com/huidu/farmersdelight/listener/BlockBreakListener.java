@@ -15,7 +15,6 @@ import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
-import com.huidu.farmersdelight.util.PresentationUtils;
 import com.huidu.farmersdelight.util.Text;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.api.util.TooltipUtils;
@@ -265,7 +264,7 @@ public class BlockBreakListener implements Listener {
             } else {
                 // Contents are scattered, but the pending meal is not: it was already paid for with the
                 // ingredients and has not consumed its serving container, so it is packed into the pot item
-                // (like the mod does in every path) instead of being deleted or spilled without its bowl.
+                // instead of being deleted or spilled without its serving container.
                 dropCookingPotBaseItem(world, dropLocation, state, entity, false);
                 dropCookingPotContents(world, dropLocation, entity);
             }
@@ -307,7 +306,7 @@ public class BlockBreakListener implements Listener {
         // colour is the vanilla gradient (a true blue bar would require a client mod).
         // The line has to describe what the item actually carries: the full pack holds every slot, so it can
         // fall back to the output slot when no meal is waiting, while the partial pack holds the pending meal
-        // only. The mod's tooltip reads its meal-display slot (index 6 — this plugin's pending slot) and never
+        // only. The tooltip reads the pending meal slot (index 6) and never
         // the output slot.
         ItemStack meal = packAll ? entity.getPackedMealDisplayItem() : entity.getPendingOutputItem();
 
@@ -346,10 +345,8 @@ public class BlockBreakListener implements Listener {
     }
 
     /**
-     * Parks the pending meal of an exploded pot so the item CraftEngine's loot table spawns for it can pick it
-     * up. The drop appears during this same tick at the pot's own position, so the entry is consumed by
-     * onItemSpawn and expires one tick later if no matching item appeared — an explosion that consumed
-     * the pot item loses the meal, exactly as in the mod.
+     * Parks an exploded pot meal until its item drop spawns at the pot position in the same tick.
+     * onItemSpawn consumes the entry; unmatched entries expire after one tick.
      */
     private void parkExplodedMeal(World world, BlockPos pos, Location dropLocation, ImmutableBlockState state,
                                   CookingPotBlockEntity entity) {
@@ -409,10 +406,7 @@ public class BlockBreakListener implements Listener {
         }
         int servings = meal.getAmount();
         List<Component> lore = meta.hasLore() ? new ArrayList<>(meta.lore()) : new ArrayList<>();
-        // Line order and wording follow the mod's CookingPotTooltip: the servings header first, then the meal
-        // itself as its item icon followed by its name. Translatable so each viewer's client renders in its own
-        // locale; carries a server-resolved .fallback so packs without the lang entry still show readable text.
-        // Gray applied here because the lang value is plain text without color codes.
+        // Display the serving count, meal icon and name with a readable server fallback.
         Component servingsLine = FarmersDelightText.translatable(
                 servings == 1
                         ? "farmersdelight.tooltip.cooking_pot.single_serving"

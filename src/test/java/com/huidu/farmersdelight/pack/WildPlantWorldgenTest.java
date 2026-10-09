@@ -15,9 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * World generation and client names for the wild plants: each shipped wild plant needs its placed feature, and
- * every skewer item name has to resolve in every locale the pack ships (upstream only translates the old
- * barbecue_stick id, so the four skewer keys fall back to the en_us value elsewhere).
+ * Checks wild-plant placed features and skewer names in every shipped locale.
+ * Locales lacking a translated skewer name use the en_us value.
  */
 class WildPlantWorldgenTest {
 

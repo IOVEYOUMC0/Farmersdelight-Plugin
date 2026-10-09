@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.util.CeItemInterop;
 import com.huidu.farmersdelight.util.BlockPosKey;
@@ -79,17 +80,19 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
             tag.put(this.behavior.customDataKey(), data);
             return;
         }
-        World world = getBukkitWorld();
-        if (world != null) {
-            CuttingBoardBlockEntity entity = CuttingBoardBlockBehavior.getBlockEntity(world,
-                    new BlockPosKey(this.blockEntity.pos));
-            if (entity != null) {
-                refreshFromEntity(entity);
+        try (PerformanceProbe.Sample ignored = PerformanceProbe.begin(PerformanceProbe.Operation.SERIALIZATION)) {
+            World world = getBukkitWorld();
+            if (world != null) {
+                CuttingBoardBlockEntity entity = CuttingBoardBlockBehavior.getBlockEntity(world,
+                        new BlockPosKey(this.blockEntity.pos));
+                if (entity != null) {
+                    refreshFromEntity(entity);
+                }
             }
+            data = buildSaveData();
+            if (data == null) return;
+            tag.put(this.behavior.customDataKey(), data);
         }
-        data = buildSaveData();
-        if (data == null) return;
-        tag.put(this.behavior.customDataKey(), data);
     }
 
     private CompoundTag buildSaveData() {

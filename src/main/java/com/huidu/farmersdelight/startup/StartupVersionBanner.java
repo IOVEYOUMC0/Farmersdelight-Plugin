@@ -50,10 +50,7 @@ public final class StartupVersionBanner {
                 + " | api " + orUnknown(apiVersion);
     }
 
-    /**
-     * Whether this CraftEngine version is one we verify. A null or unparsable version is not supported: the line
-     * would say unknown, which is exactly the situation worth warning about.
-     */
+    /** Checks the verified CraftEngine version range. Missing or unparsable versions require a warning. */
     public static boolean isVerified(@Nullable String ceVersion) {
         int[] running = parse(ceVersion);
         int[] minimum = parse(MINIMUM_CRAFT_ENGINE);

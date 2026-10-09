@@ -2,8 +2,6 @@ package com.huidu.farmersdelight.gui.editor;
 
 import java.util.logging.Level;
 import java.util.Set;
-import com.huidu.farmersdelight.api.config.ConfigFileUpdater;
-import com.huidu.farmersdelight.recipe.RecipeFileLoader;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.recipe.RecipeItemCodec;
 import com.huidu.farmersdelight.recipe.RecipeSerializer;

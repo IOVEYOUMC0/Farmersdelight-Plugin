@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.migration;
 
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.gui.AbstractInventoryGui;
 import org.bukkit.Location;
@@ -90,7 +91,7 @@ public final class LegacyIdMigrationHooks implements Listener {
             return;
         }
         Inventory inventory = event.getInventory();
-        Location owner = ownerOf(inventory.getHolder(false), event.getPlayer());
+        Location owner = ownerOf(PerformanceProbe.holder(inventory), event.getPlayer());
         if (owner == null) {
             // No attributable owner: skip this open instead of reading a container from a thread that may not
             // own it. The next open tries again.

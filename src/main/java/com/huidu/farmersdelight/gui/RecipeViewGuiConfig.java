@@ -1,10 +1,7 @@
 package com.huidu.farmersdelight.gui;
 
-import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.config.ConfigSectionReader;
-import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.Material;
-import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.ArrayList;

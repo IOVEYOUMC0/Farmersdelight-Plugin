@@ -13,7 +13,6 @@ import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.libraries.nbt.CompoundTag;
 import net.momirealms.craftengine.libraries.nbt.Tag;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.Material;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;

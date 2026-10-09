@@ -6,11 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * The cooking pot's progress bar is owned by the pot tick: it must restart when the dish being cooked changes
- * (including when the swapped-in recipe only matches after a tick with no valid recipe) and must wind back at
- * the mod's two-ticks-per-tick rate when the pot is not cooking.
- */
+/** Checks progress reset on recipe changes and two-tick idle regression per elapsed tick. */
 class CookingPotProgressTest {
 
     @Test

@@ -1211,9 +1211,8 @@ public class CookingPotBlockEntity {
     }
 
     /**
-     * The progress after elapsedTicks of pot time: a cooking pot advances by those ticks (capped at the
-     * duration), an idle one regresses by two per tick — the mod's cookTime behaviour — so an unheated
-     * pot, or one whose ingredients no longer match, visibly winds back instead of freezing where it stopped.
+     * Advances cooking progress by elapsed ticks, capped at the duration.
+     * Idle progress regresses by two per tick, including when heat or matching ingredients are absent.
      */
     public static int advanceOrDecayProgress(int progress, int duration, int elapsedTicks, boolean cooking) {
         if (elapsedTicks <= 0) {

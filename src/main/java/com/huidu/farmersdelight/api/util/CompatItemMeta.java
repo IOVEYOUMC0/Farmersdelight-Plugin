@@ -4,35 +4,16 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.ApiStatus;
 
-import java.lang.reflect.Method;
-
+/** Item-model access on the supported Paper baseline. */
 @ApiStatus.NonExtendable
 public final class CompatItemMeta {
-
-    private static final Method SET_ITEM_MODEL = findSetItemModel();
-
-    private CompatItemMeta() {
-    }
-
-    private static Method findSetItemModel() {
-        try {
-            return ItemMeta.class.getMethod("setItemModel", NamespacedKey.class);
-        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
-            return null;
-        }
-    }
+    private CompatItemMeta() { }
 
     public static boolean isSupported() {
-        return SET_ITEM_MODEL != null;
+        return true;
     }
 
     public static void setItemModel(ItemMeta meta, NamespacedKey key) {
-        if (SET_ITEM_MODEL == null || meta == null || key == null) {
-            return;
-        }
-        try {
-            SET_ITEM_MODEL.invoke(meta, key);
-        } catch (ReflectiveOperationException ignored) {
-        }
+        if (meta != null && key != null) meta.setItemModel(key);
     }
 }

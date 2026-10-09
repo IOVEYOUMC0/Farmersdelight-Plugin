@@ -66,14 +66,12 @@ class ReflectionBudgetTest {
             Map.entry("com/huidu/farmersdelight/util/compat/CraftEngineModelMappings.java", 2),
             // A class the release build omits unless the debug-tools flag is on.
             Map.entry("com/huidu/farmersdelight/command/DebugToolsSubCommand.java", 3),
-            // Folia and Paper API that the 1.21.5 compile target does not carry, plus CraftEngine's own player
-            // type, whose getBukkitEntity is not reachable through a callable type.
-            Map.entry("com/huidu/farmersdelight/util/scheduler/SchedulerAdapter.java", 2),
+            // Runtime-only Folia detection and CraftEngine player access without a callable Bukkit type.
+            Map.entry("com/huidu/farmersdelight/util/scheduler/SchedulerAdapter.java", 1),
             Map.entry("com/huidu/farmersdelight/block/behavior/TatamiPairingBehavior.java", 1),
             Map.entry("com/huidu/farmersdelight/advancement/AutomaticAdvancementLayout.java", 1),
-            // Paper API newer than the compile target (item model, attribute registry).
-            Map.entry("com/huidu/farmersdelight/api/util/CompatAttributes.java", 1),
-            Map.entry("com/huidu/farmersdelight/api/util/CompatItemMeta.java", 1));
+            Map.entry("com/huidu/farmersdelight/api/util/CompatAttributes.java", 0),
+            Map.entry("com/huidu/farmersdelight/api/util/CompatItemMeta.java", 0));
 
     /**
      * The debug source set, which reaches into the plugin's own classes by reflection for fields the main
@@ -118,7 +116,7 @@ class ReflectionBudgetTest {
                         + " here with its count. Files:\n  " + String.join("\n  ", newFiles));
         assertTrue(grown.isEmpty(),
                 "Reflection grew in audited files. Resolve the lookup once and cache it (see"
-                        + " SchedulerAdapter.FoliaReflect, CraftEngineModelMappings or MMOItemsCompat for the"
+                        + " CraftEngineModelMappings or WorldGuardCompat for the"
                         + " shape), then lower this file's number. Growth:\n  " + String.join("\n  ", grown));
     }
 

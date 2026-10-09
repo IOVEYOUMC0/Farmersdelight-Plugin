@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.gui;
 
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryCloseEvent;
@@ -94,14 +95,14 @@ public abstract class AbstractInventoryGui implements InventoryHolder {
     }
 
     public void onClose(InventoryCloseEvent event) {
-        if (event.getInventory().getHolder(false) != this) return;
+        if (PerformanceProbe.holder(event.getInventory()) != this) return;
         if (closed) return;
         close();
         removeFromActiveGuis(event.getPlayer().getUniqueId());
     }
 
     public void onDrag(InventoryDragEvent event) {
-        if (event.getView().getTopInventory().getHolder(false) != this) return;
+        if (PerformanceProbe.holder(event.getView().getTopInventory()) != this) return;
         // Cancel all drags into the top inventory by default; subclasses may allow specific drag behavior.
         for (int rawSlot : event.getRawSlots()) {
             if (rawSlot >= 0 && rawSlot < event.getView().getTopInventory().getSize()) {

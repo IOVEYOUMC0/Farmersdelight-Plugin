@@ -3,7 +3,6 @@ package com.huidu.farmersdelight.manager;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import com.huidu.farmersdelight.api.util.ItemDelivery;
-import com.huidu.farmersdelight.tool.ToolRegistry;
 import com.huidu.farmersdelight.util.CampfireRecipeCache;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
@@ -466,11 +465,8 @@ final class SkilletHandheldCooking {
     }
 
     /**
-     * True when the player is on fire or a heat source sits in the 3x3x3 box around the player's block position.
-     * The box is centred on the player, not on whatever the player right-clicked, which is what the mod does
-     * (SkilletItem#isPlayerNearHeatSource); the clicked block, its face and even right-clicking air are all
-     * irrelevant. An extinguished campfire or stove is cold here, exactly as it is for the pot, the placed
-     * skillet, the tray and the stove: every heat-source question goes through the same state-aware table.
+     * Checks fire or a heat source in the 3x3x3 cube centered on the player.
+     * The clicked block and face do not select the heat source. All station heat checks share the state-aware table.
      */
     private boolean hasNearbyHeatSource(Player player) {
         if (player.getFireTicks() > 0) return true;

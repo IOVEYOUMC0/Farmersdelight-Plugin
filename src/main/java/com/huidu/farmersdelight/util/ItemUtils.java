@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.util;
 
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.util.CeItemInterop;
 import com.huidu.farmersdelight.block.behavior.BlockBehaviorConfigs;
@@ -19,7 +20,6 @@ import net.momirealms.craftengine.bukkit.api.BukkitAdaptor;
 import net.momirealms.craftengine.core.plugin.CraftEngine;
 import net.momirealms.craftengine.bukkit.item.BukkitItemDefinition;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
-import net.momirealms.craftengine.bukkit.util.ItemStackUtils;
 import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.item.component.DataComponentKeys;
@@ -368,7 +368,7 @@ public final class ItemUtils {
     }
 
     public static CompoundTag saveBukkitItemAsTag(ItemStack item) {
-        return ItemStackUtils.saveBukkitItemAsTag(item);
+        return PerformanceProbe.item(item);
     }
 
     public static boolean isValidItemId(String itemId) {

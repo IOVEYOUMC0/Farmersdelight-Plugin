@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.manager;
 
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.i18n.I18n;
@@ -23,7 +24,9 @@ public final class PerformanceMonitor {
 
     public enum Feature {
         COOKING_POT("cooking_pot"), HANDHELD("handheld"),
-        HANDHELD_DISPLAY("handheld_display"), SKILLET("skillet"), STOVE("stove");
+        HANDHELD_DISPLAY("handheld_display"), SKILLET("skillet"), STOVE("stove"),
+        SERIALIZATION("serialization"), ITEM_SERIALIZATION("item_serialization"),
+        SERIALIZATION_LOCK("serialization_lock"), INVENTORY_HOLDER("inventory_holder");
 
         private final String id;
 
@@ -134,7 +137,11 @@ public final class PerformanceMonitor {
         Session(long id, Feature feature) {
             this.id = id;
             for (Feature value : Feature.values()) {
-                if (feature == null || feature == value) timings.put(value, new Timing(this));
+                if (feature == null || feature == value
+                        || feature == Feature.SERIALIZATION && (value == Feature.ITEM_SERIALIZATION
+                        || value == Feature.SERIALIZATION_LOCK || value == Feature.INVENTORY_HOLDER)) {
+                    timings.put(value, new Timing(this));
+                }
             }
         }
 
@@ -170,7 +177,7 @@ public final class PerformanceMonitor {
         }
     }
 
-    static final class Timing {
+    static final class Timing implements PerformanceProbe.Timing {
         private final Session owner;
         private final long[] history = new long[PERFORMANCE_HISTORY_CAPACITY];
         private long calls;
@@ -180,8 +187,9 @@ public final class PerformanceMonitor {
 
         Timing(Session owner) { this.owner = owner; }
 
-        // ponytail: one short lock per feature during sampling; shard only if profiling shows contention.
-        synchronized void record(long nanos) {
+        // shortcut: one lock per sampled feature, shard only if profiling shows contention.
+        @Override
+        public synchronized void record(long nanos) {
             if (!owner.active) return;
             long bounded = Math.max(0, nanos);
             history[(int) (calls % history.length)] = bounded;

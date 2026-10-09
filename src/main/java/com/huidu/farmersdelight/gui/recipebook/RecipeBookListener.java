@@ -1,8 +1,8 @@
 package com.huidu.farmersdelight.gui.recipebook;
 
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.gui.GuiListenerRegistrar;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -10,9 +10,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
-import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.inventory.InventoryHolder;
-import org.bukkit.inventory.ItemStack;
 
 public final class RecipeBookListener implements Listener {
 
@@ -27,7 +25,7 @@ public final class RecipeBookListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onClick(InventoryClickEvent event) {
-        InventoryHolder holder = event.getInventory().getHolder(false);
+        InventoryHolder holder = PerformanceProbe.holder(event.getInventory());
         if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }
@@ -42,7 +40,7 @@ public final class RecipeBookListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onDrag(InventoryDragEvent event) {
-        InventoryHolder holder = event.getInventory().getHolder(false);
+        InventoryHolder holder = PerformanceProbe.holder(event.getInventory());
         // Both GUIs operate only on copies. Cancel every drag so fabricated cursor items cannot enter
         // real inventory slots.
         if (holder instanceof RecipeBookGui) {
@@ -52,7 +50,7 @@ public final class RecipeBookListener implements Listener {
 
     @EventHandler
     public void onClose(InventoryCloseEvent event) {
-        InventoryHolder holder = event.getInventory().getHolder(false);
+        InventoryHolder holder = PerformanceProbe.holder(event.getInventory());
         if (holder instanceof RecipeBookGui book) {
             // Release the progress-bar tick callback (ignored on a navigation close; see RecipeBookGui.onClose).
             book.onClose(event.getInventory());

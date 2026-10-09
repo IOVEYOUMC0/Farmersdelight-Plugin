@@ -59,6 +59,16 @@ class DebugToolsCommandTest {
     }
 
     @Test
+    void serializationProfilingCompletesTheOperationAndBoundedDuration() {
+        DebugToolsCommand command = new DebugToolsCommand(null);
+        assertTrue(command.tabComplete(null, new String[]{"debugtools", ""}).contains("profile"));
+        assertEquals(List.of("serialization"),
+                command.tabComplete(null, new String[]{"debugtools", "profile", ""}));
+        assertEquals(List.of("200", "600", "1200"),
+                command.tabComplete(null, new String[]{"debugtools", "profile", "serialization", ""}));
+    }
+
+    @Test
     void bilingualHelpKeepsCommandPlaceholdersVisible() throws Exception {
         for (String locale : List.of("en_us", "zh_cn")) {
             YamlConfiguration language = new YamlConfiguration();

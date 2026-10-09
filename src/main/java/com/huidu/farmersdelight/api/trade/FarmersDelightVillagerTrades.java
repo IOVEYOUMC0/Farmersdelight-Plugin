@@ -1,7 +1,6 @@
 package com.huidu.farmersdelight.api.trade;
 
 import com.huidu.farmersdelight.api.PluginAccess;
-import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.listener.worlddata.ExternalVillagerTrades;
 import com.huidu.farmersdelight.listener.worlddata.WorldDataConfig;
 import org.jetbrains.annotations.ApiStatus;

@@ -30,12 +30,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The per-tick gate of handheld skewer cooking and the click that owns the vanilla use, driven without a server.
- *
- * The rules under test come from the owner report: the cook must stop the moment the right-click is let go, and
- * one raw skewer must never turn into a meal and a cooked skewer at the same time. The handheld skillet is the
- * reference, with one addition — the skewer is itself food, so a native use of the cooking hand also ends the
- * session.
+ * Checks handheld session cancellation and native item-use ownership without a server.
+ * Releasing use stops cooking; a skewer cannot be both eaten and converted by the same click.
  */
 class HandCookedSkewerGateTest {
 

@@ -43,7 +43,6 @@ import com.huidu.farmersdelight.config.DebugSettings;
 import com.huidu.farmersdelight.config.KnifeSettings;
 import com.huidu.farmersdelight.compat.AuraSkillsHook;
 import com.huidu.farmersdelight.compat.LevelerExperienceRewards;
-import com.huidu.farmersdelight.compat.CraftEngineStateUsageMonitor;
 import com.huidu.farmersdelight.gui.CookingPotGui;
 import com.huidu.farmersdelight.gui.GuiCacheInvalidator;
 import com.huidu.farmersdelight.gui.GuiConfig;
@@ -121,8 +120,6 @@ import org.joml.Vector3f;
 import org.bstats.bukkit.Metrics;
 
 import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.function.Consumer;
 import java.util.Collections;
 import java.util.HashMap;

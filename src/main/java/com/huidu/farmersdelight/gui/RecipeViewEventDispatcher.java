@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.gui;
 
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -12,21 +13,21 @@ public final class RecipeViewEventDispatcher implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onClick(InventoryClickEvent event) {
-        if (event.getView().getTopInventory().getHolder(false) instanceof RecipeViewGui gui) {
+        if (PerformanceProbe.holder(event.getView().getTopInventory()) instanceof RecipeViewGui gui) {
             gui.onClick(event);
         }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onDrag(InventoryDragEvent event) {
-        if (event.getView().getTopInventory().getHolder(false) instanceof RecipeViewGui gui) {
+        if (PerformanceProbe.holder(event.getView().getTopInventory()) instanceof RecipeViewGui gui) {
             gui.onDrag(event);
         }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onClose(InventoryCloseEvent event) {
-        if (event.getView().getTopInventory().getHolder(false) instanceof RecipeViewGui gui) {
+        if (PerformanceProbe.holder(event.getView().getTopInventory()) instanceof RecipeViewGui gui) {
             gui.onClose(event);
         }
     }

@@ -63,7 +63,6 @@ import java.util.logging.Level;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.logging.Level;
 import java.util.function.BiPredicate;
 
 import static com.huidu.farmersdelight.debug.DebugReadOnlyCommands.REPORT_CAP;
@@ -97,7 +96,7 @@ public final class DebugToolsCommand {
     // class comment). Read with getConfig().getInt(key, default), so an absent key always means the default.
     private static final String CONFIG_MAX_PLACE_COUNT = "debug-tools.max-place-count";
     private static final List<String> TEST_TARGETS = List.of("cooking_pot", "skillet", "stove", "handheld", "all");
-    private static final List<String> ACTIONS = List.of("test", "place", "activate", "undo", "stop", "inspect", "item", "recipe", "i18n");
+    private static final List<String> ACTIONS = List.of("test", "profile", "place", "activate", "undo", "stop", "inspect", "item", "recipe", "i18n");
     private static final List<String> TARGETS = List.of("cooking_pot", "skillet", "stove", "stove_blocked",
             "cutting_board", "basket", "all");
     // Stations a single recipe can be set up on; a recipe's own type decides which one is placed.
@@ -139,6 +138,7 @@ public final class DebugToolsCommand {
         args = normalizePlacementArguments(args);
         switch (normalize(args[1])) {
             case "test" -> test(player, args);
+            case "profile" -> profile(player, args);
             case "place" -> place(player, args);
             case "placerecipe", "place_recipe", "place-recipe" -> placeRecipe(player, args);
             case "placereciperandom", "place_random_recipe", "place-recipe-random" -> placeRecipeRandom(player, args);
@@ -167,6 +167,7 @@ public final class DebugToolsCommand {
         if (args.length == 3) {
             String action = normalize(args[1]);
             if ("test".equals(action)) return complete(TEST_TARGETS, args[2]);
+            if ("profile".equals(action)) return complete(List.of("serialization"), args[2]);
             if ("item".equals(action) || "hand".equals(action) || "held".equals(action)) {
                 return complete(List.of("offhand"), args[2]);
             }
@@ -190,6 +191,9 @@ public final class DebugToolsCommand {
             }
             List<String> ids = recipeIds(recipeChoices(normalize(args[2])));
             return complete(ids, args[3]);
+        }
+        if (args.length == 4 && "profile".equals(normalize(args[1]))) {
+            return complete(List.of("200", "600", "1200"), args[3]);
         }
         if (args.length == 4 && ("test".equals(normalize(args[1])) || "place".equals(normalize(args[1])))) {
             return complete(List.of("16", "64", "128", "512", "1024"), args[3]);
@@ -215,6 +219,16 @@ public final class DebugToolsCommand {
         normalized[1] = action;
         System.arraycopy(args, 3, normalized, 2, args.length - 3);
         return normalized;
+    }
+
+    private void profile(Player player, String[] args) {
+        Integer ticks = parseOptionalInt(args, 3, 600);
+        if (args.length < 3 || args.length > 4 || !"serialization".equals(normalize(args[2]))
+                || ticks == null || ticks < 20 || ticks > 12000) {
+            player.sendMessage(I18n.getComponent("command.debug_usage_profile", player));
+            return;
+        }
+        profiles.start(player, ticks, "serialization");
     }
 
     private void test(Player player, String[] args) {
@@ -1547,7 +1561,7 @@ public final class DebugToolsCommand {
     }
 
     private void sendUsage(CommandSender sender) {
-        for (String topic : List.of("test", "place", "place_recipe", "place_random", "activate",
+        for (String topic : List.of("test", "profile", "place", "place_recipe", "place_random", "activate",
                 "undo", "stop", "inspect", "item", "recipe", "i18n")) {
             sender.sendMessage(I18n.getComponent("command.debug_usage_" + topic));
         }

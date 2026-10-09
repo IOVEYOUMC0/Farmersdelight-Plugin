@@ -19,17 +19,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins the single-site luck pilot: the wild onion drop floats, the other twelve sites in this repository keep
- * the exact shape they had.
- *
- * The shape is forced by what CraftEngine registers. Its formula registry holds exactly two entries,
- * craftengine:ore_drops and craftengine:binomial_with_bonus_count (Formulas.java:12-13 in the reference
- * source), the type is resolved through the CE namespace and an unknown one throws
- * loot.function.formula.unknown_type while the pack loads (Formulas.java:24-32). The vanilla
- * uniform_bonus_count that upstream uses for wild crops therefore cannot be written here, and the same
- * registry is what the 26.8.2, 26.9.1 and 26.10 jars carry. CropDrops adds one count per successful roll
- * over level + extra rolls (CropDrops.java:18-25), so extra stays 0 to keep "no Fortune, no bonus" for every
- * level, and the spread comes from the probability alone.
+ * Checks wild-onion Fortune drops against the formulas supported by CraftEngine.
+ * Only ore_drops and binomial_with_bonus_count are supported here; extra stays zero so
+ * Fortune-free harvesting receives no bonus. Other loot sites retain their configured formulas.
  */
 class LuckFormulaPilotTest {
 

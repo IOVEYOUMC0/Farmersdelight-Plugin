@@ -16,7 +16,6 @@ import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-import java.util.ArrayList;
 import java.util.Random;
 import java.util.Objects;
 
@@ -54,17 +53,13 @@ final class SkilletVisualManager {
             skillet.displayedItem = visualItem;
             skillet.displayedFacing = facing;
             skillet.displayedOverride = displayOverride;
-            skillet.lastVisualStoredItem = skillet.storedItem == null ? null : skillet.storedItem.clone();
+            skillet.lastVisualStoredItem = skillet.storedItem.clone();
         }
 
+        if (skillet.displayEntityIds.size() == displayCount) return;
+        ItemDisplayManager visualManager = plugin.getItemDisplayManager();
+        if (visualManager == null || !visualManager.isAvailable()) return;
         Random random = new Random(getVisualSeed(skillet.storedItem));
-        while (skillet.displayEntityIds.size() > displayCount) {
-            int entityId = skillet.displayEntityIds.remove(skillet.displayEntityIds.size() - 1);
-            ItemDisplayManager visualManager = plugin.getItemDisplayManager();
-            if (visualManager != null) {
-                visualManager.destroyDisplay(entityId);
-            }
-        }
 
         for (int i = skillet.displayEntityIds.size(); i < displayCount; i++) {
             double spread = displayConfig.getItemSpread();
@@ -113,11 +108,6 @@ final class SkilletVisualManager {
                     scale,
                     new Quaternionf()
             );
-
-            ItemDisplayManager visualManager = plugin.getItemDisplayManager();
-            if (visualManager == null || !visualManager.isAvailable()) {
-                continue;
-            }
 
             Location displayLoc = location.clone().add(0.5 + offsetX, offsetY, 0.5 + offsetZ);
             int displayId = visualManager.createDisplay(new ItemDisplayManager.DisplaySpec(
@@ -181,7 +171,7 @@ final class SkilletVisualManager {
             return;
         }
 
-        for (Integer entityId : new ArrayList<>(skillet.displayEntityIds)) {
+        for (Integer entityId : skillet.displayEntityIds) {
             visualManager.destroyDisplay(entityId);
         }
         skillet.displayEntityIds.clear();

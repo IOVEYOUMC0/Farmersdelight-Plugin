@@ -22,14 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Locks the 1.4 skewer rename on the side the pack owns: the plugin registers
- * farmersdelight:barbecue_stick -> farmersdelight:cooked_meat_skewer, the legacy definition stays in the
- * pack as the migration carrier, no recipe produces the removed item any more, and the snacks tag is
- * back to upstream's list.
- *
- *
- * Everything here is data plus the mapping table, so it runs without a server: no ItemStack is constructed
- * (a bare stack cannot be built offline), and the pack files are read through the classpath.
+ * Checks retained legacy definitions, skewer ID migration and updated recipe targets.
+ * Data and mappings are verified without constructing server-backed item stacks.
  */
 class FarmersDelightLegacyIdsTest {
 

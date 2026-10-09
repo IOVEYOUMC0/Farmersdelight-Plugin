@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.gui.editor;
 
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.gui.GuiListenerRegistrar;
 import com.huidu.farmersdelight.i18n.I18n;
@@ -58,21 +59,21 @@ public final class RecipeEditorListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onClick(InventoryClickEvent event) {
-        if (event.getView().getTopInventory().getHolder(false) instanceof EditorGui gui) {
+        if (PerformanceProbe.holder(event.getView().getTopInventory()) instanceof EditorGui gui) {
             gui.handleClick(event);
         }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onDrag(InventoryDragEvent event) {
-        if (event.getView().getTopInventory().getHolder(false) instanceof EditorGui gui) {
+        if (PerformanceProbe.holder(event.getView().getTopInventory()) instanceof EditorGui gui) {
             gui.handleDrag(event);
         }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onClose(InventoryCloseEvent event) {
-        if (event.getView().getTopInventory().getHolder(false) instanceof EditorGui gui) {
+        if (PerformanceProbe.holder(event.getView().getTopInventory()) instanceof EditorGui gui) {
             gui.handleClose(event);
         }
     }
@@ -118,7 +119,7 @@ public final class RecipeEditorListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onEditorViewClick(InventoryClickEvent event) {
-        if (!(event.getInventory().getHolder(false) instanceof RecipeEditorView editor)
+        if (!(PerformanceProbe.holder(event.getInventory()) instanceof RecipeEditorView editor)
                 || !(event.getWhoClicked() instanceof Player player)) {
             return;
         }
@@ -157,7 +158,7 @@ public final class RecipeEditorListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onEditorViewDrag(InventoryDragEvent event) {
-        if (event.getInventory().getHolder(false) instanceof RecipeEditorView) {
+        if (PerformanceProbe.holder(event.getInventory()) instanceof RecipeEditorView) {
             event.setCancelled(true);
         }
     }
@@ -166,7 +167,7 @@ public final class RecipeEditorListener implements Listener {
     public void onEditorViewDrop(PlayerDropItemEvent event) {
         // Every editor screen keeps a fabricated template copy on the cursor: pressing Q drops that copy
         // without going through InventoryClickEvent, so without this guard the template becomes a real item.
-        InventoryHolder holder = event.getPlayer().getOpenInventory().getTopInventory().getHolder(false);
+        InventoryHolder holder = PerformanceProbe.holder(event.getPlayer().getOpenInventory().getTopInventory());
         if (holder instanceof RecipeEditorView || holder instanceof CookingPotEditorGui
                 || holder instanceof CuttingBoardEditorGui || holder instanceof ChoiceBuilderGui
                 || holder instanceof TagPickerGui) {
@@ -177,7 +178,7 @@ public final class RecipeEditorListener implements Listener {
 
     @EventHandler
     public void onEditorViewClose(InventoryCloseEvent event) {
-        if (event.getInventory().getHolder(false) instanceof RecipeEditorView editor
+        if (PerformanceProbe.holder(event.getInventory()) instanceof RecipeEditorView editor
                 && event.getPlayer() instanceof Player player) {
             editor.handleClose(player);
             // Discard any template copy left on the cursor (it was never a real item).

@@ -14,12 +14,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The vanilla enchantment tags the knives and the skillet belong to.
- *
- *
- * The component decides whether the table can compute a cost at all; these tags decide which enchantments it
- * may offer (upstream FarmersDelight 1.4 registers knives + skillet in the durability, weapon and sharp-weapon
- * enchantable tags). Dropping a member must fail here, and nothing unrelated may sneak in.
+ * Checks knife and skillet enchantment tag membership.
+ * Enchantable components permit table cost calculation; tags restrict the offered enchantments.
  */
 class EnchantableTagsTest {
 
@@ -38,7 +34,7 @@ class EnchantableTagsTest {
             "farmersdelight:netherite_knife",
             "farmersdelight:skillet");
 
-    /** Every tag upstream FarmersDelight 1.4 registers (ItemTags.java:52-58) and who belongs to it. */
+    /** Expected enchantment tags and their members. */
     private static final Map<String, List<String>> EXPECTED = Map.of(
             "minecraft:enchantable/durability", KNIVES_AND_SKILLET,
             "minecraft:enchantable/weapon", KNIVES_AND_SKILLET,

@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.util.CeItemInterop;
 import com.huidu.farmersdelight.manager.TickManager;
@@ -108,19 +109,23 @@ public final class CookingPotBlockEntityController extends BlockEntityController
             tag.put(this.behavior.getCustomDataKey(), data);
             return;
         }
-        CookingPotBlockEntity entity = getEntityIfLoaded();
-        if (entity != null) {
-            tag.put(this.behavior.getCustomDataKey(), saveData(entity));
-            return;
+        try (PerformanceProbe.Sample ignored = PerformanceProbe.begin(PerformanceProbe.Operation.SERIALIZATION)) {
+            CookingPotBlockEntity entity = getEntityIfLoaded();
+            if (entity != null) {
+                tag.put(this.behavior.getCustomDataKey(), saveData(entity));
+                return;
+            }
+            tag.put(this.behavior.getCustomDataKey(), saveSnapshotData());
         }
-        tag.put(this.behavior.getCustomDataKey(), saveSnapshotData());
     }
 
     public static CompoundTag saveData(CookingPotBlockEntity entity) {
         CompoundTag data = new CompoundTag();
         data.putInt(DATA_VERSION, VersionHelper.WORLD_VERSION);
+        PerformanceProbe.Sample wait = PerformanceProbe.begin(PerformanceProbe.Operation.SERIALIZATION_LOCK);
         synchronized (entity.getLock()) {
-            data.put(ITEMS, ItemStackUtils.saveBukkitItemsAsListTag(entity.getInventoryInternal()));
+            if (wait != null) wait.close();
+            data.put(ITEMS, PerformanceProbe.items(entity.getInventoryInternal()));
             data.put(RECIPES_USED, entity.saveUsedRecipes());
         }
         data.putInt(COOKING_PROGRESS, entity.getCookingProgress());
@@ -136,11 +141,9 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     }
 
     /**
-     * The drop's data when only the ready meal is packed: the pending slots' meals plus the serving container
-     * they still owe, every other slot empty and no cooking progress. Used where the pot contents are scattered
-     * instead of packed — a meal in a pending slot has already been paid for with the ingredients and has not
-     * consumed its serving container, so it is packed rather than spilled (dropping it loose would hand out a
-     * free bowl) or deleted. The mod packs that slot on every break path.
+     * Packs pending meals and their owed serving containers with all other slots empty.
+     * Pending meals have consumed ingredients but not containers; dropping them loose would supply free bowls.
+     * Cooking progress is cleared because the packed meal is finished.
      */
     public static CompoundTag savePendingMealData(CookingPotBlockEntity entity) {
         CompoundTag data = new CompoundTag();
@@ -153,7 +156,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
                     packed[slot] = inventory[slot];
                 }
             }
-            data.put(ITEMS, ItemStackUtils.saveBukkitItemsAsListTag(packed));
+            data.put(ITEMS, PerformanceProbe.items(packed));
         }
         // The packed meal is finished; any in-flight batch belongs to the ingredients that stay behind.
         data.putInt(COOKING_PROGRESS, 0);
@@ -337,7 +340,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
             bukkitItems[i] = nonCeOriginal[i] != null ? adjustCount(nonCeOriginal[i], this.items[i])
                     : CeItemInterop.asBukkitStack(this.items[i]);
         }
-        data.put(ITEMS, ItemStackUtils.saveBukkitItemsAsListTag(bukkitItems));
+        data.put(ITEMS, PerformanceProbe.items(bukkitItems));
 
         data.putInt(COOKING_PROGRESS, this.cookingProgress);
         data.putInt(COOKING_DURATION, this.cookingDuration);

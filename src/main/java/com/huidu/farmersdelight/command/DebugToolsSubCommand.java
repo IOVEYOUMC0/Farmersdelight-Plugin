@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
-import static com.huidu.farmersdelight.command.CommandSupport.MINI;
 
 final class DebugToolsSubCommand extends SubCommand {
 

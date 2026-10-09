@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.api;
 
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.block.CuttingBoardInteractionHandler;
 import com.huidu.farmersdelight.api.block.HeatSources;
@@ -26,7 +27,6 @@ import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import com.huidu.farmersdelight.visual.ItemDisplayManager.DisplaySpec;
 import com.huidu.farmersdelight.visual.ItemDisplayManager.TextDisplaySpec;
 import net.kyori.adventure.text.Component;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.Color;
@@ -37,6 +37,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Transformation;
 import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -114,6 +115,19 @@ public final class FarmersDelightApi {
 
     public static FarmersDelightApi get() {
         return INSTANCE;
+    }
+
+    /** Returns a session-bound recorder, or null when this operation is not being sampled. */
+    @Nullable
+    public PerformanceProbe.Timing performanceTiming(PerformanceProbe.Operation operation) {
+        try {
+            FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
+            return plugin == null || plugin.getTickManager() == null || operation == null
+                    ? null : plugin.getTickManager().performanceTiming(operation);
+        } catch (NoClassDefFoundError absentRuntime) {
+            // API-only consumers have no plugin implementation to collect timings.
+            return null;
+        }
     }
 
     public int apiVersion() {

@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
@@ -48,6 +49,28 @@ class PerformanceMonitorTest {
         assertEquals(7, next.features().get(STOVE).totalNanos());
         assertTrue(next.blockNanos().isEmpty());
         assertEquals(20, oldTiming.snapshot().totalNanos());
+    }
+
+    @Test
+    void serializationProfilesIncludeOnlyTheirStagesAndLateRecordersCannotPolluteTheNextSession() {
+        PerformanceMonitor monitor = new PerformanceMonitor(null);
+        long first = monitor.start(SERIALIZATION);
+        assertEquals(Set.of(SERIALIZATION, ITEM_SERIALIZATION, SERIALIZATION_LOCK, INVENTORY_HOLDER),
+                monitor.snapshot().features().keySet());
+        assertNull(monitor.timing(COOKING_POT));
+        var old = monitor.timing(ITEM_SERIALIZATION);
+        old.record(15);
+        monitor.timing(SERIALIZATION_LOCK).record(3);
+        monitor.timing(SERIALIZATION).record(25);
+        var result = monitor.finish(first);
+        assertEquals(15, result.features().get(ITEM_SERIALIZATION).totalNanos());
+        assertEquals(3, result.features().get(SERIALIZATION_LOCK).totalNanos());
+        assertEquals(0, result.features().get(INVENTORY_HOLDER).calls());
+        long second = monitor.start(SERIALIZATION);
+        old.record(999);
+        assertEquals(0, monitor.finish(second).features().get(ITEM_SERIALIZATION).calls());
+        long third = monitor.start(SERIALIZATION_LOCK);
+        assertEquals(1, monitor.finish(third).features().size());
     }
 
     @Test

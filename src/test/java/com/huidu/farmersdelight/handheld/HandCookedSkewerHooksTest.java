@@ -259,18 +259,16 @@ class HandCookedSkewerHooksTest {
     }
 
     /**
-     * The vanilla interaction is never cancelled: MONITOR is the observe-only priority, and the handler has no
-     * cancel path left (the parameter that could run one is gone). This pins the registration half; the other
-     * half is that no setCancelled call exists in the class.
+     * Checks that session acceptance runs at HIGHEST and ignores earlier cancellation.
      */
     @Test
-    void theInteractHandlerCannotCancelTheVanillaUse() throws Exception {
+    void theInteractHandlerRespectsEarlierCancellationsAtHighestPriority() throws Exception {
         EventHandler annotation = HandCookedSkewerHooks.class
                 .getMethod("onInteract", PlayerInteractEvent.class)
                 .getAnnotation(EventHandler.class);
         assertNotNull(annotation, "the handler has to keep its registration contract");
-        assertEquals(EventPriority.MONITOR, annotation.priority(),
-                "MONITOR is the observe-only priority: the vanilla use must not be modified");
+        assertEquals(EventPriority.HIGHEST, annotation.priority(),
+                "accepted cooking modifies use results before monitor-only listeners");
         assertTrue(annotation.ignoreCancelled(),
                 "and a cancellation by the campfire path must stay invisible to us");
     }
@@ -305,7 +303,7 @@ class HandCookedSkewerHooksTest {
                 "and with an answer in hand the air click starts");
     }
 
-    /** No override and no campfire recipe: upstream refuses to start, so nothing is consumed. */
+    /** No override or campfire recipe means no session and no consumed ingredient. */
     @Test
     void noRecipeAtAllMeansNoSession() {
         HandCookedSkewerHooks hooks = armed(new CountingArm(), new AtomicInteger(), new FakeLoopSeam());
@@ -527,20 +525,18 @@ class HandCookedSkewerHooksTest {
         Path source = locateHooksSource();
         assertNotNull(source, "the handler source has to be reachable from the test working directory");
         String code = Files.readString(source);
-        // Two cancels exist and both are guarded: the accepted click that owns the vanilla use, and the
-        // creative set-slot packet that would otherwise store the display-only damage. Nothing else may cancel.
-        assertEquals(2, code.split("setCancelled\\(", -1).length - 1,
-                "only the owned click and the creative-packet guard may cancel an event");
+        // Interaction uses precise result channels; only the creative-packet guard cancels an event.
+        assertEquals(1, code.split("setCancelled\\(", -1).length - 1,
+                "only the creative-packet guard uses cancellation");
         assertFalse(code.contains("cancelVanilla"), "and never a cancel callback");
 
         String interact = methodBody(code, "public void onInteract(PlayerInteractEvent event)");
         int start = interact.indexOf("SessionStart start = handleUse(");
         int refused = interact.indexOf("SessionStart.REFUSED");
-        int cancel = interact.indexOf("setCancelled(true)");
-        assertTrue(start > 0 && refused > start && cancel > refused,
-                "the cancel has to sit behind the refused-clicks-return guard");
-        assertFalse(interact.substring(0, cancel).contains("setCancelled("),
-                "and the click handler cancels nothing before that guard");
+        int denyBlock = interact.indexOf("setUseInteractedBlock(Event.Result.DENY)");
+        int denyItem = interact.indexOf("setUseItemInHand(Event.Result.DENY)");
+        assertTrue(start > 0 && refused > start && denyBlock > refused && denyItem > refused,
+                "both use results change only after the refused-click return guard");
 
         String creative = methodBody(code, "public void onInventoryCreative(InventoryCreativeEvent event)");
         int cooking = creative.indexOf("isCooking(player.getUniqueId())");
@@ -712,17 +708,15 @@ class HandCookedSkewerHooksTest {
     /** Loud failure: every gate that can silently stop a use reports a distinct reason. */
     @Test
     void everyBlockedGateReportsItsOwnReason() {
-        assertNull(HandCookedSkewerHooks.blockedReason(true, true, false, false, false, true, false),
+        assertNull(HandCookedSkewerHooks.blockedReason(true, true, false, false, false, true),
                 "nothing blocks a plain air use near heat");
-        assertEquals("disabled", HandCookedSkewerHooks.blockedReason(false, true, false, false, false, true, false));
-        assertEquals("no-result (override table miss and no campfire recipe)", HandCookedSkewerHooks.blockedReason(true, false, false, false, false, true, false));
+        assertEquals("disabled", HandCookedSkewerHooks.blockedReason(false, true, false, false, false, true));
+        assertEquals("no-result (override table miss and no campfire recipe)", HandCookedSkewerHooks.blockedReason(true, false, false, false, false, true));
         assertEquals("skillet-cooking",
-                HandCookedSkewerHooks.blockedReason(true, true, true, false, false, true, false));
+                HandCookedSkewerHooks.blockedReason(true, true, true, false, false, true));
         assertEquals("sneak-required",
-                HandCookedSkewerHooks.blockedReason(true, true, false, false, true, true, false));
-        assertEquals("no-heat", HandCookedSkewerHooks.blockedReason(true, true, false, false, false, false, false));
-        assertEquals("block-click (vanilla owns it)",
-                HandCookedSkewerHooks.blockedReason(true, true, false, false, false, false, true));
+                HandCookedSkewerHooks.blockedReason(true, true, false, false, true, true));
+        assertEquals("no-heat", HandCookedSkewerHooks.blockedReason(true, true, false, false, false, false));
     }
 
     /**
@@ -762,7 +756,7 @@ class HandCookedSkewerHooksTest {
         // The policy only answers "may this click be ours"; without heat around the player the start gate still
         // refuses, which is the same no-heat line an air click gets.
         assertEquals("no-heat",
-                HandCookedSkewerHooks.blockedReason(true, true, false, false, false, false, false));
+                HandCookedSkewerHooks.blockedReason(true, true, false, false, false, false));
     }
 
     @Test
@@ -877,7 +871,7 @@ class HandCookedSkewerHooksTest {
                 .getAnnotation(EventHandler.class);
         assertNotNull(main);
         assertTrue(main.ignoreCancelled(), "the main handler keeps ignoring cancelled events");
-        assertEquals(EventPriority.MONITOR, main.priority());
+        assertEquals(EventPriority.HIGHEST, main.priority());
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.gui;
 
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.event.FarmersDelightProduceEvent;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
@@ -603,7 +604,7 @@ public class CookingPotGui extends AbstractInventoryGui {
     }
 
     void onClick(InventoryClickEvent event) {
-        if (event.getInventory().getHolder(false) != this) return;
+        if (PerformanceProbe.holder(event.getInventory()) != this) return;
         if (closed || !ensureOwner()) {
             event.setCancelled(true);
             return;
@@ -723,7 +724,7 @@ public class CookingPotGui extends AbstractInventoryGui {
 
     @Override
     public void onDrag(InventoryDragEvent event) {
-        if (event.getInventory().getHolder(false) != this) return;
+        if (PerformanceProbe.holder(event.getInventory()) != this) return;
         if (closed || !ensureOwner()) {
             event.setCancelled(true);
             return;
@@ -1130,21 +1131,21 @@ public class CookingPotGui extends AbstractInventoryGui {
     public static class EventDispatcher implements Listener {
         @EventHandler(priority = EventPriority.HIGHEST)
         public void onClick(InventoryClickEvent event) {
-            if (event.getInventory().getHolder(false) instanceof CookingPotGui gui) {
+            if (PerformanceProbe.holder(event.getInventory()) instanceof CookingPotGui gui) {
                 gui.onClick(event);
             }
         }
 
         @EventHandler(priority = EventPriority.HIGHEST)
         public void onDrag(InventoryDragEvent event) {
-            if (event.getInventory().getHolder(false) instanceof CookingPotGui gui) {
+            if (PerformanceProbe.holder(event.getInventory()) instanceof CookingPotGui gui) {
                 gui.onDrag(event);
             }
         }
 
         @EventHandler(priority = EventPriority.MONITOR)
         public void onClose(InventoryCloseEvent event) {
-            if (event.getInventory().getHolder(false) instanceof CookingPotGui gui) {
+            if (PerformanceProbe.holder(event.getInventory()) instanceof CookingPotGui gui) {
                 gui.onClose(event);
             }
         }

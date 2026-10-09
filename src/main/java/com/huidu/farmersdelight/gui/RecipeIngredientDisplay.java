@@ -1,7 +1,6 @@
 package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
-import com.huidu.farmersdelight.util.ItemUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
@@ -227,8 +226,13 @@ final class RecipeIngredientDisplay {
         );
     }
 
+    static ItemStack copyIngredientIcon(ItemStack item) {
+        return item == null || item.isEmpty() ? null : item.clone();
+    }
+
     private ItemStack createLabeledIngredientDisplay(ItemStack baseDisplay, List<Component> lore, Player player, Component displayName) {
-        ItemStack display = baseDisplay.clone();
+        ItemStack display = copyIngredientIcon(baseDisplay);
+        if (display == null) display = ItemStack.of(Material.BARRIER);
         ItemMeta meta = display.getItemMeta();
         meta.displayName(displayName.colorIfAbsent(NamedTextColor.AQUA));
         meta.lore(lore);

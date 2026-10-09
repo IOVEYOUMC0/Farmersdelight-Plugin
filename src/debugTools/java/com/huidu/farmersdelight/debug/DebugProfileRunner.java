@@ -36,6 +36,20 @@ final class DebugProfileRunner {
                 if (snapshot == null) return;
                 plugin.scheduler().runForEntity(player, () -> {
                     if (!player.isOnline()) return;
+                    if (feature == PerformanceMonitor.Feature.SERIALIZATION) {
+                        player.sendMessage(I18n.getComponent("command.debug_serialization_finished", player));
+                        for (var entry : snapshot.features().entrySet()) {
+                            var timing = entry.getValue();
+                            player.sendMessage(I18n.getComponent("command.stats_feature_line", player, Map.of(
+                                    "feature", I18n.get("command.stats_feature_" + entry.getKey().id(), player),
+                                    "calls", String.valueOf(timing.calls()),
+                                    "rate", String.format(Locale.ROOT, "%.1f", snapshot.elapsedNanos() <= 0 ? 0
+                                            : timing.calls() * 1_000_000_000.0 / snapshot.elapsedNanos()),
+                                    "total", millis(timing.totalNanos()), "avg", millis(timing.averageNanos()),
+                                    "p95", millis(timing.percentile(95)), "max", millis(timing.maxNanos()))));
+                        }
+                        return;
+                    }
                     player.sendMessage(I18n.getComponent("command.stats_dispatch", player, Map.of(
                             "avg", String.format(Locale.ROOT, "%.3f", snapshot.averageNanos() / 1_000_000.0),
                             "max", String.format(Locale.ROOT, "%.3f", snapshot.maxNanos() / 1_000_000.0),
@@ -44,10 +58,18 @@ final class DebugProfileRunner {
                 });
             }, ticks);
             profiles.put(player.getUniqueId(), new Profile(id, task));
+            if (feature == PerformanceMonitor.Feature.SERIALIZATION) {
+                player.sendMessage(I18n.getComponent("command.debug_serialization_started", player,
+                        Map.of("ticks", String.valueOf(ticks))));
+            }
         } catch (RuntimeException failure) {
             manager.finishPerformanceProfile(id);
             throw failure;
         }
+    }
+
+    private static String millis(double nanos) {
+        return String.format(Locale.ROOT, "%.3f", nanos / 1_000_000.0);
     }
 
     boolean stop(Player player) {

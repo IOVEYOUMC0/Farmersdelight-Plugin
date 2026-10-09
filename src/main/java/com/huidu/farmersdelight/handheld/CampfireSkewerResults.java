@@ -9,11 +9,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.function.Supplier;
 
 /**
- * The production SkewerResultSource: the configured override table first, then the same campfire
- * recipe cache the skillet uses (one shared instance, one rebuild lifecycle).
- *
- *
- * Upstream parity on the miss: no recipe means no result, and the caller then refuses to start a session.
+ * Resolves configured skewer overrides before the shared campfire recipe cache.
+ * A missing recipe supplies no result, so the caller refuses to start cooking.
  */
 final class CampfireSkewerResults implements SkewerResultSource {
 

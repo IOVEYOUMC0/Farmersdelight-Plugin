@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.gui;
 
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.gui.editor.RecipeEditorView;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
@@ -41,7 +42,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -1117,8 +1117,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             icon = currentLayout.getString("icon", "");
         }
 
-        String composed = title.replace("<offset>", offset).replace("<icon>", icon);
-        return composed;
+        return title.replace("<offset>", offset).replace("<icon>", icon);
     }
 
     // Special-recipe detail title with the per-condition images composed in. The title-layout
@@ -1329,7 +1328,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
     }
 
     void onClick(InventoryClickEvent event) {
-        if (event.getView().getTopInventory().getHolder(false) != this) return;
+        if (PerformanceProbe.holder(event.getView().getTopInventory()) != this) return;
         event.setCancelled(true);
 
         if (closed) return;
@@ -1719,7 +1718,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         Inventory renderedInventory = inventory;
         if (visibleInventory == null || renderedInventory == null
                 || visibleInventory.getSize() != renderedInventory.getSize()
-                || player.getOpenInventory().getTopInventory().getHolder(false) != this) {
+                || PerformanceProbe.holder(player.getOpenInventory().getTopInventory()) != this) {
             reopenInventory(player);
             return;
         }
@@ -1839,7 +1838,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     @Override
     public void onClose(InventoryCloseEvent event) {
-        if (event.getView().getTopInventory().getHolder(false) != this) return;
+        if (PerformanceProbe.holder(event.getView().getTopInventory()) != this) return;
         if (closed) return;
         if (ignoreNextClose) {
             ignoreNextClose = false;

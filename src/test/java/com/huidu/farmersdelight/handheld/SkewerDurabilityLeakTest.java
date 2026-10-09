@@ -209,7 +209,7 @@ class SkewerDurabilityLeakTest {
         assertFalse(unrelated.isCancelled(), "an ordinary creative set-slot is not ours to cancel");
     }
 
-    /** The close path is the one task-22 added: the bar goes down and the current slot is resent. */
+    /** Closing the display resends the current slot after removing the progress bar. */
     @Test
     void theCaptureGuardClosesThroughTheRestoringPath() {
         Fixture fixture = new Fixture();

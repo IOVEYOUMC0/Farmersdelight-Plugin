@@ -20,13 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Locks the two block-state collisions the occupancy guard found (task-138): ten food blocks pinned one
- * tripwire state, and the two tatami mats shared a carpet.
- *
- *
- * The general rule lives in tools/check_block_state_occupancy.py, which now fails the build; this test
- * keeps the two concrete fixes from being reverted. It reads the pack files through the classpath, so it needs
- * no server, and it counts the pins in the file text so a re-added pin really fails it.
+ * Checks explicit food-block and tatami states against collisions.
+ * The general occupancy checker and these pack assertions cover distinct validation paths.
  */
 class BlockStateOccupancyTest {
 
