@@ -90,7 +90,7 @@ public final class LegacyIdMigrationHooks implements Listener {
             return;
         }
         Inventory inventory = event.getInventory();
-        Location owner = ownerOf(inventory.getHolder(), event.getPlayer());
+        Location owner = ownerOf(inventory.getHolder(false), event.getPlayer());
         if (owner == null) {
             // No attributable owner: skip this open instead of reading a container from a thread that may not
             // own it. The next open tries again.
@@ -117,10 +117,10 @@ public final class LegacyIdMigrationHooks implements Listener {
         if (holder instanceof DoubleChest doubleChest) {
             // A double chest is one inventory over two blocks in the same region pair, so either half names
             // the owner; the left side is preferred only for determinism.
-            if (doubleChest.getLeftSide() instanceof BlockState left) {
+            if (doubleChest.getLeftSide(false) instanceof BlockState left) {
                 return left.getLocation();
             }
-            if (doubleChest.getRightSide() instanceof BlockState right) {
+            if (doubleChest.getRightSide(false) instanceof BlockState right) {
                 return right.getLocation();
             }
             return null;

@@ -110,7 +110,6 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         }
         CookingPotBlockEntity entity = getEntityIfLoaded();
         if (entity != null) {
-            refreshFromEntity(entity);
             tag.put(this.behavior.getCustomDataKey(), saveData(entity));
             return;
         }

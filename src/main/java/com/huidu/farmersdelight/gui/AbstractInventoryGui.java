@@ -94,14 +94,14 @@ public abstract class AbstractInventoryGui implements InventoryHolder {
     }
 
     public void onClose(InventoryCloseEvent event) {
-        if (event.getInventory().getHolder() != this) return;
+        if (event.getInventory().getHolder(false) != this) return;
         if (closed) return;
         close();
         removeFromActiveGuis(event.getPlayer().getUniqueId());
     }
 
     public void onDrag(InventoryDragEvent event) {
-        if (event.getView().getTopInventory().getHolder() != this) return;
+        if (event.getView().getTopInventory().getHolder(false) != this) return;
         // Cancel all drags into the top inventory by default; subclasses may allow specific drag behavior.
         for (int rawSlot : event.getRawSlots()) {
             if (rawSlot >= 0 && rawSlot < event.getView().getTopInventory().getSize()) {

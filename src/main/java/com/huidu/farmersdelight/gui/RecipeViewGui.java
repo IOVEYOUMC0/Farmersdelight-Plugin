@@ -1329,7 +1329,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
     }
 
     void onClick(InventoryClickEvent event) {
-        if (event.getView().getTopInventory().getHolder() != this) return;
+        if (event.getView().getTopInventory().getHolder(false) != this) return;
         event.setCancelled(true);
 
         if (closed) return;
@@ -1719,7 +1719,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         Inventory renderedInventory = inventory;
         if (visibleInventory == null || renderedInventory == null
                 || visibleInventory.getSize() != renderedInventory.getSize()
-                || player.getOpenInventory().getTopInventory().getHolder() != this) {
+                || player.getOpenInventory().getTopInventory().getHolder(false) != this) {
             reopenInventory(player);
             return;
         }
@@ -1839,7 +1839,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     @Override
     public void onClose(InventoryCloseEvent event) {
-        if (event.getView().getTopInventory().getHolder() != this) return;
+        if (event.getView().getTopInventory().getHolder(false) != this) return;
         if (closed) return;
         if (ignoreNextClose) {
             ignoreNextClose = false;

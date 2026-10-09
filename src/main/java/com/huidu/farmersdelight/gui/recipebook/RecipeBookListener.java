@@ -27,7 +27,7 @@ public final class RecipeBookListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onClick(InventoryClickEvent event) {
-        InventoryHolder holder = event.getInventory().getHolder();
+        InventoryHolder holder = event.getInventory().getHolder(false);
         if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }
@@ -42,7 +42,7 @@ public final class RecipeBookListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onDrag(InventoryDragEvent event) {
-        InventoryHolder holder = event.getInventory().getHolder();
+        InventoryHolder holder = event.getInventory().getHolder(false);
         // Both GUIs operate only on copies. Cancel every drag so fabricated cursor items cannot enter
         // real inventory slots.
         if (holder instanceof RecipeBookGui) {
@@ -52,7 +52,7 @@ public final class RecipeBookListener implements Listener {
 
     @EventHandler
     public void onClose(InventoryCloseEvent event) {
-        InventoryHolder holder = event.getInventory().getHolder();
+        InventoryHolder holder = event.getInventory().getHolder(false);
         if (holder instanceof RecipeBookGui book) {
             // Release the progress-bar tick callback (ignored on a navigation close; see RecipeBookGui.onClose).
             book.onClose(event.getInventory());
