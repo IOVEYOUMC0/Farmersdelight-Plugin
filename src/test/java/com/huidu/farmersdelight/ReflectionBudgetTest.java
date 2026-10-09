@@ -82,7 +82,9 @@ class ReflectionBudgetTest {
      * measured from the sources at the point this budget was extended to cover the debug set.
      */
     private static final Map<String, Integer> DEBUG_TOOLS_BUDGET = Map.ofEntries(
-            Map.entry("com/huidu/farmersdelight/debug/DebugToolsCommand.java", 10));
+            Map.entry("com/huidu/farmersdelight/debug/DebugToolsCommand.java", 4),
+            Map.entry("com/huidu/farmersdelight/debug/DebugReadOnlyCommands.java", 1),
+            Map.entry("com/huidu/farmersdelight/debug/DebugReflection.java", 5));
 
     private static final List<SourceSet> SOURCE_SETS = List.of(
             new SourceSet(Path.of("src", "main", "java"), MAIN_BUDGET),

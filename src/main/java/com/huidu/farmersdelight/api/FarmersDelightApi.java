@@ -312,6 +312,27 @@ public final class FarmersDelightApi {
         }
     }
 
+    /** Registers the same YAML recipe shape accepted by files and the editor. */
+    public boolean registerRecipeConfiguration(String station, String id, ConfigurationSection section) {
+        FarmersDelightPlugin plugin = availablePlugin();
+        if (plugin == null || id == null || id.isBlank() || section == null) {
+            return false;
+        }
+        try {
+            return switch (station) {
+                case "cooking_pot" -> plugin.getCookingPotRecipes().registerExternalRecipe(id, section);
+                case "cutting_board" -> plugin.getCuttingBoardRecipes().registerExternalRecipe(id, section);
+                default -> false;
+            };
+        } catch (IllegalArgumentException invalid) {
+            if (isContentLoaded()) {
+                I18n.logWarning("plugin.recipe_api_registration_failed", "id", id, "type", station,
+                        "error", invalid.getMessage());
+            }
+            return false;
+        }
+    }
+
     public void unregisterCookingPotRecipe(String id) {
         FarmersDelightPlugin plugin = availablePlugin();
         if (plugin != null && id != null) {

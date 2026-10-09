@@ -51,14 +51,18 @@ public class RecipeViewGui extends AbstractInventoryGui {
     // The parsed config, built list display items and warn-once sets live in RecipeViewCache, so what is
     // cached and when it is dropped read as one thing.
     // Ingredient option caches live in RecipeIngredientIcons; tool preview options live in ToolPreviewRenderer.
-    private static final ItemStack EMPTY_SLOT_BACKGROUND = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
     static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
 
-    static {
-        ItemMeta meta = EMPTY_SLOT_BACKGROUND.getItemMeta();
-        meta.displayName(Component.text(" "));
-        EMPTY_SLOT_BACKGROUND.setItemMeta(meta);
+    private static final class Background {
+        private static final ItemStack ITEM = create();
+        private static ItemStack create() {
+            ItemStack item = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+            ItemMeta meta = item.getItemMeta();
+            meta.displayName(Component.text(" "));
+            item.setItemMeta(meta);
+            return item;
+        }
     }
 
     public enum GuiState {
@@ -1177,7 +1181,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     ItemStack createBackgroundItem(RecipeViewGuiConfig.BaseConfig guiConfig) {
         GuiConfig.GuiItem background = guiConfig == null ? null : guiConfig.getItem("background");
-        return background == null ? EMPTY_SLOT_BACKGROUND.clone() : background.createItem();
+        return background == null ? Background.ITEM.clone() : background.createItem();
     }
 
     private ItemStack createCookingPotRecipeDisplayItem(CookingPotRecipe recipe, Player player) {

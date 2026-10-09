@@ -43,6 +43,7 @@ public final class RecipeEditorListener implements Listener {
         GuiListenerRegistrar.reset(RecipeEditorListener.class);
         registeredPlugin = null;
         CHAT_PROMPTS.clear();
+        EditorDrafts.clear();
     }
 
     /** Queue a one-shot chat input for the player; the next chat message cancels itself and runs on main. */
@@ -109,6 +110,7 @@ public final class RecipeEditorListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
         CHAT_PROMPTS.remove(event.getPlayer().getUniqueId());
+        EditorDrafts.clear(event.getPlayer().getUniqueId());
     }
 
     // The addon recipe editor view used to be handled by the core's recipe-book listener; it moved here with
@@ -121,6 +123,7 @@ public final class RecipeEditorListener implements Listener {
             return;
         }
         event.setCancelled(true);
+        if (editor.isSaving()) return;
         int raw = event.getRawSlot();
         if (event.getClickedInventory() != event.getInventory()) {
             // Clicking the player's own inventory: copy item to cursor, or discard a held template.
@@ -138,6 +141,7 @@ public final class RecipeEditorListener implements Listener {
             return;
         }
         if (editor.isEditableSlot(raw)) {
+            editor.markDirty();
             ItemStack cursor = event.getCursor();
             if (cursor == null || cursor.getType().isAir()) {
                 event.getInventory().setItem(raw, null);
@@ -173,8 +177,9 @@ public final class RecipeEditorListener implements Listener {
 
     @EventHandler
     public void onEditorViewClose(InventoryCloseEvent event) {
-        if (event.getInventory().getHolder() instanceof RecipeEditorView
+        if (event.getInventory().getHolder() instanceof RecipeEditorView editor
                 && event.getPlayer() instanceof Player player) {
+            editor.handleClose(player);
             // Discard any template copy left on the cursor (it was never a real item).
             player.setItemOnCursor(null);
         }

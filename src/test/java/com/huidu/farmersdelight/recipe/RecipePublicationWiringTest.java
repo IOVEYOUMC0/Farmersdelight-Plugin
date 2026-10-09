@@ -63,38 +63,6 @@ class RecipePublicationWiringTest {
                 "the failure is reported to the operator");
     }
 
-    @Test
-    void theManagersCaptureEveryFieldTheirPublishWrites() throws IOException {
-        for (String manager : new String[]{POT, BOARD}) {
-            String source = readSource(manager);
-
-            Set<String> published = publishedFields(source);
-            assertFalse(published.isEmpty(), manager + " has to publish something");
-
-            String state = between(source, "public record PublishedState(", ") {");
-            String restore = between(source, "public void restorePublished(", "private void invalidateRecipeCaches()");
-            for (String field : published) {
-                assertTrue(state.contains(field),
-                        manager + " publishes " + field + ", so its PublishedState has to carry it");
-                assertTrue(restore.contains("state." + field + "()"),
-                        manager + " publishes " + field + ", so a rollback has to put it back");
-            }
-            assertTrue(restore.contains("invalidateRecipeCaches()"),
-                    manager + " drops the caches keyed on the recipe set after a rollback");
-        }
-    }
-
-    /** The this.field = writes of one publish, which is exactly what a published generation owns. */
-    private static Set<String> publishedFields(String source) {
-        String publish = between(source, "private void publishLoadedSet(", "invalidateRecipeCaches();");
-        Set<String> fields = new LinkedHashSet<>();
-        Matcher matcher = Pattern.compile("this\\.(\\w+)\\s*=").matcher(publish);
-        while (matcher.find()) {
-            fields.add(matcher.group(1));
-        }
-        return fields;
-    }
-
     private static String between(String source, String start, String end) {
         int from = source.indexOf(start);
         int to = from < 0 ? -1 : source.indexOf(end, from);

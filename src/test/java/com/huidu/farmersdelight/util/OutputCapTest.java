@@ -60,14 +60,15 @@ class OutputCapTest {
     @Test
     void theDebugCommandSendsItsUnboundedReportThroughTheCap() throws IOException {
         String source = read(DEBUG_COMMAND);
-        String validation = methodBody(source, "private void recipeValidate(Player player)");
+        String diagnostics = read(DEBUG_COMMAND.resolveSibling("DebugReadOnlyCommands.java"));
+        String validation = methodBody(diagnostics, "void recipeValidate(Player player)");
         assertTrue(validation.contains("batches.start(player,"),
                 "recipe validation must run through the batch runner instead of one whole-list pass");
         assertTrue(validation.contains("sendCapped(player,"),
                 "the validation report must be sent through the cap");
         assertFalse(validation.contains("for (String line : issues)"),
                 "the validation report must not be sent line by line with no bound");
-        String capped = methodBody(source, "private void sendCapped(Player player,");
+        String capped = methodBody(diagnostics, "void sendCapped(Player player,");
         assertTrue(capped.contains("OutputCap.cap("), "the capped send must apply OutputCap.cap");
         assertTrue(capped.contains("OutputCap.overflow("), "the capped send must report the hidden count");
     }

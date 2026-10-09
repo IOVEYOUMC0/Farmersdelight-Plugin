@@ -44,6 +44,7 @@ gui:
     usage: "<yellow>/fd recipe edit <pot|board> <id> [自定义组]"
     disabled: "<red>配方编辑器已在 config.yml 中停用（recipe-editor.enabled）。"
     feedback:
+      draft_kept: "<yellow>草稿已保留到退出游戏，重新打开此配方编辑器可继续。</yellow>"
       invalid_id: "<red>配方 id 包含无效字符。"
       save_busy: "<red>配方编辑器正在写入其它改动，请稍后再试。"
     tag:
@@ -430,7 +431,7 @@ command:
   debug_usage_place: "<yellow>/fd debugtools place \\<目标> [数量] [间距] [层数] - 放置测试批次</yellow>"
   debug_usage_place_recipe: "<yellow>/fd debugtools place recipe \\<cooking_pot|cutting_board|all> \\<配方ID> [数量] - 放置并填入指定配方</yellow>"
   debug_usage_place_random: "<yellow>/fd debugtools place random \\<cooking_pot|cutting_board|all> [数量] - 放置随机配方测试</yellow>"
-  debug_usage_activate: "<yellow>/fd debugtools activate \\<目标> - 激活已登记工作站；此操作没有独立 undo</yellow>"
+  debug_usage_activate: "<yellow>/fd debugtools activate \\<目标> - 激活自己的最近放置批次；undo 清理该批次</yellow>"
   debug_usage_undo: "<yellow>/fd debugtools undo - 撤销自己的最后一批放置；已消耗或领取的物品不会恢复</yellow>"
   debug_usage_stop: "<yellow>/fd debugtools stop - 停止待执行操作；已放置部分仍需 undo 清理</yellow>"
   debug_usage_inspect: "<yellow>/fd debugtools inspect [距离] - 检查正在看向的方块</yellow>"
@@ -445,6 +446,7 @@ command:
   debug_batch_placed: "<green>测试方块已放置：{count}/{total}。</green>"
   debug_batch_activated: "<green>已激活 {count} 个测试工作站。</green>"
   debug_batch_undone: "<green>已撤销 {count} 个测试方块。</green> <gray>剩余未撤销：{remaining}</gray>"
+  debug_undo_skipped: "<yellow>跳过测试后已被更换的 {count} 个位置，保留现有方块。</yellow>"
   debug_batch_empty: "<yellow>没有属于你的可撤销测试批次。</yellow>"
   debug_batch_busy: "<yellow>已有调试批次正在处理，请等待完成或使用 /fd debugtools stop。</yellow>"
   debug_batch_stopped: "<green>已停止当前调试批次；已完成的部分仍可用 undo 撤销。</green>"

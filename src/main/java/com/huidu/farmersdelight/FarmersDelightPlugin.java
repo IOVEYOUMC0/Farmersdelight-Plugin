@@ -2,6 +2,7 @@ package com.huidu.farmersdelight;
 
 import com.huidu.farmersdelight.advancement.AddonAdvancementRegistry;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.api.recipe.AddonRecipeFiles;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
 import com.huidu.farmersdelight.api.advancement.AdvancementAvailability;
 import com.huidu.farmersdelight.api.advancement.FarmersDelightAdvancements;
@@ -122,6 +123,7 @@ import org.bstats.bukkit.Metrics;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.function.Consumer;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -228,6 +230,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // farmersdelight/ directory) on the calling thread, which is a tick thread. Timed so the cost is
         // attributable: the warmup that follows reports its own number separately.
         long start = System.nanoTime();
+        AddonRecipeFiles.reloadOwnedFiles();
         cookingPotRecipeManager.loadRecipes();
         long potNanos = System.nanoTime() - start;
         long boardStart = System.nanoTime();
@@ -1244,6 +1247,25 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     /** Problems the last reload found: config type mismatches plus recipe parse/reconcile issues. */
     public int reloadIssueCount() {
         return configBootstrap.validationIssueCount() + RecipeFileLoader.reportedIssueCount();
+    }
+
+    /** Reloads on the recipe-state thread and reports only after the registration rounds publish. */
+    public void reloadRecipeFiles(Consumer<Boolean> completion) {
+        scheduler().run(() -> {
+            if (!isEnabled() || craftEngineReadinessCoordinator == null
+                    || !craftEngineReadinessCoordinator.isReady()) {
+                completion.accept(false);
+                return;
+            }
+            var watch = recipeRegistrations().beginPublicationWatch();
+            watch.whenPublished(outcome -> completion.accept(outcome.published()
+                    && RecipeFileLoader.reportedIssueCount() == 0));
+            try {
+                reloadRecipeFiles();
+            } finally {
+                recipeRegistrations().endPublicationWatch();
+            }
+        });
     }
 
     public void reloadRecipeFiles() {

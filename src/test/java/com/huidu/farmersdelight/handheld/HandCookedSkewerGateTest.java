@@ -60,7 +60,8 @@ class HandCookedSkewerGateTest {
         PlayerInteractEvent event = airClick(player, raw(1));
         fixture.hooks.onInteract(event);
 
-        assertTrue(event.isCancelled(), "the accepted click has to stop the vanilla use");
+        assertEquals(Event.Result.DENY, event.useInteractedBlock(),
+                "the accepted click has to stop the vanilla block use");
         assertEquals(Event.Result.DENY, event.useItemInHand(), "and deny the item use for other plugins");
         assertTrue(fixture.hooks.service().isCooking(player.id()), "and start the session");
         assertEquals(1, fixture.display.starts, "and open the bar for it");

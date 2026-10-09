@@ -4,6 +4,7 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.manager.HandheldDisplays;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import io.papermc.paper.event.player.PlayerStopUsingItemEvent;
 import org.bukkit.Location;
@@ -465,11 +466,11 @@ public final class HandCookedSkewerHooks implements Listener {
         // Entry line first, so every return below leaves a trace — the "right click next to a heat source does
         // nothing" report had nothing at all. It resolves the held id only under the handheld debug category, so
         // a click that is not ours costs one action compare and one category check with debug off.
-        String entryId = logEntryPoint(player, action, reportedHand, event.isCancelled(), clickedBlock);
+        String entryId = logEntryPoint(player, action, reportedHand, event.useInteractedBlock() == Event.Result.DENY, clickedBlock);
 
         boolean rightClickBlock = action == Action.RIGHT_CLICK_BLOCK;
         boolean blockHasInteraction = rightClickBlock && clickedBlock != null
-                && clickedBlock.getType().isInteractable();
+                && CraftEngineAdapter.hasBlockInteraction(event);
         SkewerBlockClickPolicy.Decision decision = decideClick(action, blockHasInteraction, player.isSneaking());
         if (!SkewerBlockClickPolicy.accepted(decision)) {
             if (decision != SkewerBlockClickPolicy.Decision.DECLINE_NOT_A_RIGHT_CLICK) {
@@ -534,7 +535,7 @@ public final class HandCookedSkewerHooks implements Listener {
         if (plugin == null || !plugin.isDebugEnabled("handheld")) {
             return;
         }
-        logEntryPoint(event.getPlayer(), event.getAction(), event.getHand(), event.isCancelled(),
+        logEntryPoint(event.getPlayer(), event.getAction(), event.getHand(), event.useInteractedBlock() == Event.Result.DENY,
                 event.getClickedBlock());
     }
 

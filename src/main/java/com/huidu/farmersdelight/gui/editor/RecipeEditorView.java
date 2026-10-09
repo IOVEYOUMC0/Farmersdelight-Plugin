@@ -1,5 +1,11 @@
 package com.huidu.farmersdelight.gui.editor;
 
+import org.jetbrains.annotations.ApiStatus;
+import java.util.logging.Level;
+import java.util.function.Consumer;
+import java.util.Set;
+import java.util.Map;
+import java.io.File;
 import com.huidu.farmersdelight.gui.recipebook.RecipeBookGui;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.recipe.EditableRecipe;
@@ -43,6 +49,10 @@ public final class RecipeEditorView implements InventoryHolder {
     private static volatile RecipeEditorGuiConfig guiConfig;
     private static volatile RecipeEditorStore store;
 
+    private boolean saving;
+    private boolean dirty;
+    private final String draftKey;
+    private final FarmersDelightPlugin plugin;
     private final RecipeEditor editor;
     private final EditableRecipe draft;
     private final List<String> slotLabels;
@@ -50,8 +60,10 @@ public final class RecipeEditorView implements InventoryHolder {
     private final int[] itemSlots;
     private Inventory inventory;
 
-    private RecipeEditorView(RecipeType type, String recipeId) {
+    private RecipeEditorView(FarmersDelightPlugin plugin, RecipeType type, String recipeId) {
+        this.plugin = plugin;
         this.editor = type.editor();
+        this.draftKey = "addon:" + type.id() + ":" + recipeId;
         this.slotLabels = editor.itemSlotLabels();
         this.numericFields = editor.numericFields();
         EditableRecipe loaded = editor.load(recipeId);
@@ -105,6 +117,19 @@ public final class RecipeEditorView implements InventoryHolder {
         return current == null ? 0 : current.pendingWrites();
     }
 
+    @ApiStatus.Internal
+    public static boolean saveAddonFileSync(File file, List<String> path, Map<String, Object> body,
+                                           Set<String> preservedFields, Runnable reload) {
+        return store().applyAddonFile(file, path, body, preservedFields, reload);
+    }
+
+    @ApiStatus.Internal
+    public static boolean saveAddonFile(File file, List<String> path, Map<String, Object> body,
+                                        Set<String> preservedFields, Runnable reload,
+                                        Consumer<Boolean> completion) {
+        return store().submitAddonFile(file, path, body, preservedFields, reload, completion);
+    }
+
     /** Opens the editor an addon exposes through api.recipe.RecipeEditor. */
     public static void open(Player player, RecipeType type, String recipeId) {
         if (type == null || type.editor() == null) {
@@ -114,8 +139,11 @@ public final class RecipeEditorView implements InventoryHolder {
             player.sendMessage(I18n.getComponent("gui.editor.disabled", player));
             return;
         }
-        RecipeEditorListener.ensureRegistered(FarmersDelightPlugin.getInstance());
-        RecipeEditorView view = new RecipeEditorView(type, recipeId);
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        RecipeEditorListener.ensureRegistered(plugin);
+        var retained = EditorDrafts.get(player.getUniqueId(), "addon:" + type.id() + ":" + recipeId);
+        RecipeEditorView view = retained instanceof RecipeEditorView draft && draft.editor == type.editor()
+                ? draft : new RecipeEditorView(plugin, type, recipeId);
         view.draw();
         player.openInventory(view.inventory);
     }
@@ -150,7 +178,9 @@ public final class RecipeEditorView implements InventoryHolder {
             CookingPotRecipe existing = (group == null || group.isBlank())
                     ? plugin.getCookingPotRecipes().getRecipe(storedId)
                     : plugin.getCookingPotRecipes().getRecipe(group, storedId);
-            new CookingPotEditorGui(plugin, player, storedId, group, existing, editorConfig).open();
+            var retained = EditorDrafts.get(player.getUniqueId(), "cooking_pot:" + group + ":" + storedId);
+            if (retained instanceof CookingPotEditorGui draft) draft.reopen();
+            else new CookingPotEditorGui(plugin, player, storedId, group, existing, editorConfig).open();
             return;
         }
         if (RecipeStationType.isCuttingBoard(type)) {
@@ -166,7 +196,9 @@ public final class RecipeEditorView implements InventoryHolder {
             String storedId = resolveStoredId(type, recipeId,
                     plugin.getCuttingBoardRecipes().getRecipes().keySet());
             CuttingBoardRecipe existing = plugin.getCuttingBoardRecipes().getRecipe(storedId);
-            new CuttingBoardEditorGui(plugin, player, storedId, existing, boardConfig).open();
+            var retained = EditorDrafts.get(player.getUniqueId(), "cutting_board:" + storedId);
+            if (retained instanceof CuttingBoardEditorGui draft) draft.reopen();
+            else new CuttingBoardEditorGui(plugin, player, storedId, existing, boardConfig).open();
             return;
         }
         player.sendMessage(I18n.getComponent("gui.editor.usage", player));
@@ -292,8 +324,21 @@ public final class RecipeEditorView implements InventoryHolder {
         return false;
     }
 
+    public boolean isSaving() { return saving; }
+    public void markDirty() { dirty = true; }
+
+    void handleClose(Player player) {
+        commitItems();
+        if (dirty && player.isOnline()) {
+            EditorDrafts.remember(player.getUniqueId(), draftKey, this);
+            player.sendMessage(I18n.getComponent("gui.editor.feedback.draft_kept", player));
+        }
+    }
+
     public void handleButton(Player player, int rawSlot, boolean rightClick) {
+        if (saving) return;
         if (rawSlot == RESULT_COUNT_SLOT) {
+            dirty = true;
             draft.setResultCount(Math.max(1, draft.resultCount() + (rightClick ? -1 : 1)));
             inventory.setItem(RESULT_COUNT_SLOT, countButton());
             return;
@@ -304,6 +349,7 @@ public final class RecipeEditorView implements InventoryHolder {
             double current = draft.number(field.key(), field.min());
             double next = current + (rightClick ? -field.step() : field.step());
             next = Math.max(field.min(), Math.min(field.max(), next));
+            dirty = true;
             draft.setNumber(field.key(), next);
             inventory.setItem(rawSlot, numericButton(field));
             return;
@@ -334,24 +380,53 @@ public final class RecipeEditorView implements InventoryHolder {
                     return;
                 }
             }
-            boolean ok = editor.save(draft);
-            player.sendMessage(ok
-                    ? tr("gui.editor.recipe_book.saved", NamedTextColor.GREEN, draft.id())
-                    : tr("gui.editor.recipe_book.save_failed", NamedTextColor.RED));
-            player.closeInventory();
+            submit(player, false);
             return;
         }
         if (rawSlot == SLOT_CANCEL) {
-            player.closeInventory();
+            closeLater(player);
             return;
         }
         if (rawSlot == SLOT_DELETE) {
-            boolean ok = editor.delete(draft.id());
-            player.sendMessage(ok
-                    ? tr("gui.editor.recipe_book.deleted", NamedTextColor.GREEN, draft.id())
-                    : tr("gui.editor.recipe_book.delete_failed", NamedTextColor.RED));
-            player.closeInventory();
+            submit(player, true);
         }
+    }
+
+    private void submit(Player player, boolean deleting) {
+        saving = true;
+        Consumer<Boolean> completion = ok -> plugin.scheduler().runForEntity(player, () -> {
+            saving = false;
+            player.sendMessage(ok
+                    ? tr(deleting ? "gui.editor.recipe_book.deleted" : "gui.editor.recipe_book.saved",
+                            NamedTextColor.GREEN, draft.id())
+                    : tr(deleting ? "gui.editor.recipe_book.delete_failed" : "gui.editor.recipe_book.save_failed",
+                            NamedTextColor.RED));
+            if (ok) {
+                dirty = false;
+                EditorDrafts.discard(player.getUniqueId(), draftKey, this);
+                closeLater(player);
+            }
+        }, () -> { });
+        boolean accepted;
+        try {
+            accepted = deleting ? editor.deleteAsync(draft.id(), completion)
+                    : editor.saveAsync(draft.copy(), completion);
+        } catch (RuntimeException failure) {
+            saving = false;
+            plugin.getLogger().log(Level.WARNING, "Recipe editor operation failed", failure);
+            player.sendMessage(tr("gui.editor.recipe_book.save_failed", NamedTextColor.RED));
+            return;
+        }
+        if (!accepted) {
+            saving = false;
+            player.sendMessage(I18n.getComponent("gui.editor.feedback.save_busy", player));
+        }
+    }
+
+    private void closeLater(Player player) {
+        plugin.scheduler().runLaterForEntity(player, () -> {
+            if (player.getOpenInventory().getTopInventory() == inventory) player.closeInventory();
+        }, 1L);
     }
 
     private void commitItems() {

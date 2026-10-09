@@ -16,6 +16,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.components.CustomModelDataComponent;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -747,7 +748,9 @@ public class GuiConfig implements GuiLayout {
             if (customModelData == null) {
                 return;
             }
-            meta.setCustomModelData(customModelData);
+            CustomModelDataComponent modelData = meta.getCustomModelDataComponent();
+            modelData.setFloats(List.of(customModelData.floatValue()));
+            meta.setCustomModelDataComponent(modelData);
         }
 
         private void applyItemModel(ItemMeta meta, String itemModel) {

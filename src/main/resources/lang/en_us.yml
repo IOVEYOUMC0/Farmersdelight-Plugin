@@ -44,6 +44,7 @@ gui:
     usage: "<yellow>/fd recipe edit <pot|board> <id> [customGroup]"
     disabled: "<red>The recipe editor is disabled in config.yml (recipe-editor.enabled)."
     feedback:
+      draft_kept: "<yellow>Draft kept until logout. Reopen this recipe editor to resume.</yellow>"
       invalid_id: "<red>Recipe id contains invalid characters."
       save_busy: "<red>The recipe editor is busy writing another change; try again in a moment."
     tag:
@@ -430,7 +431,7 @@ command:
   debug_usage_place: "<yellow>/fd debugtools place \\<target> [count] [spacing] [layers] - place a batch</yellow>"
   debug_usage_place_recipe: "<yellow>/fd debugtools place recipe \\<cooking_pot|cutting_board|all> \\<recipeId> [count] - place and fill a recipe setup</yellow>"
   debug_usage_place_random: "<yellow>/fd debugtools place random \\<cooking_pot|cutting_board|all> [count] - place random recipe setups</yellow>"
-  debug_usage_activate: "<yellow>/fd debugtools activate \\<target> - activate tracked stations; this action has no separate undo</yellow>"
+  debug_usage_activate: "<yellow>/fd debugtools activate \\<target> - activate your latest placement batch; undo cleans up the batch</yellow>"
   debug_usage_undo: "<yellow>/fd debugtools undo - revert your last placement batch; consumed or collected items are not recovered</yellow>"
   debug_usage_stop: "<yellow>/fd debugtools stop - stop pending work; completed placements remain until undo</yellow>"
   debug_usage_inspect: "<yellow>/fd debugtools inspect [distance] - inspect the block you are looking at</yellow>"
@@ -445,6 +446,7 @@ command:
   debug_batch_placed: "<green>Test blocks placed: {count}/{total}.</green>"
   debug_batch_activated: "<green>Activated {count} test stations.</green>"
   debug_batch_undone: "<green>Undid {count} test blocks.</green> <gray>Remaining: {remaining}</gray>"
+  debug_undo_skipped: "<yellow>Skipped {count} positions changed after this test; their replacements were preserved.</yellow>"
   debug_batch_empty: "<yellow>You have no test batch to undo.</yellow>"
   debug_batch_busy: "<yellow>A debug batch is already running. Wait for it or use /fd debugtools stop.</yellow>"
   debug_batch_stopped: "<green>Stopped the debug batch. Completed work can still be undone.</green>"

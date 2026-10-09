@@ -78,7 +78,8 @@ class TickBudgetTest {
     @Test
     void theRecipeValidationIsSlicedAndResolvesEachCandidateOnce() throws IOException {
         String source = read(DEBUG_COMMAND);
-        String validation = methodBody(source, "private void recipeValidate(Player player)");
+        String diagnostics = read(DEBUG_COMMAND.resolveSibling("DebugReadOnlyCommands.java"));
+        String validation = methodBody(diagnostics, "void recipeValidate(Player player)");
         assertTrue(validation.contains("batches.start(player,"),
                 "recipe validation must run one recipe per slice through the batch runner");
         assertFalse(validation.contains("for (RecipeIngredient ingredient :"),

@@ -34,27 +34,9 @@ import java.util.stream.Collectors;
 public class CuttingBoardRecipeManager {
 
     private final FarmersDelightPlugin plugin;
-    // Rebuilt as a whole on reload; published as a whole via volatile writes so readers on Folia
-    // region/entity threads never observe a half-cleared map. Never mutate in place after publishing.
-    private volatile Map<String, CuttingBoardRecipe> recipes = Map.of();
-    // Recipes whose winning definition came from a CraftEngine pack section; published with the maps above
-    // so the startup summary can tell the plugin's own file, pack content and runtime registrations apart.
-    private volatile int packRecipeCount;
-    private volatile List<CuttingBoardRecipe> sortedRecipes = List.of();
-    // Input index for matchRecipe — narrows the candidate set without changing match order. Splits recipes
-    // into two buckets at load time:
-    //   - byInputItemId: Item-typed recipes keyed by their input's literal item id (e.g. "minecraft:carrot")
-    //   - tagInputRecipeIds: every Tag-typed recipe's id (these always need a full matchesTaggedItem check
-    //     because vanilla tags aren't surfaced through ItemUtils.getItemTagIds, so they cannot be indexed)
-    // Query gathers candidates = byInputItemId[input.ids] ∪ tagInputRecipeIds, then iterates sortedRecipes
-    // filtered by that set — sortedRecipes order (priority + id) preserved exactly.
-    private volatile Map<String, Set<String>> byInputItemId = Map.of();
-    private volatile Set<String> tagInputRecipeIds = Set.of();
-    // Reverse index result item id -> producing recipes, built at load time and published as a whole
-    // (single volatile write) so API cross-reference / GUI can answer "which recipes produce X" in O(1).
-    private volatile Map<String, List<CuttingBoardRecipe>> resultToRecipes = Map.of();
-    private volatile List<CuttingBoardRecipe.ToolRequirement> toolRequirements = List.of();
-    // Recipes registered at runtime by addons via the public API; kept separate so they survive a
+    // A single reference publishes the recipes and every index from the same reload generation.
+    private volatile PublishedState published = new PublishedState(Map.of(), 0, List.of(), Map.of(),
+            Set.of(), Map.of(), List.of());
     // /fd reload (which rebuilds the file-backed map) and merged into the published map in loadRecipes().
     private final Map<String, CuttingBoardRecipe> externalRecipes = new ConcurrentHashMap<>();
     // External (un)register republishing is coalesced to the next tick (one loadRecipes() per batch).
@@ -110,7 +92,7 @@ public class CuttingBoardRecipeManager {
         }
 
         plugin.recipeRegistrations().start(this, segments,
-                RecipeRegistrationBudget.forLoad(recipes.size(), plugin.recipeRegistrationBudget()),
+                RecipeRegistrationBudget.forLoad(published.recipes().size(), plugin.recipeRegistrationBudget()),
                 () -> publishLoadedSet(pending));
     }
 
@@ -208,17 +190,13 @@ public class CuttingBoardRecipeManager {
 
         // Published as a snapshot: the round's buffer is done, and a later round must never write into the set
         // a region thread may be matching against right now.
-        this.recipes = Collections.unmodifiableMap(new LinkedHashMap<>(newRecipes));
-        this.packRecipeCount = pending.packIds.size();
-        this.sortedRecipes = newSorted;
-        this.byInputItemId = Map.copyOf(frozenByItemId);
-        this.tagInputRecipeIds = Set.copyOf(newTagInputRecipeIds);
         LinkedHashSet<CuttingBoardRecipe.ToolRequirement> uniqueTools = new LinkedHashSet<>();
         for (CuttingBoardRecipe recipe : newSorted) {
             uniqueTools.addAll(recipe.getTools());
         }
-        this.toolRequirements = List.copyOf(uniqueTools);
-        this.resultToRecipes = buildResultIndex(newSorted);
+        this.published = new PublishedState(Collections.unmodifiableMap(new LinkedHashMap<>(newRecipes)),
+                pending.packIds.size(), newSorted, Map.copyOf(frozenByItemId), Set.copyOf(newTagInputRecipeIds),
+                buildResultIndex(newSorted), List.copyOf(uniqueTools));
         invalidateRecipeCaches();
     }
 
@@ -237,8 +215,7 @@ public class CuttingBoardRecipeManager {
 
     /** Captures the published generation before a pass replaces it, so a failed pass can be put back. */
     public PublishedState capturePublished() {
-        return new PublishedState(recipes, packRecipeCount, sortedRecipes, byInputItemId, tagInputRecipeIds,
-                resultToRecipes, toolRequirements);
+        return published;
     }
 
     /**
@@ -246,13 +223,7 @@ public class CuttingBoardRecipeManager {
      * recipe set are dropped too: going back to the earlier set is a change as far as they are concerned.
      */
     public void restorePublished(PublishedState state) {
-        this.recipes = state.recipes();
-        this.packRecipeCount = state.packRecipeCount();
-        this.sortedRecipes = state.sortedRecipes();
-        this.byInputItemId = state.byInputItemId();
-        this.tagInputRecipeIds = state.tagInputRecipeIds();
-        this.resultToRecipes = state.resultToRecipes();
-        this.toolRequirements = state.toolRequirements();
+        this.published = state;
         invalidateRecipeCaches();
     }
 
@@ -486,13 +457,14 @@ public class CuttingBoardRecipeManager {
     }
 
     public CuttingBoardRecipe matchRecipe(ItemStack input, ItemStack tool) {
+        PublishedState state = published;
         String toolId = ItemUtils.getNonVanillaItemId(tool);
         // ToolContext depends only on the tool itself, not on any recipe; build it once outside the loop to avoid
         // repeating CraftEngine tag/ID lookups and set allocations per recipe (cutting is a per-click hot path).
         ToolContext toolContext = ToolContext.from(plugin, tool, toolId);
 
-        Set<String> candidates = candidateRecipeIds(input);
-        for (CuttingBoardRecipe recipe : sortedRecipes) {
+        Set<String> candidates = candidateRecipeIds(input, state);
+        for (CuttingBoardRecipe recipe : state.sortedRecipes()) {
             if (candidates != null && !candidates.contains(recipe.getId())) {
                 continue;
             }
@@ -505,9 +477,10 @@ public class CuttingBoardRecipeManager {
     }
 
     public boolean hasAnyRecipeFor(ItemStack input) {
+        PublishedState state = published;
         if (input == null || input.getType().isAir()) return false;
-        Set<String> candidates = candidateRecipeIds(input);
-        for (CuttingBoardRecipe recipe : sortedRecipes) {
+        Set<String> candidates = candidateRecipeIds(input, state);
+        for (CuttingBoardRecipe recipe : state.sortedRecipes()) {
             if (candidates != null && !candidates.contains(recipe.getId())) {
                 continue;
             }
@@ -521,7 +494,7 @@ public class CuttingBoardRecipeManager {
             return false;
         }
         ToolContext context = ToolContext.from(plugin, tool, ItemUtils.getNonVanillaItemId(tool));
-        for (CuttingBoardRecipe.ToolRequirement requirement : toolRequirements) {
+        for (CuttingBoardRecipe.ToolRequirement requirement : published.toolRequirements()) {
             if (matchesToolRequirement(requirement, context)) {
                 return true;
             }
@@ -601,13 +574,13 @@ public class CuttingBoardRecipeManager {
         if (key == null) {
             return List.of();
         }
-        List<CuttingBoardRecipe> matches = resultToRecipes.get(key);
+        List<CuttingBoardRecipe> matches = published.resultToRecipes().get(key);
         return matches == null ? List.of() : matches;
     }
 
-    private Set<String> candidateRecipeIds(ItemStack input) {
-        Map<String, Set<String>> byId = this.byInputItemId;
-        Set<String> tagIds = this.tagInputRecipeIds;
+    private Set<String> candidateRecipeIds(ItemStack input, PublishedState state) {
+        Map<String, Set<String>> byId = state.byInputItemId();
+        Set<String> tagIds = state.tagInputRecipeIds();
         if ((byId.isEmpty() && tagIds.isEmpty()) || input == null || input.getType().isAir()) {
             return null;
         }
@@ -752,15 +725,15 @@ public class CuttingBoardRecipeManager {
     }
 
     public Map<String, CuttingBoardRecipe> getRecipes() {
-        return Collections.unmodifiableMap(recipes);
+        return published.recipes();
     }
 
     public List<CuttingBoardRecipe> getSortedRecipes() {
-        return sortedRecipes;
+        return published.sortedRecipes();
     }
 
     public int getRecipeCount() {
-        return recipes.size();
+        return published.recipes().size();
     }
 
     public int getExternalRecipeCount() {
@@ -769,7 +742,7 @@ public class CuttingBoardRecipeManager {
 
     /** Recipes that reached this manager through a CraftEngine pack section, not the plugin's own file. */
     public int getPackRecipeCount() {
-        return packRecipeCount;
+        return published.packRecipeCount();
     }
 
     public boolean isExternalRecipe(String id) {
@@ -781,7 +754,7 @@ public class CuttingBoardRecipeManager {
     }
 
     public CuttingBoardRecipe getRecipe(String id) {
-        return recipes.get(id);
+        return published.recipes().get(id);
     }
 
     public void reload() {
@@ -837,6 +810,13 @@ public class CuttingBoardRecipeManager {
                 normalizeSound(sound), 0);
         externalRecipes.put(id, recipe);
         scheduleExternalRepublish();
+    }
+
+    public boolean registerExternalRecipe(String id, ConfigurationSection section) {
+        CuttingBoardRecipe recipe = parseRecipe(id, section);
+        externalRecipes.put(id, recipe);
+        scheduleExternalRepublish();
+        return true;
     }
 
     public void unregisterExternalRecipe(String id) {

@@ -1,12 +1,13 @@
 package com.huidu.farmersdelight.api.recipe;
 
 import com.huidu.farmersdelight.api.FarmersDelightApi;
-import com.huidu.farmersdelight.api.config.ConfigSectionReader;
-import com.huidu.farmersdelight.api.item.FarmersDelightItems;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.InvalidConfigurationException;
+import java.io.IOException;
+import java.util.logging.Level;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
+import org.jetbrains.annotations.ApiStatus;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -74,6 +75,8 @@ public final class AddonRecipeFiles {
     private static final Map<String, RecipeOwner> COOKING_POT_OWNERS = new ConcurrentHashMap<>();
     private static final Map<String, RecipeOwner> CUTTING_BOARD_OWNERS = new ConcurrentHashMap<>();
 
+    private static final Map<String, Runnable> RELOADERS = new ConcurrentHashMap<>();
+
     private AddonRecipeFiles() {
     }
 
@@ -87,6 +90,8 @@ public final class AddonRecipeFiles {
         if (root == null) {
             return new LoadResult(0, 0, false, false);
         }
+        RELOADERS.put("cooking_pot:" + source,
+                () -> loadCookingPotRecipes(plugin, source, resourcePath, namespace));
         FarmersDelightApi api = FarmersDelightApi.get();
         Set<String> fresh = new LinkedHashSet<>();
         Map<String, RecipeOwner> owners = new LinkedHashMap<>();
@@ -95,39 +100,12 @@ public final class AddonRecipeFiles {
 
         for (String key : root.getKeys(false)) {
             ConfigurationSection section = root.getConfigurationSection(key);
-            if (section == null) {
-                skipped++;
-                continue;
-            }
-            List<String> ingredients = ConfigSectionReader.optionalStringList(section, "ingredients");
-            String resultId = ConfigSectionReader.optionalString(section, "result");
-            if (ingredients.isEmpty() || resultId == null) {
-                skipped++;
-                continue;
-            }
-            ItemStack result = FarmersDelightItems.create(resultId);
-            if (result == null) {
-                skipped++;
-                awaiting = true;
-                warnUnresolved(plugin, api, resourcePath, key, "result", resultId);
-                continue;
-            }
-            result.setAmount(Math.max(1, ConfigSectionReader.optionalInt(section, "result-count", 1)));
-
-            String containerId = ConfigSectionReader.optionalString(section, "container");
-            ItemStack container = containerId == null ? null : FarmersDelightItems.create(containerId);
-            if (containerId != null && container == null) {
-                skipped++;
-                awaiting = true;
-                warnUnresolved(plugin, api, resourcePath, key, "container", containerId);
-                continue;
-            }
-
             String id = recipeId(namespace, key);
-            api.registerCookingPotRecipe(id, ingredients, container, result,
-                    ConfigSectionReader.optionalDouble(section, "experience", 0.0),
-                    ConfigSectionReader.optionalInt(section, "cook-time", 200),
-                    ConfigSectionReader.optionalString(section, "category", "misc"));
+            if (section == null || !api.registerRecipeConfiguration("cooking_pot", id, section)) {
+                skipped++;
+                awaiting |= !api.isContentLoaded();
+                continue;
+            }
             fresh.add(id);
             owners.put(id, new RecipeOwner(new File(plugin.getDataFolder(), resourcePath),
                     "cooking_pot_recipes", key, source));
@@ -152,6 +130,8 @@ public final class AddonRecipeFiles {
         if (root == null) {
             return new LoadResult(0, 0, false, false);
         }
+        RELOADERS.put("cutting_board:" + source,
+                () -> loadCuttingBoardRecipes(plugin, source, resourcePath, namespace));
         FarmersDelightApi api = FarmersDelightApi.get();
         Set<String> fresh = new LinkedHashSet<>();
         Map<String, RecipeOwner> owners = new LinkedHashMap<>();
@@ -160,56 +140,12 @@ public final class AddonRecipeFiles {
 
         for (String key : root.getKeys(false)) {
             ConfigurationSection section = root.getConfigurationSection(key);
-            if (section == null) {
-                skipped++;
-                continue;
-            }
-            String input = section.getString("input");
-            String tool = section.getString("tool");
-            if (input == null || tool == null) {
-                skipped++;
-                continue;
-            }
-            // A tag input ("#namespace:tag") is resolved by FD at match time; a literal id must build now.
-            if (!input.startsWith("#") && FarmersDelightItems.create(input) == null) {
-                skipped++;
-                awaiting = true;
-                warnUnresolved(plugin, api, resourcePath, key, "input", input);
-                continue;
-            }
-
-            List<ChanceResult> results = new ArrayList<>();
-            boolean unresolved = false;
-            for (Map<?, ?> entry : ConfigSectionReader.optionalMapList(section, "results")) {
-                Object itemId = entry.get("item");
-                if (itemId == null) {
-                    continue;
-                }
-                ItemStack stack = FarmersDelightItems.create(itemId.toString());
-                if (stack == null) {
-                    unresolved = true;
-                    warnUnresolved(plugin, api, resourcePath, key, "results", itemId.toString());
-                    break;
-                }
-                Object count = entry.get("count");
-                stack.setAmount(count == null ? 1 : Math.max(1, parseInt(count, 1)));
-                Object chance = entry.get("chance");
-                float rolled = chance == null ? 1.0f : clamp01(parseFloat(chance, 1.0f));
-                results.add(new ChanceResult(stack, rolled));
-            }
-            if (unresolved) {
-                skipped++;
-                awaiting = true;
-                continue;
-            }
-            if (results.isEmpty()) {
-                skipped++;
-                continue;
-            }
-
             String id = recipeId(namespace, key);
-            api.registerCuttingBoardRecipeWithChances(id, input, tool, results,
-                    ConfigSectionReader.optionalString(section, "sound"));
+            if (section == null || !api.registerRecipeConfiguration("cutting_board", id, section)) {
+                skipped++;
+                awaiting |= !api.isContentLoaded();
+                continue;
+            }
             fresh.add(id);
             owners.put(id, new RecipeOwner(new File(plugin.getDataFolder(), resourcePath),
                     "cutting_board_recipes", key, source));
@@ -223,6 +159,8 @@ public final class AddonRecipeFiles {
 
     /** Withdraws every recipe this source registered. Call from the addon's onDisable. */
     public static void unregisterAll(String source) {
+        RELOADERS.remove("cooking_pot:" + source);
+        RELOADERS.remove("cutting_board:" + source);
         if (source == null || source.isBlank()) {
             return;
         }
@@ -237,6 +175,12 @@ public final class AddonRecipeFiles {
             board.forEach(api::unregisterCuttingBoardRecipe);
         }
         removeOwners(CUTTING_BOARD_OWNERS, source);
+    }
+
+    /** Reloads owned files before the main managers publish an editor save. */
+    @ApiStatus.Internal
+    public static void reloadOwnedFiles() {
+        List.copyOf(RELOADERS.values()).forEach(Runnable::run);
     }
 
     /** Returns the writable source file for a recipe loaded by this helper, or null for API-only ids. */
@@ -273,7 +217,18 @@ public final class AddonRecipeFiles {
                 return null; // the addon ships no such file
             }
         }
-        return YamlConfiguration.loadConfiguration(file).getConfigurationSection(rootKey);
+        YamlConfiguration yaml = new YamlConfiguration();
+        try {
+            yaml.load(file);
+            ConfigurationSection root = yaml.getConfigurationSection(rootKey);
+            if (root == null && yaml.isSet(rootKey)) {
+                throw new InvalidConfigurationException(rootKey + " must be a section");
+            }
+            return root == null ? yaml.createSection(rootKey) : root;
+        } catch (IOException | InvalidConfigurationException failure) {
+            plugin.getLogger().log(Level.WARNING, "Cannot load recipe file; retaining the registered set: " + file, failure);
+            return null;
+        }
     }
 
     private static boolean validLoadArgs(Plugin plugin, String source, String resourcePath) {
@@ -315,33 +270,4 @@ public final class AddonRecipeFiles {
                 : namespace + ":" + key;
     }
 
-    private static void warnUnresolved(Plugin plugin, FarmersDelightApi api, String resourcePath,
-                                       String key, String field, String id) {
-        // Silent before CraftEngine finishes loading: at that point an unresolved id is expected, and a
-        // warning per recipe per reload would bury the ones that matter.
-        if (api.isContentLoaded()) {
-            plugin.getLogger().warning(FarmersDelightApi.consoleMessage("plugin.item_not_found",
-                    "path", resourcePath + "." + key + "." + field, "id", id));
-        }
-    }
-
-    private static int parseInt(Object value, int fallback) {
-        try {
-            return Integer.parseInt(value.toString().trim());
-        } catch (NumberFormatException e) {
-            return fallback;
-        }
-    }
-
-    private static float parseFloat(Object value, float fallback) {
-        try {
-            return Float.parseFloat(value.toString().trim());
-        } catch (NumberFormatException e) {
-            return fallback;
-        }
-    }
-
-    private static float clamp01(float value) {
-        return Math.max(0.0f, Math.min(1.0f, value));
-    }
 }

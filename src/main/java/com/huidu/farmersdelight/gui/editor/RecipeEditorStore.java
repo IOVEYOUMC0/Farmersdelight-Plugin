@@ -1,5 +1,7 @@
 package com.huidu.farmersdelight.gui.editor;
 
+import java.util.logging.Level;
+import java.util.Set;
 import com.huidu.farmersdelight.api.config.ConfigFileUpdater;
 import com.huidu.farmersdelight.recipe.RecipeFileLoader;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
@@ -16,6 +18,7 @@ import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.yaml.BukkitYamlValueWriter;
 import com.huidu.farmersdelight.util.yaml.YamlFileTransaction;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -66,7 +69,10 @@ public final class RecipeEditorStore {
      */
     public boolean saveCookingPotRecipeAsync(CookingPotRecipe recipe, String customGroupId, Player player,
                                              Consumer<Boolean> completion) {
-        return submitPlan(planSaveCookingPotRecipe(recipe, customGroupId), player, completion);
+        return submitPlan(planSaveCookingPotRecipe(recipe, customGroupId), player, published -> {
+            CookingPotRecipe loaded = plugin.getCookingPotRecipes().getRecipe(customGroupId, recipe.getId());
+            completion.accept(published && loaded != null && buildCookingPotBody(recipe).equals(buildCookingPotBody(loaded)));
+        });
     }
 
     public boolean deleteCookingPotRecipe(String recipeId, String customGroupId) {
@@ -86,7 +92,10 @@ public final class RecipeEditorStore {
     /** Saves a cutting board recipe off the owner thread; see saveCookingPotRecipeAsync. */
     public boolean saveCuttingBoardRecipeAsync(CuttingBoardRecipe recipe, Player player,
                                                Consumer<Boolean> completion) {
-        return submitPlan(planSaveCuttingBoardRecipe(recipe), player, completion);
+        return submitPlan(planSaveCuttingBoardRecipe(recipe), player, published -> {
+            CuttingBoardRecipe loaded = plugin.getCuttingBoardRecipes().getRecipe(recipe.getId());
+            completion.accept(published && loaded != null && buildCuttingBoardBody(recipe).equals(buildCuttingBoardBody(loaded)));
+        });
     }
 
     public boolean deleteCuttingBoardRecipe(String recipeId) {
@@ -168,32 +177,21 @@ public final class RecipeEditorStore {
                 List.of(CUTTING_BOARD_ROOT, recipeId))));
     }
 
-    /**
-     * The overrides entry after adding or removing one id. An empty list removes the key, which is what a file
-     * without overrides for that station looked like before.
-     */
-    private static YamlFileTransaction.Edit overrideEdit(File file, String station, String id, boolean enabled) {
-        List<String> ids = new ArrayList<>(currentOverrides(file, station));
-        ids.removeIf(id::equals);
-        if (enabled) {
-            ids.add(id);
-        }
-        List<String> path = List.of(EXTERNAL_OVERRIDES_ROOT, station);
-        return ids.isEmpty() ? new YamlFileTransaction.RemoveValue(path)
-                : new YamlFileTransaction.SetValue(path, List.copyOf(ids));
-    }
-
-    /** The ids the file lists as overrides for one station; only read for addon-registered recipes. */
-    private static List<String> currentOverrides(File file, String station) {
-        if (file == null || !file.isFile()) {
-            return List.of();
-        }
-        try {
-            return List.copyOf(YamlConfiguration.loadConfiguration(file)
-                    .getStringList(EXTERNAL_OVERRIDES_ROOT + "." + station));
-        } catch (RuntimeException unreadable) {
-            return List.of();
-        }
+    static YamlFileTransaction.Edit overrideEdit(File file, String station, String id, boolean enabled) {
+        return new YamlFileTransaction.UpdateValue(List.of(EXTERNAL_OVERRIDES_ROOT, station), text -> {
+            YamlConfiguration current = new YamlConfiguration();
+            try {
+                current.loadFromString(text);
+            } catch (InvalidConfigurationException invalid) {
+                throw new IllegalArgumentException("Cannot update overrides in invalid YAML", invalid);
+            }
+            List<String> ids = new ArrayList<>(current.getStringList(EXTERNAL_OVERRIDES_ROOT + "." + station));
+            ids.removeIf(id::equals);
+            if (enabled) {
+                ids.add(id);
+            }
+            return ids.isEmpty() ? null : List.copyOf(ids);
+        });
     }
 
     private List<String> cookingPotPath(String recipeId, String customGroupId) {
@@ -228,26 +226,86 @@ public final class RecipeEditorStore {
     private boolean submitPlan(RecipeEdit edit, Player player, Consumer<Boolean> completion) {
         EditorWriteQueue.EditPlan plan = new EditorWriteQueue.EditPlan(edit.file().toPath(), edit.edits(),
                 BukkitYamlValueWriter.INSTANCE, BukkitYamlValueWriter.check(edit.edits()));
-        return writeQueue.submit(plan,
-                task -> {
+        return writeQueue.submit(plan, plugin.scheduler()::run, reason -> {
+            if (!plugin.isEnabled()) {
+                return;
+            }
+            if (reason != null) {
+                I18n.logWarning("plugin.recipe_save_failed", "file", edit.file().getPath(), "error", reason);
+                completeForPlayer(player, completion, false);
+                return;
+            }
+            plugin.reloadRecipeFiles(published -> completeForPlayer(player, completion, published));
+        });
+    }
+
+    private void completeForPlayer(Player player, Consumer<Boolean> completion, boolean published) {
+        plugin.scheduler().runForEntity(player, () -> {
+            if (plugin.isEnabled() && player.isOnline()) {
+                completion.accept(published);
+            }
+        }, () -> { });
+    }
+
+    boolean submitAddonFile(File file, List<String> path, Map<String, Object> body,
+                            Set<String> preservedFields, Runnable reload, Consumer<Boolean> completion) {
+        YamlFileTransaction.Edit edit = addonEdit(path, body, preservedFields);
+        EditorWriteQueue.EditPlan plan = new EditorWriteQueue.EditPlan(file.toPath(), List.of(edit),
+                BukkitYamlValueWriter.INSTANCE, BukkitYamlValueWriter.check(List.of(edit)));
+        return writeQueue.submit(plan, plugin.scheduler()::run, reason -> {
+            if (!plugin.isEnabled()) {
+                return;
+            }
+            if (reason != null) {
+                I18n.logWarning("plugin.recipe_save_failed", "file", file.getPath(), "error", reason);
+                completion.accept(false);
+                return;
+            }
+            try {
+                reload.run();
+                completion.accept(true);
+            } catch (RuntimeException failure) {
+                plugin.getLogger().log(Level.WARNING, "Saved recipe failed to reload: " + file, failure);
+                completion.accept(false);
+            }
+        });
+    }
+
+    private static YamlFileTransaction.Edit addonEdit(List<String> path, Map<String, Object> body,
+                                                      Set<String> preservedFields) {
+        return body == null ? new YamlFileTransaction.RemoveValue(path)
+                : new YamlFileTransaction.UpdateValue(path, text -> {
+                    YamlConfiguration current = new YamlConfiguration();
                     try {
-                        plugin.scheduler().runForEntity(player, task, () -> { });
-                    } catch (RuntimeException retired) {
-                        // The player or the plugin is gone: the file is written, there is no menu to update.
+                        current.loadFromString(text);
+                    } catch (InvalidConfigurationException invalid) {
+                        throw new IllegalArgumentException("Cannot edit invalid YAML", invalid);
                     }
-                },
-                reason -> {
-                    if (!plugin.isEnabled() || !player.isOnline()) {
-                        return;
+                    Object old = current;
+                    for (String key : path) {
+                        old = old instanceof ConfigurationSection section ? section.getValues(false).get(key)
+                                : old instanceof Map<?, ?> map ? map.get(key) : null;
                     }
-                    if (reason != null) {
-                        I18n.logWarning("plugin.recipe_save_failed", "file", edit.file().getPath(), "error", reason);
-                    } else {
-                        // Recipes changed on disk, so the managers are rebuilt before the menu reports success.
-                        plugin.reloadRecipeFiles();
+                    Map<String, Object> merged = new LinkedHashMap<>(body);
+                    for (String key : preservedFields) {
+                        Object value = old instanceof ConfigurationSection section ? section.getValues(false).get(key)
+                                : old instanceof Map<?, ?> map ? map.get(key) : null;
+                        if (value != null && !merged.containsKey(key)) {
+                            merged.put(key, value);
+                        }
                     }
-                    completion.accept(reason == null);
+                    return merged;
                 });
+    }
+
+    boolean applyAddonFile(File file, List<String> path, Map<String, Object> body,
+                           Set<String> preservedFields, Runnable reload) {
+        var edit = addonEdit(path, body, preservedFields);
+        var outcome = YamlFileTransaction.apply(file.toPath(), List.of(edit), BukkitYamlValueWriter.INSTANCE,
+                BukkitYamlValueWriter.check(List.of(edit)));
+        if (!outcome.written()) return false;
+        reload.run();
+        return true;
     }
 
     /** Editor writes still in flight; the shutdown reports them instead of dropping them silently. */

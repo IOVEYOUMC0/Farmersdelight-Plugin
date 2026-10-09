@@ -30,6 +30,7 @@ import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.block.entity.BlockEntityController;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
+import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
 import org.bukkit.Bukkit;
@@ -364,7 +365,12 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
                 // The mod leaves the crafting remainder in the hand (an empty bucket) unless the player is in
                 // creative, where the bucket is kept.
                 if (player.getGameMode() != GameMode.CREATIVE) {
-                    heldItem.setType(Material.BUCKET);
+                    ItemStack bucket = heldItem.withType(Material.BUCKET);
+                    if (context.getHand() == InteractionHand.OFF_HAND) {
+                        player.getInventory().setItemInOffHand(bucket);
+                    } else {
+                        player.getInventory().setItemInMainHand(bucket);
+                    }
                 }
                 ItemUtils.swingHand(player, context.getHand());
                 return InteractionResult.SUCCESS_AND_CANCEL;
