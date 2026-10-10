@@ -254,7 +254,8 @@ performance:
     # players at the cost of bar smoothness; durations self-correct since they decrement by this interval.
     effect-tick-interval-ticks: 4
   # Display visibility: how far proxy item displays stay visible and how often their near/far state is
-  # refreshed.
+  # refreshed. CE native culling controls occlusion inside this tracking range when enabled.
+  # CE uses its own culling threads and rate limit; these settings bound FD tracking work.
   proxy-display:
     view-distance: 64.0
     sync-interval-ticks: 20

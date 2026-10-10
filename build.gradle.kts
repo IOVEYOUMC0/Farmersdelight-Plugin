@@ -122,6 +122,8 @@ dependencies {
     }
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testImplementation("io.netty:netty-transport:4.1.135.Final")
+    // CE Player exposes authlib types that Paper supplies only at server runtime.
+    testRuntimeOnly("com.mojang:authlib:6.0.58")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
