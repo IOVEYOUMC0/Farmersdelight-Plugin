@@ -964,8 +964,11 @@ blocks:
         facing=west,in_wall=true,open=true,powered=true:
           appearance: facing=west,in_wall=true,open=true
   farmersdelight:crimson_fence:
-    template:
-    - farmersdelight:block_loot_template
+    loot:
+      template: default:loot_table/basic
+      arguments:
+        item: minecraft:crimson_fence
+        count: 1
     settings:
       hardness: 1.0
       resistance: 3.0
