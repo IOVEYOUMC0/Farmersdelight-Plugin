@@ -250,6 +250,7 @@ console:
     advanced_tag_groups_dropped: "以下高级标签组因引用无法解析（成环、引用了不存在的组，或嵌套过深）而被忽略：{ids}"
     advanced_tag_group_invalid: "已忽略高级标签组 {id}：其成员必须是物品 ID 列表，或单个物品 ID。"
     craftengine_not_ready: "等待 CraftEngine 加载自定义物品超时（约 20 秒）：配方、进度与显示缓存均未预热。请在 CraftEngine 就绪后执行 /fd reload recipes 完成加载。"
+    content_reload_not_ready: "等待 CraftEngine 就绪超时：本次内容重载未执行，保留原有内容。请在 CraftEngine 就绪后重试 /fd reload all。"
   advancement:
     loaded_keys: "已加载 {count} 个进度键"
     unknown: "未知进度：{id}"

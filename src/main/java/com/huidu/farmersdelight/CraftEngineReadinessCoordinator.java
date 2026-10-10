@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 
 /** Coordinates work that must wait for CraftEngine's deferred custom-item load. */
@@ -31,6 +32,7 @@ final class CraftEngineReadinessCoordinator {
 
     private final FarmersDelightPlugin plugin;
     private final StartupSummary startupSummary;
+    private final CraftEngineResourceLease resourceLease;
     private final AtomicBoolean loadedChunkContentIndexStarted = new AtomicBoolean();
     private final AtomicBoolean contentWarmupCompleted = new AtomicBoolean();
     private final AtomicLong reloadGeneration = new AtomicLong();
@@ -66,20 +68,80 @@ final class CraftEngineReadinessCoordinator {
     CraftEngineReadinessCoordinator(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
         this.startupSummary = new StartupSummary(plugin);
+        this.resourceLease = new CraftEngineResourceLease(plugin.getCraftEngine(), plugin.getLogger());
     }
 
     boolean isReady() {
         try {
-            return ItemUtils.isAnyCustomItemLoaded();
+            var craftEngine = plugin.getCraftEngine();
+            return craftEngine != null && !craftEngine.isEnabling() && !craftEngine.isReloading()
+                    && ItemUtils.isAnyCustomItemLoaded();
         } catch (Exception ignored) {
             return false;
         }
     }
 
-    void loadRecipesWhenReady(String logKey) {
-        if (isReady()) {
-            plugin.loadRecipeManagers(logKey);
+    void runWhenReady(Runnable notification) {
+        withReadyResources(lease -> {
+            try {
+                notification.run();
+            } finally {
+                closeResourceLease(lease);
+            }
+        }, () -> { }, 0);
+    }
+
+    private void withReadyResources(Consumer<AutoCloseable> work, Runnable unavailable, int attempt) {
+        if (!active || !plugin.isEnabled()) {
+            unavailable.run();
+            return;
         }
+        AutoCloseable lease = null;
+        try {
+            if (isReady()) {
+                lease = resourceLease.tryAcquire();
+                if (lease != null && isReady()) {
+                    work.accept(lease);
+                    return;
+                }
+            }
+        } catch (Exception failure) {
+            closeResourceLease(lease);
+            plugin.getLogger().log(Level.SEVERE, "Error during CraftEngine resource operation", failure);
+            unavailable.run();
+            return;
+        } catch (Error failure) {
+            closeResourceLease(lease);
+            throw failure;
+        }
+        closeResourceLease(lease);
+        if (attempt >= READINESS_RETRY_ATTEMPTS) {
+            I18n.logWarning("plugin.content_reload_not_ready");
+            unavailable.run();
+            return;
+        }
+        long delay = Math.min(READINESS_RETRY_MAX_TICKS,
+                READINESS_RETRY_INITIAL_TICKS * (1L + attempt / 2L));
+        plugin.scheduler().runLater(() -> withReadyResources(work, unavailable, attempt + 1), delay);
+    }
+
+    private void closeResourceLease(AutoCloseable lease) {
+        if (lease == null) {
+            return;
+        }
+        try {
+            lease.close();
+        } catch (Exception failure) {
+            plugin.getLogger().log(Level.SEVERE, "Cannot release CraftEngine resource exclusion", failure);
+        }
+    }
+
+    void loadRecipesWhenReady(String logKey) {
+        loadRecipesWhenReady(logKey, null);
+    }
+
+    void loadRecipesWhenReady(String logKey, Consumer<Boolean> completion) {
+        loadRecipesThenPublish(logKey, null, () -> { }, completion);
     }
 
     void refreshAdvancementsWhenReady(boolean reloading) {
@@ -338,24 +400,40 @@ final class CraftEngineReadinessCoordinator {
      * the new files alone, and nothing is ever read out of a set that is only half registered.
      */
     private void loadRecipesThenPublish(String logKey, Runnable contentWork, Runnable recipeWork) {
-        long pass = readinessPassGeneration.incrementAndGet();
-        RecipePublicationRollback rollback = captureRecipePublication();
-        RecipePublicationWatch watch = plugin.recipeRegistrations().beginPublicationWatch();
-        // Registered before the load runs: a registration that fails halfway has to report and roll back too,
-        // and the watch cannot settle before the window closes below, so the order of the work is unchanged.
-        watch.whenPublished(outcome -> {
+        loadRecipesThenPublish(logKey, contentWork, recipeWork, null);
+    }
+
+    private void loadRecipesThenPublish(String logKey, Runnable contentWork, Runnable recipeWork,
+                                        Consumer<Boolean> completion) {
+        withReadyResources(lease -> {
+            long pass = readinessPassGeneration.incrementAndGet();
+            RecipePublicationRollback rollback = captureRecipePublication();
+            RecipePublicationWatch watch = plugin.recipeRegistrations().beginPublicationWatch();
+            // Keep CE exclusion through the last registration slice, including cancellation and failure.
+            watch.whenPublished(outcome -> {
+                try {
+                    onRecipesPublished(pass, outcome, rollback, contentWork, recipeWork);
+                    if (completion != null) {
+                        completion.accept(active && plugin.isEnabled() && outcome.published()
+                                && pass == readinessPassGeneration.get());
+                    }
+                } catch (RuntimeException | LinkageError error) {
+                    plugin.getLogger().log(Level.SEVERE,
+                            "Error during CraftEngine reload processing in " + plugin.getClass().getSimpleName(), error);
+                } finally {
+                    closeResourceLease(lease);
+                }
+            });
             try {
-                onRecipesPublished(pass, outcome, rollback, contentWork, recipeWork);
-            } catch (RuntimeException | LinkageError error) {
-                plugin.getLogger().log(Level.SEVERE,
-                        "Error during CraftEngine reload processing in " + plugin.getClass().getSimpleName(), error);
+                plugin.loadRecipeManagers(logKey);
+            } finally {
+                plugin.recipeRegistrations().endPublicationWatch();
             }
-        });
-        try {
-            loadRecipesWhenReady(logKey);
-        } finally {
-            plugin.recipeRegistrations().endPublicationWatch();
-        }
+        }, () -> {
+            if (completion != null) {
+                completion.accept(false);
+            }
+        }, 0);
     }
 
     /**

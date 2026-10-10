@@ -48,7 +48,7 @@ class RecipePublicationWiringTest {
     void aFailedOrOvertakenPassReportsInsteadOfReadingAHalfPublishedSet() throws IOException {
         String source = readSource(COORDINATOR);
 
-        assertTrue(source.indexOf("watch.whenPublished(") < source.indexOf("loadRecipesWhenReady(logKey);"),
+        assertTrue(source.indexOf("watch.whenPublished(") < source.indexOf("plugin.loadRecipeManagers(logKey);"),
                 "the continuation is registered before the load, so a load that throws is still reported");
         assertTrue(source.contains("rollback.restore()"), "a failed pass puts the captured sets back");
         assertTrue(source.indexOf("rollback.restore()") < source.indexOf("recipeWork.run();"),

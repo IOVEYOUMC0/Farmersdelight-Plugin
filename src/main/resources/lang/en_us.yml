@@ -250,6 +250,7 @@ console:
     advanced_tag_groups_dropped: "Ignored these advanced tag groups because their references cannot be resolved (a cycle, an unknown group, or nesting that is too deep): {ids}"
     advanced_tag_group_invalid: "Ignored the advanced tag group {id}: its members must be a list of item ids, or a single item id."
     craftengine_not_ready: "Timed out waiting for CraftEngine to load its custom items (about 20 seconds): recipes, advancements and the display caches were not warmed. Run /fd reload recipes once CraftEngine is ready to load them."
+    content_reload_not_ready: "Timed out waiting for CraftEngine: content reload was not applied and existing content was retained. Retry /fd reload all once CraftEngine is ready."
   advancement:
     loaded_keys: "Loaded {count} advancement keys"
     unknown: "Unknown advancement: {id}"

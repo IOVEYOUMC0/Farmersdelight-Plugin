@@ -221,6 +221,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     void loadRecipeManagers(String logKey) {
+        RecipeFileLoader.resetReportedIssues();
         I18n.logDetail("recipe", logKey);
         // Both loads read YAML from disk (the plugin's own files plus a scan of every CraftEngine pack's
         // farmersdelight/ directory) on the calling thread, which is a tick thread. Timed so the cost is
@@ -408,7 +409,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
         cuttingBoardRecipeManager = new CuttingBoardRecipeManager(this);
 
-        craftEngineReadinessCoordinator.loadRecipesWhenReady("plugin.loading_recipes");
+        if (craftEngineReadinessCoordinator.isReady()) {
+            craftEngineReadinessCoordinator.loadRecipesWhenReady("plugin.loading_recipes");
+        }
 
         // If CraftEngine is disabled while the server keeps running, FD cannot function; disable ourselves
         // cleanly instead of throwing from every CraftEngine-bound task. See CraftEngineWatchdogListener.
@@ -1051,7 +1054,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     public void reloadAll() {
         reloadCommon(true);
-        RecipeFileLoader.resetReportedIssues();
         reloadRecipesWhenReady("plugin.reloading_recipes");
         // The per-type recipe line is on the recipe detail channel, so the reloaded counts would otherwise
         // never reach the operator who just edited a recipe file. The summary dedupes on its counts digest,
@@ -1113,7 +1115,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             fireReloadEvent(reason);
             return;
         }
-        scheduler.runLater(() -> {
+        // CE clears registries asynchronously; a cached positive item probe is not a readiness signal.
+        scheduler.runLater(() -> craftEngineReadinessCoordinator.runWhenReady(() -> {
             long addonStart = System.nanoTime();
             fireReloadEvent(reason);
             long addonNanos = System.nanoTime() - addonStart;
@@ -1125,7 +1128,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             I18n.logDetail("reload", "plugin.reload_report",
                     "total", reloadTotalMillis(),
                     "split", reloadTimingSummary());
-        }, 1L);
+        }), 1L);
     }
 
     /**
@@ -1240,34 +1243,28 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     /** Reloads on the recipe-state thread and reports only after the registration rounds publish. */
     public void reloadRecipeFiles(Consumer<Boolean> completion) {
         scheduler().run(() -> {
-            if (!isEnabled() || craftEngineReadinessCoordinator == null
-                    || !craftEngineReadinessCoordinator.isReady()) {
-                completion.accept(false);
+            if (!isEnabled() || craftEngineReadinessCoordinator == null) {
+                if (completion != null) {
+                    completion.accept(false);
+                }
                 return;
             }
-            var watch = recipeRegistrations().beginPublicationWatch();
-            watch.whenPublished(outcome -> completion.accept(outcome.published()
-                    && RecipeFileLoader.reportedIssueCount() == 0));
-            try {
-                reloadRecipeFiles();
-            } finally {
-                recipeRegistrations().endPublicationWatch();
-            }
+            refreshAfterCraftEngineReload();
+            craftEngineReadinessCoordinator.loadRecipesWhenReady("plugin.reloading_recipes", published -> {
+                if (published) {
+                    reportContentSummaryWhenReady();
+                    notifyAddonsOfReload("reloadRecipes");
+                    logReloadEvent("plugin.recipe_files_reloaded");
+                }
+                if (completion != null) {
+                    completion.accept(published && RecipeFileLoader.reportedIssueCount() == 0);
+                }
+            });
         });
     }
 
     public void reloadRecipeFiles() {
-        refreshAfterCraftEngineReload();
-        RecipeFileLoader.resetReportedIssues();
-        reloadRecipesWhenReady("plugin.reloading_recipes");
-        // Same reason as reloadAll: the reloaded per-type counts are the only evidence the edited files
-        // actually parsed, and the summary suppresses itself when they are unchanged.
-        reportContentSummaryWhenReady();
-        // The addon notification leaves the reload tick: it is a fan-out to third-party listeners, and the
-        // full-reload path already reaches addons on the following tick, so nothing observes a different
-        // order — the spike just stops carrying every listener's work in the same tick as the rebuild.
-        scheduler().run(() -> fireReloadEvent("reloadRecipes"));
-        logReloadEvent("plugin.recipe_files_reloaded");
+        reloadRecipeFiles(null);
     }
 
     public void reloadAdvancements() {
@@ -1289,7 +1286,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             return;
         }
         scheduler().run(() -> {
-            RecipeFileLoader.resetReportedIssues();
             reloadRecipesWhenReady("plugin.reloading_recipes_after_tags");
             // The resolved tag/choice caches are stale the moment the tag registry changes. Loading recipes
             // does not populate them (the warm-up pass does), so drop them and rebuild them here: leaving the

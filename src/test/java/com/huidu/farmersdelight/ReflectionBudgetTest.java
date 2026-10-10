@@ -64,6 +64,8 @@ class ReflectionBudgetTest {
             Map.entry("com/huidu/farmersdelight/api/util/DatapackSupport.java", 5),
             Map.entry("com/huidu/farmersdelight/recipe/RecipeItemCodec.java", 5),
             Map.entry("com/huidu/farmersdelight/util/compat/CraftEngineModelMappings.java", 2),
+            // Public CE resource exclusion is absent in 26.8.2; initialization caches the method handle.
+            Map.entry("com/huidu/farmersdelight/CraftEngineResourceLease.java", 4),
             // A class the release build omits unless the debug-tools flag is on.
             Map.entry("com/huidu/farmersdelight/command/DebugToolsSubCommand.java", 3),
             // Runtime-only Folia detection and CraftEngine player access without a callable Bukkit type.
