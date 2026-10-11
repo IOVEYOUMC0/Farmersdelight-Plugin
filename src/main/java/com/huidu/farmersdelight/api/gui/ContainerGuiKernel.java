@@ -12,33 +12,10 @@ import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
 
 /**
- * The container GUI engine: paints configured cells from the authoritative store, and commits a viewer's
- * edits back only while the cell still holds what it was painted from.
- *
- *
- * A station supplies a Controller (its store, its lock, its placeholder items) and its
- * GuiSlotGroup table; this class owns the parts every container GUI repeats: mapping configured cells
- * to store indices, remembering what each cell was painted from, refusing a stale write-back and repainting
- * the cell from the store instead, and the skip rule for edits still in flight.
- *
- *
- * Threading
- *
- * fill(Inventory), refreshAll(Inventory, IntPredicate) and refreshSlot(Inventory, int)
- * read the store and write the viewer's inventory, so the caller must own both. The engine
- * itself never dispatches, never calls a scheduler and never reads a world.
- *
- *
- * syncAll(Inventory), syncSlot(Inventory, int) and commitOnly also require both owners. The engine
- * takes Controller#storeLock() for store access and each view's baseline; this protects plugin data,
- * never grants permission to read a live inventory on another region. The lock is reentrant.
- *
- *
- * What the controller still owns
- *
- * Cloning and normalising: Controller#store(int, ItemStack) receives whatever the cell held, including
- * a null for a placeholder icon, and is responsible for cloning it and for storing null rather than an empty
- * stack.
+ * Maps configured GUI cells to authoritative storage and rejects stale write-back.
+ * All paint and commit methods require ownership of both the view and its store.
+ * The reentrant store lock protects data; it does not authorize cross-region inventory access.
+ * Controllers clone accepted items and normalize placeholders and empty stacks to null.
  */
 public final class ContainerGuiKernel {
 

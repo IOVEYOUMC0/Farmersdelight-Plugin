@@ -11,35 +11,16 @@ import org.bukkit.World;
 import org.bukkit.block.BlockFace;
 
 /**
- * The CraftEngine block plumbing FarmersDelight uses internally, published so addons do not each
- * rewrite it.
- *
- *
- * None of this is exotic — resolving a CE world, turning a block entity back into a Bukkit world,
- * reading a state's id or facing, marking a chunk dirty — but every copy of it in this plugin family
- * had drifted, and none of the copies carried the guards FD added after a production crash (see
- * getCEWorld). One owner, one set of guards.
- *
- *
- * All methods are null-tolerant and return null / false rather than throwing: the callers are
- * block behaviours and chunk listeners, where an exception aborts something much larger.
+ * Shared, null-tolerant CE block and world lookups for addon behavior code.
+ * World resolution handles registry readiness and CE return-type compatibility.
+ * Callers must own a block's region before accessing its live state or controller.
  */
 public final class CraftEngineBlockAccess {
 
     private CraftEngineBlockAccess() {
     }
 
-    /**
-     * The CE storage world for a Bukkit world, or null when CraftEngine is not ready or the world's
-     * data cannot be loaded.
-     *
-     *
-     * Do not call BukkitWorldManager.instance().getWorld(uuid).ceWorld() yourself. Before
-     * CraftEngine binds its blocks, resolving a world deserializes saved chunk data against an unbound
-     * registry; a block left over from an uninstalled pack then throws, and because chunk-load handlers
-     * are a common caller it throws for every chunk. This applies the readiness gate, tolerates both CE
-     * return shapes, and logs the failure once instead of propagating it.
-     */
+    /** The CE storage world, or null when its registry or saved data cannot be resolved safely. */
     public static CEWorld getCEWorld(World world) {
         return CustomBlockUtils.getCEWorld(world);
     }
@@ -82,16 +63,7 @@ public final class CraftEngineBlockAccess {
         return CustomBlockUtils.getPropertyString(state, propertyName);
     }
 
-    /**
-     * The block-entity controller at a world position, or null when it cannot be read.
-     *
-     *
-     * Null when the world is unknown to CraftEngine (see getCEWorld(World)), when the chunk is not
-     * loaded, or when the position holds no block entity. Only an already loaded chunk is consulted, so this
-     * never loads one and never returns data a region would have to be scheduled for.
-     *
-     * @return the controller, or null when there is none to read
-     */
+    /** A controller in an already loaded chunk, or null. The caller must own the position's region. */
     public static BlockEntityController blockEntityController(World world, int x, int y, int z) {
         CEWorld ceWorld = getCEWorld(world);
         if (ceWorld == null) {

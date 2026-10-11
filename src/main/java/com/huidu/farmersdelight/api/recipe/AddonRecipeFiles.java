@@ -19,32 +19,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
- * Loads an addon's own recipes/*.yml into FarmersDelight and keeps the bookkeeping.
- *
- *
- * Prefer the pack route for static recipes: declare them under <pack>/configuration/ with the
- * cooking_recipes / cutting_recipes / special_recipes root keys and CraftEngine hands
- * them to FarmersDelight with no addon code at all. This helper remains for recipes that must be decided at
- * runtime (data another plugin feeds in, per-player or time-based content) and for addons that already ship
- * an editable file.
- *
- *
- * Reading a YAML file, registering each entry, and withdrawing the ids that disappeared is not addon
- * business — it is the recipe registry's. Before this existed every addon wrote its own copy, and the
- * copies drifted: one of them registered cutting-board results through the chance-less overload, so
- * every configured drop chance was silently promoted to guaranteed. Registration is keyed by
- * source (the same idea as registerCommonTags), so a reload replaces that source's
- * recipes wholesale and the caller keeps no state.
- *
- *
- * Recipe ids: a key that already contains ':' is used verbatim, otherwise it is prefixed
- * with namespace. Both conventions are in use across the existing addons; bare keys are
- * preferred for new files.
- *
- *
- * Call from FarmersDelightWarmupEvent and from your reload handler. Calls made before
- * CraftEngine has built its items resolve nothing and deliberately keep the previously registered set,
- * so a later reload retries instead of leaving the station empty.
+ * Loads editable addon recipe files and replaces registrations by source.
+ * Prefer CE pack cooking_recipes, cutting_recipes and special_recipes for static content.
+ * Bare recipe IDs receive the addon namespace; qualified IDs remain unchanged.
+ * Invoke on warmup and reload. Before CE items are ready, keep previous recipes and retry later.
  */
 public final class AddonRecipeFiles {
 

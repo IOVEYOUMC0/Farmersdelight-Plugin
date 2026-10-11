@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -66,6 +68,42 @@ class DebugToolsCommandTest {
                 command.tabComplete(null, new String[]{"debugtools", "profile", ""}));
         assertEquals(List.of("200", "600", "1200"),
                 command.tabComplete(null, new String[]{"debugtools", "profile", "serialization", ""}));
+    }
+
+    @Test
+    void lookingUpHistoryDuringUndoDoesNotShiftPendingIndices() throws Exception {
+        DebugToolsCommand command = new DebugToolsCommand(null);
+        UUID owner = UUID.randomUUID();
+        Class<?> batchType = Class.forName(DebugToolsCommand.class.getName() + "$PlacementBatch");
+        var constructor = batchType.getDeclaredConstructor(UUID.class);
+        constructor.setAccessible(true);
+        Object batch = constructor.newInstance(owner);
+        var entriesField = batchType.getDeclaredField("entries");
+        entriesField.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        List<Object> entries = (List<Object>) entriesField.get(batch);
+        Class<?> entryType = Class.forName(DebugToolsCommand.class.getName() + "$UndoEntry");
+        var entryConstructor = entryType.getDeclaredConstructors()[0];
+        entryConstructor.setAccessible(true);
+        Object entry = entryConstructor.newInstance(null, null, null, null);
+        for (int i = 0; i < 6874; i++) entries.add(entry);
+        var remember = DebugToolsCommand.class.getDeclaredMethod("rememberBatch", batchType);
+        remember.setAccessible(true);
+        remember.invoke(command, batch);
+        var prune = DebugToolsCommand.class.getDeclaredMethod("removeEmptyBatches", UUID.class);
+        prune.setAccessible(true);
+
+        for (int cursor = 0; cursor < 6874; cursor++) {
+            if (cursor % 16 == 0) prune.invoke(command, owner);
+            assertEquals(6874, entries.size(), "history lookup must retain the active undo's indices");
+            int index = 6873 - cursor;
+            assertSame(entry, entries.get(index));
+            entries.set(index, null);
+        }
+        prune.invoke(command, owner);
+        var history = DebugToolsCommand.class.getDeclaredField("undoHistory");
+        history.setAccessible(true);
+        assertTrue(((Map<?, ?>) history.get(command)).isEmpty());
     }
 
     @Test

@@ -647,10 +647,7 @@ public final class DebugToolsCommand {
         }
     }
 
-    // The one line that names the recipe id — the point of the whole command — plus the station, the coordinate
-    // to inspect it at and how many ingredients actually landed, so a tester can compare all of that with what
-    // the plugin's own matcher reports for that station. The line count follows the requested setup count, so
-    // the per-setup lines go through the cap and the totals below are always sent.
+    // Cap per-station diagnostics; always include aggregate totals.
     private void reportRecipeSummary(Player player, String type, int loaded, List<RecipeSetup> setups, int skipped) {
         List<String> lines = new ArrayList<>(setups.size());
         for (RecipeSetup setup : setups) {
@@ -665,9 +662,7 @@ public final class DebugToolsCommand {
                 + ", skipped positions=" + skipped + ", loaded recipes for " + type + "=" + loaded + "</gray>"));
     }
 
-    // Grid slot -> world position. One recipe per slot, spaced far enough apart that a pot's heat source and a
-    // neighbouring board (or its blocking block) never overlap. Slots come from the deterministic recipe order,
-    // so repeated tests of the same set land on the same coordinates.
+    // Stable spacing keeps recipe stations and heat sources from overlapping.
     private static Location recipeSetupLocation(Location origin, int grid, int slot) {
         if (origin == null) return null;
         int spacing = RECIPE_GRID_SPACING;
@@ -734,8 +729,8 @@ public final class DebugToolsCommand {
         synchronized (undoHistory) {
             Deque<PlacementBatch> history = undoHistory.get(owner);
             if (history == null) return;
-            for (PlacementBatch batch : history) batch.entries.removeIf(Objects::isNull);
-            history.removeIf(batch -> batch.entries.isEmpty());
+            // Active undo slices retain their indices until completion.
+            history.removeIf(batch -> batch.entries.stream().allMatch(Objects::isNull));
             if (history.isEmpty()) undoHistory.remove(owner);
         }
     }
@@ -1545,15 +1540,9 @@ public final class DebugToolsCommand {
         return completions;
     }
 
-
-
     private int getMaxPlaceCount() {
         return Math.max(1, plugin.getConfig().getInt(CONFIG_MAX_PLACE_COUNT, DEFAULT_MAX_PLACE_COUNT));
     }
-
-
-
-
 
     private String normalizeTarget(String value) {
         String normalized = normalize(value);
@@ -1600,14 +1589,6 @@ public final class DebugToolsCommand {
             this.owner = owner;
         }
     }
-
-
-
-
-
-
-
-
 
     private static final class UndoEntry {
         private final Location location;

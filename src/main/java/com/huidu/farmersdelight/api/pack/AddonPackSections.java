@@ -28,34 +28,10 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 /**
- * Claims CraftEngine pack sections for one addon, so its own content can ship inside its pack instead of a
- * file in the plugin data folder.
- *
- *
- * CraftEngine reads every <pack>/configuration/**.yml (and the same path inside
- * subpacks/<name>/), splits a file by root key and hands each root whose value is a mapping to the
- * parser registered for that key. Claim the keys your addon owns:
- *
- * // onLoad: must run before CraftEngine loads packs, which happens in its own onEnable
- * kegSections = AddonPackSections.claim(this, "brewinandchewin:keg",
- *         Map.of("keg_recipes", "keg_recipes", "keg_pouring_recipes", "keg_fluids"));
- *
- * // later, from the loader that used to read recipes/keg_recipes.yml
- * for (AddonPackSections.Section section : kegSections.sections("keg_recipes")) {
- *     ConfigurationSection root = section.config().getConfigurationSection("keg_recipes");
- * }
- *
- *
- * The claimed id must be the file's root key, and it must not collide with a section CraftEngine or
- * another plugin already owns; a collision is reported once and leaves this claim empty (the addon should
- * then fall back to whatever else it reads). Each claim gets its own LoadingStage: CraftEngine's
- * loading pyramid keys its tasks by stage, so sharing one would replace its owner's task.
- *
- *
- * Sections are published as immutable snapshots, and clearConfigs() - which CraftEngine calls at
- * the end of every load pass - only drops the raw storage. Parsing runs on CraftEngine's loading thread, so
- * this class never touches CraftEngine or Bukkit registries; resolving item ids belongs in the reader, on the
- * main thread.
+ * Claims addon-owned CE YAML root sections during onLoad, before packs load.
+ * Each claim uses a separate loading stage; conflicting keys leave the claim empty.
+ * Published sections are immutable and survive clearConfigs(), which clears only raw storage.
+ * Parsing does not resolve Bukkit or CE items; readers resolve them on their owning thread.
  */
 public final class AddonPackSections extends AbstractConfigParser {
 

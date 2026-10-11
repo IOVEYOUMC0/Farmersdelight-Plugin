@@ -20,28 +20,10 @@ import org.bukkit.inventory.InventoryHolder;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The automatic hooks that rewrite stacks already in the world, so an addon only has to declare its legacy
- * ids.
- *
- *
- * Every hook decides through MigrationDispatch#inlineIfOwned: it runs on the current thread when
- * that thread already owns the player, item or block, and otherwise hands the work to the owning region.
- * A container is only touched when its owner can be named — a BlockState, either half of a
- * org.bukkit.block.DoubleChest, one of the plugin's own GUIs (owned by the viewing player) or a player
- * holder. Any other holder is skipped rather than read, because reading it from an unknown thread is the
- * one thing this must not do; a skipped container is retried the next time it is opened. No hook uses
- * Bukkit.getScheduler.
- *
- * The hooks are:
- *   - player join — the player's inventory and ender chest, on the player's thread;
- *   - container open — the opened inventory, once per open (not per click), on the owner of the block;
- *   - the plugin's own container GUI opening — the view's stored contents, on the viewing player's thread;
- *   - item spawn — the dropped stack, on the item entity's thread;
- *   - startup — already loaded block inventories, one dispatch per loaded chunk (see
- *       LegacyIdMigrationService#scheduleStartupSweep()).
- *
- * Construction only stores the plugin: the scheduler is not consulted until start(), so the
- * registration order can still be asserted by a test that builds the registry with a null plugin.
+ * Migrates stacks on join, container open, plugin GUI open, item spawn and startup.
+ * Work runs inline when owned, otherwise on the inventory, entity or block owner.
+ * Containers with unknown ownership are skipped and retried on their next open.
+ * Startup scans loaded chunks; player migration also includes the ender chest.
  */
 public final class LegacyIdMigrationHooks implements Listener {
 
