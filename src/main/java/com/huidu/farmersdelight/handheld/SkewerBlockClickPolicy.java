@@ -41,10 +41,7 @@ public final class SkewerBlockClickPolicy {
     private SkewerBlockClickPolicy() {
     }
 
-    /**
-     * The acceptance rule. blockHasInteraction is "the clicked block does something with this item
-     * before we would" (campfire food placement being the case that matters).
-     */
+    /** Accepts a block click only when sneaking or the block has no interaction with the held item. */
     @ApiStatus.Internal
     public static Decision decide(boolean rightClickAir, boolean rightClickBlock,
                                   boolean blockHasInteraction, boolean sneaking) {

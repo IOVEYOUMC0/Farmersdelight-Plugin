@@ -6,14 +6,12 @@ import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.block.Block;
-import org.jetbrains.annotations.ApiStatus;
 
 // Read-only crop gating queries for addons that hook custom crop logic: whether a block (or a block id)
 // is one of FarmersDelight's managed crops, whether it is mature enough to harvest right now, and the
 // harvest tool rules. All queries are pure registry lookups -- they never mutate the world or the crop --
 // so they are safe to call from a region thread. Unknown / non-crop blocks resolve to sensible defaults
 // (false / empty) rather than throwing.
-@ApiStatus.NonExtendable
 public final class FarmersDelightCrops {
 
     private FarmersDelightCrops() {

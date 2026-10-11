@@ -9,6 +9,7 @@ failed, so the whole set can be a single build gate.
 """
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -30,10 +31,11 @@ CHECKS = (
 
 
 def run(label: str, command: list, cwd: Path, quiet: bool) -> bool:
-    result = subprocess.run([sys.executable, *command], cwd=str(cwd), capture_output=True, text=True)
+    result = subprocess.run([sys.executable, *command], cwd=str(cwd), capture_output=True, text=True, encoding="utf-8",
+                            env={**os.environ, "PYTHONUTF8": "1"})
     ok = result.returncode == 0
     print(f"[{'PASS' if ok else 'FAIL'}] {label}" + ("" if ok else f"  (exit {result.returncode})"))
-    output = result.stdout + result.stderr
+    output = (result.stdout or "") + (result.stderr or "")
     if not ok:
         for line in [row for row in output.splitlines() if row.strip()][-8:]:
             print(f"        {line}")
@@ -49,9 +51,14 @@ def main() -> int:
     parser.add_argument("--quiet", action="store_true", help="only print each step's verdict")
     args = parser.parse_args()
 
+    siblings = ["BarbequesDelight", "BrewinAndChewin", "CrabbersDelight", "EndsDelight", "FDAddonTemplate", "VillagersDelight"]
+    missing = [name for name in siblings if not (MODULE.parent / name).is_dir()]
+    if missing:
+        print("[SCOPE] Missing sibling repositories are not checked: " + ", ".join(missing))
+
     steps = [(f"check {script} {' '.join(extra)}", [str(TOOLS / script), *extra], MODULE)
              for script, extra in CHECKS]
-    steps.append(("self-test tools/test_checks.py", ["-m", "unittest", "test_checks"], TOOLS))
+    steps.append(("self-test tools/test_checks.py", ["-m", "unittest", "test_checks", "test_test_results"], TOOLS))
     if MATRIX.is_file():
         steps.append((f"matrix {MATRIX.name}", [str(MATRIX)], MODULE))
     else:

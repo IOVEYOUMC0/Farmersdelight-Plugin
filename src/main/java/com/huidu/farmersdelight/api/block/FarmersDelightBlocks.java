@@ -18,7 +18,6 @@ import org.bukkit.block.Block;
 import org.jetbrains.annotations.ApiStatus;
 
 @ApiStatus.Experimental
-@ApiStatus.NonExtendable
 public final class FarmersDelightBlocks {
 
     private FarmersDelightBlocks() {

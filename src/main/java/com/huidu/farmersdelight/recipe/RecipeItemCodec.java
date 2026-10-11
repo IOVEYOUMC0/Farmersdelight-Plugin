@@ -3,7 +3,6 @@ package com.huidu.farmersdelight.recipe;
 import com.google.gson.JsonElement;
 import com.huidu.farmersdelight.api.util.CeItemInterop;
 import com.huidu.farmersdelight.util.ItemUtils;
-import com.huidu.farmersdelight.util.compat.MMOItemsCompat;
 import net.momirealms.craftengine.bukkit.item.BukkitItem;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
 import net.momirealms.craftengine.bukkit.util.ItemStackUtils;
@@ -14,7 +13,6 @@ import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.libraries.nbt.CompoundTag;
 import net.momirealms.craftengine.libraries.nbt.Tag;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.Material;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -22,6 +20,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -61,17 +60,15 @@ public final class RecipeItemCodec {
     // Decoded snapshots, keyed by the encoded string the recipe owns. The ingredient matcher calls this
     // on every comparison with the same constant input, and each miss is a Base64 decode plus a full
     // ItemStack deserialisation. Bounded by the number of NBT-carrying ingredients that were loaded.
-    private static final Map<String, ItemStack> DECODED = new ConcurrentHashMap<>();
-    private static final ItemStack UNDECODABLE = new ItemStack(Material.AIR);
+    private static final Map<String, Optional<ItemStack>> DECODED = new ConcurrentHashMap<>();
 
     public static ItemStack itemFromBase64(String encoded) {
         if (encoded == null || encoded.isBlank()) {
             return null;
         }
-        ItemStack cached = DECODED.computeIfAbsent(encoded, RecipeItemCodec::decodeFromBase64);
-        // The cache holds a sentinel for input that does not decode, so a bad string is not retried and
-        // does not have to be representable as null in the map.
-        return cached == UNDECODABLE ? null : cached.clone();
+        Optional<ItemStack> cached = DECODED.computeIfAbsent(encoded, RecipeItemCodec::decodeFromBase64);
+        // An empty optional caches a failed decode without constructing an item during class initialization.
+        return cached.map(ItemStack::clone).orElse(null);
     }
 
     /** Drops the decode cache; called when the recipe set is rebuilt. */
@@ -79,21 +76,21 @@ public final class RecipeItemCodec {
         DECODED.clear();
     }
 
-    private static ItemStack decodeFromBase64(String encoded) {
+    private static Optional<ItemStack> decodeFromBase64(String encoded) {
         try {
             byte[] bytes = Base64.getDecoder().decode(encoded.trim());
             ItemStack item = ItemStackUtils.fromBytes(bytes);
-            return (item == null || item.getType().isAir()) ? UNDECODABLE : item;
+            return (item == null || item.getType().isAir()) ? Optional.empty() : Optional.of(item);
         } catch (Exception e) {
-            return UNDECODABLE;
+            return Optional.empty();
         }
     }
 
     /**
      * True when the item differs from a freshly built default of its own id, i.e. it carries extra data
      * worth a snapshot. CE custom items are excluded; their data comes from the item definition, so the
-     * id alone round-trips it. MMOItems items are excluded too: their full identity is the
-     * mmoitems:<TYPE>:<ID> id and MMOItems rebuilds the item from its own data, so no NBT snapshot is kept.
+     * id alone round-trips it. External items keep a snapshot because providers may rebuild random
+     * attributes or omit data added after the original item was created.
      */
     public static boolean carriesExtraData(ItemStack item) {
         if (item == null || item.getType().isAir()) {
@@ -102,8 +99,8 @@ public final class RecipeItemCodec {
         if (ItemUtils.isCustomItem(item)) {
             return false;
         }
-        if (MMOItemsCompat.getItemId(item) != null) {
-            return false;
+        if (ItemUtils.getNonVanillaItemId(item) != null) {
+            return true;
         }
         String id = RecipeSerializer.itemIdString(item);
         ItemStack rebuilt = ItemUtils.createItem(id);

@@ -49,7 +49,10 @@ class CommonTagResolverTest {
         ConfigurationSection tags = config.getConfigurationSection("tags");
         assertTrue(tags != null && !tags.getKeys(false).isEmpty());
         for (String key : tags.getKeys(false)) {
-            assertTrue(!ConfigSectionReader.optionalStringList(tags, key).isEmpty(), key);
+            var members = ConfigSectionReader.optionalStringList(tags, key);
+            assertTrue(!members.isEmpty(), key);
+            assertTrue(members.stream().noneMatch(member -> member.startsWith("crabbersdelight:")
+                    || member.startsWith("endsdelight:")), "Addon membership belongs in its CE pack: " + key);
         }
     }
 

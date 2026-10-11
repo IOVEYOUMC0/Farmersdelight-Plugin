@@ -60,21 +60,20 @@ class ReflectionBudgetTest {
             // Optional plugins and the WorldEdit/WorldGuard API, none of which is on the compile classpath.
             Map.entry("com/huidu/farmersdelight/util/compat/WorldGuardCompat.java", 21),
             Map.entry("com/huidu/farmersdelight/compat/AuraSkillsHook.java", 14),
-            Map.entry("com/huidu/farmersdelight/util/compat/MMOItemsCompat.java", 11),
             // NMS and the CraftEngine proxy: present at runtime, absent from the compile classpath.
             Map.entry("com/huidu/farmersdelight/api/util/DatapackSupport.java", 5),
             Map.entry("com/huidu/farmersdelight/recipe/RecipeItemCodec.java", 5),
             Map.entry("com/huidu/farmersdelight/util/compat/CraftEngineModelMappings.java", 2),
+            // Public CE resource exclusion is absent in 26.8.2; initialization caches the method handle.
+            Map.entry("com/huidu/farmersdelight/CraftEngineResourceLease.java", 4),
             // A class the release build omits unless the debug-tools flag is on.
             Map.entry("com/huidu/farmersdelight/command/DebugToolsSubCommand.java", 3),
-            // Folia and Paper API that the 1.21.5 compile target does not carry, plus CraftEngine's own player
-            // type, whose getBukkitEntity is not reachable through a callable type.
-            Map.entry("com/huidu/farmersdelight/util/scheduler/SchedulerAdapter.java", 2),
+            // Runtime-only Folia detection and CraftEngine player access without a callable Bukkit type.
+            Map.entry("com/huidu/farmersdelight/util/scheduler/SchedulerAdapter.java", 1),
             Map.entry("com/huidu/farmersdelight/block/behavior/TatamiPairingBehavior.java", 1),
             Map.entry("com/huidu/farmersdelight/advancement/AutomaticAdvancementLayout.java", 1),
-            // Paper API newer than the compile target (item model, attribute registry).
-            Map.entry("com/huidu/farmersdelight/api/util/CompatAttributes.java", 1),
-            Map.entry("com/huidu/farmersdelight/api/util/CompatItemMeta.java", 1));
+            Map.entry("com/huidu/farmersdelight/api/util/CompatAttributes.java", 0),
+            Map.entry("com/huidu/farmersdelight/api/util/CompatItemMeta.java", 0));
 
     /**
      * The debug source set, which reaches into the plugin's own classes by reflection for fields the main
@@ -83,7 +82,9 @@ class ReflectionBudgetTest {
      * measured from the sources at the point this budget was extended to cover the debug set.
      */
     private static final Map<String, Integer> DEBUG_TOOLS_BUDGET = Map.ofEntries(
-            Map.entry("com/huidu/farmersdelight/debug/DebugToolsCommand.java", 10));
+            Map.entry("com/huidu/farmersdelight/debug/DebugToolsCommand.java", 4),
+            Map.entry("com/huidu/farmersdelight/debug/DebugReadOnlyCommands.java", 1),
+            Map.entry("com/huidu/farmersdelight/debug/DebugReflection.java", 5));
 
     private static final List<SourceSet> SOURCE_SETS = List.of(
             new SourceSet(Path.of("src", "main", "java"), MAIN_BUDGET),
@@ -117,7 +118,7 @@ class ReflectionBudgetTest {
                         + " here with its count. Files:\n  " + String.join("\n  ", newFiles));
         assertTrue(grown.isEmpty(),
                 "Reflection grew in audited files. Resolve the lookup once and cache it (see"
-                        + " SchedulerAdapter.FoliaReflect, CraftEngineModelMappings or MMOItemsCompat for the"
+                        + " CraftEngineModelMappings or WorldGuardCompat for the"
                         + " shape), then lower this file's number. Growth:\n  " + String.join("\n  ", grown));
     }
 

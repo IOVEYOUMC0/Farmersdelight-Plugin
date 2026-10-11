@@ -4,13 +4,11 @@ import com.huidu.farmersdelight.api.PluginAccess;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.loot.KnifeDropHandler;
 import com.huidu.farmersdelight.loot.KnifeDropRule;
-import org.jetbrains.annotations.ApiStatus;
 
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-@ApiStatus.NonExtendable
 public final class FarmersDelightKnifeDrops {
 
     private FarmersDelightKnifeDrops() {

@@ -14,7 +14,7 @@ import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.entity.Player;
 import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.plugin.Plugin;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -155,7 +155,7 @@ public final class AddonAdvancementTab {
                     ? buildMulti(def, parent, gated ? gate : null)
                     : new BaseAdvancement(def.id(), display(def), parent) {
                         @Override
-                        public boolean isVisible(TeamProgression progression) {
+                        public boolean isVisible(@NotNull TeamProgression progression) {
                             return !def.hidden() || isGranted(progression);
                         }
                     };
@@ -188,7 +188,7 @@ public final class AddonAdvancementTab {
                 : gate.filterCriteria(def.id(), def.criteria(), def.criterionRequirements());
         MultiTasksAdvancement multi = new MultiTasksAdvancement(def.id(), display(def), parent, criteria.size()) {
             @Override
-            public boolean isVisible(TeamProgression progression) {
+            public boolean isVisible(@NotNull TeamProgression progression) {
                 return !def.hidden() || isGranted(progression);
             }
         };

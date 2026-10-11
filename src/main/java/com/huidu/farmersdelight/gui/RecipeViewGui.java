@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.gui;
 
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.gui.editor.RecipeEditorView;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
@@ -41,7 +42,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -51,14 +51,18 @@ public class RecipeViewGui extends AbstractInventoryGui {
     // The parsed config, built list display items and warn-once sets live in RecipeViewCache, so what is
     // cached and when it is dropped read as one thing.
     // Ingredient option caches live in RecipeIngredientIcons; tool preview options live in ToolPreviewRenderer.
-    private static final ItemStack EMPTY_SLOT_BACKGROUND = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
     static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
 
-    static {
-        ItemMeta meta = EMPTY_SLOT_BACKGROUND.getItemMeta();
-        meta.displayName(Component.text(" "));
-        EMPTY_SLOT_BACKGROUND.setItemMeta(meta);
+    private static final class Background {
+        private static final ItemStack ITEM = create();
+        private static ItemStack create() {
+            ItemStack item = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+            ItemMeta meta = item.getItemMeta();
+            meta.displayName(Component.text(" "));
+            item.setItemMeta(meta);
+            return item;
+        }
     }
 
     public enum GuiState {
@@ -742,7 +746,8 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (meta == null) {
             return item;
         }
-        List<Component> lore = meta.lore() == null ? new ArrayList<>() : new ArrayList<>(meta.lore());
+        List<Component> originalLore = meta.lore();
+        List<Component> lore = originalLore == null ? new ArrayList<>() : new ArrayList<>(originalLore);
         lore.add(Component.empty());
         lore.add(tr("gui.recipe.ingredient", NamedTextColor.GRAY));
         meta.lore(lore);
@@ -1113,8 +1118,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             icon = currentLayout.getString("icon", "");
         }
 
-        String composed = title.replace("<offset>", offset).replace("<icon>", icon);
-        return composed;
+        return title.replace("<offset>", offset).replace("<icon>", icon);
     }
 
     // Special-recipe detail title with the per-condition images composed in. The title-layout
@@ -1177,7 +1181,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     ItemStack createBackgroundItem(RecipeViewGuiConfig.BaseConfig guiConfig) {
         GuiConfig.GuiItem background = guiConfig == null ? null : guiConfig.getItem("background");
-        return background == null ? EMPTY_SLOT_BACKGROUND.clone() : background.createItem();
+        return background == null ? Background.ITEM.clone() : background.createItem();
     }
 
     private ItemStack createCookingPotRecipeDisplayItem(CookingPotRecipe recipe, Player player) {
@@ -1186,8 +1190,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
         List<Component> lore = new ArrayList<>();
         // Keep the result item's own description instead of replacing it, matching the addon recipe books.
-        if (meta.lore() != null && !meta.lore().isEmpty()) {
-            lore.addAll(meta.lore());
+        List<Component> originalLore = meta.lore();
+        if (originalLore != null && !originalLore.isEmpty()) {
+            lore.addAll(originalLore);
             lore.add(Component.text(""));
         }
         lore.add(tr("gui.recipe.ingredients_label", NamedTextColor.GRAY));
@@ -1223,8 +1228,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
         List<Component> lore = new ArrayList<>();
         // Keep the input item's own description instead of replacing it, matching the addon recipe books.
-        if (meta.lore() != null && !meta.lore().isEmpty()) {
-            lore.addAll(meta.lore());
+        List<Component> originalLore = meta.lore();
+        if (originalLore != null && !originalLore.isEmpty()) {
+            lore.addAll(originalLore);
             lore.add(Component.text(""));
         }
         lore.add(tr("gui.recipe.tool_line",
@@ -1325,7 +1331,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
     }
 
     void onClick(InventoryClickEvent event) {
-        if (event.getView().getTopInventory().getHolder() != this) return;
+        if (PerformanceProbe.holder(event.getView().getTopInventory()) != this) return;
         event.setCancelled(true);
 
         if (closed) return;
@@ -1715,7 +1721,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         Inventory renderedInventory = inventory;
         if (visibleInventory == null || renderedInventory == null
                 || visibleInventory.getSize() != renderedInventory.getSize()
-                || player.getOpenInventory().getTopInventory().getHolder() != this) {
+                || PerformanceProbe.holder(player.getOpenInventory().getTopInventory()) != this) {
             reopenInventory(player);
             return;
         }
@@ -1835,7 +1841,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     @Override
     public void onClose(InventoryCloseEvent event) {
-        if (event.getView().getTopInventory().getHolder() != this) return;
+        if (PerformanceProbe.holder(event.getView().getTopInventory()) != this) return;
         if (closed) return;
         if (ignoreNextClose) {
             ignoreNextClose = false;

@@ -333,12 +333,8 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
     }
 
     /**
-     * Rings the first bell above the clicked rope, if there is one, and reports whether it rang.
-     *
-     * Upstream parity: walk up through a contiguous rope column (max rope.bell-ring-max-distance
-     * blocks) and ring the first bell found; any gap, or any block that is neither a rope nor a bell, ends the
-     * search. A click on anything but the plugin's rope never reaches here, so a vanilla bell or any other block keeps
-     * its own interaction.
+     * Rings the first bell above this rope within rope.bell-ring-max-distance.
+     * A gap or a block other than rope or bell ends the search; unrelated block interactions are unchanged.
      */
     private boolean tryRingBellAbove(Player player, World world, BlockPos pos) {
         if (player == null || world == null || pos == null) {

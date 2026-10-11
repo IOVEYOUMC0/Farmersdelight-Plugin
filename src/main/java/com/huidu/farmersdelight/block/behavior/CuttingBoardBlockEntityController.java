@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.util.CeItemInterop;
 import com.huidu.farmersdelight.util.BlockPosKey;
@@ -79,17 +80,19 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
             tag.put(this.behavior.customDataKey(), data);
             return;
         }
-        World world = getBukkitWorld();
-        if (world != null) {
-            CuttingBoardBlockEntity entity = CuttingBoardBlockBehavior.getBlockEntity(world,
-                    new BlockPosKey(this.blockEntity.pos));
-            if (entity != null) {
-                refreshFromEntity(entity);
+        try (PerformanceProbe.Sample ignored = PerformanceProbe.begin(PerformanceProbe.Operation.SERIALIZATION)) {
+            World world = getBukkitWorld();
+            if (world != null) {
+                CuttingBoardBlockEntity entity = CuttingBoardBlockBehavior.getBlockEntity(world,
+                        new BlockPosKey(this.blockEntity.pos));
+                if (entity != null) {
+                    refreshFromEntity(entity);
+                }
             }
+            data = buildSaveData();
+            if (data == null) return;
+            tag.put(this.behavior.customDataKey(), data);
         }
-        data = buildSaveData();
-        if (data == null) return;
-        tag.put(this.behavior.customDataKey(), data);
     }
 
     private CompoundTag buildSaveData() {
@@ -290,13 +293,13 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
 
     @Override
     public Item getItem(int slot) {
-        if (isValidSlot(slot)) return Item.empty();
+        if (isInvalidSlot(slot)) return Item.empty();
         return this.item;
     }
 
     @Override
     public Item removeItem(int slot, int count) {
-        if (isValidSlot(slot) || count <= 0) {
+        if (isInvalidSlot(slot) || count <= 0) {
             return Item.empty();
         }
         Item item = getItem(slot);
@@ -319,7 +322,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
 
     @Override
     public Item removeItemNoUpdate(int slot) {
-        if (isValidSlot(slot)) {
+        if (isInvalidSlot(slot)) {
             return Item.empty();
         }
         Item item = getItem(slot);
@@ -334,7 +337,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
 
     @Override
     public void setItem(int slot, Item item) {
-        if (isValidSlot(slot)) return;
+        if (isInvalidSlot(slot)) return;
         this.item = CeItemInterop.normalize(item);
         if (this.item.isEmpty()) {
             this.itemCarved = false;
@@ -434,7 +437,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
         return direction == Direction.DOWN && slot == 0;
     }
 
-    private boolean isValidSlot(int slot) {
+    private boolean isInvalidSlot(int slot) {
         return slot != 0;
     }
 

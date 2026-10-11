@@ -30,6 +30,7 @@ import net.momirealms.craftengine.core.block.entity.BlockEntity;
 import net.momirealms.craftengine.core.block.entity.BlockEntityController;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
+import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
 import org.bukkit.Bukkit;
@@ -61,10 +62,7 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
 
     public static final int SLOT_COUNT = 6;
     public static final String FIRE_PROPERTY = "fire";
-    // Vanilla GRILLING_AREA in the mod is Block.box(3,0,3,13,1,13). Block.box takes sixteenths, so that
-    // is a plate one pixel thick on the stove's top face, inset to the central 10x10: only an entity
-    // standing within that plate burns, the rim is safe, and anything laid on top of the stove (a carpet,
-    // a slab) lifts the entity clear of the plate.
+    // The central 10x10 grilling area is one pixel thick; carpets and slabs lift entities clear of it.
     private static final double GRILL_MIN = 3.0D / 16.0D;
     private static final double GRILL_MAX = 13.0D / 16.0D;
     private static final double GRILL_THICKNESS = 1.0D / 16.0D;
@@ -75,10 +73,7 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
     private final String crackleSound;
     private final boolean burnEnabled;
     private final double burnDamage;
-    // Flint & steel / fire charge light the stove and a shovel / water bucket puts it out, the two halves of
-    // the mod's AbstractStoveBlock#useItemOn that every stove block inherits there. Both are switchable so an
-    // addon can keep a stove that only cooks, and the four sounds plus the tool wear are configurable because
-    // they used to live in the pack's right_click events.
+    // Ignition and extinguishing are independently configurable, including sounds and tool wear.
     private final boolean igniteEnabled;
     private final boolean extinguishEnabled;
     private final String igniteSound;
@@ -337,12 +332,9 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
     }
 
     /**
-     * The mod's AbstractStoveBlock#useItemOn, split off into ignite/extinguish: a lit stove goes out when hit
-     * with a shovel or doused with a water bucket, an unlit one lights up from flint & steel or a fire charge.
-     * Every stove block inherits this there, so handling it in the behavior is what makes an addon stove (an
-     * addon's own 'fire' property block reusing farmersdelight:stove) behave like the mod's without the pack
-     * having to repeat four right_click handlers. Returns PASS when the held item is not one of the four, so
-     * the interaction falls through unchanged.
+     * Extinguishes a lit stove with a shovel or water bucket and ignites an unlit one with flint or a fire charge.
+     * Addon stoves sharing this behavior inherit the actions without additional pack handlers.
+     * Unrecognized items return PASS so their interaction can continue.
      */
     private InteractionResult handleStateChangeItem(UseOnContext context, ImmutableBlockState state,
                                                     Player player, Block block, ItemStack heldItem) {
@@ -361,10 +353,15 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
                 setLit(block, state, false);
                 SoundUtils.play(block.getWorld(), center(block), waterExtinguishSound,
                         Sound.ENTITY_GENERIC_EXTINGUISH_FIRE, SoundCategory.BLOCKS, 1.0F, 1.0F);
-                // The mod leaves the crafting remainder in the hand (an empty bucket) unless the player is in
+                // An empty bucket replaces the water bucket in the hand unless the player is in
                 // creative, where the bucket is kept.
                 if (player.getGameMode() != GameMode.CREATIVE) {
-                    heldItem.setType(Material.BUCKET);
+                    ItemStack bucket = heldItem.withType(Material.BUCKET);
+                    if (context.getHand() == InteractionHand.OFF_HAND) {
+                        player.getInventory().setItemInOffHand(bucket);
+                    } else {
+                        player.getInventory().setItemInMainHand(bucket);
+                    }
                 }
                 ItemUtils.swingHand(player, context.getHand());
                 return InteractionResult.SUCCESS_AND_CANCEL;
@@ -401,11 +398,7 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
         EXTINGUISH
     }
 
-    /**
-     * The mod's ignite/extinguish split (AbstractStoveBlock#tryToIgnite only runs while unlit and
-     * #tryToExtinguish only while lit), plus the two behavior switches. Pure so the rule is unit-tested
-     * without a server; the caller maps the action onto the item that produced it.
-     */
+    /** Chooses ignition only while unlit and extinguishing only while lit, respecting both behavior switches. */
     static StateChange stateChangeAction(boolean lit, Material held, boolean igniteEnabled, boolean extinguishEnabled) {
         if (held == null || held == Material.AIR) {
             return StateChange.NONE;

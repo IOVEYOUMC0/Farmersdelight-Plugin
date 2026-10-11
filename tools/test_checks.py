@@ -5,6 +5,8 @@ exit non-zero and print the offending place, and the same tree with the violatio
 check whose rule is removed or weakened stops failing the first half, so the test goes red with it.
 """
 
+import shutil
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -13,7 +15,7 @@ TOOLS = Path(__file__).resolve().parent
 if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
 
-from selftest_support import CheckSelfTest  # noqa: E402
+from selftest_support import CheckSelfTest, build_tree, run_check, write  # noqa: E402
 
 
 class StripCeCommentsSelfTest(CheckSelfTest):
@@ -129,6 +131,35 @@ class PackClientKeysSelfTest(CheckSelfTest):
             'title: "<lang:gui.missing>"\n',
             'title: "<lang:gui.example>"\n',
             "gui.missing")
+
+    def test_a_vanilla_block_name_is_not_demanded_from_the_pack(self):
+        """block.minecraft.* is written as one of the vanilla namespaces and resolves from the client's jar.
+
+        The mutation at the end patches the prefix list out of a copy of the check: the same tree then has to
+        fail, which is what keeps the rule from being deleted without a yellow light.
+        """
+        tree = build_tree({self.pack: self.locale})
+        try:
+            write(tree, self.path, 'title: "<lang:block.minecraft.crimson_fence>"\n')
+            passed = run_check(tree, self.script, *self.args)
+            self.assertEqual(0, passed.returncode,
+                             "a vanilla block name must not be demanded from the pack language files:\n"
+                             + passed.stdout + passed.stderr)
+
+            patched = (TOOLS / self.script).read_text(encoding="utf-8").replace(
+                '"block.minecraft.", "item.minecraft.", "entity.minecraft.",', "")
+            self.assertNotEqual(patched, (TOOLS / self.script).read_text(encoding="utf-8"),
+                                "the mutation has to change the prefix list, or this test proves nothing")
+            mutated = tree / "tools" / self.script
+            mutated.write_text(patched, encoding="utf-8")
+            failed = subprocess.run([sys.executable, str(mutated), *self.args], cwd=str(tree),
+                                    capture_output=True, text=True)
+            self.assertNotEqual(0, failed.returncode,
+                                "without the vanilla prefixes the same tree must fail:\n"
+                                + failed.stdout + failed.stderr)
+            self.assertIn("block.minecraft.crimson_fence", failed.stdout + failed.stderr)
+        finally:
+            shutil.rmtree(tree, ignore_errors=True)
 
 
 class BlockStateOccupancySelfTest(CheckSelfTest):

@@ -7,7 +7,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -52,9 +51,16 @@ class RecipeParseCacheWiringTest {
 
         assertEquals(3, count(source, "RecipeContentEpoch.advance();"),
                 "the startup, deferred and reload passes each start a new generation");
-        assertTrue(source.indexOf("RecipeContentEpoch.advance();")
-                        < source.indexOf("loadRecipesThenPublish("),
-                "the generation is advanced before the pass loads its recipes");
+        for (String method : new String[]{"private void processReload(",
+                "private void runStartupReadinessWork(", "private void runDeferredReadinessWork("}) {
+            int from = source.indexOf(method);
+            assertTrue(from >= 0, method + " exists");
+            String pass = source.substring(from, source.indexOf("\n    }", from));
+            int advance = pass.indexOf("RecipeContentEpoch.advance();");
+            int load = pass.indexOf("loadRecipesThenPublish(");
+            assertTrue(advance >= 0 && load > advance,
+                    method + " advances its generation before it loads recipes");
+        }
     }
 
     private static int count(String source, String needle) {

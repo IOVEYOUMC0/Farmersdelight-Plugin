@@ -5,13 +5,8 @@ import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The visibility policy shared by both display paths, kept free of Bukkit types so it can be unit tested.
- *
- *
- * CraftEngine's rule is the reference: a display that a player can no longer see keeps its entity, it just
- * gets a ViewRange of 0 for that player (CullableHolder: "culled", ItemDisplayBlockEntityElement.setCulled),
- * and the configured range comes back when the player returns. Removing and respawning the entity instead
- * would change its entity id, so nothing here ever asks for a removal.
+ * Distance eligibility and view-range helpers shared by display paths.
+ * Native packet-display occlusion is handled by CE; leaving the tracking range removes the entity.
  */
 @ApiStatus.Internal
 public final class DisplayCulling {

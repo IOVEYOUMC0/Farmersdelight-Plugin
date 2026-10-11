@@ -41,15 +41,15 @@ public final class AwardAdvancementFunction implements LootFunction {
         if (id == null || id.isEmpty() || !context.isPlayerPresent()) {
             return item;
         }
-        AdvancementManager manager = FarmersDelightPlugin.getInstance() == null
-                ? null
-                : FarmersDelightPlugin.getInstance().getAdvancementManager();
+        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
+        AdvancementManager manager = plugin == null ? null : plugin.getAdvancementManager();
         if (manager == null) {
             return item;
         }
         // platformPlayer() hands back the platform handle as Object; only a Bukkit platform is present here
         // because the plugin runs on one.
-        Object platformPlayer = context.player().platformPlayer();
+        var contextPlayer = context.player();
+        Object platformPlayer = contextPlayer == null ? null : contextPlayer.platformPlayer();
         if (platformPlayer instanceof Player player) {
             manager.award(player, id);
         }

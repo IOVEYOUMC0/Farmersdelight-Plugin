@@ -3,7 +3,6 @@ package com.huidu.farmersdelight.api.util;
 import net.momirealms.craftengine.bukkit.util.ItemStackUtils;
 import net.momirealms.craftengine.core.item.Item;
 import org.bukkit.inventory.ItemStack;
-import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Conversion between CraftEngine's Item and Bukkit's ItemStack.
@@ -15,7 +14,6 @@ import org.jetbrains.annotations.ApiStatus;
  * caller that can run before CraftEngine is ready keeps its own readiness guard, and a caller that needs a
  * substitute for a failed conversion keeps that substitute.
  */
-@ApiStatus.NonExtendable
 public final class CeItemInterop {
 
     private CeItemInterop() {

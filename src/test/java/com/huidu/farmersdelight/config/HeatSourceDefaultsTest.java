@@ -6,17 +6,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * Guards the heat source table the skewer checks: the set has to keep every source the upstream mod accepts, and a
- * campfire has to keep counting only while it is lit. Dropping either half is what makes "it only works next to a
- * magma block" come back.
- *
- * Asserted on the source because the table is built from Bukkit materials and block data, which no test here can
- * instantiate.
- */
+/** Checks the configured heat sources and lit-state requirements without a running server. */
 class HeatSourceDefaultsTest {
 
     @Test

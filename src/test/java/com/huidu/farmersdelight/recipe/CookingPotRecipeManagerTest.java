@@ -127,12 +127,37 @@ class CookingPotRecipeManagerTest {
         CookingPotRecipeManager manager = new CookingPotRecipeManager(null);
 
         assertNull(manager.matchWithCaches("seed", List.of(), null, null));
-        assertEquals(Set.of("seed"), Set.copyOf(missesOf(manager)));
+        assertEquals(Set.of("0:seed"), Set.copyOf(missesOf(manager)));
 
         assertNull(manager.matchWithCaches(null, List.of(), null, null));
 
-        assertEquals(Set.of("seed"), Set.copyOf(missesOf(manager)));
+        assertEquals(Set.of("0:seed"), Set.copyOf(missesOf(manager)));
         assertTrue(cacheOf(manager).isEmpty());
+    }
+
+    @Test
+    void concurrentReadersCaptureOnePublishedGeneration() throws Exception {
+        CookingPotRecipeManager manager = new CookingPotRecipeManager(null);
+        var first = manager.capturePublished();
+        var second = new CookingPotRecipeManager.PublishedState(Map.of("a", recipe("a")),
+                Map.of("group", Map.of("b", recipe("b"))), Map.of(), Map.of(), List.of(), Map.of(),
+                Map.of(), Map.of(), Set.of("marker"), 2, true);
+        var executor = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            var writer = executor.submit(() -> {
+                for (int i = 0; i < 2000; i++) manager.restorePublished(i % 2 == 0 ? first : second);
+            });
+            do {
+                var state = manager.capturePublished();
+                assertTrue(state == first || state == second);
+                int total = manager.getAllRecipes().size();
+                assertTrue(total == 0 || total == 2, "default and custom maps must come from one snapshot");
+            } while (!writer.isDone());
+            writer.get();
+            assertEquals(2000, manager.recipeGeneration());
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @SuppressWarnings("unchecked")

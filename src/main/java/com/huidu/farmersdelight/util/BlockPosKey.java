@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.util;
 import net.momirealms.craftengine.core.world.BlockPos;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
 
@@ -41,7 +42,7 @@ public record BlockPosKey(int x, int y, int z) {
     }
 
     @Override
-    public String toString() {
+    public @NotNull String toString() {
         return x + "," + y + "," + z;
     }
 }

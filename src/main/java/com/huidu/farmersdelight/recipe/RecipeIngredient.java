@@ -47,7 +47,8 @@ public sealed interface RecipeIngredient permits RecipeIngredient.Item, RecipeIn
             if (id == null) {
                 throw new IllegalArgumentException("Ingredient item has no resolvable id");
             }
-            String snapshot = RecipeItemCodec.carriesExtraData(stack)
+            // Registered inputs match by identity even when providers generate varying attributes.
+            String snapshot = ItemUtils.getNonVanillaItemId(stack) == null && RecipeItemCodec.carriesExtraData(stack)
                     ? RecipeItemCodec.itemToBase64(stack) : null;
             return new Item(Key.of(id), snapshot);
         }

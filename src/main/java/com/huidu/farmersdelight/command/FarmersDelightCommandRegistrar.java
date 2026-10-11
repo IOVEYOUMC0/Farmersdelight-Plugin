@@ -5,6 +5,7 @@ import io.papermc.paper.command.brigadier.BasicCommand;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 
+import org.jetbrains.annotations.NotNull;
 import java.util.Collection;
 import java.util.List;
 
@@ -20,15 +21,15 @@ public final class FarmersDelightCommandRegistrar {
                 event.registrar().register("farmersdelight", "Main FarmersDelight command", List.of("fd"),
                         new BasicCommand() {
                             @Override
-                            public void execute(CommandSourceStack source,
-                                                String[] args) {
+                            public void execute(@NotNull CommandSourceStack source,
+                                                @NotNull String[] args) {
                                 commandHandler.onCommand(source.getSender(), null, "farmersdelight", args);
                             }
 
                             @Override
-                            public Collection<String> suggest(
-                                    CommandSourceStack source,
-                                    String[] args) {
+                            public @NotNull Collection<String> suggest(
+                                    @NotNull CommandSourceStack source,
+                                    @NotNull String[] args) {
                                 List<String> completions = commandHandler.onTabComplete(
                                         source.getSender(), null, "farmersdelight", args);
                                 return completions == null ? List.of() : completions;

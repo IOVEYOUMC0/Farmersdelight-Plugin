@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.manager;
 
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
@@ -471,6 +472,15 @@ public class TickManager {
         return snapshot == null ? null : getPerformanceSnapshot(snapshot);
     }
 
+    public PerformanceProbe.Timing performanceTiming(PerformanceProbe.Operation operation) {
+        return performanceMonitor.timing(switch (operation) {
+            case SERIALIZATION -> PerformanceMonitor.Feature.SERIALIZATION;
+            case ITEM_SERIALIZATION -> PerformanceMonitor.Feature.ITEM_SERIALIZATION;
+            case SERIALIZATION_LOCK -> PerformanceMonitor.Feature.SERIALIZATION_LOCK;
+            case INVENTORY_HOLDER -> PerformanceMonitor.Feature.INVENTORY_HOLDER;
+        });
+    }
+
     PerformanceMonitor.Timing featureTiming(PerformanceMonitor.Feature feature) {
         return performanceMonitor.timing(feature);
     }
@@ -665,7 +675,7 @@ public class TickManager {
         entity.tryMovePendingToOutput();
 
         // An empty pot can still be mid-cook: the player (or a hopper) can strip every ingredient while the
-        // progress is running, and the mod regresses its cookTime in that state. Keep the pot registered until
+        // idle progress regresses in that state. Keep the pot registered until
         // the progress has decayed to 0, otherwise the bar freezes at its last value forever.
         if (!entity.hasStoredContents() && entity.getCookingProgress() <= 0) {
             unregisterCookingPotBlock(activeBlock, world, posKey);

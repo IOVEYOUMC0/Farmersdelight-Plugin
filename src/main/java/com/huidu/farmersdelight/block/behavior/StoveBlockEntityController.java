@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.util.BlockPosKey;
@@ -45,16 +46,18 @@ public final class StoveBlockEntityController extends BlockEntityController {
             tag.put(DATA_KEY, dataTag);
             return;
         }
-        StoveManager manager = getManager();
-        World world = getBukkitWorld();
-        if (manager == null || world == null) {
-            return;
+        try (PerformanceProbe.Sample ignored = PerformanceProbe.begin(PerformanceProbe.Operation.SERIALIZATION)) {
+            StoveManager manager = getManager();
+            World world = getBukkitWorld();
+            if (manager == null || world == null) {
+                return;
+            }
+            Map<String, Object> data = manager.exportStoveData(world, new BlockPosKey(this.blockEntity.pos));
+            if (data == null || data.isEmpty()) {
+                return;
+            }
+            tag.put(DATA_KEY, SimpleBlockEntityData.save(data));
         }
-        Map<String, Object> data = manager.exportStoveData(world, new BlockPosKey(this.blockEntity.pos));
-        if (data == null || data.isEmpty()) {
-            return;
-        }
-        tag.put(DATA_KEY, SimpleBlockEntityData.save(data));
     }
 
     public boolean passivate() {

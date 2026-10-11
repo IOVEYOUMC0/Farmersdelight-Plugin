@@ -15,6 +15,7 @@ import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -41,6 +42,9 @@ public final class RecipeDiscoveryManager {
     private static final String DATA_FILE = "recipe-discovery.yml";
 
     private final FarmersDelightPlugin plugin;
+    private volatile Map<UUID, Set<String>> diskSnapshot;
+    private boolean diskLoadPending;
+    private final Map<UUID, Set<String>> pendingLocks = new HashMap<>();
     // playerId -> set of "<typeId> <recipeId>" keys (space-separated; neither id contains a space).
     private final Map<UUID, Set<String>> unlocked = new ConcurrentHashMap<>();
     // Join/quit work is asynchronous; a generation lets stale tasks become no-ops after a fast reconnect.
@@ -78,7 +82,7 @@ public final class RecipeDiscoveryManager {
 
     public void reloadConfig() {
         boolean wasEnabled = enabled;
-        save();
+        plugin.scheduler().tryRunAsync(this::save);
         readConfig();
         obtainIndex = null;
         known = null;
@@ -155,7 +159,7 @@ public final class RecipeDiscoveryManager {
         return unlock(playerId, typeId, recipeId, Source.API);
     }
 
-    public boolean unlock(UUID playerId, String typeId, String recipeId, Source source) {
+    public synchronized boolean unlock(UUID playerId, String typeId, String recipeId, Source source) {
         if (playerId == null || typeId == null || recipeId == null) {
             return false;
         }
@@ -164,6 +168,8 @@ public final class RecipeDiscoveryManager {
         ensureLoaded(playerId);
         Set<String> set = unlocked.computeIfAbsent(playerId, k -> ConcurrentHashMap.newKeySet());
         // add() runs after computeIfAbsent has returned, so no map bin lock is held while the event fires.
+        Set<String> locks = pendingLocks.get(playerId);
+        if (locks != null) locks.remove(key(typeId, recipeId));
         boolean added = set.add(key(typeId, recipeId));
         if (added) {
             dirty = true;
@@ -176,13 +182,16 @@ public final class RecipeDiscoveryManager {
         lock(playerId, typeId, recipeId, Source.API);
     }
 
-    public boolean lock(UUID playerId, String typeId, String recipeId, Source source) {
+    public synchronized boolean lock(UUID playerId, String typeId, String recipeId, Source source) {
         if (playerId == null || typeId == null || recipeId == null) {
             return false;
         }
         ensureLoaded(playerId);
         Set<String> set = unlocked.get(playerId);
+        boolean pending = diskSnapshot == null;
+        if (pending) pendingLocks.computeIfAbsent(playerId, ignored -> new HashSet<>()).add(key(typeId, recipeId));
         boolean removed = set != null && set.remove(key(typeId, recipeId));
+        removed |= pending;
         if (removed) {
             dirty = true;
             fireChanged(playerId, typeId, recipeId, Action.LOCK, source);
@@ -522,69 +531,62 @@ public final class RecipeDiscoveryManager {
         return new File(plugin.getDataFolder(), DATA_FILE);
     }
 
-    // Only players who are online right now are held in memory. At boot that is nobody, so the file is not
-    // read at all; on a reload it is the players whose books can be open. Everyone else is read back on
-    // demand by ensureLoaded, which is what keeps this table sized by concurrent players rather than by
-    // every player who has ever joined.
     private void loadData() {
-        unlocked.clear();
-        Set<UUID> online = new HashSet<>();
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            online.add(player.getUniqueId());
-        }
-        if (online.isEmpty()) {
-            dirty = false;
-            return;
-        }
-        YamlConfiguration yaml = readData();
-        if (yaml != null) {
-            for (UUID id : online) {
-                List<String> keys = yaml.getStringList(id.toString());
-                if (!keys.isEmpty()) {
-                    Set<String> set = ConcurrentHashMap.newKeySet();
-                    set.addAll(keys);
-                    unlocked.put(id, set);
+        requestDiskSnapshot();
+    }
+
+    private synchronized void requestDiskSnapshot() {
+        if (diskSnapshot != null || diskLoadPending) return;
+        diskLoadPending = true;
+        if (!plugin.scheduler().tryRunAsync(() -> {
+            try {
+                YamlConfiguration yaml = new YamlConfiguration();
+                File file = dataFile();
+                if (file.exists()) yaml.load(file);
+                Map<UUID, Set<String>> loaded = new HashMap<>();
+                for (String key : yaml.getKeys(false)) {
+                    try {
+                        loaded.put(UUID.fromString(key), Set.copyOf(yaml.getStringList(key)));
+                    } catch (IllegalArgumentException invalidId) {
+                        throw new InvalidConfigurationException("Invalid player id: " + key, invalidId);
+                    }
                 }
+                synchronized (this) {
+                    diskSnapshot = Map.copyOf(loaded);
+                    for (var entry : unlocked.entrySet()) {
+                        entry.getValue().addAll(mergeStoredUnlocks(loaded.getOrDefault(entry.getKey(), Set.of()),
+                                pendingLocks.getOrDefault(entry.getKey(), Set.of())));
+                    }
+                    pendingLocks.clear();
+                }
+            } catch (IOException | InvalidConfigurationException failure) {
+                I18n.logWarning("recipe-discovery.save_failed", "error", String.valueOf(failure.getMessage()));
+            } finally {
+                synchronized (this) { diskLoadPending = false; }
             }
-        }
-        dirty = false;
+        })) diskLoadPending = false;
     }
 
-    private YamlConfiguration readData() {
-        File file = dataFile();
-        return file.exists() ? YamlConfiguration.loadConfiguration(file) : null;
+    static Set<String> mergeStoredUnlocks(Set<String> stored, Set<String> locks) {
+        Set<String> merged = new HashSet<>(stored);
+        merged.removeAll(locks);
+        return merged;
     }
 
-    /**
-     * Reads one player's unlocks off disk if they are not in memory. An entry is left behind even when the
-     * player has nothing stored, so the file is parsed once per player rather than once per lookup.
-     */
-    public void ensureLoaded(UUID playerId) {
-        if (playerId == null || unlocked.containsKey(playerId)) {
-            return;
-        }
-        Set<String> set = ConcurrentHashMap.newKeySet();
-        YamlConfiguration yaml = readData();
-        if (yaml != null) {
-            set.addAll(yaml.getStringList(playerId.toString()));
-        }
-        unlocked.putIfAbsent(playerId, set);
+    /** Never reads files on the caller's thread; pending mutations are merged when the shared load completes. */
+    public synchronized void ensureLoaded(UUID playerId) {
+        if (playerId == null) return;
+        requestDiskSnapshot();
+        unlocked.computeIfAbsent(playerId, ignored -> {
+            Set<String> keys = ConcurrentHashMap.newKeySet();
+            Map<UUID, Set<String>> snapshot = diskSnapshot;
+            if (snapshot != null) keys.addAll(snapshot.getOrDefault(playerId, Set.of()));
+            return keys;
+        });
     }
 
-    public void ensureLoaded(UUID playerId, long version) {
-        if (playerId == null || !isCurrent(playerId, version) || unlocked.containsKey(playerId)) {
-            return;
-        }
-        Set<String> set = ConcurrentHashMap.newKeySet();
-        YamlConfiguration yaml = readData();
-        if (yaml != null) {
-            set.addAll(yaml.getStringList(playerId.toString()));
-        }
-        synchronized (this) {
-            if (isCurrent(playerId, version)) {
-                unlocked.putIfAbsent(playerId, set);
-            }
-        }
+    public synchronized void ensureLoaded(UUID playerId, long version) {
+        if (playerId != null && isCurrent(playerId, version)) ensureLoaded(playerId);
     }
 
     /**
@@ -624,7 +626,7 @@ public final class RecipeDiscoveryManager {
             if (version != null && !isCurrent(playerId, version)) {
                 return;
             }
-            if (dirty) {
+            if (dirty || diskSnapshot == null) {
                 pendingEvictions.add(playerId);
                 return;
             }
@@ -634,17 +636,20 @@ public final class RecipeDiscoveryManager {
     }
 
     public synchronized void save() {
-        if (!dirty) {
+        if (!dirty) return;
+        if (diskSnapshot == null) {
+            requestDiskSnapshot();
             return;
         }
         // Clear dirty before snapshotting so a concurrent unlock re-marks it and is caught by the next flush.
         dirty = false;
         File file = dataFile();
-        YamlConfiguration yaml = file.exists()
-                ? YamlConfiguration.loadConfiguration(file)
-                : new YamlConfiguration();
+        YamlConfiguration yaml = new YamlConfiguration();
+        Map<UUID, Set<String>> saved = new HashMap<>(diskSnapshot);
+        saved.forEach((id, keys) -> yaml.set(id.toString(), new ArrayList<>(keys)));
         for (Map.Entry<UUID, Set<String>> entry : unlocked.entrySet()) {
-            Set<String> keys = entry.getValue();
+            Set<String> keys = Set.copyOf(entry.getValue());
+            saved.put(entry.getKey(), keys);
             // An in-memory player with nothing unlocked is an explicit "everything locked" state, so clear
             // the stored key rather than leaving a stale list behind.
             yaml.set(entry.getKey().toString(), keys.isEmpty() ? null : new ArrayList<>(keys));
@@ -656,6 +661,7 @@ public final class RecipeDiscoveryManager {
             I18n.logWarning("recipe-discovery.save_failed", "error", String.valueOf(e.getMessage()));
             return;
         }
+        diskSnapshot = Map.copyOf(saved);
         // The file carries everyone now, so the evictions that waited for a successful write can run. Only
         // when nothing was unlocked while the write ran: that newer state lives in `unlocked` alone, and
         // dropping it here would lose it exactly the way this bookkeeping exists to prevent.

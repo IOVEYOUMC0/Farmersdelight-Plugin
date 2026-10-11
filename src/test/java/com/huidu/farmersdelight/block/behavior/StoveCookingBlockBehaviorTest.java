@@ -20,7 +20,7 @@ class StoveCookingBlockBehaviorTest {
         assertFalse(StoveCookingBlockBehavior.isEquippable(Material.POTATO, false));
     }
 
-    // The mod only ignites an unlit stove and only puts out a lit one (AbstractStoveBlock#useItemOn picks
+    // Ignition requires an unlit stove; extinguishing requires a lit stove (the action selects
     // between tryToIgnite and tryToExtinguish by the lit state), so a second flint & steel on a burning stove
     // and a shovel on a cold one must do nothing at all.
     @Test

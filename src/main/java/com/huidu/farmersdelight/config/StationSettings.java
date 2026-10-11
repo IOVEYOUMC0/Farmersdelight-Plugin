@@ -2,7 +2,6 @@ package com.huidu.farmersdelight.config;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.block.CuttingBoardInteractionMode;
-import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
 import com.huidu.farmersdelight.util.Constants;
 
 /** Immutable station settings published as one unit after a config reload. */

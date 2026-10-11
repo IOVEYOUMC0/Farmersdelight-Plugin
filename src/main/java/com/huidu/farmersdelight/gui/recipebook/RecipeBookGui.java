@@ -563,7 +563,8 @@ public final class RecipeBookGui implements InventoryHolder {
         }
         ItemMeta meta = fillItem.getItemMeta();
         if (meta != null) {
-            List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
+            List<Component> originalLore = meta.lore();
+            List<Component> lore = originalLore == null ? new ArrayList<>() : new ArrayList<>(originalLore);
             lore.add(Text.deserialize(I18n.get(statusKey, player))
                     .colorIfAbsent(NamedTextColor.RED)
                     .decoration(TextDecoration.ITALIC, false));
@@ -687,7 +688,8 @@ public final class RecipeBookGui implements InventoryHolder {
         List<Component> lore = new ArrayList<>();
         // When the result keeps its own original lore, drop a blank line above the recipe block to separate it.
         ItemMeta meta = item.getItemMeta();
-        boolean hasOriginalLore = meta != null && meta.lore() != null && !meta.lore().isEmpty();
+        List<Component> originalLore = meta == null ? null : meta.lore();
+        boolean hasOriginalLore = originalLore != null && !originalLore.isEmpty();
         List<ItemStack> inputs = recipe.listInputs();
         if (!inputs.isEmpty()) {
             if (hasOriginalLore) {
@@ -732,12 +734,14 @@ public final class RecipeBookGui implements InventoryHolder {
         if (meta == null) {
             return item;
         }
-        if (meta.displayName() != null) {
-            meta.displayName(meta.displayName().colorIfAbsent(NamedTextColor.WHITE)
+        Component displayName = meta.displayName();
+        if (displayName != null) {
+            meta.displayName(displayName.colorIfAbsent(NamedTextColor.WHITE)
                     .decoration(TextDecoration.ITALIC, false));
         }
-        if (meta.lore() != null) {
-            meta.lore(meta.lore().stream()
+        List<Component> originalLore = meta.lore();
+        if (originalLore != null) {
+            meta.lore(originalLore.stream()
                     .map(line -> line.colorIfAbsent(NamedTextColor.GRAY)
                             .decoration(TextDecoration.ITALIC, false))
                     .toList());
@@ -752,8 +756,9 @@ public final class RecipeBookGui implements InventoryHolder {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             List<Component> merged = new ArrayList<>();
-            if (meta.lore() != null) {
-                merged.addAll(meta.lore());
+            List<Component> originalLore = meta.lore();
+            if (originalLore != null) {
+                merged.addAll(originalLore);
             }
             for (Component line : lore) {
                 merged.add(line.colorIfAbsent(NamedTextColor.GRAY)

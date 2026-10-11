@@ -2,9 +2,7 @@ package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.api.gui.GuiLayout;
-import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
-import com.huidu.farmersdelight.util.CompatItemMeta;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.Text;
 import net.kyori.adventure.text.Component;
@@ -12,10 +10,10 @@ import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
-import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.components.CustomModelDataComponent;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -747,7 +745,9 @@ public class GuiConfig implements GuiLayout {
             if (customModelData == null) {
                 return;
             }
-            meta.setCustomModelData(customModelData);
+            CustomModelDataComponent modelData = meta.getCustomModelDataComponent();
+            modelData.setFloats(List.of(customModelData.floatValue()));
+            meta.setCustomModelDataComponent(modelData);
         }
 
         private void applyItemModel(ItemMeta meta, String itemModel) {
@@ -758,7 +758,7 @@ public class GuiConfig implements GuiLayout {
             if (key == null) {
                 return;
             }
-            CompatItemMeta.setItemModel(meta, key);
+            meta.setItemModel(key);
         }
 
         private void applyHideTooltip(ItemMeta meta, boolean hideTooltip) {

@@ -3,7 +3,6 @@ package com.huidu.farmersdelight.manager;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import com.huidu.farmersdelight.api.util.ItemDelivery;
-import com.huidu.farmersdelight.tool.ToolRegistry;
 import com.huidu.farmersdelight.util.CampfireRecipeCache;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
@@ -64,15 +63,15 @@ final class SkilletHandheldCooking {
     private static final long HANDHELD_INPUT_TIMEOUT_MILLIS = 400L;
     // Read-only migration keys for versions that stored unfinished food and fake damage on the item.
     private static final NamespacedKey HANDHELD_INGREDIENT_KEY =
-            NamespacedKey.fromString("farmersdelight:skillet_ingredient");
+            new NamespacedKey("farmersdelight", "skillet_ingredient");
     private static final NamespacedKey HANDHELD_DURATION_KEY =
-            NamespacedKey.fromString("farmersdelight:skillet_duration");
+            new NamespacedKey("farmersdelight", "skillet_duration");
     private static final NamespacedKey HANDHELD_PROGRESS_KEY =
-            NamespacedKey.fromString("farmersdelight:skillet_progress");
+            new NamespacedKey("farmersdelight", "skillet_progress");
     private static final NamespacedKey HANDHELD_ORIGINAL_DAMAGE_KEY =
-            NamespacedKey.fromString("farmersdelight:skillet_original_damage");
+            new NamespacedKey("farmersdelight", "skillet_original_damage");
     private static final NamespacedKey HANDHELD_ORIGINAL_MODEL_KEY =
-            NamespacedKey.fromString("farmersdelight:skillet_original_model");
+            new NamespacedKey("farmersdelight", "skillet_original_model");
 
     private final FarmersDelightPlugin plugin;
     private final CampfireRecipeCache campfireRecipes;
@@ -361,7 +360,7 @@ final class SkilletHandheldCooking {
             stopHandheldUse(player, null);
             return;
         }
-        if (++session.progress < session.duration) {
+        if (!session.advanceProgress()) {
             // Progress updates stay at five packets per second. Normal inventory sync uses the
             // same display snapshot, so it cannot alternate real damage with cooking progress.
             if (session.display != null && session.progress % 4 == 0) {
@@ -442,7 +441,9 @@ final class SkilletHandheldCooking {
         // Static displays remain installed for normal inventory sync; only a setting or model
         // change requires rebuilding them while progress is hidden.
         if (!session.needsDisplayUpdate(model, showProgress)) return;
-        ItemStack display = createHandheldDisplay(player.getInventory().getItem(session.slot),
+        ItemStack skillet = player.getInventory().getItem(session.slot);
+        if (skillet == null || skillet.getType().isAir()) return;
+        ItemStack display = createHandheldDisplay(skillet,
                 model, session.progress, session.duration, showProgress);
         var wrapped = BukkitAdaptor.adapt(display);
         // Note-block interaction swings are predicted by the client before event cancellation.
@@ -466,11 +467,8 @@ final class SkilletHandheldCooking {
     }
 
     /**
-     * True when the player is on fire or a heat source sits in the 3x3x3 box around the player's block position.
-     * The box is centred on the player, not on whatever the player right-clicked, which is what the mod does
-     * (SkilletItem#isPlayerNearHeatSource); the clicked block, its face and even right-clicking air are all
-     * irrelevant. An extinguished campfire or stove is cold here, exactly as it is for the pot, the placed
-     * skillet, the tray and the stove: every heat-source question goes through the same state-aware table.
+     * Checks fire or a heat source in the 3x3x3 cube centered on the player.
+     * The clicked block and face do not select the heat source. All station heat checks share the state-aware table.
      */
     private boolean hasNearbyHeatSource(Player player) {
         if (player.getFireTicks() > 0) return true;
@@ -603,19 +601,26 @@ final class SkilletHandheldCooking {
             this.model = model;
         }
 
+        boolean advanceProgress() {
+            return ++progress >= duration;
+        }
+
         boolean matches(PlayerInventory inventory) {
-            ItemStack pan = inventory.getItem(slot);
-            ItemStack food = inventory.getItem(ingredientSlot);
-            return inventory.getHeldItemSlot() == (slot == 40 ? ingredientSlot : slot)
+            return matches(inventory.getHeldItemSlot(), inventory.getItem(slot), inventory.getItem(ingredientSlot));
+        }
+
+        boolean matches(int heldSlot, ItemStack pan, ItemStack food) {
+            return heldSlot == (slot == 40 ? ingredientSlot : slot)
                     && pan != null && pan.getAmount() == 1 && skillet.isSimilar(pan)
                     && food != null && food.getAmount() > 0 && ingredient.isSimilar(food);
         }
 
         boolean consumeIngredient(PlayerInventory inventory, boolean creative) {
-            if (consumed || !matches(inventory)) return false;
+            if (consumed) return false;
+            ItemStack food = inventory.getItem(ingredientSlot);
+            if (food == null || !matches(inventory.getHeldItemSlot(), inventory.getItem(slot), food)) return false;
             consumed = true;
             if (!creative) {
-                ItemStack food = inventory.getItem(ingredientSlot);
                 food.setAmount(food.getAmount() - 1);
             }
             return true;

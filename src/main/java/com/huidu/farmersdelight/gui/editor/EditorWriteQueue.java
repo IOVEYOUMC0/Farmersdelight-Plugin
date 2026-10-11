@@ -50,7 +50,7 @@ public final class EditorWriteQueue {
     }
 
     /**
-     * Applies the plan to its file off the owner thread and reports the outcome through {@code ownerHop}; a null
+     * Applies the plan to its file off the owner thread and reports the outcome through ownerHop; a null
      * reason means the file was replaced.
      *
      * @return false when the write was refused outright, in which case nothing ran and nothing will be reported

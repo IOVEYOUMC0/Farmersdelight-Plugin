@@ -8,9 +8,9 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import static com.huidu.farmersdelight.command.CommandSupport.MINI;
 
 final class DebugToolsSubCommand extends SubCommand {
 
@@ -52,8 +52,7 @@ final class DebugToolsSubCommand extends SubCommand {
             // the real failure is logged with its stack instead of being masked as "not available".
             Throwable cause = (e instanceof InvocationTargetException ite && ite.getCause() != null)
                     ? ite.getCause() : e;
-            logger.warning("Debug tools execution failed: " + cause);
-            cause.printStackTrace();
+            logger.log(Level.WARNING, "Debug tools execution failed", cause);
             sender.sendMessage(I18n.getComponent("command.debug_tools_failed"));
         }
     }

@@ -5,7 +5,6 @@ import com.huidu.farmersdelight.i18n.I18n;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.stream.Stream;
 
 // Removes the legacy advancements data pack. FD advancements are served entirely through
