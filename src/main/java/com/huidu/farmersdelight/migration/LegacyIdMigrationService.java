@@ -166,7 +166,7 @@ public final class LegacyIdMigrationService {
                 int chunkX = chunk.getX();
                 int chunkZ = chunk.getZ();
                 RegionTasks.runAtLoadedChunk(plugin.scheduler(), world, chunkX, chunkZ, () -> {
-                    for (BlockState state : world.getChunkAt(chunkX, chunkZ).getTileEntities()) {
+                    for (BlockState state : world.getChunkAt(chunkX, chunkZ).getTileEntities(false)) {
                         if (state instanceof InventoryHolder holder) {
                             migrateBlockHolder(holder);
                         }

@@ -3,13 +3,8 @@ package com.huidu.farmersdelight.block.behavior;
 import java.util.function.IntPredicate;
 
 /**
- * Where the bell above a rope column is, if there is one.
- *
- *
- * Upstream parity: the search walks up through a contiguous rope column and rings the first bell it finds; a
- * gap, or any block that is neither a rope nor a bell, ends the search. Pure so the rule is provable without a
- * server, and shared by both empty-hand entry points — CraftEngine decides for itself whether the
- * useWithoutItem dispatch happens, and a bell that never rings is exactly the reported defect.
+ * Finds the first bell above a contiguous rope column.
+ * A gap or a block other than rope or bell ends the search. Both empty-hand entry points share this rule.
  */
 public final class RopeBellScan {
 

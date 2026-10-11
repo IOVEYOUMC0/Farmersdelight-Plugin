@@ -13,9 +13,13 @@ This tool collects the keys that reach the client:
   * ``Component.translatable("key")`` string literals in the Java sources.
 
 and compares them with every pack language file. Vanilla namespaces the server never ships (``minecraft.``,
-``attribute.``, ``effect.``, ``potion.``, ``item.modifiers.``) and keys carrying a CraftEngine placeholder
-(``${...}``) are skipped: the client already has the vanilla ones, and the placeholders are expanded before
-the key is looked up.
+``block.minecraft.``, ``item.minecraft.``, ``entity.minecraft.``, ``attribute.``, ``effect.``, ``potion.``,
+``item.modifiers.``) and keys carrying a CraftEngine placeholder (``${...}``) are skipped: the client already
+has the vanilla ones, and the placeholders are expanded before the key is looked up.
+
+A vanilla block or item name is written as ``block.minecraft.<name>`` or ``item.minecraft.<name>``, so a
+configuration that shows the vanilla name of a borrowed block (``<lang:block.minecraft.crimson_fence>``) binds
+a key the client resolves from its own jar. It must not be demanded from the pack's language files.
 
     python tools/check_pack_client_keys.py [--quiet]
 
@@ -41,8 +45,11 @@ PACK_GLOB = "src/main/resources/craftengine/*/resourcepack/assets/*/lang/*.json"
 LANG_TAG = re.compile(r"<lang:'?([^'>]+)'?(?::[^>]*)?>")
 TRANSLATABLE = re.compile(r'Component\.translatable\(\s*"([^"$]+)"')
 
-# Keys the client resolves from its own jar, or that CraftEngine expands before the lookup: not our pack.
-VANILLA_PREFIXES = ("minecraft.", "attribute.", "effect.", "potion.", "item.modifiers.")
+# Keys the client resolves from its own jar, or that CraftEngine expands before the lookup: not our pack. The
+# vanilla namespaces include the "namespace + minecraft segment" form the resource pack uses for vanilla blocks,
+# items and entities: block.minecraft.<name>, item.minecraft.<name>, entity.minecraft.<name>.
+VANILLA_PREFIXES = ("minecraft.", "block.minecraft.", "item.minecraft.", "entity.minecraft.",
+                    "attribute.", "effect.", "potion.", "item.modifiers.")
 
 
 def pack_locales() -> dict[str, set[str]]:

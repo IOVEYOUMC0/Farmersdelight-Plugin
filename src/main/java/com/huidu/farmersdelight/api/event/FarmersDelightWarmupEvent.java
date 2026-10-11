@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.api.event;
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.NotNull;
 
 @ApiStatus.NonExtendable
 public class FarmersDelightWarmupEvent extends Event {
@@ -20,11 +21,11 @@ public class FarmersDelightWarmupEvent extends Event {
     }
 
     @Override
-    public HandlerList getHandlers() {
+    public @NotNull HandlerList getHandlers() {
         return HANDLERS;
     }
 
-    public static HandlerList getHandlerList() {
+    public static @NotNull HandlerList getHandlerList() {
         return HANDLERS;
     }
 }

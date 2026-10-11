@@ -5,40 +5,17 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Objects;
+import java.util.WeakHashMap;
 import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
 
 /**
- * The container GUI engine: paints configured cells from the authoritative store, and commits a viewer's
- * edits back only while the cell still holds what it was painted from.
- *
- *
- * A station supplies a Controller (its store, its lock, its placeholder items) and its
- * GuiSlotGroup table; this class owns the parts every container GUI repeats: mapping configured cells
- * to store indices, remembering what each cell was painted from, refusing a stale write-back and repainting
- * the cell from the store instead, and the skip rule for edits still in flight.
- *
- *
- * Threading
- *
- * fill(Inventory), refreshAll(Inventory, IntPredicate) and refreshSlot(Inventory, int)
- * only write the viewer's inventory, so they must be called on the region that owns the viewer. The engine
- * itself never dispatches, never calls a scheduler and never reads a world.
- *
- *
- * syncAll(Inventory) and syncSlot(Inventory, int) read the store and write it back. They run
- * under Controller#storeLock(), which the engine takes for every store access and for the per-cell
- * paint record, so a caller on the viewer's region cannot interleave with a ticker on the store's region. The
- * lock is reentrant: a caller that already holds it (the usual shape, a click handler that wraps its whole
- * read-modify-write) is unaffected.
- *
- *
- * What the controller still owns
- *
- * Cloning and normalising: Controller#store(int, ItemStack) receives whatever the cell held, including
- * a null for a placeholder icon, and is responsible for cloning it and for storing null rather than an empty
- * stack.
+ * Maps configured GUI cells to authoritative storage and rejects stale write-back.
+ * All paint and commit methods require ownership of both the view and its store.
+ * The reentrant store lock protects data; it does not authorize cross-region inventory access.
+ * Controllers clone accepted items and normalize placeholders and empty stacks to null.
  */
 public final class ContainerGuiKernel {
 
@@ -94,10 +71,8 @@ public final class ContainerGuiKernel {
 
     private final Controller controller;
     private final GuiSlotGroup[] groups;
-    // What each GUI cell was painted from, indexed by raw slot; recorded under the store lock whenever a cell
-    // is painted. A cell that was painted empty is indistinguishable from one never painted, and both must
-    // refuse a commit, which is what the guard does with a null baseline.
-    private ItemStack[] painted = new ItemStack[0];
+    // Each viewer has an independent baseline; copies must not alias mutable store stacks.
+    private final Map<Inventory, ItemStack[]> painted = new WeakHashMap<>();
 
     public ContainerGuiKernel(Controller controller, GuiSlotGroup... groups) {
         this.controller = Objects.requireNonNull(controller, "controller");
@@ -121,7 +96,7 @@ public final class ContainerGuiKernel {
             return false;
         }
         synchronized (controller.storeLock()) {
-            ensurePainted(layout.size());
+            ensurePainted(view, layout.size());
             for (int rawSlot = 0; rawSlot < layout.size(); rawSlot++) {
                 if (!layout.isFunctional(rawSlot)) {
                     ItemStack backdrop = controller.backdrop();
@@ -156,7 +131,7 @@ public final class ContainerGuiKernel {
             return false;
         }
         synchronized (controller.storeLock()) {
-            ensurePainted(layout.size());
+            ensurePainted(view, layout.size());
             for (GuiSlotGroup group : groups) {
                 int[] cells = layout.slotsOf(group.type());
                 for (int offset = 0; offset < cells.length && offset < group.count(); offset++) {
@@ -186,7 +161,7 @@ public final class ContainerGuiKernel {
             return false;
         }
         synchronized (controller.storeLock()) {
-            ensurePainted(layout.size());
+            ensurePainted(view, layout.size());
             paint(view, rawSlot, controller.stored(storeIndex), iconTypeAt(storeIndex));
         }
         return true;
@@ -203,7 +178,7 @@ public final class ContainerGuiKernel {
             return false;
         }
         synchronized (controller.storeLock()) {
-            ensurePainted(layout.size());
+            ensurePainted(view, layout.size());
             for (GuiSlotGroup group : groups) {
                 int[] cells = layout.slotsOf(group.type());
                 for (int offset = 0; offset < cells.length && offset < group.count(); offset++) {
@@ -231,7 +206,7 @@ public final class ContainerGuiKernel {
             return true;
         }
         synchronized (controller.storeLock()) {
-            ensurePainted(layout.size());
+            ensurePainted(view, layout.size());
             if (commit(view, rawSlot, storeIndex, iconTypeAt(storeIndex))) {
                 controller.markDirty();
             }
@@ -245,11 +220,8 @@ public final class ContainerGuiKernel {
      * does not matter to it). Marks the station dirty once, like syncAll(Inventory).
      *
      *
-     * Region contract: this method writes only the store and the station's dirty flag, and never writes the
-     * viewer's inventory. A caller may therefore run it on the region that owns the store and hand the refused
-     * slots to the viewer's own region for the repaint (repaintFrom), which is what the
-     * cross-region container paths do. A caller already on the viewer's region keeps using
-     * syncAll(Inventory), which is this plus the repaint.
+     * The caller must own both the viewer and the store: this method still reads the live inventory.
+     * A store lock provides mutual exclusion, never Folia region ownership.
      */
     public int[] commitOnly(Inventory view) {
         Objects.requireNonNull(view, "view");
@@ -258,7 +230,7 @@ public final class ContainerGuiKernel {
             return new int[0];
         }
         synchronized (controller.storeLock()) {
-            ensurePainted(layout.size());
+            ensurePainted(view, layout.size());
             int[] refused = new int[countConfiguredCells(layout)];
             int count = 0;
             for (GuiSlotGroup group : groups) {
@@ -280,7 +252,7 @@ public final class ContainerGuiKernel {
      * like syncSlot(Inventory, int).
      *
      *
-     * Region contract as commitOnly(Inventory): store writes only, never the viewer's inventory.
+     * The caller must own the viewer and the store, as for commitOnly(Inventory).
      */
     public boolean commitOnly(Inventory view, int rawSlot) {
         Objects.requireNonNull(view, "view");
@@ -293,7 +265,7 @@ public final class ContainerGuiKernel {
             return true;
         }
         synchronized (controller.storeLock()) {
-            ensurePainted(layout.size());
+            ensurePainted(view, layout.size());
             if (!commitCell(view, rawSlot, storeIndex, iconTypeAt(storeIndex))) {
                 return false;
             }
@@ -321,7 +293,7 @@ public final class ContainerGuiKernel {
             return;
         }
         synchronized (controller.storeLock()) {
-            ensurePainted(layout.size());
+            ensurePainted(view, layout.size());
             for (int rawSlot : rawSlots) {
                 int storeIndex = storeIndex(layout, rawSlot);
                 if (storeIndex < 0) {
@@ -353,7 +325,7 @@ public final class ContainerGuiKernel {
      */
     private boolean commit(Inventory view, int rawSlot, int storeIndex, @Nullable String iconType) {
         ItemStack stored = controller.stored(storeIndex);
-        if (!controller.mayCommit(stored, painted[rawSlot])) {
+        if (!controller.mayCommit(stored, painted.get(view)[rawSlot])) {
             // The store moved on since this cell was painted: adopt its value, never keep the stale one.
             paint(view, rawSlot, stored, iconType);
             return false;
@@ -370,7 +342,7 @@ public final class ContainerGuiKernel {
      */
     private boolean commitCell(Inventory view, int rawSlot, int storeIndex, @Nullable String iconType) {
         ItemStack stored = controller.stored(storeIndex);
-        if (!controller.mayCommit(stored, painted[rawSlot])) {
+        if (!controller.mayCommit(stored, painted.get(view)[rawSlot])) {
             return false;
         }
         storeFromView(view, rawSlot, storeIndex, iconType);
@@ -382,11 +354,13 @@ public final class ContainerGuiKernel {
         ItemStack item = view.getItem(rawSlot);
         boolean placeholder = item != null && !item.getType().isAir() && controller.isPlaceholder(item, iconType);
         controller.store(storeIndex, placeholder ? null : item);
+        ItemStack saved = controller.stored(storeIndex);
+        painted.get(view)[rawSlot] = saved == null ? null : saved.clone();
     }
 
     /** Paints one cell from a store value and records that value as the cell's write-back baseline. */
     private void paint(Inventory view, int rawSlot, @Nullable ItemStack stored, @Nullable String iconType) {
-        painted[rawSlot] = stored;
+        painted.get(view)[rawSlot] = stored == null ? null : stored.clone();
         if (stored == null || stored.getType().isAir()) {
             ItemStack icon = controller.icon(iconType);
             view.setItem(rawSlot, icon == null ? null : icon.clone());
@@ -395,9 +369,10 @@ public final class ContainerGuiKernel {
         }
     }
 
-    private void ensurePainted(int size) {
-        if (painted.length < size) {
-            painted = Arrays.copyOf(painted, size);
+    private void ensurePainted(Inventory view, int size) {
+        ItemStack[] baseline = painted.get(view);
+        if (baseline == null || baseline.length < size) {
+            painted.put(view, baseline == null ? new ItemStack[size] : Arrays.copyOf(baseline, size));
         }
     }
 

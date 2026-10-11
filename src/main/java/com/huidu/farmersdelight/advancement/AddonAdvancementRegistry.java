@@ -3,7 +3,6 @@ package com.huidu.farmersdelight.advancement;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.Plugin;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
 
 import java.util.List;

@@ -1,12 +1,13 @@
 package com.huidu.farmersdelight.util;
 
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.util.CeItemInterop;
 import com.huidu.farmersdelight.block.behavior.BlockBehaviorConfigs;
 import com.huidu.farmersdelight.block.behavior.ConfiguredBlockSet;
 import com.huidu.farmersdelight.config.ContainerReturnConfig;
 import com.huidu.farmersdelight.i18n.I18n;
-import com.huidu.farmersdelight.util.compat.MMOItemsCompat;
+import com.huidu.farmersdelight.util.compat.CraftEngineItemSources;
 import com.huidu.farmersdelight.util.compat.CustomItemPresence;
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.UseRemainder;
@@ -15,9 +16,10 @@ import net.kyori.adventure.text.TranslatableComponent;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.kyori.adventure.translation.GlobalTranslator;
 import net.momirealms.craftengine.bukkit.api.CraftEngineItems;
+import net.momirealms.craftengine.bukkit.api.BukkitAdaptor;
+import net.momirealms.craftengine.core.plugin.CraftEngine;
 import net.momirealms.craftengine.bukkit.item.BukkitItemDefinition;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
-import net.momirealms.craftengine.bukkit.util.ItemStackUtils;
 import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.item.component.DataComponentKeys;
@@ -52,6 +54,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class ItemUtils {
+
+    private static final CraftEngineItemSources EXTERNAL_ITEMS = new CraftEngineItemSources(
+            () -> CraftEngine.instance() == null ? null : CraftEngine.instance().compatibilityManager(),
+            BukkitAdaptor::adapt, CeItemInterop::asBukkitStack);
+
+    public static void configureExternalItemSources(List<String> plugins) {
+        EXTERNAL_ITEMS.configure(plugins);
+    }
 
     private static final Map<Key, List<ItemStack>> vanillaTagCache = new ConcurrentHashMap<>();
     // Resolved Bukkit item tags stay constant for the server's lifetime; cache them so tag
@@ -151,13 +161,7 @@ public final class ItemUtils {
 
     public static ItemStack createItem(String itemId) {
         if (isEmptyItemId(itemId)) return null;
-        // MMOItems items are addressed as mmoitems:<TYPE>:<ID>; build them through MMOItems so the
-        // item carries its full identity (custom_data etc.) instead of a plain vanilla base.
-        ItemStack mmoItem = MMOItemsCompat.tryCreate(itemId);
-        if (mmoItem != null) {
-            return mmoItem;
-        }
-
+        itemId = itemId.trim();
         try {
             Key key = Key.of(itemId);
 
@@ -165,6 +169,10 @@ public final class ItemUtils {
             if (customItem != null) {
                 return customItem;
             }
+
+            ItemStack external = EXTERNAL_ITEMS.build(itemId);
+            if (external != null) return external;
+            if (itemId.contains(":") && !itemId.startsWith("minecraft:")) return null;
 
             NamespacedKey materialKey = NamespacedKey.fromString(itemId);
             if (materialKey != null) {
@@ -277,7 +285,7 @@ public final class ItemUtils {
         } catch (Exception ex) {
             // Unknown tag or CraftEngine not ready: the slot renders as empty/barrier elsewhere, but
             // surface the failure so a misconfigured tag is not silently swallowed.
-            Bukkit.getLogger().warning("Failed to resolve CraftEngine tag '" + itemId + "' in slot items: "
+            Bukkit.getServer().getLogger().warning("Failed to resolve CraftEngine tag '" + itemId + "' in slot items: "
                     + (ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage()));
         }
         return items;
@@ -338,6 +346,7 @@ public final class ItemUtils {
     }
 
     public static void clearItemCache() {
+        EXTERNAL_ITEMS.clear();
         itemBuildCache.clear();
         customItemTagIdCache.clear();
         vanillaTagCache.clear();
@@ -359,12 +368,12 @@ public final class ItemUtils {
     }
 
     public static CompoundTag saveBukkitItemAsTag(ItemStack item) {
-        return ItemStackUtils.saveBukkitItemAsTag(item);
+        return PerformanceProbe.item(item);
     }
 
     public static boolean isValidItemId(String itemId) {
         if (isEmptyItemId(itemId)) return false;
-        return itemId.matches("^[a-z0-9_]+:[a-z0-9_./-]+$");
+        return CraftEngineItemSources.isValidId(itemId);
     }
 
     public static boolean isEmptyItemId(String itemId) {
@@ -476,7 +485,7 @@ public final class ItemUtils {
         // rendered via their client translation key, so the player's own locale localizes them.
         // CraftEngine may bake the translation key onto the item as a literal name (an unresolved
         // server-side <l10n:...>); returning it as-is shows raw "item.minecraft.cod" in the recipe GUI.
-        String customId = getCustomItemId(item);
+        String customId = getNonVanillaItemId(item);
         boolean vanillaItem = (customId == null || customId.startsWith("minecraft:")) && item.getType().isItem();
         String vanillaKey = vanillaItem ? item.getType().getItemTranslationKey() : null;
 
@@ -508,7 +517,8 @@ public final class ItemUtils {
         if (meta != null && meta.hasDisplayName() && meta.displayName() != null) {
             return meta.displayName();
         }
-        String customId = getCustomItemId(item);
+        String customId = getNonVanillaItemId(item);
+        if (customId != null && getCustomItemId(item) == null) return Component.text(getDisplayName(item, (String) null));
         if (customId != null && !customId.startsWith("minecraft:")) {
             String key = "item." + customId.replace(':', '.');
             return Component.translatable(key).fallback(translationFallback(key, customId));
@@ -524,7 +534,8 @@ public final class ItemUtils {
         if (item == null || item.getType().isAir()) {
             return Component.empty();
         }
-        String customId = getCustomItemId(item);
+        String customId = getNonVanillaItemId(item);
+        if (customId != null && getCustomItemId(item) == null) return Component.text(getDisplayName(item, (String) null));
         if (customId != null && !customId.startsWith("minecraft:")) {
             String key = "item." + customId.replace(':', '.');
             return Component.translatable(key).fallback(translationFallback(key, customId));
@@ -540,7 +551,8 @@ public final class ItemUtils {
             return Component.empty();
         }
         String defaultLocale = I18n.getDefaultLocale();
-        String customId = getCustomItemId(item);
+        String customId = getNonVanillaItemId(item);
+        if (customId != null && getCustomItemId(item) == null) return Component.text(getDisplayName(item, (String) null));
         String key;
         if (customId != null && !customId.startsWith("minecraft:")) {
             key = "item." + customId.replace(':', '.');
@@ -698,7 +710,7 @@ public final class ItemUtils {
     }
 
     private static String getDisplayItemId(ItemStack item) {
-        String customItemId = getCustomItemId(item);
+        String customItemId = getNonVanillaItemId(item);
         if (customItemId != null && !customItemId.isBlank()) {
             return customItemId;
         }
@@ -776,7 +788,7 @@ public final class ItemUtils {
 
         // A custom item may use a vanilla material as its render/base type, but that does not make
         // it a member of the material's vanilla tags. Custom tags are checked by getItemTagIds().
-        if (getCustomItemId(item) != null || MMOItemsCompat.getItemId(item) != null) {
+        if (getNonVanillaItemId(item) != null) {
             return false;
         }
 
@@ -813,21 +825,16 @@ public final class ItemUtils {
         if (item == null || item.getType().isAir() || isEmptyItemId(itemId)) {
             return false;
         }
+        Item wrapped = BukkitAdaptor.adapt(item);
+        String identity = EXTERNAL_ITEMS.id(wrapped);
+        if (identity == null) identity = getVanillaMaterialItemId(item);
+        if (identity == null) return false;
         String normalized = itemId.trim();
-        String customId = getCustomItemId(item);
-        if (customId != null) {
-            // CraftEngine custom items are identified only by their custom id, never by their
-            // base vanilla material, so they cannot match the base material's vanilla id.
-            return customId.equalsIgnoreCase(normalized);
+        // External provider ids may be case-sensitive; legacy CE and MMOItems matching stays compatible.
+        if (wrapped.customId().isPresent() || identity.startsWith("minecraft:") || identity.startsWith("mmoitems:")) {
+            return identity.equalsIgnoreCase(normalized);
         }
-        String mmoId = MMOItemsCompat.getItemId(item);
-        if (mmoId != null) {
-            // MMOItems items carry their identity in custom_data; only their mmoitems id matches,
-            // so a vanilla id cannot be satisfied by an MMOItems item of the same base material.
-            return mmoId.equalsIgnoreCase(normalized);
-        }
-        String vanillaId = getVanillaMaterialItemId(item);
-        return vanillaId != null && vanillaId.equalsIgnoreCase(normalized);
+        return CraftEngineItemSources.matchesId(identity, normalized);
     }
 
     public static boolean matchesItemId(ItemStack item, Key itemId) {
@@ -838,22 +845,12 @@ public final class ItemUtils {
         if (item == null || item.getType().isAir()) {
             return Set.of();
         }
-        String customId = getCustomItemId(item);
-        String mmoId = customId == null ? MMOItemsCompat.getItemId(item) : null;
+        String identity = getNonVanillaItemId(item);
         String vanillaId = getVanillaMaterialItemId(item);
-        if (customId == null && mmoId == null) {
-            return vanillaId == null ? Set.of() : Set.of(vanillaId);
-        }
+        if (identity == null) return vanillaId == null ? Set.of() : Set.of(vanillaId);
         LinkedHashSet<String> ids = new LinkedHashSet<>();
-        if (customId != null) {
-            ids.add(customId);
-        }
-        if (mmoId != null) {
-            ids.add(mmoId);
-        }
-        if (vanillaId != null) {
-            ids.add(vanillaId);
-        }
+        ids.add(identity);
+        if (vanillaId != null) ids.add(vanillaId);
         return Set.copyOf(ids);
     }
 
@@ -863,16 +860,18 @@ public final class ItemUtils {
         }
         LinkedHashSet<String> tags = new LinkedHashSet<>();
         // CE-declared tags (self-identifying, e.g. a knife declaring farmersdelight:tools/knives).
-        String customId = getCustomItemId(item);
-        if (customId != null) {
-            tags.addAll(customItemTagIds(Key.of(customId)));
+        Item wrapped = BukkitAdaptor.adapt(item);
+        Key customKey = wrapped.customId().orElse(null);
+        String customId = customKey == null ? null : customKey.toString();
+        if (customKey != null) {
+            tags.addAll(customItemTagIds(customKey));
         }
         // Registered tags (c:... conventions plus any addon-registered tags) are resolved against
         // the item's authoritative identity. Do not include the base material for custom items: a CE
         // custom apple rendered as cooked beef must not inherit cooked-beef recipe tags.
         String identity = customId;
         if (identity == null) {
-            identity = MMOItemsCompat.getItemId(item);
+            identity = EXTERNAL_ITEMS.id(wrapped);
         }
         if (identity == null) {
             identity = getVanillaMaterialItemId(item);
@@ -985,17 +984,13 @@ public final class ItemUtils {
         if (item == null || item.getType().isAir()) {
             return null;
         }
-        String customId = getCustomItemId(item);
-        if (customId != null) {
-            return customId;
-        }
-        // MMOItems items have no CraftEngine id; resolve their identity so station matching and
-        // display keys can use the same mmoitems:<TYPE>:<ID> id the recipes are written with.
-        String mmoId = MMOItemsCompat.getItemId(item);
-        if (mmoId != null) {
-            return mmoId;
-        }
-        return "minecraft:" + item.getType().name().toLowerCase(Locale.ROOT);
+        String identity = getNonVanillaItemId(item);
+        return identity != null ? identity : getVanillaMaterialItemId(item);
+    }
+
+    public static String getNonVanillaItemId(ItemStack item) {
+        if (item == null || item.getType().isAir()) return null;
+        return EXTERNAL_ITEMS.id(item);
     }
 
     public static ItemStack cloneOrNull(ItemStack item) {
@@ -1006,7 +1001,7 @@ public final class ItemUtils {
     }
 
     // Identity comparison used by recipe cross-reference / GUI linking: any item with its own identity
-    // (a CraftEngine id or an mmoitems:<TYPE>:<ID>) matches that identity instead of its base material;
+    // (a CraftEngine or external source id) matches that identity instead of its base material;
     // everything else matches by material type. Amount and NBT are not compared.
     public static boolean isSameItem(ItemStack a, ItemStack b) {
         if (a == null || b == null || a.getType().isAir() || b.getType().isAir()) {
@@ -1108,7 +1103,7 @@ public final class ItemUtils {
         if (config == null) {
             return null;
         }
-        String customId = getCustomItemId(item);
+        String customId = getNonVanillaItemId(item);
         if (customId != null) {
             ItemStack configured = config.getReturnItem(customId, 1);
             if (configured != null) {

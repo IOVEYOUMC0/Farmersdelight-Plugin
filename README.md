@@ -3,7 +3,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Minecraft-1.21.5%2B-3fb950" alt="Minecraft 1.21.5+">
   <img src="https://img.shields.io/badge/CraftEngine-26.8.2%2B-5865F2" alt="CraftEngine 26.8.2+">
-  <img src="https://img.shields.io/badge/Java-21-orange" alt="Java 21">
+  <img src="https://img.shields.io/badge/Java-21%20%2F%2025-orange" alt="Java 21 / 25">
   <img src="https://img.shields.io/badge/Folia-supported-blueviolet" alt="Folia supported">
   <img src="https://img.shields.io/badge/API-com.huidu.farmersdelight.api-blue" alt="Addon API">
 </p>
@@ -27,12 +27,14 @@ FarmersDelight is a Paper/Folia plugin port of **Farmer's Delight**, powered by 
 - Configurable crops, farmland, ropes, mushroom colonies and storage blocks.
 - Nourishment, Comfort, food effects and recipe-book integration.
 - Folia-safe scheduling and a stable `com.huidu.farmersdelight.api` addon API.
-- Optional addons for Brewin' And Chewin', End's Delight, Expanded Delight, Crabber's Delight, Barbeque's Delight and Villagers' Delight.
+- Optional addons for Brewin' And Chewin', End's Delight, Crabber's Delight, Barbeque's Delight and Villagers' Delight.
+
+Expanded Delight is still being ported and is not part of the released addon set.
 
 ## Requirements
 
 - Paper or Folia 1.21.5 or newer
-- Java 21
+- Java 21 for Minecraft 1.21.5–1.21.11; Java 25 for Minecraft 26.1+ (the plugin bytecode targets Java 21)
 - CraftEngine 26.8.2 or newer (compiled against 26.9.1; 26.8.2, 26.9 and 26.9.1 verified on a live server)
 
 Install CraftEngine first, then place the FarmersDelight jar in `plugins/`. Use `/fd reload` for plugin configuration and `/ce reload` after changing CraftEngine resources.
@@ -47,7 +49,7 @@ The complete player, server, addon and API documentation is maintained in the [F
 ./gradlew build
 ```
 
-The build resolves CraftEngine 26.9.1 from its official Maven repository; pass `-PceVersion=<version>` to compile against another release.
+The build resolves CraftEngine 26.9.1 from its official Maven repository; pass `-PceVersion=<version>` to compile against another release, or `-PceJar=<plugin.jar>` (also `FARMERSDELIGHT_CE_JAR`) and optionally `-PceLibraries=<directory>` to use a local CraftEngine build.
 
 `build` produces two artifacts in `build/libs/`: the runnable plugin (`farmersdelight-<version>.jar`, the shadow jar) and the addon-facing api-only jar (`farmersdelight-plugin-<version>-api.jar`, and the same content as the module's plain `farmersdelight-plugin-<version>.jar`), which contains only `com.huidu.farmersdelight.api.**`. The api is also published under the coordinates `com.huidu.farmersdelight:farmersdelight-plugin:<version>`, which addons consume through one of two channels:
 

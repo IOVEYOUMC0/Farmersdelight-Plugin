@@ -26,7 +26,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * Register ids under the farmersdelight: namespace to stay clear of the conflict detector; other namespaces are
  * still fine because API-registered ids are whitelisted there.
  */
-@ApiStatus.NonExtendable
 public final class FarmersDelightEnchantments {
 
     private static final Map<String, EnchantmentDefinition> MANAGED = new ConcurrentHashMap<>();

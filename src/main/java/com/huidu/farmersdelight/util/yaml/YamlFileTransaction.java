@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
+import java.util.function.Function;
 
 /**
  * One YAML file's edits, applied to the text itself.
@@ -28,7 +29,7 @@ import java.util.regex.Pattern;
 public final class YamlFileTransaction {
 
     /** One edit on one YAML path. The path is a list of keys, never a dotted string, so ids may contain dots. */
-    public sealed interface Edit permits SetValue, RemoveValue {
+    public sealed interface Edit permits SetValue, RemoveValue, UpdateValue {
     }
 
     /** Writes the value at the path, creating the entry and its missing parents when they are absent. */
@@ -49,6 +50,17 @@ public final class YamlFileTransaction {
             path = List.copyOf(Objects.requireNonNull(path, "path"));
             if (path.isEmpty()) {
                 throw new IllegalArgumentException("An edit needs a key to remove");
+            }
+        }
+    }
+
+    /** Resolves a value from the current file while holding its transaction lock; null removes the entry. */
+    public record UpdateValue(List<String> path, Function<String, Object> update) implements Edit {
+        public UpdateValue {
+            path = List.copyOf(Objects.requireNonNull(path, "path"));
+            Objects.requireNonNull(update, "update");
+            if (path.isEmpty()) {
+                throw new IllegalArgumentException("An edit needs a key to update");
             }
         }
     }
@@ -129,6 +141,10 @@ public final class YamlFileTransaction {
     }
 
     private static String applyEdit(String text, Edit edit, ValueWriter writer, String eol) {
+        if (edit instanceof UpdateValue update) {
+            Object value = update.update().apply(text);
+            edit = value == null ? new RemoveValue(update.path()) : new SetValue(update.path(), value);
+        }
         if (edit instanceof RemoveValue remove) {
             return removeEntry(text, remove.path());
         }

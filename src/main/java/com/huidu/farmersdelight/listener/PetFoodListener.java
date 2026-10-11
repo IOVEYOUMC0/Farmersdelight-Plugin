@@ -2,9 +2,9 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.config.PetFoodConfig;
-import com.huidu.farmersdelight.util.CompatAttributes;
 import com.huidu.farmersdelight.util.InteractionDebouncer;
 import com.huidu.farmersdelight.util.ItemUtils;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Particle;
@@ -74,7 +74,7 @@ public class PetFoodListener implements Listener {
         if (entity.isDead()) return false;
         
         if (definition.restoreHealth()) {
-            var maxHealthAttr = entity.getAttribute(CompatAttributes.MAX_HEALTH);
+            var maxHealthAttr = entity.getAttribute(Attribute.MAX_HEALTH);
             if (maxHealthAttr != null) {
                 entity.setHealth(maxHealthAttr.getValue());
             }

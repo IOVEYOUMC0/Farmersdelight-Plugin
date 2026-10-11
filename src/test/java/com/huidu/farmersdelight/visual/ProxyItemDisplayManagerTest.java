@@ -2,6 +2,9 @@ package com.huidu.farmersdelight.visual;
 
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.util.Transformation;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
@@ -12,6 +15,40 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ProxyItemDisplayManagerTest {
+
+    @Test
+    void cullingBoundsIncludeTranslationRotationAndNegativeScale() {
+        Transformation transformation = new Transformation(new Vector3f(2, 3, 4),
+                new Quaternionf().rotateY(0.8F), new Vector3f(-2, 1, 3), new Quaternionf().rotateX(0.4F));
+        var data = ProxyItemDisplayManager.cullingData(new Location(null, 10, 20, 30),
+                transformation, 0.5D, 48, true);
+        assertEquals(48, data.maxDistance);
+        assertTrue(data.rayTracing);
+        for (int x = -1; x <= 1; x += 2) {
+            for (int y = -1; y <= 1; y += 2) {
+                for (int z = -1; z <= 1; z += 2) {
+                    Vector3f corner = new Vector3f(x * 0.5F, y * 0.5F, z * 0.5F);
+                    transformation.getRightRotation().transform(corner);
+                    corner.mul(transformation.getScale());
+                    transformation.getLeftRotation().transform(corner);
+                    corner.add(12, 23, 34);
+                    assertTrue(corner.x >= data.aabb.minX && corner.x <= data.aabb.maxX);
+                    assertTrue(corner.y >= data.aabb.minY && corner.y <= data.aabb.maxY);
+                    assertTrue(corner.z >= data.aabb.minZ && corner.z <= data.aabb.maxZ);
+                }
+            }
+        }
+    }
+
+    @Test
+    void seeThroughDisplayCanKeepNativeDistanceCullingWithoutRayTracing() {
+        var data = ProxyItemDisplayManager.cullingData(new Location(null, 0, 0, 0),
+                new Transformation(new Vector3f(), new Quaternionf(), new Vector3f(1), new Quaternionf()),
+                1.0D, -1, false);
+        assertFalse(data.rayTracing);
+        assertEquals(-1, data.maxDistance);
+        assertTrue(Double.isFinite(data.aabb.minX));
+    }
 
     @Test
     void candidateRadiusCoversConfiguredViewDistance() {

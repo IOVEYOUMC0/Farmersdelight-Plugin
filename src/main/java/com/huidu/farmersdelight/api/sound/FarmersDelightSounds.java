@@ -6,7 +6,6 @@ import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
-import org.jetbrains.annotations.ApiStatus;
 
 import java.util.List;
 
@@ -16,7 +15,6 @@ import java.util.List;
  * matching how FarmersDelight's own stations resolve their configured sounds. Methods that take
  * null/blank keys fall back to the supplied Sound fallback.
  */
-@ApiStatus.NonExtendable
 public final class FarmersDelightSounds {
 
     private FarmersDelightSounds() {

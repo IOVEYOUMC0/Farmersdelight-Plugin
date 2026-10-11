@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.gui;
 
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryCloseEvent;
@@ -17,16 +18,19 @@ public abstract class AbstractInventoryGui implements InventoryHolder {
     // own region. Batch close loops (reload, block break) run on whatever thread triggered them, so
     // every such loop routes through here instead of calling closeInventory directly.
     protected static void closeViewerInventory(Player player) {
+        closeViewerInventory(player, null);
+    }
+
+    protected static void closeViewerInventory(Player player, Inventory expected) {
         if (player == null) {
             return;
         }
         try {
-            player.getScheduler().run(FarmersDelightPlugin.getInstance(), t -> player.closeInventory(), null);
-        } catch (Throwable t) {
-            try {
-                player.closeInventory();
-            } catch (Throwable ignored) {
-            }
+            player.getScheduler().run(FarmersDelightPlugin.getInstance(), t -> {
+                if (expected == null || player.getOpenInventory().getTopInventory() == expected) player.closeInventory();
+            }, null);
+        } catch (RuntimeException rejected) {
+            // A rejected entity task cannot safely be retried on the calling region.
         }
     }
 
@@ -91,14 +95,14 @@ public abstract class AbstractInventoryGui implements InventoryHolder {
     }
 
     public void onClose(InventoryCloseEvent event) {
-        if (event.getInventory().getHolder() != this) return;
+        if (PerformanceProbe.holder(event.getInventory()) != this) return;
         if (closed) return;
         close();
         removeFromActiveGuis(event.getPlayer().getUniqueId());
     }
 
     public void onDrag(InventoryDragEvent event) {
-        if (event.getView().getTopInventory().getHolder() != this) return;
+        if (PerformanceProbe.holder(event.getView().getTopInventory()) != this) return;
         // Cancel all drags into the top inventory by default; subclasses may allow specific drag behavior.
         for (int rawSlot : event.getRawSlots()) {
             if (rawSlot >= 0 && rawSlot < event.getView().getTopInventory().getSize()) {

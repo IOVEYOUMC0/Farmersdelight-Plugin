@@ -206,8 +206,8 @@ public final class WorldDataConfig {
         if (chance <= 0.0D) {
             return null;
         }
-        return new TradeOffer(profession, level, ingredient.toLowerCase(Locale.ROOT), ingredientAmount,
-                result.toLowerCase(Locale.ROOT), resultAmount, maxUses, villagerXp, priceMultiplier,
+        return new TradeOffer(profession, level, ingredient, ingredientAmount,
+                result, resultAmount, maxUses, villagerXp, priceMultiplier,
                 Math.min(1.0D, chance));
     }
 

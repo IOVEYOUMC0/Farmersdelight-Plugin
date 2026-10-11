@@ -4,11 +4,13 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.manager.HandheldDisplays;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import io.papermc.paper.event.player.PlayerStopUsingItemEvent;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
@@ -45,36 +47,12 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
- * The wiring for handheld skewer cooking: a player right-clicks a raw skewer next to a heat source, the skewer
- * cooks for handheld-skewer.cooking-time-ticks ticks on the player's own scheduler, and finishing
- * consumes exactly one skewer and hands over the cooked one.
- *
- * Construction only stores the plugin (the same contract as the migration hooks), so the
- * registration order can be asserted without a server. start() reads the config and arms or disarms
- * the path; handheld-skewer.enabled: false — or a result table with nothing in it — leaves the path
- * inert: no session can start, no tick task is scheduled, and every handler returns immediately. The listener
- * itself stays in the registration list either way, because that list is a fixed order (see
- * ListenerRegistrationOrderTest); "off" means "armed with nothing", not "missing".
- *
- * Lifecycle. The one-per-tick loop exists only while a session does: it is armed when a session
- * starts and cancels itself once the last one ends, so a second skewer arms it again. Every tick is gated on
- * the session still holding the raw skewer it started from and on the right-click still being held, the same
- * per-tick gate the handheld skillet uses; a tick that fails it ends the session and takes the progress bar
- * with it, so a released click cannot cook anything.
- *
- * The vanilla use. The raw skewers are food, so a right-click on one would also start eating it. The click is
- * cancelled only when this path accepts it and owns the session that follows; a click this path refuses (no
- * result, no heat, skillet busy, sneak required) is left alone and the skewer stays edible.
- *
- * Mutual exclusion. A player cooks one handheld item at a time: the skillet's session is checked
- * first (SkilletManager#isHandheldCooking) so the two paths cannot both claim the same right-click,
- * and HandCookedSkewerService#tryStart(UUID) refuses a second session for the same player.
- *
- * Known limits (real-server checklist). There is no client-side arm animation or progress bar (the
- * upstream mod uses a NeoForge client extension this plugin cannot replicate), and when the player stands
- * right on a region boundary a heat source that lives in the neighbour region may be missed, because the
- * dispatched probe read only sets a shared flag and the answer is used immediately — the safe direction (no
- * cooking starts) but a timing hole only a real Folia server can show.
+ * Runs handheld skewer cooking on the player entity scheduler.
+ * Accepted clicks deny native item use; completion consumes one raw skewer and delivers one cooked result.
+ * The tick loop exists only while sessions are active and stops a session when its hand, slot or held use changes.
+ * Skillet sessions take precedence, so the same player cannot run both handheld cooking paths.
+ * Client arm animation is unavailable. At region boundaries, dispatched heat reads may finish after
+ * the synchronous decision and prevent a valid attempt from starting.
  */
 public final class HandCookedSkewerHooks implements Listener {
 
@@ -185,7 +163,7 @@ public final class HandCookedSkewerHooks implements Listener {
     private final Map<UUID, SkewerSession> hands = new ConcurrentHashMap<>();
     private volatile HandCookedSkewerService service;
     private volatile SkewerResultTable results = new SkewerResultTable(null);
-    // Override table first, campfire recipe second (upstream default). Swapped for the production source in
+    // Configured overrides precede campfire recipes. The production source is installed in
     // start(); tests drive it directly through setResultSource.
     private volatile SkewerResultSource resultSource = this::configuredResult;
     // Handheld progress bar: the held skewer is rewritten for that viewer only (client-side copy). Disabled by
@@ -302,7 +280,7 @@ public final class HandCookedSkewerHooks implements Listener {
                 readResults(active),
                 this::armSchedulerTask,
                 null);
-        // Upstream result source: the configured override table first, then the campfire recipe, using the
+        // Resolve configured overrides before campfire recipes, using the
         // very same cache instance the skillet queries (one recipe-table scan per rebuild).
         setResultSource(new CampfireSkewerResults(() -> results,
                 () -> active.getSkilletManager() == null ? null : active.getSkilletManager().campfireRecipes()));
@@ -445,18 +423,10 @@ public final class HandCookedSkewerHooks implements Listener {
     }
 
     /**
-     * Right click with a raw skewer in hand. HandCookedItem#use is the trigger and useOn is not overridden, so
-     * a click the item can take falls through to it: an air click always does, and a block click does when the
-     * block has no interaction of its own (fire, soul fire, lava, magma block, plain terrain) or when the
-     * player sneaks. Which click is ours is decided only in SkewerBlockClickPolicy; this method
-     * resolves the hand, reports, and starts the session.
-     *
-     * Runs at MONITOR. The vanilla use is cancelled only once this path accepts the click and has a session
-     * for it: the raw skewers are food, so an uncancelled click would also start eating the skewer that is
-     * being cooked, and one skewer would become a meal and a cooked skewer at the same time. A click this
-     * path refuses is left untouched, so the skewer stays edible everywhere else.
+     * Accepts skewer use at HIGHEST after earlier cancellations.
+     * Only an accepted session denies native block and item use; refused clicks are unchanged.
      */
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent event) {
         Action action = event.getAction();
         Player player = event.getPlayer();
@@ -465,11 +435,11 @@ public final class HandCookedSkewerHooks implements Listener {
         // Entry line first, so every return below leaves a trace — the "right click next to a heat source does
         // nothing" report had nothing at all. It resolves the held id only under the handheld debug category, so
         // a click that is not ours costs one action compare and one category check with debug off.
-        String entryId = logEntryPoint(player, action, reportedHand, event.isCancelled(), clickedBlock);
+        String entryId = logEntryPoint(player, action, reportedHand, event.useInteractedBlock() == Event.Result.DENY, clickedBlock);
 
         boolean rightClickBlock = action == Action.RIGHT_CLICK_BLOCK;
         boolean blockHasInteraction = rightClickBlock && clickedBlock != null
-                && clickedBlock.getType().isInteractable();
+                && CraftEngineAdapter.hasBlockInteraction(event);
         SkewerBlockClickPolicy.Decision decision = decideClick(action, blockHasInteraction, player.isSneaking());
         if (!SkewerBlockClickPolicy.accepted(decision)) {
             if (decision != SkewerBlockClickPolicy.Decision.DECLINE_NOT_A_RIGHT_CLICK) {
@@ -487,7 +457,7 @@ public final class HandCookedSkewerHooks implements Listener {
         boolean skilletCooking = armed && isSkilletCooking(player);
         boolean nearbyHeat = armed && candidate.hasResult() && !skilletCooking && hasHeat(player);
         String blocked = blockedReason(armed, candidate.hasResult(), skilletCooking, player.isSneaking(),
-                requireSneak, nearbyHeat, false);
+                requireSneak, nearbyHeat);
         if (blocked != null) {
             // Never silent: a use that does not start says why, once per player per reason under debug, and
             // once per player in the log either way. Diagnosis beats a shrug.
@@ -507,50 +477,33 @@ public final class HandCookedSkewerHooks implements Listener {
         }
         // Owned by a session now (started or confirmed): stop the vanilla use, so a hungry player does not eat
         // the skewer this same click is cooking and the repeat clicks keep confirming the session.
-        event.setCancelled(true);
-        if (event.hasItem()) {
-            // Paper reports no item for some air clicks; the use result can only be denied when there is one.
-            event.setUseItemInHand(Event.Result.DENY);
-        }
+        event.setUseInteractedBlock(Event.Result.DENY);
+        event.setUseItemInHand(Event.Result.DENY);
         if (start == SessionStart.STARTED) {
             startProgressDisplay(player.getUniqueId(), slot, candidate.rawId());
         }
     }
 
     /**
-     * Observation only, and the reason it exists: the handler above is never called for an event another plugin
-     * already cancelled (ignoreCancelled = true), so "the click did nothing" cannot be told apart from
-     * "the event never arrived". This one is called for cancelled events as well and writes the same entry line
-     * into the same bounded set — it reads, writes that one line, and returns. It never cancels the event, never
-     * starts a session and never touches the inventory.
-     *
-     * At MONITOR on purpose: at the earliest priority no other listener has run yet, so cancelled would
-     * read false for exactly the events this is meant to expose; by MONITOR the field carries the outcome of every
-     * other plugin, which is the answer the field test needs. Sharing the dedupe with the handler above is what
-     * keeps this at one line per action instead of two.
+     * Observes cancelled and accepted clicks at MONITOR when handheld debug is enabled.
+     * The shared dedupe avoids duplicate log entries; no interaction or inventory state is changed.
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
     public void onInteractObserved(PlayerInteractEvent event) {
         if (plugin == null || !plugin.isDebugEnabled("handheld")) {
             return;
         }
-        logEntryPoint(event.getPlayer(), event.getAction(), event.getHand(), event.isCancelled(),
+        logEntryPoint(event.getPlayer(), event.getAction(), event.getHand(), event.useInteractedBlock() == Event.Result.DENY,
                 event.getClickedBlock());
     }
 
     /**
-     * The first gate that stops this use, or null when it may start. Pure so the wiring tests can pin every
-     * silent failure (no raw id, no result, skillet busy, sneaking required, no heat). blockClick is the
-     * caller's verdict that the clicked block keeps the interaction, not "a block was clicked": a block click the
-     * policy accepted is passed as false.
+     * Returns the first session gate that rejects cooking, or null when all gates pass.
      */
     @ApiStatus.Internal
     @Nullable
     static String blockedReason(boolean armed, boolean hasResult, boolean skilletCooking, boolean sneaking,
-                                boolean requireSneak, boolean nearbyHeat, boolean blockClick) {
-        if (blockClick) {
-            return "block-click (vanilla owns it)";
-        }
+                                boolean requireSneak, boolean nearbyHeat) {
         if (!armed) {
             return "disabled";
         }
@@ -700,12 +653,8 @@ public final class HandCookedSkewerHooks implements Listener {
     }
 
     /**
-     * The start decision, on plain inputs so the tests can drive it without a server.
-     *
-     * Upstream parity: the heat check is the 3x3x3 cube around the player (or the player being on fire) and the
-     * use has to be held for the full cooking time; useOn is not overridden, so a block click only starts this
-     * when the block has no interaction of its own — SkewerBlockClickPolicy decides that and passes the
-     * outcome in as blockClick (true meaning "the block keeps the click").
+     * Starts only when the click belongs to this path, heat is present and no other handheld session owns it.
+     * The caller supplies the interaction decision; true blockClick means the block keeps the click.
      */
     @ApiStatus.Internal
     boolean handleUse(UUID player, EquipmentSlot hand, boolean rawSkewer, boolean skilletCooking, boolean sneaking,
@@ -1286,11 +1235,12 @@ public final class HandCookedSkewerHooks implements Listener {
 
     private static Map<String, String> readResults(FarmersDelightPlugin plugin) {
         Map<String, String> configured = new LinkedHashMap<>();
-        if (!plugin.getConfig().isConfigurationSection("handheld-skewer.results")) {
+        ConfigurationSection results = plugin.getConfig().getConfigurationSection("handheld-skewer.results");
+        if (results == null) {
             return configured;
         }
-        for (String key : plugin.getConfig().getConfigurationSection("handheld-skewer.results").getKeys(false)) {
-            configured.put(key, plugin.getConfig().getString("handheld-skewer.results." + key));
+        for (String key : results.getKeys(false)) {
+            configured.put(key, results.getString(key));
         }
         return configured;
     }

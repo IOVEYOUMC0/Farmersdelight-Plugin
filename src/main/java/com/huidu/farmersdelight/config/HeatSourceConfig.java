@@ -16,8 +16,6 @@ import org.bukkit.block.data.Lightable;
 import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;

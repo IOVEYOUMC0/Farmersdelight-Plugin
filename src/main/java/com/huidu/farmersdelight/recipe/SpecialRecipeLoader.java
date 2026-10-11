@@ -13,6 +13,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
@@ -160,7 +161,7 @@ public final class SpecialRecipeLoader {
                 try {
                     File parent = file.getParentFile();
                     if (parent != null && !parent.exists()) {
-                        parent.mkdirs();
+                        Files.createDirectories(parent.toPath());
                     }
                     Files.copy(legacy.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 } catch (IOException e) {
@@ -191,11 +192,13 @@ public final class SpecialRecipeLoader {
     }
 
     private static YamlConfiguration loadBundled(FarmersDelightPlugin plugin) {
-        try (Reader reader = new BufferedReader(
-                new InputStreamReader(plugin.getResource(FILE_NAME), StandardCharsets.UTF_8), 8192)) {
-            YamlConfiguration yaml = new YamlConfiguration();
-            yaml.load(reader);
-            return yaml;
+        try (InputStream stream = plugin.getResource(FILE_NAME)) {
+            if (stream == null) throw new IOException("Bundled resource missing: " + FILE_NAME);
+            try (Reader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8), 8192)) {
+                YamlConfiguration yaml = new YamlConfiguration();
+                yaml.load(reader);
+                return yaml;
+            }
         } catch (Exception e) {
             I18n.logWarning("recipe.special_recipe_load_failed",
                     "file", FILE_NAME, "error", e.getMessage());

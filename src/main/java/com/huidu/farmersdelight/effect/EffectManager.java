@@ -5,9 +5,9 @@ import com.huidu.farmersdelight.api.buff.BuffBossbar;
 import com.huidu.farmersdelight.api.buff.CustomBuffRegistry;
 import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.api.text.FarmersDelightText;
-import com.huidu.farmersdelight.util.CompatAttributes;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.GameRule;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.ConfigurationSection;
@@ -374,7 +374,7 @@ public final class EffectManager {
     private static void tickNourishment(Player player) {
         if (player.isDead()) return;
 
-        var maxHealthAttr = player.getAttribute(CompatAttributes.MAX_HEALTH);
+        var maxHealthAttr = player.getAttribute(Attribute.MAX_HEALTH);
         if (maxHealthAttr == null) return;
 
         boolean naturalRegen = Boolean.TRUE.equals(player.getWorld().getGameRuleValue(GameRule.NATURAL_REGENERATION));
@@ -392,7 +392,7 @@ public final class EffectManager {
         int healIntervalTicks = getComfortHealIntervalTicks();
         if (healIntervalTicks <= 0 || durationTicks % healIntervalTicks != 0) return;
 
-        var maxHealthAttr = player.getAttribute(CompatAttributes.MAX_HEALTH);
+        var maxHealthAttr = player.getAttribute(Attribute.MAX_HEALTH);
         if (maxHealthAttr == null) return;
         double maxHealth = maxHealthAttr.getValue();
         if (player.getHealth() < maxHealth) {

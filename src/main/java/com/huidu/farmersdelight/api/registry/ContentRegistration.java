@@ -28,31 +28,11 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Lets another plugin register its own CraftEngine content types — block behaviors, item behaviors,
- * common functions, common conditions and loot functions — under its own namespace, so its content pack
- * can reference them from YAML the same way FarmersDelight's own pack does.
- *
- * Registrations are remembered here and applied through the same CraftEngine registries
- * FarmersDelight's own content uses (BehaviorRegistrar); they are re-applied on every
- * registration pass, so a CraftEngine reload that rebuilds its registries does not lose them.
- *
- * An id must be namespaced (myplugin:my_function) and must not use the
- * minecraft or farmersdelight namespaces: those are reserved, and a content pack that
- * overrides FarmersDelight's own type ids would change behaviour for every other pack on the server.
- * Registering an id that is already taken — by FarmersDelight itself or by another plugin — is
- * rejected rather than silently replacing it.
- *
- * Registering after CraftEngine has finished loading its content still succeeds, but content that
- * already exists only picks the type up after CraftEngine re-reads it; that case is reported through
- * the plugin.content_registration_late console key so the operator can reload CraftEngine
- * instead of guessing why the type appears to be ignored.
- *
- * CraftEngine has no API to remove a registered type. unregister(Key) therefore stops this
- * registry from re-applying the entry and forgets it, but the type stays registered inside CraftEngine
- * for the rest of the JVM run: content that already uses the id keeps working, and the id cannot be
- * registered again (a replacement factory would never be consulted). Use a new id instead.
+ * Registers addon CE types and reapplies them after registry rebuilds.
+ * IDs must be namespaced, unique, and outside minecraft and farmersdelight.
+ * Late registration requires CE to reread content before existing definitions use it.
+ * Unregistering stops reapplication; CE retains the type until restart, so replacement needs a new ID.
  */
-@ApiStatus.NonExtendable
 public final class ContentRegistration {
 
     /** The CraftEngine registry a registration belongs to. */

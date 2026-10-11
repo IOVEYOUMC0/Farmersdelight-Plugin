@@ -6,7 +6,6 @@ import net.momirealms.craftengine.core.plugin.context.Condition;
 import net.momirealms.craftengine.core.plugin.context.Context;
 import net.momirealms.craftengine.core.plugin.context.condition.ConditionFactory;
 import net.momirealms.craftengine.core.plugin.context.parameter.DirectContextParameters;
-import org.bukkit.inventory.ItemStack;
 
 /**
  * Matches when the item the loot is evaluated with is one of the configured knives.

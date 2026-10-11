@@ -2,7 +2,6 @@ package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.api.gui.GuiTakeAmounts;
 import com.huidu.farmersdelight.api.util.ItemDelivery;
-import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -16,13 +15,11 @@ import java.util.Map;
 public class CookingPotOutputTaker {
 
     private final CookingPotBlockEntity blockEntity;
-    private final FarmersDelightPlugin plugin;
     private final Map<Integer, Integer> slotMapping;
 
-    public CookingPotOutputTaker(CookingPotBlockEntity blockEntity, FarmersDelightPlugin plugin,
+    public CookingPotOutputTaker(CookingPotBlockEntity blockEntity,
                                  Map<Integer, Integer> slotMapping) {
         this.blockEntity = blockEntity;
-        this.plugin = plugin;
         this.slotMapping = slotMapping;
     }
 
@@ -71,11 +68,6 @@ public class CookingPotOutputTaker {
             return null;
         }
         return blockEntity.takeOutputSlotPortionForDelivery(player, entitySlot, requestedAmount);
-    }
-
-    public void applyOutputExperienceReward(Player player, ItemStack result) {
-        blockEntity.awardUsedRecipes(player);
-        plugin.callCookingPotExperienceEvent(player, result, 0.0D);
     }
 
     public void deliverOutputToPlayer(InventoryClickEvent event, Player player, ItemStack meal) {

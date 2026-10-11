@@ -129,14 +129,14 @@ class EditorWriteQueueTest {
     void theEditorKeepsSerialisationOnTheOwnerThread() throws IOException {
         String store = readSource("gui/editor/RecipeEditorStore.java");
         String submit = between(store, "private boolean submitPlan(", "    /** Editor writes still in flight");
-        assertTrue(submit.contains("runForEntity("),
+        assertTrue(store.contains("runForEntity("),
                 "the completion has to come back through the player's own scheduler");
         assertFalse(submit.contains("buildCookingPotBody") || submit.contains("buildCuttingBoardBody"),
                 "the plan is built before the queue is used, so serialisation stays off the worker");
         assertTrue(store.indexOf("new EditorWriteQueue.EditPlan(") < store.indexOf("writeQueue.submit(plan,"),
                 "the plan exists before it is submitted");
-        assertTrue(store.contains("plugin.reloadRecipeFiles()") && submit.contains("plugin.reloadRecipeFiles()"),
-                "the managers are rebuilt on the owner thread once the write landed");
+        assertTrue(store.contains("plugin.reloadRecipeFiles()") && submit.contains("plugin.reloadRecipeFiles(published ->"),
+                "the managers publish independently of the player once the write landed");
 
         String pot = readSource("gui/editor/CookingPotEditorGui.java");
         String board = readSource("gui/editor/CuttingBoardEditorGui.java");

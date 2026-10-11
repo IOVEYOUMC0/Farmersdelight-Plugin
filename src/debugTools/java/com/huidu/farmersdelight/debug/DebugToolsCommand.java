@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.debug;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.util.DebugToolExtension;
+import com.huidu.farmersdelight.api.block.CraftEngineBlockAccess;
 import com.huidu.farmersdelight.api.util.DebugToolRegistry;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
@@ -9,6 +10,7 @@ import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntity;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.manager.SkilletManager;
+import com.huidu.farmersdelight.manager.HandheldSimulation;
 import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
@@ -22,20 +24,11 @@ import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.ManagerSupport;
-import com.huidu.farmersdelight.util.OutputCap;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
-import net.kyori.adventure.translation.GlobalTranslator;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
-import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
 import net.momirealms.craftengine.core.item.Item;
-import net.momirealms.craftengine.core.item.component.DataComponentKeys;
-import net.momirealms.craftengine.core.plugin.locale.TranslationManager;
-import net.momirealms.craftengine.libraries.nbt.CompoundTag;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -52,11 +45,8 @@ import org.bukkit.block.data.type.Campfire;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.CookingRecipe;
-import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.ArrayDeque;
 import java.util.Comparator;
@@ -68,10 +58,21 @@ import java.util.Objects;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.HashMap;
+import java.util.logging.Level;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiPredicate;
+
+import static com.huidu.farmersdelight.debug.DebugReadOnlyCommands.REPORT_CAP;
+import static com.huidu.farmersdelight.debug.DebugArguments.clamp;
+import static com.huidu.farmersdelight.debug.DebugArguments.normalize;
+import static com.huidu.farmersdelight.debug.DebugArguments.parseOptionalInt;
+import static com.huidu.farmersdelight.debug.DebugReflection.invoke;
+import static com.huidu.farmersdelight.debug.DebugReflection.getField;
+import static com.huidu.farmersdelight.debug.DebugReflection.setField;
+import static com.huidu.farmersdelight.debug.DebugReflection.getIntField;
 
 /**
  * The /fd debugtools command set (test/place/placeRecipe/placeRecipeRandom/activate/undo/stop/
@@ -95,8 +96,7 @@ public final class DebugToolsCommand {
     // class comment). Read with getConfig().getInt(key, default), so an absent key always means the default.
     private static final String CONFIG_MAX_PLACE_COUNT = "debug-tools.max-place-count";
     private static final List<String> TEST_TARGETS = List.of("cooking_pot", "skillet", "stove", "handheld", "all");
-    private static final List<String> ACTIONS = List.of("test", "place", "placeRecipe", "placeRecipeRandom",
-            "activate", "undo", "stop", "inspect", "item", "recipe", "i18n");
+    private static final List<String> ACTIONS = List.of("test", "profile", "place", "activate", "undo", "stop", "inspect", "item", "recipe", "i18n");
     private static final List<String> TARGETS = List.of("cooking_pot", "skillet", "stove", "stove_blocked",
             "cutting_board", "basket", "all");
     // Stations a single recipe can be set up on; a recipe's own type decides which one is placed.
@@ -109,17 +109,20 @@ public final class DebugToolsCommand {
     private static final int UNDO_HISTORY_LIMIT = 8;
     // Reports whose line count follows the loaded content are cut to this many lines with the hidden count
     // appended; one line per loaded recipe would otherwise flood the chat. See sendCapped.
-    private static final int DEBUG_REPORT_CAP = 64;
-    private final Deque<PlacementBatch> undoHistory = new ArrayDeque<>();
+    private final Map<UUID, Deque<PlacementBatch>> undoHistory = new HashMap<>();
 
     private final FarmersDelightPlugin plugin;
     private final DebugBatchRunner batches;
+    private final DebugProfileRunner profiles;
+    private final DebugReadOnlyCommands diagnostics;
     private final Map<String, ItemStack> debugItemCache = new ConcurrentHashMap<>();
-    private final Map<UUID, PluginTask> handheldTests = new ConcurrentHashMap<>();
+    private final Map<UUID, HandheldTest> handheldTests = new ConcurrentHashMap<>();
 
     public DebugToolsCommand(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
         this.batches = new DebugBatchRunner(plugin);
+        this.profiles = new DebugProfileRunner(plugin);
+        this.diagnostics = new DebugReadOnlyCommands(plugin, batches);
     }
 
     public void execute(CommandSender sender, String label, String[] args) {
@@ -132,29 +135,39 @@ public final class DebugToolsCommand {
             return;
         }
 
+        args = normalizePlacementArguments(args);
         switch (normalize(args[1])) {
             case "test" -> test(player, args);
+            case "profile" -> profile(player, args);
             case "place" -> place(player, args);
             case "placerecipe", "place_recipe", "place-recipe" -> placeRecipe(player, args);
             case "placereciperandom", "place_random_recipe", "place-recipe-random" -> placeRecipeRandom(player, args);
             case "activate" -> activate(player, args);
             case "undo" -> undo(player);
             case "stop" -> stop(player);
-            case "inspect", "look" -> inspect(player, args);
-            case "item", "hand", "held" -> dumpHeldItem(player, args);
-            case "recipe", "recipes" -> recipeValidate(player);
-            case "i18n", "lang" -> i18nResolve(player, args);
+            case "inspect", "look" -> diagnostics.inspect(player, args);
+            case "item", "hand", "held" -> diagnostics.dumpHeldItem(player, args);
+            case "recipe", "recipes" -> diagnostics.recipeValidate(player);
+            case "i18n", "lang" -> diagnostics.i18nResolve(player, args);
             default -> sendUsage(player);
         }
     }
 
     public List<String> tabComplete(CommandSender sender, String[] args) {
+        if (args.length == 3 && "place".equals(normalize(args[1]))) {
+            List<String> targets = new ArrayList<>(TARGETS);
+            targets.addAll(List.of("recipe", "random"));
+            targets.addAll(DebugToolRegistry.registeredNames());
+            return complete(targets, args[2]);
+        }
+        args = normalizePlacementArguments(args);
         if (args.length == 2) {
             return complete(ACTIONS, args[1]);
         }
         if (args.length == 3) {
             String action = normalize(args[1]);
             if ("test".equals(action)) return complete(TEST_TARGETS, args[2]);
+            if ("profile".equals(action)) return complete(List.of("serialization"), args[2]);
             if ("item".equals(action) || "hand".equals(action) || "held".equals(action)) {
                 return complete(List.of("offhand"), args[2]);
             }
@@ -179,6 +192,9 @@ public final class DebugToolsCommand {
             List<String> ids = recipeIds(recipeChoices(normalize(args[2])));
             return complete(ids, args[3]);
         }
+        if (args.length == 4 && "profile".equals(normalize(args[1]))) {
+            return complete(List.of("200", "600", "1200"), args[3]);
+        }
         if (args.length == 4 && ("test".equals(normalize(args[1])) || "place".equals(normalize(args[1])))) {
             return complete(List.of("16", "64", "128", "512", "1024"), args[3]);
         }
@@ -186,6 +202,33 @@ public final class DebugToolsCommand {
             return complete(List.of("100", "200", "600", "1200"), args[4]);
         }
         return List.of();
+    }
+
+    static String[] normalizePlacementArguments(String[] args) {
+        if (args.length < 3 || !"place".equalsIgnoreCase(args[1])) return args;
+        String action;
+        if ("recipe".equalsIgnoreCase(args[2])) {
+            action = "place_recipe";
+        } else if ("random".equalsIgnoreCase(args[2])) {
+            action = "place_random_recipe";
+        } else {
+            return args;
+        }
+        String[] normalized = new String[args.length - 1];
+        normalized[0] = args[0];
+        normalized[1] = action;
+        System.arraycopy(args, 3, normalized, 2, args.length - 3);
+        return normalized;
+    }
+
+    private void profile(Player player, String[] args) {
+        Integer ticks = parseOptionalInt(args, 3, 600);
+        if (args.length < 3 || args.length > 4 || !"serialization".equals(normalize(args[2]))
+                || ticks == null || ticks < 20 || ticks > 12000) {
+            player.sendMessage(I18n.getComponent("command.debug_usage_profile", player));
+            return;
+        }
+        profiles.start(player, ticks, "serialization");
     }
 
     private void test(Player player, String[] args) {
@@ -196,56 +239,111 @@ public final class DebugToolsCommand {
             player.sendMessage(I18n.getComponent("command.debug_test_usage", player));
             return;
         }
+        if ("handheld".equals(normalize(args[2]))) {
+            testHandheld(player, Math.min(4096, Math.min(getMaxPlaceCount(), count)), ticks);
+            return;
+        }
         if (plugin.getTickManager().getPerformanceSnapshot().statsEnabled()) {
             player.sendMessage(I18n.getComponent("command.stats_profile_busy", player));
             return;
         }
-        if ("handheld".equals(normalize(args[2]))) {
-            testHandheld(player, ticks);
-            return;
-        }
         place(player, new String[]{args[0], "place", normalize(args[2]), count.toString(), "1", "1"}, true,
-                () -> player.performCommand("fd stats profile " + ticks + " " + normalize(args[2])));
+                () -> profiles.start(player, ticks, normalize(args[2])));
     }
 
-    private void testHandheld(Player player, int ticks) {
+    private void testHandheld(Player player, int count, int ticks) {
         SkilletManager manager = plugin.getSkilletManager();
-        if (manager == null) {
+        ItemStack pan = ItemUtils.createItem(Constants.BLOCK_SKILLET);
+        ItemStack ingredient = new ItemStack(Material.BEEF);
+        CookingRecipe<?> recipe = manager == null ? null : manager.campfireRecipes().find(ingredient);
+        if (pan == null || recipe == null) {
             player.sendMessage(I18n.getComponent("command.debug_test_handheld_unavailable", player));
             return;
         }
-        boolean started = manager.handleHandheldInteract(player, EquipmentSlot.HAND,
+        var simulation = new HandheldSimulation(count, pan, ingredient, recipe.getCookingTime(),
                 NamespacedKey.fromString("farmersdelight:skillet_cooking"),
-                NamespacedKey.fromString("farmersdelight:item/skillet_food"), Map.of());
-        if (!started) {
-            player.sendMessage(I18n.getComponent("command.debug_test_handheld_setup", player));
+                plugin.getConfigBoolean(true, "skillet.handheld.progress-display.enabled",
+                        "skillet.handheld-progress-display.enabled"),
+                item -> manager.campfireRecipes().find(item) == recipe, recipe::getResult);
+        HandheldTest job = new HandheldTest(simulation);
+        if (handheldTests.putIfAbsent(player.getUniqueId(), job) != null) {
+            player.sendMessage(I18n.getComponent("command.debug_batch_busy", player));
             return;
         }
-        player.performCommand("fd stats profile " + ticks + " handheld");
-        UUID playerId = player.getUniqueId();
-        PluginTask previous = handheldTests.remove(playerId);
-        if (previous != null) previous.cancel();
-        AtomicReference<PluginTask> taskRef = new AtomicReference<>();
-        PluginTask task = plugin.scheduler().runLater(() -> plugin.scheduler().runForEntity(player, () -> {
-            if (handheldTests.get(playerId) != taskRef.get()) return;
-            handheldTests.remove(playerId, taskRef.get());
-            manager.stopHandheldUse(player, null);
-        }), ticks + 1L);
-        taskRef.set(task);
-        handheldTests.put(playerId, task);
+        try {
+            job.task = plugin.scheduler().runRepeating(() -> {
+                if (handheldTests.get(player.getUniqueId()) != job || !job.scheduled.compareAndSet(false, true)) return;
+                try {
+                    plugin.scheduler().runForEntity(player, () -> {
+                        try {
+                            if (handheldTests.get(player.getUniqueId()) != job) return;
+                            if (!player.isOnline()) {
+                                discardHandheldTest(player.getUniqueId(), job);
+                                return;
+                            }
+                            simulation.tick();
+                            if (simulation.snapshot().ticks() >= ticks) finishHandheldTest(player, job);
+                        } catch (RuntimeException e) {
+                            discardHandheldTest(player.getUniqueId(), job);
+                            plugin.getLogger().log(Level.WARNING, "Handheld simulation failed", e);
+                            player.sendMessage(I18n.getComponent("command.debug_batch_failed", player,
+                                    Map.of("count", String.valueOf(simulation.snapshot().ticks()))));
+                        } finally {
+                            job.scheduled.set(false);
+                        }
+                    }, () -> discardHandheldTest(player.getUniqueId(), job));
+                } catch (RuntimeException e) {
+                    discardHandheldTest(player.getUniqueId(), job);
+                    plugin.getLogger().log(Level.WARNING, "Handheld simulation scheduling failed", e);
+                }
+            }, 1L, 1L);
+            if (handheldTests.get(player.getUniqueId()) != job) job.task.cancel();
+        } catch (RuntimeException e) {
+            discardHandheldTest(player.getUniqueId(), job);
+            throw e;
+        }
+        player.sendMessage(I18n.getComponent("command.debug_test_handheld_started", player,
+                Map.of("count", String.valueOf(count), "ticks", String.valueOf(ticks))));
+    }
+
+    private boolean discardHandheldTest(UUID owner, HandheldTest job) {
+        if (!handheldTests.remove(owner, job)) return false;
+        if (job.task != null) job.task.cancel();
+        return true;
+    }
+
+    private void finishHandheldTest(Player player, HandheldTest job) {
+        if (!discardHandheldTest(player.getUniqueId(), job)) return;
+        var result = job.simulation.snapshot();
+        player.sendMessage(I18n.getComponent("command.debug_test_handheld_result", player, Map.of(
+                "count", String.valueOf(result.sessions()), "ticks", String.valueOf(result.ticks()),
+                "calls", String.valueOf(result.calls()), "displays", String.valueOf(result.displayCalls()),
+                "completed", String.valueOf(result.completions()),
+                "avg", String.format(Locale.ROOT, "%.3f", result.totalNanos() / 1_000_000.0 / Math.max(1, result.ticks())),
+                "max", String.format(Locale.ROOT, "%.3f", result.maxTickNanos() / 1_000_000.0))));
     }
 
     private void stop(Player player) {
         boolean stopped = batches.stop(player);
-        PluginTask handheldTask = handheldTests.remove(player.getUniqueId());
-        if (handheldTask != null) {
-            handheldTask.cancel();
-            SkilletManager manager = plugin.getSkilletManager();
-            if (manager != null) manager.stopHandheldUse(player, null);
+        removeEmptyBatches(player.getUniqueId());
+        stopped |= profiles.stop(player);
+        HandheldTest job = handheldTests.get(player.getUniqueId());
+        if (job != null) {
+            finishHandheldTest(player, job);
             stopped = true;
         }
         player.sendMessage(I18n.getComponent(stopped
                 ? "command.debug_batch_stopped" : "command.debug_batch_no_task", player));
+    }
+
+    private static final class HandheldTest {
+        final HandheldSimulation simulation;
+        final AtomicBoolean scheduled = new AtomicBoolean();
+        volatile PluginTask task;
+
+        HandheldTest(HandheldSimulation simulation) {
+            this.simulation = simulation;
+        }
     }
 
     private void place(Player player, String[] args) {
@@ -319,10 +417,7 @@ public final class DebugToolsCommand {
             }
         });
         if (started) {
-            synchronized (undoHistory) {
-                undoHistory.addFirst(batch);
-                while (undoHistory.size() > UNDO_HISTORY_LIMIT) undoHistory.removeLast();
-            }
+            rememberBatch(batch);
             player.sendMessage(I18n.getComponent("command.debug_batch_started", player,
                     Map.of("count", String.valueOf(total))));
         } else {
@@ -504,29 +599,32 @@ public final class DebugToolsCommand {
                     setup.target(), setup.ingredients(), setup.container()));
         }
 
+        PlacementBatch batch = new PlacementBatch(player.getUniqueId());
+        List<RecipeSetup> live = new ArrayList<>();
         int[] skipped = {0};
         if (!batches.start(player, placements.size(), index -> {
             RecipeSetup setup = placements.get(index);
-            if (!canEdit(player, setup.location()) || !placeRecipeStationUnbudgeted(player, setup.location(), setup)) {
+            if (!canEdit(player, setup.location())) {
                 skipped[0]++;
+                return;
             }
+            PlaceResult result = placeOne(player, setup.location(), setup.target(), 0);
+            batch.entries.addAll(result.undoEntries());
+            if (result.placed()) {
+                batch.placed++;
+                live.add(setup);
+            } else skipped[0]++;
         }, () -> {
-            // Only the stations that actually landed are filled; the rest are reported as skipped positions.
-            List<RecipeSetup> live = new ArrayList<>();
-            for (RecipeSetup setup : placements) {
-                if (isRecipeStation(setup.location(), setup)) live.add(setup);
-            }
             if (live.isEmpty()) {
-                player.sendMessage(MINI_MESSAGE.deserialize("<red>No recipe station could be placed ("
-                        + skipped[0] + " position(s) skipped); nothing to fill.</red>"));
                 reportRecipeSummary(player, type, loaded, List.of(), skipped[0]);
                 return;
             }
-            fillRecipeSetups(player, type, loaded, live, skipped[0]);
+            fillRecipeSetups(player, type, loaded, live, skipped[0], batch);
         })) {
             player.sendMessage(I18n.getComponent("command.debug_batch_busy", player));
             return 0;
         }
+        rememberBatch(batch);
         player.sendMessage(MINI_MESSAGE.deserialize("<green>Recipe setup</green> <gray>station=" + type
                 + " loaded=" + loaded + " requested=" + placements.size() + "</gray>"));
         player.sendMessage(MINI_MESSAGE.deserialize("<gray>Placing " + placements.size() + " station(s) in"
@@ -535,19 +633,21 @@ public final class DebugToolsCommand {
     }
 
     /** Second half of a recipe setup: fill each placed station with the recipe's exact ingredients. */
-    private void fillRecipeSetups(Player player, String type, int loaded, List<RecipeSetup> setups, int skipped) {
+    private void fillRecipeSetups(Player player, String type, int loaded, List<RecipeSetup> setups, int skipped, PlacementBatch batch) {
         if (!batches.start(player, setups.size(), index -> {
             RecipeSetup setup = setups.get(index);
-            if (canEdit(player, setup.location())) fillRecipeStation(player, setup.location(), setup);
+            if (!canEdit(player, setup.location())) return;
+            UndoEntry entry = batch.entries.stream().filter(Objects::nonNull)
+                    .filter(saved -> saved.location().equals(setup.location())).findFirst().orElse(null);
+            if (!isStillOwned(entry)) return;
+            fillRecipeStation(player, setup.location(), setup);
+            entry.after = currentState(setup.location());
         }, () -> reportRecipeSummary(player, type, loaded, setups, skipped))) {
             player.sendMessage(I18n.getComponent("command.debug_batch_busy", player));
         }
     }
 
-    // The one line that names the recipe id — the point of the whole command — plus the station, the coordinate
-    // to inspect it at and how many ingredients actually landed, so a tester can compare all of that with what
-    // the plugin's own matcher reports for that station. The line count follows the requested setup count, so
-    // the per-setup lines go through the cap and the totals below are always sent.
+    // Cap per-station diagnostics; always include aggregate totals.
     private void reportRecipeSummary(Player player, String type, int loaded, List<RecipeSetup> setups, int skipped) {
         List<String> lines = new ArrayList<>(setups.size());
         for (RecipeSetup setup : setups) {
@@ -557,14 +657,12 @@ public final class DebugToolsCommand {
                     + "</yellow> <gray>station=" + setup.target() + " @ " + coords + " with "
                     + setup.ingredients().size() + " ingredient(s): " + ingredientSummary(setup) + "</gray>");
         }
-        sendCapped(player, lines, DEBUG_REPORT_CAP, "placed setup(s)");
+        diagnostics.sendCapped(player, lines, REPORT_CAP, "placed setup(s)");
         player.sendMessage(MINI_MESSAGE.deserialize("<gray>Recipe setups placed: " + setups.size()
                 + ", skipped positions=" + skipped + ", loaded recipes for " + type + "=" + loaded + "</gray>"));
     }
 
-    // Grid slot -> world position. One recipe per slot, spaced far enough apart that a pot's heat source and a
-    // neighbouring board (or its blocking block) never overlap. Slots come from the deterministic recipe order,
-    // so repeated tests of the same set land on the same coordinates.
+    // Stable spacing keeps recipe stations and heat sources from overlapping.
     private static Location recipeSetupLocation(Location origin, int grid, int slot) {
         if (origin == null) return null;
         int spacing = RECIPE_GRID_SPACING;
@@ -575,105 +673,12 @@ public final class DebugToolsCommand {
 
     private void activate(Player player, String[] args) {
         String target = args.length >= 3 ? normalizeTarget(args[2]) : "all";
-        boolean addonTarget = !isBuiltInTarget(target) && DebugToolRegistry.find(target) != null;
-        boolean addonAll = "all".equals(target);
-
-        // Extensions own their own activation work and expose it as a single call, not a per-block cursor, so
-        // it stays a single call; the built-in sweep below is the unbounded part and now runs through the
-        // batch runner. The candidate list is a snapshot of the tracked locations, and each block is checked
-        // with canEdit() before it is touched, exactly like place/undo.
-        List<PendingActivation> candidates = new ArrayList<>();
-        World world = player.getWorld();
-        if (isCookingPotTarget(target)) candidates.addAll(collectCookingPotCandidates(world));
-        if (isSkilletTarget(target)) candidates.addAll(collectSkilletCandidates(world));
-        if (isStoveTarget(target)) candidates.addAll(collectStoveCandidates(world));
-        if ((!isBuiltInTarget(target) && !addonTarget) || candidates.isEmpty()) {
-            if (!addonTarget && !addonAll && !isBuiltInTarget(target)) {
-                player.sendMessage(I18n.getComponent("command.debug_batch_unknown", player, Map.of("target", target)));
-                return;
-            }
-            activateAddons(player, target);
+        if (!isBuiltInTarget(target) && DebugToolRegistry.find(target) == null) {
+            player.sendMessage(I18n.getComponent("command.debug_batch_unknown", player, Map.of("target", target)));
             return;
         }
-
-        int[] activated = {0};
-        if (!batches.start(player, candidates.size(), index -> {
-            PendingActivation activation = candidates.get(index);
-            if (!canEdit(player, activation.location())) return;
-            activateScheduled(activation);
-            activated[0]++;
-        }, () -> {
-            player.sendMessage(I18n.getComponent("command.debug_batch_activated", player,
-                    Map.of("count", String.valueOf(activated[0]))));
-            activateAddons(player, target);
-        })) player.sendMessage(I18n.getComponent("command.debug_batch_busy", player));
-    }
-
-    private void activateAddons(Player player, String target) {
-        if (!isBuiltInTarget(target)) {
-            DebugToolExtension extension = DebugToolRegistry.find(target);
-            if (extension != null) {
-                player.sendMessage(MINI_MESSAGE.deserialize("<green>Debug scanned and filled "
-                        + extension.activate(player) + " placed blocks.</green>"));
-            }
-            return;
-        }
-        if ("all".equals(target)) {
-            for (DebugToolExtension extension : DebugToolRegistry.all()) {
-                player.sendMessage(MINI_MESSAGE.deserialize("<green>Debug scanned and filled "
-                        + extension.activate(player) + " placed blocks.</green>"));
-            }
-        }
-    }
-
-    private List<PendingActivation> collectCookingPotCandidates(World world) {
-        List<PendingActivation> candidates = new ArrayList<>();
-        int budget = getMaxPlaceCount();
-        for (Map.Entry<BlockPosKey, CookingPotBlockEntity> entry
-                : CookingPotBlockBehavior.getBlockEntityEntries(world)) {
-            if (candidates.size() >= budget) break;
-            Location location = entry.getKey().toLocation(world);
-            if (!isPlacedCustomBlock(location, Constants.BLOCK_COOKING_POT)) continue;
-            if (!hasHeatSourceBelow(location)) continue;
-            if (!entry.getValue().hasStoredContents()) {
-                applyCookingPotDebugState(entry.getValue(), location);
-                saveCookingPotData(location, entry.getValue(), entry.getKey());
-            }
-            syncCookingPotTray(location);
-            candidates.add(new PendingActivation(location, "cooking_pot"));
-        }
-        return candidates;
-    }
-
-    // Pruned to the same bound as a placement run: getMaxPlaceCount() caps how many stations one command may
-    // touch, and checking it here means the batch never holds more than that. The manager returns a live view
-    // of the tracked locations, so copying it is what makes the batch's snapshot safe to iterate later.
-    private List<PendingActivation> collectSkilletCandidates(World world) {
-        SkilletManager manager = plugin.getSkilletManager();
-        if (manager == null) return List.of();
-        List<PendingActivation> candidates = new ArrayList<>();
-        int budget = getMaxPlaceCount();
-        for (Location location : manager.getTrackedLocations(world)) {
-            if (candidates.size() >= budget) break;
-            if (!isPlacedCustomBlock(location, Constants.BLOCK_SKILLET)) continue;
-            if (!hasHeatSourceBelow(location)) continue;
-            candidates.add(new PendingActivation(location, "skillet"));
-        }
-        return candidates;
-    }
-
-    private List<PendingActivation> collectStoveCandidates(World world) {
-        StoveManager manager = plugin.getStoveManager();
-        if (manager == null) return List.of();
-        List<PendingActivation> candidates = new ArrayList<>();
-        int budget = getMaxPlaceCount();
-        for (Location location : manager.getTrackedLocations(world)) {
-            if (candidates.size() >= budget) break;
-            if (!isPlacedCustomBlock(location, Constants.BLOCK_STOVE)) continue;
-            if (!isStoveLit(location)) continue;
-            candidates.add(new PendingActivation(location, "stove"));
-        }
-        return candidates;
+        PlacementBatch batch = lastBatch(player);
+        if (batch != null) activateBatch(player, batch, target, () -> { });
     }
 
     private boolean isPlaceRecipeAction(String action) {
@@ -689,25 +694,52 @@ public final class DebugToolsCommand {
         PlacementBatch batch = lastBatch(player);
         if (batch == null) return;
         int[] restored = {0};
+        int[] skipped = {0};
         if (!batches.start(player, batch.entries.size(), index -> {
             int entryIndex = batch.entries.size() - 1 - index;
             UndoEntry entry = batch.entries.get(entryIndex);
             if (entry == null || !canEdit(player, entry.location())) return;
-            if (!hasChangedSinceCapture(entry)) return;
+            if (!isStillOwned(entry)) {
+                batch.entries.set(entryIndex, null);
+                skipped[0]++;
+                return;
+            }
             restoreUndoEntry(entry);
             batch.entries.set(entryIndex, null);
             restored[0]++;
         }, () -> {
             batch.entries.removeIf(Objects::isNull);
-            if (batch.entries.isEmpty()) synchronized (undoHistory) { undoHistory.remove(batch); }
+            removeEmptyBatches(player.getUniqueId());
             player.sendMessage(I18n.getComponent("command.debug_batch_undone", player,
                     Map.of("count", String.valueOf(restored[0]), "remaining", String.valueOf(batch.entries.size()))));
+            if (skipped[0] > 0) player.sendMessage(I18n.getComponent("command.debug_undo_skipped", player,
+                    Map.of("count", String.valueOf(skipped[0]))));
         })) player.sendMessage(I18n.getComponent("command.debug_batch_busy", player));
     }
 
-    private PlacementBatch lastBatch(Player player) {
+    private void rememberBatch(PlacementBatch batch) {
         synchronized (undoHistory) {
-            for (PlacementBatch batch : undoHistory) if (batch.owner.equals(player.getUniqueId())) return batch;
+            Deque<PlacementBatch> history = undoHistory.computeIfAbsent(batch.owner, ignored -> new ArrayDeque<>());
+            history.addFirst(batch);
+            while (history.size() > UNDO_HISTORY_LIMIT) history.removeLast();
+        }
+    }
+
+    private void removeEmptyBatches(UUID owner) {
+        synchronized (undoHistory) {
+            Deque<PlacementBatch> history = undoHistory.get(owner);
+            if (history == null) return;
+            // Active undo slices retain their indices until completion.
+            history.removeIf(batch -> batch.entries.stream().allMatch(Objects::isNull));
+            if (history.isEmpty()) undoHistory.remove(owner);
+        }
+    }
+
+    private PlacementBatch lastBatch(Player player) {
+        removeEmptyBatches(player.getUniqueId());
+        synchronized (undoHistory) {
+            Deque<PlacementBatch> history = undoHistory.get(player.getUniqueId());
+            if (history != null && !history.isEmpty()) return history.getFirst();
         }
         player.sendMessage(I18n.getComponent("command.debug_batch_empty", player));
         return null;
@@ -720,10 +752,20 @@ public final class DebugToolsCommand {
             if (!("all".equals(target) || target.equals(activation.target()))
                     || !canEdit(player, activation.location())) return;
             boolean stillPresent = batch.entries.stream().filter(Objects::nonNull)
-                    .anyMatch(entry -> entry.location().equals(activation.location()) && hasChangedSinceCapture(entry));
+                    .anyMatch(entry -> entry.location().equals(activation.location()) && isStillOwned(entry));
             if (!stillPresent) return;
-            activateScheduled(activation);
-            activated[0]++;
+            if (isBuiltInTarget(activation.target())) {
+                activateScheduled(activation);
+                activated[0]++;
+            } else {
+                DebugToolExtension extension = DebugToolRegistry.find(activation.target());
+                if (extension != null && !plugin.scheduler().isFolia()) {
+                    activated[0] += extension.activateAt(player, activation.location());
+                }
+            }
+            for (UndoEntry entry : batch.entries) {
+                if (entry != null && entry.location().equals(activation.location())) entry.after = currentState(entry.location());
+            }
         }, () -> {
             player.sendMessage(I18n.getComponent("command.debug_batch_activated", player,
                     Map.of("count", String.valueOf(activated[0]))));
@@ -753,391 +795,10 @@ public final class DebugToolsCommand {
                 captured.add(captureUndo(loc));
             });
         } finally {
-            for (UndoEntry entry : captured) rememberIfChanged(batch.entries, entry);
-        }
-    }
-
-    // Read-only diagnostics: inspect a block, dump a held item, validate recipes, trace a translation key.
-
-    private void inspect(Player player, String[] args) {
-        Integer requested = parseOptionalInt(args, 2, 6);
-        int distance = requested == null ? 6 : clamp(requested, 1, 64);
-        Block hit = player.getTargetBlockExact(distance);
-        Block target = (hit != null && !hit.getType().isAir())
-                ? hit
-                : player.getLocation().getBlock().getRelative(BlockFace.DOWN);
-        Location location = target.getLocation();
-        // The custom-block / block-entity / manager-snapshot reads below are documented region-thread-only on
-        // Folia, so the whole dump (and the reply to the player) runs on the region that owns the target block —
-        // the same pattern profile() uses. On Paper this executes inline.
-        plugin.scheduler().runAt(location, () -> dumpBlock(player, target));
-    }
-
-    private void dumpBlock(Player player, Block target) {
-        Location location = target.getLocation();
-        String coords = target.getWorld().getName() + " " + location.getBlockX() + ","
-                + location.getBlockY() + "," + location.getBlockZ();
-
-        ImmutableBlockState state = CustomBlockUtils.getState(target);
-        if (state == null || state.isEmpty()) {
-            player.sendMessage(MINI_MESSAGE.deserialize("<yellow>Inspect: no CraftEngine custom block at "
-                    + coords + " (bukkit " + target.getType() + ").</yellow>"));
-            return;
-        }
-
-        String id = CustomBlockUtils.getId(state);
-        player.sendMessage(MINI_MESSAGE.deserialize("<green>Inspect</green> <gray>" + id + " @ " + coords + "</gray>"));
-        player.sendMessage(MINI_MESSAGE.deserialize("<gray>bukkit-material:</gray> " + target.getType()));
-
-        String props = describeProperties(state);
-        player.sendMessage(MINI_MESSAGE.deserialize("<gray>properties:</gray> " + (props.isEmpty() ? "(none)" : props)));
-        player.sendMessage(MINI_MESSAGE.deserialize("<gray>behaviors:</gray> " + describeBehaviors(state)));
-
-        boolean definitionBE = state.hasBlockEntity();
-        boolean runtimeBE = false;
-        World world = target.getWorld();
-        BlockPosKey posKey = new BlockPosKey(location);
-        var ceWorld = CustomBlockUtils.getCEWorld(world);
-        if (ceWorld != null) {
-            try {
-                runtimeBE = ceWorld.getBlockEntityAtIfLoaded(posKey.toBlockPos()) != null;
-            } catch (Exception ignored) {
+            for (UndoEntry entry : captured) {
+                rememberIfChanged(batch.entries, entry);
+                if (entry != null && entry.after != null) batch.activations.add(new PendingActivation(entry.location(), target));
             }
-        }
-        player.sendMessage(MINI_MESSAGE.deserialize("<gray>block-entity:</gray> definition=" + definitionBE
-                + ", runtime=" + (runtimeBE ? "present" : "none")));
-
-        dumpCookingPotContents(player, world, location, posKey);
-        dumpStoveContents(player, location);
-        dumpSkilletContents(player, location);
-
-        Block below = target.getRelative(BlockFace.DOWN);
-        boolean heat = plugin.getHeatSourceConfig().isHeatSource(below);
-        player.sendMessage(MINI_MESSAGE.deserialize("<gray>heat-below:</gray> " + below.getType()
-                + " -> heat=" + heat));
-
-        TickManager tickManager = plugin.getTickManager();
-        if (tickManager != null) {
-            player.sendMessage(MINI_MESSAGE.deserialize("<gray>global active-blocks:</gray> "
-                    + tickManager.getPerformanceSnapshot().currentActiveBlocks()));
-        }
-    }
-
-    private String describeProperties(ImmutableBlockState state) {
-        StringBuilder builder = new StringBuilder();
-        for (Property<?> property : state.getProperties()) {
-            if (builder.length() > 0) {
-                builder.append(", ");
-            }
-            builder.append(property.name()).append('=').append(CustomBlockUtils.getPropertyString(state, property.name()));
-        }
-        return builder.toString();
-    }
-
-    private String describeBehaviors(ImmutableBlockState state) {
-        var behavior = state.behavior();
-        if (behavior == null) {
-            return "(none)";
-        }
-        try {
-            Object array = getField(behavior, "behaviors");
-            if (array instanceof Object[] behaviors) {
-                StringBuilder builder = new StringBuilder(behavior.getClass().getSimpleName()).append("[ ");
-                for (int i = 0; i < behaviors.length; i++) {
-                    if (i > 0) {
-                        builder.append(", ");
-                    }
-                    builder.append(behaviors[i] == null ? "null" : behaviors[i].getClass().getSimpleName());
-                }
-                return builder.append(" ]").toString();
-            }
-        } catch (ReflectiveOperationException notComposite) {
-            // Single-behavior block: no 'behaviors' field, fall through to the concrete class name.
-        }
-        return behavior.getClass().getSimpleName();
-    }
-
-    private void dumpCookingPotContents(Player player, World world, Location location, BlockPosKey posKey) {
-        if (!CookingPotBlockBehavior.isCookingPotBlock(world, posKey)
-                && !isPlacedCustomBlock(location, Constants.BLOCK_COOKING_POT)) {
-            return;
-        }
-        CookingPotBlockEntity entity = CookingPotBlockBehavior.getBlockEntity(location);
-        if (entity == null) {
-            player.sendMessage(MINI_MESSAGE.deserialize("<gray>pot contents:</gray> (no block-entity)"));
-            return;
-        }
-        var recipe = entity.getCurrentRecipe();
-        player.sendMessage(MINI_MESSAGE.deserialize("<gray>pot contents:</gray> stored=" + entity.hasStoredContents()
-                + ", input=" + entity.hasInput()
-                + ", progress=" + entity.getCookingProgress() + "/" + entity.getCookingDuration()
-                + ", comparator=" + entity.getComparatorOutput()
-                + ", recipe=" + (recipe == null ? "(none)" : recipe.getId())));
-        player.sendMessage(MINI_MESSAGE.deserialize("<gray>pot inputs:</gray> ")
-                .append(Component.text(entity.debugInputSummary())));
-    }
-
-    private void dumpStoveContents(Player player, Location location) {
-        StoveManager manager = plugin.getStoveManager();
-        if (manager == null || !manager.isStoveStateBlock(location)) {
-            return;
-        }
-        var snapshot = manager.snapshot(location);
-        if (snapshot == null) {
-            return;
-        }
-        StringBuilder slots = new StringBuilder();
-        var items = snapshot.items();
-        for (int i = 0; i < items.size(); i++) {
-            if (items.get(i) != null) {
-                slots.append(" [").append(i).append("] ").append(shortItem(items.get(i)))
-                        .append(' ').append(Math.round(snapshot.progressFraction(i) * 100)).append('%');
-            }
-        }
-        player.sendMessage(MINI_MESSAGE.deserialize("<gray>stove contents:</gray> lit=" + snapshot.lit()
-                + ", blockedAbove=" + snapshot.blockedAbove() + ", slots=" + snapshot.occupiedSlots() + slots));
-    }
-
-    private void dumpSkilletContents(Player player, Location location) {
-        SkilletManager manager = plugin.getSkilletManager();
-        if (manager == null) {
-            return;
-        }
-        var snapshot = manager.snapshot(location);
-        if (snapshot == null) {
-            return;
-        }
-        player.sendMessage(MINI_MESSAGE.deserialize("<gray>skillet contents:</gray> stored="
-                + shortItem(snapshot.storedItem())
-                + ", recipe=" + (snapshot.recipeId() == null ? "(none)" : snapshot.recipeId())
-                + ", progress=" + snapshot.progressTicks() + "/" + snapshot.cookTimeTicks()
-                + ", heated=" + snapshot.heated() + ", fireAspect=" + snapshot.fireAspectLevel()));
-    }
-
-    private String shortItem(ItemStack stack) {
-        if (stack == null || stack.getType().isAir()) {
-            return "empty";
-        }
-        String id = ItemUtils.resolveItemId(stack);
-        return (id == null ? stack.getType().name() : id) + " x" + stack.getAmount();
-    }
-
-    private void dumpHeldItem(Player player, String[] args) {
-        boolean offhand = args.length >= 3 && normalize(args[2]).startsWith("off");
-        ItemStack held = offhand
-                ? player.getInventory().getItemInOffHand()
-                : player.getInventory().getItemInMainHand();
-        if (held == null || held.getType().isAir()) {
-            player.sendMessage(MINI_MESSAGE.deserialize("<yellow>You are not holding an item"
-                    + (offhand ? " in your off hand." : ".") + "</yellow>"));
-            return;
-        }
-
-        player.sendMessage(MINI_MESSAGE.deserialize("<green>Item</green> <gray>(" + (offhand ? "off hand" : "main hand") + ")</gray>"));
-        player.sendMessage(MINI_MESSAGE.deserialize("<gray>material:</gray> " + held.getType()
-                + "  <gray>count:</gray> " + held.getAmount() + "/" + held.getMaxStackSize()));
-
-        try {
-            if (!ItemUtils.isAnyCustomItemLoaded()) {
-                player.sendMessage(MINI_MESSAGE.deserialize("<gray>ce-id:</gray> (CraftEngine items not loaded yet)"));
-                return;
-            }
-            String ceId = ItemUtils.getCustomItemId(held);
-            player.sendMessage(MINI_MESSAGE.deserialize("<gray>ce-id:</gray> " + (ceId == null ? "(vanilla)" : ceId)
-                    + "  <gray>resolved-id:</gray> " + ItemUtils.resolveItemId(held)
-                    + "  <gray>custom:</gray> " + ItemUtils.isCustomItem(held)));
-            List<String> tags = ItemUtils.getAllItemTagIds(held);
-            player.sendMessage(MINI_MESSAGE.deserialize("<gray>tags:</gray> "
-                    + (tags.isEmpty() ? "(none)" : String.join(", ", tags))));
-            dumpComponent(player, held, DataComponentKeys.CUSTOM_DATA, "custom_data");
-            dumpComponent(player, held, DataComponentKeys.BLOCK_ENTITY_DATA, "block_entity_data");
-        } catch (RuntimeException | LinkageError e) {
-            player.sendMessage(MINI_MESSAGE.deserialize("<red>CE identity unavailable: "
-                    + e.getClass().getSimpleName() + "</red>"));
-        }
-    }
-
-    private void dumpComponent(Player player, ItemStack item, Key componentKey, String label) {
-        try {
-            Item wrapped = BukkitItemManager.instance().wrap(item.clone());
-            CompoundTag tag = CustomBlockUtils.getComponentCompound(wrapped, componentKey);
-            if (tag == null) {
-                player.sendMessage(MINI_MESSAGE.deserialize("<gray>" + label + ":</gray> (absent)"));
-                return;
-            }
-            String text = tag.toString();
-            if (text.length() > 512) {
-                text = text.substring(0, 512) + "…(truncated)";
-            }
-            // The NBT text may contain '<' / '>' — append it as a literal component so MiniMessage does not parse it.
-            player.sendMessage(MINI_MESSAGE.deserialize("<gray>" + label + ":</gray> ").append(Component.text(text)));
-        } catch (Exception unreadable) {
-            player.sendMessage(MINI_MESSAGE.deserialize("<gray>" + label + ":</gray> (unreadable)"));
-        }
-    }
-
-    private void recipeValidate(Player player) {
-        if (batches.busy()) {
-            player.sendMessage(I18n.getComponent("command.debug_batch_busy", player));
-            return;
-        }
-        CookingPotRecipeManager potManager = plugin.getCookingPotRecipes();
-        List<CookingPotRecipe> potRecipes = new ArrayList<>();
-        if (potManager != null) {
-            Set<String> seenPotIds = new HashSet<>();
-            for (CookingPotRecipe recipe : potManager.getAllRecipes()) {
-                if (seenPotIds.add(recipe.getId())) {
-                    potRecipes.add(recipe);
-                }
-            }
-        }
-        CuttingBoardRecipeManager boardManager = plugin.getCuttingBoardRecipes();
-        List<CuttingBoardRecipe> boardRecipes = boardManager == null ? List.of() : boardManager.getSortedRecipes();
-
-        List<String> issues = new ArrayList<>();
-        int total = potRecipes.size() + boardRecipes.size();
-        // One loaded recipe per slice, so the runner walks the set over several ticks instead of one pass; the
-        // report is sent after the last slice, when the issue list can no longer grow.
-        if (!batches.start(player, total, index -> {
-            if (index < potRecipes.size()) {
-                checkPotRecipe(potManager, potRecipes.get(index), issues);
-            } else {
-                checkBoardRecipe(potManager, boardRecipes.get(index - potRecipes.size()), issues);
-            }
-        }, () -> {
-            player.sendMessage(MINI_MESSAGE.deserialize("<green>Recipe validation</green> <gray>scanned "
-                    + potRecipes.size() + " cooking-pot + " + boardRecipes.size() + " cutting-board recipes ("
-                    + total + " total)</gray>"));
-            sendCapped(player, issues, DEBUG_REPORT_CAP, "issue(s)");
-            if (issues.isEmpty()) {
-                player.sendMessage(MINI_MESSAGE.deserialize("<green>No unresolved item ids found.</green>"));
-            } else {
-                player.sendMessage(MINI_MESSAGE.deserialize("<yellow>" + issues.size()
-                        + " issue(s). Recipes that failed to PARSE at load are logged separately as 'recipe.load_failed'.</yellow>"));
-            }
-        })) {
-            player.sendMessage(I18n.getComponent("command.debug_batch_busy", player));
-        }
-    }
-
-    private void checkPotRecipe(CookingPotRecipeManager tagResolver, CookingPotRecipe recipe, List<String> issues) {
-        if (recipe.getIngredients().isEmpty()) {
-            issues.add("<red>[cooking_pot] " + recipe.getId() + "</red> <gray>has no ingredients</gray>");
-        }
-        if (recipe.getResult() == null || recipe.getResult().getType().isAir()) {
-            issues.add("<red>[cooking_pot] " + recipe.getId() + "</red> <gray>has no result</gray>");
-        }
-        if (recipe.getNeedsContainer()
-                && (recipe.getContainer() == null || recipe.getContainer().getType().isAir())) {
-            issues.add("<red>[cooking_pot] " + recipe.getId()
-                    + "</red> <gray>requires a container but none resolved</gray>");
-        }
-        for (RecipeIngredient ingredient : recipe.getIngredients()) {
-            checkIngredient(tagResolver, "cooking_pot", recipe.getId(), ingredient, issues);
-        }
-    }
-
-    private void checkBoardRecipe(CookingPotRecipeManager tagResolver, CuttingBoardRecipe recipe, List<String> issues) {
-        if (recipe.getInput() == null) {
-            issues.add("<red>[cutting_board] " + recipe.getId() + "</red> <gray>has no input</gray>");
-        } else {
-            checkIngredient(tagResolver, "cutting_board", recipe.getId(), recipe.getInput(), issues);
-        }
-        if (recipe.getTools().isEmpty()) {
-            issues.add("<red>[cutting_board] " + recipe.getId() + "</red> <gray>has no tool</gray>");
-        }
-        if (recipe.getResults().isEmpty()) {
-            issues.add("<red>[cutting_board] " + recipe.getId() + "</red> <gray>has no results</gray>");
-        } else {
-            for (var result : recipe.getResults()) {
-                if (result == null || result.getItem() == null || result.getItem().getType().isAir()) {
-                    issues.add("<red>[cutting_board] " + recipe.getId()
-                            + "</red> <gray>contains an unresolved result</gray>");
-                }
-            }
-        }
-    }
-
-    private void checkIngredient(CookingPotRecipeManager tagResolver, String kind, String recipeId,
-                                 RecipeIngredient ingredient, List<String> issues) {
-        if (ingredient instanceof RecipeIngredient.Item item) {
-            if (ItemUtils.createItem(item.key()) == null) {
-                issues.add("<red>[" + kind + "] " + recipeId + "</red> <gray>unresolved ingredient</gray> <yellow>"
-                        + item.key() + "</yellow>");
-            }
-        } else if (ingredient instanceof RecipeIngredient.Tag tag) {
-            boolean empty;
-            try {
-                var craftEngine = plugin.getCraftEngine();
-                boolean ceItems = craftEngine != null && craftEngine.itemManager() != null
-                        && !craftEngine.itemManager().itemIdsByTag(tag.key()).isEmpty();
-                empty = (tagResolver == null || tagResolver.getVanillaItemIdsByTag(tag.key()).isEmpty())
-                        && !ceItems
-                        && CommonTagResolver.getMembers(tag.key()).isEmpty();
-            } catch (Throwable cannotResolve) {
-                return;
-            }
-            if (empty) {
-                issues.add("<red>[" + kind + "] " + recipeId + "</red> <gray>tag resolves to 0 items</gray> <yellow>#"
-                        + tag.key() + "</yellow>");
-            }
-        } else if (ingredient instanceof RecipeIngredient.Choice choice) {
-            for (RecipeIngredient option : choice.options()) {
-                checkIngredient(tagResolver, kind, recipeId, option, issues);
-            }
-        }
-    }
-
-    private void i18nResolve(Player player, String[] args) {
-        if (args.length < 3) {
-            player.sendMessage(MINI_MESSAGE.deserialize("<yellow>/fd debugtools i18n <key> [locale]</yellow>"));
-            return;
-        }
-        String key = args[2];
-        String locale = args.length >= 4 ? normalize(args[3]) : "en_us";
-        Locale loc = Locale.forLanguageTag(locale.replace('_', '-'));
-        player.sendMessage(MINI_MESSAGE.deserialize("<green>i18n</green> <gray>key=" + key + " locale=" + locale + "</gray>"));
-
-        String fd = I18n.get(key, locale);
-        sendLayer(player, "I18n.get", fd, fd.equals(key));
-
-        try {
-            String cePlain = TranslationManager.instance().plainTranslation(key, loc);
-            sendLayer(player, "CraftEngine.plain", cePlain, cePlain == null || cePlain.equals(key));
-        } catch (LinkageError | RuntimeException e) {
-            player.sendMessage(MINI_MESSAGE.deserialize("<gray>CraftEngine.plain:</gray> <red>unavailable ("
-                    + e.getClass().getSimpleName() + ")</red>"));
-        }
-
-        try {
-            Component rendered = GlobalTranslator.render(Component.translatable(key), loc);
-            String plain = PlainTextComponentSerializer.plainText().serialize(rendered);
-            sendLayer(player, "Adventure", plain, plain.equals(key));
-        } catch (Exception e) {
-            player.sendMessage(MINI_MESSAGE.deserialize("<gray>Adventure:</gray> <red>error</red>"));
-        }
-    }
-
-    private void sendLayer(Player player, String layer, String value, boolean absent) {
-        Component line = MINI_MESSAGE.deserialize("<gray>" + layer + ":</gray> ")
-                .append(Component.text(value == null ? "null" : value,
-                        absent ? NamedTextColor.RED : NamedTextColor.WHITE));
-        if (absent) {
-            line = line.append(Component.text(" (absent/key)", NamedTextColor.DARK_GRAY));
-        }
-        player.sendMessage(line);
-    }
-
-    // Every report whose line count follows the loaded content goes through here: at most cap lines, then how
-    // many were left out. The lines are literal report text, like the other report lines in this class.
-    private void sendCapped(Player player, List<String> lines, int cap, String moreLabel) {
-        for (String line : OutputCap.cap(lines, cap)) {
-            player.sendMessage(MINI_MESSAGE.deserialize(line));
-        }
-        int hidden = OutputCap.overflow(lines.size(), cap);
-        if (hidden > 0) {
-            player.sendMessage(MINI_MESSAGE.deserialize("<gray>" + hidden + " more " + moreLabel
-                    + " not shown</gray>"));
         }
     }
 
@@ -1373,14 +1034,6 @@ public final class DebugToolsCommand {
      * the batch-busy guard, so the recipe flows can chain station placement and filling through the runner. The
      * caller has already checked canEdit for this location.
      */
-    private boolean placeRecipeStationUnbudgeted(Player player, Location location, RecipeSetup setup) {
-        // The target is a bare station name; placeOne picks the heat source and block for it. The index only
-        // matters for placeOne's "all" rotation, which a recipe setup never asks for.
-        PlaceResult result = placeOne(player, location, setup.target(), 0);
-        return result.placed();
-    }
-
-    /** True when this location now holds the station the setup asked for, so the fill pass can skip failures. */
     private boolean isRecipeStation(Location location, RecipeSetup setup) {
         return "cutting_board".equals(setup.target())
                 ? isPlacedCustomBlock(location, Constants.BLOCK_CUTTING_BOARD)
@@ -1479,8 +1132,19 @@ public final class DebugToolsCommand {
 
     private void rememberIfChanged(List<UndoEntry> entries, UndoEntry entry) {
         if (entries != null && hasChangedSinceCapture(entry)) {
+            entry.after = currentState(entry.location());
             entries.add(entry);
         }
+    }
+
+    private DebugUndoGuard.State currentState(Location at) {
+        Block block = at.getBlock();
+        return new DebugUndoGuard.State(CustomBlockUtils.getId(block), block.getBlockData().getAsString(),
+                CraftEngineBlockAccess.blockEntityController(at.getWorld(), at.getBlockX(), at.getBlockY(), at.getBlockZ()));
+    }
+
+    private boolean isStillOwned(UndoEntry entry) {
+        return entry != null && DebugUndoGuard.stillOwned(entry.after, currentState(entry.location()));
     }
 
     private boolean hasChangedSinceCapture(UndoEntry entry) {
@@ -1527,7 +1191,9 @@ public final class DebugToolsCommand {
         for (DebugToolExtension extension : DebugToolRegistry.all()) {
             try {
                 extension.cleanupBeforeUndo(location);
-            } catch (Throwable ignored) {
+            } catch (RuntimeException | LinkageError failure) {
+                plugin.getLogger().log(Level.WARNING, "Debug undo addon cleanup failed at " + location, failure);
+                throw failure;
             }
         }
     }
@@ -1555,8 +1221,7 @@ public final class DebugToolsCommand {
         }
     }
 
-    // verify=false is the bulk 'activate' sweep: it fills every tracked pot, so a per-pot verification warning
-    // for a pot the same sweep already filled would be pure noise. A single pot placement still verifies.
+    // Only stations captured in the player's placement batch can reach this mutation.
     private void activateCookingPot(Location location, boolean verify) {
         CookingPotBlockEntity entity = CookingPotBlockBehavior.getOrCreateBlockEntity(location);
         applyCookingPotDebugState(entity, location);
@@ -1875,27 +1540,8 @@ public final class DebugToolsCommand {
         return completions;
     }
 
-    private Integer parseOptionalInt(String[] args, int index, int fallback) {
-        if (args.length <= index) {
-            return fallback;
-        }
-        try {
-            return Integer.parseInt(args[index]);
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
-    }
-
     private int getMaxPlaceCount() {
         return Math.max(1, plugin.getConfig().getInt(CONFIG_MAX_PLACE_COUNT, DEFAULT_MAX_PLACE_COUNT));
-    }
-
-    private int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
-    }
-
-    private String normalize(String value) {
-        return value == null ? "" : value.toLowerCase(Locale.ROOT);
     }
 
     private String normalizeTarget(String value) {
@@ -1904,40 +1550,10 @@ public final class DebugToolsCommand {
     }
 
     private void sendUsage(CommandSender sender) {
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools test <cooking_pot|skillet|stove|handheld|all> [count] [ticks]</yellow>"
-                        + " <gray>- place a bounded local test and start feature sampling</gray>"
-        ));
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools place <cooking_pot|skillet|stove|stove_blocked|cutting_board|basket|all> [count] [spacing] [layers]</yellow>"
-                        + " <gray>- place a batch only; use activate to start its workload</gray>"
-        ));
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools placeRecipe <cooking_pot|cutting_board|all> <recipeId> [count]</yellow>"
-                        + " <gray>- place that recipe's station and fill it with exactly its ingredients</gray>"
-        ));
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools placeRecipeRandom <cooking_pot|cutting_board|all> [count]</yellow>"
-                        + " <gray>- place count distinct random recipe setups and report which ids they are</gray>"
-        ));
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools activate <cooking_pot|skillet|stove|all></yellow>"
-        ));
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools undo</yellow> <gray>- revert the last debug placement batch</gray>"
-        ));
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools inspect [distance]</yellow> <gray>- dump the CE block you look at / stand on</gray>"
-        ));
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools item [offhand]</yellow> <gray>- dump the held item's CE id / tags / components</gray>"
-        ));
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools recipe validate</yellow> <gray>- validate recipe structure, tags, results and containers</gray>"
-        ));
-        sender.sendMessage(MINI_MESSAGE.deserialize(
-                "<yellow>/fd debugtools i18n <key> [locale]</yellow> <gray>- trace a translation key through each layer</gray>"
-        ));
+        for (String topic : List.of("test", "profile", "place", "place_recipe", "place_random", "activate",
+                "undo", "stop", "inspect", "item", "recipe", "i18n")) {
+            sender.sendMessage(I18n.getComponent("command.debug_usage_" + topic));
+        }
     }
 
     private record PlaceResult(boolean placed, boolean activated, String activationTarget, List<UndoEntry> undoEntries) {
@@ -1974,32 +1590,23 @@ public final class DebugToolsCommand {
         }
     }
 
-    private Object invoke(Object target, String name, Class<?>[] parameterTypes, Object... args) throws ReflectiveOperationException {
-        Method method = target.getClass().getDeclaredMethod(name, parameterTypes);
-        method.setAccessible(true);
-        return method.invoke(target, args);
-    }
+    private static final class UndoEntry {
+        private final Location location;
+        private final BlockData blockData;
+        private final Material vanillaFallback;
+        private final String blockId;
+        private DebugUndoGuard.State after;
 
-    private void setField(Object target, String name, Object value) throws ReflectiveOperationException {
-        Field field = target.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        field.set(target, value);
-    }
-
-    private Object getField(Object target, String name) throws ReflectiveOperationException {
-        Field field = target.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        return field.get(target);
-    }
-
-    private int getIntField(Object target, String name, int fallback) throws ReflectiveOperationException {
-        Field field = target.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        Object value = field.get(target);
-        return value instanceof Number number ? number.intValue() : fallback;
-    }
-
-    private record UndoEntry(Location location, BlockData blockData, Material vanillaFallback, String blockId) {
+        UndoEntry(Location location, BlockData blockData, Material vanillaFallback, String blockId) {
+            this.location = location;
+            this.blockData = blockData;
+            this.vanillaFallback = vanillaFallback;
+            this.blockId = blockId;
+        }
+        Location location() { return location; }
+        BlockData blockData() { return blockData; }
+        Material vanillaFallback() { return vanillaFallback; }
+        String blockId() { return blockId; }
     }
 
 }

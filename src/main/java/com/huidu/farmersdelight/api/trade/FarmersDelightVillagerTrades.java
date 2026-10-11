@@ -1,10 +1,8 @@
 package com.huidu.farmersdelight.api.trade;
 
 import com.huidu.farmersdelight.api.PluginAccess;
-import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.listener.worlddata.ExternalVillagerTrades;
 import com.huidu.farmersdelight.listener.worlddata.WorldDataConfig;
-import org.jetbrains.annotations.ApiStatus;
 
 import java.util.Locale;
 import java.util.Set;
@@ -21,7 +19,6 @@ import java.util.Set;
  * survive a /fd reload. A trade substitutes one offer slot in the target pool rather than adding a slot on top,
  * matching FarmersDelight's own config-driven trades.
  */
-@ApiStatus.NonExtendable
 public final class FarmersDelightVillagerTrades {
 
     private FarmersDelightVillagerTrades() {

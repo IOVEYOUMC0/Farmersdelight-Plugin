@@ -12,10 +12,12 @@ public final class CookingPotExperienceRewardConfig {
 
     private RewardMode mode = RewardMode.VANILLA;
     private List<AuraSkillsReward> auraSkillsRewards = List.of();
+    private List<LevelerReward> levelerRewards = List.of();
 
     public void loadFromConfig(ConfigurationSection section) {
         mode = RewardMode.VANILLA;
         auraSkillsRewards = List.of();
+        levelerRewards = List.of();
         if (section == null) {
             return;
         }
@@ -26,6 +28,19 @@ public final class CookingPotExperienceRewardConfig {
         loadAuraSkillsRewards(section, rewards, "aura-skills");
         loadAuraSkillsRewards(section, rewards, "auraskills-xp");
         auraSkillsRewards = List.copyOf(rewards);
+        List<LevelerReward> levelers = new ArrayList<>();
+        for (Map<?, ?> entry : section.getMapList("levelers")) {
+            Object pluginValue = entry.get("plugin");
+            Object targetValue = entry.get("target");
+            String plugin = pluginValue == null ? "" : pluginValue.toString().trim().toLowerCase(Locale.ROOT);
+            String target = targetValue == null ? "" : targetValue.toString().trim();
+            Double amount = getOptionalPositiveDouble(entry.get("amount"));
+            double multiplier = ConfigValues.doubleValue(entry.get("multiplier"), 1.0D);
+            if (plugin.isEmpty() || target.isEmpty() || (entry.containsKey("amount") && amount == null)
+                    || !Double.isFinite(multiplier) || multiplier < 0.0D) continue;
+            levelers.add(new LevelerReward(plugin, target, amount, multiplier, getChance(entry)));
+        }
+        levelerRewards = List.copyOf(levelers);
     }
 
     public boolean shouldDropVanillaExperience() {
@@ -33,7 +48,16 @@ public final class CookingPotExperienceRewardConfig {
     }
 
     public boolean shouldAwardAuraSkillsExperience() {
-        return (mode == RewardMode.AURASKILLS || mode == RewardMode.BOTH) && !auraSkillsRewards.isEmpty();
+        return (mode == RewardMode.AURASKILLS || mode == RewardMode.BOTH) && !auraSkillsRewards.isEmpty()
+                && !(mode == RewardMode.BOTH && levelerRewards.stream().anyMatch(r -> r.plugin().equals("auraskills")));
+    }
+
+    public boolean shouldAwardLevelerExperience() {
+        return (mode == RewardMode.LEVELERS || mode == RewardMode.BOTH) && !levelerRewards.isEmpty();
+    }
+
+    public List<LevelerReward> levelerRewards() {
+        return levelerRewards;
     }
 
     public List<AuraSkillsReward> auraSkillsRewards() {
@@ -102,7 +126,8 @@ public final class CookingPotExperienceRewardConfig {
                     "multiplier",
                     "amount-multiplier",
                     "xp-multiplier"), 1.0D));
-            if (fixedAmount == null && multiplier <= 0.0D) {
+            if ((ConfigValues.firstPresent(mapEntry, "amount", "xp", "value") != null && fixedAmount == null)
+                    || !Double.isFinite(multiplier) || (fixedAmount == null && multiplier <= 0.0D)) {
                 return null;
             }
 
@@ -147,6 +172,7 @@ public final class CookingPotExperienceRewardConfig {
 
     private double getChance(Map<?, ?> map) {
         double chance = ConfigValues.doubleValue(ConfigValues.firstPresent(map, "chance", "probability"), 1.0D);
+        if (!Double.isFinite(chance)) return 0.0D;
         if (chance > 1.0D) {
             chance /= 100.0D;
         }
@@ -158,7 +184,7 @@ public final class CookingPotExperienceRewardConfig {
             return null;
         }
         double parsed = ConfigValues.doubleValue(value, 0.0D);
-        return parsed > 0.0D ? parsed : null;
+        return Double.isFinite(parsed) && parsed > 0.0D ? parsed : null;
     }
 
     private String normalizeSkillId(String skillId) {
@@ -174,6 +200,7 @@ public final class CookingPotExperienceRewardConfig {
     private enum RewardMode {
         VANILLA,
         AURASKILLS,
+        LEVELERS,
         BOTH,
         NONE;
 
@@ -184,10 +211,17 @@ public final class CookingPotExperienceRewardConfig {
             String normalized = value.trim().toLowerCase(Locale.ROOT).replace('-', '_');
             return switch (normalized) {
                 case "auraskills", "aura_skills", "skills" -> AURASKILLS;
+                case "levelers", "leveler" -> LEVELERS;
                 case "both", "all" -> BOTH;
                 case "none", "off", "disabled", "false" -> NONE;
                 default -> VANILLA;
             };
+        }
+    }
+
+    public record LevelerReward(String plugin, String target, Double amount, double multiplier, double chance) {
+        public double experience(double baseExperience) {
+            return amount != null ? amount : baseExperience * multiplier;
         }
     }
 

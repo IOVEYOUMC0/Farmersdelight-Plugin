@@ -8,26 +8,10 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * One deadline shared by every step of a plugin shutdown.
- *
- *
- * The alternative — each step waiting its own fixed timeout — makes the worst case the SUM of the
- * timeouts, which is how a plugin turns a stuck flush into a minute of server hang. Here the whole
- * sequence gets a single budget: steps run in order until it runs out, and a step that would exceed it
- * is skipped with a warning instead of blocking. A shutdown must always finish.
- *
- *
- * Steps are expected to be best-effort persistence (flush caches, write back open views, drain an
- * executor). Anything that must not be skipped does not belong behind a budget.
- *
- * ShutdownBudget budget = ShutdownBudget.ofMillis(5000, getLogger());
- * budget.step("flush kegs", () -> KegChunkListener.passivateLoadedChunks());
- * budget.step("write back backpacks", this::flushBackpacks);
- * budget.awaitTermination("worker pool", executor);
- *
- * Failures are reported as one warning that names the step, so every plugin in this family logs the same
- * sentence: pass the wording in with withMessages from the caller's language layer instead of
- * relying on the built-in English default.
+ * Shares one deadline across best-effort shutdown steps and executor waits.
+ * Expired steps are skipped; synchronous steps cannot be interrupted by the deadline.
+ * Required persistence must not rely on a skippable step.
+ * Failures identify the step using the caller's configured messages.
  */
 public final class ShutdownBudget {
 

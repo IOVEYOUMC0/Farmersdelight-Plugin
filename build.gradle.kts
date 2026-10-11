@@ -122,6 +122,8 @@ dependencies {
     }
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testImplementation("io.netty:netty-transport:4.1.135.Final")
+    // CE Player exposes authlib types that Paper supplies only at server runtime.
+    testRuntimeOnly("com.mojang:authlib:6.0.58")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
@@ -130,6 +132,7 @@ configurations.all {
         // Force patched transitive dependency versions for compilation only; they are not bundled.
         force("org.codehaus.plexus:plexus-utils:4.0.3")
         force("org.apache.commons:commons-lang3:3.18.0")
+        force("org.apache.logging.log4j:log4j-api:2.25.5")
     }
 }
 
@@ -196,6 +199,12 @@ sourceSets {
         java.srcDir(layout.buildDirectory.dir("generated/sources/buildFlags"))
         if (debugToolsBuild.get()) {
             java.srcDir("src/debugTools/java")
+        }
+    }
+
+    named("test") {
+        if (debugToolsBuild.get()) {
+            java.srcDir("src/debugToolsTest/java")
         }
     }
 

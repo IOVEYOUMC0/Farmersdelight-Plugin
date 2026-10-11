@@ -23,6 +23,17 @@ public final class EditableRecipe {
         }
     }
 
+    public EditableRecipe copy() {
+        EditableRecipe copy = new EditableRecipe(id, items.size());
+        for (int i = 0; i < items.size(); i++) {
+            copy.items.set(i, items.get(i) == null ? null : items.get(i).clone());
+        }
+        copy.result = result == null ? null : result.clone();
+        copy.resultCount = resultCount;
+        copy.numbers.putAll(numbers);
+        return copy;
+    }
+
     public String id() {
         return id;
     }

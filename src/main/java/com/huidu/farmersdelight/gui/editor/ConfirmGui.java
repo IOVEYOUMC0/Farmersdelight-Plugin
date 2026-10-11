@@ -75,10 +75,14 @@ public final class ConfirmGui extends AbstractInventoryGui implements EditorGui 
         String type = config.getSlotType(raw);
         if ("confirm".equals(type)) {
             acted = true;
-            onConfirm.run();
+            plugin.scheduler().runLaterForEntity(player, () -> {
+                if (player.getOpenInventory().getTopInventory() == inventory) onConfirm.run();
+            }, 1L);
         } else if ("cancel".equals(type)) {
             acted = true;
-            onCancel.run();
+            plugin.scheduler().runLaterForEntity(player, () -> {
+                if (player.getOpenInventory().getTopInventory() == inventory) onCancel.run();
+            }, 1L);
         }
     }
 

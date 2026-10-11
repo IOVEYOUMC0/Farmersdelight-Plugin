@@ -1,7 +1,6 @@
 package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
-import com.huidu.farmersdelight.util.ItemUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
@@ -53,7 +52,7 @@ final class RecipeIngredientDisplay {
             }
 
             int slot = entry.getKey();
-            CyclicSlot cycle = ingredientCycles.computeIfAbsent(slot, s -> new CyclicSlot(gui.INGREDIENT_SWITCH_CALLBACKS));
+            CyclicSlot cycle = ingredientCycles.computeIfAbsent(slot, s -> new CyclicSlot(RecipeViewGui.INGREDIENT_SWITCH_CALLBACKS));
             // tick() reports whether the frame actually advanced. On every other tick the slot would be
             // rebuilt to the item it already shows, which is the same guard the tool cycle uses.
             if (!cycle.tick()) {
@@ -130,7 +129,7 @@ final class RecipeIngredientDisplay {
     ) {
         if (!options.isEmpty()) {
             animatedIngredientSlots.put(slot, options);
-            ingredientCycles.put(slot, new CyclicSlot(gui.INGREDIENT_SWITCH_CALLBACKS));
+            ingredientCycles.put(slot, new CyclicSlot(RecipeViewGui.INGREDIENT_SWITCH_CALLBACKS));
             animatedIngredientDefinitions.put(slot, ingredient);
             return createAnimatedIngredientDisplay(ingredient, options.getFirst(), options, player);
         }
@@ -227,8 +226,13 @@ final class RecipeIngredientDisplay {
         );
     }
 
+    static ItemStack copyIngredientIcon(ItemStack item) {
+        return item == null || item.isEmpty() ? null : item.clone();
+    }
+
     private ItemStack createLabeledIngredientDisplay(ItemStack baseDisplay, List<Component> lore, Player player, Component displayName) {
-        ItemStack display = baseDisplay.clone();
+        ItemStack display = copyIngredientIcon(baseDisplay);
+        if (display == null) display = ItemStack.of(Material.BARRIER);
         ItemMeta meta = display.getItemMeta();
         meta.displayName(displayName.colorIfAbsent(NamedTextColor.AQUA));
         meta.lore(lore);

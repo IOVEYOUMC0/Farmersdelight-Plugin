@@ -4,21 +4,10 @@ import com.huidu.farmersdelight.api.migration.LegacyIdMigration;
 import net.momirealms.craftengine.core.util.Key;
 
 /**
- * The ids this plugin renamed in the 1.4 update, handed to LegacyIdMigration.
- *
- * Upstream 1.4 removed the barbecue stick and kept the cooked meat skewer as its replacement (its
- * RegistryAliases maps barbecue_stick -> cooked_meat_skewer). CraftEngine has no alias
- * mechanism, so the pack keeps the old item definition in items.yml as the migration carrier: with
- * that definition gone, CraftEngine would turn every stack already in the world into an unknown item before
- * the migration could recognise it.
- *
- * The barbecue_stick_* recipe variants are not item ids and therefore need no mapping: their
- * recipes now craft the 1.4 target instead.
- *
- * The basket rename is registered on the item level only: the migration facility covers item stacks
- * (LegacyIdMigration#registerItem(Key, Key)), not blocks, so a basket block already placed in
- * an old world keeps its legacy id. Its block definition is retained in the pack for exactly that reason, and
- * the blocks still work; converting them needs the facility to grow a block-level mapping.
+ * Registers renamed item IDs while retaining their legacy pack definitions.
+ * Existing stacks need those definitions until migration recognizes and replaces them.
+ * Recipe variant names are not item IDs. Basket migration covers stacks only;
+ * placed legacy baskets retain their block definitions and continue to work.
  */
 public final class FarmersDelightLegacyIds {
 

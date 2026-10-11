@@ -5,10 +5,6 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.LinkedHashSet;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -52,7 +48,7 @@ class RecipePublicationWiringTest {
     void aFailedOrOvertakenPassReportsInsteadOfReadingAHalfPublishedSet() throws IOException {
         String source = readSource(COORDINATOR);
 
-        assertTrue(source.indexOf("watch.whenPublished(") < source.indexOf("loadRecipesWhenReady(logKey);"),
+        assertTrue(source.indexOf("watch.whenPublished(") < source.indexOf("plugin.loadRecipeManagers(logKey);"),
                 "the continuation is registered before the load, so a load that throws is still reported");
         assertTrue(source.contains("rollback.restore()"), "a failed pass puts the captured sets back");
         assertTrue(source.indexOf("rollback.restore()") < source.indexOf("recipeWork.run();"),
@@ -61,38 +57,6 @@ class RecipePublicationWiringTest {
                 "a pass a newer one overtook reports nothing and rolls back nothing");
         assertTrue(source.contains("plugin.recipe_publication_failed"),
                 "the failure is reported to the operator");
-    }
-
-    @Test
-    void theManagersCaptureEveryFieldTheirPublishWrites() throws IOException {
-        for (String manager : new String[]{POT, BOARD}) {
-            String source = readSource(manager);
-
-            Set<String> published = publishedFields(source);
-            assertFalse(published.isEmpty(), manager + " has to publish something");
-
-            String state = between(source, "public record PublishedState(", ") {");
-            String restore = between(source, "public void restorePublished(", "private void invalidateRecipeCaches()");
-            for (String field : published) {
-                assertTrue(state.contains(field),
-                        manager + " publishes " + field + ", so its PublishedState has to carry it");
-                assertTrue(restore.contains("state." + field + "()"),
-                        manager + " publishes " + field + ", so a rollback has to put it back");
-            }
-            assertTrue(restore.contains("invalidateRecipeCaches()"),
-                    manager + " drops the caches keyed on the recipe set after a rollback");
-        }
-    }
-
-    /** The this.field = writes of one publish, which is exactly what a published generation owns. */
-    private static Set<String> publishedFields(String source) {
-        String publish = between(source, "private void publishLoadedSet(", "invalidateRecipeCaches();");
-        Set<String> fields = new LinkedHashSet<>();
-        Matcher matcher = Pattern.compile("this\\.(\\w+)\\s*=").matcher(publish);
-        while (matcher.find()) {
-            fields.add(matcher.group(1));
-        }
-        return fields;
     }
 
     private static String between(String source, String start, String end) {

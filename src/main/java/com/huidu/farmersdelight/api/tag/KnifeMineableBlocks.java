@@ -14,41 +14,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
- * Reads the "mineable with a knife" declaration of a CraftEngine block definition.
- *
- * The tag is data; the behaviour is CraftEngine's. A pack declares
- * farmersdelight:mineable/knife (or the common c:mineable/knife) in a block's
- * settings.tags; CraftEngine writes those tags onto the block's holder, and the drop behaviour
- * itself comes from the pack's match_item rules. This query only answers what a definition
- * declares — wiring a drop to it in Java would double the drops on every block whose pack already has such
- * a rule.
- *
- * It does not change mining speed. Vanilla break speed comes from minecraft:mineable/*
- * plus the carrier item's digger rules, and CraftEngine's own tool check uses
- * settings.requireCorrectTool() / requiredBreakPower() / settings.isCorrectTool(..)
- * — none of them read settings.tags() (see BlockStateUtils in CraftEngine). Use
- * require_correct_tool in the pack if a tool requirement has to gate drops.
- *
- * Version path. The lookup goes BlockDefinition.defaultState().settings().tags(). That
- * path exists in CraftEngine 26.8.2, 26.9.1 and 26.9.2 alike, while BlockDefinition#settings() does
- * not exist in any of them: the settings live on the block state. This plugin is compiled against the
- * newest CraftEngine artifact published to Maven (26.9.1 at the time of writing — 26.9.2 and 26.10 are
- * source/snapshot only), and the supported runtime floor is 26.8.2.
- *
- * Failures are classified, so a server on an unsupported CraftEngine is told once and then left
- * alone:
- *   - a LinkageError (NoSuchMethodError, NoClassDefFoundError, ...) means the API
- *       is structurally unavailable: this query warns once and disables itself for the rest of the run —
- *       later calls answer false without touching CraftEngine again and without logging again;
- *   - a RuntimeException (not ready yet, definition reload in progress) answers false for that
- *       call only and is retried on the next one, with at most one log line per distinct reason.
- *
- * Threading: this is a pure definition lookup — it reads CraftEngine's in-memory registries and
- * never touches a world, chunk, block entity or block state, so it may be called from any thread and any
- * region. That is also why the entry point takes a block id rather than a Block: resolving a
- * Block to its CraftEngine id needs the world's custom state, which is a region-bound read.
+ * Reads knife-mining tags from CE block definitions; it does not change speed or produce drops.
+ * Uses defaultState().settings().tags(), supported since CE 26.8.2.
+ * Definition lookups do not access a world and may run on any thread.
+ * A linkage failure disables the lookup; runtime failures are retried. Both warn at most once per reason.
  */
-@ApiStatus.NonExtendable
 public final class KnifeMineableBlocks {
 
     /** Looks a block definition's declared tags up through CraftEngine. Internal so it can be stubbed. */
@@ -64,7 +34,7 @@ public final class KnifeMineableBlocks {
             Key.of(FarmersDelightTags.COMMON_MINEABLE_WITH_KNIFE));
     private static final Consumer<String> CONSOLE_WARNER = message -> {
         try {
-            Bukkit.getLogger().warning(message);
+            Bukkit.getServer().getLogger().warning(message);
         } catch (Throwable noServer) {
             // Offline (unit tests, tooling) there is no server logger; the warning is then simply not shown.
         }

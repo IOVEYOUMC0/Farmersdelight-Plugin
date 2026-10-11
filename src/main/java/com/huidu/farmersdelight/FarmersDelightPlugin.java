@@ -2,6 +2,7 @@ package com.huidu.farmersdelight;
 
 import com.huidu.farmersdelight.advancement.AddonAdvancementRegistry;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.api.recipe.AddonRecipeFiles;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
 import com.huidu.farmersdelight.api.advancement.AdvancementAvailability;
 import com.huidu.farmersdelight.api.advancement.FarmersDelightAdvancements;
@@ -23,7 +24,6 @@ import com.huidu.farmersdelight.listener.BlockPlaceListener;
 import com.huidu.farmersdelight.listener.CraftEngineWatchdogListener;
 import com.huidu.farmersdelight.listener.FoodEatListener;
 import com.huidu.farmersdelight.listener.HorseFeedTemptListener;
-import com.huidu.farmersdelight.listener.PetFoodListener;
 import com.huidu.farmersdelight.listener.RecipeDiscoveryListener;
 import com.huidu.farmersdelight.listener.RopeBlockListener;
 import com.huidu.farmersdelight.command.FarmersDelightCommandRegistrar;
@@ -41,7 +41,7 @@ import com.huidu.farmersdelight.config.PluginConfigFiles;
 import com.huidu.farmersdelight.config.DebugSettings;
 import com.huidu.farmersdelight.config.KnifeSettings;
 import com.huidu.farmersdelight.compat.AuraSkillsHook;
-import com.huidu.farmersdelight.compat.CraftEngineStateUsageMonitor;
+import com.huidu.farmersdelight.compat.LevelerExperienceRewards;
 import com.huidu.farmersdelight.gui.CookingPotGui;
 import com.huidu.farmersdelight.gui.GuiCacheInvalidator;
 import com.huidu.farmersdelight.gui.GuiConfig;
@@ -91,6 +91,7 @@ import com.huidu.farmersdelight.effect.EffectManager;
 import com.huidu.farmersdelight.config.ConfigBootstrap;
 import com.huidu.farmersdelight.config.CuttingBoardSounds;
 import net.momirealms.craftengine.bukkit.api.event.CraftEngineReloadEvent;
+import net.momirealms.craftengine.bukkit.api.BukkitAdaptor;
 import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
 import net.momirealms.craftengine.bukkit.world.BukkitWorldManager;
 import net.momirealms.craftengine.core.world.CEWorld;
@@ -98,6 +99,8 @@ import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Location;
+import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -116,8 +119,7 @@ import org.joml.Vector3f;
 import org.bstats.bukkit.Metrics;
 
 import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.function.Consumer;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -219,11 +221,13 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     void loadRecipeManagers(String logKey) {
+        RecipeFileLoader.resetReportedIssues();
         I18n.logDetail("recipe", logKey);
         // Both loads read YAML from disk (the plugin's own files plus a scan of every CraftEngine pack's
         // farmersdelight/ directory) on the calling thread, which is a tick thread. Timed so the cost is
         // attributable: the warmup that follows reports its own number separately.
         long start = System.nanoTime();
+        AddonRecipeFiles.reloadOwnedFiles();
         cookingPotRecipeManager.loadRecipes();
         long potNanos = System.nanoTime() - start;
         long boardStart = System.nanoTime();
@@ -405,7 +409,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
         cuttingBoardRecipeManager = new CuttingBoardRecipeManager(this);
 
-        craftEngineReadinessCoordinator.loadRecipesWhenReady("plugin.loading_recipes");
+        if (craftEngineReadinessCoordinator.isReady()) {
+            craftEngineReadinessCoordinator.loadRecipesWhenReady("plugin.loading_recipes");
+        }
 
         // If CraftEngine is disabled while the server keeps running, FD cannot function; disable ourselves
         // cleanly instead of throwing from every CraftEngine-bound task. See CraftEngineWatchdogListener.
@@ -1048,7 +1054,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     public void reloadAll() {
         reloadCommon(true);
-        RecipeFileLoader.resetReportedIssues();
         reloadRecipesWhenReady("plugin.reloading_recipes");
         // The per-type recipe line is on the recipe detail channel, so the reloaded counts would otherwise
         // never reach the operator who just edited a recipe file. The summary dedupes on its counts digest,
@@ -1110,7 +1115,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             fireReloadEvent(reason);
             return;
         }
-        scheduler.runLater(() -> {
+        // CE clears registries asynchronously; a cached positive item probe is not a readiness signal.
+        scheduler.runLater(() -> craftEngineReadinessCoordinator.runWhenReady(() -> {
             long addonStart = System.nanoTime();
             fireReloadEvent(reason);
             long addonNanos = System.nanoTime() - addonStart;
@@ -1122,7 +1128,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             I18n.logDetail("reload", "plugin.reload_report",
                     "total", reloadTotalMillis(),
                     "split", reloadTimingSummary());
-        }, 1L);
+        }), 1L);
     }
 
     /**
@@ -1166,15 +1172,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         reloadAddonsNanos.set(0L);
     }
 
-    /**
-     * Reports the last reload the way CraftEngine reports its own: elapsed milliseconds plus the problems the
-     * pass found. The addon figure is only filled in on the following tick; a command that reports before that
-     * simply shows the phase timings it has.
-     */
-    /**
-     * The same phase line the reload report shows: the console summary and the player message share one renderer
-     * (ReloadTiming.composeSegments), so the two can no longer drift apart in labels, units or ordering.
-     */
+    /** Reports reload time and phase costs; addon costs may arrive on the following tick. */
     public String reloadTimingSummary() {
         return ReloadTiming.composeSegments(reloadTotalMillis(), reloadPhaseNanos());
     }
@@ -1242,18 +1240,31 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return configBootstrap.validationIssueCount() + RecipeFileLoader.reportedIssueCount();
     }
 
+    /** Reloads on the recipe-state thread and reports only after the registration rounds publish. */
+    public void reloadRecipeFiles(Consumer<Boolean> completion) {
+        scheduler().run(() -> {
+            if (!isEnabled() || craftEngineReadinessCoordinator == null) {
+                if (completion != null) {
+                    completion.accept(false);
+                }
+                return;
+            }
+            refreshAfterCraftEngineReload();
+            craftEngineReadinessCoordinator.loadRecipesWhenReady("plugin.reloading_recipes", published -> {
+                if (published) {
+                    reportContentSummaryWhenReady();
+                    notifyAddonsOfReload("reloadRecipes");
+                    logReloadEvent("plugin.recipe_files_reloaded");
+                }
+                if (completion != null) {
+                    completion.accept(published && RecipeFileLoader.reportedIssueCount() == 0);
+                }
+            });
+        });
+    }
+
     public void reloadRecipeFiles() {
-        refreshAfterCraftEngineReload();
-        RecipeFileLoader.resetReportedIssues();
-        reloadRecipesWhenReady("plugin.reloading_recipes");
-        // Same reason as reloadAll: the reloaded per-type counts are the only evidence the edited files
-        // actually parsed, and the summary suppresses itself when they are unchanged.
-        reportContentSummaryWhenReady();
-        // The addon notification leaves the reload tick: it is a fan-out to third-party listeners, and the
-        // full-reload path already reaches addons on the following tick, so nothing observes a different
-        // order — the spike just stops carrying every listener's work in the same tick as the rebuild.
-        scheduler().run(() -> fireReloadEvent("reloadRecipes"));
-        logReloadEvent("plugin.recipe_files_reloaded");
+        reloadRecipeFiles(null);
     }
 
     public void reloadAdvancements() {
@@ -1275,7 +1286,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             return;
         }
         scheduler().run(() -> {
-            RecipeFileLoader.resetReportedIssues();
             reloadRecipesWhenReady("plugin.reloading_recipes_after_tags");
             // The resolved tag/choice caches are stale the moment the tag registry changes. Loading recipes
             // does not populate them (the warm-up pass does), so drop them and rebuild them here: leaving the
@@ -1398,6 +1408,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         cookingPotExperienceRewardConfig = new CookingPotExperienceRewardConfig();
         cookingPotExperienceRewardConfig.loadFromConfig(
                 getFirstConfigSection("experience-reward", "cooking-pot.experience-reward"));
+        ItemUtils.configureExternalItemSources(getConfig().getStringList("external-item-sources"));
         WorldDataConfig.reload(this, worldDataConfig);
         // Load the c: common-tag mapping before recipes load; it feeds recipe tag matching/indexing.
         CommonTagResolver.reload(this);
@@ -1495,41 +1506,50 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return getCookingPotExperienceRewardConfig().shouldDropVanillaExperience();
     }
 
-    public boolean shouldAwardCookingPotAuraSkillsExperience() {
-        return getCookingPotExperienceRewardConfig().shouldAwardAuraSkillsExperience();
+    public void awardCookingPotSkillExperience(Player player, double baseExperience) {
+        var config = getCookingPotExperienceRewardConfig();
+        if (player == null || !Double.isFinite(baseExperience) || baseExperience <= 0.0D
+                || (!config.shouldAwardAuraSkillsExperience() && !config.shouldAwardLevelerExperience())) return;
+        try {
+            var engine = getCraftEngine();
+            LevelerExperienceRewards.award(config, baseExperience,
+                    engine == null ? null : BukkitAdaptor.adapt(player),
+                    engine == null ? null : engine.compatibilityManager(),
+                    xp -> getAuraSkillsHook().addXp(player, xp),
+                    error -> getLogger().fine(I18n.formatConsole("plugin.leveler_xp_failed", "error", error)));
+        } catch (RuntimeException | LinkageError unavailable) {
+            getLogger().fine(I18n.formatConsole("plugin.leveler_xp_failed", "error", unavailable.getMessage()));
+        }
     }
 
-    public void awardCookingPotAuraSkillsExperience(Player player, double baseExperience) {
-        if (player == null || baseExperience <= 0.0D || !shouldAwardCookingPotAuraSkillsExperience()) {
-            return;
-        }
-        for (CookingPotExperienceRewardConfig.AuraSkillsReward reward
-                : getCookingPotExperienceRewardConfig().auraSkillsRewards()) {
-            if (!shouldApplyReward(reward.chance())) {
-                continue;
+    public void awardCraftingExperience(Player player, Location location, ItemStack result,
+                                        double baseExperience, String source) {
+        if (player == null || !Double.isFinite(baseExperience) || baseExperience < 0.0D) return;
+        ItemStack resultCopy = result == null ? null : result.clone();
+        Location locationCopy = location == null ? null : location.clone();
+        dropCraftingExperience(locationCopy, baseExperience);
+        // The station and taking player can have different Folia owners.
+        scheduler().runForEntity(player, () -> {
+            awardCookingPotSkillExperience(player, baseExperience);
+            getServer().getPluginManager().callEvent(new ProfessionCookingExperienceEvent(
+                    player.getUniqueId(), player.getName(), source, resultCopy,
+                    (float) Math.min(Float.MAX_VALUE, baseExperience), locationCopy));
+        });
+    }
+
+    public void dropCraftingExperience(Location location, double baseExperience) {
+        if (location == null || location.getWorld() == null || !shouldDropCookingPotVanillaExperience()
+                || !Double.isFinite(baseExperience) || baseExperience <= 0.0D) return;
+        Location locationCopy = location.clone();
+        scheduler().runAt(locationCopy, () -> {
+            int exp = (int) Math.min(Integer.MAX_VALUE - 1.0D, Math.floor(baseExperience));
+            double fraction = baseExperience - Math.floor(baseExperience);
+            if (ThreadLocalRandom.current().nextDouble() < fraction) exp++;
+            if (exp > 0) {
+                int amount = exp;
+                locationCopy.getWorld().spawn(locationCopy, ExperienceOrb.class, orb -> orb.setExperience(amount));
             }
-            var xpDefinition = reward.toXpDefinition(baseExperience);
-            if (xpDefinition.amount() > 0.0D) {
-                getAuraSkillsHook().addXp(player, xpDefinition);
-            }
-        }
-    }
-
-    public void callCookingPotExperienceEvent(Player player, ItemStack result, double baseExperience) {
-        if (player == null) {
-            return;
-        }
-        getServer().getPluginManager().callEvent(new ProfessionCookingExperienceEvent(
-                player.getUniqueId(),
-                player.getName(),
-                "cooking_pot",
-                result,
-                (float) Math.max(0.0D, baseExperience)
-        ));
-    }
-
-    private boolean shouldApplyReward(double chance) {
-        return chance >= 1.0D || (chance > 0.0D && ThreadLocalRandom.current().nextDouble() < chance);
+        });
     }
 
     public AuraSkillsHook getAuraSkillsHook() {

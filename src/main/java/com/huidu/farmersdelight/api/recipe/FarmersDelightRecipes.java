@@ -7,12 +7,10 @@ import com.huidu.farmersdelight.recipe.CuttingBoardRecipe;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipeManager;
 import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import org.bukkit.inventory.ItemStack;
-import org.jetbrains.annotations.ApiStatus;
 
 import java.util.ArrayList;
 import java.util.List;
 
-@ApiStatus.NonExtendable
 public final class FarmersDelightRecipes {
 
     private FarmersDelightRecipes() {

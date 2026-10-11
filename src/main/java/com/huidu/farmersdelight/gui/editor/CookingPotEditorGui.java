@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.gui.editor;
 
+import org.bukkit.inventory.Inventory;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.gui.AbstractInventoryGui;
 import com.huidu.farmersdelight.gui.GuiConfig;
@@ -41,6 +42,10 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
     private static final Set<String> MUTABLE_TYPES = Set.of(
             "ingredient", "container", "result", "result-count",
             "cook-time", "experience", "priority", "category");
+
+    private boolean dirty;
+    private boolean saving;
+    private Inventory saveInventory;
 
     private final String recipeId;
     private final String customGroupId;
@@ -187,7 +192,7 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
     @Override
     public void handleClick(InventoryClickEvent event) {
         event.setCancelled(true);
-        if (closed) {
+        if (closed || saving) {
             return;
         }
         int raw = event.getRawSlot();
@@ -374,6 +379,7 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
     }
 
     private void pushHistory() {
+        dirty = true;
         undoStack.push(capture());
         if (undoStack.size() > HISTORY_LIMIT) {
             undoStack.removeLast();
@@ -399,12 +405,14 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
 
     @Override
     public void handleClose(InventoryCloseEvent event) {
+        if (!closed) rememberDraft();
         super.close();
         clearCursor();
-        plugin.scheduler().runLaterForEntity(player, this::clearCursor, 1L);
+
     }
 
     private void save() {
+        if (saving) return;
         List<RecipeIngredient> ingredientList = new ArrayList<>();
         for (RecipeIngredient ingredient : ingredients) {
             if (ingredient != null) {
@@ -438,19 +446,25 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
                 recipeId, ingredientList, savedContainer, savedContainer != null, savedResult,
                 experience, cookTime, category, priority);
 
+        saving = true;
+        saveInventory = player.getOpenInventory().getTopInventory();
         boolean accepted = RecipeEditorView.store().saveCookingPotRecipeAsync(recipe, customGroupId, player,
-                saved -> {
-                    if (saved) {
+                success -> {
+                    saving = false;
+                    if (success) {
+                        dirty = false;
+                        EditorDrafts.discard(playerId, draftKey(), this);
                         player.sendMessage(Component.translatable("gui.editor.feedback.saved",
                                 Component.text(recipeId).color(NamedTextColor.WHITE))
                                 .color(NamedTextColor.GREEN));
-                        closeEditor();
+                        closeSavedInventory();
                     } else {
                         player.sendMessage(Component.translatable("gui.editor.feedback.save_failed")
                                 .color(NamedTextColor.RED));
                     }
                 });
         if (!accepted) {
+            saving = false;
             player.sendMessage(I18n.getComponent("gui.editor.feedback.save_busy", player));
         }
     }
@@ -461,15 +475,24 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
             performDelete();
             return;
         }
-        closed = true;
-        new ConfirmGui(plugin, player, confirmConfig, Map.of("recipe_id", recipeId),
-                this::performDelete, this::reopen).open();
+        plugin.scheduler().runLaterForEntity(player, () -> {
+            if (player.getOpenInventory().getTopInventory() != inventory) return;
+            closed = true;
+            new ConfirmGui(plugin, player, confirmConfig, Map.of("recipe_id", recipeId),
+                    this::performDelete, this::reopen).open();
+        }, 1L);
     }
 
     private void performDelete() {
+        if (saving) return;
+        saving = true;
+        saveInventory = player.getOpenInventory().getTopInventory();
         boolean accepted = RecipeEditorView.store().deleteCookingPotRecipeAsync(recipeId, customGroupId, player,
                 deleted -> {
+                    saving = false;
                     if (deleted) {
+                        dirty = false;
+                        EditorDrafts.discard(playerId, draftKey(), this);
                         player.sendMessage(Component.translatable("gui.editor.feedback.deleted",
                                 Component.text(recipeId).color(NamedTextColor.WHITE))
                                 .color(NamedTextColor.GREEN));
@@ -477,9 +500,12 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
                         player.sendMessage(Component.translatable("gui.editor.feedback.delete_failed")
                                 .color(NamedTextColor.RED));
                     }
-                    player.closeInventory();
+                    if (deleted) closeSavedInventory();
+                    else reopenAfterFailedDelete();
                 });
         if (!accepted) {
+            saving = false;
+            reopenAfterFailedDelete();
             player.sendMessage(I18n.getComponent("gui.editor.feedback.save_busy", player));
         }
     }
@@ -543,6 +569,8 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
                 this::reopen).open();
     }
 
+    String draftKey() { return "cooking_pot:" + customGroupId + ":" + recipeId; }
+
     void reopen() {
         closed = false;
         render();
@@ -550,10 +578,39 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
     }
 
     private void closeEditor() {
-        super.close();
-        clearCursor();
-        player.closeInventory();
+        rememberDraft();
+        plugin.scheduler().runLaterForEntity(player, () -> {
+            if (player.getOpenInventory().getTopInventory() == inventory) {
+                super.close();
+                clearCursor();
+                player.closeInventory();
+            }
+        }, 1L);
     }
+
+    private void closeSavedInventory() {
+        var expected = saveInventory;
+        plugin.scheduler().runLaterForEntity(player, () -> {
+            if (player.getOpenInventory().getTopInventory() == expected) {
+                clearCursor();
+                player.closeInventory();
+            }
+        }, 1L);
+    }
+
+    private void reopenAfterFailedDelete() {
+        plugin.scheduler().runLaterForEntity(player, () -> {
+            if (player.getOpenInventory().getTopInventory() == saveInventory) reopen();
+        }, 1L);
+    }
+
+    private void rememberDraft() {
+        if (dirty && player.isOnline()) {
+            EditorDrafts.remember(playerId, draftKey(), this);
+            player.sendMessage(I18n.getComponent("gui.editor.feedback.draft_kept", player));
+        }
+    }
+
 
     private void clearCursor() {
         player.setItemOnCursor(null);

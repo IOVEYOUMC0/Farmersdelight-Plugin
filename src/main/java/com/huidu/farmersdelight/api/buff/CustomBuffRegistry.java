@@ -16,7 +16,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-@ApiStatus.NonExtendable
 public final class CustomBuffRegistry {
 
     private static final List<CustomBuff> ENTRIES = new CopyOnWriteArrayList<>();

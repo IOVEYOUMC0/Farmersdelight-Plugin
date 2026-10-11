@@ -10,28 +10,14 @@ import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
 /**
- * The session bookkeeping behind handheld skewer cooking: a player starts cooking one skewer, the session
- * counts down 120 ticks (6 seconds, the upstream constant), and the skewer is consumed one at a time when it
- * finishes.
- *
- * Everything that touches the world is injected, so the timing rules are testable offline:
- *   - tryStart(UUID) starts a session; it refuses when disabled or when the player already has
- *       one (a player cooks one item at a time — that is also the mutual exclusion against every other
- *       handheld cooking path, the skillet included);
- *   - tick(UUID) counts one tick down; the tick that reaches zero consumes one skewer and
- *       clears the session. A tick without a session does nothing at all (no conversion, no state);
- *   - cancel(UUID) drops the session with zero progress — releasing the use key, switching slots
- *       or hands, dropping the item, quitting, dying or being hit all call it.
- *
- * The conversion itself (onCooked) is injected by the caller. The product comes from this
- * mechanism's own SkewerResultTable mapping (config handheld-skewer.results), not from the
- * pack's campfire recipe: CraftEngine only exposes its recipe queries through NMS-typed bindings, so handheld
- * cooking keeps its own table and the campfire/furnace/smoker paths stay untouched. The service never copies an
- * ItemStack: the caller consumes the held stack in place.
+ * Tracks one handheld skewer session per player.
+ * Starting requires an enabled service and no existing session; ticks advance the configured cooking time.
+ * Completion invokes the injected conversion callback once and clears the session.
+ * Cancellation clears progress without consuming items. World access and result resolution belong to the caller.
  */
 public final class HandCookedSkewerService {
 
-    /** The upstream cooking time: 6 seconds. */
+    /** Default cooking time: six seconds. */
     public static final int COOKING_TICKS = 120;
 
     private final Map<UUID, Integer> remaining = new ConcurrentHashMap<>();

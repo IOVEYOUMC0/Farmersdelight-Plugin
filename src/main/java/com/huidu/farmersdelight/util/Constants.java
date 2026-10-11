@@ -71,8 +71,7 @@ public final class Constants {
     public static final String SOUND_SKILLET_ATTACK_STRONG = "farmersdelight:item.skillet.attack.strong";
     public static final String SOUND_SKILLET_ATTACK_WEAK = "farmersdelight:item.skillet.attack.weak";
     public static final String SOUND_STOVE_CRACKLE = "farmersdelight:block.stove.crackle";
-    // Stove ignition/extinguishing sounds, the same ones the mod plays from AbstractStoveBlock and the
-    // pack used to play before that logic moved into the stove behavior.
+    // Default stove ignition and extinguishing sounds.
     public static final String SOUND_STOVE_IGNITE = "minecraft:item.flintandsteel.use";
     public static final String SOUND_STOVE_IGNITE_FIRE_CHARGE = "minecraft:item.firecharge.use";
     public static final String SOUND_STOVE_EXTINGUISH = "minecraft:block.fire.extinguish";

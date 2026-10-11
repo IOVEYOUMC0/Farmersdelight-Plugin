@@ -10,12 +10,14 @@ import org.bukkit.Location;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.components.CustomModelDataComponent;
 import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-import java.util.ArrayList;
 import java.util.Random;
+import java.util.Objects;
 
 // Owns the ItemDisplay entity visuals for placed skillets (what each stored food item looks like on the
 // pan). Self-contained: only depends on the plugin (display config, item-display manager) and static
@@ -51,17 +53,13 @@ final class SkilletVisualManager {
             skillet.displayedItem = visualItem;
             skillet.displayedFacing = facing;
             skillet.displayedOverride = displayOverride;
-            skillet.lastVisualStoredItem = skillet.storedItem == null ? null : skillet.storedItem.clone();
+            skillet.lastVisualStoredItem = skillet.storedItem.clone();
         }
 
+        if (skillet.displayEntityIds.size() == displayCount) return;
+        ItemDisplayManager visualManager = plugin.getItemDisplayManager();
+        if (visualManager == null || !visualManager.isAvailable()) return;
         Random random = new Random(getVisualSeed(skillet.storedItem));
-        while (skillet.displayEntityIds.size() > displayCount) {
-            int entityId = skillet.displayEntityIds.remove(skillet.displayEntityIds.size() - 1);
-            ItemDisplayManager visualManager = plugin.getItemDisplayManager();
-            if (visualManager != null) {
-                visualManager.destroyDisplay(entityId);
-            }
-        }
 
         for (int i = skillet.displayEntityIds.size(); i < displayCount; i++) {
             double spread = displayConfig.getItemSpread();
@@ -111,11 +109,6 @@ final class SkilletVisualManager {
                     new Quaternionf()
             );
 
-            ItemDisplayManager visualManager = plugin.getItemDisplayManager();
-            if (visualManager == null || !visualManager.isAvailable()) {
-                continue;
-            }
-
             Location displayLoc = location.clone().add(0.5 + offsetX, offsetY, 0.5 + offsetZ);
             int displayId = visualManager.createDisplay(new ItemDisplayManager.DisplaySpec(
                     displayLoc,
@@ -152,8 +145,11 @@ final class SkilletVisualManager {
         if (customItemId != null) {
             seed = 31L * seed + customItemId.hashCode();
         }
-        if (stack.hasItemMeta() && stack.getItemMeta().hasCustomModelData()) {
-            seed = 31L * seed + stack.getItemMeta().getCustomModelData();
+        ItemMeta meta = stack.hasItemMeta() ? stack.getItemMeta() : null;
+        if (meta != null && meta.hasCustomModelDataComponent()) {
+            CustomModelDataComponent data = meta.getCustomModelDataComponent();
+            seed = 31L * seed + Objects.hash(data.getFloats(), data.getFlags(),
+                    data.getStrings(), data.getColors());
         }
         return seed;
     }
@@ -175,7 +171,7 @@ final class SkilletVisualManager {
             return;
         }
 
-        for (Integer entityId : new ArrayList<>(skillet.displayEntityIds)) {
+        for (Integer entityId : skillet.displayEntityIds) {
             visualManager.destroyDisplay(entityId);
         }
         skillet.displayEntityIds.clear();

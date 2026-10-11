@@ -64,7 +64,9 @@ class RecipeShardPublishTest {
             String source = readSource(manager);
 
             assertTrue(source.contains(
-                            "RecipeRegistrationBudget.forLoad(recipes.size(), plugin.recipeRegistrationBudget())"),
+                            manager.equals("CookingPotRecipeManager.java")
+                                    ? "RecipeRegistrationBudget.forLoad(published.state().recipes().size(), plugin.recipeRegistrationBudget())"
+                                    : "RecipeRegistrationBudget.forLoad(published.recipes().size(), plugin.recipeRegistrationBudget())"),
                     manager + " has to run a load with nothing published yet whole, not on the per-tick budget");
         }
     }
@@ -86,7 +88,9 @@ class RecipeShardPublishTest {
         for (String manager : MANAGERS) {
             String source = readSource(manager);
 
-            assertTrue(source.contains("this.recipes = Collections.unmodifiableMap(new LinkedHashMap<>(newRecipes));"),
+            assertTrue(source.contains(manager.equals("CookingPotRecipeManager.java")
+                            ? "publishState(new PublishedState(Collections.unmodifiableMap(new LinkedHashMap<>(newRecipes))"
+                            : "this.published = new PublishedState(Collections.unmodifiableMap(new LinkedHashMap<>(newRecipes))"),
                     manager + " publishes an immutable snapshot, so no later tick can write into it");
             assertFalse(source.contains("this.recipes = newRecipes;"),
                     manager + " must not publish the round's own buffer");

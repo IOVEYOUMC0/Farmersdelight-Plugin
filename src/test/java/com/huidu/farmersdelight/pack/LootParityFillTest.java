@@ -17,11 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * Keeps the knife interactions the bundled pack declares in step with upstream Farmer's Delight 1.4: the
- * pumpkin slice replacement, the cake slicing that scales with the remaining bites, the sandy shrub straw,
- * and the knife test itself.
- */
+/** Checks pumpkin slicing, remaining cake slices, sandy-shrub straw and bundled knife predicates. */
 class LootParityFillTest {
 
     private static final Path CFG = Path.of(

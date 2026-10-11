@@ -25,10 +25,12 @@ class DisplayCullerRemovalTest {
 
     @Test
     void nothingReferencesTheRemovedCuller() throws IOException {
-        for (Path path : Files.walk(MAIN).filter(file -> file.toString().endsWith(".java")).toList()) {
-            String text = Files.readString(path);
-            for (String type : REMOVED_TYPES) {
-                assertFalse(text.contains(type), MAIN.relativize(path) + " still references " + type);
+        try (var files = Files.walk(MAIN)) {
+            for (Path path : files.filter(file -> file.toString().endsWith(".java")).toList()) {
+                String text = Files.readString(path);
+                for (String type : REMOVED_TYPES) {
+                    assertFalse(text.contains(type), MAIN.relativize(path) + " still references " + type);
+                }
             }
         }
     }

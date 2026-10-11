@@ -7,10 +7,10 @@ import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.core.world.BlockPos;
+import net.momirealms.craftengine.libraries.nbt.CompoundTag;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
@@ -19,8 +19,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.ToDoubleFunction;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -40,10 +39,8 @@ public class CookingPotBlockEntity {
     // Inventory version: incremented on every write to the inventory array, lets the GUI cheaply detect
     // "did the pot change" and skip a full input-slot rescan when unchanged. volatile so GUI threads see the latest value.
     private volatile long inventoryVersion;
-    // Written by the cook tick on the pot's region, drained by awardUsedRecipes on the taking player's
-    // region (a GUI viewer can stand in a different region). Concurrent map + atomic per-key removal so
-    // neither side can lose a craft or trip over a resize.
-    private final Map<String, Integer> usedRecipeTracker = new ConcurrentHashMap<>();
+    // Cooking, claims and persistence share inventoryLock so a save cannot capture a partial settlement.
+    private final Map<String, Integer> usedRecipeTracker = new HashMap<>();
     private final AtomicInteger cookingProgress = new AtomicInteger(0);
     private final AtomicInteger cookingDuration = new AtomicInteger(200);
     private final AtomicBoolean hasHeatSource = new AtomicBoolean(false);
@@ -202,13 +199,13 @@ public class CookingPotBlockEntity {
     }
 
     // Package-private so CookingPotCraftingHandler reuses the same validity guard on layout slots.
-    boolean isValidSlot(int slot) {
+    boolean isInvalidSlot(int slot) {
         return slot < 0 || slot >= inventory.length;
     }
 
     public ItemStack getInventorySlot(int slot) {
         synchronized (inventoryLock) {
-            if (isValidSlot(slot)) {
+            if (isInvalidSlot(slot)) {
                 return null;
             }
             return copyOrNull(inventory[slot]);
@@ -236,7 +233,7 @@ public class CookingPotBlockEntity {
 
     public void setInventorySlot(int slot, ItemStack item) {
         synchronized (inventoryLock) {
-            if (isValidSlot(slot)) {
+            if (isInvalidSlot(slot)) {
                 return;
             }
             setSlot(slot, copyOrNull(item));
@@ -265,7 +262,7 @@ public class CookingPotBlockEntity {
                 return 0;
             }
             for (ItemStack item : inventory) {
-                // Amount-based empty check — see takeMealPortionWithExperience for rationale.
+                // Amount-based empty check — see extractMealPortion for rationale.
                 if (item == null || item.getType().isAir() || item.getAmount() <= 0) {
                     continue;
                 }
@@ -297,11 +294,11 @@ public class CookingPotBlockEntity {
             return -1;
         }
         for (int slot : slots) {
-            if (isValidSlot(slot)) {
+            if (isInvalidSlot(slot)) {
                 continue;
             }
             ItemStack item = inventory[slot];
-            // Amount-based empty check — see takeMealPortionWithExperience for rationale.
+            // Amount-based empty check — see extractMealPortion for rationale.
             if (item != null && item.getAmount() > 0) {
                 return slot;
             }
@@ -456,7 +453,7 @@ public class CookingPotBlockEntity {
 
         ItemStack pending = item.clone();
         for (int i : slots) {
-            if (isValidSlot(i)) continue;
+            if (isInvalidSlot(i)) continue;
             ItemStack existing = inventory[i];
             if (existing == null || existing.getType().isAir() || !isSimilarIgnoringStoredExperience(existing, pending)) {
                 continue;
@@ -477,7 +474,7 @@ public class CookingPotBlockEntity {
         }
 
         for (int i : slots) {
-            if (isValidSlot(i)) continue;
+            if (isInvalidSlot(i)) continue;
             ItemStack existing = inventory[i];
             if (existing != null && !existing.getType().isAir()) {
                 continue;
@@ -708,7 +705,7 @@ public class CookingPotBlockEntity {
     }
 
     public ItemStack useHeldContainerOnPendingMeal(Player player, ItemStack container) {
-        awardUsedRecipes(player);
+        // Hand serving bypasses the result slot and leaves recipe XP unclaimed.
         TakenMeal meal = useHeldContainerOnPendingMeal(container);
         return meal == null ? null : meal.item();
     }
@@ -728,7 +725,7 @@ public class CookingPotBlockEntity {
                 return null;
             }
 
-            SplitItem result = splitItemFromSlot(pendingSlot, 1);
+            ItemStack result = splitItemFromSlot(pendingSlot, 1);
             if (meal.getAmount() <= 0) {
                 setSlot(pendingSlot, null);
                 if (!hasAnyItem(layout.pendingOutputSlots())) {
@@ -742,21 +739,21 @@ public class CookingPotBlockEntity {
     }
 
     public ItemStack takeMealPortionForDelivery(Player player, int requestedAmount) {
-        awardUsedRecipes(player);
         TakenMeal meal = takeMealPortionForDelivery(requestedAmount);
+        if (meal != null) awardUsedRecipes(player, meal.item());
         return meal == null ? null : meal.item();
     }
 
     public TakenMeal takeMealPortionForDelivery(int requestedAmount) {
-        return TakenMeal.from(takeMealPortionWithExperience(requestedAmount));
+        return TakenMeal.from(extractMealPortion(requestedAmount));
     }
 
     public ItemStack takeOutputSlotPortionForDelivery(Player player, int outputSlot, int requestedAmount) {
         if (!layout.isOutputSlot(outputSlot)) {
             return null;
         }
-        awardUsedRecipes(player);
         TakenMeal meal = takeOutputSlotPortionForDelivery(outputSlot, requestedAmount);
+        if (meal != null) awardUsedRecipes(player, meal.item());
         return meal == null ? null : meal.item();
     }
 
@@ -764,33 +761,32 @@ public class CookingPotBlockEntity {
         if (!layout.isOutputSlot(outputSlot)) {
             return null;
         }
-        return TakenMeal.from(takeMealPortionWithExperience(outputSlot, requestedAmount));
+        return TakenMeal.from(extractMealPortion(outputSlot, requestedAmount));
     }
 
     public ItemStack takeMealPortion(int requestedAmount) {
-        SplitItem meal = takeMealPortionWithExperience(requestedAmount);
-        return meal == null ? null : meal.item();
+        return extractMealPortion(requestedAmount);
     }
 
-    private SplitItem takeMealPortionWithExperience(int requestedAmount) {
+    private ItemStack extractMealPortion(int requestedAmount) {
         int outputSlot;
         synchronized (inventoryLock) {
             outputSlot = firstNonEmptySlot(layout.outputSlots());
             if (outputSlot < 0) return null;
         }
-        return takeMealPortionWithExperience(outputSlot, requestedAmount);
+        return extractMealPortion(outputSlot, requestedAmount);
     }
 
-    private SplitItem takeMealPortionWithExperience(int outputSlot, int requestedAmount) {
+    private ItemStack extractMealPortion(int outputSlot, int requestedAmount) {
         synchronized (inventoryLock) {
-            if (isValidSlot(outputSlot) || !layout.isOutputSlot(outputSlot)) {
+            if (isInvalidSlot(outputSlot) || !layout.isOutputSlot(outputSlot)) {
                 return null;
             }
             ItemStack meal = inventory[outputSlot];
             if (meal == null || meal.getAmount() <= 0) return null;
 
             int amount = Math.max(1, Math.min(requestedAmount, meal.getAmount()));
-            SplitItem result = splitItemFromSlot(outputSlot, amount);
+            ItemStack result = splitItemFromSlot(outputSlot, amount);
 
             if (meal.getAmount() <= 0) {
                 setSlot(outputSlot, null);
@@ -820,8 +816,7 @@ public class CookingPotBlockEntity {
     }
 
     public ItemStack takeMealWithExperience(Player player) {
-        awardUsedRecipes(player);
-        SplitItem meal;
+        ItemStack meal;
         synchronized (inventoryLock) {
             int outputSlot = firstNonEmptySlot(layout.outputSlots());
             if (outputSlot < 0) {
@@ -831,46 +826,69 @@ public class CookingPotBlockEntity {
             if (item == null || item.getType().isAir()) {
                 return null;
             }
-            meal = new SplitItem(item, 0.0D);
+            meal = item;
             setSlot(outputSlot, null);
             tryMovePendingToOutput();
         }
         syncWorldlyContainer();
-        return meal.item();
+        awardUsedRecipes(player, meal);
+        return meal;
     }
 
-    public void awardUsedRecipes(Player player) {
-        if (usedRecipeTracker.isEmpty()) return;
-        World currentWorld = this.world;
-        if (currentWorld == null) return;
-
-        for (String recipeId : List.copyOf(usedRecipeTracker.keySet())) {
-            Integer craftedAmount = usedRecipeTracker.remove(recipeId);
-            if (craftedAmount == null) continue;
-            if (plugin == null) continue;
-            var recipes = plugin.getCookingPotRecipes();
-            if (recipes == null) continue;
-            CookingPotRecipe recipe = recipes.getRecipe(recipeId);
-            if (recipe == null) continue;
-            float exp = recipe.getExperience();
-            splitAndSpawnExperience(currentWorld, craftedAmount, exp);
-        }
+    public void awardUsedRecipes(Player player, ItemStack result) {
+        if (player == null || plugin == null || result == null || result.getType().isAir()) return;
+        double experience = collectUsedRecipeExperience();
+        World currentWorld = world;
+        Location location = currentWorld == null ? null
+                : new Location(currentWorld, posKey.x() + 0.5, posKey.y() + 1.0, posKey.z() + 0.5);
+        plugin.awardCraftingExperience(player, location, result, experience, "cooking_pot");
     }
 
-    private void splitAndSpawnExperience(World world, int craftedAmount, float experience) {
-        double totalExp = (double) craftedAmount * (double) experience;
-        int expValue = (int) Math.floor(totalExp);
-        double fraction = totalExp - expValue;
-        if (fraction > 0.0D && ThreadLocalRandom.current().nextDouble() < fraction) {
-            expValue += 1;
+    public void dropUsedRecipeExperience(Location location) {
+        if (plugin == null) return;
+        plugin.dropCraftingExperience(location, collectUsedRecipeExperience());
+    }
+
+    private double collectUsedRecipeExperience() {
+        var recipes = plugin.getCookingPotRecipes();
+        if (recipes == null) return 0.0D;
+        return collectUsedRecipeExperience(id -> {
+            CookingPotRecipe recipe = recipes.getRecipe(recipeGroupId, id);
+            return recipe == null ? 0.0D : recipe.getExperience();
+        });
+    }
+
+    double collectUsedRecipeExperience(ToDoubleFunction<String> recipeExperience) {
+        double total = 0.0D;
+        synchronized (inventoryLock) {
+            for (Map.Entry<String, Integer> entry : usedRecipeTracker.entrySet()) {
+                int craftedAmount = entry.getValue();
+                if (craftedAmount <= 0) continue;
+                double experience = recipeExperience.applyAsDouble(entry.getKey());
+                double earned = craftedAmount * experience;
+                if (Double.isFinite(earned) && earned > 0.0D && Double.isFinite(total + earned)) total += earned;
+            }
+            usedRecipeTracker.clear();
         }
-        if (expValue > 0) {
-            int amount = expValue;
-            Location loc = new Location(world, posKey.x() + 0.5, posKey.y() + 1.0, posKey.z() + 0.5);
-            // Reward collection runs on the taking player's region, which need not own the pot's chunk;
-            // spawning there would trip Folia's tick-thread check and abort the whole take.
-            if (plugin != null) {
-                plugin.scheduler().runAt(loc, () -> world.spawn(loc, ExperienceOrb.class, orb -> orb.setExperience(amount)));
+        syncWorldlyContainer();
+        return total;
+    }
+
+    CompoundTag saveUsedRecipes() {
+        CompoundTag recipes = new CompoundTag();
+        synchronized (inventoryLock) {
+            usedRecipeTracker.forEach(recipes::putInt);
+        }
+        return recipes;
+    }
+
+    void loadUsedRecipes(CompoundTag recipes) {
+        synchronized (inventoryLock) {
+            usedRecipeTracker.clear();
+            if (recipes == null) return;
+            for (String id : recipes.keySet()) {
+                int count = recipes.getInt(id, 0);
+                if (count > 0) usedRecipeTracker.put(id, count);
             }
         }
     }
@@ -917,8 +935,8 @@ public class CookingPotBlockEntity {
                         continue;
                     }
 
-                    SplitItem moving = splitItemFromSlot(pendingSlot, movableAmount);
-                    addItemToSlots(layout.outputSlots(), moving.item());
+                    ItemStack moving = splitItemFromSlot(pendingSlot, movableAmount);
+                    addItemToSlots(layout.outputSlots(), moving);
 
                     ItemStack requiredContainer = mealContainerStack.get();
                     if (requiredContainer != null && !requiredContainer.getType().isAir()) {
@@ -1049,7 +1067,7 @@ public class CookingPotBlockEntity {
     }
 
     private int getAvailableSpace(int slot, ItemStack item) {
-        if (isValidSlot(slot) || item == null || item.getType().isAir()) {
+        if (isInvalidSlot(slot) || item == null || item.getType().isAir()) {
             return 0;
         }
         ItemStack existing = inventory[slot];
@@ -1063,7 +1081,7 @@ public class CookingPotBlockEntity {
     }
 
     private void addItemToSlot(int slot, ItemStack item) {
-        if (isValidSlot(slot)) {
+        if (isInvalidSlot(slot)) {
             return;
         }
         if (item == null || item.getType().isAir()) {
@@ -1124,8 +1142,8 @@ public class CookingPotBlockEntity {
         }
     }
 
-    private SplitItem splitItemFromSlot(int slot, int amount) {
-        if (isValidSlot(slot)) {
+    private ItemStack splitItemFromSlot(int slot, int amount) {
+        if (isInvalidSlot(slot)) {
             return null;
         }
         ItemStack source = inventory[slot];
@@ -1139,7 +1157,7 @@ public class CookingPotBlockEntity {
         source.setAmount(remainingAmount);
         bumpInventoryVersion();
 
-        return new SplitItem(split, 0.0D);
+        return split;
     }
 
     private boolean isSimilarIgnoringStoredExperience(ItemStack first, ItemStack second) {
@@ -1192,9 +1210,8 @@ public class CookingPotBlockEntity {
     }
 
     /**
-     * The progress after elapsedTicks of pot time: a cooking pot advances by those ticks (capped at the
-     * duration), an idle one regresses by two per tick — the mod's cookTime behaviour — so an unheated
-     * pot, or one whose ingredients no longer match, visibly winds back instead of freezing where it stopped.
+     * Advances cooking progress by elapsed ticks, capped at the duration.
+     * Idle progress regresses by two per tick, including when heat or matching ingredients are absent.
      */
     public static int advanceOrDecayProgress(int progress, int duration, int elapsedTicks, boolean cooking) {
         if (elapsedTicks <= 0) {
@@ -1268,15 +1285,12 @@ public class CookingPotBlockEntity {
         }
     }
 
-    private record SplitItem(ItemStack item, double experience) {
-    }
-
     public record TakenMeal(ItemStack item, double experience) {
-        private static TakenMeal from(SplitItem splitItem) {
+        private static TakenMeal from(ItemStack splitItem) {
             if (splitItem == null) {
                 return null;
             }
-            return new TakenMeal(splitItem.item(), splitItem.experience());
+            return new TakenMeal(splitItem, 0.0D);
         }
 
         public TakenMeal {

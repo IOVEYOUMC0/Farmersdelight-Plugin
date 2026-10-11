@@ -1,7 +1,6 @@
 package com.huidu.farmersdelight.recipe;
 
 import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -47,10 +46,8 @@ public final class ParsedRecipeCache<R> {
     }
 
     /**
-     * Returns the parsed entry, parsing it through {@code parser} when this generation does not already hold it.
-     *
-     * The same inputs always produce the same value: what the parser returned once is what every caller of the
-     * same key gets back, until the generation or the entry's own values change.
+     * Returns a cached entry or parses it through parser for the current content generation.
+     * A generation change or changed entry values invalidates that cached result.
      */
     @SuppressWarnings("unchecked")
     public synchronized R parse(long generation, String source, String path, String fingerprint,

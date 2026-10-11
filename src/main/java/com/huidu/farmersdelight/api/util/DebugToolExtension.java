@@ -20,7 +20,14 @@ public interface DebugToolExtension {
         void capture(Location loc);
     }
 
+    /** Legacy whole-world callbacks are not invoked by the debug command. */
+    @Deprecated
     default int activate(Player player) {
+        return 0;
+    }
+
+    /** Receives one operation-owned, protection-checked position on its region thread. */
+    default int activateAt(Player player, Location location) {
         return 0;
     }
 

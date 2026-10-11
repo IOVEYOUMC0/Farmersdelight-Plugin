@@ -11,6 +11,7 @@ import com.huidu.farmersdelight.util.VanillaAdvancements;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.RiceCropRules;
+import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockBreakEvent;
@@ -142,9 +143,8 @@ public class RicePlantListener implements Listener {
 
         Player player = event.getPlayer();
 
-        // Gate interactable blocks before allocating a CraftEngine item wrapper for seed resolution.
         Block clickedBlock = event.getClickedBlock();
-        if (clickedBlock == null || isBlockingInteractable(clickedBlock, player)) {
+        if (clickedBlock == null) {
             return;
         }
 
@@ -153,6 +153,11 @@ public class RicePlantListener implements Listener {
         boolean isRice = RICE_BLOCK_KEY.equals(cropId);
         boolean isWildRice = WILD_RICE_BLOCK_KEY.equals(cropId);
         if (!isRice && !isWildRice) {
+            return;
+        }
+
+        if (clickedBlock.getType() != Material.WATER && !player.isSneaking()
+                && CraftEngineAdapter.hasBlockInteraction(event)) {
             return;
         }
 
@@ -230,16 +235,6 @@ public class RicePlantListener implements Listener {
 
         sendInvalidPlacementMessage(player, event, clickedBlock);
         event.setCancelled(true);
-    }
-
-    // Paper deprecated Material#isInteractable with no replacement (its javadoc notes it never was
-    // comprehensive). The judgement here is deliberately a coarse heuristic that keeps rice planting
-    // from hijacking right-clicks on interactive blocks, so keep the call with a local suppression.
-    @SuppressWarnings("deprecation")
-    private boolean isBlockingInteractable(Block clickedBlock, Player player) {
-        return clickedBlock.getType() != Material.WATER
-                && !player.isSneaking()
-                && clickedBlock.getType().isInteractable();
     }
 
     private Key resolvePlantingCrop(ItemStack item) {

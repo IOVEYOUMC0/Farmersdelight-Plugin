@@ -34,11 +34,9 @@ final class CuttingBoardCutter {
     private static final double FORTUNE_BONUS_PER_LEVEL = 0.1d;
 
     private final FarmersDelightPlugin plugin;
-    private final CuttingBoardToolMatcher toolMatcher;
 
-    CuttingBoardCutter(FarmersDelightPlugin plugin, CuttingBoardToolMatcher toolMatcher) {
+    CuttingBoardCutter(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
-        this.toolMatcher = toolMatcher;
     }
 
     ItemStack findMatchingTool(CuttingBoardBlockEntity blockEntity, ItemStack mainHand, ItemStack offHand,

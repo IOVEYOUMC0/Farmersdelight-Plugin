@@ -1,10 +1,10 @@
 package com.huidu.farmersdelight.api;
 
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.block.CuttingBoardInteractionHandler;
 import com.huidu.farmersdelight.api.block.HeatSources;
 import com.huidu.farmersdelight.api.advancement.FarmersDelightAdvancements;
-import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import com.huidu.farmersdelight.api.recipe.ChanceResult;
 import com.huidu.farmersdelight.api.recipe.FarmersDelightRecipes;
 import com.huidu.farmersdelight.api.recipe.JumpTarget;
@@ -26,18 +26,17 @@ import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import com.huidu.farmersdelight.visual.ItemDisplayManager.DisplaySpec;
 import com.huidu.farmersdelight.visual.ItemDisplayManager.TextDisplaySpec;
 import net.kyori.adventure.text.Component;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.Color;
 import org.bukkit.block.Block;
-import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.entity.ItemDisplay.ItemDisplayTransform;
 import org.bukkit.entity.Player;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Transformation;
 import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,11 +47,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
-@ApiStatus.NonExtendable
 public final class FarmersDelightApi {
 
     private static final int API_VERSION = 4;
@@ -116,6 +113,19 @@ public final class FarmersDelightApi {
 
     public static FarmersDelightApi get() {
         return INSTANCE;
+    }
+
+    /** Returns a session-bound recorder, or null when this operation is not being sampled. */
+    @Nullable
+    public PerformanceProbe.Timing performanceTiming(PerformanceProbe.Operation operation) {
+        try {
+            FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
+            return plugin == null || plugin.getTickManager() == null || operation == null
+                    ? null : plugin.getTickManager().performanceTiming(operation);
+        } catch (NoClassDefFoundError absentRuntime) {
+            // API-only consumers have no plugin implementation to collect timings.
+            return null;
+        }
     }
 
     public int apiVersion() {
@@ -311,6 +321,27 @@ public final class FarmersDelightApi {
                 I18n.logWarning("plugin.recipe_api_registration_failed", "id", id, "type", "cooking pot",
                         "error", e.getMessage());
             }
+        }
+    }
+
+    /** Registers the same YAML recipe shape accepted by files and the editor. */
+    public boolean registerRecipeConfiguration(String station, String id, ConfigurationSection section) {
+        FarmersDelightPlugin plugin = availablePlugin();
+        if (plugin == null || id == null || id.isBlank() || section == null) {
+            return false;
+        }
+        try {
+            return switch (station) {
+                case "cooking_pot" -> plugin.getCookingPotRecipes().registerExternalRecipe(id, section);
+                case "cutting_board" -> plugin.getCuttingBoardRecipes().registerExternalRecipe(id, section);
+                default -> false;
+            };
+        } catch (IllegalArgumentException invalid) {
+            if (isContentLoaded()) {
+                I18n.logWarning("plugin.recipe_api_registration_failed", "id", id, "type", station,
+                        "error", invalid.getMessage());
+            }
+            return false;
         }
     }
 
@@ -885,33 +916,6 @@ public final class FarmersDelightApi {
         if (plugin == null || player == null) {
             return;
         }
-        ItemStack resultCopy = result == null ? null : result.clone();
-        Location locationCopy = location == null ? null : location.clone();
-        if (baseExperience > 0.0D && plugin.shouldDropCookingPotVanillaExperience()
-                && locationCopy != null && locationCopy.getWorld() != null) {
-            plugin.scheduler().runAt(locationCopy, () ->
-                    dropExperienceOrbs(locationCopy.getWorld(), locationCopy, baseExperience));
-        }
-        // The player may be in a different Folia region than the crafting station, or teleport before
-        // execution. Keep all player-owned integrations and the player event on the entity scheduler.
-        plugin.scheduler().runForEntity(player, () -> {
-            plugin.awardCookingPotAuraSkillsExperience(player, baseExperience);
-            Bukkit.getPluginManager().callEvent(new ProfessionCookingExperienceEvent(
-                    player.getUniqueId(), player.getName(), source, resultCopy, (float) baseExperience,
-                    locationCopy));
-        });
-    }
-
-    private static void dropExperienceOrbs(World world, Location location, double totalExp) {
-        // Probabilistic rounding so sub-1.0 exp isn't floored away; expected total holds over many takes.
-        int expValue = (int) Math.floor(totalExp);
-        double fraction = totalExp - expValue;
-        if (fraction > 0.0D && ThreadLocalRandom.current().nextDouble() < fraction) {
-            expValue += 1;
-        }
-        if (expValue > 0) {
-            int amount = expValue;
-            world.spawn(location, ExperienceOrb.class, orb -> orb.setExperience(amount));
-        }
+        plugin.awardCraftingExperience(player, location, result, baseExperience, source);
     }
 }

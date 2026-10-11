@@ -2,7 +2,6 @@ package com.huidu.farmersdelight.api.content;
 
 import com.huidu.farmersdelight.advancement.ContentRequirement;
 import com.huidu.farmersdelight.util.ItemUtils;
-import org.jetbrains.annotations.ApiStatus;
 
 import java.util.List;
 
@@ -11,7 +10,6 @@ import java.util.List;
 // finished loading its item registry, absence cannot be trusted, so the checks report "present"
 // (same conservative gate as the advancement system); a bare or malformed id also counts as present
 // so a lookup quirk can never hide working content.
-@ApiStatus.NonExtendable
 public final class FarmersDelightContent {
 
     private FarmersDelightContent() {

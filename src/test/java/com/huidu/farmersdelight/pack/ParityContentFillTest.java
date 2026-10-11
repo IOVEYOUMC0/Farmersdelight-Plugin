@@ -24,12 +24,14 @@ class ParityContentFillTest {
             "src/main/resources/craftengine/farmersdelight/resourcepack/assets/farmersdelight/lang");
     /** Block ids are defined under any of these sections across the shipped pack files. */
     private static boolean isDefinedAnywhere(String id) throws Exception {
-        for (Path file : Files.list(CFG).filter(path -> path.toString().endsWith(".yml")).toList()) {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file.toFile());
-            for (String section : List.of("items", "blocks", "block", "templates", "furniture")) {
-                ConfigurationSection root = config.getConfigurationSection(section);
-                if (root != null && root.getKeys(false).contains(id)) {
-                    return true;
+        try (var files = Files.list(CFG)) {
+            for (Path file : files.filter(path -> path.toString().endsWith(".yml")).toList()) {
+                YamlConfiguration config = YamlConfiguration.loadConfiguration(file.toFile());
+                for (String section : List.of("items", "blocks", "block", "templates", "furniture")) {
+                    ConfigurationSection root = config.getConfigurationSection(section);
+                    if (root != null && root.getKeys(false).contains(id)) {
+                        return true;
+                    }
                 }
             }
         }

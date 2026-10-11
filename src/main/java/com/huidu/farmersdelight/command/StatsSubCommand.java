@@ -97,7 +97,8 @@ final class StatsSubCommand extends SubCommand {
         TickManager.PerformanceSnapshot snapshot = tickManager.getPerformanceSnapshot();
         // Live counters (active/snapshot/pending) are always valid, but the per-tick samples are only
         // collected while a profile is running; without one the avg/max lines read 0 and mislead.
-        if (!snapshot.statsEnabled() && snapshot.samples() == 0) {
+        if (!snapshot.statsEnabled() && snapshot.samples() == 0
+                && snapshot.features().values().stream().allMatch(timing -> timing.calls() == 0)) {
             player.sendMessage(I18n.getComponent("command.stats_feature_sampling_off", player));
         }
         sendPerformanceSnapshot(player, snapshot);
