@@ -117,9 +117,12 @@ items:
     template: farmersdelight:drink_template
     data:
       item-name: <!i><lang:item.farmersdelight.apple_cider>
+      food:
+        nutrition: 1
+        saturation: 4
       lore:
         - content:
-          - '<!i><blue><lang:effect.minecraft.absorption> (01:00)</blue>'
+          - '<!i><blue><lang:effect.minecraft.absorption> (03:00)</blue>'
           - ''
           - '<!i><lang:potion.whenDrank>'
           - '<!i><blue>  +4 <lang:attribute.name.max_absorption></blue>'
@@ -127,7 +130,7 @@ items:
       - on: consume
         functions:
           - type: potion_effect
-            duration: 1200
+            duration: 3600
             amplifier: 0
             particles: true
             potion-effect: minecraft:absorption
@@ -138,6 +141,9 @@ items:
     template: farmersdelight:drink_template
     data:
       item-name: <!i><lang:item.farmersdelight.melon_juice>
+      food:
+        nutrition: 1
+        saturation: 4
       lore: '<!i><blue><lang:farmersdelight.tooltip.melon_juice.effect></blue>'
     events:
       - on: consume
@@ -151,6 +157,9 @@ items:
     template: farmersdelight:drink_template
     data:
       item-name: <!i><lang:item.farmersdelight.hot_cocoa>
+      food:
+        nutrition: 3
+        saturation: 6
       lore: '<!i><blue><lang:farmersdelight.tooltip.hot_cocoa.effect></blue>'
     events:
       - on: consume 
