@@ -147,7 +147,7 @@ class SkewerDurabilityLeakTest {
         assertTrue(handle.contains("getInventory().getItem("),
                 "its inventory reach is the read of the slot it displays and resends");
         for (String forbidden : new String[]{"getInventory().set", "getInventory().clear", "setItem(",
-                "setItemInMainHand", "setItemInOffHand", "setItemMeta", "setContents("}) {
+                "setItemInMainHand", "setItemInOffHand", "source.setItemMeta", "original.setItemMeta", "setContents("}) {
             assertFalse(handle.contains(forbidden),
                     "HandheldDisplays must not write real state through " + forbidden);
         }

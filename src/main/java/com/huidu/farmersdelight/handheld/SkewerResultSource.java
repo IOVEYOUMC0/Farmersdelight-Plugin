@@ -5,7 +5,7 @@ import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Resolves a configured handheld-skewer.results override, then a campfire recipe fallback.
+ * Resolves an eligible handheld input through configured overrides or a campfire recipe.
  * No matching source means no cooking. Production converts the resolved result to an item ID.
  */
 @ApiStatus.Internal

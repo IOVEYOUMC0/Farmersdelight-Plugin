@@ -926,6 +926,7 @@ items:
           count: 1
     settings:
       tags:
+        - farmersdelight:hand_cookable
         - farmersdelight:snacks
   farmersdelight:vegetable_skewer:
     template: farmersdelight:food_template
@@ -941,6 +942,7 @@ items:
           count: 1
     settings:
       tags:
+        - farmersdelight:hand_cookable
         - farmersdelight:snacks
   farmersdelight:cooked_meat_skewer:
     template: farmersdelight:food_template

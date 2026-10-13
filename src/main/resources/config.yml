@@ -783,13 +783,10 @@ handheld-skewer:
   cooking-time-ticks: 120
   progress-display:
     # Rewrites the held skewer for that viewer only, showing the cooking as a client-only durability bar
-    # (real durability is never touched). Five packets per second, the same cadence the handheld skillet uses.
+    # and its hand_cooking_display model when available. Real item data is unchanged; five updates per second.
     enabled: true
-  # Raw skewer -> cooked skewer. This table is an OVERRIDE in front of the campfire cooking recipe, which is
-  # what Farmer's Delight 1.4 asks (RecipeUtils.getCampfireCookingRecipe): an id listed here wins, anything
-  # else falls through to the campfire recipe, and an input with neither never starts cooking. The recipe
-  # query shares the very same cache the skillet uses, so editing the pack's campfire recipe changes handheld
-  # cooking too.
+  # Only items tagged farmersdelight:hand_cookable can cook in hand.
+  # These overrides precede campfire recipes; tagged items still need a result.
   results:
     farmersdelight:meat_skewer: farmersdelight:cooked_meat_skewer
     farmersdelight:vegetable_skewer: farmersdelight:cooked_vegetable_skewer

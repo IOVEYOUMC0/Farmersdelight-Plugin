@@ -6,6 +6,7 @@ import org.bukkit.inventory.CookingRecipe;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -14,10 +15,15 @@ import java.util.function.Supplier;
  */
 final class CampfireSkewerResults implements SkewerResultSource {
 
+    static final String HAND_COOKABLE_TAG = "farmersdelight:hand_cookable";
+
+    private final Predicate<ItemStack> handCookable;
     private final Supplier<SkewerResultTable> overrides;
     private final Supplier<CampfireRecipeCache> campfireRecipes;
 
-    CampfireSkewerResults(Supplier<SkewerResultTable> overrides, Supplier<CampfireRecipeCache> campfireRecipes) {
+    CampfireSkewerResults(Supplier<SkewerResultTable> overrides, Supplier<CampfireRecipeCache> campfireRecipes,
+                          Predicate<ItemStack> handCookable) {
+        this.handCookable = handCookable;
         this.overrides = overrides;
         this.campfireRecipes = campfireRecipes;
     }
@@ -25,12 +31,13 @@ final class CampfireSkewerResults implements SkewerResultSource {
     @Override
     @Nullable
     public String resultId(@Nullable ItemStack held) {
-        if (held == null || held.getType().isAir()) {
+        if (held == null || held.isEmpty() || !handCookable.test(held)) {
             return null;
         }
         String rawId = ItemUtils.resolveItemId(held);
         if (rawId != null) {
-            String configured = overrides.get() == null ? null : overrides.get().resolve(rawId);
+            SkewerResultTable table = overrides.get();
+            String configured = table == null ? null : table.resolve(rawId);
             if (configured != null) {
                 return configured;
             }
