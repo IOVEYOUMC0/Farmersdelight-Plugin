@@ -81,7 +81,7 @@ blocks:
       bottom-block-tags: *id001
     state:
       auto_state:
-        type: tripwire
+        type: sugar_cane
         id: farmersdelight_wild_transparent
       transparent: true
       entity_renderer:
@@ -133,7 +133,7 @@ blocks:
       bottom-block-tags: *id002
     state:
       auto_state:
-        type: tripwire
+        type: sugar_cane
         id: farmersdelight_wild_transparent
       transparent: true
       entity_renderer:
@@ -185,7 +185,7 @@ blocks:
       bottom-block-tags: *id003
     state:
       auto_state:
-        type: tripwire
+        type: sugar_cane
         id: farmersdelight_wild_transparent
       transparent: true
       entity_renderer:
@@ -246,7 +246,7 @@ blocks:
       bottom-block-tags: *id004
     state:
       auto_state:
-        type: tripwire
+        type: sugar_cane
         id: farmersdelight_wild_transparent
       transparent: true
       entity_renderer:

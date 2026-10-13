@@ -67,14 +67,9 @@ blocks:
         bone-meal:
           is-target: true
     state:
-      auto_state:
-        type: tripwire
-        id: farmersdelight_wild_transparent
-      transparent: true
-      entity_renderer:
-      - type: item_display
-        item: farmersdelight:wild_cabbages_offset_display
-        position: 0.5,0.5,0.5
+      auto_state: sugar_cane
+      models:
+      - path: farmersdelight:block/wild_cabbages
     loot:
       pools:
         - rolls: 1
@@ -134,14 +129,9 @@ blocks:
         bone-meal:
           is-target: true
     state:
-      auto_state:
-        type: tripwire
-        id: farmersdelight_wild_transparent
-      transparent: true
-      entity_renderer:
-      - type: item_display
-        item: farmersdelight:wild_onions_offset_display
-        position: 0.5,0.5,0.5
+      auto_state: sugar_cane
+      models:
+      - path: farmersdelight:block/wild_onions
     loot:
       pools:
         - rolls: 1
@@ -199,14 +189,9 @@ blocks:
         bone-meal:
           is-target: true
     state:
-      auto_state:
-        type: tripwire
-        id: farmersdelight_wild_transparent
-      transparent: true
-      entity_renderer:
-      - type: item_display
-        item: farmersdelight:wild_tomatoes_offset_display
-        position: 0.5,0.5,0.5
+      auto_state: sugar_cane
+      models:
+      - path: farmersdelight:block/wild_tomatoes
     loot:
       pools:
         - rolls: 1

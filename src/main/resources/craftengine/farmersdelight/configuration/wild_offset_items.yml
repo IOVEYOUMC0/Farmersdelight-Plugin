@@ -1,22 +1,4 @@
 items:
-  farmersdelight:wild_cabbages_offset_display:
-    material: paper
-    model: farmersdelight:block/wild_cabbages
-    settings:
-      tags:
-      - farmersdelight:item_display
-  farmersdelight:wild_onions_offset_display:
-    material: paper
-    model: farmersdelight:block/wild_onions
-    settings:
-      tags:
-      - farmersdelight:item_display
-  farmersdelight:wild_tomatoes_offset_display:
-    material: paper
-    model: farmersdelight:block/wild_tomatoes
-    settings:
-      tags:
-      - farmersdelight:item_display
   farmersdelight:wild_carrots_offset_display:
     material: paper
     data:
