@@ -1,0 +1,859 @@
+items:
+  farmersdelight:wild_carrots:
+    data:
+      item-name: <lang:block.farmersdelight.wild_carrots>
+    texture: farmersdelight:block/wild_carrots
+    behaviors:
+    - type: compostable_item
+      chance: 0.65
+    - type: block_item
+      block: farmersdelight:wild_carrots
+    settings:
+      compost_probability: 0.65
+      tags:
+      - minecraft:flowers
+      - minecraft:small_flowers
+      - farmersdelight:wild_crops
+  farmersdelight:wild_potatoes:
+    data:
+      item-name: <lang:block.farmersdelight.wild_potatoes>
+    texture: farmersdelight:block/wild_potatoes
+    behaviors:
+    - type: compostable_item
+      chance: 0.65
+    - type: block_item
+      block: farmersdelight:wild_potatoes
+    settings:
+      compost_probability: 0.65
+      tags:
+      - minecraft:flowers
+      - minecraft:small_flowers
+      - farmersdelight:wild_crops
+  farmersdelight:wild_beetroots:
+    data:
+      item-name: <lang:block.farmersdelight.wild_beetroots>
+    texture: farmersdelight:block/wild_beetroots
+    behaviors:
+    - type: compostable_item
+      chance: 0.65
+    - type: block_item
+      block: farmersdelight:wild_beetroots
+    settings:
+      compost_probability: 0.65
+      tags:
+      - minecraft:flowers
+      - minecraft:small_flowers
+      - farmersdelight:wild_crops
+  farmersdelight:sandy_shrub:
+    data:
+      item-name: <lang:block.farmersdelight.sandy_shrub>
+    texture: farmersdelight:block/sandy_shrub
+    behaviors:
+    - type: compostable_item
+      chance: 0.3
+    - type: block_item
+      block: farmersdelight:sandy_shrub
+    settings:
+      compost_probability: 0.3
+blocks:
+  farmersdelight:wild_carrots:
+    settings:
+      template:
+      - default:hardness/none
+      - default:sound/grass
+      tags:
+      - minecraft:flowers
+      - minecraft:small_flowers
+      - farmersdelight:wild_crops
+      - farmersdelight:unaffected_by_rich_soil
+    overrides:
+      item: farmersdelight:wild_carrots
+      push-reaction: destroy
+    behaviors:
+    - type: liquid_flowable_block
+    - type: bush_block
+      bottom-block-tags: &id001
+      - minecraft:dirt
+    - type: farmersdelight:wild_plant
+      bone-meal:
+        is-target: true
+        success-chance: 1.0
+      bottom-block-tags: *id001
+    state:
+      auto_state:
+        type: tripwire
+        id: farmersdelight_wild_transparent
+      transparent: true
+      entity_renderer:
+      - type: item_display
+        item: farmersdelight:wild_carrots_offset_display
+        position: 0.5,0.5,0.5
+    loot:
+      pools:
+      - rolls: 1
+        entries:
+        - type: alternatives
+          children:
+          - type: item
+            item: farmersdelight:wild_carrots
+            conditions:
+            - type: match_item
+              item: minecraft:shears
+          - type: item
+            item: minecraft:carrot
+            count: 1
+            functions:
+            - type: explosion_decay
+            - type: apply_bonus
+              enchantment: minecraft:fortune
+              formula:
+                type: farmersdelight:uniform_bonus_count
+  farmersdelight:wild_potatoes:
+    settings:
+      template:
+      - default:hardness/none
+      - default:sound/grass
+      tags:
+      - minecraft:flowers
+      - minecraft:small_flowers
+      - farmersdelight:wild_crops
+      - farmersdelight:unaffected_by_rich_soil
+    overrides:
+      item: farmersdelight:wild_potatoes
+      push-reaction: destroy
+    behaviors:
+    - type: liquid_flowable_block
+    - type: bush_block
+      bottom-block-tags: &id002
+      - minecraft:dirt
+    - type: farmersdelight:wild_plant
+      bone-meal:
+        is-target: true
+        success-chance: 1.0
+      bottom-block-tags: *id002
+    state:
+      auto_state:
+        type: tripwire
+        id: farmersdelight_wild_transparent
+      transparent: true
+      entity_renderer:
+      - type: item_display
+        item: farmersdelight:wild_potatoes_offset_display
+        position: 0.5,0.5,0.5
+    loot:
+      pools:
+      - rolls: 1
+        entries:
+        - type: alternatives
+          children:
+          - type: item
+            item: farmersdelight:wild_potatoes
+            conditions:
+            - type: match_item
+              item: minecraft:shears
+          - type: item
+            item: minecraft:potato
+            count: 1
+            functions:
+            - type: explosion_decay
+            - type: apply_bonus
+              enchantment: minecraft:fortune
+              formula:
+                type: farmersdelight:uniform_bonus_count
+  farmersdelight:wild_beetroots:
+    settings:
+      template:
+      - default:hardness/none
+      - default:sound/grass
+      tags:
+      - minecraft:flowers
+      - minecraft:small_flowers
+      - farmersdelight:wild_crops
+      - farmersdelight:unaffected_by_rich_soil
+    overrides:
+      item: farmersdelight:wild_beetroots
+      push-reaction: destroy
+    behaviors:
+    - type: liquid_flowable_block
+    - type: bush_block
+      bottom-block-tags: &id003
+      - minecraft:sand
+    - type: farmersdelight:wild_plant
+      bone-meal:
+        is-target: true
+        success-chance: 1.0
+      bottom-block-tags: *id003
+    state:
+      auto_state:
+        type: tripwire
+        id: farmersdelight_wild_transparent
+      transparent: true
+      entity_renderer:
+      - type: item_display
+        item: farmersdelight:wild_beetroots_offset_display
+        position: 0.5,0.5,0.5
+    loot:
+      pools:
+      - rolls: 1
+        entries:
+        - type: alternatives
+          children:
+          - type: item
+            item: farmersdelight:wild_beetroots
+            conditions:
+            - type: match_item
+              item: minecraft:shears
+          - type: item
+            item: minecraft:beetroot_seeds
+            count: 1
+            functions:
+            - type: explosion_decay
+            - type: apply_bonus
+              enchantment: minecraft:fortune
+              formula:
+                type: farmersdelight:uniform_bonus_count
+      - rolls: 1
+        conditions:
+        - type: random
+          value: 0.2
+        - type: inverted
+          term:
+            type: match_item
+            item: minecraft:shears
+        entries:
+        - type: item
+          item: minecraft:beetroot
+          count: 1
+  farmersdelight:sandy_shrub:
+    settings:
+      template:
+      - default:hardness/none
+      - default:sound/grass
+      tags:
+      - farmersdelight:unaffected_by_rich_soil
+    overrides:
+      item: farmersdelight:sandy_shrub
+      push-reaction: destroy
+    behaviors:
+    - type: liquid_flowable_block
+    - type: bush_block
+      bottom-block-tags: &id004
+      - minecraft:sand
+    - type: farmersdelight:wild_plant
+      bone-meal:
+        is-target: true
+        success-chance: 1.0
+      bottom-block-tags: *id004
+    state:
+      auto_state:
+        type: tripwire
+        id: farmersdelight_wild_transparent
+      transparent: true
+      entity_renderer:
+      - type: item_display
+        item: farmersdelight:sandy_shrub_offset_display
+        position: 0.5,0.5,0.5
+    loot:
+      pools:
+      - rolls: 1
+        entries:
+        - type: alternatives
+          children:
+          - type: item
+            item: farmersdelight:sandy_shrub
+            conditions:
+            - type: match_item
+              item: minecraft:shears
+          - type: item
+            item: minecraft:beetroot_seeds
+            count: 1
+            functions:
+            - type: explosion_decay
+            - type: apply_bonus
+              enchantment: minecraft:fortune
+              formula:
+                type: farmersdelight:uniform_bonus_count
+            conditions:
+            - type: random
+              value: 0.125
+      - rolls: 1
+        conditions:
+        - type: farmersdelight:is_knife
+        - type: survives_explosion
+        entries:
+        - type: item
+          item: farmersdelight:straw
+          count: 1
+placed-features:
+  farmersdelight:wild_carrots:
+    biome:
+    - minecraft:plains
+    - minecraft:sunflower_plains
+    - minecraft:forest
+    - minecraft:flower_forest
+    - minecraft:birch_forest
+    - minecraft:old_growth_birch_forest
+    - minecraft:dark_forest
+    - minecraft:swamp
+    - minecraft:mangrove_swamp
+    - minecraft:stony_shore
+    - minecraft:meadow
+    - minecraft:river
+    - minecraft:beach
+    - minecraft:pale_garden
+    environment:
+    - minecraft:overworld
+    feature:
+      $$>=26.3:
+        type: minecraft:simple_block
+        to_place:
+          type: minecraft:simple
+          state:
+            id: farmersdelight:wild_carrots
+      $$26.1~26.2:
+        type: minecraft:simple_block
+        config:
+          to_place:
+            type: minecraft:simple_state_provider
+            state:
+              Name: farmersdelight:wild_carrots
+      $$fallback:
+        type: minecraft:random_patch
+        config:
+          feature:
+            feature:
+              type: minecraft:simple_block
+              config:
+                to_place:
+                  type: minecraft:simple_state_provider
+                  state:
+                    Name: farmersdelight:wild_carrots
+            placement:
+            - type: minecraft:block_predicate_filter
+              predicate:
+                type: minecraft:all_of
+                predicates:
+                - type: minecraft:replaceable
+                - type: minecraft:matching_fluids
+                  fluids: minecraft:empty
+                - type: minecraft:matching_blocks
+                  blocks:
+                  - minecraft:dirt
+                  - minecraft:grass_block
+                  - minecraft:coarse_dirt
+                  - minecraft:podzol
+                  - minecraft:rooted_dirt
+                  - minecraft:mycelium
+                  offset:
+                  - 0
+                  - -1
+                  - 0
+          tries: 64
+          xz_spread: 6
+          y_spread: 3
+    placement:
+      $$>=26.3:
+      - type: minecraft:rarity_filter
+        chance: 120
+      - type: minecraft:in_square
+      - type: minecraft:heightmap
+        heightmap: MOTION_BLOCKING
+      - type: minecraft:count
+        count: 64
+      - type: minecraft:offset
+        x:
+          type: minecraft:trapezoid
+          max: 6
+          min: -6
+          plateau: 0
+        y:
+          type: minecraft:trapezoid
+          max: 3
+          min: -3
+          plateau: 0
+        z:
+          type: minecraft:trapezoid
+          max: 6
+          min: -6
+          plateau: 0
+      - type: minecraft:block_predicate_filter
+        predicate:
+          type: minecraft:all_of
+          predicates:
+          - type: minecraft:replaceable
+          - type: minecraft:matching_fluids
+            fluids: minecraft:empty
+          - type: minecraft:matching_blocks
+            blocks:
+            - minecraft:dirt
+            - minecraft:grass_block
+            - minecraft:coarse_dirt
+            - minecraft:podzol
+            - minecraft:rooted_dirt
+            - minecraft:mycelium
+            offset:
+            - 0
+            - -1
+            - 0
+      - type: minecraft:biome
+      $$26.1~26.2:
+      - type: minecraft:rarity_filter
+        chance: 120
+      - type: minecraft:in_square
+      - type: minecraft:heightmap
+        heightmap: MOTION_BLOCKING
+      - type: minecraft:count
+        count: 64
+      - type: minecraft:random_offset
+        xz_spread:
+          type: minecraft:trapezoid
+          max: 6
+          min: -6
+          plateau: 0
+        y_spread:
+          type: minecraft:trapezoid
+          max: 3
+          min: -3
+          plateau: 0
+      - type: minecraft:block_predicate_filter
+        predicate:
+          type: minecraft:all_of
+          predicates:
+          - type: minecraft:replaceable
+          - type: minecraft:matching_fluids
+            fluids: minecraft:empty
+          - type: minecraft:matching_blocks
+            blocks:
+            - minecraft:dirt
+            - minecraft:grass_block
+            - minecraft:coarse_dirt
+            - minecraft:podzol
+            - minecraft:rooted_dirt
+            - minecraft:mycelium
+            offset:
+            - 0
+            - -1
+            - 0
+      - type: minecraft:biome
+      $$fallback:
+      - type: minecraft:rarity_filter
+        chance: 120
+      - type: minecraft:in_square
+      - type: minecraft:heightmap
+        heightmap: MOTION_BLOCKING
+      - type: minecraft:biome
+  farmersdelight:wild_potatoes:
+    biome:
+    - minecraft:taiga
+    - minecraft:old_growth_pine_taiga
+    - minecraft:old_growth_spruce_taiga
+    - minecraft:windswept_hills
+    - minecraft:windswept_forest
+    - minecraft:windswept_gravelly_hills
+    environment:
+    - minecraft:overworld
+    feature:
+      $$>=26.3:
+        type: minecraft:simple_block
+        to_place:
+          type: minecraft:simple
+          state:
+            id: farmersdelight:wild_potatoes
+      $$26.1~26.2:
+        type: minecraft:simple_block
+        config:
+          to_place:
+            type: minecraft:simple_state_provider
+            state:
+              Name: farmersdelight:wild_potatoes
+      $$fallback:
+        type: minecraft:random_patch
+        config:
+          feature:
+            feature:
+              type: minecraft:simple_block
+              config:
+                to_place:
+                  type: minecraft:simple_state_provider
+                  state:
+                    Name: farmersdelight:wild_potatoes
+            placement:
+            - type: minecraft:block_predicate_filter
+              predicate:
+                type: minecraft:all_of
+                predicates:
+                - type: minecraft:replaceable
+                - type: minecraft:matching_fluids
+                  fluids: minecraft:empty
+                - type: minecraft:matching_blocks
+                  blocks:
+                  - minecraft:dirt
+                  - minecraft:grass_block
+                  - minecraft:coarse_dirt
+                  - minecraft:podzol
+                  - minecraft:rooted_dirt
+                  - minecraft:mycelium
+                  offset:
+                  - 0
+                  - -1
+                  - 0
+          tries: 64
+          xz_spread: 6
+          y_spread: 3
+    placement:
+      $$>=26.3:
+      - type: minecraft:rarity_filter
+        chance: 100
+      - type: minecraft:in_square
+      - type: minecraft:heightmap
+        heightmap: MOTION_BLOCKING
+      - type: minecraft:count
+        count: 64
+      - type: minecraft:offset
+        x:
+          type: minecraft:trapezoid
+          max: 6
+          min: -6
+          plateau: 0
+        y:
+          type: minecraft:trapezoid
+          max: 3
+          min: -3
+          plateau: 0
+        z:
+          type: minecraft:trapezoid
+          max: 6
+          min: -6
+          plateau: 0
+      - type: minecraft:block_predicate_filter
+        predicate:
+          type: minecraft:all_of
+          predicates:
+          - type: minecraft:replaceable
+          - type: minecraft:matching_fluids
+            fluids: minecraft:empty
+          - type: minecraft:matching_blocks
+            blocks:
+            - minecraft:dirt
+            - minecraft:grass_block
+            - minecraft:coarse_dirt
+            - minecraft:podzol
+            - minecraft:rooted_dirt
+            - minecraft:mycelium
+            offset:
+            - 0
+            - -1
+            - 0
+      - type: minecraft:biome
+      $$26.1~26.2:
+      - type: minecraft:rarity_filter
+        chance: 100
+      - type: minecraft:in_square
+      - type: minecraft:heightmap
+        heightmap: MOTION_BLOCKING
+      - type: minecraft:count
+        count: 64
+      - type: minecraft:random_offset
+        xz_spread:
+          type: minecraft:trapezoid
+          max: 6
+          min: -6
+          plateau: 0
+        y_spread:
+          type: minecraft:trapezoid
+          max: 3
+          min: -3
+          plateau: 0
+      - type: minecraft:block_predicate_filter
+        predicate:
+          type: minecraft:all_of
+          predicates:
+          - type: minecraft:replaceable
+          - type: minecraft:matching_fluids
+            fluids: minecraft:empty
+          - type: minecraft:matching_blocks
+            blocks:
+            - minecraft:dirt
+            - minecraft:grass_block
+            - minecraft:coarse_dirt
+            - minecraft:podzol
+            - minecraft:rooted_dirt
+            - minecraft:mycelium
+            offset:
+            - 0
+            - -1
+            - 0
+      - type: minecraft:biome
+      $$fallback:
+      - type: minecraft:rarity_filter
+        chance: 100
+      - type: minecraft:in_square
+      - type: minecraft:heightmap
+        heightmap: MOTION_BLOCKING
+      - type: minecraft:biome
+  farmersdelight:wild_beetroots:
+    biome:
+    - minecraft:beach
+    - minecraft:snowy_beach
+    environment:
+    - minecraft:overworld
+    feature:
+      $$>=26.3:
+        type: minecraft:simple_block
+        to_place:
+          type: minecraft:simple
+          state:
+            id: farmersdelight:wild_beetroots
+      $$26.1~26.2:
+        type: minecraft:simple_block
+        config:
+          to_place:
+            type: minecraft:simple_state_provider
+            state:
+              Name: farmersdelight:wild_beetroots
+      $$fallback:
+        type: minecraft:random_patch
+        config:
+          feature:
+            feature:
+              type: minecraft:simple_block
+              config:
+                to_place:
+                  type: minecraft:simple_state_provider
+                  state:
+                    Name: farmersdelight:wild_beetroots
+            placement:
+            - type: minecraft:block_predicate_filter
+              predicate:
+                type: minecraft:all_of
+                predicates:
+                - type: minecraft:replaceable
+                - type: minecraft:matching_fluids
+                  fluids: minecraft:empty
+                - type: minecraft:matching_blocks
+                  blocks:
+                  - minecraft:sand
+                  - minecraft:red_sand
+                  offset:
+                  - 0
+                  - -1
+                  - 0
+          tries: 64
+          xz_spread: 6
+          y_spread: 3
+    placement:
+      $$>=26.3:
+      - type: minecraft:rarity_filter
+        chance: 30
+      - type: minecraft:in_square
+      - type: minecraft:heightmap
+        heightmap: MOTION_BLOCKING
+      - type: minecraft:count
+        count: 64
+      - type: minecraft:offset
+        x:
+          type: minecraft:trapezoid
+          max: 6
+          min: -6
+          plateau: 0
+        y:
+          type: minecraft:trapezoid
+          max: 3
+          min: -3
+          plateau: 0
+        z:
+          type: minecraft:trapezoid
+          max: 6
+          min: -6
+          plateau: 0
+      - type: minecraft:block_predicate_filter
+        predicate:
+          type: minecraft:all_of
+          predicates:
+          - type: minecraft:replaceable
+          - type: minecraft:matching_fluids
+            fluids: minecraft:empty
+          - type: minecraft:matching_blocks
+            blocks:
+            - minecraft:sand
+            - minecraft:red_sand
+            offset:
+            - 0
+            - -1
+            - 0
+      - type: minecraft:biome
+      $$26.1~26.2:
+      - type: minecraft:rarity_filter
+        chance: 30
+      - type: minecraft:in_square
+      - type: minecraft:heightmap
+        heightmap: MOTION_BLOCKING
+      - type: minecraft:count
+        count: 64
+      - type: minecraft:random_offset
+        xz_spread:
+          type: minecraft:trapezoid
+          max: 6
+          min: -6
+          plateau: 0
+        y_spread:
+          type: minecraft:trapezoid
+          max: 3
+          min: -3
+          plateau: 0
+      - type: minecraft:block_predicate_filter
+        predicate:
+          type: minecraft:all_of
+          predicates:
+          - type: minecraft:replaceable
+          - type: minecraft:matching_fluids
+            fluids: minecraft:empty
+          - type: minecraft:matching_blocks
+            blocks:
+            - minecraft:sand
+            - minecraft:red_sand
+            offset:
+            - 0
+            - -1
+            - 0
+      - type: minecraft:biome
+      $$fallback:
+      - type: minecraft:rarity_filter
+        chance: 30
+      - type: minecraft:in_square
+      - type: minecraft:heightmap
+        heightmap: MOTION_BLOCKING
+      - type: minecraft:biome
+  farmersdelight:sandy_shrub:
+    biome:
+    - minecraft:beach
+    - minecraft:snowy_beach
+    environment:
+    - minecraft:overworld
+    feature:
+      $$>=26.3:
+        type: minecraft:simple_block
+        to_place:
+          type: minecraft:simple
+          state:
+            id: farmersdelight:sandy_shrub
+      $$26.1~26.2:
+        type: minecraft:simple_block
+        config:
+          to_place:
+            type: minecraft:simple_state_provider
+            state:
+              Name: farmersdelight:sandy_shrub
+      $$fallback:
+        type: minecraft:random_patch
+        config:
+          feature:
+            feature:
+              type: minecraft:simple_block
+              config:
+                to_place:
+                  type: minecraft:simple_state_provider
+                  state:
+                    Name: farmersdelight:sandy_shrub
+            placement:
+            - type: minecraft:block_predicate_filter
+              predicate:
+                type: minecraft:all_of
+                predicates:
+                - type: minecraft:replaceable
+                - type: minecraft:matching_fluids
+                  fluids: minecraft:empty
+                - type: minecraft:matching_blocks
+                  blocks:
+                  - minecraft:sand
+                  - minecraft:red_sand
+                  offset:
+                  - 0
+                  - -1
+                  - 0
+          tries: 64
+          xz_spread: 6
+          y_spread: 3
+    placement:
+      $$>=26.3:
+      - type: minecraft:rarity_filter
+        chance: 30
+      - type: minecraft:in_square
+      - type: minecraft:heightmap
+        heightmap: MOTION_BLOCKING
+      - type: minecraft:count
+        count: 32
+      - type: minecraft:offset
+        x:
+          type: minecraft:trapezoid
+          max: 6
+          min: -6
+          plateau: 0
+        y:
+          type: minecraft:trapezoid
+          max: 3
+          min: -3
+          plateau: 0
+        z:
+          type: minecraft:trapezoid
+          max: 6
+          min: -6
+          plateau: 0
+      - type: minecraft:block_predicate_filter
+        predicate:
+          type: minecraft:all_of
+          predicates:
+          - type: minecraft:replaceable
+          - type: minecraft:matching_fluids
+            fluids: minecraft:empty
+          - type: minecraft:matching_blocks
+            blocks:
+            - minecraft:sand
+            - minecraft:red_sand
+            offset:
+            - 0
+            - -1
+            - 0
+      - type: minecraft:biome
+      $$26.1~26.2:
+      - type: minecraft:rarity_filter
+        chance: 30
+      - type: minecraft:in_square
+      - type: minecraft:heightmap
+        heightmap: MOTION_BLOCKING
+      - type: minecraft:count
+        count: 32
+      - type: minecraft:random_offset
+        xz_spread:
+          type: minecraft:trapezoid
+          max: 6
+          min: -6
+          plateau: 0
+        y_spread:
+          type: minecraft:trapezoid
+          max: 3
+          min: -3
+          plateau: 0
+      - type: minecraft:block_predicate_filter
+        predicate:
+          type: minecraft:all_of
+          predicates:
+          - type: minecraft:replaceable
+          - type: minecraft:matching_fluids
+            fluids: minecraft:empty
+          - type: minecraft:matching_blocks
+            blocks:
+            - minecraft:sand
+            - minecraft:red_sand
+            offset:
+            - 0
+            - -1
+            - 0
+      - type: minecraft:biome
+      $$fallback:
+      - type: minecraft:rarity_filter
+        chance: 30
+      - type: minecraft:in_square
+      - type: minecraft:heightmap
+        heightmap: MOTION_BLOCKING
+      - type: minecraft:biome

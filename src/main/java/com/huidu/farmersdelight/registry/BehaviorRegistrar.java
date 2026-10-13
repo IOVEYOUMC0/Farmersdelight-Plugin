@@ -22,6 +22,9 @@ import com.huidu.farmersdelight.condition.IsAdultCondition;
 import com.huidu.farmersdelight.condition.IsBurningCondition;
 import com.huidu.farmersdelight.condition.IsKnifeCondition;
 import com.huidu.farmersdelight.effect.FoodBuffFunction;
+import com.huidu.farmersdelight.effect.HotCocoaFunction;
+import com.huidu.farmersdelight.loot.UniformBonusCount;
+import net.momirealms.craftengine.core.loot.function.formula.Formulas;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.item.behavior.ConditionalBlockPlantingItemBehavior;
 import com.huidu.farmersdelight.item.behavior.SkilletItemBehavior;
@@ -85,6 +88,7 @@ public final class BehaviorRegistrar {
                 FoodBuffFunction.factory(FoodBuffFunction.Kind.COMFORT, CommonConditions::fromConfig));
         registerFunction("farmersdelight:nourishment",
                 FoodBuffFunction.factory(FoodBuffFunction.Kind.NOURISHMENT, CommonConditions::fromConfig));
+        registerFunction("farmersdelight:hot_cocoa", HotCocoaFunction.factory(CommonConditions::fromConfig));
         ContentRegistration.apply(ContentRegistration.Kind.FUNCTION);
     }
 
@@ -99,6 +103,10 @@ public final class BehaviorRegistrar {
     }
 
     public static void registerLootFunctions() {
+        Key uniformBonus = Key.of("farmersdelight:uniform_bonus_count");
+        if (BuiltInRegistries.FORMULA_TYPE.getValue(uniformBonus) == null) {
+            Formulas.register(uniformBonus, UniformBonusCount.FACTORY);
+        }
         registerLootFunction(Constants.LOOT_FUNCTION_AWARD_ADVANCEMENT, AwardAdvancementFunction.FACTORY);
         ContentRegistration.apply(ContentRegistration.Kind.LOOT_FUNCTION);
     }

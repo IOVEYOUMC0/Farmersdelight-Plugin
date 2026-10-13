@@ -715,3 +715,32 @@ cutting_board_recipes:
     results:
     - item: farmersdelight:pumpkin_pie_slice
       count: 4
+  wild_carrots:
+    input: farmersdelight:wild_carrots
+    tools:
+    - '#farmersdelight:tools/knives'
+    - '#c:tools/knife'
+    results:
+    - item: minecraft:carrot
+    - item: minecraft:light_gray_dye
+      count: 2
+      chance: 0.5
+  wild_potatoes:
+    input: farmersdelight:wild_potatoes
+    tools:
+    - '#farmersdelight:tools/knives'
+    - '#c:tools/knife'
+    results:
+    - item: minecraft:potato
+    - item: minecraft:purple_dye
+      count: 2
+      chance: 0.5
+  wild_beetroots:
+    input: farmersdelight:wild_beetroots
+    tools:
+    - '#farmersdelight:tools/knives'
+    - '#c:tools/knife'
+    results:
+    - item: minecraft:beetroot_seeds
+    - item: minecraft:red_dye
+      count: 1

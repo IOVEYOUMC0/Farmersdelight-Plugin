@@ -67,9 +67,14 @@ blocks:
         bone-meal:
           is-target: true
     state:
-      auto_state: sugar_cane
-      models:
-        - path: farmersdelight:block/wild_cabbages
+      auto_state:
+        type: tripwire
+        id: farmersdelight_wild_transparent
+      transparent: true
+      entity_renderer:
+      - type: item_display
+        item: farmersdelight:wild_cabbages_offset_display
+        position: 0.5,0.5,0.5
     loot:
       pools:
         - rolls: 1
@@ -129,9 +134,14 @@ blocks:
         bone-meal:
           is-target: true
     state:
-      auto_state: sugar_cane
-      models:
-        - path: farmersdelight:block/wild_onions
+      auto_state:
+        type: tripwire
+        id: farmersdelight_wild_transparent
+      transparent: true
+      entity_renderer:
+      - type: item_display
+        item: farmersdelight:wild_onions_offset_display
+        position: 0.5,0.5,0.5
     loot:
       pools:
         - rolls: 1
@@ -189,9 +199,14 @@ blocks:
         bone-meal:
           is-target: true
     state:
-      auto_state: sugar_cane
-      models:
-        - path: farmersdelight:block/wild_tomatoes
+      auto_state:
+        type: tripwire
+        id: farmersdelight_wild_transparent
+      transparent: true
+      entity_renderer:
+      - type: item_display
+        item: farmersdelight:wild_tomatoes_offset_display
+        position: 0.5,0.5,0.5
     loot:
       pools:
         - rolls: 1
@@ -257,11 +272,23 @@ blocks:
           default: lower
       appearances:
         half=lower:
-          auto_state: kelp
-          model: farmersdelight:block/wild_rice_bottom
+          auto_state:
+            type: kelp
+            id: farmersdelight_wild_transparent
+          transparent: true
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:wild_rice_lower_offset_display
+            position: 0.5,0.5,0.5
         half=upper:
-          auto_state: higher_tripwire
-          model: farmersdelight:block/wild_rice_top
+          auto_state:
+            type: higher_tripwire
+            id: farmersdelight_wild_transparent
+          transparent: true
+          entity_renderer:
+          - type: item_display
+            item: farmersdelight:wild_rice_upper_offset_display
+            position: 0.5,0.5,0.5
       variants:
         half=lower:
           appearance: half=lower

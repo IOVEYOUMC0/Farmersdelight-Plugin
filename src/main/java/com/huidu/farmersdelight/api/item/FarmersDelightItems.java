@@ -27,6 +27,10 @@ public final class FarmersDelightItems {
         return ItemUtils.resolveItemId(item);
     }
 
+    public static List<ItemStack> createChoices(String itemSpec) {
+        return ItemUtils.createSlotItems(itemSpec);
+    }
+
     public static ItemStack create(String itemId) {
         return ItemUtils.createItem(itemId);
     }

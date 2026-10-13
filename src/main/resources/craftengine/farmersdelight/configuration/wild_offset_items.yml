@@ -1,0 +1,67 @@
+items:
+  farmersdelight:wild_cabbages_offset_display:
+    material: paper
+    model: farmersdelight:block/wild_cabbages
+    settings:
+      tags:
+      - farmersdelight:item_display
+  farmersdelight:wild_onions_offset_display:
+    material: paper
+    model: farmersdelight:block/wild_onions
+    settings:
+      tags:
+      - farmersdelight:item_display
+  farmersdelight:wild_tomatoes_offset_display:
+    material: paper
+    model: farmersdelight:block/wild_tomatoes
+    settings:
+      tags:
+      - farmersdelight:item_display
+  farmersdelight:wild_carrots_offset_display:
+    material: paper
+    data:
+      item-name: <!i><lang:block.farmersdelight.wild_carrots>
+    model: farmersdelight:block/wild_carrots
+    settings:
+      tags:
+      - farmersdelight:item_display
+  farmersdelight:wild_potatoes_offset_display:
+    material: paper
+    data:
+      item-name: <!i><lang:block.farmersdelight.wild_potatoes>
+    model: farmersdelight:block/wild_potatoes
+    settings:
+      tags:
+      - farmersdelight:item_display
+  farmersdelight:wild_beetroots_offset_display:
+    material: paper
+    data:
+      item-name: <!i><lang:block.farmersdelight.wild_beetroots>
+    model: farmersdelight:block/wild_beetroots
+    settings:
+      tags:
+      - farmersdelight:item_display
+  farmersdelight:sandy_shrub_offset_display:
+    material: paper
+    data:
+      item-name: <!i><lang:block.farmersdelight.sandy_shrub>
+    model: farmersdelight:block/sandy_shrub
+    settings:
+      tags:
+      - farmersdelight:item_display
+  farmersdelight:wild_rice_lower_offset_display:
+    material: paper
+    data:
+      item-name: <!i><lang:block.farmersdelight.wild_rice>
+    model: farmersdelight:block/wild_rice_bottom
+    settings:
+      tags:
+      - farmersdelight:item_display
+  farmersdelight:wild_rice_upper_offset_display:
+    material: paper
+    data:
+      item-name: <!i><lang:block.farmersdelight.wild_rice>
+    model: farmersdelight:block/wild_rice_top
+    settings:
+      tags:
+      - farmersdelight:item_display

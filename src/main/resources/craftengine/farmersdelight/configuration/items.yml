@@ -164,22 +164,7 @@ items:
     events:
       - on: consume 
         functions:
-          - type: remove_potion_effect
-            potion-effect: minecraft:poison
-          - type: remove_potion_effect
-            potion-effect: minecraft:weakness
-          - type: remove_potion_effect
-            potion-effect: minecraft:slowness
-          - type: remove_potion_effect
-            potion-effect: minecraft:mining_fatigue
-          - type: remove_potion_effect
-            potion-effect: minecraft:nausea
-          - type: remove_potion_effect
-            potion-effect: minecraft:blindness
-          - type: remove_potion_effect
-            potion-effect: minecraft:hunger
-          - type: remove_potion_effect
-            potion-effect: minecraft:wither
+          - type: farmersdelight:hot_cocoa
     settings:
       tags:
         - farmersdelight:drinks
