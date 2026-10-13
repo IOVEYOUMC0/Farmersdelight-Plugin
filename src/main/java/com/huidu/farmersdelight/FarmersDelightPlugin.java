@@ -2076,6 +2076,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
      *  FarmersDelightEnchantments.register / addToPool from an addon's onEnable. A datapack registry object
      *  still needs a server restart to become usable — the installer prints its own banner. */
     public void refreshEnchantSystem() {
+        if (getServer().isStopping()) return; // Keep addon definitions cached for the next bootstrap.
         listeners.refreshEnchantmentFallback();
         listeners.reloadEnchantCandidates();
     }

@@ -245,8 +245,7 @@ final class ListenerRegistry {
         }
 
         enchantmentDatapackInstaller.installToPrimaryWorld(plugin.getPrimaryWorld());
-        // Registry tags are server-global (shared by every world), so the common-item tag data pack is
-        // written once into the primary world's datapacks folder; a per-world inject would be redundant.
+        // Re-export after content setup; native tags become live at the next startup.
         if (tagDatapackInstaller.installToPrimaryWorld(plugin.getPrimaryWorld())) {
             plugin.queueDatapackReload(I18n.formatConsole("plugin.datapack_reason_apply_tag_changes"));
         }
@@ -268,8 +267,7 @@ final class ListenerRegistry {
     }
 
     /**
-     * Installs and registers the damage-type datapack, and drops the obsolete loot datapack folder: chest,
-     * grass and mob injections use CE-native loot sources.
+     * Exports damage configuration and archives the obsolete CE-replaced loot pack.
      */
     void registerDamageTypeDatapack() {
         DamageTypeDatapackInstaller installer = new DamageTypeDatapackInstaller(plugin);
@@ -394,7 +392,7 @@ final class ListenerRegistry {
         return plugin.isBackstabEnchantmentEnabled();
     }
 
-    /** Re-installs the enchantment datapack so the primary world picks up the current settings. */
+    /** Exports current enchant settings for the next startup. */
     void refreshEnchantmentFallback() {
         if (enchantmentDatapackInstaller != null) {
             enchantmentDatapackInstaller.installToPrimaryWorld(plugin.getPrimaryWorld());
@@ -422,7 +420,7 @@ final class ListenerRegistry {
         return damageTypeDatapackInstaller != null;
     }
 
-    /** Re-installs the common-tag datapack; true when it changed and a datapack reload was queued. */
+    /** Exports common tags; reports changed files that require a restart. */
     boolean refreshTagDatapack() {
         if (tagDatapackInstaller == null) {
             return false;
