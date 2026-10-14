@@ -11,6 +11,7 @@ import com.huidu.farmersdelight.block.behavior.OrganicCompostBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.RichSoilBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.RichSoilFarmlandBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.RopeBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.RopeGateWallBehavior;
 import com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.TallCropBlockBehavior;
@@ -63,6 +64,7 @@ public final class BehaviorRegistrar {
         registerBehavior(Constants.BEHAVIOR_TATAMI, TatamiPairingBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_WILD_RICE, WildRiceBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_ROPE, RopeBlockBehavior.FACTORY);
+        registerBehavior("farmersdelight:rope_gate_wall", RopeGateWallBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_MUSHROOM_COLONY, MushroomColonyBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_WILD_PLANT, WildPlantBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_TOMATO_VINE, TomatoVineBlockBehavior.FACTORY);

@@ -124,7 +124,7 @@ public final class ItemUtils {
     }
 
     /** Returns the Bukkit player already wrapped by CraftEngine, or null for non-Bukkit contexts. */
-    public static org.bukkit.entity.Player getBukkitPlayer(
+    public static Player getBukkitPlayer(
             net.momirealms.craftengine.core.entity.player.Player player) {
         return player != null && player.platformPlayer() instanceof Player bukkitPlayer
                 ? bukkitPlayer : null;

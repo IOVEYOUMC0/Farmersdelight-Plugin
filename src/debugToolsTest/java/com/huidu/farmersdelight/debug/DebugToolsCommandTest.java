@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.debug;
 
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import org.bukkit.Location;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Test;
 import com.huidu.farmersdelight.api.util.DebugToolExtension;
@@ -21,12 +22,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DebugToolsCommandTest {
     @Test
     void recipeGridStaysHorizontalAcrossRows() throws Exception {
-        var grid = DebugToolsCommand.class.getDeclaredMethod("recipeSetupLocation", org.bukkit.Location.class,
+        var grid = DebugToolsCommand.class.getDeclaredMethod("recipeSetupLocation", Location.class,
                 int.class, int.class);
         grid.setAccessible(true);
-        org.bukkit.Location origin = new org.bukkit.Location(null, -20, 64, 30);
+        Location origin = new Location(null, -20, 64, 30);
         for (int slot = 0; slot < 9; slot++) {
-            org.bukkit.Location placed = (org.bukkit.Location) grid.invoke(null, origin, 3, slot);
+            Location placed = (Location) grid.invoke(null, origin, 3, slot);
             assertEquals(66, placed.getBlockY());
             assertEquals(-18 + slot % 3 * 3, placed.getBlockX());
             assertEquals(32 + slot / 3 * 3, placed.getBlockZ());

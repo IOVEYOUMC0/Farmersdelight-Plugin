@@ -5,6 +5,8 @@ import net.momirealms.craftengine.core.item.ItemBuildContext;
 import net.momirealms.craftengine.core.item.component.DataComponentKeys;
 import net.momirealms.craftengine.core.item.processor.ItemProcessor;
 
+import java.util.function.Consumer;
+
 
 public final class ToolDataProcessor implements ItemProcessor {
 
@@ -13,7 +15,7 @@ public final class ToolDataProcessor implements ItemProcessor {
      * (it runs during item building and is constructed from pack settings), so the message goes through the
      * plugin logger when one is installed and to System.err otherwise — either way it is not silent.
      */
-    private static final java.util.function.Consumer<String> WARN_ONCE = message ->
+    private static final Consumer<String> WARN_ONCE = message ->
             System.err.println("[FarmersDelight] WARN: could not write minecraft:enchantable as an integer or "
                     + "as {value: N} for " + message + " — the item will not be enchantable");
 

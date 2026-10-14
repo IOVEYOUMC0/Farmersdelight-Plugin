@@ -27,6 +27,7 @@ import java.lang.reflect.Proxy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -425,7 +426,7 @@ class SkewerDurabilityLeakTest {
                         case "addItem" -> {
                             writes++;
                             added.add(((ItemStack[]) args[0])[0]);
-                            yield new java.util.HashMap<Integer, ItemStack>();
+                            yield new HashMap<Integer, ItemStack>();
                         }
                         case "getContents" -> {
                             ItemStack[] copy = new ItemStack[41];

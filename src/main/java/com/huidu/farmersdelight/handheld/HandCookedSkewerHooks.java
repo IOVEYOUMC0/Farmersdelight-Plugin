@@ -45,6 +45,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
 /**
@@ -209,7 +210,7 @@ public final class HandCookedSkewerHooks implements Listener {
     private volatile Function<ItemStack, String> idResolver = ItemUtils::resolveItemId;
     private volatile Function<String, ItemStack> itemFactory = ItemUtils::createItem;
     /** The clock the input grace is measured against; a seam so a test can age a click without sleeping. */
-    private volatile java.util.function.LongSupplier clock = System::currentTimeMillis;
+    private volatile LongSupplier clock = System::currentTimeMillis;
 
     public HandCookedSkewerHooks(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -241,7 +242,7 @@ public final class HandCookedSkewerHooks implements Listener {
 
     /** Replaces the input clock; null restores the wall clock. Used by the wiring tests only. */
     @ApiStatus.Internal
-    void setClock(@Nullable java.util.function.LongSupplier source) {
+    void setClock(@Nullable LongSupplier source) {
         this.clock = source == null ? System::currentTimeMillis : source;
     }
 

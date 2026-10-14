@@ -244,6 +244,8 @@ final class ListenerRegistry {
             register(listener);
         }
 
+        backstabListener.reload(backstabSettings(), backstabEnabled());
+        knifeEnchantFilter.reload(backstabSettings(), backstabEnabled());
         enchantmentDatapackInstaller.installToPrimaryWorld(plugin.getPrimaryWorld());
         // Re-export after content setup; native tags become live at the next startup.
         if (tagDatapackInstaller.installToPrimaryWorld(plugin.getPrimaryWorld())) {
