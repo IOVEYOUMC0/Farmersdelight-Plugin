@@ -57,7 +57,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
         return plugin == null || plugin.getConfig().getBoolean("enchantments.install-datapack", true);
     }
 
-    // Export registry settings to the managed pack and preserve old world copies.
+    // Export registry settings and migrate old world definitions.
     public void installToPrimaryWorld(World primaryWorld) {
         if (primaryWorld == null) {
             I18n.logWarning("plugin.enchantment_datapack_no_worlds");
@@ -83,7 +83,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
         }
     }
 
-    // Preserve ignored copies outside the primary world's pack scan.
+    // Remove ignored copies outside the primary world's pack scan.
     private int cleanupRedundantDatapacks(World primaryWorld) {
         Path primaryDatapack = DatapackSupport.worldRoot(primaryWorld)
                 .resolve("datapacks")
@@ -106,7 +106,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
             }
             try {
                 if (Files.exists(redundant)) {
-                    DatapackSupport.archiveLegacyPack(redundant, plugin.getDataFolder().toPath());
+                    DatapackSupport.deleteRecursively(redundant);
                     removed++;
                     I18n.logInfo("plugin.enchantment_datapack_redundant_removed", "world", world.getName());
                 }

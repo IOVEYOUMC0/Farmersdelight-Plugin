@@ -16,13 +16,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-// Exports damage registry YAML and archives obsolete world packs.
+// Exports damage registry YAML and removes obsolete world packs.
 public final class DamageTypeDatapackInstaller {
 
     private static final String DATAPACK_NAME = "farmersdelight_damage";
     private static final String PACK_DESCRIPTION = "FarmersDelight damage types";
     private static final String DAMAGE_TYPE_ID = "farmersdelight:stove_burn";
-    // Loot injection now belongs to CE; keep the old world pack as a backup.
+    // CE owns loot injection, so the old world pack is no longer needed.
     public void cleanupLegacyLootDatapack() {
         if (!installEnabled) {
             return;
@@ -33,11 +33,11 @@ public final class DamageTypeDatapackInstaller {
                     Path legacy = folder.resolve("datapacks").resolve(name);
                     try {
                         if (Files.exists(legacy)) {
-                            DatapackSupport.archiveLegacyPack(legacy, plugin.getDataFolder().toPath());
+                            DatapackSupport.deleteRecursively(legacy);
                             I18n.logInfo("plugin.loot_datapack_legacy_removed", "world", world.getName());
                         }
                     } catch (IOException failure) {
-                        plugin.getLogger().warning("Could not archive obsolete loot pack " + legacy + ": " + failure.getMessage());
+                        plugin.getLogger().warning("Could not remove obsolete loot pack " + legacy + ": " + failure.getMessage());
                     }
                 }
             }
@@ -76,7 +76,7 @@ public final class DamageTypeDatapackInstaller {
         }
     }
 
-    // Archive ignored copies without touching the primary pack.
+    // Remove ignored copies without touching the primary pack.
     private int cleanupRedundantDatapacks(World primaryWorld) {
         Path primaryDatapack = DatapackSupport.worldRoot(primaryWorld)
                 .resolve("datapacks")
@@ -99,7 +99,7 @@ public final class DamageTypeDatapackInstaller {
             }
             try {
                 if (Files.exists(redundant)) {
-                    DatapackSupport.archiveLegacyPack(redundant, plugin.getDataFolder().toPath());
+                    DatapackSupport.deleteRecursively(redundant);
                     removed++;
                     I18n.logInfo("plugin.damage_datapack_redundant_removed", "world", world.getName());
                 }

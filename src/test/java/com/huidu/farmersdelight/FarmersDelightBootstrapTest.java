@@ -8,6 +8,7 @@ import org.bukkit.World;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.lang.reflect.Proxy;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -40,9 +41,7 @@ class FarmersDelightBootstrapTest {
         assertEquals("active", Files.readString(data.resolve("datapacks/test_pack/data/test/damage_type/burn.json")));
         assertFalse(Files.exists(worldRoot.resolve("datapacks/test_pack")));
         assertFalse(Files.exists(dimension.resolve("datapacks/test_pack")));
-        try (var backups = Files.list(data.resolve("datapack-backups"))) {
-            assertEquals(2, backups.count());
-        }
+        assertFalse(Files.exists(data.resolve("datapack-backups")));
         assertTrue(Files.exists(data.resolve("datapacks/test_pack/.legacy-migrated")));
     }
 
@@ -125,7 +124,7 @@ class FarmersDelightBootstrapTest {
     }
 
     @Test
-    void legacyMigrationKeepsCustomDefinitionsAndAnUntouchedBackup() throws Exception {
+    void legacyMigrationKeepsCustomDefinitionsWithoutCreatingABackup() throws Exception {
         Path world = directory.resolve("world");
         Path data = directory.resolve("plugin");
         Path legacy = world.resolve("datapacks/example/data/example/damage_type/custom.json");
@@ -140,10 +139,43 @@ class FarmersDelightBootstrapTest {
         DatapackSupport.migrateLegacyPack(world, data, "example");
         assertEquals("custom legacy definition", Files.readString(managed));
         assertEquals("current metadata", Files.readString(metadata));
-        assertEquals("custom legacy definition", Files.readString(data.resolve("datapack-backups/example/data/example/damage_type/custom.json")));
-        assertEquals("old metadata", Files.readString(data.resolve("datapack-backups/example/pack.mcmeta")));
+        assertFalse(Files.exists(data.resolve("datapack-backups")));
         assertFalse(Files.exists(world.resolve("datapacks/example")));
         assertTrue(Files.exists(data.resolve("datapacks/example/.legacy-migrated")));
+    }
+
+    @Test
+    void failedLegacyCopyLeavesTheSourcePackInPlace() throws Exception {
+        Path world = directory.resolve("world");
+        Path data = directory.resolve("plugin");
+        Path legacy = world.resolve("datapacks/example/data/example/damage_type/custom.json");
+        Files.createDirectories(legacy.getParent());
+        Files.writeString(legacy, "custom definition");
+        Files.createDirectories(data.resolve("datapacks/example"));
+        Files.writeString(data.resolve("datapacks/example/data"), "blocks target directory creation");
+        assertThrows(IOException.class, () -> DatapackSupport.migrateLegacyPack(world, data, "example"));
+        assertEquals("custom definition", Files.readString(legacy));
+        assertFalse(Files.exists(data.resolve("datapacks/example/.legacy-migrated")));
+        assertFalse(Files.exists(data.resolve("datapack-backups")));
+    }
+
+    @Test
+    void legacyMigrationLeavesExistingBackupsUntouched() throws Exception {
+        Path world = directory.resolve("world");
+        Path data = directory.resolve("plugin");
+        Path legacy = world.resolve("datapacks/example/custom.txt");
+        Path backup = data.resolve("datapack-backups/example/custom.txt");
+        Files.createDirectories(legacy.getParent());
+        Files.createDirectories(backup.getParent());
+        Files.writeString(legacy, "current legacy data");
+        Files.writeString(backup, "previous backup");
+        DatapackSupport.migrateLegacyPack(world, data, "example");
+        assertEquals("current legacy data", Files.readString(data.resolve("datapacks/example/custom.txt")));
+        assertEquals("previous backup", Files.readString(backup));
+        try (var backups = Files.list(data.resolve("datapack-backups"))) {
+            assertEquals(List.of(data.resolve("datapack-backups/example")), backups.toList());
+        }
+        assertFalse(Files.exists(world.resolve("datapacks/example")));
     }
 
     @Test

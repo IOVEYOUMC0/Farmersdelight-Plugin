@@ -191,7 +191,7 @@ public final class DatapackSupport {
         }
     }
 
-    // Keep the old pack for the first migration boot, then preserve it outside the world's pack scan.
+    // Keep the old pack for the migration boot, then remove it after copying its definitions.
     public static void migrateLegacyPack(Path worldRoot, Path dataDirectory, String name) throws IOException {
         migrateLegacyPacks(List.of(worldRoot.resolve("datapacks").resolve(name)), dataDirectory, name);
     }
@@ -222,7 +222,7 @@ public final class DatapackSupport {
                     }
                 }
             }
-            archiveLegacyPack(legacy, dataDirectory);
+            deleteRecursively(legacy);
         }
         writeIfChanged(managed.resolve(".legacy-migrated"), "Migrated to plugin-managed discovery.\n");
     }
