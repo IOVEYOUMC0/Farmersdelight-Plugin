@@ -78,18 +78,15 @@ public class HeatSourceConfig {
         // Read first so an entry can override anything the legacy lists below would have matched.
         loadEntries(section);
 
-        List<String> vanillaBlockList = ConfigSectionReader.optionalStringList(section, "vanilla-blocks");
-        for (String blockId : vanillaBlockList) {
+        for (String blockId : readList(section, "vanilla-blocks")) {
             addVanillaBlock(blockId);
         }
 
-        List<String> vanillaTagList = ConfigSectionReader.optionalStringList(section, "vanilla-tags");
-        for (String tagId : vanillaTagList) {
+        for (String tagId : readList(section, "vanilla-tags")) {
             addVanillaTag(tagId);
         }
 
-        List<String> tagList = ConfigSectionReader.optionalStringList(section, "tags");
-        for (String tagId : tagList) {
+        for (String tagId : readList(section, "tags")) {
             try {
                 addCustomBlockTag(Key.of(tagId));
             } catch (IllegalArgumentException e) {
@@ -98,8 +95,7 @@ public class HeatSourceConfig {
             }
         }
 
-        List<String> customBlockList = ConfigSectionReader.optionalStringList(section, "custom-blocks");
-        for (String blockId : customBlockList) {
+        for (String blockId : readList(section, "custom-blocks")) {
             try {
                 CustomBlockStateMatcher matcher = parseBlockState(blockId);
                 if (matcher != null) {
@@ -115,19 +111,34 @@ public class HeatSourceConfig {
             }
         }
 
-        List<String> conductorList = ConfigSectionReader.optionalStringList(section, "conductors");
-        for (String conductorId : conductorList) {
+        for (String conductorId : readList(section, "conductors")) {
             addVanillaConductor(conductorId);
         }
 
-        List<String> conductorTagList = ConfigSectionReader.optionalStringList(section, "conductor-tags");
-        for (String tagId : conductorTagList) {
+        for (String tagId : readList(section, "conductor-tags")) {
             try {
                 addConductorTag(Key.of(tagId));
             } catch (IllegalArgumentException e) {
                 I18n.logWarning("plugin.config_value_invalid", "file", "config.yml",
                         "path", section.getCurrentPath() + ".conductor-tags", "error", "invalid tag " + tagId);
             }
+        }
+    }
+
+    /**
+     * A list read that reports a wrong value type once and keeps the rest of the section loading.
+     *
+     *
+     * A scalar where a list belongs used to abort the whole reload — and, on the enable path, keep the plugin
+     * from enabling — over one hand-edit typo.
+     */
+    private static List<String> readList(ConfigurationSection section, String key) {
+        try {
+            return ConfigSectionReader.optionalStringList(section, key);
+        } catch (RuntimeException invalid) {
+            I18n.logWarning("plugin.config_value_invalid", "file", "config.yml",
+                    "path", section.getCurrentPath() + "." + key, "error", "expected a list of ids");
+            return List.of();
         }
     }
 

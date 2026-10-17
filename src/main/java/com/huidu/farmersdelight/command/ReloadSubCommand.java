@@ -29,9 +29,6 @@ final class ReloadSubCommand extends SubCommand {
     // every addon on the following tick, so a second request is refused instead of stacking another stall.
     // The cooldown is read per call, so editing config.yml takes effect without a reload of its own.
     private final ReloadBusyGuard busyGuard;
-    // Swapped per command so the refusal goes to whoever asked; the guard's own state lives in busyGuard.
-    private ReloadBusyGuard.RejectionSink rejectionSink = remainingSeconds -> {
-    };
 
     ReloadSubCommand(FarmersDelightPlugin plugin) {
         super("reload", List.of(), "farmersdelight.admin", "command.help_reload");
@@ -41,8 +38,7 @@ final class ReloadSubCommand extends SubCommand {
         // reached in that setup, so the guard reads the cooldown defensively.
         this.busyGuard = new ReloadBusyGuard(
                 () -> plugin == null ? 0L : plugin.reloadCooldownMillis(),
-                System::currentTimeMillis,
-                remainingSeconds -> rejectionSink.reject(remainingSeconds));
+                System::currentTimeMillis);
     }
 
     @Override
@@ -54,10 +50,18 @@ final class ReloadSubCommand extends SubCommand {
             return;
         }
 
+        // On Folia a command runs on the sender's region thread, but a reload reads/writes files and
+        // republishes the whole config, both of which belong on the global thread. scheduler().run() runs
+        // inline on Paper's main thread and dispatches to the global region on Folia, so the guard and the
+        // report stay on one thread.
+        plugin.scheduler().run(() -> runReload(sender, target));
+    }
+
+    private void runReload(CommandSender sender, ReloadTarget target) {
         // Refuse before doing any work: the caller is told to wait rather than being queued behind a pass that
-        // is already occupying the tick thread.
-        rejectionSink = ReloadBusyGuard.messageTo(sender);
-        if (!busyGuard.begin()) {
+        // is already occupying the tick thread. The sink travels with the request so a concurrent sender sees
+        // their own refusal.
+        if (!busyGuard.begin(ReloadBusyGuard.messageTo(sender))) {
             return;
         }
         // One pass, one set of figures: the previous pass's phases are dropped before any work starts.
@@ -106,6 +110,15 @@ final class ReloadSubCommand extends SubCommand {
                 sender.sendMessage(I18n.getComponent("command.reload_report_issues",
                         Map.of("prefix", report.get("prefix"), "issues", String.valueOf(issues))));
             }
+        } catch (Throwable failure) {
+            // A reload is a sequence of file reads and config publications; one failing step must still answer
+            // the sender and release the guard. The pass itself is ended in the finally below.
+            String message = failure.getMessage() == null
+                    ? failure.getClass().getSimpleName() : failure.getMessage();
+            I18n.logWarning("command.reload_failed", "error", message);
+            Map<String, String> report = placeholders();
+            report.put("error", message);
+            sender.sendMessage(I18n.getComponent("command.reload_failed", report));
         } finally {
             plugin.endReloadPass();
             // Released even when a reload throws, so one failure cannot wedge every later reload.

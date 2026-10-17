@@ -964,8 +964,17 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         BehaviorRegistrar.replayContentRegistrations();
         long reloadStart = System.nanoTime();
         // One parse per user file for this whole pass: validation and the load pass read the same four files,
-        // and a reload could not see two different contents anyway. Cleared at the start of every reload.
+        // and a reload could not see two different contents anyway. Closed in the finally below, so a later
+        // `/fd reload gui` (which opens no pass of its own) reads the current file rather than this pass's parse.
         configBootstrap.beginReload();
+        try {
+            reloadCommonBody(reloadLanguages, reloadStart);
+        } finally {
+            configBootstrap.endReload();
+        }
+    }
+
+    private void reloadCommonBody(boolean reloadLanguages, long reloadStart) {
         resetReloadTimings();
         long phase = System.nanoTime();
         configBootstrap.ensureConfigDefaults();

@@ -466,10 +466,20 @@ public final class BuffBossbarManager implements Listener {
     }
 
     private void dispatchToPlayer(Player player, Runnable action) {
-        if (plugin.scheduler().isFolia() && !Bukkit.isOwnedByCurrentRegion(player)) {
-            plugin.scheduler().runForEntity(player, action);
-        } else {
+        if (plugin.scheduler().isFolia()) {
+            if (Bukkit.isOwnedByCurrentRegion(player)) {
+                action.run();
+            } else {
+                plugin.scheduler().runForEntity(player, action);
+            }
+            return;
+        }
+        // Paper: bossbar/actionbar/player-list updates belong on the main thread. Addons may call this from
+        // their own threads (see the class javadoc), so hop there instead of running inline.
+        if (Bukkit.isPrimaryThread()) {
             action.run();
+        } else {
+            plugin.scheduler().run(action);
         }
     }
 

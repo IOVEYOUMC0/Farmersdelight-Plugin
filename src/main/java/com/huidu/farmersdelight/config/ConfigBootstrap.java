@@ -567,6 +567,17 @@ public final class ConfigBootstrap {
         cachingReloadReads = true;
     }
 
+    /**
+     * Closes the read cache after one reload.
+     *
+     * Without this the flag stays true for the rest of the session, and a later read that opens no pass of its
+     * own — {@code /fd reload gui} is the one — keeps serving this pass's parsed file instead of the current one.
+     */
+    public void endReload() {
+        cachingReloadReads = false;
+        reloadReads.clear();
+    }
+
     private YamlConfiguration readUserYaml(Path path, boolean shareable)
             throws IOException, InvalidConfigurationException {
         if (!cachingReloadReads || !shareable) {
