@@ -740,6 +740,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             return;
         }
         CountDownLatch pending = new CountDownLatch(players.size());
+        int skipped = 0;
         for (Player player : players) {
             try {
                 currentScheduler.runForEntity(player, () -> {
@@ -751,7 +752,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                         pending.countDown();
                     }
                 }, pending::countDown);
-            } catch (Throwable ignored) {
+            } catch (Throwable rejected) {
+                // Folia marks the plugin disabled before onDisable and its schedulers then refuse every task.
+                // Count the miss and report it: a silent skip loses that player's buff state.
+                skipped++;
                 pending.countDown();
             }
         }
@@ -763,6 +767,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             }
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
+        }
+        if (skipped > 0) {
+            getLogger().warning(I18n.formatConsole(
+                    "plugin.disable_step_save_player_buffs_skipped", "count", String.valueOf(skipped)));
         }
     }
 

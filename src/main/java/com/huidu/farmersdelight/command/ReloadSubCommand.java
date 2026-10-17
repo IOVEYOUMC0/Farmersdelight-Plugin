@@ -38,7 +38,8 @@ final class ReloadSubCommand extends SubCommand {
         // reached in that setup, so the guard reads the cooldown defensively.
         this.busyGuard = new ReloadBusyGuard(
                 () -> plugin == null ? 0L : plugin.reloadCooldownMillis(),
-                System::currentTimeMillis);
+                // Monotonic: a wall-clock correction must not stretch or bypass the cooldown.
+                () -> System.nanoTime() / 1_000_000L);
     }
 
     @Override
@@ -115,7 +116,7 @@ final class ReloadSubCommand extends SubCommand {
             // the sender and release the guard. The pass itself is ended in the finally below.
             String message = failure.getMessage() == null
                     ? failure.getClass().getSimpleName() : failure.getMessage();
-            I18n.logWarning("command.reload_failed", "error", message);
+            I18n.logWarning("plugin.reload_failed", "error", message);
             Map<String, String> report = placeholders();
             report.put("error", message);
             sender.sendMessage(I18n.getComponent("command.reload_failed", report));
