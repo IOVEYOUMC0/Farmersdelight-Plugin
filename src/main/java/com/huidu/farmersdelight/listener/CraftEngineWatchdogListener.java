@@ -79,6 +79,9 @@ public final class CraftEngineWatchdogListener implements Listener {
         }
         I18n.logSevere("plugin.missing_dependency", "name", "FarmersDelight",
                 "dependency", event.getPlugin().getName());
+        // Folia sets isEnabled(false) before onDisable and its schedulers then refuse every task, so the
+        // buff/bossbar flush has to run while we are still enabled. Harmless on Paper (main-thread save).
+        plugin.flushBeforeRuntimeDisable();
         plugin.getServer().getPluginManager().disablePlugin(plugin);
     }
 }

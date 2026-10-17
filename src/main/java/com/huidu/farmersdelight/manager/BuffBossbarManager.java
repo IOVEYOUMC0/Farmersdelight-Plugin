@@ -333,12 +333,20 @@ public final class BuffBossbarManager implements Listener {
     }
 
     private void hideAndClearAll() {
+        // Per-player isolation: on Folia the plugin is already disabled when onDisable runs, so the entity
+        // scheduler can refuse every task. One refusal must not leave the rest of the map uncleared (a
+        // leftover entry keeps the tick task armed and the client-side bar visible until the player rejoins).
         for (Iterator<Map.Entry<UUID, PlayerBars>> it = players.entrySet().iterator(); it.hasNext(); ) {
             Map.Entry<UUID, PlayerBars> entry = it.next();
             Player player = Bukkit.getPlayer(entry.getKey());
             PlayerBars state = entry.getValue();
             if (player != null) {
-                dispatchToPlayer(player, () -> hideAllOnPlayer(player, state));
+                try {
+                    dispatchToPlayer(player, () -> hideAllOnPlayer(player, state));
+                } catch (RuntimeException | LinkageError refused) {
+                    // Server-side state is cleared below; the client bar goes away on the next inventory sync
+                    // or reconnect.
+                }
             }
             it.remove();
         }
