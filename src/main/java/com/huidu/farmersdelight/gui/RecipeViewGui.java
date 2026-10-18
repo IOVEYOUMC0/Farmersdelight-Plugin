@@ -1787,56 +1787,10 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 return;
             }
             for (String command : commands) {
-                dispatchConfiguredCommand(player, command);
+                GuiCommandDispatcher.dispatch(player, command);
             }
         }, 1L);
         return true;
-    }
-
-    private void dispatchConfiguredCommand(Player player, String configuredCommand) {
-        ConfiguredCommand command = parseConfiguredCommand(configuredCommand, player);
-        if (command.command().isEmpty()) {
-            return;
-        }
-        if (command.console()) {
-            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command.command());
-        } else {
-            Bukkit.dispatchCommand(player, command.command());
-        }
-    }
-
-    private ConfiguredCommand parseConfiguredCommand(String configuredCommand, Player player) {
-        String command = applyCommandPlaceholders(configuredCommand, player).trim();
-        boolean console = false;
-        String lower = command.toLowerCase(Locale.ROOT);
-        if (lower.startsWith("[console]")) {
-            console = true;
-            command = command.substring("[console]".length()).trim();
-        } else if (lower.startsWith("[player]")) {
-            command = command.substring("[player]".length()).trim();
-        } else if (lower.startsWith("console:")) {
-            console = true;
-            command = command.substring("console:".length()).trim();
-        } else if (lower.startsWith("player:")) {
-            command = command.substring("player:".length()).trim();
-        }
-        while (command.startsWith("/")) {
-            command = command.substring(1).trim();
-        }
-        return new ConfiguredCommand(command, console);
-    }
-
-    private String applyCommandPlaceholders(String command, Player player) {
-        if (command == null) {
-            return "";
-        }
-        return command
-                .replace("{player}", player.getName())
-                .replace("{player_name}", player.getName())
-                .replace("%player%", player.getName())
-                .replace("%player_name%", player.getName())
-                .replace("{uuid}", player.getUniqueId().toString())
-                .replace("{world}", player.getWorld().getName());
     }
 
     @Override
@@ -1848,9 +1802,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
             return;
         }
         super.onClose(event);
-    }
-
-    private record ConfiguredCommand(String command, boolean console) {
     }
 
     private void returnToCookingPot(Player player) {

@@ -767,8 +767,8 @@ public final class DebugToolsCommand {
                         activation.location().clone().add(0.5, 0.5, 0.5), new ItemStack(Material.WHEAT_SEEDS, 16));
                 activated[0]++;
             } else if (isBuiltInTarget(activation.target())) {
-                // Count only a verified activation: the report used to tick the counter before the station
-                // actually changed state, so a failed reflection write still read as a success.
+                // Count only a verified activation: the counter must move after the station actually changed
+                // state, or a failed reflection write reads as a success.
                 if (activateScheduled(activation)) activated[0]++;
                 else failed[0]++;
             } else {

@@ -129,8 +129,8 @@ public class HeatSourceConfig {
      * A list read that reports a wrong value type once and keeps the rest of the section loading.
      *
      *
-     * A scalar where a list belongs used to abort the whole reload — and, on the enable path, keep the plugin
-     * from enabling — over one hand-edit typo.
+     * A scalar where a list belongs is reported and treated as an empty list, so one hand-edit typo cannot
+     * abort the whole reload or keep the plugin from enabling.
      */
     private static List<String> readList(ConfigurationSection section, String key) {
         try {

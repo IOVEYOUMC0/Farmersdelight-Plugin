@@ -7,10 +7,10 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * CraftEngine skips {@code useOnBlock} for a sneaking player who holds an item unless the behavior opts in via
- * {@code canUseOnBlockIfSecondaryUseActive}. The sneak gestures of the stations (carve a board, open a pot with
- * open-while-sneaking, place food on a stove, pass a held skillet through) live inside {@code useOnBlock}, so
- * these behaviors have to opt in or the gestures silently become unreachable.
+ * CraftEngine skips useOnBlock for a sneaking player who holds an item unless the behavior opts in via
+ * canUseOnBlockIfSecondaryUseActive. The sneak gestures of the stations (carve a board, open a pot with
+ * open-while-sneaking, place food on a stove, pass a held skillet through) live inside useOnBlock, so these
+ * behaviors have to opt in or the gestures silently become unreachable.
  */
 class SecondaryUseOptInContractTest {
 

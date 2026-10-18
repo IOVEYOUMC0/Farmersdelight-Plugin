@@ -68,9 +68,7 @@ import com.huidu.farmersdelight.recipe.SpecialRecipeLoader;
 import com.huidu.farmersdelight.recipe.SpecialRecipeRegistry;
 import com.huidu.farmersdelight.registry.BehaviorRegistrar;
 import com.huidu.farmersdelight.startup.StartupVersionBanner;
-import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CommonTagResolver;
-import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.InteractionDebouncer;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.compat.CustomItemPresence;
@@ -93,8 +91,6 @@ import com.huidu.farmersdelight.config.CuttingBoardSounds;
 import net.momirealms.craftengine.bukkit.api.event.CraftEngineReloadEvent;
 import net.momirealms.craftengine.bukkit.api.BukkitAdaptor;
 import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
-import net.momirealms.craftengine.bukkit.world.BukkitWorldManager;
-import net.momirealms.craftengine.core.world.CEWorld;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import org.bukkit.Bukkit;
@@ -691,7 +687,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         FarmersDelightCommandRegistrar.register(this);
     }
 
-    private void runDisableStep(String stepKey, Runnable action, Object... stepArgs) {
+    void runDisableStep(String stepKey, Runnable action, Object... stepArgs) {
         try {
             action.run();
         } catch (Throwable throwable) {
@@ -800,7 +796,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
      * Persists the state that needs a live scheduler while the plugin is still enabled.
      *
      *
-     * Folia sets {@code isEnabled(false)} before onDisable, and its schedulers then refuse every task, so a
+     * Folia sets isEnabled(false) before onDisable, and its schedulers then refuse every task, so a
      * buff save from onDisable would silently fail. CraftEngineWatchdogListener calls this before it disables
      * us; on Paper it is a harmless synchronous save on the main thread. The onDisable steps that repeat this
      * work skip themselves once the flag is set.
@@ -820,34 +816,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     // missing class, a broken CraftEngine handle) must not skip the managers after it, and the shutdown path
     // has no retry. Each failure is logged with its own step name; the sequence itself never throws.
     private void saveAllBlockData() {
-        if (scheduler != null && scheduler.isFolia()) {
-            runDisableStep("plugin.disable_step_save_cooking_pot_data", CookingPotBlockBehavior::markAllBlockEntitiesDirty);
-            runDisableStep("plugin.disable_step_save_cutting_board_data", CuttingBoardBlockBehavior::markAllBlockEntitiesDirty);
-        } else {
-            runDisableStep("plugin.disable_step_save_cooking_pot_data", CookingPotBlockBehavior::saveAllData);
-            runDisableStep("plugin.disable_step_save_cutting_board_data", CuttingBoardBlockBehavior::saveAllData);
-        }
-        runDisableStep("plugin.disable_step_save_skillet_data", SkilletBlockBehavior::saveAllData);
-        runDisableStep("plugin.disable_step_save_stove_data", StoveCookingBlockBehavior::saveAllData);
-
-        flushCraftEngineWorldData();
-    }
-
-    private void flushCraftEngineWorldData() {
-        BukkitWorldManager worldManager = BukkitWorldManager.instance();
-        if (worldManager == null) {
-            return;
-        }
-
-        for (World world : getServer().getWorlds()) {
-            runDisableStep("plugin.disable_step_flush_craftengine_world", () -> {
-                CEWorld ceWorld = CustomBlockUtils.getCEWorld(world);
-                if (ceWorld != null) {
-                    ceWorld.saveChunks();
-                    ceWorld.saveSettings();
-                }
-            }, "world", world.getName());
-        }
+        WorldDataPersistence.saveAllBlockData(this);
     }
 
     // ignoreCancelled: WorldUnloadEvent is cancellable, and this handler passivates + drops skillet/stove
@@ -875,22 +844,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     private void saveWorldBlockData(World world) {
-        if (world == null) {
-            return;
-        }
-
-        for (BlockPosKey posKey : CookingPotBlockBehavior.getAllBlockEntities(world).keySet()) {
-            CookingPotBlockBehavior.saveBlockEntityData(world, posKey);
-        }
-        for (BlockPosKey posKey : CuttingBoardBlockBehavior.getAllBlockEntities(world).keySet()) {
-            CuttingBoardBlockBehavior.saveBlockEntityData(world, posKey);
-        }
-        if (skilletManager != null) {
-            skilletManager.saveWorldData(world);
-        }
-        if (stoveManager != null) {
-            stoveManager.saveWorldData(world);
-        }
+        WorldDataPersistence.saveWorldBlockData(this, world);
     }
 
     @EventHandler
